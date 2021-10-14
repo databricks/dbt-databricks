@@ -170,11 +170,10 @@ class DBTIntegrationTest(unittest.TestCase):
                 'outputs': {
                     'cluster': {
                         'type': 'spark',
-                        'method': 'odbc',
+                        'method': 'http',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
                         'cluster': os.getenv('DBT_DATABRICKS_CLUSTER_NAME'),
                         'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'driver': os.getenv('ODBC_DRIVER'),
                         'port': 443,
                         'schema': self.unique_schema()
                     },
@@ -401,12 +400,10 @@ class DBTIntegrationTest(unittest.TestCase):
         return schema_fqn
 
     def _create_schema_named(self, database, schema):
-        relation = self.adapter.Relation.create(database=database, schema=schema)
-        self.adapter.create_schema(relation)
+        self.run_sql('CREATE SCHEMA {schema}')
 
     def _drop_schema_named(self, database, schema):
-        relation = self.adapter.Relation.create(database=database, schema=schema)
-        self.adapter.drop_schema(relation)
+        self.run_sql('DROP SCHEMA IF EXISTS {schema} CASCADE')
 
     def _create_schemas(self):
         schema = self.unique_schema()
