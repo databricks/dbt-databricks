@@ -9,13 +9,13 @@ with open(os.path.join(this_directory, 'README.md'), 'r', encoding='utf8') as f:
     long_description = f.read()
 
 
-package_name = "dbt-spark"
+package_name = "dbt-databricks"
 
 
 # get this from a separate file
-def _dbt_spark_version():
+def _dbt_databricks_version():
     _version_path = os.path.join(
-        this_directory, 'dbt', 'adapters', 'spark', '__version__.py'
+        this_directory, 'dbt', 'adapters', 'databricks', '__version__.py'
     )
     _version_pattern = r'''version\s*=\s*["'](.+)["']'''
     with open(_version_path) as f:
@@ -25,8 +25,8 @@ def _dbt_spark_version():
         return match.group(1)
 
 
-package_version = _dbt_spark_version()
-description = """The SparkSQL plugin for dbt (data build tool)"""
+package_version = _dbt_databricks_version()
+description = """The Databricks plugin for dbt (data build tool)"""
 
 dbt_version = '0.21.0'
 # the package version should be the dbt version, with maybe some things on the

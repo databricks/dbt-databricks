@@ -3,7 +3,7 @@ default:
 
     # Use this if connecting to a hosted spark (e.g. Databricks)
     dev:
-      type: spark
+      type: databricks
       method: odbc
       driver: [path/to/driver]
       schema: [schema_name]
@@ -21,7 +21,7 @@ default:
 
     # Use this if connecting to Dockerized spark
     prod:
-      type: spark
+      type: databricks
       method: thrift
       schema: [dev_schema]
       host: [host]
