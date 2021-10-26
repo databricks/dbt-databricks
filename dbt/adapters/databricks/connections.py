@@ -6,7 +6,7 @@ from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import ConnectionState
 from dbt.logger import GLOBAL_LOGGER as logger
 from dbt.utils import DECIMALS
-from dbt.adapters.spark import __version__
+from dbt.adapters.databricks import __version__
 
 try:
     from TCLIService.ttypes import TOperationState as ThriftState
@@ -56,7 +56,7 @@ class SparkConnectionMethod(StrEnum):
 
 
 @dataclass
-class SparkCredentials(Credentials):
+class DatabricksCredentials(Credentials):
     host: str
     method: SparkConnectionMethod
     database: Optional[str]
@@ -104,7 +104,7 @@ class SparkCredentials(Credentials):
                     f"{self.method} connection method requires "
                     "additional dependencies. \n"
                     "Install the additional required dependencies with "
-                    "`pip install dbt-spark[ODBC]`\n\n"
+                    "`pip install dbt-databricks[ODBC]`\n\n"
                     f"ImportError({e.msg})"
                 ) from e
 
@@ -128,12 +128,12 @@ class SparkCredentials(Credentials):
                 f"{self.method} connection method requires "
                 "additional dependencies. \n"
                 "Install the additional required dependencies with "
-                "`pip install dbt-spark[PyHive]`"
+                "`pip install dbt-databricks[PyHive]`"
             )
 
     @property
     def type(self):
-        return 'spark'
+        return 'databricks'
 
     @property
     def unique_field(self):
@@ -271,8 +271,8 @@ class PyodbcConnectionWrapper(PyhiveConnectionWrapper):
             self._cursor.execute(sql, *bindings)
 
 
-class SparkConnectionManager(SQLConnectionManager):
-    TYPE = 'spark'
+class DatabricksConnectionManager(SQLConnectionManager):
+    TYPE = 'databricks'
 
     SPARK_CLUSTER_HTTP_PATH = "/sql/protocolv1/o/{organization}/{cluster}"
     SPARK_SQL_ENDPOINT_HTTP_PATH = "/sql/1.0/endpoints/{endpoint}"
@@ -408,8 +408,8 @@ class SparkConnectionManager(SQLConnectionManager):
 
                     cls.validate_creds(creds, required_fields)
 
-                    dbt_spark_version = __version__.version
-                    user_agent_entry = f"fishtown-analytics-dbt-spark/{dbt_spark_version} (Databricks)"  # noqa
+                    dbt_databricks_version = __version__.version
+                    user_agent_entry = f"fishtown-analytics-dbt-databricks/{dbt_databricks_version} (Databricks)"  # noqa
 
                     # http://simba.wpengine.com/products/Spark/doc/ODBC_InstallGuide/unix/content/odbc/hi/configuring/serverside.htm
                     ssp = {

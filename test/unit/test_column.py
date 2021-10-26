@@ -1,6 +1,6 @@
 import unittest
 
-from dbt.adapters.spark import SparkColumn
+from dbt.adapters.databricks import SparkColumn
 
 
 class TestSparkColumn(unittest.TestCase):

@@ -1,4 +1,4 @@
-{% macro dbt_spark_validate_get_file_format(raw_file_format) %}
+{% macro dbt_databricks_validate_get_file_format(raw_file_format) %}
   {#-- Validate the file format #}
 
   {% set accepted_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'libsvm'] %}
@@ -16,7 +16,7 @@
 {% endmacro %}
 
 
-{% macro dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) %}
+{% macro dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) %}
   {#-- Validate the incremental strategy #}
 
   {% set invalid_strategy_msg -%}

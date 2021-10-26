@@ -77,7 +77,7 @@ class DBTSparkIntegrationTest(DBTIntegrationTestBase):
             'test': {
                 'outputs': {
                     'thrift': {
-                        'type': 'spark',
+                        'type': 'databricks',
                         'host': 'localhost',
                         'user': 'dbt',
                         'method': 'thrift',
@@ -99,7 +99,7 @@ class DBTSparkIntegrationTest(DBTIntegrationTestBase):
             'test': {
                 'outputs': {
                     'cluster': {
-                        'type': 'spark',
+                        'type': 'databricks',
                         'method': 'odbc',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
                         'cluster': os.getenv('DBT_DATABRICKS_CLUSTER_NAME'),
@@ -121,7 +121,7 @@ class DBTSparkIntegrationTest(DBTIntegrationTestBase):
             'test': {
                 'outputs': {
                     'endpoint': {
-                        'type': 'spark',
+                        'type': 'databricks',
                         'method': 'odbc',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
                         'endpoint': os.getenv('DBT_DATABRICKS_ENDPOINT'),

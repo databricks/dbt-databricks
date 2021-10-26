@@ -1,4 +1,4 @@
-{% macro spark__load_csv_rows(model, agate_table) %}
+{% macro databricks__load_csv_rows(model, agate_table) %}
     {% set batch_size = 1000 %}
     {% set column_override = model['config'].get('column_types', {}) %}
     
@@ -35,7 +35,7 @@
     {{ return(statements[0]) }}
 {% endmacro %}
 
-{% macro spark__reset_csv_table(model, full_refresh, old_relation, agate_table) %}
+{% macro databricks__reset_csv_table(model, full_refresh, old_relation, agate_table) %}
     {% if old_relation %}
         {{ adapter.drop_relation(old_relation) }}
     {% endif %}
@@ -44,7 +44,7 @@
 {% endmacro %}
 
 
-{% macro spark__create_csv_table(model, agate_table) %}
+{% macro databricks__create_csv_table(model, agate_table) %}
   {%- set column_override = model['config'].get('column_types', {}) -%}
   {%- set quote_seed_column = model['config'].get('quote_columns', None) -%}
 
@@ -72,7 +72,7 @@
 {% endmacro %}
 
 
-{% materialization seed, adapter='spark' %}
+{% materialization seed, adapter='databricks' %}
 
   {%- set identifier = model['alias'] -%}
   {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
