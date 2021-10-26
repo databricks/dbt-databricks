@@ -91,6 +91,21 @@ class TestDatabricksAdapter(unittest.TestCase):
             'target': 'test'
         })
 
+    def _get_target_databricks_sql_connector(self, project):
+        return config_from_parts_or_dicts(project, {
+            'outputs': {
+                'test': {
+                    'type': 'databricks',
+                    'method': 'dbsql',
+                    'schema': 'analytics',
+                    'host': 'myorg.sparkhost.com',
+                    'http_path': 'sql/protocolv1/o/1234567890123456/1234-567890-test123',
+                    'token': 'abc123',
+                }
+            },
+            'target': 'test'
+        })
+
     def _get_target_odbc_cluster(self, project):
         return config_from_parts_or_dicts(project, {
             'outputs': {
@@ -206,6 +221,30 @@ class TestDatabricksAdapter(unittest.TestCase):
 
             self.assertEqual(connection.state, 'open')
             self.assertIsNotNone(connection.handle)
+            self.assertEqual(connection.credentials.schema, 'analytics')
+            self.assertIsNone(connection.credentials.database)
+
+    def test_databricks_sql_connector_connection(self):
+        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        def databricks_sql_connector_connect(server_hostname, http_path, access_token):
+            self.assertEqual(server_hostname, 'myorg.sparkhost.com')
+            self.assertEqual(http_path, 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
+            self.assertEqual(access_token, 'abc123')
+
+        with mock.patch(
+            'dbt.adapters.databricks.connections.dbsql.connect',
+            new=databricks_sql_connector_connect
+        ):  # noqa
+            connection = adapter.acquire_connection('dummy')
+            connection.handle  # trigger lazy-load
+
+            self.assertEqual(connection.state, 'open')
+            self.assertIsNotNone(connection.handle)
+            self.assertEqual(connection.credentials.http_path,
+                'sql/protocolv1/o/1234567890123456/1234-567890-test123')
+            self.assertEqual(connection.credentials.token, 'abc123')
             self.assertEqual(connection.credentials.schema, 'analytics')
             self.assertIsNone(connection.credentials.database)
 
@@ -476,7 +515,7 @@ class TestDatabricksAdapter(unittest.TestCase):
         }
         with self.assertRaises(RuntimeException):
             config_from_parts_or_dicts(self.project_cfg, profile)
-
+            
     def test_profile_with_cluster_and_sql_endpoint(self):
         profile = {
             'outputs': {

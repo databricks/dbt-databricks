@@ -10,6 +10,8 @@ class DBTIntegrationTest(DBTIntegrationTestBase):
     def get_profile(self, adapter_type):
         if adapter_type == 'apache_spark':
             return self.apache_spark_profile()
+        elif adapter_type == 'databricks_sql_connector':
+            return self.databricks_sql_connector_profile()
         elif adapter_type == 'databricks_cluster':
             return self.databricks_cluster_profile()
         elif adapter_type == 'databricks_sql_endpoint':
@@ -19,7 +21,7 @@ class DBTIntegrationTest(DBTIntegrationTestBase):
 
     @staticmethod
     def _profile_from_test_name(test_name):
-        adapter_names = ('apache_spark', 'databricks_cluster',
+        adapter_names = ('apache_spark', 'databricks_sql_connector', 'databricks_cluster',
                          'databricks_sql_endpoint')
         adapters_in_name = sum(x in test_name for x in adapter_names)
         if adapters_in_name != 1:
@@ -88,6 +90,26 @@ class DBTIntegrationTest(DBTIntegrationTestBase):
                     },
                 },
                 'target': 'thrift'
+            }
+        }
+
+    def databricks_sql_connector_profile(self):
+        return {
+            'config': {
+                'send_anonymous_usage_stats': False
+            },
+            'test': {
+                'outputs': {
+                    'dbsql': {
+                        'type': 'databricks',
+                        'method': 'dbsql',
+                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
+                        'http_path': os.getenv('DBT_DATABRICKS_HTTP_PATH'),
+                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
+                        'schema': self.unique_schema()
+                    },
+                },
+                'target': 'dbsql'
             }
         }
 
