@@ -515,7 +515,7 @@ class TestDatabricksAdapter(unittest.TestCase):
         }
         with self.assertRaises(RuntimeException):
             config_from_parts_or_dicts(self.project_cfg, profile)
-            
+
     def test_profile_with_cluster_and_sql_endpoint(self):
         profile = {
             'outputs': {
