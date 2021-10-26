@@ -11,9 +11,9 @@ import dbt.exceptions
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.sql import SQLAdapter
-from dbt.adapters.spark import SparkConnectionManager
-from dbt.adapters.spark import SparkRelation
-from dbt.adapters.spark import SparkColumn
+from dbt.adapters.databricks import DatabricksConnectionManager
+from dbt.adapters.databricks import SparkRelation
+from dbt.adapters.databricks import SparkColumn
 from dbt.adapters.base import BaseRelation
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt.logger import GLOBAL_LOGGER as logger
@@ -30,7 +30,7 @@ KEY_TABLE_STATISTICS = 'Statistics'
 
 
 @dataclass
-class SparkConfig(AdapterConfig):
+class DatabricksConfig(AdapterConfig):
     file_format: str = 'parquet'
     location_root: Optional[str] = None
     partition_by: Optional[Union[List[str], str]] = None
@@ -40,7 +40,7 @@ class SparkConfig(AdapterConfig):
     merge_update_columns: Optional[str] = None
 
 
-class SparkAdapter(SQLAdapter):
+class DatabricksAdapter(SQLAdapter):
     COLUMN_NAMES = (
         'table_database',
         'table_schema',
@@ -71,8 +71,8 @@ class SparkAdapter(SQLAdapter):
 
     Relation = SparkRelation
     Column = SparkColumn
-    ConnectionManager = SparkConnectionManager
-    AdapterSpecificConfigs = SparkConfig
+    ConnectionManager = DatabricksConnectionManager
+    AdapterSpecificConfigs = DatabricksConfig
 
     @classmethod
     def date_function(cls) -> str:

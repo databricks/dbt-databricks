@@ -5,11 +5,11 @@ import dbt.flags as flags
 from dbt.exceptions import RuntimeException
 from agate import Row
 from pyhive import hive
-from dbt.adapters.spark import SparkAdapter, SparkRelation
+from dbt.adapters.databricks import DatabricksAdapter, SparkRelation
 from .utils import config_from_parts_or_dicts
 
 
-class TestSparkAdapter(unittest.TestCase):
+class TestDatabricksAdapter(unittest.TestCase):
 
     def setUp(self):
         flags.STRICT_MODE = False
@@ -30,7 +30,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'http',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -47,7 +47,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'thrift',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -62,7 +62,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'thrift',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -79,7 +79,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'thrift',
                     'use_ssl': True,
                     'schema': 'analytics',
@@ -95,7 +95,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'odbc',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -113,7 +113,7 @@ class TestSparkAdapter(unittest.TestCase):
         return config_from_parts_or_dicts(project, {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'odbc',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -128,7 +128,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_http_connection(self):
         config = self._get_target_http(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def hive_http_connect(thrift_transport):
             self.assertEqual(thrift_transport.scheme, 'https')
@@ -138,7 +138,7 @@ class TestSparkAdapter(unittest.TestCase):
                 thrift_transport.path, '/sql/protocolv1/o/0123456789/01234-23423-coffeetime')
 
         # with mock.patch.object(hive, 'connect', new=hive_http_connect):
-        with mock.patch('dbt.adapters.spark.connections.hive.connect', new=hive_http_connect):
+        with mock.patch('dbt.adapters.databricks.connections.hive.connect', new=hive_http_connect):
             connection = adapter.acquire_connection('dummy')
             connection.handle  # trigger lazy-load
 
@@ -152,7 +152,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_thrift_connection(self):
         config = self._get_target_thrift(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def hive_thrift_connect(host, port, username, auth, kerberos_service_name):
             self.assertEqual(host, 'myorg.sparkhost.com')
@@ -172,7 +172,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_thrift_ssl_connection(self):
         config = self._get_target_use_ssl_thrift(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def hive_thrift_connect(thrift_transport):
             self.assertIsNotNone(thrift_transport)
@@ -191,7 +191,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_thrift_connection_kerberos(self):
         config = self._get_target_thrift_kerberos(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def hive_thrift_connect(host, port, username, auth, kerberos_service_name):
             self.assertEqual(host, 'myorg.sparkhost.com')
@@ -211,7 +211,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_odbc_cluster_connection(self):
         config = self._get_target_odbc_cluster(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def pyodbc_connect(connection_str, autocommit):
             self.assertTrue(autocommit)
@@ -222,7 +222,7 @@ class TestSparkAdapter(unittest.TestCase):
             self.assertIn(
                 'httppath=/sql/protocolv1/o/0123456789/01234-23423-coffeetime;', connection_str.lower())  # noqa
 
-        with mock.patch('dbt.adapters.spark.connections.pyodbc.connect', new=pyodbc_connect):  # noqa
+        with mock.patch('dbt.adapters.databricks.connections.pyodbc.connect', new=pyodbc_connect):  # noqa
             connection = adapter.acquire_connection('dummy')
             connection.handle  # trigger lazy-load
 
@@ -236,7 +236,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_odbc_endpoint_connection(self):
         config = self._get_target_odbc_sql_endpoint(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
 
         def pyodbc_connect(connection_str, autocommit):
             self.assertTrue(autocommit)
@@ -247,7 +247,7 @@ class TestSparkAdapter(unittest.TestCase):
             self.assertIn(
                 'httppath=/sql/1.0/endpoints/012342342393920a;', connection_str.lower())  # noqa
 
-        with mock.patch('dbt.adapters.spark.connections.pyodbc.connect', new=pyodbc_connect):  # noqa
+        with mock.patch('dbt.adapters.databricks.connections.pyodbc.connect', new=pyodbc_connect):  # noqa
             connection = adapter.acquire_connection('dummy')
             connection.handle  # trigger lazy-load
 
@@ -298,7 +298,7 @@ class TestSparkAdapter(unittest.TestCase):
                       for r in plain_rows]
 
         config = self._get_target_http(self.project_cfg)
-        rows = SparkAdapter(config).parse_describe_extended(
+        rows = DatabricksAdapter(config).parse_describe_extended(
             relation, input_cols)
         self.assertEqual(len(rows), 4)
         self.assertEqual(rows[0].to_column_dict(omit_none=False), {
@@ -379,7 +379,7 @@ class TestSparkAdapter(unittest.TestCase):
                       for r in plain_rows]
 
         config = self._get_target_http(self.project_cfg)
-        rows = SparkAdapter(config).parse_describe_extended(
+        rows = DatabricksAdapter(config).parse_describe_extended(
             relation, input_cols)
 
         self.assertEqual(rows[0].to_column_dict().get('table_owner'), '1234')
@@ -419,7 +419,7 @@ class TestSparkAdapter(unittest.TestCase):
                       for r in plain_rows]
 
         config = self._get_target_http(self.project_cfg)
-        rows = SparkAdapter(config).parse_describe_extended(
+        rows = DatabricksAdapter(config).parse_describe_extended(
             relation, input_cols)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].to_column_dict(omit_none=False), {
@@ -448,7 +448,7 @@ class TestSparkAdapter(unittest.TestCase):
 
     def test_relation_with_database(self):
         config = self._get_target_http(self.project_cfg)
-        adapter = SparkAdapter(config)
+        adapter = DatabricksAdapter(config)
         # fine
         adapter.Relation.create(schema='different', identifier='table')
         with self.assertRaises(RuntimeException):
@@ -460,7 +460,7 @@ class TestSparkAdapter(unittest.TestCase):
         profile = {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'http',
                     # not allowed
                     'database': 'analytics2',
@@ -481,7 +481,7 @@ class TestSparkAdapter(unittest.TestCase):
         profile = {
             'outputs': {
                 'test': {
-                    'type': 'spark',
+                    'type': 'databricks',
                     'method': 'odbc',
                     'schema': 'analytics',
                     'host': 'myorg.sparkhost.com',
@@ -533,7 +533,7 @@ class TestSparkAdapter(unittest.TestCase):
         )
 
         config = self._get_target_http(self.project_cfg)
-        columns = SparkAdapter(config).parse_columns_from_information(
+        columns = DatabricksAdapter(config).parse_columns_from_information(
             relation)
         self.assertEqual(len(columns), 4)
         self.assertEqual(columns[0].to_column_dict(omit_none=False), {
@@ -618,7 +618,7 @@ class TestSparkAdapter(unittest.TestCase):
         )
 
         config = self._get_target_http(self.project_cfg)
-        columns = SparkAdapter(config).parse_columns_from_information(
+        columns = DatabricksAdapter(config).parse_columns_from_information(
             relation)
         self.assertEqual(len(columns), 4)
         self.assertEqual(columns[1].to_column_dict(omit_none=False), {
@@ -682,7 +682,7 @@ class TestSparkAdapter(unittest.TestCase):
         )
 
         config = self._get_target_http(self.project_cfg)
-        columns = SparkAdapter(config).parse_columns_from_information(
+        columns = DatabricksAdapter(config).parse_columns_from_information(
             relation)
         self.assertEqual(len(columns), 4)
         self.assertEqual(columns[2].to_column_dict(omit_none=False), {

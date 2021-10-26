@@ -1,5 +1,5 @@
 target:
-  type: spark
+  type: databricks
   host: localhost
   user: dbt
   method: thrift

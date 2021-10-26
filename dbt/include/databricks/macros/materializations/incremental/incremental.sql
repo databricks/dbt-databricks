@@ -1,11 +1,11 @@
-{% materialization incremental, adapter='spark' -%}
+{% materialization incremental, adapter='databricks' -%}
   
   {#-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --#}
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='append') -%}
   
-  {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
-  {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
+  {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
+  {%- set strategy = dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) -%}
   
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
@@ -34,7 +34,7 @@
   {% else %}
     {% do run_query(create_table_as(True, tmp_relation, sql)) %}
     {% do process_schema_changes(on_schema_change, tmp_relation, existing_relation) %}
-    {% set build_sql = dbt_spark_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
+    {% set build_sql = dbt_databricks_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
   {% endif %}
 
   {%- call statement('main') -%}

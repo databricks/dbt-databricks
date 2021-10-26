@@ -1,5 +1,5 @@
 target:
-  type: spark
+  type: databricks
   host: "{{ env_var('DBT_DATABRICKS_HOST_NAME') }}"
   cluster: "{{ env_var('DBT_DATABRICKS_CLUSTER_NAME') }}"
   token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
