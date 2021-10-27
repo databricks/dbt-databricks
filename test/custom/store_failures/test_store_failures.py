@@ -42,6 +42,10 @@ class TestStoreFailuresDelta(TestStoreFailures):
             }
         }
 
+    @use_profile("databricks_sql_connector")
+    def test_store_failures_databricks_sql_connector(self):
+        self.test_store_failures()
+
     @use_profile("databricks_cluster")
     def test_store_failures_databricks_cluster(self):
         self.test_store_failures()

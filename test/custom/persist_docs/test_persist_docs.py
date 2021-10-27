@@ -61,6 +61,11 @@ class TestPersistDocsDelta(DBTSparkIntegrationTest):
                     assert result[2].startswith('Some stuff here and then a call to')
 
     # runs on Spark v3.0
+    @use_profile("databricks_sql_connector")
+    def test_delta_comments_databricks_sql_connector(self):
+        self.test_delta_comments()
+
+    # runs on Spark v3.0
     @use_profile("databricks_cluster")
     def test_delta_comments_databricks_cluster(self):
         self.test_delta_comments()

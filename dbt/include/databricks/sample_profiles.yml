@@ -1,31 +1,11 @@
 default:
   outputs:
-
-    # Use this if connecting to a hosted spark (e.g. Databricks)
     dev:
       type: databricks
-      method: odbc
-      driver: [path/to/driver]
+      method: dbsql
       schema: [schema_name]
       host: [yourorg.sparkhost.com]
-      organization: [organization id]    # Azure Databricks only
+      http_path: [HTTP Path]
       token: [abc123]
-      
-      # one of:
-      endpoint: [endpoint id]
-      cluster: [cluster id]
-      
-      # optional
-      port: [port]              # default 443
-      user: [user]
-
-    # Use this if connecting to Dockerized spark
-    prod:
-      type: databricks
-      method: thrift
-      schema: [dev_schema]
-      host: [host]
-      port: [port]
-      user: [prod_user]
 
   target: dev

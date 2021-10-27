@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 
 import dbt.exceptions
@@ -7,6 +8,8 @@ from dbt.contracts.connection import ConnectionState
 from dbt.logger import GLOBAL_LOGGER as logger
 from dbt.utils import DECIMALS
 from dbt.adapters.databricks import __version__
+
+from databricks import sql as dbsql
 
 try:
     from TCLIService.ttypes import TOperationState as ThriftState
@@ -49,7 +52,8 @@ def _build_odbc_connnection_string(**kwargs) -> str:
     return ";".join([f"{k}={v}" for k, v in kwargs.items()])
 
 
-class SparkConnectionMethod(StrEnum):
+class DatabricksConnectionMethod(StrEnum):
+    DBSQL = 'dbsql'
     THRIFT = 'thrift'
     HTTP = 'http'
     ODBC = 'odbc'
@@ -58,8 +62,9 @@ class SparkConnectionMethod(StrEnum):
 @dataclass
 class DatabricksCredentials(Credentials):
     host: str
-    method: SparkConnectionMethod
+    method: DatabricksConnectionMethod
     database: Optional[str]
+    http_path: Optional[str] = None
     driver: Optional[str] = None
     cluster: Optional[str] = None
     endpoint: Optional[str] = None
@@ -96,7 +101,7 @@ class DatabricksCredentials(Credentials):
             )
         self.database = None
 
-        if self.method == SparkConnectionMethod.ODBC:
+        if self.method == DatabricksConnectionMethod.ODBC:
             try:
                 import pyodbc    # noqa: F401
             except ImportError as e:
@@ -109,7 +114,7 @@ class DatabricksCredentials(Credentials):
                 ) from e
 
         if (
-            self.method == SparkConnectionMethod.ODBC and
+            self.method == DatabricksConnectionMethod.ODBC and
             self.cluster and
             self.endpoint
         ):
@@ -119,8 +124,8 @@ class DatabricksCredentials(Credentials):
             )
 
         if (
-            self.method == SparkConnectionMethod.HTTP or
-            self.method == SparkConnectionMethod.THRIFT
+            self.method == DatabricksConnectionMethod.HTTP or
+            self.method == DatabricksConnectionMethod.THRIFT
         ) and not (
             ThriftState and THttpClient and hive
         ):
@@ -140,11 +145,11 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self):
-        return ('host', 'port', 'cluster',
+        return ('host', 'port', 'http_path', 'cluster',
                 'endpoint', 'schema', 'organization')
 
 
-class PyhiveConnectionWrapper(object):
+class ConnectionWrapper(metaclass=ABCMeta):
     """Wrap a Spark connection in a way that no-ops transactions"""
     # https://forums.databricks.com/questions/2157/in-apache-spark-sql-can-we-roll-back-the-transacti.html  # noqa
 
@@ -183,6 +188,53 @@ class PyhiveConnectionWrapper(object):
 
     def fetchall(self):
         return self._cursor.fetchall()
+
+    @abstractmethod
+    def execute(self, sql, bindings=None):
+        pass
+
+    @classmethod
+    def _fix_binding(cls, value):
+        """Convert complex datatypes to primitives that can be loaded by
+           the Spark driver"""
+        if isinstance(value, NUMBERS):
+            return float(value)
+        elif isinstance(value, datetime):
+            return value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        else:
+            return value
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+
+class DatabricksSQLConnectionWrapper(ConnectionWrapper):
+
+    def execute(self, sql, bindings=None):
+        if sql.strip().endswith(";"):
+            sql = sql.strip()[:-1]
+        if bindings is not None:
+            bindings = [self._fix_binding(binding) for binding in bindings]
+        self._cursor.execute(sql, bindings)
+
+
+class PyodbcConnectionWrapper(ConnectionWrapper):
+
+    def execute(self, sql, bindings=None):
+        if sql.strip().endswith(";"):
+            sql = sql.strip()[:-1]
+        # pyodbc does not handle a None type binding!
+        if bindings is None:
+            self._cursor.execute(sql)
+        else:
+            # pyodbc only supports `qmark` sql params!
+            query = sqlparams.SQLParams('format', 'qmark')
+            sql, bindings = query.format(sql, bindings)
+            self._cursor.execute(sql, *bindings)
+
+
+class PyhiveConnectionWrapper(ConnectionWrapper):
 
     def execute(self, sql, bindings=None):
         if sql.strip().endswith(";"):
@@ -239,36 +291,6 @@ class PyhiveConnectionWrapper(object):
                 "Query failed with status: {}".format(status_type))
 
         logger.debug("Poll status: {}, query complete".format(state))
-
-    @classmethod
-    def _fix_binding(cls, value):
-        """Convert complex datatypes to primitives that can be loaded by
-           the Spark driver"""
-        if isinstance(value, NUMBERS):
-            return float(value)
-        elif isinstance(value, datetime):
-            return value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        else:
-            return value
-
-    @property
-    def description(self):
-        return self._cursor.description
-
-
-class PyodbcConnectionWrapper(PyhiveConnectionWrapper):
-
-    def execute(self, sql, bindings=None):
-        if sql.strip().endswith(";"):
-            sql = sql.strip()[:-1]
-        # pyodbc does not handle a None type binding!
-        if bindings is None:
-            self._cursor.execute(sql)
-        else:
-            # pyodbc only supports `qmark` sql params!
-            query = sqlparams.SQLParams('format', 'qmark')
-            sql, bindings = query.format(sql, bindings)
-            self._cursor.execute(sql, *bindings)
 
 
 class DatabricksConnectionManager(SQLConnectionManager):
@@ -339,7 +361,23 @@ class DatabricksConnectionManager(SQLConnectionManager):
 
         for i in range(1 + creds.connect_retries):
             try:
-                if creds.method == SparkConnectionMethod.HTTP:
+                if creds.method == DatabricksConnectionMethod.DBSQL:
+                    if creds.http_path is None:
+                        raise dbt.exceptions.DbtProfileError(
+                            "`http_path` must set when"
+                            " using the dbsql method to connect to Databricks"
+                        )
+                    required_fields = ['host', 'http_path', 'token']
+
+                    cls.validate_creds(creds, required_fields)
+
+                    conn = dbsql.connect(
+                        server_hostname=creds.host,
+                        http_path=creds.http_path,
+                        access_token=creds.token,
+                    )
+                    handle = DatabricksSQLConnectionWrapper(conn)
+                elif creds.method == DatabricksConnectionMethod.HTTP:
                     cls.validate_creds(creds, ['token', 'host', 'port',
                                                'cluster', 'organization'])
 
@@ -367,7 +405,7 @@ class DatabricksConnectionManager(SQLConnectionManager):
 
                     conn = hive.connect(thrift_transport=transport)
                     handle = PyhiveConnectionWrapper(conn)
-                elif creds.method == SparkConnectionMethod.THRIFT:
+                elif creds.method == DatabricksConnectionMethod.THRIFT:
                     cls.validate_creds(creds,
                                        ['host', 'port', 'user', 'schema'])
 
@@ -386,7 +424,7 @@ class DatabricksConnectionManager(SQLConnectionManager):
                                             auth=creds.auth,
                                             kerberos_service_name=creds.kerberos_service_name)  # noqa
                     handle = PyhiveConnectionWrapper(conn)
-                elif creds.method == SparkConnectionMethod.ODBC:
+                elif creds.method == DatabricksConnectionMethod.ODBC:
                     if creds.cluster is not None:
                         required_fields = ['driver', 'host', 'port', 'token',
                                            'organization', 'cluster']
