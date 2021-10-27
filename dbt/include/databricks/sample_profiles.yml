@@ -1,7 +1,5 @@
 default:
   outputs:
-
-    # Use this if connecting to a hosted spark (e.g. Databricks)
     dev:
       type: databricks
       method: dbsql
@@ -9,17 +7,5 @@ default:
       host: [yourorg.sparkhost.com]
       http_path: [HTTP Path]
       token: [abc123]
-
-      # optional
-      user: [user]
-
-    # Use this if connecting to Dockerized spark
-    prod:
-      type: databricks
-      method: thrift
-      schema: [dev_schema]
-      host: [host]
-      port: [port]
-      user: [prod_user]
 
   target: dev
