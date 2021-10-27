@@ -61,6 +61,7 @@ setup(
     install_requires=[
         f'dbt-core=={dbt_version}',
         'sqlparams>=3.0.0',
+        'databricks-sql-connector',  # TODO: version range?
     ],
     extras_require={
         "ODBC": odbc_extras,

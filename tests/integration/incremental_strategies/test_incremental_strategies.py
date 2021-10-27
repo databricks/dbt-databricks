@@ -35,6 +35,10 @@ class TestDefaultAppend(TestIncrementalStrategies):
     def test_default_append_apache_spark(self):
         self.run_and_test()
 
+    @use_profile("databricks_sql_connector")
+    def test_default_append_databricks_sql_connector(self):
+        self.run_and_test()
+
     @use_profile("databricks_cluster")
     def test_default_append_databricks_cluster(self):
         self.run_and_test()
@@ -56,6 +60,10 @@ class TestInsertOverwrite(TestIncrementalStrategies):
     def test_insert_overwrite_apache_spark(self):
         self.run_and_test()
 
+    @use_profile("databricks_sql_connector")
+    def test_insert_overwrite_databricks_sql_connector(self):
+        self.run_and_test()
+
     @use_profile("databricks_cluster")
     def test_insert_overwrite_databricks_cluster(self):
         self.run_and_test()
@@ -72,6 +80,10 @@ class TestDeltaStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("merge_no_key", "expected_append")
         self.assertTablesEqual("merge_unique_key", "expected_upsert")
         self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
+
+    @use_profile("databricks_sql_connector")
+    def test_delta_strategies_databricks_sql_connector(self):
+        self.run_and_test()
 
     @use_profile("databricks_cluster")
     def test_delta_strategies_databricks_cluster(self):
@@ -92,6 +104,10 @@ class TestBadStrategies(TestIncrementalStrategies):
 
     @use_profile("apache_spark")
     def test_bad_strategies_apache_spark(self):
+        self.run_and_test()
+
+    @use_profile("databricks_sql_connector")
+    def test_bad_strategies_databricks_sql_connector(self):
         self.run_and_test()
 
     @use_profile("databricks_cluster")
