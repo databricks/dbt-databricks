@@ -2,11 +2,11 @@
   <img src="https://raw.githubusercontent.com/dbt-labs/dbt/ec7dee39f793aa4f7dd3dae37282cc87664813e4/etc/dbt-logo-full.svg" alt="dbt logo" width="500"/>
 </p>
 <p align="center">
-  <a href="https://github.com/dbt-labs/dbt-spark/actions/workflows/main.yml">
-    <img src="https://github.com/dbt-labs/dbt-spark/actions/workflows/main.yml/badge.svg?event=push" alt="Unit Tests Badge"/>
+  <a href="https://github.com/databricks/dbt-databricks/actions/workflows/main.yml">
+    <img src="https://github.com/databricks/dbt-databricks/actions/workflows/main.yml/badge.svg?event=push" alt="Unit Tests Badge"/>
   </a>
-  <a href="https://github.com/dbt-labs/dbt-spark/actions/workflows/integration.yml">
-    <img src="https://github.com/dbt-labs/dbt-spark/actions/workflows/integration.yml/badge.svg?event=push" alt="Integration Tests Badge"/>
+  <a href="https://github.com/databricks/dbt-databricks/actions/workflows/integration.yml">
+    <img src="https://github.com/databricks/dbt-databricks/actions/workflows/integration.yml/badge.svg?event=push" alt="Integration Tests Badge"/>
   </a>
 </p>
 
@@ -31,7 +31,7 @@ more information, consult [the docs](https://docs.getdbt.com/docs/profile-spark)
 
 ## Reporting bugs and contributing code
 
-- Want to report a bug or request a feature? Let us know on [Slack](http://community.getdbt.com/), or open [an issue](https://github.com/dbt-labs/dbt-spark/issues/new)
+- Want to report a bug or request a feature? Let us know on [Slack](http://community.getdbt.com/), or open [an issue](https://github.com/databricks/dbt-databricks/issues/new)
 - Want to help us build dbt? Check out the [Contributing Guide](https://github.com/dbt-labs/dbt/blob/HEAD/CONTRIBUTING.md)
 
 ## Code of Conduct

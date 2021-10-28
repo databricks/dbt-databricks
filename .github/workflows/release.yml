@@ -1,4 +1,4 @@
-# Builds the spark plugin and releases it to GitHub and Pypi
+# Builds the Databricks plugin and releases it to GitHub and Pypi
 name: Build and Release
 
 on:
@@ -27,9 +27,9 @@ jobs:
           pip install -r dev_requirements.txt
           pip install twine wheel setuptools
           python setup.py sdist bdist_wheel
-          pip install dist/dbt-spark-*.tar.gz
-          pip install dist/dbt_spark-*-py3-none-any.whl
-          twine check dist/dbt_spark-*-py3-none-any.whl dist/dbt-spark-*.tar.gz
+          pip install dist/dbt-databricks-*.tar.gz
+          pip install dist/databricks-*-py3-none-any.whl
+          twine check dist/databricks-*-py3-none-any.whl dist/dbt-databricks-*.tar.gz
 
   GitHubRelease:
     name: GitHub release
@@ -76,17 +76,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
           tag_name: v${{env.version_number}}
-          release_name: dbt-spark v${{env.version_number}}
+          release_name: dbt-databricks v${{env.version_number}}
           prerelease: ${{ steps.release_type.outputs.isPrerelease }}
           body: |
             Tracking [dbt-core v${{env.version_number}}](https://github.com/dbt-labs/dbt/releases/tag/v${{env.version_number}}).
 
             ```sh
-            $ pip install dbt-spark==${{env.version_number}}
-            # or
-            $ pip install "dbt-spark[ODBC]==${{env.version_number}}"
-            # or
-            $ pip install "dbt-spark[PyHive]==${{env.version_number}}"
+            $ pip install dbt-databricks==${{env.version_number}}
             ```
           
   PypiRelease:
@@ -115,5 +111,5 @@ jobs:
           pip install -r dev_requirements.txt
           pip install twine wheel setuptools
           python setup.py sdist bdist_wheel
-          twine upload --non-interactive dist/dbt_spark-${{env.version_number}}-py3-none-any.whl dist/dbt-spark-${{env.version_number}}.tar.gz
+          twine upload --non-interactive dist/dbt_databricks-${{env.version_number}}-py3-none-any.whl dist/dbt-databricks-${{env.version_number}}.tar.gz
           

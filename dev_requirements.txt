@@ -17,5 +17,3 @@ pytest-csv
 # Test requirements
 #pytest-dbt-adapter==0.5.1 
 git+https://github.com/dbt-labs/dbt-adapter-tests.git#egg=pytest-dbt-adapter
-sasl==0.2.1
-thrift_sasl==0.4.1

@@ -3,7 +3,6 @@ target:
   host: "{{ env_var('DBT_DATABRICKS_HOST_NAME') }}"
   http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH') }}"
   token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
-  method: dbsql
   schema: "analytics_{{ var('_dbt_random_suffix') }}"
   connect_retries: 5
   connect_timeout: 60

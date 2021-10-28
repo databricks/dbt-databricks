@@ -59,14 +59,7 @@ def _get_dbt_core_version():
 package_name = "dbt-databricks"
 package_version = _get_plugin_version()
 dbt_core_version = _get_dbt_core_version()
-description = """The Apache Spark adapter plugin for dbt"""
-
-odbc_extras = ['pyodbc>=4.0.30']
-pyhive_extras = [
-    'PyHive[hive]>=0.6.0,<0.7.0',
-    'thrift>=0.11.0,<0.12.0',
-]
-all_extras = odbc_extras + pyhive_extras
+description = """The Databricks adapter plugin for dbt"""
 
 setup(
     name=package_name,
@@ -76,20 +69,14 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
 
-    author='dbt Labs',
-    author_email='info@dbtlabs.com',
-    url='https://github.com/dbt-labs/dbt-spark',
+    author='Databricks',
+    author_email='feedback@databricks.com',
+    url='https://github.com/databricks/dbt-databricks',
 
     packages=find_namespace_packages(include=['dbt', 'dbt.*']),
     include_package_data=True,
     install_requires=[
         'dbt-core~={}'.format(dbt_core_version),
-        'sqlparams>=3.0.0',
         'databricks-sql-connector',  # TODO: version range?
     ],
-    extras_require={
-        "ODBC": odbc_extras,
-        "PyHive":  pyhive_extras,
-        "all": all_extras
-    }
 )

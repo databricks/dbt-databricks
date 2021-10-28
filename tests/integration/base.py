@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
 
-import pyodbc
 import pytest
 import yaml
 from unittest.mock import patch
@@ -80,8 +79,7 @@ class TestArgs:
 
 
 def _profile_from_test_name(test_name):
-    adapter_names = ('apache_spark', 'databricks_sql_connector', 'databricks_cluster',
-                     'databricks_sql_endpoint')
+    adapter_names = 'databricks_sql_connector',
     adapters_in_name = sum(x in test_name for x in adapter_names)
     if adapters_in_name != 1:
         raise ValueError(
@@ -139,28 +137,6 @@ class DBTIntegrationTest(unittest.TestCase):
     prefix = f'test{_runtime}{_randint:04}'
     setup_alternate_db = False
 
-    def apache_spark_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'thrift': {
-                        'type': 'databricks',
-                        'host': 'localhost',
-                        'user': 'dbt',
-                        'method': 'thrift',
-                        'port': 10000,
-                        'connect_retries': 5,
-                        'connect_timeout': 60,
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'thrift'
-            }
-        }
-
     def databricks_sql_connector_profile(self):
         return {
             'config': {
@@ -170,7 +146,6 @@ class DBTIntegrationTest(unittest.TestCase):
                 'outputs': {
                     'dbsql': {
                         'type': 'databricks',
-                        'method': 'dbsql',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
                         'http_path': os.getenv('DBT_DATABRICKS_HTTP_PATH'),
                         'token': os.getenv('DBT_DATABRICKS_TOKEN'),
@@ -178,50 +153,6 @@ class DBTIntegrationTest(unittest.TestCase):
                     },
                 },
                 'target': 'dbsql'
-            }
-        }
-
-    def databricks_cluster_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'cluster': {
-                        'type': 'databricks',
-                        'method': 'odbc',
-                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'cluster': os.getenv('DBT_DATABRICKS_CLUSTER_NAME'),
-                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'driver': os.getenv('ODBC_DRIVER'),
-                        'port': 443,
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'cluster'
-            }
-        }
-
-    def databricks_sql_endpoint_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'endpoint': {
-                        'type': 'databricks',
-                        'method': 'odbc',
-                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'endpoint': os.getenv('DBT_DATABRICKS_ENDPOINT'),
-                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'driver': os.getenv('ODBC_DRIVER'),
-                        'port': 443,
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'endpoint'
             }
         }
 
@@ -250,14 +181,8 @@ class DBTIntegrationTest(unittest.TestCase):
         return None
 
     def get_profile(self, adapter_type):
-        if adapter_type == 'apache_spark':
-            return self.apache_spark_profile()
-        elif adapter_type == 'databricks_sql_connector':
+        if adapter_type == 'databricks_sql_connector':
             return self.databricks_sql_connector_profile()
-        elif adapter_type == 'databricks_cluster':
-            return self.databricks_cluster_profile()
-        elif adapter_type == 'databricks_sql_endpoint':
-            return self.databricks_sql_endpoint_profile()
         else:
             raise ValueError('invalid adapter type {}'.format(adapter_type))
 
@@ -534,10 +459,11 @@ class DBTIntegrationTest(unittest.TestCase):
                 else:
                     # we have to fetch.
                     cursor.fetchall()
-            except pyodbc.ProgrammingError as e:
-                # hacks for dropping schema
-                if "No results.  Previous SQL was not a query." not in str(e):
-                    raise e
+            # TODO: does databricks-sql-connect have the similar error?
+            # except pyodbc.ProgrammingError as e:
+            #     # hacks for dropping schema
+            #     if "No results.  Previous SQL was not a query." not in str(e):
+            #         raise e
             except Exception as e:
                 conn.handle.rollback()
                 conn.transaction_open = False
