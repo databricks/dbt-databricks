@@ -1,4 +1,3 @@
-dbt-core==0.21.0
 databricks-sql-connector  # TODO: version range?
 PyHive[hive]>=0.6.0,<0.7.0
 pyodbc>=4.0.30
