@@ -4,8 +4,8 @@ default:
       type: databricks
       method: dbsql
       schema: [schema_name]
-      host: [yourorg.sparkhost.com]
+      host: [yourorg.databricks.com]
       http_path: [HTTP Path]
-      token: [abc123]
+      token: [dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX]
 
   target: dev
