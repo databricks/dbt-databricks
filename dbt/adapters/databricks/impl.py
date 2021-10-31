@@ -31,7 +31,7 @@ KEY_TABLE_STATISTICS = 'Statistics'
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
-    file_format: str = 'parquet'
+    file_format: str = 'delta'
     location_root: Optional[str] = None
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None

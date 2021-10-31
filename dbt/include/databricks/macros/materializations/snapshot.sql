@@ -74,7 +74,7 @@
 
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  {%- set file_format = config.get('file_format', 'parquet') -%}
+  {%- set file_format = config.get('file_format', 'delta') -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
           database=none,
