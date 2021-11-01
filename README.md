@@ -14,9 +14,9 @@
 
 dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-aggregate the raw data in your warehouse so that it's ready for analysis.
 
-## dbt-spark
+## dbt-databricks
 
-The `dbt-spark` package contains all of the code enabling dbt to work with Apache Spark and Databricks. For
+The `dbt-databricks` package contains all of the code enabling dbt to work with Databricks and hosted technologies such as Apache Spark, Delta Lake. For
 more information, consult [the docs](https://docs.getdbt.com/docs/profile-spark).
 
 ## Getting started
