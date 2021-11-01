@@ -4,7 +4,6 @@ from unittest import mock
 import dbt.flags as flags
 from dbt.exceptions import RuntimeException
 from agate import Row
-from pyhive import hive
 from dbt.adapters.databricks import DatabricksAdapter, SparkRelation
 from .utils import config_from_parts_or_dicts
 
