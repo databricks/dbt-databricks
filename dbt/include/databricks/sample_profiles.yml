@@ -2,7 +2,6 @@ default:
   outputs:
     dev:
       type: databricks
-      method: dbsql
       schema: [schema_name]
       host: [yourorg.databricks.com]
       http_path: [HTTP Path]
