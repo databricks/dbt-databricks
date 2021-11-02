@@ -37,13 +37,6 @@ if not package_version.startswith(dbt_version):
         f'dbt_version={dbt_version}'
     )
 
-odbc_extras = ['pyodbc>=4.0.30']
-pyhive_extras = [
-    'PyHive[hive]>=0.6.0,<0.7.0',
-    'thrift>=0.11.0,<0.12.0',
-]
-all_extras = odbc_extras + pyhive_extras
-
 setup(
     name=package_name,
     version=package_version,
@@ -52,20 +45,14 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
 
-    author='Fishtown Analytics',
-    author_email='info@fishtownanalytics.com',
-    url='https://github.com/fishtown-analytics/dbt-spark',
+    author='Databricks',
+    author_email='feedback@databricks.com',
+    url='https://github.com/databricks/dbt-databricks',
 
     packages=find_namespace_packages(include=['dbt', 'dbt.*']),
     include_package_data=True,
     install_requires=[
         f'dbt-core=={dbt_version}',
-        'sqlparams>=3.0.0',
         'databricks-sql-connector',  # TODO: version range?
     ],
-    extras_require={
-        "ODBC": odbc_extras,
-        "PyHive":  pyhive_extras,
-        "all": all_extras
-    }
 )

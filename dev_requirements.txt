@@ -11,5 +11,3 @@ flaky>=3.5.3,<4
 
 # Test requirements
 pytest-dbt-adapter==0.5.1
-sasl==0.2.1
-thrift_sasl==0.4.1

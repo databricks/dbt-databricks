@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug or an issue you've found with dbt-spark
+about: Report a bug or an issue you've found with dbt-databricks
 title: ''
 labels: bug, triage
 assignees: ''

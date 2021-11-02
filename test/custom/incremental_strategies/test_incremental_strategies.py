@@ -31,16 +31,8 @@ class TestDefaultAppend(TestIncrementalStrategies):
         self.seed_and_run_twice()
         self.assertTablesEqual("default_append", "expected_append")
 
-    @use_profile("apache_spark")
-    def test_default_append_apache_spark(self):
-        self.run_and_test()
-
     @use_profile("databricks_sql_connector")
     def test_default_append_databricks_sql_connector(self):
-        self.run_and_test()
-
-    @use_profile("databricks_cluster")
-    def test_default_append_databricks_cluster(self):
         self.run_and_test()
 
 
@@ -56,16 +48,8 @@ class TestInsertOverwrite(TestIncrementalStrategies):
         self.assertTablesEqual(
             "insert_overwrite_partitions", "expected_upsert")
 
-    @use_profile("apache_spark")
-    def test_insert_overwrite_apache_spark(self):
-        self.run_and_test()
-
     @use_profile("databricks_sql_connector")
     def test_insert_overwrite_databricks_sql_connector(self):
-        self.run_and_test()
-
-    @use_profile("databricks_cluster")
-    def test_insert_overwrite_databricks_cluster(self):
         self.run_and_test()
 
 
@@ -85,10 +69,6 @@ class TestDeltaStrategies(TestIncrementalStrategies):
     def test_delta_strategies_databricks_sql_connector(self):
         self.run_and_test()
 
-    @use_profile("databricks_cluster")
-    def test_delta_strategies_databricks_cluster(self):
-        self.run_and_test()
-
 
 class TestBadStrategies(TestIncrementalStrategies):
     @property
@@ -102,18 +82,6 @@ class TestBadStrategies(TestIncrementalStrategies):
             self.assertEqual("error", result.status)
             self.assertIn("Compilation Error in model", result.message)
 
-    @use_profile("apache_spark")
-    def test_bad_strategies_apache_spark(self):
-        self.run_and_test()
-
     @use_profile("databricks_sql_connector")
     def test_bad_strategies_databricks_sql_connector(self):
-        self.run_and_test()
-
-    @use_profile("databricks_cluster")
-    def test_bad_strategies_databricks_cluster(self):
-        self.run_and_test()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_bad_strategies_databricks_sql_endpoint(self):
         self.run_and_test()

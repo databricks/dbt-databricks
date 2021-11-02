@@ -63,54 +63,6 @@ class TestIncrementalOnSchemaChange(DBTSparkIntegrationTest):
         self.assertIn('Compilation Error', results_two[1].message)
 
 
-class TestApacheSparkAppend(TestIncrementalOnSchemaChange):
-
-    @property
-    def project_config(self):
-        return {
-            "config-version": 2,
-            "test-paths": ["tests"],
-            "models": {
-                "+incremental_strategy": "append",
-            }
-        }
-        
-    # only 'ignore' and 'fail' are supported
-
-    @use_profile('apache_spark')
-    def test__apache_spark__run_incremental_ignore(self):
-        self.run_incremental_ignore()
-
-    @use_profile('apache_spark')
-    def test__apache_spark__run_incremental_fail_on_schema_change(self):
-        self.run_incremental_fail_on_schema_change()
-
-
-class TestApacheSparkInsertOverwrite(TestIncrementalOnSchemaChange):
-
-    @property
-    def project_config(self):
-        return {
-            "config-version": 2,
-            "test-paths": ["tests"],
-            "models": {
-                "+file_format": "parquet",
-                "+partition_by": "id",
-                "+incremental_strategy": "insert_overwrite",
-            }
-        }
-        
-    # only 'ignore' and 'fail' are supported
-
-    @use_profile('apache_spark')
-    def test__apache_spark__run_incremental_ignore(self):
-        self.run_incremental_ignore()
-
-    @use_profile('apache_spark')
-    def test__apache_spark__run_incremental_fail_on_schema_change(self):
-        self.run_incremental_fail_on_schema_change()
-
-
 class TestDeltaOnSchemaChange(TestIncrementalOnSchemaChange):
     @property
     def project_config(self):
@@ -138,36 +90,4 @@ class TestDeltaOnSchemaChange(TestIncrementalOnSchemaChange):
 
     @use_profile('databricks_sql_connector')
     def test__databricks_sql_connector__run_incremental_sync_all_columns(self):
-        self.run_incremental_sync_all_columns()
-
-    @use_profile('databricks_cluster')
-    def test__databricks_cluster__run_incremental_ignore(self):
-        self.run_incremental_ignore()
-
-    @use_profile('databricks_cluster')
-    def test__databricks_cluster__run_incremental_fail_on_schema_change(self):
-        self.run_incremental_fail_on_schema_change()
-
-    @use_profile('databricks_cluster')
-    def test__databricks_cluster__run_incremental_append_new_columns(self):
-        self.run_incremental_append_new_columns()
-
-    @use_profile('databricks_cluster')
-    def test__databricks_cluster__run_incremental_sync_all_columns(self):
-        self.run_incremental_sync_all_columns()
-
-    @use_profile('databricks_sql_endpoint')
-    def test__databricks_sql_endpoint__run_incremental_ignore(self):
-        self.run_incremental_ignore()
-
-    @use_profile('databricks_sql_endpoint')
-    def test__databricks_sql_endpoint__run_incremental_fail_on_schema_change(self):
-        self.run_incremental_fail_on_schema_change()
-
-    @use_profile('databricks_sql_endpoint')
-    def test__databricks_sql_endpoint__run_incremental_append_new_columns(self):
-        self.run_incremental_append_new_columns()
-
-    @use_profile('databricks_sql_endpoint')
-    def test__databricks_sql_endpoint__run_incremental_sync_all_columns(self):
         self.run_incremental_sync_all_columns()
