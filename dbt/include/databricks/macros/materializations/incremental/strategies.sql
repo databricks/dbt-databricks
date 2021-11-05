@@ -19,7 +19,7 @@
 {% endmacro %}
 
 
-{% macro spark__get_merge_sql(target, source, unique_key, dest_columns, predicates=none) %}
+{% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, predicates=none) %}
   {# skip dest_columns, use merge_update_columns config if provided, otherwise use "*" #}
   {%- set update_columns = config.get("merge_update_columns") -%}
   
@@ -47,7 +47,7 @@
 {% endmacro %}
 
 
-{% macro dbt_spark_get_incremental_sql(strategy, source, target, unique_key) %}
+{% macro dbt_databricks_get_incremental_sql(strategy, source, target, unique_key) %}
   {%- if strategy == 'append' -%}
     {#-- insert new records into existing table, without updating or overwriting #}
     {{ get_insert_into_sql(source, target) }}

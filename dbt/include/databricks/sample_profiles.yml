@@ -1,0 +1,10 @@
+default:
+  outputs:
+    dev:
+      type: databricks
+      schema: [schema_name]
+      host: [yourorg.databricks.com]
+      http_path: [HTTP Path]
+      token: [dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX]
+
+  target: dev

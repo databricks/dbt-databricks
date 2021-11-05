@@ -23,12 +23,7 @@ class TestStoreFailures(DBTSparkIntegrationTest):
         self.run_dbt(['run'])
         results = self.run_dbt(['test', '--store-failures'], strict = False)
 
-class TestStoreFailuresApacheSpark(TestStoreFailures):
 
-    @use_profile("apache_spark")
-    def test_store_failures_apache_spark(self):
-        self.test_store_failures()
-        
 class TestStoreFailuresDelta(TestStoreFailures):
 
     @property
@@ -42,10 +37,6 @@ class TestStoreFailuresDelta(TestStoreFailures):
             }
         }
 
-    @use_profile("databricks_cluster")
-    def test_store_failures_databricks_cluster(self):
-        self.test_store_failures()
-    
-    @use_profile("databricks_sql_endpoint")
-    def test_store_failures_databricks_sql_endpoint(self):
+    @use_profile("databricks_sql_connector")
+    def test_store_failures_databricks_sql_connector(self):
         self.test_store_failures()

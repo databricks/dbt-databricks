@@ -1,4 +1,4 @@
-{% macro spark__snapshot_hash_arguments(args) -%}
+{% macro databricks__snapshot_hash_arguments(args) -%}
     md5({%- for arg in args -%}
         coalesce(cast({{ arg }} as string ), '')
         {% if not loop.last %} || '|' || {% endif %}
@@ -6,13 +6,13 @@
 {%- endmacro %}
 
 
-{% macro spark__snapshot_string_as_time(timestamp) -%}
+{% macro databricks__snapshot_string_as_time(timestamp) -%}
     {%- set result = "to_timestamp('" ~ timestamp ~ "')" -%}
     {{ return(result) }}
 {%- endmacro %}
 
 
-{% macro spark__snapshot_merge_sql(target, source, insert_cols) -%}
+{% macro databricks__snapshot_merge_sql(target, source, insert_cols) -%}
 
     merge into {{ target }} as DBT_INTERNAL_DEST
     using {{ source }} as DBT_INTERNAL_SOURCE
@@ -30,7 +30,7 @@
 {% endmacro %}
 
 
-{% macro spark_build_snapshot_staging_table(strategy, sql, target_relation) %}
+{% macro databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
     {% set tmp_identifier = target_relation.identifier ~ '__dbt_tmp' %}
                                 
     {%- set tmp_relation = api.Relation.create(identifier=tmp_identifier,
@@ -49,12 +49,12 @@
 {% endmacro %}
 
 
-{% macro spark__post_snapshot(staging_relation) %}
+{% macro databricks__post_snapshot(staging_relation) %}
     {% do adapter.drop_relation(staging_relation) %}
 {% endmacro %}
 
 
-{% macro spark__create_columns(relation, columns) %}
+{% macro databricks__create_columns(relation, columns) %}
     {% if columns|length > 0 %}
     {% call statement() %}
       alter table {{ relation }} add columns (
@@ -67,14 +67,14 @@
 {% endmacro %}
 
 
-{% materialization snapshot, adapter='spark' %}
+{% materialization snapshot, adapter='databricks' %}
   {%- set config = model['config'] -%}
 
   {%- set target_table = model.get('alias', model.get('name')) -%}
 
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  {%- set file_format = config.get('file_format', 'parquet') -%}
+  {%- set file_format = config.get('file_format', 'delta') -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
           database=none,
@@ -123,7 +123,7 @@
 
       {{ adapter.valid_snapshot_target(target_relation) }}
 
-      {% set staging_table = spark_build_snapshot_staging_table(strategy, sql, target_relation) %}
+      {% set staging_table = databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
 
       -- this may no-op if the database does not require column expansion
       {% do adapter.expand_target_column_types(from_relation=staging_table,

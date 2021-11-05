@@ -1,4 +1,4 @@
-name: dbt_spark
+name: dbt_databricks
 version: 1.0
 config-version: 2
 

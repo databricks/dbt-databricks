@@ -1,11 +1,8 @@
 target:
-  type: spark
+  type: databricks
   host: "{{ env_var('DBT_DATABRICKS_HOST_NAME') }}"
-  endpoint: "{{ env_var('DBT_DATABRICKS_ENDPOINT') }}"
+  http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH') }}"
   token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
-  method: odbc
-  driver: "{{ env_var('ODBC_DRIVER') }}"
-  port: 443
   schema: "analytics_{{ var('_dbt_random_suffix') }}"
   connect_retries: 5
   connect_timeout: 60
@@ -23,11 +20,9 @@ projects:
     dbt_project_yml: *file_format_delta
 sequences:
   test_dbt_empty: empty
-  # The SQL Endpoint no longer supports `set` ??
-  # test_dbt_base: base
+  test_dbt_base: base
   test_dbt_ephemeral: ephemeral
-  # The SQL Endpoint does not support `create temporary view`
-  # test_dbt_incremental: incremental
+  test_dbt_incremental: incremental
   test_dbt_snapshot_strategy_timestamp: snapshot_strategy_timestamp
   test_dbt_snapshot_strategy_check_cols: snapshot_strategy_check_cols
   test_dbt_data_test: data_test
