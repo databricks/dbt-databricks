@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -119,12 +120,27 @@ class DatabricksSQLConnectionWrapper(object):
 
 
 class DatabricksConnectionManager(SQLConnectionManager):
-    TYPE = 'databricks'
+    TYPE: ClassVar[str] = 'databricks'
+
+    DROP_JAVA_STACKTRACE_REGEX: ClassVar[re.Pattern] = re.compile(
+        r"(?<=Caused by: )(.+?)(?=^\s+?at )", re.DOTALL | re.MULTILINE
+    )
 
     @contextmanager
-    def exception_handler(self, sql):
+    def exception_handler(self, sql: str):
         try:
             yield
+
+        except dbsql.OperationalError as exc:
+            logger.debug("Error while running:\n{}".format(sql))
+            logger.debug(exc)
+            msg = str(exc)
+            m = self.DROP_JAVA_STACKTRACE_REGEX.search(msg)
+            if m:
+                msg = (
+                    "Query execution failed.\nError message: {}"
+                ).format(m.group().strip())
+            raise dbt.exceptions.RuntimeException(msg)
 
         except Exception as exc:
             logger.debug("Error while running:\n{}".format(sql))
