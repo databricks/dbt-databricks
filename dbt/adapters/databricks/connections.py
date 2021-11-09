@@ -122,7 +122,7 @@ class DatabricksSQLConnectionWrapper(object):
 class DatabricksConnectionManager(SQLConnectionManager):
     TYPE: ClassVar[str] = 'databricks'
 
-    DROP_JAVA_STACKTRACE_REGEX: ClassVar[re.Pattern] = re.compile(
+    DROP_JAVA_STACKTRACE_REGEX: ClassVar["re.Pattern[str]"] = re.compile(
         r"(?<=Caused by: )(.+?)(?=^\s+?at )", re.DOTALL | re.MULTILINE
     )
 
