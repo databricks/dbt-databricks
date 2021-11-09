@@ -16,8 +16,8 @@ dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-agg
 
 ## dbt-databricks
 
-The `dbt-databricks` package contains all of the code enabling dbt to work with Databricks and hosted technologies such as Apache Spark, Delta Lake. For
-more information, consult [the docs](https://docs.getdbt.com/docs/profile-spark).
+The `dbt-databricks` package contains all of the code enabling dbt to work with Databricks, Databricks SQL and Delta Lake. For
+more information, consult [the docs](https://docs.databricks.com/dev-tools/dbt.html).
 
 ## Getting started
 
@@ -26,7 +26,7 @@ more information, consult [the docs](https://docs.getdbt.com/docs/profile-spark)
 
 ## Join the dbt Community
 
-- Be part of the conversation in the [dbt Community Slack](http://community.getdbt.com/)
+- Be part of the conversation in the [dbt Community Slack](http://community.getdbt.com/). We would love to hear from you in the `#db-databricks-and-spark` channel.
 - Read more on the [dbt Community Discourse](https://discourse.getdbt.com)
 
 ## Reporting bugs and contributing code
