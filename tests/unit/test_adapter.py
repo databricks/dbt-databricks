@@ -3,6 +3,7 @@ from unittest import mock
 
 import dbt.flags as flags
 from dbt.exceptions import RuntimeException
+from dbt.adapters.databricks import __version__
 from agate import Row
 from dbt.adapters.databricks import DatabricksAdapter, SparkRelation
 from .utils import config_from_parts_or_dicts
@@ -43,10 +44,13 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        def databricks_sql_connector_connect(server_hostname, http_path, access_token):
+        def databricks_sql_connector_connect(
+            server_hostname, http_path, access_token, _user_agent_entry
+        ):
             self.assertEqual(server_hostname, 'yourorg.databricks.com')
             self.assertEqual(http_path, 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
             self.assertEqual(access_token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+            self.assertEqual(_user_agent_entry, f'dbt-databricks/{__version__.version}')
 
         with mock.patch(
             'dbt.adapters.databricks.connections.dbsql.connect',
