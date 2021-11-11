@@ -1,7 +1,6 @@
 {{ config(
     materialized = 'incremental',
     incremental_strategy = 'append',
-    file_format = 'delta',
 ) }}
 
 {% if not is_incremental() %}
