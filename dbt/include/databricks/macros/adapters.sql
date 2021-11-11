@@ -1,5 +1,5 @@
 {% macro file_format_clause() %}
-  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set file_format = config.get('file_format', default='delta') -%}
   {%- if file_format is not none %}
     using {{ file_format }}
   {%- endif %}
@@ -87,7 +87,7 @@
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    {% if config.get('file_format', validator=validation.any[basestring]) == 'delta' %}
+    {% if config.get('file_format', default='delta') == 'delta' %}
       create or replace table {{ relation }}
     {% else %}
       create table {{ relation }}
@@ -181,7 +181,7 @@
 {% endmacro %}
 
 {% macro databricks__alter_column_comment(relation, column_dict) %}
-  {% if config.get('file_format', validator=validation.any[basestring]) == 'delta' %}
+  {% if config.get('file_format', default='delta') == 'delta' %}
     {% for column_name in column_dict %}
       {% set comment = column_dict[column_name]['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}

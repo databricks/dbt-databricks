@@ -24,7 +24,7 @@ class TestStoreFailures(DBTIntegrationTest):
         results = self.run_dbt(['test', '--store-failures'])
 
 
-class TestStoreFailuresDelta(TestStoreFailures):
+class TestStoreFailuresParquet(TestStoreFailures):
 
     @property
     def project_config(self):
@@ -33,7 +33,7 @@ class TestStoreFailuresDelta(TestStoreFailures):
             'tests': {
                 '+store_failures': True,
                 '+severity': 'warn',
-                '+file_format': 'delta',
+                '+file_format': 'parquet',
             }
         }
 
