@@ -70,7 +70,6 @@ class TestDeltaOnSchemaChange(TestIncrementalOnSchemaChange):
             "config-version": 2,
             "test-paths": ["tests"],
             "models": {
-                "+file_format": "delta",
                 "+incremental_strategy": "merge",
                 "+unique_key": "id",
             }
