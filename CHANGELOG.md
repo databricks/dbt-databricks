@@ -1,10 +1,17 @@
 ## dbt-spark 1.0.0 (Release TBD)
 
+## dbt-spark 1.0.0rc1 (November 10, 2021)
+
 ### Under the hood
 
 - Remove official support for python 3.6, which is reaching end of life on December 23, 2021 ([dbt-core#4134](https://github.com/dbt-labs/dbt-core/issues/4134), [#253](https://github.com/dbt-labs/dbt-snowflake/pull/253))
 
+### Under the hood
+- Add support for structured logging [#251](https://github.com/dbt-labs/dbt-spark/pull/251)
+
 ## dbt-spark 0.21.1 (Release TBD)
+
+## dbt-spark 0.21.1rc1 (November 3, 2021)
 
 ### Fixes
 - Fix `--store-failures` for tests, by suppressing irrelevant error in `comment_clause()` macro ([#232](https://github.com/dbt-labs/dbt-spark/issues/232), [#233](https://github.com/dbt-labs/dbt-spark/pull/233))
