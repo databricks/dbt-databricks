@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Dict, Optional
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
+from dbt.adapters.databricks import __version__
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import ConnectionState
 from dbt.events import AdapterLogger
@@ -206,10 +207,14 @@ class DatabricksConnectionManager(SQLConnectionManager):
 
                 cls.validate_creds(creds, required_fields)
 
+                dbt_databricks_version = __version__.version
+                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
+
                 conn = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
                     access_token=creds.token,
+                    _user_agent_entry=user_agent_entry,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
