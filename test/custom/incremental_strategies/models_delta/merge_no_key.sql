@@ -1,6 +1,5 @@
 {{ config(
     materialized = 'incremental',
-    incremental_strategy = 'merge',
 ) }}
 
 {% if not is_incremental() %}
