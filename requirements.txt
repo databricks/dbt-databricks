@@ -1,2 +1,2 @@
 dbt-core==0.21.1rc1
-databricks-sql-connector  # TODO: version range?
+databricks-sql-connector>=0.9.0
