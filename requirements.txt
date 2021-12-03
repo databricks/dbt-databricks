@@ -1,2 +1,2 @@
-dbt-core==0.21.1rc2
+dbt-core==0.21.1
 databricks-sql-connector>=0.9.0
