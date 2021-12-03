@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/dbt-labs/dbt/ec7dee39f793aa4f7dd3dae37282cc87664813e4/etc/dbt-logo-full.svg" alt="dbt logo" width="500"/>
+  <img src="https://bynder-public-us-west-2.s3.amazonaws.com/styleguide/ABB317701CA31CB7F29268E32B303CAE-pdf-column-1.png" alt="databricks logo" width="50%" />
+  <img src="https://raw.githubusercontent.com/dbt-labs/dbt/ec7dee39f793aa4f7dd3dae37282cc87664813e4/etc/dbt-logo-full.svg" alt="dbt logo" width="250"/>
 </p>
 <p align="center">
   <a href="https://github.com/databricks/dbt-databricks/actions/workflows/main.yml">
@@ -12,28 +13,43 @@
 
 **[dbt](https://www.getdbt.com/)** enables data analysts and engineers to transform their data using the same practices that software engineers use to build applications.
 
-dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-aggregate the raw data in your warehouse so that it's ready for analysis.
+The **[Databricks Lakehouse](https://www.databricks.com/)** provides one simple platform to unify all your data, analytics and AI workloads.
 
-## dbt-databricks
+# dbt-databricks
 
-The `dbt-databricks` package contains all of the code enabling dbt to work with Databricks and hosted technologies such as Apache Spark, Delta Lake. For
-more information, consult [the docs](https://docs.getdbt.com/docs/profile-spark).
+The `dbt-databricks` adapter contains all of the code enabling dbt to work with Databricks.
+
+This adapter is based off the amazing work done in [dbt-spark](https://github.com/dbt-labs/dbt-spark)
 
 ## Getting started
 
-- [Install dbt](https://docs.getdbt.com/docs/installation)
-- Read the [introduction](https://docs.getdbt.com/docs/introduction/) and [viewpoint](https://docs.getdbt.com/docs/about/viewpoint/)
+### Installation
 
-## Join the dbt Community
+Install using pip:
+```nofmt
+pip install dbt-databricks
+```
 
-- Be part of the conversation in the [dbt Community Slack](http://community.getdbt.com/)
-- Read more on the [dbt Community Discourse](https://discourse.getdbt.com)
+Upgrade to the latest version
+```nofmt
+pip install --upgrade dbt-databricks
+```
 
-## Reporting bugs and contributing code
+### Profile Setup
 
-- Want to report a bug or request a feature? Let us know on [Slack](http://community.getdbt.com/), or open [an issue](https://github.com/databricks/dbt-databricks/issues/new)
-- Want to help us build dbt? Check out the [Contributing Guide](https://github.com/dbt-labs/dbt/blob/HEAD/CONTRIBUTING.md)
+```nofmt
+your_profile_name:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      schema: [database/schema name]
+      host: [your.databrickshost.com]
+      http_path: [/sql/your/http/path]
+      token: [dapiXXXXXXXXXXXXXXXXXXXXXXX]
+```
 
-## Code of Conduct
+### Compatibility
 
-Everyone interacting in the dbt project's codebases, issue trackers, chat rooms, and mailing lists is expected to follow the [dbt Code of Conduct](https://community.getdbt.com/code-of-conduct).
+The `dbt-databricks` adapter has been tested against `Databricks SQL` and `Databricks runtime releases 7.3 LTS` and later.
+
