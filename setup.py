@@ -77,6 +77,7 @@ setup(
     include_package_data=True,
     install_requires=[
         'dbt-core~={}'.format(dbt_core_version),
+        'dbt-spark~={}'.format(dbt_core_version),
         'databricks-sql-connector>=0.9.0',
     ],
     zip_safe=False,
