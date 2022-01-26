@@ -184,6 +184,12 @@ class DatabricksConnectionManager(SQLConnectionManager):
     def add_commit_query(self, *args, **kwargs):
         logger.debug("NotImplemented: add_commit_query")
 
+    def commit(self, *args, **kwargs):
+        logger.debug("NotImplemented: commit")
+
+    def rollback(self, *args, **kwargs):
+        logger.debug("NotImplemented: rollback")
+
     @classmethod
     def validate_creds(cls, creds, required):
         for key in required:
