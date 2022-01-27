@@ -29,31 +29,22 @@ with open(os.path.join(this_directory, 'README.md'), 'r', encoding='utf8') as f:
 
 
 # get this package's version from dbt/adapters/<name>/__version__.py
-def _get_plugin_version_dict():
+def _get_plugin_version():
     _version_path = os.path.join(
         this_directory, 'dbt', 'adapters', 'databricks', '__version__.py'
     )
-    _semver = r'''(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)'''
-    _pre = r'''((?P<prekind>a|b|rc)(?P<pre>\d+))?'''
-    _version_pattern = fr'''version\s*=\s*["']{_semver}{_pre}["']'''
-    with open(_version_path) as f:
-        match = re.search(_version_pattern, f.read().strip())
-        if match is None:
-            raise ValueError(f'invalid version at {_version_path}')
-        return match.groupdict()
-
-
-# require a compatible minor version (~=), prerelease if this is a prerelease
-def _get_dbt_core_version():
-    parts = _get_plugin_version_dict()
-    minor = "{major}.{minor}.0".format(**parts)
-    pre = (parts["prekind"]+"1" if parts["prekind"] else "")
-    return f"{minor}{pre}"
+    try:
+        exec(open(_version_path).read())
+        return locals()['version']
+    except IOError:
+        print("Failed to load dbt-databricks version file for packaging.",
+              file=sys.stderr)
+        sys.exit(-1)
 
 
 package_name = "dbt-databricks"
-package_version = "1.0.0"
-dbt_core_version = _get_dbt_core_version()
+package_version = _get_plugin_version()
+dbt_core_version = "1.0.0"
 description = """The Databricks adapter plugin for dbt"""
 
 setup(
