@@ -10,4 +10,6 @@ from dbt.include import databricks
 Plugin = AdapterPlugin(
     adapter=DatabricksAdapter,
     credentials=DatabricksCredentials,
-    include_path=databricks.PACKAGE_PATH)
+    include_path=databricks.PACKAGE_PATH,
+    dependencies=['spark']
+)
