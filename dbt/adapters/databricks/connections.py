@@ -13,6 +13,11 @@ from dbt.events import AdapterLogger
 from dbt.utils import DECIMALS
 
 from databricks import sql as dbsql
+from databricks.sql.client import (
+    Connection as DatabricksSQLConnection,
+    Cursor as DatabricksSQLCursor,
+)
+from databricks.sql.exc import OperationalError
 
 logger = AdapterLogger("Databricks")
 
@@ -65,43 +70,45 @@ class DatabricksSQLConnectionWrapper(object):
     """Wrap a Databricks SQL connector in a way that no-ops transactions"""
     # https://forums.databricks.com/questions/2157/in-apache-spark-sql-can-we-roll-back-the-transacti.html  # noqa
 
-    def __init__(self, handle):
-        self.handle = handle
+    _conn: DatabricksSQLConnection
+    _cursor: Optional[DatabricksSQLCursor]
+
+    def __init__(self, conn: DatabricksSQLConnection):
+        self._conn = conn
         self._cursor = None
 
     def cursor(self):
-        self._cursor = self.handle.cursor()
+        self._cursor = self._conn.cursor()
         return self
 
     def cancel(self):
         if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
             try:
                 self._cursor.cancel()
-            except EnvironmentError as exc:
+            except OperationalError as exc:
                 logger.debug(
                     "Exception while cancelling query: {}".format(exc)
                 )
 
     def close(self):
         if self._cursor:
-            # Handle bad response in the pyhive lib when
-            # the connection is cancelled
             try:
                 self._cursor.close()
-            except EnvironmentError as exc:
+            except OperationalError as exc:
                 logger.debug(
                     "Exception while closing cursor: {}".format(exc)
                 )
+        self._conn.close()
 
     def rollback(self, *args, **kwargs):
         logger.debug("NotImplemented: rollback")
 
     def fetchall(self):
+        assert self._cursor is not None
         return self._cursor.fetchall()
 
     def execute(self, sql, bindings=None):
+        assert self._cursor is not None
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]
         if bindings is not None:
@@ -119,6 +126,7 @@ class DatabricksSQLConnectionWrapper(object):
 
     @property
     def description(self):
+        assert self._cursor is not None
         return self._cursor.description
 
 
@@ -134,7 +142,7 @@ class DatabricksConnectionManager(SQLConnectionManager):
         try:
             yield
 
-        except dbsql.OperationalError as exc:
+        except OperationalError as exc:
             logger.debug("Error while running:\n{}".format(sql))
             logger.debug(exc)
             msg = str(exc)
@@ -214,7 +222,7 @@ class DatabricksConnectionManager(SQLConnectionManager):
                 dbt_databricks_version = __version__.version
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
-                conn = dbsql.connect(
+                conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
                     access_token=creds.token,
