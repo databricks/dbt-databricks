@@ -63,7 +63,6 @@
   {%- endif %}
 {%- endmacro -%}
 
-
 {% macro dbt_databricks_clustered_cols(label, required=false) %}
   {%- set cols = config.get('clustered_by', validator=validation.any[list, basestring]) -%}
   {%- set buckets = config.get('buckets', validator=validation.any[int]) -%}
@@ -79,14 +78,6 @@
     ) into {{ buckets }} buckets
   {%- endif %}
 {%- endmacro -%}
-
-{% macro dbt_databricks_fetch_tbl_properties(relation) -%}
-  {% call statement('list_properties', fetch_result=True) -%}
-    SHOW TBLPROPERTIES {{ relation }}
-  {% endcall %}
-  {% do return(load_result('list_properties').table) %}
-{%- endmacro %}
-
 
 {#-- We can't use temporary tables with `create ... as ()` syntax #}
 {% macro dbt_databricks_create_temporary_view(relation, sql) -%}
@@ -113,6 +104,13 @@
       {{ sql }}
   {%- endif %}
 {%- endmacro -%}
+
+{% macro databricks__create_view_as(relation, sql) -%}
+  create or replace view {{ relation }}
+  {{ dbt_databricks_comment_clause() }}
+  as
+    {{ sql }}
+{% endmacro %}
 
 {% macro databricks__alter_column_comment(relation, column_dict) %}
   {% if config.get('file_format', default='delta') in ['delta', 'hudi'] %}
