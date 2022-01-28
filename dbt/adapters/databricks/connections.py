@@ -7,10 +7,13 @@ from typing import Any, ClassVar, Dict, Optional
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.databricks import __version__
-from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import ConnectionState, AdapterResponse
+from dbt.contracts.connection import ConnectionState
 from dbt.events import AdapterLogger
 from dbt.utils import DECIMALS
+
+from dbt.adapters.spark.connections import (
+    SparkConnectionManager, _is_retryable_error
+)
 
 from databricks import sql as dbsql
 from databricks.sql.client import (
@@ -68,7 +71,6 @@ class DatabricksCredentials(Credentials):
 
 class DatabricksSQLConnectionWrapper(object):
     """Wrap a Databricks SQL connector in a way that no-ops transactions"""
-    # https://forums.databricks.com/questions/2157/in-apache-spark-sql-can-we-roll-back-the-transacti.html  # noqa
 
     _conn: DatabricksSQLConnection
     _cursor: Optional[DatabricksSQLCursor]
@@ -130,7 +132,7 @@ class DatabricksSQLConnectionWrapper(object):
         return self._cursor.description
 
 
-class DatabricksConnectionManager(SQLConnectionManager):
+class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: ClassVar[str] = 'databricks'
 
     DROP_JAVA_STACKTRACE_REGEX: ClassVar["re.Pattern[str]"] = re.compile(
@@ -165,30 +167,6 @@ class DatabricksConnectionManager(SQLConnectionManager):
                 raise dbt.exceptions.RuntimeException(msg)
             else:
                 raise dbt.exceptions.RuntimeException(str(exc))
-
-    def cancel(self, connection):
-        connection.handle.cancel()
-
-    @classmethod
-    def get_response(cls, cursor) -> AdapterResponse:
-        # https://github.com/dbt-labs/dbt-spark/issues/142
-        message = 'OK'
-        return AdapterResponse(
-            _message=message
-        )
-
-    # No transactions on Spark....
-    def add_begin_query(self, *args, **kwargs):
-        logger.debug("NotImplemented: add_begin_query")
-
-    def add_commit_query(self, *args, **kwargs):
-        logger.debug("NotImplemented: add_commit_query")
-
-    def commit(self, *args, **kwargs):
-        logger.debug("NotImplemented: commit")
-
-    def rollback(self, *args, **kwargs):
-        logger.debug("NotImplemented: rollback")
 
     @classmethod
     def validate_creds(cls, creds, required):
@@ -268,15 +246,3 @@ class DatabricksConnectionManager(SQLConnectionManager):
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
-
-
-def _is_retryable_error(exc: Exception) -> Optional[str]:
-    message = getattr(exc, 'message', None)
-    if message is None:
-        return None
-    message = message.lower()
-    if 'pending' in message:
-        return exc.message
-    if 'temporarily_unavailable' in message:
-        return exc.message
-    return None
