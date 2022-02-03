@@ -85,7 +85,7 @@ class TestArgs:
 
 
 def _profile_from_test_name(test_name):
-    adapter_names = 'databricks_sql_connector',
+    adapter_names = ('databricks_sql_connector', 'databricks_sql_endpoint_connector')
     adapters_in_name = sum(x in test_name for x in adapter_names)
     if adapters_in_name != 1:
         raise ValueError(
@@ -162,6 +162,25 @@ class DBTIntegrationTest(unittest.TestCase):
             }
         }
 
+    def databricks_sql_endpoint_connector_profile(self):
+        return {
+            'config': {
+                'send_anonymous_usage_stats': False
+            },
+            'test': {
+                'outputs': {
+                    'endpoint': {
+                        'type': 'databricks',
+                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
+                        'http_path': os.getenv('DBT_DATABRICKS_ENDPOINT_HTTP_PATH'),
+                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
+                        'schema': self.unique_schema()
+                    },
+                },
+                'target': 'endpoint'
+            }
+        }
+
     @property
     def packages_config(self):
         return None
@@ -189,6 +208,8 @@ class DBTIntegrationTest(unittest.TestCase):
     def get_profile(self, adapter_type):
         if adapter_type == 'databricks_sql_connector':
             return self.databricks_sql_connector_profile()
+        elif adapter_type == 'databricks_sql_endpoint_connector':
+            return self.databricks_sql_endpoint_connector_profile()
         else:
             raise ValueError('invalid adapter type {}'.format(adapter_type))
 
