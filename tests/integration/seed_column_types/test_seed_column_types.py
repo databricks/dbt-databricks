@@ -20,6 +20,10 @@ class TestSeedColumnTypeCast(DBTIntegrationTest):
             },
         }
 
-    @use_profile("databricks_sql_connector")
-    def test_seed_column_types_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_seed_column_types_databricks_cluster(self):
+        self.run_dbt(["seed"])
+
+    @use_profile("databricks_sql_endpoint")
+    def test_seed_column_types_databricks_sql_endpoint(self):
         self.run_dbt(["seed"])
