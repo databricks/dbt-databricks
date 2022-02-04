@@ -1,11 +1,12 @@
 import unittest
 from unittest import mock
 
+from agate import Row
 import dbt.flags as flags
 from dbt.exceptions import RuntimeException
+
 from dbt.adapters.databricks import __version__
-from agate import Row
-from dbt.adapters.databricks import DatabricksAdapter, SparkRelation
+from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from .utils import config_from_parts_or_dicts
 
 
@@ -69,9 +70,9 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_relation(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.Table
+        rel_type = DatabricksRelation.get_relation_type.Table
 
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='mytable',
             type=rel_type
@@ -167,9 +168,9 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_relation_with_integer_owner(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.Table
+        rel_type = DatabricksRelation.get_relation_type.Table
 
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='mytable',
             type=rel_type
@@ -194,9 +195,9 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_relation_with_statistics(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.Table
+        rel_type = DatabricksRelation.get_relation_type.Table
 
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='mytable',
             type=rel_type
@@ -266,7 +267,7 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_columns_from_information_with_table_type_and_delta_provider(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.Table
+        rel_type = DatabricksRelation.get_relation_type.Table
 
         # Mimics the output of Spark in the information column
         information = (
@@ -292,7 +293,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |-- struct_col: struct (nullable = true)\n"
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='mytable',
             type=rel_type,
@@ -343,7 +344,7 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_columns_from_information_with_view_type(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.View
+        rel_type = DatabricksRelation.get_relation_type.View
         information = (
             "Database: default_schema\n"
             "Table: myview\n"
@@ -377,7 +378,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |-- struct_col: struct (nullable = true)\n"
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='myview',
             type=rel_type,
@@ -418,7 +419,7 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_parse_columns_from_information_with_table_type_and_parquet_provider(self):
         self.maxDiff = None
-        rel_type = SparkRelation.get_relation_type.Table
+        rel_type = DatabricksRelation.get_relation_type.Table
 
         information = (
             "Database: default_schema\n"
@@ -441,7 +442,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |-- struct_col: struct (nullable = true)\n"
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
-        relation = SparkRelation.create(
+        relation = DatabricksRelation.create(
             schema='default_schema',
             identifier='mytable',
             type=rel_type,

@@ -4,8 +4,8 @@
   {%- set raw_file_format = config.get('file_format', default='delta') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='merge') -%}
   
-  {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
-  {%- set strategy = dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) -%}
+  {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
+  {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
   
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
