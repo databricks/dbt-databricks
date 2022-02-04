@@ -1,7 +1,7 @@
 ## dbt-databricks 1.0.1 (Release TBD)
 
 ### Features
-- Inherit from dbt-spark for backward compatibility ([#32](https://github.com/databricks/dbt-databricks/issues/32), [#35](https://github.com/databricks/dbt-databricks/pull/35))
+- Inherit from dbt-spark for backward compatibility with spark-utils and other dbt packages ([#32](https://github.com/databricks/dbt-databricks/issues/32), [#35](https://github.com/databricks/dbt-databricks/pull/35))
 - Add SQL Endpoint specific integration tests ([#45](https://github.com/databricks/dbt-databricks/pull/45), [#46](https://github.com/databricks/dbt-databricks/pull/46))
 
 ### Fixes
