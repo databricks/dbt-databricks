@@ -26,7 +26,7 @@ class TestIncrementalStrategies(DBTIntegrationTest):
         self.run_dbt(["run"])
 
 
-class TestDefaultAppend(TestIncrementalStrategies):
+class TestParquetAppend(TestIncrementalStrategies):
     @property
     def models(self):
         return "models"
@@ -35,12 +35,12 @@ class TestDefaultAppend(TestIncrementalStrategies):
         self.seed_and_run_twice()
         self.assertTablesEqual("default_append", "expected_append")
 
-    @use_profile("databricks_sql_connector")
-    def test_default_append_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_default_append_databricks_cluster(self):
         self.run_and_test()
 
 
-class TestInsertOverwrite(TestIncrementalStrategies):
+class TestParquetInsertOverwrite(TestIncrementalStrategies):
     @property
     def models(self):
         return "models_insert_overwrite"
@@ -52,8 +52,8 @@ class TestInsertOverwrite(TestIncrementalStrategies):
         self.assertTablesEqual(
             "insert_overwrite_partitions", "expected_upsert")
 
-    @use_profile("databricks_sql_connector")
-    def test_insert_overwrite_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_insert_overwrite_databricks_cluster(self):
         self.run_and_test()
 
 
@@ -69,9 +69,14 @@ class TestDeltaStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("merge_unique_key", "expected_upsert")
         self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
 
-    @use_profile("databricks_sql_connector")
-    def test_delta_strategies_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_delta_strategies_databricks_cluster(self):
         self.run_and_test()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_delta_strategies_databricks_sql_endpoint(self):
+        self.run_and_test()
+
 
 # Uncomment this hudi integration test after the hudi 0.10.0 release to make it work.
 # class TestHudiStrategies(TestIncrementalStrategies):
@@ -106,6 +111,10 @@ class TestBadStrategies(TestIncrementalStrategies):
             self.assertEqual("error", result.status)
             self.assertIn("Compilation Error in model", result.message)
 
-    @use_profile("databricks_sql_connector")
-    def test_bad_strategies_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_bad_strategies_databricks_cluster(self):
+        self.run_and_test()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_bad_strategies_databricks_sql_endpoint(self):
         self.run_and_test()

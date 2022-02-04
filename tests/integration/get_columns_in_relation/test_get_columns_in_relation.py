@@ -14,6 +14,10 @@ class TestGetColumnInRelationInSameRun(DBTIntegrationTest):
         self.run_dbt(["run"])
         self.assertTablesEqual("child", "get_columns_from_child")
 
-    @use_profile("databricks_sql_connector")
-    def test_get_columns_in_relation_in_same_run_databricks_sql_connector(self):
+    @use_profile("databricks_cluster")
+    def test_get_columns_in_relation_in_same_run_databricks_cluster(self):
+        self.run_and_test()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_get_columns_in_relation_in_same_run_databricks_sql_endpoint(self):
         self.run_and_test()
