@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toxenv: [flake8]
+        toxenv: [linter]
 
     env:
       TOXENV: ${{ matrix.toxenv }}
