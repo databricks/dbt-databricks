@@ -11,7 +11,7 @@ from dbt.adapters.spark.impl import SparkAdapter
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
-    file_format: str = 'delta'
+    file_format: str = "delta"
     location_root: Optional[str] = None
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None

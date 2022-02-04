@@ -11,5 +11,5 @@ Plugin = AdapterPlugin(
     adapter=DatabricksAdapter,
     credentials=DatabricksCredentials,
     include_path=databricks.PACKAGE_PATH,
-    dependencies=['spark']
+    dependencies=["spark"],
 )

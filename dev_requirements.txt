@@ -13,6 +13,8 @@ ipdb
 pytest-xdist>=2.1.0,<3
 flaky>=3.5.3,<4
 pytest-csv
+mypy==0.920
+black==21.12b0
 
 # Test requirements
 pytest-dbt-adapter==0.6.0
