@@ -1,38 +1,6 @@
-{% macro databricks__snapshot_hash_arguments(args) -%}
-    md5({%- for arg in args -%}
-        coalesce(cast({{ arg }} as string ), '')
-        {% if not loop.last %} || '|' || {% endif %}
-    {%- endfor -%})
-{%- endmacro %}
-
-
-{% macro databricks__snapshot_string_as_time(timestamp) -%}
-    {%- set result = "to_timestamp('" ~ timestamp ~ "')" -%}
-    {{ return(result) }}
-{%- endmacro %}
-
-
-{% macro databricks__snapshot_merge_sql(target, source, insert_cols) -%}
-
-    merge into {{ target }} as DBT_INTERNAL_DEST
-    using {{ source }} as DBT_INTERNAL_SOURCE
-    on DBT_INTERNAL_SOURCE.dbt_scd_id = DBT_INTERNAL_DEST.dbt_scd_id
-    when matched
-     and DBT_INTERNAL_DEST.dbt_valid_to is null
-     and DBT_INTERNAL_SOURCE.dbt_change_type in ('update', 'delete')
-        then update
-        set dbt_valid_to = DBT_INTERNAL_SOURCE.dbt_valid_to
-
-    when not matched
-     and DBT_INTERNAL_SOURCE.dbt_change_type = 'insert'
-        then insert *
-    ;
-{% endmacro %}
-
-
 {% macro databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
     {% set tmp_identifier = target_relation.identifier ~ '__dbt_tmp' %}
-                                
+
     {%- set tmp_relation = api.Relation.create(identifier=tmp_identifier,
                                                   schema=target_relation.schema,
                                                   database=none,
@@ -47,25 +15,6 @@
 
     {% do return(tmp_relation) %}
 {% endmacro %}
-
-
-{% macro databricks__post_snapshot(staging_relation) %}
-    {% do adapter.drop_relation(staging_relation) %}
-{% endmacro %}
-
-
-{% macro databricks__create_columns(relation, columns) %}
-    {% if columns|length > 0 %}
-    {% call statement() %}
-      alter table {{ relation }} add columns (
-        {% for column in columns %}
-          `{{ column.name }}` {{ column.data_type }} {{- ',' if not loop.last -}}
-        {% endfor %}
-      );
-    {% endcall %}
-    {% endif %}
-{% endmacro %}
-
 
 {% materialization snapshot, adapter='databricks' %}
   {%- set config = model['config'] -%}
