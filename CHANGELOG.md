@@ -1,3 +1,20 @@
+## dbt-databricks 1.0.1 (Release TBD)
+
+### Features
+- Inherit from dbt-spark for backward compatibility ([#32](https://github.com/databricks/dbt-databricks/issues/32), [#35](https://github.com/databricks/dbt-databricks/pull/35))
+- Add SQL Endpoint specific integration tests ([#45](https://github.com/databricks/dbt-databricks/pull/45), [#46](https://github.com/databricks/dbt-databricks/pull/46))
+
+### Fixes
+- Close the connection properly ([#34](https://github.com/databricks/dbt-databricks/issues/34), [#37](https://github.com/databricks/dbt-databricks/pull/37))
+
+## dbt-databricks 1.0.0 (Dec 6, 2021)
+
+### Features
+- Make the connection use databricks-sql-connector ([#3](https://github.com/databricks/dbt-databricks/pull/3), [#7](https://github.com/databricks/dbt-databricks/pull/7))
+- Make the default file format 'delta' ([#14](https://github.com/databricks/dbt-databricks/pull/14), [#16](https://github.com/databricks/dbt-databricks/pull/16))
+- Make the default incremental strategy 'merge' ([#23](https://github.com/databricks/dbt-databricks/pull/23))
+- Remove unnecessary stack trace ([#10](https://github.com/databricks/dbt-databricks/pull/10))
+
 ## dbt-spark 1.0.0 (Release TBD)
 
 ### Fixes
