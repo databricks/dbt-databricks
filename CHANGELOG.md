@@ -1,4 +1,6 @@
-## dbt-databricks 1.0.1 (Release TBD)
+## dbt-databricks 1.0.2 (Release TBD)
+
+## dbt-databricks 1.0.1 (Feb 8, 2022)
 
 ### Features
 - Inherit from dbt-spark for backward compatibility with spark-utils and other dbt packages ([#32](https://github.com/databricks/dbt-databricks/issues/32), [#35](https://github.com/databricks/dbt-databricks/pull/35))
