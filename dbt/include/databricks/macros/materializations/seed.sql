@@ -20,6 +20,7 @@
     {{ dbt_databricks_clustered_cols(label="clustered by") }}
     {{ dbt_databricks_location_clause() }}
     {{ dbt_databricks_comment_clause() }}
+    {{ dbt_databricks_tblproperties_clause() }}
   {% endset %}
 
   {% call statement('_') -%}
