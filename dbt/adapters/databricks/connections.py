@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import re
 import time
 from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
@@ -35,7 +35,7 @@ class DatabricksCredentials(Credentials):
     token: Optional[str] = None
     connect_retries: int = 0
     connect_timeout: int = 10
-    server_side_parameters: Dict[str, Any] = field(default_factory=dict)
+    session_properties: Optional[Dict[str, Any]] = None
     retry_all: bool = False
 
     @classmethod
@@ -246,6 +246,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     server_hostname=creds.host,
                     http_path=creds.http_path,
                     access_token=creds.token,
+                    session_configuration=creds.session_properties,
                     _user_agent_entry=user_agent_entry,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
