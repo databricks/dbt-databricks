@@ -1,0 +1,94 @@
+# **what?**
+# This workflow runs all integration tests for supported OS
+# and python versions and core adapters. If triggered by PR,
+# the workflow will only run tests for adapters related
+# to code changes. Use the `test all` and `test ${adapter}`
+# label to run all or additional tests. Use `ok to test`
+# label to mark PRs from forked repositories that are safe
+# to run integration tests for. Requires secrets to run
+# against different warehouses.
+
+# **why?**
+# This checks the functionality of dbt from a user's perspective
+# and attempts to catch functional regressions.
+
+# **when?**
+# This workflow will run on every push to a protected branch
+# and when manually triggered. It will also run for all PRs, including
+# PRs from forks. The workflow will be skipped until there is a label
+# to mark the PR as safe to run.
+
+name: Integration Test
+
+on:
+  # pushes to release branches
+  push:
+    branches:
+      - "main"
+      - "*.latest"
+  # will run in the context of the target branch of a PR
+  pull_request: # TODO change back to pull_request_target
+  # manual trigger
+  workflow_dispatch:
+  # run this once per night to ensure no regressions from latest dbt-core / dbt-spark changes
+  schedule:
+    - cron: '0 5 * * *' # 5 UTC
+
+# explicitly turn off permissions for `GITHUB_TOKEN`
+permissions: read-all
+
+# sets default shell to bash, for all operating systems
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  integration:
+    name: toxenv ${{ matrix.toxenv }}
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toxenv: integration-databricks-sql-endpoint
+            http_path: DBT_DATABRICKS_ENDPOINT_HTTP_PATH
+          - toxenv: integration-databricks-cluster
+            http_path: DBT_DATABRICKS_CLUSTER_HTTP_PATH_10
+
+    env:
+      TOXENV: ${{ matrix.toxenv }}
+      PYTEST_ADDOPTS: "-v --color=yes"
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_HOST_NAME }}
+      DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets[matrix.http_path] }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install python dependencies
+        run: |
+          sudo apt-get install libsasl2-dev
+          pip install --user --upgrade pip
+          pip install tox
+          pip --version
+          tox --version
+
+      - name: Run tox
+        if: env.DBT_DATABRICKS_HTTP_PATH != ''
+        run: tox
+
+      - uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: logs
+          path: ./logs

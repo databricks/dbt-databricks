@@ -153,7 +153,10 @@ class DBTIntegrationTest(unittest.TestCase):
                     'dbsql': {
                         'type': 'databricks',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_CLUSTER_HTTP_PATH'),
+                        'http_path': os.getenv(
+                            'DBT_DATABRICKS_CLUSTER_HTTP_PATH',
+                            os.getenv('DBT_DATABRICKS_HTTP_PATH')
+                        ),
                         'token': os.getenv('DBT_DATABRICKS_TOKEN'),
                         'schema': self.unique_schema()
                     },
@@ -172,7 +175,10 @@ class DBTIntegrationTest(unittest.TestCase):
                     'endpoint': {
                         'type': 'databricks',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_ENDPOINT_HTTP_PATH'),
+                        'http_path': os.getenv(
+                            'DBT_DATABRICKS_ENDPOINT_HTTP_PATH',
+                            os.getenv('DBT_DATABRICKS_HTTP_PATH')
+                        ),
                         'token': os.getenv('DBT_DATABRICKS_TOKEN'),
                         'schema': self.unique_schema()
                     },
