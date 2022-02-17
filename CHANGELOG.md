@@ -1,6 +1,6 @@
 ## dbt-databricks 1.0.2 (Release TBD)
 
-## dbt-databricks 1.0.1 (Feb 8, 2022)
+## dbt-databricks 1.0.1 (February 8, 2022)
 
 ### Features
 - Inherit from dbt-spark for backward compatibility with spark-utils and other dbt packages ([#32](https://github.com/databricks/dbt-databricks/issues/32), [#35](https://github.com/databricks/dbt-databricks/pull/35))
@@ -9,7 +9,7 @@
 ### Fixes
 - Close the connection properly ([#34](https://github.com/databricks/dbt-databricks/issues/34), [#37](https://github.com/databricks/dbt-databricks/pull/37))
 
-## dbt-databricks 1.0.0 (Dec 6, 2021)
+## dbt-databricks 1.0.0 (December 6, 2021)
 
 ### Features
 - Make the connection use databricks-sql-connector ([#3](https://github.com/databricks/dbt-databricks/pull/3), [#7](https://github.com/databricks/dbt-databricks/pull/7))
@@ -17,7 +17,7 @@
 - Make the default incremental strategy 'merge' ([#23](https://github.com/databricks/dbt-databricks/pull/23))
 - Remove unnecessary stack trace ([#10](https://github.com/databricks/dbt-databricks/pull/10))
 
-## dbt-spark 1.0.0 (Release TBD)
+## dbt-spark 1.0.0 (December 3, 2021)
 
 ### Fixes
 - Incremental materialization corrected to respect `full_refresh` config, by using `should_full_refresh()` macro ([#260](https://github.com/dbt-labs/dbt-spark/issues/260), [#262](https://github.com/dbt-labs/dbt-spark/pull/262/))
