@@ -44,7 +44,7 @@ defaults:
 
 jobs:
   integration:
-    name: toxenv ${{ matrix.env_name }}
+    name: ${{ matrix.env_name }}
 
     runs-on: ubuntu-latest
 
