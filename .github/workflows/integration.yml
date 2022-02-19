@@ -44,7 +44,7 @@ defaults:
 
 jobs:
   integration:
-    name: toxenv ${{ matrix.toxenv }}
+    name: toxenv ${{ matrix.env_name }}
 
     runs-on: ubuntu-latest
 
@@ -52,17 +52,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - toxenv: integration-databricks-sql-endpoint
-            http_path: DBT_DATABRICKS_ENDPOINT_HTTP_PATH
-          - toxenv: integration-databricks-cluster
-            http_path: DBT_DATABRICKS_CLUSTER_HTTP_PATH_10
+          - env_name: SQL Endpoint
+            toxenv: integration-databricks-sql-endpoint
+            http_path_key: DBT_DATABRICKS_ENDPOINT_HTTP_PATH
+          - env_name: DBR 10.x
+            toxenv: integration-databricks-cluster
+            http_path_key: DBT_DATABRICKS_CLUSTER_HTTP_PATH_10
+          - env_name: DBR 9.1 LTS
+            toxenv: integration-databricks-cluster
+            http_path_key: DBT_DATABRICKS_CLUSTER_HTTP_PATH_9_1_LTS
 
     env:
       TOXENV: ${{ matrix.toxenv }}
       PYTEST_ADDOPTS: "-v --color=yes"
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_HOST_NAME }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
-      DBT_DATABRICKS_HTTP_PATH: ${{ secrets[matrix.http_path] }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets[matrix.http_path_key] }}
 
     steps:
       - name: Check out the repository
