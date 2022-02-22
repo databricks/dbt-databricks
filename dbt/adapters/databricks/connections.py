@@ -2,13 +2,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 import re
 import time
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
+
+from agate import Table
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.databricks import __version__
 from dbt.contracts.connection import Connection, ConnectionState
 from dbt.events import AdapterLogger
+from dbt.events.functions import fire_event
+from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS
 
 from dbt.adapters.spark.connections import SparkConnectionManager, _is_retryable_error
@@ -134,6 +138,15 @@ class DatabricksSQLConnectionWrapper(object):
         assert self._cursor is not None
         return self._cursor.description
 
+    def schemas(
+        self, catalog_name: Optional[str] = None, schema_name: Optional[str] = None
+    ) -> None:
+        assert self._cursor is not None
+        self._cursor.schemas(
+            catalog_name=catalog_name if isinstance(catalog_name, str) else None,
+            schema_name=schema_name if isinstance(schema_name, str) else None,
+        )
+
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: ClassVar[str] = "databricks"
@@ -168,6 +181,35 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 raise dbt.exceptions.RuntimeException(msg)
             else:
                 raise dbt.exceptions.RuntimeException(str(exc))
+
+    def _execute_cursor(
+        self, log_sql: str, f: Callable[[DatabricksSQLConnectionWrapper], None]
+    ) -> Table:
+        connection = self.get_thread_connection()
+
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
+
+        with self.exception_handler(log_sql):
+            fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+            pre = time.time()
+
+            handle: DatabricksSQLConnectionWrapper = connection.handle
+            cursor = handle.cursor()
+            f(cursor)
+
+            fire_event(
+                SQLQueryStatus(
+                    status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                )
+            )
+
+        return self.get_result_from_cursor(cursor)
+
+    def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> Table:
+        return self._execute_cursor(
+            "GetSchemas",
+            lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
+        )
 
     @classmethod
     def validate_creds(cls, creds: DatabricksCredentials, required: List[str]) -> None:
