@@ -4,7 +4,7 @@ import re
 import time
 from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
 
-import agate
+from agate import Table
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -183,8 +183,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 raise dbt.exceptions.RuntimeException(str(exc))
 
     def _execute_cursor(
-        self, log_sql: str, f: Callable[[DatabricksSQLCursor], None]
-    ) -> agate.Table:
+        self, log_sql: str, f: Callable[[DatabricksSQLConnectionWrapper], None]
+    ) -> Table:
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
@@ -205,7 +205,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return self.get_result_from_cursor(cursor)
 
-    def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> agate.Table:
+    def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> Table:
         return self._execute_cursor(
             "GetSchemas",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
