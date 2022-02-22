@@ -29,3 +29,13 @@ class DatabricksAdapter(SparkAdapter):
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
+
+    def list_schemas(self, database: Optional[str]) -> List[str]:
+        """Get a list of existing schemas in database."""
+        results = self.connections.list_schemas(database=database)
+        return [row[0] for row in results]
+
+    def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
+        """Check if a schema exists."""
+        results = self.connections.list_schemas(database=database, schema=schema)
+        return schema.lower() in [row[0].lower() for row in results]
