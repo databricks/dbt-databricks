@@ -20,18 +20,28 @@ class TestSetTblproperties(DBTIntegrationTest):
         self.run_dbt(['run'])
 
         self.assertTablesEqual("set_tblproperties", "expected")
+        self.assertTablesEqual("set_tblproperties_to_view", "expected")
 
         results = self.run_sql(
-            'describe extended {schema}.{table}'.format(
+            'show tblproperties {schema}.{table}'.format(
                 schema=self.unique_schema(), table='set_tblproperties'
             ),
             fetch='all'
         )
+        tblproperties = [result[0] for result in results]
 
-        for result in results:
-            if result[0] == 'Table Properties':
-                assert 'delta.autoOptimize.optimizeWrite' in result[1]
-                assert 'delta.autoOptimize.autoCompact' in result[1]
+        assert 'delta.autoOptimize.optimizeWrite' in tblproperties
+        assert 'delta.autoOptimize.autoCompact' in tblproperties
+
+        results = self.run_sql(
+            'show tblproperties {schema}.{table}'.format(
+                schema=self.unique_schema(), table='set_tblproperties_to_view'
+            ),
+            fetch='all'
+        )
+        tblproperties = [result[0] for result in results]
+
+        assert 'tblproperties_to_view' in tblproperties
 
     @use_profile("databricks_cluster")
     def test_set_tblproperties_databricks_cluster(self):

@@ -84,7 +84,7 @@
   {%- if tblproperties is not none %}
     tblproperties (
       {%- for prop in tblproperties -%}
-      {{ prop }} = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
+      '{{ prop }}' = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
       {%- endfor %}
     )
   {%- endif %}
@@ -120,6 +120,7 @@
 {% macro databricks__create_view_as(relation, sql) -%}
   create or replace view {{ relation }}
   {{ dbt_databricks_comment_clause() }}
+  {{ dbt_databricks_tblproperties_clause() }}
   as
     {{ sql }}
 {% endmacro %}

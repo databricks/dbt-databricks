@@ -1,7 +1,7 @@
 ## dbt-databricks 1.0.2 (Release TBD)
 
 ### Features
-- Support to set tblproperties when creating tables ([#33](https://github.com/databricks/dbt-databricks/issues/33), [#49](https://github.com/databricks/dbt-databricks/pull/49))
+- Support for setting table properties as part of a model configuration ([#33](https://github.com/databricks/dbt-databricks/issues/33), [#49](https://github.com/databricks/dbt-databricks/pull/49))
 
 ## dbt-databricks 1.0.1 (February 8, 2022)
 
