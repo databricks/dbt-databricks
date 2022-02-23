@@ -36,6 +36,9 @@ class TestDatabricksAdapter(unittest.TestCase):
                     'host': 'yourorg.databricks.com',
                     'http_path': 'sql/protocolv1/o/1234567890123456/1234-567890-test123',
                     'token': 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+                    'session_properties': {
+                        'spark.sql.ansi.enabled': 'true'
+                        },
                 }
             },
             'target': 'test'
@@ -46,11 +49,13 @@ class TestDatabricksAdapter(unittest.TestCase):
         adapter = DatabricksAdapter(config)
 
         def databricks_sql_connector_connect(
-            server_hostname, http_path, access_token, _user_agent_entry
+            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
         ):
             self.assertEqual(server_hostname, 'yourorg.databricks.com')
             self.assertEqual(http_path, 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
             self.assertEqual(access_token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+            self.assertEqual(session_configuration['spark.sql.ansi.enabled'],
+                    'true')
             self.assertEqual(_user_agent_entry, f'dbt-databricks/{__version__.version}')
 
         with mock.patch(
@@ -66,6 +71,9 @@ class TestDatabricksAdapter(unittest.TestCase):
                 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
             self.assertEqual(connection.credentials.token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
             self.assertEqual(connection.credentials.schema, 'analytics')
+            self.assertEqual(len(connection.credentials.session_properties), 1)
+            self.assertEqual(connection.credentials.session_properties['spark.sql.ansi.enabled'],
+                    'true')
             self.assertIsNone(connection.credentials.database)
 
     def test_parse_relation(self):
