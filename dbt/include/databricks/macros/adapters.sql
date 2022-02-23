@@ -79,6 +79,17 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro dbt_databricks_tblproperties_clause() -%}
+  {%- set tblproperties = config.get('tblproperties') -%}
+  {%- if tblproperties is not none %}
+    tblproperties (
+      {%- for prop in tblproperties -%}
+      '{{ prop }}' = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
+      {%- endfor %}
+    )
+  {%- endif %}
+{%- endmacro -%}
+
 {#-- We can't use temporary tables with `create ... as ()` syntax #}
 {% macro dbt_databricks_create_temporary_view(relation, sql) -%}
   create temporary view {{ relation.include(schema=false) }} as
@@ -100,6 +111,7 @@
     {{ dbt_databricks_clustered_cols(label="clustered by") }}
     {{ dbt_databricks_location_clause() }}
     {{ dbt_databricks_comment_clause() }}
+    {{ dbt_databricks_tblproperties_clause() }}
     as
       {{ sql }}
   {%- endif %}
@@ -108,6 +120,7 @@
 {% macro databricks__create_view_as(relation, sql) -%}
   create or replace view {{ relation }}
   {{ dbt_databricks_comment_clause() }}
+  {{ dbt_databricks_tblproperties_clause() }}
   as
     {{ sql }}
 {% endmacro %}
