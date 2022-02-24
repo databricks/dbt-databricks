@@ -2,6 +2,8 @@
 
 ### Features
 - Support for setting table properties as part of a model configuration ([#33](https://github.com/databricks/dbt-databricks/issues/33), [#49](https://github.com/databricks/dbt-databricks/pull/49))
+- Get the session_properties map to work ([#57](https://github.com/databricks/dbt-databricks/pull/57))
+- Bump up databricks-sql-connector to 1.0.1 and use the Cursor APIs ([#50](https://github.com/databricks/dbt-databricks/pull/50))
 
 ## dbt-databricks 1.0.1 (February 8, 2022)
 
