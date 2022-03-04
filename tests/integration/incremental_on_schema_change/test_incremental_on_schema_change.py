@@ -87,6 +87,18 @@ class TestDeltaAppend(TestIncrementalOnSchemaChange):
     def test__databricks_cluster__run_incremental_sync_all_columns(self):
         self.run_incremental_sync_all_columns()
 
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_ignore(self):
+        self.run_incremental_ignore()
+
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_fail_on_schema_change(self):
+        self.run_incremental_fail_on_schema_change()
+
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_sync_all_columns(self):
+        self.run_incremental_sync_all_columns()
+
     @use_profile('databricks_sql_endpoint')
     def test__databricks_sql_endpoint__run_incremental_ignore(self):
         self.run_incremental_ignore()
@@ -97,6 +109,18 @@ class TestDeltaAppend(TestIncrementalOnSchemaChange):
 
     @use_profile('databricks_sql_endpoint')
     def test__databricks_sql_endpoint__run_incremental_sync_all_columns(self):
+        self.run_incremental_sync_all_columns()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_ignore(self):
+        self.run_incremental_ignore()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_fail_on_schema_change(self):
+        self.run_incremental_fail_on_schema_change()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_sync_all_columns(self):
         self.run_incremental_sync_all_columns()
 
 
@@ -127,6 +151,22 @@ class TestDeltaOnSchemaChange(TestIncrementalOnSchemaChange):
     def test__databricks_cluster__run_incremental_sync_all_columns(self):
         self.run_incremental_sync_all_columns()
 
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_ignore(self):
+        self.run_incremental_ignore()
+
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_fail_on_schema_change(self):
+        self.run_incremental_fail_on_schema_change()
+
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_append_new_columns(self):
+        self.run_incremental_append_new_columns()
+
+    @use_profile('databricks_uc_cluster')
+    def test__databricks_uc_cluster__run_incremental_sync_all_columns(self):
+        self.run_incremental_sync_all_columns()
+
     @use_profile('databricks_sql_endpoint')
     def test__databricks_sql_endpoint__run_incremental_ignore(self):
         self.run_incremental_ignore()
@@ -141,4 +181,20 @@ class TestDeltaOnSchemaChange(TestIncrementalOnSchemaChange):
 
     @use_profile('databricks_sql_endpoint')
     def test__databricks_sql_endpoint__run_incremental_sync_all_columns(self):
+        self.run_incremental_sync_all_columns()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_ignore(self):
+        self.run_incremental_ignore()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_fail_on_schema_change(self):
+        self.run_incremental_fail_on_schema_change()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_append_new_columns(self):
+        self.run_incremental_append_new_columns()
+
+    @use_profile('databricks_uc_sql_endpoint')
+    def test__databricks_uc_sql_endpoint__run_incremental_sync_all_columns(self):
         self.run_incremental_sync_all_columns()

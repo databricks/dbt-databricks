@@ -73,8 +73,16 @@ class TestDeltaStrategies(TestIncrementalStrategies):
     def test_delta_strategies_databricks_cluster(self):
         self.run_and_test()
 
+    @use_profile("databricks_uc_cluster")
+    def test_delta_strategies_databricks_uc_cluster(self):
+        self.run_and_test()
+
     @use_profile("databricks_sql_endpoint")
     def test_delta_strategies_databricks_sql_endpoint(self):
+        self.run_and_test()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_delta_strategies_databricks_uc_sql_endpoint(self):
         self.run_and_test()
 
 
@@ -115,6 +123,14 @@ class TestBadStrategies(TestIncrementalStrategies):
     def test_bad_strategies_databricks_cluster(self):
         self.run_and_test()
 
+    @use_profile("databricks_uc_cluster")
+    def test_bad_strategies_databricks_uc_cluster(self):
+        self.run_and_test()
+
     @use_profile("databricks_sql_endpoint")
     def test_bad_strategies_databricks_sql_endpoint(self):
+        self.run_and_test()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_bad_strategies_databricks_uc_sql_endpoint(self):
         self.run_and_test()

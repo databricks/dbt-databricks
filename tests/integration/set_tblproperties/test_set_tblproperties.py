@@ -47,6 +47,14 @@ class TestSetTblproperties(DBTIntegrationTest):
     def test_set_tblproperties_databricks_cluster(self):
         self.test_set_tblproperties()
 
+    @use_profile("databricks_uc_cluster")
+    def test_set_tblproperties_databricks_uc_cluster(self):
+        self.test_set_tblproperties()
+
     @use_profile("databricks_sql_endpoint")
     def test_set_tblproperties_databricks_sql_endpoint(self):
+        self.test_set_tblproperties()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_set_tblproperties_databricks_uc_sql_endpoint(self):
         self.test_set_tblproperties()

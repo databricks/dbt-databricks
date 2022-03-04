@@ -85,7 +85,8 @@ class TestArgs:
 
 
 def _profile_from_test_name(test_name):
-    adapter_names = ('databricks_cluster', 'databricks_sql_endpoint')
+    adapter_names = ('databricks_cluster', 'databricks_uc_cluster',
+                     'databricks_sql_endpoint', 'databricks_uc_sql_endpoint')
     adapters_in_name = sum(x in test_name for x in adapter_names)
     if adapters_in_name != 1:
         raise ValueError(
@@ -150,7 +151,7 @@ class DBTIntegrationTest(unittest.TestCase):
             },
             'test': {
                 'outputs': {
-                    'dbsql': {
+                    'cluster': {
                         'type': 'databricks',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
                         'http_path': os.getenv('DBT_DATABRICKS_CLUSTER_HTTP_PATH'),
@@ -158,7 +159,32 @@ class DBTIntegrationTest(unittest.TestCase):
                         'schema': self.unique_schema()
                     },
                 },
-                'target': 'dbsql'
+                'target': 'cluster'
+            }
+        }
+
+    def databricks_uc_cluster_profile(self):
+        return {
+            'config': {
+                'send_anonymous_usage_stats': False
+            },
+            'test': {
+                'outputs': {
+                    'uc_cluster': {
+                        'type': 'databricks',
+                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
+                        'http_path': os.getenv('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH'),
+                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
+                        'schema': self.unique_schema(),
+                        # TODO: catalog should be set as 'catalog' or 'database'
+                        #       instead of using 'session_properties'
+                        # 'catalog': os.getenv('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main'),
+                        'session_properties': {
+                            'databricks.catalog': os.getenv('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main'),
+                        },
+                    },
+                },
+                'target': 'uc_cluster'
             }
         }
 
@@ -178,6 +204,31 @@ class DBTIntegrationTest(unittest.TestCase):
                     },
                 },
                 'target': 'endpoint'
+            }
+        }
+
+    def databricks_uc_sql_endpoint_profile(self):
+        return {
+            'config': {
+                'send_anonymous_usage_stats': False
+            },
+            'test': {
+                'outputs': {
+                    'uc_endpoint': {
+                        'type': 'databricks',
+                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
+                        'http_path': os.getenv('DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH'),
+                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
+                        'schema': self.unique_schema(),
+                        # TODO: catalog should be set as 'catalog' or 'database'
+                        #       instead of using 'session_properties'
+                        # 'catalog': os.getenv('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main'),
+                        'session_properties': {
+                            'databricks.catalog': os.getenv('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main'),
+                        },
+                    },
+                },
+                'target': 'uc_endpoint'
             }
         }
 
@@ -208,8 +259,12 @@ class DBTIntegrationTest(unittest.TestCase):
     def get_profile(self, adapter_type):
         if adapter_type == 'databricks_cluster':
             return self.databricks_cluster_profile()
+        elif adapter_type == 'databricks_uc_cluster':
+            return self.databricks_uc_cluster_profile()
         elif adapter_type == 'databricks_sql_endpoint':
             return self.databricks_sql_endpoint_profile()
+        elif adapter_type == 'databricks_uc_sql_endpoint':
+            return self.databricks_uc_sql_endpoint_profile()
         else:
             raise ValueError('invalid adapter type {}'.format(adapter_type))
 
