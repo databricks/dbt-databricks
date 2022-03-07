@@ -19,7 +19,6 @@ class TestCurrentCatalog(DBTIntegrationTest):
         self.assertEqual(results[0][1], "true")
 
     def run_and_test(self):
-        self.run_dbt(['seed'])
         self.run_dbt(["run"])
         self.assertTablesEqual("current_catalog", "expected")
 
