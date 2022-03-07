@@ -30,5 +30,4 @@ class TestCurrentCatalog(DBTIntegrationTest):
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_current_catalog_databricks_uc_sql_endpoint(self):
-        self.unity_catalog_enabled()
         self.run_and_test()
