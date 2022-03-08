@@ -9,20 +9,10 @@
 {% endmacro %}
 
 
-{% macro dbt_databricks_get_insert_into_sql(source_relation, target_relation) %}
-
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
-    insert into table {{ target_relation }}
-    select {{dest_cols_csv}} from {{ source_relation.include(database=false, schema=false) }}
-
-{% endmacro %}
-
-
 {% macro dbt_databricks_get_incremental_sql(strategy, source, target, unique_key) %}
   {%- if strategy == 'append' -%}
     {#-- insert new records into existing table, without updating or overwriting #}
-    {{ dbt_databricks_get_insert_into_sql(source, target) }}
+    {{ get_insert_into_sql(source, target) }}
   {%- elif strategy == 'insert_overwrite' -%}
     {#-- insert statements don't like CTEs, so support them via a temp view #}
     {{ dbt_databricks_get_insert_overwrite_sql(source, target) }}

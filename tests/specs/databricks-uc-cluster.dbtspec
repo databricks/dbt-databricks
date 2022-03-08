@@ -1,0 +1,35 @@
+target:
+  type: databricks
+  host: "{{ env_var('DBT_DATABRICKS_HOST_NAME') }}"
+  http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH', env_var('DBT_DATABRICKS_HTTP_PATH', '')) }}"
+  token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
+  schema: "analytics_{{ var('_dbt_random_suffix') }}"
+  # TODO: catalog should be set as 'catalog' or 'database'
+  #       instead of using 'session_properties'
+  # catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
+  session_properties:
+    databricks.catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
+  connect_retries: 5
+  connect_timeout: 60
+projects:
+  - overrides: snapshot_strategy_check_cols
+    dbt_project_yml: &file_format_delta
+      # we're going to UPDATE the seed tables as part of testing, so we must make them delta format
+      seeds:
+        dbt_test_project:
+          file_format: delta
+      snapshots:
+        dbt_test_project:
+          file_format: delta
+  - overrides: snapshot_strategy_timestamp
+    dbt_project_yml: *file_format_delta
+sequences:
+  test_dbt_empty: empty
+  test_dbt_base: base
+  test_dbt_ephemeral: ephemeral
+  test_dbt_incremental: incremental
+  test_dbt_snapshot_strategy_timestamp: snapshot_strategy_timestamp
+  test_dbt_snapshot_strategy_check_cols: snapshot_strategy_check_cols
+  test_dbt_data_test: data_test
+  test_dbt_ephemeral_data_tests: data_test_ephemeral_models
+  test_dbt_schema_test: schema_test
