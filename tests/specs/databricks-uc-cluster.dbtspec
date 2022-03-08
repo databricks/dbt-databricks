@@ -1,9 +1,14 @@
 target:
   type: databricks
   host: "{{ env_var('DBT_DATABRICKS_HOST_NAME') }}"
-  http_path: "{{ env_var('DBT_DATABRICKS_CLUSTER_HTTP_PATH', env_var('DBT_DATABRICKS_HTTP_PATH', '')) }}"
+  http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH', env_var('DBT_DATABRICKS_HTTP_PATH', '')) }}"
   token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
   schema: "analytics_{{ var('_dbt_random_suffix') }}"
+  # TODO: catalog should be set as 'catalog' or 'database'
+  #       instead of using 'session_properties'
+  # catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
+  session_properties:
+    databricks.catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
   connect_retries: 5
   connect_timeout: 60
 projects:

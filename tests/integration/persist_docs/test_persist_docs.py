@@ -64,6 +64,14 @@ class TestPersistDocsDelta(DBTIntegrationTest):
     def test_delta_comments_databricks_cluster(self):
         self.test_delta_comments()
 
+    @use_profile("databricks_uc_cluster")
+    def test_delta_comments_databricks_uc_cluster(self):
+        self.test_delta_comments()
+
     @use_profile("databricks_sql_endpoint")
     def test_delta_comments_databricks_sql_endpoint(self):
+        self.test_delta_comments()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_delta_comments_databricks_uc_sql_endpoint(self):
         self.test_delta_comments()
