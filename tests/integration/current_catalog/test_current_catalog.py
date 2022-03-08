@@ -12,7 +12,7 @@ class TestCurrentCatalog(DBTIntegrationTest):
 
     def unity_catalog_enabled(self):
         results = self.run_sql(
-            'SET spark.databricks.unityCatalog.enabled',
+            "SET spark.databricks.unityCatalog.enabled",
             fetch='all'
         )
         self.assertEqual(len(results), 1)

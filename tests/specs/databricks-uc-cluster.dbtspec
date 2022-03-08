@@ -6,9 +6,9 @@ target:
   schema: "analytics_{{ var('_dbt_random_suffix') }}"
   # TODO: catalog should be set as 'catalog' or 'database'
   #       instead of using 'session_properties'
-  # catalog: "{{ env_var('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main') }}"
+  # catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
   session_properties:
-    databricks.catalog: "{{ env_var('DBT_DATABRICKS_UC_DEFAULT_CATALOG', 'main') }}"
+    databricks.catalog: "{{ env_var('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main') }}"
   connect_retries: 5
   connect_timeout: 60
 projects:
