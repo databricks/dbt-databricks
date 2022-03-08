@@ -10,6 +10,7 @@ import unittest
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from typing import Dict, Optional
 
 import pytest
 import yaml
@@ -85,7 +86,8 @@ class TestArgs:
 
 
 def _profile_from_test_name(test_name):
-    adapter_names = ('databricks_cluster', 'databricks_sql_endpoint')
+    adapter_names = ('databricks_cluster', 'databricks_uc_cluster',
+                     'databricks_sql_endpoint', 'databricks_uc_sql_endpoint')
     adapters_in_name = sum(x in test_name for x in adapter_names)
     if adapters_in_name != 1:
         raise ValueError(
@@ -143,43 +145,70 @@ class DBTIntegrationTest(unittest.TestCase):
     prefix = f'test{_runtime}{_randint:04}'
     setup_alternate_db = False
 
-    def databricks_cluster_profile(self):
-        return {
+    def _build_databricks_cluster_profile(
+        self,
+        http_path: str,
+        catalog: Optional[str] = None,
+        session_properties: Dict[str, str] = None,
+    ):
+        profile = {
             'config': {
                 'send_anonymous_usage_stats': False
             },
             'test': {
                 'outputs': {
-                    'dbsql': {
+                    'dev': {
                         'type': 'databricks',
                         'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_CLUSTER_HTTP_PATH'),
+                        'http_path': http_path,
                         'token': os.getenv('DBT_DATABRICKS_TOKEN'),
                         'schema': self.unique_schema()
                     },
                 },
-                'target': 'dbsql'
+                'target': 'dev'
             }
         }
+        if catalog is not None:
+            # TODO: catalog should be set as 'catalog' or 'database'
+            #       instead of using 'session_properties'
+            # profile['test']['outputs']['dev']['catalog'] = catalog
+            if session_properties is not None:
+                session_properties['databricks.catalog'] = catalog
+            else:
+                session_properties = {'databricks.catalog': catalog}
+        if session_properties is not None:
+            profile['test']['outputs']['dev']['session_properties'] = session_properties
+        return profile
+
+    def databricks_cluster_profile(self):
+        return self._build_databricks_cluster_profile(
+            http_path=os.getenv(
+                "DBT_DATABRICKS_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
+        )
+
+    def databricks_uc_cluster_profile(self):
+        return self._build_databricks_cluster_profile(
+            http_path=os.getenv(
+                "DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
+            catalog=os.getenv('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main'),
+        )
 
     def databricks_sql_endpoint_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'endpoint': {
-                        'type': 'databricks',
-                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_ENDPOINT_HTTP_PATH'),
-                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'endpoint'
-            }
-        }
+        return self._build_databricks_cluster_profile(
+            http_path=os.getenv(
+                "DBT_DATABRICKS_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
+        )
+
+    def databricks_uc_sql_endpoint_profile(self):
+        return self._build_databricks_cluster_profile(
+            http_path=os.getenv(
+                "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
+            catalog=os.getenv('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main'),
+        )
 
     @property
     def packages_config(self):
@@ -208,8 +237,12 @@ class DBTIntegrationTest(unittest.TestCase):
     def get_profile(self, adapter_type):
         if adapter_type == 'databricks_cluster':
             return self.databricks_cluster_profile()
+        elif adapter_type == 'databricks_uc_cluster':
+            return self.databricks_uc_cluster_profile()
         elif adapter_type == 'databricks_sql_endpoint':
             return self.databricks_sql_endpoint_profile()
+        elif adapter_type == 'databricks_uc_sql_endpoint':
+            return self.databricks_uc_sql_endpoint_profile()
         else:
             raise ValueError('invalid adapter type {}'.format(adapter_type))
 
