@@ -182,23 +182,31 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def databricks_cluster_profile(self):
         return self._build_databricks_cluster_profile(
-            http_path=os.getenv('DBT_DATABRICKS_CLUSTER_HTTP_PATH'),
+            http_path=os.getenv(
+                "DBT_DATABRICKS_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
         )
 
     def databricks_uc_cluster_profile(self):
         return self._build_databricks_cluster_profile(
-            http_path=os.getenv('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH'),
+            http_path=os.getenv(
+                "DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
             catalog=os.getenv('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main'),
         )
 
     def databricks_sql_endpoint_profile(self):
         return self._build_databricks_cluster_profile(
-            http_path=os.getenv('DBT_DATABRICKS_ENDPOINT_HTTP_PATH'),
+            http_path=os.getenv(
+                "DBT_DATABRICKS_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
         )
 
     def databricks_uc_sql_endpoint_profile(self):
         return self._build_databricks_cluster_profile(
-            http_path=os.getenv('DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH'),
+            http_path=os.getenv(
+                "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            ),
             catalog=os.getenv('DBT_DATABRICKS_UC_INITIAL_CATALOG', 'main'),
         )
 
