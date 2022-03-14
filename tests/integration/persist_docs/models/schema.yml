@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  
+
   - name: table_parquet_model
     description: |
       Table model description "with double quotes"
@@ -73,7 +73,7 @@ models:
         description: |
           Some stuff here and then a call to
           {{ doc('my_fun_doc')}}
-  
+
   - name: view_model
     description: |
       View model description "with double quotes"
