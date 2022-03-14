@@ -1,47 +1,43 @@
-from cProfile import run
 from tests.integration.base import DBTIntegrationTest, use_profile
-import dbt.exceptions
-
-import json
 
 
 class TestSetTblproperties(DBTIntegrationTest):
     @property
     def schema(self):
         return "set_tblproperties"
-        
+
     @property
     def models(self):
         return "models"
 
     def test_set_tblproperties(self):
-        self.run_dbt(['seed'])
-        self.run_dbt(['run'])
-        self.run_dbt(['run'])
+        self.run_dbt(["seed"])
+        self.run_dbt(["run"])
+        self.run_dbt(["run"])
 
         self.assertTablesEqual("set_tblproperties", "expected")
         self.assertTablesEqual("set_tblproperties_to_view", "expected")
 
         results = self.run_sql(
-            'show tblproperties {schema}.{table}'.format(
-                schema=self.unique_schema(), table='set_tblproperties'
+            "show tblproperties {schema}.{table}".format(
+                schema=self.unique_schema(), table="set_tblproperties"
             ),
-            fetch='all'
+            fetch="all",
         )
         tblproperties = [result[0] for result in results]
 
-        assert 'delta.autoOptimize.optimizeWrite' in tblproperties
-        assert 'delta.autoOptimize.autoCompact' in tblproperties
+        assert "delta.autoOptimize.optimizeWrite" in tblproperties
+        assert "delta.autoOptimize.autoCompact" in tblproperties
 
         results = self.run_sql(
-            'show tblproperties {schema}.{table}'.format(
-                schema=self.unique_schema(), table='set_tblproperties_to_view'
+            "show tblproperties {schema}.{table}".format(
+                schema=self.unique_schema(), table="set_tblproperties_to_view"
             ),
-            fetch='all'
+            fetch="all",
         )
         tblproperties = [result[0] for result in results]
 
-        assert 'tblproperties_to_view' in tblproperties
+        assert "tblproperties_to_view" in tblproperties
 
     @use_profile("databricks_cluster")
     def test_set_tblproperties_databricks_cluster(self):

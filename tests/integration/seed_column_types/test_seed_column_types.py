@@ -1,13 +1,11 @@
-from cProfile import run
 from tests.integration.base import DBTIntegrationTest, use_profile
-import dbt.exceptions
 
 
 class TestSeedColumnTypeCast(DBTIntegrationTest):
     @property
     def schema(self):
         return "seed_column_types"
-        
+
     @property
     def models(self):
         return "models"
@@ -15,8 +13,8 @@ class TestSeedColumnTypeCast(DBTIntegrationTest):
     @property
     def project_config(self):
         return {
-            'seeds': {
-                'quote_columns': False,
+            "seeds": {
+                "quote_columns": False,
             },
         }
 

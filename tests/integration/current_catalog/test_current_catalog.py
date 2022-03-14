@@ -11,10 +11,7 @@ class TestCurrentCatalog(DBTIntegrationTest):
         return "models"
 
     def unity_catalog_enabled(self):
-        results = self.run_sql(
-            "SET spark.databricks.unityCatalog.enabled",
-            fetch='all'
-        )
+        results = self.run_sql("SET spark.databricks.unityCatalog.enabled", fetch="all")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0][1], "true")
 
