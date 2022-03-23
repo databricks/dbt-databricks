@@ -1,11 +1,6 @@
 # install latest changes in dbt-core
 # TODO: how to automate switching from develop to version branches?
-# TODO: change the branch to master once dbt-spark bumps up the version.
-git+https://github.com/dbt-labs/dbt.git@1.0.latest#egg=dbt-core&subdirectory=core
-
-# install latest changes in dbt-spark
-# TODO: how to automate switching from develop to version branches?
-git+https://github.com/dbt-labs/dbt-spark.git#egg=dbt-spark
+git+https://github.com/dbt-labs/dbt.git#egg=dbt-core&subdirectory=core
 
 freezegun==0.3.9
 pytest==6.0.2
