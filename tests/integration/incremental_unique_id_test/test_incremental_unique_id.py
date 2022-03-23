@@ -247,7 +247,7 @@ class TestIncrementalStrUniqueKey(TestIncrementalUniqueKey):
 
     @use_profile("databricks_uc_sql_endpoint")
     def test__databricks_uc_sql_endpoint_bad_unique_key(self):
-        self.test__databricks_uc_sql_endpoint_bad_unique_key()
+        self.test__databricks_sql_endpoint_bad_unique_key()
 
     @use_profile("databricks_cluster")
     def test__databricks_cluster_bad_unique_key(self):
