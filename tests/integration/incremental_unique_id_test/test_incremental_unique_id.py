@@ -47,7 +47,7 @@ class TestIncrementalUniqueKey(DBTIntegrationTest):
         seed_count = len(self.run_dbt(["seed", "--select", seed, "--full-refresh"]))
         model_count = len(self.run_dbt(["run", "--select", incremental_model, "--full-refresh"]))
 
-        # Upate seed and return new row count
+        # Update seed and return new row count
         row_count_query = "select * from {}.{}".format(self.unique_schema(), seed)
         self.run_sql_file(Path("seeds") / Path(update_sql_file + ".sql"))
         seed_rows = len(self.run_sql(row_count_query, fetch="all"))
