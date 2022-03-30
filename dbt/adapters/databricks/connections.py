@@ -142,10 +142,7 @@ class DatabricksSQLConnectionWrapper(object):
         self, catalog_name: Optional[str] = None, schema_name: Optional[str] = None
     ) -> None:
         assert self._cursor is not None
-        self._cursor.schemas(
-            catalog_name=catalog_name if isinstance(catalog_name, str) else None,
-            schema_name=schema_name if isinstance(schema_name, str) else None,
-        )
+        self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -206,8 +203,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self.get_result_from_cursor(cursor)
 
     def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> Table:
+        database = database if isinstance(database, str) else None
+        schema = schema if isinstance(schema, str) else None
         return self._execute_cursor(
-            "GetSchemas",
+            f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
