@@ -15,12 +15,12 @@
             {{ adapter.quote_seed_column(column_name, quote_seed_column) }} {{ type }} {%- if not loop.last -%}, {%- endif -%}
         {%- endfor -%}
     )
-    {{ dbt_databricks_file_format_clause() }}
-    {{ dbt_databricks_partition_cols(label="partitioned by") }}
-    {{ dbt_databricks_clustered_cols(label="clustered by") }}
-    {{ dbt_databricks_location_clause() }}
-    {{ dbt_databricks_comment_clause() }}
-    {{ dbt_databricks_tblproperties_clause() }}
+    {{ file_format_clause() }}
+    {{ partition_cols(label="partitioned by") }}
+    {{ clustered_cols(label="clustered by") }}
+    {{ location_clause() }}
+    {{ comment_clause() }}
+    {{ tblproperties_clause() }}
   {% endset %}
 
   {% call statement('_') -%}
