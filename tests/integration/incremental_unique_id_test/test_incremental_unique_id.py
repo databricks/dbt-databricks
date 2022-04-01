@@ -6,8 +6,8 @@ from dbt.contracts.results import RunStatus
 from tests.integration.base import DBTIntegrationTest, use_profile
 
 
-TestResults = namedtuple(
-    "TestResults",
+ResultHolder = namedtuple(
+    "ResultHolder",
     [
         "seed_count",
         "model_count",
@@ -76,7 +76,7 @@ class TestIncrementalUniqueKey(DBTIntegrationTest):
         self.assertTablesEqual(expected_fields.relation, test_case_fields.relation)
 
     def stub_expected_fields(self, relation, seed_rows, opt_model_count=None):
-        return TestResults(
+        return ResultHolder(
             seed_count=1,
             model_count=1,
             seed_rows=seed_rows,
@@ -110,7 +110,7 @@ class TestNoIncrementalUniqueKey(TestIncrementalUniqueKey):
         update_sql_file = "add_new_rows"
 
         expected_fields = self.stub_expected_fields(relation=seed, seed_rows=seed_rows)
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=None,
             relation=incremental_model,
@@ -144,7 +144,7 @@ class TestIncrementalStrUniqueKey(TestIncrementalUniqueKey):
         update_sql_file = "add_new_rows"
 
         expected_fields = self.stub_expected_fields(relation=seed, seed_rows=seed_rows)
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=None,
             relation=incremental_model,
@@ -179,7 +179,7 @@ class TestIncrementalStrUniqueKey(TestIncrementalUniqueKey):
         expected_fields = self.stub_expected_fields(
             relation=expected_model, seed_rows=seed_rows, opt_model_count=1
         )
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=self.update_incremental_model(expected_model),
             relation=incremental_model,
@@ -239,7 +239,7 @@ class TestIncrementalListUniqueKey(TestIncrementalUniqueKey):
         update_sql_file = "add_new_rows"
 
         expected_fields = self.stub_expected_fields(relation=seed, seed_rows=seed_rows)
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=None,
             relation=incremental_model,
@@ -274,7 +274,7 @@ class TestIncrementalListUniqueKey(TestIncrementalUniqueKey):
         expected_fields = self.stub_expected_fields(
             relation=expected_model, seed_rows=seed_rows, opt_model_count=1
         )
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=self.update_incremental_model(expected_model),
             relation=incremental_model,
@@ -309,7 +309,7 @@ class TestIncrementalListUniqueKey(TestIncrementalUniqueKey):
         expected_fields = self.stub_expected_fields(
             relation=expected_model, seed_rows=seed_rows, opt_model_count=1
         )
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=self.update_incremental_model(expected_model),
             relation=incremental_model,
@@ -344,7 +344,7 @@ class TestIncrementalListUniqueKey(TestIncrementalUniqueKey):
         expected_fields = self.stub_expected_fields(
             relation=expected_model, seed_rows=seed_rows, opt_model_count=1
         )
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=self.update_incremental_model(expected_model),
             relation=incremental_model,
@@ -377,7 +377,7 @@ class TestIncrementalListUniqueKey(TestIncrementalUniqueKey):
         update_sql_file = "add_new_rows"
 
         expected_fields = self.stub_expected_fields(relation=seed, seed_rows=seed_rows)
-        test_case_fields = TestResults(
+        test_case_fields = ResultHolder(
             *self.setup_test(seed, incremental_model, update_sql_file),
             opt_model_count=None,
             relation=incremental_model,

@@ -1,5 +1,8 @@
 ## dbt-databricks 1.1.0 (Release TBD)
 
+### Under the hood
+- Port testing framework changes from [dbt-labs/dbt-spark#299](https://github.com/dbt-labs/dbt-spark/pull/299) and [dbt-labs/dbt-spark#314](https://github.com/dbt-labs/dbt-spark/pull/314) ([#70](https://github.com/databricks/dbt-databricks/pull/70))
+
 ## dbt-databricks 1.0.2 (March 31, 2022)
 
 ### Features
