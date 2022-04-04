@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 import re
-from jinja2 import ChoiceLoader, Environment, FileSystemLoader, PackageLoader
+from jinja2 import Environment, FileSystemLoader, PackageLoader
 
 
 class TestSparkMacros(unittest.TestCase):
