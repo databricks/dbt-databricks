@@ -6,7 +6,7 @@
 ## dbt-databricks 1.0.3 (Release TBD)
 
 ### Fixes
-- Fix macro names to use the same names as dbt-spark ([#72](https://github.com/databricks/dbt-databricks/pull/72))
+- Make internal macros use macro dispatch pattern ([#72](https://github.com/databricks/dbt-databricks/pull/72))
 
 ## dbt-databricks 1.0.2 (March 31, 2022)
 
