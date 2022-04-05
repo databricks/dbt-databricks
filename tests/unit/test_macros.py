@@ -34,7 +34,7 @@ class TestSparkMacros(unittest.TestCase):
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
 
-        def dispatch(macro_name):
+        def dispatch(macro_name, macro_namespace=None, packages=None):
             if hasattr(template.module, f"databricks__{macro_name}"):
                 return getattr(template.module, f"databricks__{macro_name}")
             else:

@@ -29,7 +29,7 @@
 
 
 {% macro tblproperties_clause() -%}
-  {{ return(adapter.dispatch('tblproperties_clause')()) }}
+  {{ return(adapter.dispatch('tblproperties_clause', 'dbt')()) }}
 {%- endmacro -%}
 
 {% macro databricks__tblproperties_clause() -%}

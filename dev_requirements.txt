@@ -5,7 +5,7 @@ git+https://github.com/dbt-labs/dbt-core.git#egg=dbt-tests-adapter&subdirectory=
 
 # install latest changes in dbt-spark
 # TODO: how to automate switching from develop to version branches?
-git+https://github.com/dbt-labs/dbt-spark.git@d4c1498703b0c1c2a1a0e9913a46675f27a15b47#egg=dbt-spark
+git+https://github.com/dbt-labs/dbt-spark.git@643f91785cbd2f1143475ef1b7ab2334630c5705#egg=dbt-spark
 
 freezegun==0.3.9
 pytest>=6.0.2
