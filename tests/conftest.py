@@ -41,6 +41,9 @@ def databricks_cluster_target():
             "DBT_DATABRICKS_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
+        "connect_retries": 3,
+        "connect_timeout": 5,
+        "retry_all": True,
     }
 
 
@@ -52,6 +55,9 @@ def databricks_sql_endpoint_target():
             "DBT_DATABRICKS_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
+        "connect_retries": 3,
+        "connect_timeout": 5,
+        "retry_all": True,
     }
 
 
@@ -63,6 +69,9 @@ def databricks_uc_cluster_target():
             "DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
+        "connect_retries": 3,
+        "connect_timeout": 5,
+        "retry_all": True,
     }
 
 
@@ -74,6 +83,9 @@ def databricks_uc_sql_endpoint_target():
             "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
+        "connect_retries": 3,
+        "connect_timeout": 5,
+        "retry_all": True,
     }
 
 
@@ -82,4 +94,4 @@ def skip_by_profile_type(request):
     profile_type = request.config.getoption("--profile")
     if request.node.get_closest_marker("skip_profile"):
         if request.node.get_closest_marker("skip_profile").args[0] == profile_type:
-            pytest.skip("skipped on '{profile_type}' profile")
+            pytest.skip(f"skipped on '{profile_type}' profile")
