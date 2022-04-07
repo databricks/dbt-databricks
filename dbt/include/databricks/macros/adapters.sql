@@ -46,20 +46,20 @@
 
 {% macro databricks__create_table_as(temporary, relation, sql) -%}
   {% if temporary -%}
-    {{ create_temporary_view(relation, sql) }}
+    {{ dbt_databricks_create_temporary_view(relation, sql) }}
   {%- else -%}
     {% if config.get('file_format', default='delta') == 'delta' %}
       create or replace table {{ relation }}
     {% else %}
       create table {{ relation }}
     {% endif %}
-    {{ file_format_clause() }}
-    {{ options_clause() }}
-    {{ partition_cols(label="partitioned by") }}
-    {{ clustered_cols(label="clustered by") }}
-    {{ location_clause() }}
-    {{ comment_clause() }}
-    {{ tblproperties_clause() }}
+    {{ dbt_databricks_file_format_clause() }}
+    {{ dbt_databricks_options_clause() }}
+    {{ dbt_databricks_partition_cols(label="partitioned by") }}
+    {{ dbt_databricks_clustered_cols(label="clustered by") }}
+    {{ dbt_databricks_location_clause() }}
+    {{ dbt_databricks_comment_clause() }}
+    {{ dbt_databricks_tblproperties_clause() }}
     as
       {{ sql }}
   {%- endif %}
@@ -67,8 +67,8 @@
 
 {% macro databricks__create_view_as(relation, sql) -%}
   create or replace view {{ relation }}
-  {{ comment_clause() }}
-  {{ tblproperties_clause() }}
+  {{ dbt_databricks_comment_clause() }}
+  {{ dbt_databricks_tblproperties_clause() }}
   as
     {{ sql }}
 {% endmacro %}
@@ -87,3 +87,30 @@
     {% endfor %}
   {% endif %}
 {% endmacro %}
+
+
+{# backward compatitibily #}
+{% macro dbt_databricks_file_format_clause() %}
+  {{ return(file_format_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_location_clause() %}
+  {{ return(location_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_options_clause() %}
+  {{ return(options_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_comment_clause() %}
+  {{ return(comment_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_partition_cols(label, required=false) %}
+  {{ return(partition_cols(label, required)) }}
+{%- endmacro -%}
+{% macro dbt_databricks_clustered_cols(label, required=false) %}
+  {{ return(clustered_cols(label, required)) }}
+{%- endmacro -%}
+{% macro dbt_databricks_tblproperties_clause() %}
+  {{ return(tblproperties_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_create_temporary_view(relation, sql) -%}
+  {{ return(create_temporary_view(relation, sql)) }}
+{%- endmacro -%}
