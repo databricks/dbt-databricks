@@ -1,19 +1,11 @@
-{% macro dbt_databricks_file_format_clause() %}
+{% macro databricks__file_format_clause() %}
   {%- set file_format = config.get('file_format', default='delta') -%}
   {%- if file_format is not none %}
     using {{ file_format }}
   {%- endif %}
 {%- endmacro -%}
 
-{% macro dbt_databricks_location_clause() %}
-  {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
-  {%- set identifier = model['alias'] -%}
-  {%- if location_root is not none %}
-    location '{{ location_root }}/{{ identifier }}'
-  {%- endif %}
-{%- endmacro -%}
-
-{% macro dbt_databricks_options_clause() -%}
+{% macro databricks__options_clause() -%}
   {%- set options = config.get('options') -%}
   {%- if config.get('file_format', default='delta') == 'hudi' -%}
     {%- set unique_key = config.get('unique_key') -%}
@@ -35,51 +27,12 @@
   {%- endif %}
 {%- endmacro -%}
 
-{% macro dbt_databricks_comment_clause() %}
-  {%- set raw_persist_docs = config.get('persist_docs', {}) -%}
 
-  {%- if raw_persist_docs is mapping -%}
-    {%- set raw_relation = raw_persist_docs.get('relation', false) -%}
-      {%- if raw_relation -%}
-      comment '{{ model.description | replace("'", "\\'") }}'
-      {% endif %}
-  {%- elif raw_persist_docs -%}
-    {{ exceptions.raise_compiler_error("Invalid value provided for 'persist_docs'. Expected dict but got value: " ~ raw_persist_docs) }}
-  {% endif %}
+{% macro tblproperties_clause() -%}
+  {{ return(adapter.dispatch('tblproperties_clause', 'dbt')()) }}
 {%- endmacro -%}
 
-{% macro dbt_databricks_partition_cols(label, required=false) %}
-  {%- set cols = config.get('partition_by', validator=validation.any[list, basestring]) -%}
-  {%- if cols is not none %}
-    {%- if cols is string -%}
-      {%- set cols = [cols] -%}
-    {%- endif -%}
-    {{ label }} (
-    {%- for item in cols -%}
-      {{ item }}
-      {%- if not loop.last -%},{%- endif -%}
-    {%- endfor -%}
-    )
-  {%- endif %}
-{%- endmacro -%}
-
-{% macro dbt_databricks_clustered_cols(label, required=false) %}
-  {%- set cols = config.get('clustered_by', validator=validation.any[list, basestring]) -%}
-  {%- set buckets = config.get('buckets', validator=validation.any[int]) -%}
-  {%- if (cols is not none) and (buckets is not none) %}
-    {%- if cols is string -%}
-      {%- set cols = [cols] -%}
-    {%- endif -%}
-    {{ label }} (
-    {%- for item in cols -%}
-      {{ item }}
-      {%- if not loop.last -%},{%- endif -%}
-    {%- endfor -%}
-    ) into {{ buckets }} buckets
-  {%- endif %}
-{%- endmacro -%}
-
-{% macro dbt_databricks_tblproperties_clause() -%}
+{% macro databricks__tblproperties_clause() -%}
   {%- set tblproperties = config.get('tblproperties') -%}
   {%- if tblproperties is not none %}
     tblproperties (
@@ -90,11 +43,6 @@
   {%- endif %}
 {%- endmacro -%}
 
-{#-- We can't use temporary tables with `create ... as ()` syntax #}
-{% macro dbt_databricks_create_temporary_view(relation, sql) -%}
-  create temporary view {{ relation.include(schema=false) }} as
-    {{ sql }}
-{% endmacro %}
 
 {% macro databricks__create_table_as(temporary, relation, sql) -%}
   {% if temporary -%}
@@ -139,3 +87,30 @@
     {% endfor %}
   {% endif %}
 {% endmacro %}
+
+
+{# backward compatitibily #}
+{% macro dbt_databricks_file_format_clause() %}
+  {{ return(file_format_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_location_clause() %}
+  {{ return(location_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_options_clause() %}
+  {{ return(options_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_comment_clause() %}
+  {{ return(comment_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_partition_cols(label, required=false) %}
+  {{ return(partition_cols(label, required)) }}
+{%- endmacro -%}
+{% macro dbt_databricks_clustered_cols(label, required=false) %}
+  {{ return(clustered_cols(label, required)) }}
+{%- endmacro -%}
+{% macro dbt_databricks_tblproperties_clause() %}
+  {{ return(tblproperties_clause()) }}
+{%- endmacro -%}
+{% macro dbt_databricks_create_temporary_view(relation, sql) -%}
+  {{ return(create_temporary_view(relation, sql)) }}
+{%- endmacro -%}
