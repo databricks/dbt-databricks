@@ -1,3 +1,5 @@
+## dbt-databricks 1.2.0 (Release TBD)
+
 ## dbt-databricks 1.1.0 (Release TBD)
 
 ### Under the hood
