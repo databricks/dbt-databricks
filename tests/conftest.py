@@ -1,6 +1,9 @@
 import pytest
 import os
 
+from .utils import build_databricks_cluster_profile
+
+
 pytest_plugins = ["dbt.tests.fixtures.project"]
 
 
@@ -34,59 +37,37 @@ def dbt_profile_target(request):
 
 
 def databricks_cluster_target():
-    return {
-        "type": "databricks",
-        "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
-        "http_path": os.getenv(
+    return build_databricks_cluster_profile(
+        http_path=os.getenv(
             "DBT_DATABRICKS_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
-        ),
-        "token": os.getenv("DBT_DATABRICKS_TOKEN"),
-        "connect_retries": 3,
-        "connect_timeout": 5,
-        "retry_all": True,
-    }
+        )
+    )
 
 
 def databricks_sql_endpoint_target():
-    return {
-        "type": "databricks",
-        "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
-        "http_path": os.getenv(
+    return build_databricks_cluster_profile(
+        http_path=os.getenv(
             "DBT_DATABRICKS_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
-        ),
-        "token": os.getenv("DBT_DATABRICKS_TOKEN"),
-        "connect_retries": 3,
-        "connect_timeout": 5,
-        "retry_all": True,
-    }
+        )
+    )
 
 
 def databricks_uc_cluster_target():
-    return {
-        "type": "databricks",
-        "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
-        "http_path": os.getenv(
+    return build_databricks_cluster_profile(
+        http_path=os.getenv(
             "DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
-        "token": os.getenv("DBT_DATABRICKS_TOKEN"),
-        "connect_retries": 3,
-        "connect_timeout": 5,
-        "retry_all": True,
-    }
+        catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
+    )
 
 
 def databricks_uc_sql_endpoint_target():
-    return {
-        "type": "databricks",
-        "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
-        "http_path": os.getenv(
+    return build_databricks_cluster_profile(
+        http_path=os.getenv(
             "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
-        "token": os.getenv("DBT_DATABRICKS_TOKEN"),
-        "connect_retries": 3,
-        "connect_timeout": 5,
-        "retry_all": True,
-    }
+        catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
+    )
 
 
 @pytest.fixture(autouse=True)

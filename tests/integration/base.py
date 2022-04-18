@@ -30,6 +30,9 @@ from dbt.events.functions import (
 from dbt.events import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
+from ..utils import build_databricks_cluster_profile
+
+
 logger = AdapterLogger("Databricks")
 
 INITIAL_ROOT = os.getcwd()
@@ -153,37 +156,22 @@ class DBTIntegrationTest(unittest.TestCase):
         catalog: Optional[str] = None,
         session_properties: Optional[Dict[str, str]] = None,
     ):
-        profile = {
+        return {
             "config": {"send_anonymous_usage_stats": False},
             "test": {
                 "outputs": {
-                    "dev": {
-                        "type": "databricks",
-                        "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
-                        "http_path": http_path,
-                        "token": os.getenv("DBT_DATABRICKS_TOKEN"),
-                        "connect_retries": 3,
-                        "connect_timeout": 5,
-                        "retry_all": True,
-                        "schema": self.unique_schema(),
-                    },
+                    "dev": dict(
+                        **build_databricks_cluster_profile(
+                            http_path=http_path,
+                            catalog=catalog,
+                            session_properties=session_properties,
+                        ),
+                        schema=self.unique_schema(),
+                    ),
                 },
                 "target": "dev",
             },
         }
-        if catalog is not None:
-            # TODO: catalog should be set as 'catalog' or 'database'
-            #       instead of using 'session_properties'
-            # profile['test']['outputs']['dev']['catalog'] = catalog
-            if session_properties is not None:
-                session_properties["databricks.catalog"] = catalog
-            else:
-                session_properties = {"databricks.catalog": catalog}
-        if session_properties is not None:
-            profile["test"]["outputs"]["dev"][  # type: ignore[index]
-                "session_properties"
-            ] = session_properties
-        return profile
 
     def databricks_cluster_profile(self):
         return self._build_databricks_cluster_profile(
