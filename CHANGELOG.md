@@ -3,7 +3,7 @@
 ### Under the hood
 - Port testing framework changes from [dbt-labs/dbt-spark#299](https://github.com/dbt-labs/dbt-spark/pull/299) and [dbt-labs/dbt-spark#314](https://github.com/dbt-labs/dbt-spark/pull/314) ([#70](https://github.com/databricks/dbt-databricks/pull/70))
 
-## dbt-databricks 1.0.3 (Release TBD)
+## dbt-databricks 1.0.3 (April 26, 2022)
 
 ### Fixes
 - Make internal macros use macro dispatch pattern ([#72](https://github.com/databricks/dbt-databricks/pull/72))
