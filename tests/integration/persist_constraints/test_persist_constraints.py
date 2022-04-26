@@ -1,5 +1,4 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
-from pathlib import Path
 from typing import Dict
 from dbt.contracts.results import RunResult, RunStatus
 
@@ -17,21 +16,13 @@ class TestConstraints(DBTIntegrationTest):
     def project_config(self):
         return {
             "config-version": 2,
-            "models": {
-                "test": {
-                    "+persist_constraints": True
-                }
-            },
+            "models": {"test": {"+persist_constraints": True}},
         }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
-        rows = self.run_sql(
-            f"show tblproperties {self.unique_schema()}.{model_name}", fetch="all"
-        )
+        rows = self.run_sql(f"show tblproperties {self.unique_schema()}.{model_name}", fetch="all")
         constraints = {
-            row.key: row.value
-            for row in rows
-            if row.key.startswith("delta.constraints")
+            row.key: row.value for row in rows if row.key.startswith("delta.constraints")
         }
         assert len(constraints) == len(expected)
         self.assertDictEqual(constraints, expected)
@@ -88,9 +79,7 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
-        self.check_constraints(
-            model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
-        )
+        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
 
         schema = self.unique_schema()
 
@@ -137,9 +126,7 @@ class TestInvalidCheckConstraints(TestConstraints):
     def test_invalid_check_constraints(self):
         model_name = "invalid_check_constraint"
         self.run_dbt(["seed"])
-        self.run_and_check_failure(
-            model_name, err_msg="Invalid check constraint condition"
-        )
+        self.run_and_check_failure(model_name, err_msg="Invalid check constraint condition")
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
