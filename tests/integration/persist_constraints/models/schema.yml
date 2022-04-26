@@ -3,7 +3,7 @@ version: 2
 models:
   - name: table_model
     meta:
-      check_constraints:
+      constraints:
         - name: id_greater_than_zero
           condition: id > 0
     columns:
@@ -15,7 +15,7 @@ models:
 
   - name: incremental_model
     meta:
-      check_constraints:
+      constraints:
         - name: id_greater_than_zero
           condition: id > 0
     columns:
@@ -27,7 +27,7 @@ models:
 
   - name: invalid_check_constraint
     meta:
-      check_constraints:
+      constraints:
         - name: invalid_constraint
           condition:
 
@@ -36,3 +36,15 @@ models:
       - name: id
         meta:
           constraint: invalid
+
+  - name: table_model_disable_constraints
+    meta:
+      constraints:
+        - name: id_greater_than_zero
+          condition: id > 0
+    columns:
+      - name: id
+      - name: name
+        meta:
+          constraint: not_null
+      - name: date

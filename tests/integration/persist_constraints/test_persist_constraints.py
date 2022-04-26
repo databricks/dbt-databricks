@@ -19,10 +19,7 @@ class TestConstraints(DBTIntegrationTest):
             "config-version": 2,
             "models": {
                 "test": {
-                    "+persist_docs": {
-                        "relation": True,
-                        "columns": True,
-                    },
+                    "+persist_constraints": True
                 }
             },
         }
@@ -48,24 +45,46 @@ class TestConstraints(DBTIntegrationTest):
 
 
 class TestTableConstraints(TestConstraints):
-    def test_delta_constraints(self):
+    def test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "table_model"
         expected_model_name = "expected_model"
+        updated_model_name = "expected_model_with_invalid_name"
         self.run_dbt(["run", "--select", model_name])
         self.run_dbt(["run", "--select", expected_model_name])
         self.assertTablesEqual(model_name, expected_model_name)
 
-        expected_constraints = {"delta.constraints.id_greater_than_zero": "id > 0"}
-        self.check_constraints(model_name, expected_constraints)
+        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
+
+        # Insert a row into the seed model that violates the NOT NULL constraint on name.
+        self.run_sql(f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')")
+        self.run_and_check_failure(
+            model_name, err_msg="violate the new NOT NULL constraint on name"
+        )
+
+        # Check the table is still created with the invalid row.
+        self.run_dbt(["run", "--select", updated_model_name])
+        self.assertTablesEqual(model_name, updated_model_name)
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
 
     @use_profile("databricks_sql_endpoint")
     def test_databricks_sql_endpoint(self):
-        self.test_delta_constraints()
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
 
 
 class TestIncrementalConstraints(TestConstraints):
-    def test_incremental_delta_constraints(self):
+    def test_incremental_constraints(self):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
@@ -97,9 +116,21 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_dbt(["run", "--select", expected_model_name])
         self.assertTablesEqual(model_name, expected_model_name)
 
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_incremental_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_incremental_constraints()
+
     @use_profile("databricks_sql_endpoint")
     def test_databricks_sql_endpoint(self):
-        self.test_incremental_delta_constraints()
+        self.test_incremental_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_incremental_constraints()
 
 
 class TestInvalidCheckConstraints(TestConstraints):
@@ -110,8 +141,20 @@ class TestInvalidCheckConstraints(TestConstraints):
             model_name, err_msg="Invalid check constraint condition"
         )
 
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_invalid_check_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_invalid_check_constraints()
+
     @use_profile("databricks_sql_endpoint")
     def test_databricks_sql_endpoint(self):
+        self.test_invalid_check_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
         self.test_invalid_check_constraints()
 
 
@@ -124,6 +167,56 @@ class TestInvalidColumnConstraints(TestConstraints):
             err_msg="Invalid constraint for column id. Only `not_null` is supported.",
         )
 
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_invalid_column_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_invalid_column_constraints()
+
     @use_profile("databricks_sql_endpoint")
     def test_databricks_sql_endpoint(self):
         self.test_invalid_column_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_invalid_column_constraints()
+
+
+class TestTableWithConstraintsDisabled(TestConstraints):
+    def test_delta_constraints_disabled(self):
+        self.run_dbt(["seed"])
+        model_name = "table_model_disable_constraints"
+        expected_model_name = "expected_model"
+        updated_model_name = "expected_model_with_invalid_name"
+        self.run_dbt(["run", "--select", model_name])
+        self.run_dbt(["run", "--select", expected_model_name])
+        self.assertTablesEqual(model_name, expected_model_name)
+
+        # No check constraint should be added.
+        self.check_constraints(model_name, {})
+
+        # Insert a row into the seed model with the name being null.
+        self.run_sql(f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')")
+
+        # Check the table can be created without failure.
+        self.run_dbt(["run", "--select", model_name])
+        self.run_dbt(["run", "--select", updated_model_name])
+        self.assertTablesEqual(model_name, updated_model_name)
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_delta_constraints_disabled()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_delta_constraints_disabled()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_delta_constraints_disabled()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_delta_constraints_disabled()

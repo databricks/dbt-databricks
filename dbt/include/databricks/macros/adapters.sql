@@ -73,67 +73,73 @@
     {{ sql }}
 {% endmacro %}
 
-{% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
-  {% if for_relation and config.persist_relation_docs() and model.meta.check_constraints %}
-    {{ dbt_databricks_add_check_constraints(relation, model.meta.check_constraints) }}
-  {% endif %}
-
-  {% if for_columns and config.persist_column_docs() and model.columns %}
-    {% do alter_column_comment(relation, model.columns) %}
-  {% endif %}
-{% endmacro %}
-
-{# Persist Delta check cosntraints. #}
-{% macro dbt_databricks_add_check_constraints(relation, constraints) %}
-  {% if config.get('file_format', default='delta') == 'delta' %}
-    {% if constraints is iterable %}
-      {% for constraint in constraints %}
-        {% set name = constraint['name'] %}
-        {% if not name %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
-        {% endif %}
-        {% set condition = constraint['condition'] %}
-        {% if not condition %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
-        {% endif %}
-        {# Drop the existing constraints if exist for incremental updates. #}
-        {% if is_incremental() %}
-          {% call statement() %}
-            alter table {{ relation }} drop constraint {{ name }};
-          {% endcall %}
-        {% endif %}
-        {% call statement() %}
-          alter table {{ relation }} add constraint {{ name }} check ({{ condition }});
-        {% endcall %}
-      {% endfor %}
-    {% endif %}
-  {% endif %}
-{% endmacro %}
-
 {% macro databricks__alter_column_comment(relation, column_dict) %}
-  {% set file_format = config.get('file_format', default='delta') %}
-  {% if file_format in ['delta', 'hudi'] %}
+  {% if config.get('file_format', default='delta') in ['delta', 'hudi'] %}
     {% for column_name in column_dict %}
       {% set comment = column_dict[column_name]['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}
-      {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
       {% set comment_query %}
-        alter table {{ relation }} change column {{ quoted_name }} comment '{{ escaped_comment }}';
+        alter table {{ relation }} change column
+            {{ adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name }}
+            comment '{{ escaped_comment }}';
       {% endset %}
       {% do run_query(comment_query) %}
+    {% endfor %}
+  {% endif %}
+{% endmacro %}
 
-      {# Persist Delta not null cosntraint for columns. #}
-      {% if file_format == 'delta' %}
-        {% set constraint = column_dict[column_name]['meta']['constraint'] %}
-        {% if constraint %}
-          {% if constraint != 'not_null' %}
-            {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
-          {% endif %}
-          {% call statement() %}
-            alter table {{ relation }} change column {{ quoted_name }} SET NOT NULL
-          {% endcall %}
-        {% endif %}
+{# Persist table-level and column-level constraints. #}
+{% macro persist_constraints(relation, model) %}
+  {{ return(adapter.dispatch('persist_constraints', 'dbt')(relation, model)) }}
+{% endmacro %}
+
+{% macro databricks__persist_constraints(relation, model) %}
+  {% if config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
+    {% do alter_table_add_constraints(relation, model.meta.constraints) %}
+    {% do alter_column_set_constraints(relation, model.columns) %}
+  {% endif %}
+{% endmacro %}
+
+{% macro alter_table_add_constraints(relation, constraints) %}
+  {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
+{% endmacro %}
+
+{% macro databricks__alter_table_add_constraints(relation, constraints) %}
+  {% if constraints is sequence %}
+    {% for constraint in constraints %}
+      {% set name = constraint['name'] %}
+      {% if not name %}
+        {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
+      {% endif %}
+      {% set condition = constraint['condition'] %}
+      {% if not condition %}
+        {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
+      {% endif %}
+      {# Skip if the update is incremental. #}
+      {% if not is_incremental() %}
+        {% call statement() %}
+          alter table {{ relation }} add constraint {{ name }} check ({{ condition }});
+        {% endcall %}
       {% endif %}
     {% endfor %}
   {% endif %}
+{% endmacro %}
+
+{% macro alter_column_set_constraints(relation, column_dict) %}
+  {{ return(adapter.dispatch('alter_column_set_constraints', 'dbt')(relation, column_dict)) }}
+{% endmacro %}
+
+{% macro databricks__alter_column_set_constraints(relation, column_dict) %}
+  {% for column_name in column_dict %}
+    {% set constraint = column_dict[column_name]['meta']['constraint'] %}
+    {% if constraint %}
+      {% if constraint != 'not_null' %}
+        {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
+      {% endif %}
+      {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
+      {% call statement() %}
+        alter table {{ relation }} change column {{ quoted_name }} set not null
+      {% endcall %}
+    {% endif %}
+  {% endfor %}
 {% endmacro %}
