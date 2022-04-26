@@ -1,4 +1,4 @@
-## dbt-databricks 1.0.3 (Release TBD)
+## dbt-databricks 1.0.3 (April 26, 2022)
 
 ### Fixes
 - Make internal macros use macro dispatch pattern ([#72](https://github.com/databricks/dbt-databricks/pull/72))
