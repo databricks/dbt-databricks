@@ -17,6 +17,7 @@ class TestConstraints(DBTIntegrationTest):
         return {
             "config-version": 2,
             "models": {"test": {"+persist_constraints": True}},
+            "snapshots": {"test": {"+persist_constraints": True}},
         }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
@@ -48,7 +49,7 @@ class TestTableConstraints(TestConstraints):
         self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
 
         # Insert a row into the seed model that violates the NOT NULL constraint on name.
-        self.run_sql(f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')")
+        self.run_sql_file("insert_invalid_name.sql")
         self.run_and_check_failure(
             model_name, err_msg="violate the new NOT NULL constraint on name"
         )
@@ -84,7 +85,7 @@ class TestIncrementalConstraints(TestConstraints):
         schema = self.unique_schema()
 
         # Insert a row into the seed model with an invalid id.
-        self.run_sql(f"insert into {schema}.seed values (0, 'Cathy', '2022-03-01')")
+        self.run_sql_file("insert_invalid_id.sql")
         self.run_and_check_failure(
             model_name,
             err_msg="CHECK constraint id_greater_than_zero (id > 0) violated",
@@ -92,7 +93,7 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_sql(f"delete from {schema}.seed where id = 0")
 
         # Insert a row into the seed model with an invalid name.
-        self.run_sql(f"insert into {schema}.seed values (3, null, '2022-03-01')")
+        self.run_sql_file("insert_invalid_name.sql")
         self.run_and_check_failure(
             model_name, err_msg="NOT NULL constraint violated for column: name"
         )
@@ -120,6 +121,48 @@ class TestIncrementalConstraints(TestConstraints):
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
         self.test_incremental_constraints()
+
+
+class TestSnapshotConstraints(TestConstraints):
+    def check_snapshot_results(self, num_rows: int):
+        results = self.run_sql(f"select * from {self.unique_schema()}.my_snapshot", fetch="all")
+        self.assertEqual(len(results), num_rows)
+
+    def test_snapshot(self):
+        self.run_dbt(["seed"])
+        self.run_dbt(["snapshot"])
+        self.check_snapshot_results(num_rows=2)
+
+        self.run_sql_file("insert_invalid_name.sql")
+        results = self.run_dbt(["snapshot"], expect_pass=False)
+        assert "NOT NULL constraint violated for column: name" in results.results[0].message
+
+        self.run_dbt(["seed"])
+        self.run_sql_file("insert_invalid_id.sql")
+        results = self.run_dbt(["snapshot"], expect_pass=False)
+        assert (
+            "CHECK constraint id_greater_than_zero (id > 0) violated by row with values"
+            in results.results[0].message
+        )
+
+        # Check the snapshot table is not updated.
+        self.check_snapshot_results(num_rows=2)
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_snapshot()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_snapshot()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_snapshot()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_snapshot()
 
 
 class TestInvalidCheckConstraints(TestConstraints):
