@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from distutils.version import LooseVersion
 from dataclasses import dataclass
 import re
 import time
@@ -22,7 +23,7 @@ from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
-from databricks.sql.exc import OperationalError
+from databricks.sql.exc import DatabaseError, OperationalError
 
 logger = AdapterLogger("Databricks")
 
@@ -157,17 +158,26 @@ class DatabricksConnectionManager(SparkConnectionManager):
         try:
             yield
 
-        except OperationalError as exc:
-            logger.debug("Error while running:\n{}".format(sql))
-            logger.debug(exc)
-            msg = str(exc)
-            m = self.DROP_JAVA_STACKTRACE_REGEX.search(msg)
-            if m:
-                msg = ("Query execution failed.\nError message: {}").format(m.group().strip())
-            raise dbt.exceptions.RuntimeException(msg)
-
         except Exception as exc:
-            logger.debug("Error while running:\n{}".format(sql))
+            if isinstance(exc, OperationalError) and LooseVersion(dbsql.__version__) < "2.0":
+                logger.debug(f"Error while running:\n{sql}")
+                logger.debug(exc)
+                msg = str(exc)
+                m = self.DROP_JAVA_STACKTRACE_REGEX.search(msg)
+                if m:
+                    msg = f"Query execution failed.\nError message: {m.group().strip()}"
+                raise dbt.exceptions.RuntimeException(msg)
+            elif isinstance(exc, DatabaseError):
+                logger.debug(f"Error while running:\n{sql}")
+                logger.debug(exc)
+                if hasattr(exc, "context"):
+                    if "operation-id" in exc.context:
+                        logger.debug(f"operation-id: {exc.context['operation-id']}")
+                    if "diagnostic-info" in exc.context:
+                        logger.debug(f"diagnostic-info: {exc.context['diagnostic-info']}")
+                raise dbt.exceptions.RuntimeException(str(exc))
+
+            logger.debug(f"Error while running:\n{sql}")
             logger.debug(exc)
             if len(exc.args) == 0:
                 raise
