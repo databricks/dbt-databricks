@@ -2,6 +2,9 @@
 
 ## dbt-databricks 1.1.0 (Release TBD)
 
+### Features
+- Add support for [Delta constraints](https://docs.databricks.com/delta/delta-constraints.html) ([#71](https://github.com/databricks/dbt-databricks/pull/71))
+
 ### Under the hood
 - Port testing framework changes from [dbt-labs/dbt-spark#299](https://github.com/dbt-labs/dbt-spark/pull/299) and [dbt-labs/dbt-spark#314](https://github.com/dbt-labs/dbt-spark/pull/314) ([#70](https://github.com/databricks/dbt-databricks/pull/70))
 
