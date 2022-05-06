@@ -87,3 +87,59 @@
     {% endfor %}
   {% endif %}
 {% endmacro %}
+
+{# Persist table-level and column-level constraints. #}
+{% macro persist_constraints(relation, model) %}
+  {{ return(adapter.dispatch('persist_constraints', 'dbt')(relation, model)) }}
+{% endmacro %}
+
+{% macro databricks__persist_constraints(relation, model) %}
+  {% if config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
+    {% do alter_table_add_constraints(relation, model.meta.constraints) %}
+    {% do alter_column_set_constraints(relation, model.columns) %}
+  {% endif %}
+{% endmacro %}
+
+{% macro alter_table_add_constraints(relation, constraints) %}
+  {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
+{% endmacro %}
+
+{% macro databricks__alter_table_add_constraints(relation, constraints) %}
+  {% if constraints is sequence %}
+    {% for constraint in constraints %}
+      {% set name = constraint['name'] %}
+      {% if not name %}
+        {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
+      {% endif %}
+      {% set condition = constraint['condition'] %}
+      {% if not condition %}
+        {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
+      {% endif %}
+      {# Skip if the update is incremental. #}
+      {% if not is_incremental() %}
+        {% call statement() %}
+          alter table {{ relation }} add constraint {{ name }} check ({{ condition }});
+        {% endcall %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{% macro alter_column_set_constraints(relation, column_dict) %}
+  {{ return(adapter.dispatch('alter_column_set_constraints', 'dbt')(relation, column_dict)) }}
+{% endmacro %}
+
+{% macro databricks__alter_column_set_constraints(relation, column_dict) %}
+  {% for column_name in column_dict %}
+    {% set constraint = column_dict[column_name]['meta']['constraint'] %}
+    {% if constraint %}
+      {% if constraint != 'not_null' %}
+        {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
+      {% endif %}
+      {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
+      {% call statement() %}
+        alter table {{ relation }} change column {{ quoted_name }} set not null
+      {% endcall %}
+    {% endif %}
+  {% endfor %}
+{% endmacro %}
