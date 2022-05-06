@@ -51,5 +51,5 @@ your_profile_name:
 
 ### Compatibility
 
-The `dbt-databricks` adapter has been tested against `Databricks SQL` and `Databricks runtime releases 7.3 LTS` and later.
+The `dbt-databricks` adapter has been tested against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
 
