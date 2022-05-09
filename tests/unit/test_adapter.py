@@ -44,6 +44,21 @@ class TestDatabricksAdapter(unittest.TestCase):
             'target': 'test'
         })
 
+    def _get_target_databricks_sql_connector_catalog(self, project):
+        return config_from_parts_or_dicts(project, {
+            'outputs': {
+                'test': {
+                    'type': 'databricks',
+                    'schema': 'analytics',
+                    'catalog': 'main',
+                    'host': 'yourorg.databricks.com',
+                    'http_path': 'sql/protocolv1/o/1234567890123456/1234-567890-test123',
+                    'token': 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+                }
+            },
+            'target': 'test'
+        })
+
     def test_databricks_sql_connector_connection(self):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
@@ -75,6 +90,46 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertEqual(connection.credentials.session_properties['spark.sql.ansi.enabled'],
                     'true')
             self.assertIsNone(connection.credentials.database)
+
+    def test_databricks_sql_connector_catalog_connection(self):
+        config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        def databricks_sql_connector_connect(
+            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+        ):
+            self.assertEqual(server_hostname, 'yourorg.databricks.com')
+            self.assertEqual(http_path, 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
+            self.assertEqual(access_token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+            self.assertEqual(session_configuration['databricks.catalog'], 'main')
+            self.assertEqual(_user_agent_entry, f'dbt-databricks/{__version__.version}')
+
+        with mock.patch(
+            'dbt.adapters.databricks.connections.dbsql.connect',
+            new=databricks_sql_connector_connect
+        ):  # noqa
+            connection = adapter.acquire_connection('dummy')
+            connection.handle  # trigger lazy-load
+
+            self.assertEqual(connection.state, 'open')
+            self.assertIsNotNone(connection.handle)
+            self.assertEqual(connection.credentials.http_path,
+                'sql/protocolv1/o/1234567890123456/1234-567890-test123')
+            self.assertEqual(connection.credentials.token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+            self.assertEqual(connection.credentials.schema, 'analytics')
+            self.assertEqual(connection.credentials.database,'main')
+
+    def test_simple_catalog_relation(self):
+        self.maxDiff = None
+        rel_type = DatabricksRelation.get_relation_type.Table
+
+        relation = DatabricksRelation.create(
+            database='test_catalog',
+            schema='default_schema',
+            identifier='mytable',
+            type=rel_type
+        )
+        assert relation.database == 'test_catalog'
 
     def test_parse_relation(self):
         self.maxDiff = None
@@ -264,14 +319,15 @@ class TestDatabricksAdapter(unittest.TestCase):
         })
 
     def test_relation_with_database(self):
-        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
         adapter = DatabricksAdapter(config)
         # fine
-        adapter.Relation.create(schema='different', identifier='table')
-        with self.assertRaises(RuntimeException):
-            # not fine - database set
-            adapter.Relation.create(
+        r1 = adapter.Relation.create(schema='different', identifier='table')
+        ## TODO test
+        ##assert r1.database == 'main'
+        r2 = adapter.Relation.create(
                 database='something', schema='different', identifier='table')
+        assert r2.database == 'something'
 
     def test_parse_columns_from_information_with_table_type_and_delta_provider(self):
         self.maxDiff = None

@@ -38,6 +38,10 @@ class DatabricksCredentials(Credentials):
     session_properties: Optional[Dict[str, Any]] = None
     retry_all: bool = False
 
+    _ALIASES = {
+        'catalog': 'database',
+    }
+
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
         data = super().__pre_deserialize__(data)
@@ -46,15 +50,11 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
-        # spark classifies database and schema as the same thing
-        if self.database is not None and self.database != self.schema:
+        if self.database is not None and not(self.database.strip()):
             raise dbt.exceptions.RuntimeException(
-                f"    schema: {self.schema} \n"
                 f"    database: {self.database} \n"
-                f"On Spark, database must be omitted or have the same value as"
-                f" schema."
+                f"Invalid catalog name."
             )
-        self.database = None
 
     @property
     def type(self) -> str:
@@ -65,7 +65,7 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self) -> Tuple[str, ...]:
-        return "host", "port", "http_path", "schema"
+        return ("host", "database", "http_path", "schema", "session_properties")
 
 
 class DatabricksSQLConnectionWrapper(object):
@@ -242,11 +242,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 dbt_databricks_version = __version__.version
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
+                session_configs = creds.session_properties or dict()
+                # TODO: what is the error when a user specifies a catalog they don't have
+                # access to
+                if creds.database:
+                    session_configs['databricks.catalog'] = creds.database
+
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
                     access_token=creds.token,
-                    session_configuration=creds.session_properties,
+                    session_configuration=session_configs,
                     _user_agent_entry=user_agent_entry,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
