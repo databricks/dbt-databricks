@@ -1,3 +1,4 @@
+from distutils.version import LooseVersion
 import unittest
 from unittest import mock
 
@@ -7,6 +8,8 @@ import dbt.flags as flags
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from .utils import config_from_parts_or_dicts
+
+from databricks import sql as dbsql
 
 
 class TestDatabricksAdapter(unittest.TestCase):
@@ -55,6 +58,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                         "host": "yourorg.databricks.com",
                         "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
                         "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
                     }
                 },
                 "target": "test",
@@ -65,14 +69,34 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        def databricks_sql_connector_connect(
-            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        if LooseVersion(dbsql.__version__) < "2.0":
+
+            def databricks_sql_connector_connect(
+                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertNotIn("databricks.catalog", session_configuration)
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+
+        else:
+
+            def databricks_sql_connector_connect(  # type: ignore[misc]
+                server_hostname,
+                http_path,
+                access_token,
+                session_configuration,
+                catalog,
+                _user_agent_entry,
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertIsNone(catalog)
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -99,14 +123,34 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        def databricks_sql_connector_connect(
-            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["databricks.catalog"], "main")
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        if LooseVersion(dbsql.__version__) < "2.0":
+
+            def databricks_sql_connector_connect(
+                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertEqual(session_configuration["databricks.catalog"], "main")
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+
+        else:
+
+            def databricks_sql_connector_connect(  # type: ignore[misc]
+                server_hostname,
+                http_path,
+                access_token,
+                session_configuration,
+                catalog,
+                _user_agent_entry,
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertEqual(catalog, "main")
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -328,10 +372,8 @@ class TestDatabricksAdapter(unittest.TestCase):
     def test_relation_with_database(self):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
         adapter = DatabricksAdapter(config)
-        # fine
         r1 = adapter.Relation.create(schema="different", identifier="table")
-        ## TODO test
-        ##assert r1.database == 'main'
+        assert r1.database is None
         r2 = adapter.Relation.create(database="something", schema="different", identifier="table")
         assert r2.database == "something"
 

@@ -18,5 +18,5 @@ class DatabricksRelation(SparkRelation):
     def __post_init__(self) -> None:
         return
 
-    def rander(self):
+    def render(self) -> str:
         return super(SparkRelation, self).render()

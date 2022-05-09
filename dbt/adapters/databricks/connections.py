@@ -251,18 +251,35 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
                 session_configs = creds.session_properties or dict()
-                # TODO: what is the error when a user specifies a catalog they don't have
-                # access to
-                if creds.database:
-                    session_configs["databricks.catalog"] = creds.database
+                if "databricks.catalog" in session_configs:
+                    raise dbt.exceptions.DbtProfileError(
+                        "Setting `databricks.catalog` in `session_properties` is not supported "
+                        "anymore. Please use `datalog` or `database` to set the initial catalog."
+                    )
 
-                conn: DatabricksSQLConnection = dbsql.connect(
-                    server_hostname=creds.host,
-                    http_path=creds.http_path,
-                    access_token=creds.token,
-                    session_configuration=session_configs,
-                    _user_agent_entry=user_agent_entry,
-                )
+                if LooseVersion(dbsql.__version__) < "2.0":
+                    # TODO: what is the error when a user specifies a catalog they don't have
+                    # access to
+                    if creds.database:
+                        session_configs["databricks.catalog"] = creds.database
+                    connect_args = dict(
+                        server_hostname=creds.host,
+                        http_path=creds.http_path,
+                        access_token=creds.token,
+                        session_configuration=session_configs,
+                        _user_agent_entry=user_agent_entry,
+                    )
+                else:
+                    connect_args = dict(
+                        server_hostname=creds.host,
+                        http_path=creds.http_path,
+                        access_token=creds.token,
+                        session_configuration=session_configs,
+                        catalog=creds.database,
+                        _user_agent_entry=user_agent_entry,
+                    )
+
+                conn: DatabricksSQLConnection = dbsql.connect(**connect_args)
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:
