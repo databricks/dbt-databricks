@@ -40,7 +40,7 @@ class DatabricksCredentials(Credentials):
     retry_all: bool = False
 
     _ALIASES = {
-        'catalog': 'database',
+        "catalog": "database",
     }
 
     @classmethod
@@ -51,10 +51,9 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
-        if self.database is not None and not(self.database.strip()):
+        if self.database is not None and not (self.database.strip()):
             raise dbt.exceptions.RuntimeException(
-                f"    database: {self.database} \n"
-                f"Invalid catalog name."
+                f"    database: {self.database} \n" f"Invalid catalog name."
             )
 
     @property
@@ -66,7 +65,7 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self) -> Tuple[str, ...]:
-        return ("host", "database", "http_path", "schema", "session_properties")
+        return "host", "database", "http_path", "schema", "session_properties"
 
 
 class DatabricksSQLConnectionWrapper(object):
@@ -255,7 +254,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 # TODO: what is the error when a user specifies a catalog they don't have
                 # access to
                 if creds.database:
-                    session_configs['databricks.catalog'] = creds.database
+                    session_configs["databricks.catalog"] = creds.database
 
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,

@@ -3,7 +3,6 @@ from unittest import mock
 
 from agate import Row
 import dbt.flags as flags
-from dbt.exceptions import RuntimeException
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
@@ -45,19 +44,22 @@ class TestDatabricksAdapter(unittest.TestCase):
         )
 
     def _get_target_databricks_sql_connector_catalog(self, project):
-        return config_from_parts_or_dicts(project, {
-            'outputs': {
-                'test': {
-                    'type': 'databricks',
-                    'schema': 'analytics',
-                    'catalog': 'main',
-                    'host': 'yourorg.databricks.com',
-                    'http_path': 'sql/protocolv1/o/1234567890123456/1234-567890-test123',
-                    'token': 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-                }
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "catalog": "main",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                    }
+                },
+                "target": "test",
             },
-            'target': 'test'
-        })
+        )
 
     def test_databricks_sql_connector_connection(self):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
@@ -100,38 +102,37 @@ class TestDatabricksAdapter(unittest.TestCase):
         def databricks_sql_connector_connect(
             server_hostname, http_path, access_token, session_configuration, _user_agent_entry
         ):
-            self.assertEqual(server_hostname, 'yourorg.databricks.com')
-            self.assertEqual(http_path, 'sql/protocolv1/o/1234567890123456/1234-567890-test123')
-            self.assertEqual(access_token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-            self.assertEqual(session_configuration['databricks.catalog'], 'main')
-            self.assertEqual(_user_agent_entry, f'dbt-databricks/{__version__.version}')
+            self.assertEqual(server_hostname, "yourorg.databricks.com")
+            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(session_configuration["databricks.catalog"], "main")
+            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         with mock.patch(
-            'dbt.adapters.databricks.connections.dbsql.connect',
-            new=databricks_sql_connector_connect
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=databricks_sql_connector_connect,
         ):  # noqa
-            connection = adapter.acquire_connection('dummy')
+            connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
-            self.assertEqual(connection.state, 'open')
+            self.assertEqual(connection.state, "open")
             self.assertIsNotNone(connection.handle)
-            self.assertEqual(connection.credentials.http_path,
-                'sql/protocolv1/o/1234567890123456/1234-567890-test123')
-            self.assertEqual(connection.credentials.token, 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-            self.assertEqual(connection.credentials.schema, 'analytics')
-            self.assertEqual(connection.credentials.database,'main')
+            self.assertEqual(
+                connection.credentials.http_path,
+                "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(connection.credentials.schema, "analytics")
+            self.assertEqual(connection.credentials.database, "main")
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None
         rel_type = DatabricksRelation.get_relation_type.Table
 
         relation = DatabricksRelation.create(
-            database='test_catalog',
-            schema='default_schema',
-            identifier='mytable',
-            type=rel_type
+            database="test_catalog", schema="default_schema", identifier="mytable", type=rel_type
         )
-        assert relation.database == 'test_catalog'
+        assert relation.database == "test_catalog"
 
     def test_parse_relation(self):
         self.maxDiff = None
@@ -328,12 +329,11 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
         adapter = DatabricksAdapter(config)
         # fine
-        r1 = adapter.Relation.create(schema='different', identifier='table')
+        r1 = adapter.Relation.create(schema="different", identifier="table")
         ## TODO test
         ##assert r1.database == 'main'
-        r2 = adapter.Relation.create(
-                database='something', schema='different', identifier='table')
-        assert r2.database == 'something'
+        r2 = adapter.Relation.create(database="something", schema="different", identifier="table")
+        assert r2.database == "something"
 
     def test_parse_columns_from_information_with_table_type_and_delta_provider(self):
         self.maxDiff = None
