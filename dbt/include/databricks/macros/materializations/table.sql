@@ -21,8 +21,10 @@
   {% call statement('main') -%}
     {{ create_table_as(False, target_relation, sql) }}
   {%- endcall %}
-  
+
   {% do persist_docs(target_relation, model) %}
+
+  {% do persist_constraints(target_relation, model) %}
 
   {{ run_hooks(post_hooks) }}
 

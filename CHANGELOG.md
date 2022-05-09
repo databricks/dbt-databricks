@@ -1,4 +1,19 @@
-## dbt-databricks 1.0.2 (Release TBD)
+## dbt-databricks 1.2.0 (Release TBD)
+
+## dbt-databricks 1.1.0 (Release TBD)
+
+### Features
+- Add support for [Delta constraints](https://docs.databricks.com/delta/delta-constraints.html) ([#71](https://github.com/databricks/dbt-databricks/pull/71))
+
+### Under the hood
+- Port testing framework changes from [dbt-labs/dbt-spark#299](https://github.com/dbt-labs/dbt-spark/pull/299) and [dbt-labs/dbt-spark#314](https://github.com/dbt-labs/dbt-spark/pull/314) ([#70](https://github.com/databricks/dbt-databricks/pull/70))
+
+## dbt-databricks 1.0.3 (April 26, 2022)
+
+### Fixes
+- Make internal macros use macro dispatch pattern ([#72](https://github.com/databricks/dbt-databricks/pull/72))
+
+## dbt-databricks 1.0.2 (March 31, 2022)
 
 ### Features
 - Support for setting table properties as part of a model configuration ([#33](https://github.com/databricks/dbt-databricks/issues/33), [#49](https://github.com/databricks/dbt-databricks/pull/49))

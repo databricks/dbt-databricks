@@ -1,6 +1,4 @@
-from cProfile import run
 from tests.integration.base import DBTIntegrationTest, use_profile
-import dbt.exceptions
 
 
 class TestIncrementalStrategies(DBTIntegrationTest):
@@ -11,8 +9,8 @@ class TestIncrementalStrategies(DBTIntegrationTest):
     @property
     def project_config(self):
         return {
-            'seeds': {
-                'quote_columns': False,
+            "seeds": {
+                "quote_columns": False,
             },
         }
 
@@ -30,7 +28,7 @@ class TestParquetAppend(TestIncrementalStrategies):
     @property
     def models(self):
         return "models"
-        
+
     def run_and_test(self):
         self.seed_and_run_twice()
         self.assertTablesEqual("default_append", "expected_append")
@@ -47,10 +45,8 @@ class TestParquetInsertOverwrite(TestIncrementalStrategies):
 
     def run_and_test(self):
         self.seed_and_run_twice()
-        self.assertTablesEqual(
-            "insert_overwrite_no_partitions", "expected_overwrite")
-        self.assertTablesEqual(
-            "insert_overwrite_partitions", "expected_upsert")
+        self.assertTablesEqual("insert_overwrite_no_partitions", "expected_overwrite")
+        self.assertTablesEqual("insert_overwrite_partitions", "expected_upsert")
 
     @use_profile("databricks_cluster")
     def test_insert_overwrite_databricks_cluster(self):
@@ -73,8 +69,16 @@ class TestDeltaStrategies(TestIncrementalStrategies):
     def test_delta_strategies_databricks_cluster(self):
         self.run_and_test()
 
+    @use_profile("databricks_uc_cluster")
+    def test_delta_strategies_databricks_uc_cluster(self):
+        self.run_and_test()
+
     @use_profile("databricks_sql_endpoint")
     def test_delta_strategies_databricks_sql_endpoint(self):
+        self.run_and_test()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_delta_strategies_databricks_uc_sql_endpoint(self):
         self.run_and_test()
 
 
@@ -115,6 +119,14 @@ class TestBadStrategies(TestIncrementalStrategies):
     def test_bad_strategies_databricks_cluster(self):
         self.run_and_test()
 
+    @use_profile("databricks_uc_cluster")
+    def test_bad_strategies_databricks_uc_cluster(self):
+        self.run_and_test()
+
     @use_profile("databricks_sql_endpoint")
     def test_bad_strategies_databricks_sql_endpoint(self):
+        self.run_and_test()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_bad_strategies_databricks_uc_sql_endpoint(self):
         self.run_and_test()

@@ -1,6 +1,4 @@
-import json
 import os
-import io
 import random
 import shutil
 import sys
@@ -24,10 +22,15 @@ from dbt.config import RuntimeConfig
 from dbt.context import providers
 from dbt.logger import log_manager
 from dbt.events.functions import (
-    capture_stdout_logs, fire_event, setup_event_logger, stop_capture_stdout_logs
+    capture_stdout_logs,
+    setup_event_logger,
+    stop_capture_stdout_logs,
 )
 from dbt.events import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
+
+from tests.profiles import get_databricks_cluster_target
+
 
 logger = AdapterLogger("Databricks")
 
@@ -52,10 +55,10 @@ class Normalized:
         self.value = value
 
     def __repr__(self):
-        return f'Normalized({self.value!r})'
+        return f"Normalized({self.value!r})"
 
     def __str__(self):
-        return f'Normalized({self.value!s})'
+        return f"Normalized({self.value!s})"
 
     def __eq__(self, other):
         return normalize(self.value) == normalize(other)
@@ -76,8 +79,10 @@ class FakeArgs:
 
 
 class TestArgs:
+    __test__ = False
+
     def __init__(self, kwargs):
-        self.which = 'run'
+        self.which = "run"
         self.single_threaded = False
         self.profiles_dir = None
         self.project_dir = None
@@ -85,29 +90,33 @@ class TestArgs:
 
 
 def _profile_from_test_name(test_name):
-    adapter_names = ('databricks_cluster', 'databricks_sql_endpoint')
+    adapter_names = (
+        "databricks_cluster",
+        "databricks_uc_cluster",
+        "databricks_sql_endpoint",
+        "databricks_uc_sql_endpoint",
+    )
     adapters_in_name = sum(x in test_name for x in adapter_names)
     if adapters_in_name != 1:
         raise ValueError(
-            'test names must have exactly 1 profile choice embedded, {} has {}'
-            .format(test_name, adapters_in_name)
+            "test names must have exactly 1 profile choice embedded, {} has {}".format(
+                test_name, adapters_in_name
+            )
         )
 
     for adapter_name in adapter_names:
         if adapter_name in test_name:
             return adapter_name
 
-    raise ValueError(
-        'could not find adapter name in test name {}'.format(test_name)
-    )
+    raise ValueError("could not find adapter name in test name {}".format(test_name))
 
 
 def _pytest_test_name():
-    return os.environ['PYTEST_CURRENT_TEST'].split()[0]
+    return os.environ["PYTEST_CURRENT_TEST"].split()[0]
 
 
 def _pytest_get_test_root():
-    test_path = _pytest_test_name().split('::')[0]
+    test_path = _pytest_test_name().split("::")[0]
     relative_to = INITIAL_ROOT
     head = os.path.relpath(test_path, relative_to)
 
@@ -130,56 +139,15 @@ def _really_makedirs(path):
 
 
 class DBTIntegrationTest(unittest.TestCase):
-    CREATE_SCHEMA_STATEMENT = 'CREATE SCHEMA {}'
-    DROP_SCHEMA_STATEMENT = 'DROP SCHEMA IF EXISTS {} CASCADE'
+    CREATE_SCHEMA_STATEMENT = "CREATE SCHEMA {}"
+    DROP_SCHEMA_STATEMENT = "DROP SCHEMA IF EXISTS {} CASCADE"
 
     _randint = random.randint(0, 9999)
-    _runtime_timedelta = (datetime.utcnow() - datetime(1970, 1, 1, 0, 0, 0))
-    _runtime = (
-        (int(_runtime_timedelta.total_seconds() * 1e6)) +
-        _runtime_timedelta.microseconds
-    )
+    _runtime_timedelta = datetime.utcnow() - datetime(1970, 1, 1, 0, 0, 0)
+    _runtime = (int(_runtime_timedelta.total_seconds() * 1e6)) + _runtime_timedelta.microseconds
 
-    prefix = f'test{_runtime}{_randint:04}'
+    prefix = f"test{_runtime}{_randint:04}"
     setup_alternate_db = False
-
-    def databricks_cluster_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'dbsql': {
-                        'type': 'databricks',
-                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_CLUSTER_HTTP_PATH'),
-                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'dbsql'
-            }
-        }
-
-    def databricks_sql_endpoint_profile(self):
-        return {
-            'config': {
-                'send_anonymous_usage_stats': False
-            },
-            'test': {
-                'outputs': {
-                    'endpoint': {
-                        'type': 'databricks',
-                        'host': os.getenv('DBT_DATABRICKS_HOST_NAME'),
-                        'http_path': os.getenv('DBT_DATABRICKS_ENDPOINT_HTTP_PATH'),
-                        'token': os.getenv('DBT_DATABRICKS_TOKEN'),
-                        'schema': self.unique_schema()
-                    },
-                },
-                'target': 'endpoint'
-            }
-        }
 
     @property
     def packages_config(self):
@@ -206,35 +174,41 @@ class DBTIntegrationTest(unittest.TestCase):
         return None
 
     def get_profile(self, adapter_type):
-        if adapter_type == 'databricks_cluster':
-            return self.databricks_cluster_profile()
-        elif adapter_type == 'databricks_sql_endpoint':
-            return self.databricks_sql_endpoint_profile()
-        else:
-            raise ValueError('invalid adapter type {}'.format(adapter_type))
+        return {
+            "config": {"send_anonymous_usage_stats": False},
+            "test": {
+                "outputs": {
+                    "dev": dict(
+                        **get_databricks_cluster_target(adapter_type),
+                        schema=self.unique_schema(),
+                    ),
+                },
+                "target": "dev",
+            },
+        }
 
     def _pick_profile(self):
-        test_name = self.id().split('.')[-1]
+        test_name = self.id().split(".")[-1]
         return _profile_from_test_name(test_name)
 
     def _symlink_test_folders(self):
         for entry in os.listdir(self.test_original_source_path):
             src = os.path.join(self.test_original_source_path, entry)
             tst = os.path.join(self.test_root_dir, entry)
-            if os.path.isdir(src) or src.endswith('.sql'):
+            if os.path.isdir(src) or src.endswith(".sql"):
                 # symlink all sql files and all directories.
                 os.symlink(src, tst)
-        os.symlink(self._logs_dir, os.path.join(self.test_root_dir, 'logs'))
+        os.symlink(self._logs_dir, os.path.join(self.test_root_dir, "logs"))
 
     @property
     def test_root_realpath(self):
-        if sys.platform == 'darwin':
+        if sys.platform == "darwin":
             return os.path.realpath(self.test_root_dir)
         else:
             return self.test_root_dir
 
     def _generate_test_root_dir(self):
-        return normalize(tempfile.mkdtemp(prefix='dbt-int-test-'))
+        return normalize(tempfile.mkdtemp(prefix="dbt-int-test-"))
 
     def setUp(self):
         self.dbt_core_install_root = os.path.dirname(dbt.__file__)
@@ -242,7 +216,7 @@ class DBTIntegrationTest(unittest.TestCase):
         self.initial_dir = INITIAL_ROOT
         os.chdir(self.initial_dir)
         # before we go anywhere, collect the initial path info
-        self._logs_dir = os.path.join(self.initial_dir, 'logs', self.prefix)
+        self._logs_dir = os.path.join(self.initial_dir, "logs", self.prefix)
         setup_event_logger(self._logs_dir)
         _really_makedirs(self._logs_dir)
         self.test_original_source_path = _pytest_get_test_root()
@@ -251,13 +225,15 @@ class DBTIntegrationTest(unittest.TestCase):
         os.chdir(self.test_root_dir)
         try:
             self._symlink_test_folders()
-        except Exception as exc:
-            msg = '\n\t'.join((
-                'Failed to symlink test folders!',
-                'initial_dir={0.initial_dir}',
-                'test_original_source_path={0.test_original_source_path}',
-                'test_root_dir={0.test_root_dir}'
-            )).format(self)
+        except Exception:
+            msg = "\n\t".join(
+                (
+                    "Failed to symlink test folders!",
+                    "initial_dir={0.initial_dir}",
+                    "test_original_source_path={0.test_original_source_path}",
+                    "test_root_dir={0.test_root_dir}",
+                )
+            ).format(self)
             logger.exception(msg)
 
             # if logging isn't set up, I still really want this message.
@@ -279,12 +255,12 @@ class DBTIntegrationTest(unittest.TestCase):
     def use_default_project(self, overrides=None):
         # create a dbt_project.yml
         base_project_config = {
-            'name': 'test',
-            'version': '1.0',
-            'config-version': 2,
-            'test-paths': [],
-            'source-paths': [self.models],
-            'profile': 'test',
+            "name": "test",
+            "version": "1.0",
+            "config-version": 2,
+            "test-paths": [],
+            "source-paths": [self.models],
+            "profile": "test",
         }
 
         project_config = {}
@@ -292,7 +268,7 @@ class DBTIntegrationTest(unittest.TestCase):
         project_config.update(self.project_config)
         project_config.update(overrides or {})
 
-        with open("dbt_project.yml", 'w') as f:
+        with open("dbt_project.yml", "w") as f:
             yaml.safe_dump(project_config, f, default_flow_style=True)
 
     def use_profile(self, adapter_type):
@@ -308,19 +284,19 @@ class DBTIntegrationTest(unittest.TestCase):
             os.makedirs(self.test_root_dir)
 
         flags.PROFILES_DIR = self.test_root_dir
-        profiles_path = os.path.join(self.test_root_dir, 'profiles.yml')
-        with open(profiles_path, 'w') as f:
+        profiles_path = os.path.join(self.test_root_dir, "profiles.yml")
+        with open(profiles_path, "w") as f:
             yaml.safe_dump(profile_config, f, default_flow_style=True)
         self._profile_config = profile_config
 
     def set_packages(self):
         if self.packages_config is not None:
-            with open('packages.yml', 'w') as f:
+            with open("packages.yml", "w") as f:
                 yaml.safe_dump(self.packages_config, f, default_flow_style=True)
 
     def set_selectors(self):
         if self.selectors_config is not None:
-            with open('selectors.yml', 'w') as f:
+            with open("selectors.yml", "w") as f:
                 yaml.safe_dump(self.selectors_config, f, default_flow_style=True)
 
     def load_config(self):
@@ -329,9 +305,9 @@ class DBTIntegrationTest(unittest.TestCase):
         # it's important to use a different connection handle here so
         # we don't look into an incomplete transaction
         kwargs = {
-            'profile': None,
-            'profiles_dir': self.test_root_dir,
-            'target': None,
+            "profile": None,
+            "profiles_dir": self.test_root_dir,
+            "target": None,
         }
 
         config = RuntimeConfig.from_args(TestArgs(kwargs))
@@ -357,7 +333,7 @@ class DBTIntegrationTest(unittest.TestCase):
         adapter = get_adapter(self.config)
         if adapter is not self.adapter:
             adapter.cleanup_connections()
-        if not hasattr(self, 'adapter'):
+        if not hasattr(self, "adapter"):
             self.adapter = adapter
 
         self._drop_schemas()
@@ -368,26 +344,27 @@ class DBTIntegrationTest(unittest.TestCase):
         try:
             shutil.rmtree(self.test_root_dir)
         except EnvironmentError:
-            logger.exception('Could not clean up after test - {} not removable'
-                             .format(self.test_root_dir))
+            logger.exception(
+                "Could not clean up after test - {} not removable".format(self.test_root_dir)
+            )
 
     def _get_schema_fqn(self, database, schema):
-        schema_fqn = self.quote_as_configured(schema, 'schema')
+        schema_fqn = self.quote_as_configured(schema, "schema")
         return schema_fqn
 
     def _create_schema_named(self, database, schema):
-        self.run_sql('CREATE SCHEMA {schema}')
+        self.run_sql("CREATE SCHEMA {schema}")
 
     def _drop_schema_named(self, database, schema):
-        self.run_sql('DROP SCHEMA IF EXISTS {schema} CASCADE')
+        self.run_sql("DROP SCHEMA IF EXISTS {schema} CASCADE")
 
     def _create_schemas(self):
         schema = self.unique_schema()
-        with self.adapter.connection_named('__test'):
+        with self.adapter.connection_named("__test"):
             self._create_schema_named(self.default_database, schema)
 
     def _drop_schemas(self):
-        with self.adapter.connection_named('__test'):
+        with self.adapter.connection_named("__test"):
             schema = self.unique_schema()
             self._drop_schema_named(self.default_database, schema)
             if self.setup_alternate_db and self.alternative_database:
@@ -396,7 +373,7 @@ class DBTIntegrationTest(unittest.TestCase):
     @property
     def project_config(self):
         return {
-            'config-version': 2,
+            "config-version": 2,
         }
 
     @property
@@ -405,12 +382,9 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def run_dbt(self, args=None, expect_pass=True, profiles_dir=True):
         res, success = self.run_dbt_and_check(args=args, profiles_dir=profiles_dir)
-        self.assertEqual(
-            success, expect_pass,
-            "dbt exit state did not match expected")
+        self.assertEqual(success, expect_pass, "dbt exit state did not match expected")
 
         return res
-
 
     def run_dbt_and_capture(self, *args, **kwargs):
         try:
@@ -430,20 +404,20 @@ class DBTIntegrationTest(unittest.TestCase):
 
         final_args = []
 
-        if os.getenv('DBT_TEST_SINGLE_THREADED') in ('y', 'Y', '1'):
-            final_args.append('--single-threaded')
+        if os.getenv("DBT_TEST_SINGLE_THREADED") in ("y", "Y", "1"):
+            final_args.append("--single-threaded")
 
         final_args.extend(args)
 
         if profiles_dir:
-            final_args.extend(['--profiles-dir', self.test_root_dir])
-        final_args.append('--log-cache-events')
+            final_args.extend(["--profiles-dir", self.test_root_dir])
+        final_args.append("--log-cache-events")
 
         logger.info("Invoking dbt with {}".format(final_args))
         return dbt.handle_and_check(final_args)
 
     def run_sql_file(self, path, kwargs=None):
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             statements = f.read().split(";")
             for statement in statements:
                 self.run_sql(statement, kwargs=kwargs)
@@ -452,8 +426,8 @@ class DBTIntegrationTest(unittest.TestCase):
         to_return = query
 
         base_kwargs = {
-            'schema': self.unique_schema(),
-            'database': self.adapter.quote(self.default_database),
+            "schema": self.unique_schema(),
+            "database": self.adapter.quote(self.default_database),
         }
         if kwargs is None:
             kwargs = {}
@@ -463,9 +437,9 @@ class DBTIntegrationTest(unittest.TestCase):
 
         return to_return
 
-    def run_sql(self, query, fetch='None', kwargs=None, connection_name=None):
+    def run_sql(self, query, fetch="None", kwargs=None, connection_name=None):
         if connection_name is None:
-            connection_name = '__test'
+            connection_name = "__test"
 
         if query.strip() == "":
             return
@@ -476,9 +450,9 @@ class DBTIntegrationTest(unittest.TestCase):
             cursor = conn.handle.cursor()
             try:
                 cursor.execute(sql)
-                if fetch == 'one':
+                if fetch == "one":
                     return cursor.fetchall()[0]
-                elif fetch == 'all':
+                elif fetch == "all":
                     return cursor.fetchall()
                 else:
                     # we have to fetch.
@@ -511,7 +485,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def get_many_table_columns(self, tables, schema, database=None):
         result = self.get_many_table_columns_bigquery(tables, schema, database)
-        result.sort(key=lambda x: '{}.{}'.format(x[0], x[1]))
+        result.sort(key=lambda x: "{}.{}".format(x[0], x[1]))
         return result
 
     def filter_many_columns(self, column):
@@ -531,8 +505,8 @@ class DBTIntegrationTest(unittest.TestCase):
         were not called by handle_and_check (for asserts, etc)
         """
         if name is None:
-            name = '__test'
-        with patch.object(providers, 'get_adapter', return_value=self.adapter):
+            name = "__test"
+        with patch.object(providers, "get_adapter", return_value=self.adapter):
             with self.adapter.connection_named(name):
                 conn = self.adapter.connections.get_thread_connection()
                 yield conn
@@ -541,8 +515,7 @@ class DBTIntegrationTest(unittest.TestCase):
         with self.get_connection():
             columns = self.adapter.get_columns_in_relation(relation)
 
-        return sorted(((c.name, c.dtype, c.char_size) for c in columns),
-                      key=lambda x: x[0])
+        return sorted(((c.name, c.dtype, c.char_size) for c in columns), key=lambda x: x[0])
 
     def get_table_columns(self, table, schema=None, database=None):
         schema = self.unique_schema() if schema is None else schema
@@ -551,8 +524,8 @@ class DBTIntegrationTest(unittest.TestCase):
             database=database,
             schema=schema,
             identifier=table,
-            type='table',
-            quote_policy=self.config.quoting
+            type="table",
+            quote_policy=self.config.quoting,
         )
         return self.get_relation_columns(relation)
 
@@ -580,8 +553,8 @@ class DBTIntegrationTest(unittest.TestCase):
                 order by table_name
                 """
 
-        sql = sql.format(self._ilike('table_schema', schema))
-        result = self.run_sql(sql, fetch='all')
+        sql = sql.format(self._ilike("table_schema", schema))
+        result = self.run_sql(sql, fetch="all")
 
         return {model_name: materialization for (model_name, materialization) in result}
 
@@ -590,15 +563,19 @@ class DBTIntegrationTest(unittest.TestCase):
             columns = self.get_relation_columns(relation_a)
         column_names = [c[0] for c in columns]
 
-        sql = self.adapter.get_rows_different_sql(
-            relation_a, relation_b, column_names
-        )
+        sql = self.adapter.get_rows_different_sql(relation_a, relation_b, column_names)
 
         return sql
 
-    def assertTablesEqual(self, table_a, table_b,
-                          table_a_schema=None, table_b_schema=None,
-                          table_a_db=None, table_b_db=None):
+    def assertTablesEqual(
+        self,
+        table_a,
+        table_b,
+        table_a_schema=None,
+        table_b_schema=None,
+        table_a_db=None,
+        table_b_db=None,
+    ):
         if table_a_schema is None:
             table_a_schema = self.unique_schema()
 
@@ -617,18 +594,10 @@ class DBTIntegrationTest(unittest.TestCase):
         self._assertTableColumnsEqual(relation_a, relation_b)
 
         sql = self._assertTablesEqualSql(relation_a, relation_b)
-        result = self.run_sql(sql, fetch='one')
+        result = self.run_sql(sql, fetch="one")
 
-        self.assertEqual(
-            result[0],
-            0,
-            'row_count_difference nonzero: ' + sql
-        )
-        self.assertEqual(
-            result[1],
-            0,
-            'num_mismatched nonzero: ' + sql
-        )
+        self.assertEqual(result[0], 0, "row_count_difference nonzero: " + sql)
+        self.assertEqual(result[1], 0, "num_mismatched nonzero: " + sql)
 
     def _make_relation(self, identifier, schema=None, database=None):
         if schema is None:
@@ -639,12 +608,11 @@ class DBTIntegrationTest(unittest.TestCase):
             database=database,
             schema=schema,
             identifier=identifier,
-            quote_policy=self.config.quoting
+            quote_policy=self.config.quoting,
         )
 
     def get_many_relation_columns(self, relations):
-        """Returns a dict of (datbase, schema) -> (dict of (table_name -> list of columns))
-        """
+        """Returns a dict of (datbase, schema) -> (dict of (table_name -> list of columns))"""
         schema_fqns = {}
         for rel in relations:
             this_schema = schema_fqns.setdefault((rel.database, rel.schema), [])
@@ -683,7 +651,7 @@ class DBTIntegrationTest(unittest.TestCase):
             elif len(relation) == 1:
                 relation = self._make_relation(relation[0], default_schema, default_database)
             else:
-                raise ValueError('relation must be a sequence of 1, 2, or 3 values')
+                raise ValueError("relation must be a sequence of 1, 2, or 3 values")
 
             specs.append(relation)
 
@@ -695,14 +663,15 @@ class DBTIntegrationTest(unittest.TestCase):
         for relation in specs:
             key = (relation.database, relation.schema, relation.identifier)
             # get a good error here instead of a hard-to-diagnose KeyError
-            self.assertIn(key, column_specs, f'No columns found for {key}')
+            self.assertIn(key, column_specs, f"No columns found for {key}")
             columns = column_specs[key]
             if first_columns is None:
                 first_columns = columns
             else:
                 self.assertEqual(
-                    first_columns, columns,
-                    '{} did not match {}'.format(str(specs[0]), str(relation))
+                    first_columns,
+                    columns,
+                    "{} did not match {}".format(str(specs[0]), str(relation)),
                 )
 
         # make sure everyone has the same data. if we got here, everyone had
@@ -712,20 +681,11 @@ class DBTIntegrationTest(unittest.TestCase):
             if first_relation is None:
                 first_relation = relation
             else:
-                sql = self._assertTablesEqualSql(first_relation, relation,
-                                                 columns=first_columns)
-                result = self.run_sql(sql, fetch='one')
+                sql = self._assertTablesEqualSql(first_relation, relation, columns=first_columns)
+                result = self.run_sql(sql, fetch="one")
 
-                self.assertEqual(
-                    result[0],
-                    0,
-                    'row_count_difference nonzero: ' + sql
-                )
-                self.assertEqual(
-                    result[1],
-                    0,
-                    'num_mismatched nonzero: ' + sql
-                )
+                self.assertEqual(result[0], 0, "row_count_difference nonzero: " + sql)
+                self.assertEqual(result[1], 0, "num_mismatched nonzero: " + sql)
 
     def assertManyTablesEqual(self, *args):
         schema = self.unique_schema()
@@ -750,22 +710,13 @@ class DBTIntegrationTest(unittest.TestCase):
                 self.assertEqual(base_result, other_result)
 
                 other_relation = self._make_relation(other_table)
-                sql = self._assertTablesEqualSql(first_relation,
-                                                 other_relation,
-                                                 columns=base_result)
-                result = self.run_sql(sql, fetch='one')
-
-                self.assertEqual(
-                    result[0],
-                    0,
-                    'row_count_difference nonzero: ' + sql
+                sql = self._assertTablesEqualSql(
+                    first_relation, other_relation, columns=base_result
                 )
-                self.assertEqual(
-                    result[1],
-                    0,
-                    'num_mismatched nonzero: ' + sql
-                )
+                result = self.run_sql(sql, fetch="one")
 
+                self.assertEqual(result[0], 0, "row_count_difference nonzero: " + sql)
+                self.assertEqual(result[1], 0, "num_mismatched nonzero: " + sql)
 
     def _assertTableRowCountsEqual(self, relation_a, relation_b):
         cmp_query = """
@@ -782,78 +733,78 @@ class DBTIntegrationTest(unittest.TestCase):
             select table_a.num_rows - table_b.num_rows as difference
             from table_a, table_b
 
-        """.format(str(relation_a), str(relation_b))
+        """.format(
+            str(relation_a), str(relation_b)
+        )
 
-        res = self.run_sql(cmp_query, fetch='one')
+        res = self.run_sql(cmp_query, fetch="one")
 
-        self.assertEqual(int(res[0]), 0, "Row count of table {} doesn't match row count of table {}. ({} rows different)".format(
-                relation_a.identifier,
-                relation_b.identifier,
-                res[0]
-            )
+        self.assertEqual(
+            int(res[0]),
+            0,
+            "Row count of table {} doesn't match row count of table {}. ({} rows different)".format(
+                relation_a.identifier, relation_b.identifier, res[0]
+            ),
         )
 
     def assertTableDoesNotExist(self, table, schema=None, database=None):
         columns = self.get_table_columns(table, schema, database)
 
-        self.assertEqual(
-            len(columns),
-            0
-        )
+        self.assertEqual(len(columns), 0)
 
     def assertTableDoesExist(self, table, schema=None, database=None):
         columns = self.get_table_columns(table, schema, database)
 
-        self.assertGreater(
-            len(columns),
-            0
-        )
+        self.assertGreater(len(columns), 0)
 
     def _assertTableColumnsEqual(self, relation_a, relation_b):
         table_a_result = self.get_relation_columns(relation_a)
         table_b_result = self.get_relation_columns(relation_b)
 
-        text_types = {'text', 'character varying', 'character', 'varchar'}
-
         self.assertEqual(len(table_a_result), len(table_b_result))
         for a_column, b_column in zip(table_a_result, table_b_result):
             a_name, a_type, a_size = a_column
             b_name, b_type, b_size = b_column
-            self.assertEqual(a_name, b_name,
-                '{} vs {}: column "{}" != "{}"'.format(
-                    relation_a, relation_b, a_name, b_name
-                ))
+            self.assertEqual(
+                a_name,
+                b_name,
+                '{} vs {}: column "{}" != "{}"'.format(relation_a, relation_b, a_name, b_name),
+            )
 
-            self.assertEqual(a_type, b_type,
+            self.assertEqual(
+                a_type,
+                b_type,
                 '{} vs {}: column "{}" has type "{}" != "{}"'.format(
                     relation_a, relation_b, a_name, a_type, b_type
-                ))
+                ),
+            )
 
-            self.assertEqual(a_size, b_size,
+            self.assertEqual(
+                a_size,
+                b_size,
                 '{} vs {}: column "{}" has size "{}" != "{}"'.format(
                     relation_a, relation_b, a_name, a_size, b_size
-                ))
+                ),
+            )
 
     def assertEquals(self, *args, **kwargs):
         # assertEquals is deprecated. This makes the warnings less chatty
         self.assertEqual(*args, **kwargs)
 
     def assertBetween(self, timestr, start, end=None):
-        datefmt = '%Y-%m-%dT%H:%M:%S.%fZ'
+        datefmt = "%Y-%m-%dT%H:%M:%S.%fZ"
         if end is None:
             end = datetime.utcnow()
 
         parsed = datetime.strptime(timestr, datefmt)
 
-        self.assertLessEqual(start, parsed,
-            'parsed date {} happened before {}'.format(
-                parsed,
-                start.strftime(datefmt))
+        self.assertLessEqual(
+            start,
+            parsed,
+            "parsed date {} happened before {}".format(parsed, start.strftime(datefmt)),
         )
-        self.assertGreaterEqual(end, parsed,
-            'parsed date {} happened after {}'.format(
-                parsed,
-                end.strftime(datefmt))
+        self.assertGreaterEqual(
+            end, parsed, "parsed date {} happened after {}".format(parsed, end.strftime(datefmt))
         )
 
 
@@ -872,27 +823,30 @@ def use_profile(profile_name):
         def test_snowflake_thing(self):
             self.assertEqual(self.adapter_type, 'snowflake')
     """
+
     def outer(wrapped):
-        @getattr(pytest.mark, 'profile_'+profile_name)
+        @getattr(pytest.mark, "profile_" + profile_name)
         @wraps(wrapped)
         def func(self, *args, **kwargs):
             return wrapped(self, *args, **kwargs)
+
         # sanity check at import time
         assert _profile_from_test_name(wrapped.__name__) == profile_name
         return func
+
     return outer
 
 
 class AnyFloat:
-    """Any float. Use this in assertEqual() calls to assert that it is a float.
-    """
+    """Any float. Use this in assertEqual() calls to assert that it is a float."""
+
     def __eq__(self, other):
         return isinstance(other, float)
 
 
 class AnyString:
-    """Any string. Use this in assertEqual() calls to assert that it is a string.
-    """
+    """Any string. Use this in assertEqual() calls to assert that it is a string."""
+
     def __eq__(self, other):
         return isinstance(other, str)
 
@@ -911,13 +865,13 @@ class AnyStringWith:
         return self.contains in other
 
     def __repr__(self):
-        return 'AnyStringWith<{!r}>'.format(self.contains)
+        return "AnyStringWith<{!r}>".format(self.contains)
 
 
 def get_manifest():
-    path = './target/partial_parse.msgpack'
+    path = "./target/partial_parse.msgpack"
     if os.path.exists(path):
-        with open(path, 'rb') as fp:
+        with open(path, "rb") as fp:
             manifest_mp = fp.read()
         manifest: Manifest = Manifest.from_msgpack(manifest_mp)
         return manifest

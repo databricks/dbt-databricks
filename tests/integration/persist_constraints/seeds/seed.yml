@@ -1,0 +1,9 @@
+version: 2
+
+seeds:
+  - name: seed
+    config:
+      column_types:
+        id: int
+        name: string
+        date: string
