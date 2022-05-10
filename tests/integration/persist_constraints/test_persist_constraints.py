@@ -88,7 +88,7 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_sql_file("insert_invalid_id.sql")
         self.run_and_check_failure(
             model_name,
-            err_msg="CHECK constraint id_greater_than_zero (id > 0) violated",
+            err_msg="CHECK constraint id_greater_than_zero",
         )
         self.run_sql(f"delete from {schema}.seed where id = 0")
 
@@ -141,7 +141,7 @@ class TestSnapshotConstraints(TestConstraints):
         self.run_sql_file("insert_invalid_id.sql")
         results = self.run_dbt(["snapshot"], expect_pass=False)
         assert (
-            "CHECK constraint id_greater_than_zero (id > 0) violated by row with values"
+            "CHECK constraint id_greater_than_zero"
             in results.results[0].message
         )
 
