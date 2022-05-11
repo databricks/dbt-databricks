@@ -6,7 +6,7 @@ from dbt.adapters.spark.relation import SparkRelation
 
 @dataclass
 class DatabricksIncludePolicy(Policy):
-    database: bool = True
+    database: bool = False  # TODO: should be True
     schema: bool = True
     identifier: bool = True
 

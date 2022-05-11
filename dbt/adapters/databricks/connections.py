@@ -53,7 +53,7 @@ class DatabricksCredentials(Credentials):
     def __post_init__(self) -> None:
         if self.database is not None and not (self.database.strip()):
             raise dbt.exceptions.RuntimeException(
-                f"    database: {self.database} \n" f"Invalid catalog name."
+                f"    database: {self.database} \nInvalid catalog name."
             )
 
     @property
