@@ -30,13 +30,7 @@ def _build_databricks_cluster_target(
         "retry_all": True,
     }
     if catalog is not None:
-        # TODO: catalog should be set as 'catalog' or 'database'
-        #       instead of using 'session_properties'
-        # profile['catalog'] = catalog
-        if session_properties is not None:
-            session_properties["databricks.catalog"] = catalog
-        else:
-            session_properties = {"databricks.catalog": catalog}
+        profile["catalog"] = catalog  # type: ignore[assignment]
     if session_properties is not None:
         profile["session_properties"] = session_properties  # type: ignore[assignment]
     return profile
