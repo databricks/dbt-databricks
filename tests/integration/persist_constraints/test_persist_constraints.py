@@ -21,13 +21,9 @@ class TestConstraints(DBTIntegrationTest):
         }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
-        rows = self.run_sql(
-            f"show tblproperties {self.unique_schema()}.{model_name}", fetch="all"
-        )
+        rows = self.run_sql(f"show tblproperties {self.unique_schema()}.{model_name}", fetch="all")
         constraints = {
-            row.key: row.value
-            for row in rows
-            if row.key.startswith("delta.constraints")
+            row.key: row.value for row in rows if row.key.startswith("delta.constraints")
         }
         assert len(constraints) == len(expected)
         self.assertDictEqual(constraints, expected)
@@ -50,9 +46,7 @@ class TestTableConstraints(TestConstraints):
         self.run_dbt(["run", "--select", expected_model_name])
         self.assertTablesEqual(model_name, expected_model_name)
 
-        self.check_constraints(
-            model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
-        )
+        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
 
         # Insert a row into the seed model that violates the NOT NULL constraint on name.
         self.run_sql_file("insert_invalid_name.sql")
@@ -86,9 +80,7 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
-        self.check_constraints(
-            model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
-        )
+        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
 
         schema = self.unique_schema()
 
@@ -133,9 +125,7 @@ class TestIncrementalConstraints(TestConstraints):
 
 class TestSnapshotConstraints(TestConstraints):
     def check_snapshot_results(self, num_rows: int):
-        results = self.run_sql(
-            f"select * from {self.unique_schema()}.my_snapshot", fetch="all"
-        )
+        results = self.run_sql(f"select * from {self.unique_schema()}.my_snapshot", fetch="all")
         self.assertEqual(len(results), num_rows)
 
     def test_snapshot(self):
@@ -145,10 +135,7 @@ class TestSnapshotConstraints(TestConstraints):
 
         self.run_sql_file("insert_invalid_name.sql")
         results = self.run_dbt(["snapshot"], expect_pass=False)
-        assert (
-            "NOT NULL constraint violated for column: name"
-            in results.results[0].message
-        )
+        assert "NOT NULL constraint violated for column: name" in results.results[0].message
 
         self.run_dbt(["seed"])
         self.run_sql_file("insert_invalid_id.sql")
@@ -179,9 +166,7 @@ class TestInvalidCheckConstraints(TestConstraints):
     def test_invalid_check_constraints(self):
         model_name = "invalid_check_constraint"
         self.run_dbt(["seed"])
-        self.run_and_check_failure(
-            model_name, err_msg="Invalid check constraint condition"
-        )
+        self.run_and_check_failure(model_name, err_msg="Invalid check constraint condition")
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
@@ -240,9 +225,7 @@ class TestTableWithConstraintsDisabled(TestConstraints):
         self.check_constraints(model_name, {})
 
         # Insert a row into the seed model with the name being null.
-        self.run_sql(
-            f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')"
-        )
+        self.run_sql(f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')")
 
         # Check the table can be created without failure.
         self.run_dbt(["run", "--select", model_name])
