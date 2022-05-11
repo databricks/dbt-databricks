@@ -1,6 +1,6 @@
 ## dbt-databricks 1.2.0 (Release TBD)
 
-## dbt-databricks 1.1.0 (Release TBD)
+## dbt-databricks 1.1.0 (May 11, 2022)
 
 ### Features
 - Add support for [Delta constraints](https://docs.databricks.com/delta/delta-constraints.html) ([#71](https://github.com/databricks/dbt-databricks/pull/71))
