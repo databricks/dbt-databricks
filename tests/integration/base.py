@@ -142,12 +142,19 @@ class DBTIntegrationTest(unittest.TestCase):
     CREATE_SCHEMA_STATEMENT = "CREATE SCHEMA {}"
     DROP_SCHEMA_STATEMENT = "DROP SCHEMA IF EXISTS {} CASCADE"
 
-    _randint = random.randint(0, 9999)
-    _runtime_timedelta = datetime.utcnow() - datetime(1970, 1, 1, 0, 0, 0)
-    _runtime = (int(_runtime_timedelta.total_seconds() * 1e6)) + _runtime_timedelta.microseconds
-
-    prefix = f"test{_runtime}{_randint:04}"
     setup_alternate_db = False
+
+    @property
+    def prefix(self):
+        if not hasattr(self, "_prefix"):
+            _randint = random.randint(0, 9999)
+            _runtime_timedelta = datetime.utcnow() - datetime(1970, 1, 1, 0, 0, 0)
+            _runtime = (
+                int(_runtime_timedelta.total_seconds() * 1e6) + _runtime_timedelta.microseconds
+            )
+
+            self._prefix = f"test{_runtime}{_randint:04}"
+        return self._prefix
 
     @property
     def packages_config(self):
@@ -357,6 +364,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def _drop_schema_named(self, database, schema):
         self.run_sql("DROP SCHEMA IF EXISTS {schema} CASCADE")
+        self.run_sql("DROP SCHEMA IF EXISTS {schema}_dbt_test__audit CASCADE")
 
     def _create_schemas(self):
         schema = self.unique_schema()
