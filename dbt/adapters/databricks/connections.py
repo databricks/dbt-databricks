@@ -23,7 +23,7 @@ from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
-from databricks.sql.exc import DatabaseError, OperationalError
+from databricks.sql.exc import Error as DBSQLError, OperationalError
 
 logger = AdapterLogger("Databricks")
 
@@ -166,9 +166,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if m:
                     msg = f"Query execution failed.\nError message: {m.group().strip()}"
                 raise dbt.exceptions.RuntimeException(msg)
-            elif isinstance(exc, DatabaseError):
+            elif isinstance(exc, DBSQLError):
                 logger.debug(f"Error while running:\n{sql}")
-                logger.debug(exc)
+                logger.debug(f"{type(exc)}: {exc}")
                 if hasattr(exc, "context"):
                     if "operation-id" in exc.context:
                         logger.debug(f"operation-id: {exc.context['operation-id']}")
