@@ -7,6 +7,7 @@ import dbt.flags as flags
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
+from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
 from .utils import config_from_parts_or_dicts
 
 from databricks import sql as dbsql
@@ -78,7 +79,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
                 self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
                 self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-                self.assertNotIn("databricks.catalog", session_configuration)
+                self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
                 self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         else:
@@ -132,7 +133,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
                 self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
                 self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-                self.assertEqual(session_configuration["databricks.catalog"], "main")
+                self.assertEqual(session_configuration[CATALOG_KEY_IN_SESSION_PROPERTIES], "main")
                 self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         else:

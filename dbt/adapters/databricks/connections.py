@@ -27,6 +27,8 @@ from databricks.sql.exc import Error as DBSQLError, OperationalError
 
 logger = AdapterLogger("Databricks")
 
+CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -51,6 +53,18 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
+        session_properties = self.session_properties or {}
+        if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
+            if self.database is None:
+                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+                del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+            else:
+                raise dbt.exceptions.RuntimeException(
+                    f"`catalog` or `database` and `{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
+                    "in `session_properties` cannot both be set"
+                )
+        self.session_properties = session_properties
+
         if self.database is not None and not (self.database.strip()):
             raise dbt.exceptions.RuntimeException(
                 f"    database: {self.database} \nInvalid catalog name."
@@ -65,7 +79,7 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self) -> Tuple[str, ...]:
-        return "host", "database", "http_path", "schema", "session_properties"
+        return "host", "http_path", "database", "schema", "session_properties"
 
 
 class DatabricksSQLConnectionWrapper(object):
@@ -250,18 +264,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 dbt_databricks_version = __version__.version
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
-                session_configs = creds.session_properties or dict()
-                if "databricks.catalog" in session_configs:
-                    raise dbt.exceptions.DbtProfileError(
-                        "Setting `databricks.catalog` in `session_properties` is not supported "
-                        "anymore. Please use `datalog` or `database` to set the initial catalog."
-                    )
-
                 if LooseVersion(dbsql.__version__) < "2.0":
-                    # TODO: what is the error when a user specifies a catalog they don't have
-                    # access to
+                    session_configs = creds.session_properties or {}
                     if creds.database:
-                        session_configs["databricks.catalog"] = creds.database
+                        session_configs[CATALOG_KEY_IN_SESSION_PROPERTIES] = creds.database
                     connect_args = dict(
                         server_hostname=creds.host,
                         http_path=creds.http_path,
@@ -274,11 +280,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
                         server_hostname=creds.host,
                         http_path=creds.http_path,
                         access_token=creds.token,
-                        session_configuration=session_configs,
+                        session_configuration=creds.session_properties,
                         catalog=creds.database,
                         _user_agent_entry=user_agent_entry,
                     )
 
+                # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(**connect_args)
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
