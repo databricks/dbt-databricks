@@ -59,16 +59,14 @@ class DatabricksCredentials(Credentials):
                 self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
                 del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
             else:
-                raise dbt.exceptions.RuntimeException(
-                    f"`catalog` or `database` and `{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
-                    "in `session_properties` cannot both be set"
+                raise dbt.exceptions.ValidationException(
+                    f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
+                    'in session_properties) all map to "database"'
                 )
         self.session_properties = session_properties
 
-        if self.database is not None and not (self.database.strip()):
-            raise dbt.exceptions.RuntimeException(
-                f"    database: {self.database} \nInvalid catalog name."
-            )
+        if self.database is not None and not self.database.strip():
+            raise dbt.exceptions.ValidationException(f"Invalid catalog name : {self.database}.")
 
     @property
     def type(self) -> str:

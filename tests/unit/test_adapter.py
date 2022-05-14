@@ -2,6 +2,7 @@ from distutils.version import LooseVersion
 import unittest
 from unittest import mock
 
+import dbt.exceptions
 from agate import Row
 import dbt.flags as flags
 
@@ -66,59 +67,112 @@ class TestDatabricksAdapter(unittest.TestCase):
             },
         )
 
-    def test_databricks_sql_connector_connection(self):
+    def test_two_catalog_settings(self):
+        with self.assertRaisesRegexp(
+            dbt.exceptions.DbtProfileError,
+            "Got duplicate keys: \\(`databricks.catalog` in session_properties\\)"
+            ' all map to "database"',
+        ):
+            config_from_parts_or_dicts(
+                self.project_cfg,
+                {
+                    "outputs": {
+                        "test": {
+                            "type": "databricks",
+                            "schema": "analytics",
+                            "catalog": "main",
+                            "host": "yourorg.databricks.com",
+                            "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                            "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                            "session_properties": {
+                                CATALOG_KEY_IN_SESSION_PROPERTIES: "catalog",
+                                "spark.sql.ansi.enabled": "true",
+                            },
+                        }
+                    },
+                    "target": "test",
+                },
+            )
+
+    def test_database_and_catalog_settings(self):
+        with self.assertRaisesRegexp(
+            dbt.exceptions.DbtProfileError,
+            'Got duplicate keys: \\(catalog\\) all map to "database"',
+        ):
+            config_from_parts_or_dicts(
+                self.project_cfg,
+                {
+                    "outputs": {
+                        "test": {
+                            "type": "databricks",
+                            "schema": "analytics",
+                            "catalog": "main",
+                            "database": "database",
+                            "host": "yourorg.databricks.com",
+                            "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                            "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                            "session_properties": {"spark.sql.ansi.enabled": "true"},
+                        }
+                    },
+                    "target": "test",
+                },
+            )
+
+    def test_databricks_sql_connector_connection_lt_2_0(self):
+        def connect(
+            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+        ):
+            self.assertEqual(server_hostname, "yourorg.databricks.com")
+            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+            self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
+            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+
+        self._test_databricks_sql_connector_connection("1.0.2", connect)
+
+    def test_databricks_sql_connector_connection_ge_2_0(self):
+        def connect(
+            server_hostname,
+            http_path,
+            access_token,
+            session_configuration,
+            catalog,
+            _user_agent_entry,
+        ):
+            self.assertEqual(server_hostname, "yourorg.databricks.com")
+            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+            self.assertIsNone(catalog)
+            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+
+        self._test_databricks_sql_connector_connection("2.0.0", connect)
+
+    def _test_databricks_sql_connector_connection(self, version, connect):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        if LooseVersion(dbsql.__version__) < "2.0":
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.__version__", new=version):
+            with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
 
-            def databricks_sql_connector_connect(
-                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-            ):
-                self.assertEqual(server_hostname, "yourorg.databricks.com")
-                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-                self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
-                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
-
-        else:
-
-            def databricks_sql_connector_connect(  # type: ignore[misc]
-                server_hostname,
-                http_path,
-                access_token,
-                session_configuration,
-                catalog,
-                _user_agent_entry,
-            ):
-                self.assertEqual(server_hostname, "yourorg.databricks.com")
-                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-                self.assertIsNone(catalog)
-                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
-
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
-            new=databricks_sql_connector_connect,
-        ):  # noqa
-            connection = adapter.acquire_connection("dummy")
-            connection.handle  # trigger lazy-load
-
-            self.assertEqual(connection.state, "open")
-            self.assertIsNotNone(connection.handle)
-            self.assertEqual(
-                connection.credentials.http_path,
-                "sql/protocolv1/o/1234567890123456/1234-567890-test123",
-            )
-            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(connection.credentials.schema, "analytics")
-            self.assertEqual(len(connection.credentials.session_properties), 1)
-            self.assertEqual(
-                connection.credentials.session_properties["spark.sql.ansi.enabled"], "true"
-            )
-            self.assertIsNone(connection.credentials.database)
+                self.assertEqual(connection.state, "open")
+                self.assertIsNotNone(connection.handle)
+                self.assertEqual(
+                    connection.credentials.http_path,
+                    "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                )
+                self.assertEqual(
+                    connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                )
+                self.assertEqual(connection.credentials.schema, "analytics")
+                self.assertEqual(len(connection.credentials.session_properties), 1)
+                self.assertEqual(
+                    connection.credentials.session_properties["spark.sql.ansi.enabled"], "true"
+                )
+                self.assertIsNone(connection.credentials.database)
 
     def test_databricks_sql_connector_catalog_connection(self):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
