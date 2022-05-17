@@ -10,7 +10,7 @@ class TestDatabricksRelation(unittest.TestCase):
         data = {
             "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
-                "database": "some_schema",
+                "database": "some_database",
                 "schema": "some_schema",
                 "identifier": "some_table",
             },
@@ -18,7 +18,7 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertEqual(relation.database, "some_schema")
+        self.assertEqual(relation.database, "some_database")
         self.assertEqual(relation.schema, "some_schema")
         self.assertEqual(relation.identifier, "some_table")
 
