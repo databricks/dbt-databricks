@@ -29,6 +29,8 @@ from databricks.sql.exc import Error as DBSQLError, OperationalError
 
 logger = AdapterLogger("Databricks")
 
+CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -41,6 +43,10 @@ class DatabricksCredentials(Credentials):
     session_properties: Optional[Dict[str, Any]] = None
     retry_all: bool = False
 
+    _ALIASES = {
+        "catalog": "database",
+    }
+
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
         data = super().__pre_deserialize__(data)
@@ -49,15 +55,20 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
-        # spark classifies database and schema as the same thing
-        if self.database is not None and self.database != self.schema:
-            raise dbt.exceptions.RuntimeException(
-                f"    schema: {self.schema} \n"
-                f"    database: {self.database} \n"
-                f"On Spark, database must be omitted or have the same value as"
-                f" schema."
-            )
-        self.database = None
+        session_properties = self.session_properties or {}
+        if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
+            if self.database is None:
+                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+                del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+            else:
+                raise dbt.exceptions.ValidationException(
+                    f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
+                    'in session_properties) all map to "database"'
+                )
+        self.session_properties = session_properties
+
+        if self.database is not None and not self.database.strip():
+            raise dbt.exceptions.ValidationException(f"Invalid catalog name : {self.database}.")
 
     @property
     def type(self) -> str:
@@ -68,7 +79,7 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self) -> Tuple[str, ...]:
-        return "host", "port", "http_path", "schema"
+        return "host", "http_path", "database", "schema", "session_properties"
 
 
 class DatabricksSQLConnectionWrapper(object):
@@ -250,13 +261,29 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {dbt_invocation_env}"
 
-                conn: DatabricksSQLConnection = dbsql.connect(
-                    server_hostname=creds.host,
-                    http_path=creds.http_path,
-                    access_token=creds.token,
-                    session_configuration=creds.session_properties,
-                    _user_agent_entry=user_agent_entry,
-                )
+                if LooseVersion(dbsql.__version__) < "2.0":
+                    session_configs = creds.session_properties or {}
+                    if creds.database:
+                        session_configs[CATALOG_KEY_IN_SESSION_PROPERTIES] = creds.database
+                    connect_args = dict(
+                        server_hostname=creds.host,
+                        http_path=creds.http_path,
+                        access_token=creds.token,
+                        session_configuration=session_configs,
+                        _user_agent_entry=user_agent_entry,
+                    )
+                else:
+                    connect_args = dict(
+                        server_hostname=creds.host,
+                        http_path=creds.http_path,
+                        access_token=creds.token,
+                        session_configuration=creds.session_properties,
+                        catalog=creds.database,
+                        _user_agent_entry=user_agent_entry,
+                    )
+
+                # TODO: what is the error when a user specifies a catalog they don't have access to
+                conn: DatabricksSQLConnection = dbsql.connect(**connect_args)
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:

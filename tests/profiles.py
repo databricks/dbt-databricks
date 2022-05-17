@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 def get_databricks_cluster_target(profile_type: str):
@@ -20,7 +20,7 @@ def _build_databricks_cluster_target(
     catalog: Optional[str] = None,
     session_properties: Optional[Dict[str, str]] = None,
 ):
-    profile = {
+    profile: Dict[str, Any] = {
         "type": "databricks",
         "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
         "http_path": http_path,
@@ -30,15 +30,9 @@ def _build_databricks_cluster_target(
         "retry_all": True,
     }
     if catalog is not None:
-        # TODO: catalog should be set as 'catalog' or 'database'
-        #       instead of using 'session_properties'
-        # profile['catalog'] = catalog
-        if session_properties is not None:
-            session_properties["databricks.catalog"] = catalog
-        else:
-            session_properties = {"databricks.catalog": catalog}
+        profile["catalog"] = catalog
     if session_properties is not None:
-        profile["session_properties"] = session_properties  # type: ignore[assignment]
+        profile["session_properties"] = session_properties
     return profile
 
 
