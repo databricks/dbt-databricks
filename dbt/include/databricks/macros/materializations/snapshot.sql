@@ -50,6 +50,10 @@
       {% set build_sql = build_snapshot_table(strategy, model['compiled_sql']) %}
       {% set final_sql = create_table_as(False, target_relation, build_sql) %}
 
+      {% call statement('main') %}
+          {{ final_sql }}
+      {% endcall %}
+
   {% else %}
 
       {{ adapter.valid_snapshot_target(target_relation) }}
@@ -88,11 +92,11 @@
          )
       %}
 
-  {% endif %}
+      {% call statement_with_staging_table('main', staging_table) %}
+          {{ final_sql }}
+      {% endcall %}
 
-  {% call statement('main') %}
-      {{ final_sql }}
-  {% endcall %}
+  {% endif %}
 
   {% do persist_docs(target_relation, model) %}
 
@@ -101,10 +105,6 @@
   {{ run_hooks(post_hooks, inside_transaction=True) }}
 
   {{ adapter.commit() }}
-
-  {% if staging_table is defined %}
-      {% do post_snapshot(staging_table) %}
-  {% endif %}
 
   {{ run_hooks(post_hooks, inside_transaction=False) }}
 
