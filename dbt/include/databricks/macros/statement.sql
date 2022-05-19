@@ -1,3 +1,4 @@
+{# executes a query and explicitly drops the staging table. #}
 {% macro statement_with_staging_table(name=None, staging_table=None, fetch_result=False, auto_begin=True) -%}
   {%- if execute: -%}
     {%- set sql = caller() -%}
