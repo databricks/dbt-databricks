@@ -35,6 +35,12 @@ class TestConstraints(DBTIntegrationTest):
         assert res.status == RunStatus.Error
         assert err_msg in res.message
 
+    def check_staging_table_cleaned(self):
+        tmp_tables = self.run_sql(
+            f"SHOW TABLES IN {self.unique_schema()} LIKE '*__dbt_tmp'", fetch="all"
+        )
+        assert len(tmp_tables) == 0
+
 
 class TestTableConstraints(TestConstraints):
     def test_table_constraints(self):
@@ -53,6 +59,7 @@ class TestTableConstraints(TestConstraints):
         self.run_and_check_failure(
             model_name, err_msg="violate the new NOT NULL constraint on name"
         )
+        self.check_staging_table_cleaned()
 
         # Check the table is still created with the invalid row.
         self.run_dbt(["run", "--select", updated_model_name])
@@ -90,6 +97,7 @@ class TestIncrementalConstraints(TestConstraints):
             model_name,
             err_msg="CHECK constraint id_greater_than_zero",
         )
+        self.check_staging_table_cleaned()
         self.run_sql(f"delete from {schema}.seed where id = 0")
 
         # Insert a row into the seed model with an invalid name.
@@ -97,6 +105,7 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_and_check_failure(
             model_name, err_msg="NOT NULL constraint violated for column: name"
         )
+        self.check_staging_table_cleaned()
         self.run_sql(f"delete from {schema}.seed where id = 3")
 
         # Insert a valid row into the seed model.
@@ -132,15 +141,18 @@ class TestSnapshotConstraints(TestConstraints):
         self.run_dbt(["seed"])
         self.run_dbt(["snapshot"])
         self.check_snapshot_results(num_rows=2)
+        self.check_staging_table_cleaned()
 
         self.run_sql_file("insert_invalid_name.sql")
         results = self.run_dbt(["snapshot"], expect_pass=False)
         assert "NOT NULL constraint violated for column: name" in results.results[0].message
+        self.check_staging_table_cleaned()
 
         self.run_dbt(["seed"])
         self.run_sql_file("insert_invalid_id.sql")
         results = self.run_dbt(["snapshot"], expect_pass=False)
         assert "CHECK constraint id_greater_than_zero" in results.results[0].message
+        self.check_staging_table_cleaned()
 
         # Check the snapshot table is not updated.
         self.check_snapshot_results(num_rows=2)
