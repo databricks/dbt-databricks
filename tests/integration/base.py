@@ -177,6 +177,13 @@ class DBTIntegrationTest(unittest.TestCase):
         return database
 
     @property
+    def database_schema(self):
+        if self.default_database is None:
+            return self.unique_schema()
+        else:
+            return f"{self.adapter.quote(self.default_database)}.{self.unique_schema()}"
+
+    @property
     def alternative_database(self):
         return None
 
@@ -360,11 +367,11 @@ class DBTIntegrationTest(unittest.TestCase):
         return schema_fqn
 
     def _create_schema_named(self, database, schema):
-        self.run_sql("CREATE SCHEMA {schema}")
+        self.run_sql("CREATE SCHEMA {database_schema}")
 
     def _drop_schema_named(self, database, schema):
-        self.run_sql("DROP SCHEMA IF EXISTS {schema} CASCADE")
-        self.run_sql("DROP SCHEMA IF EXISTS {schema}_dbt_test__audit CASCADE")
+        self.run_sql("DROP SCHEMA IF EXISTS {database_schema} CASCADE")
+        self.run_sql("DROP SCHEMA IF EXISTS {database_schema}_dbt_test__audit CASCADE")
 
     def _create_schemas(self):
         schema = self.unique_schema()
@@ -436,6 +443,7 @@ class DBTIntegrationTest(unittest.TestCase):
         base_kwargs = {
             "schema": self.unique_schema(),
             "database": self.adapter.quote(self.default_database),
+            "database_schema": self.database_schema,
         }
         if kwargs is None:
             kwargs = {}

@@ -1,3 +1,22 @@
+{% macro databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
+    {% set tmp_identifier = target_relation.identifier ~ '__dbt_tmp' %}
+
+    {%- set tmp_relation = api.Relation.create(identifier=tmp_identifier,
+                                               schema=target_relation.schema,
+                                               database=target_relation.database,
+                                               type='view') -%}
+
+    {% set select = snapshot_staging_table(strategy, sql, target_relation) %}
+
+    {# needs to be a non-temp view so that its columns can be ascertained via `describe` #}
+    {% call statement('build_snapshot_staging_relation') %}
+        {{ create_view_as(tmp_relation, select) }}
+    {% endcall %}
+
+    {% do return(tmp_relation) %}
+{% endmacro %}
+
+
 {% materialization snapshot, adapter='databricks' %}
   {%- set config = model['config'] -%}
 
@@ -8,7 +27,7 @@
   {%- set file_format = config.get('file_format', 'delta') -%}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
-          database=none,
+          database=model.database,
           schema=model.schema,
           identifier=target_table,
           type='table') -%}
@@ -28,10 +47,6 @@
       {%- endset %}
       {% do exceptions.raise_compiler_error(invalid_format_msg) %}
     {% endif %}
-  {% endif %}
-
-  {% if not adapter.check_schema_exists(model.database, model.schema) %}
-    {% do create_schema(model.database, model.schema) %}
   {% endif %}
 
   {%- if not target_relation.is_table -%}
@@ -58,7 +73,7 @@
 
       {{ adapter.valid_snapshot_target(target_relation) }}
 
-      {% set staging_table = spark_build_snapshot_staging_table(strategy, sql, target_relation) %}
+      {% set staging_table = databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
 
       -- this may no-op if the database does not require column expansion
       {% do adapter.expand_target_column_types(from_relation=staging_table,

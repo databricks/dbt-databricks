@@ -21,7 +21,7 @@ class TestConstraints(DBTIntegrationTest):
         }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
-        rows = self.run_sql(f"show tblproperties {self.unique_schema()}.{model_name}", fetch="all")
+        rows = self.run_sql(f"show tblproperties {self.database_schema}.{model_name}", fetch="all")
         constraints = {
             row.key: row.value for row in rows if row.key.startswith("delta.constraints")
         }
@@ -36,9 +36,7 @@ class TestConstraints(DBTIntegrationTest):
         assert err_msg in res.message
 
     def check_staging_table_cleaned(self):
-        tmp_tables = self.run_sql(
-            f"SHOW TABLES IN {self.unique_schema()} LIKE '*__dbt_tmp'", fetch="all"
-        )
+        tmp_tables = self.run_sql("SHOW TABLES IN {database_schema} LIKE '*__dbt_tmp'", fetch="all")
         assert len(tmp_tables) == 0
 
 
@@ -89,8 +87,6 @@ class TestIncrementalConstraints(TestConstraints):
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
         self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
 
-        schema = self.unique_schema()
-
         # Insert a row into the seed model with an invalid id.
         self.run_sql_file("insert_invalid_id.sql")
         self.run_and_check_failure(
@@ -98,7 +94,7 @@ class TestIncrementalConstraints(TestConstraints):
             err_msg="CHECK constraint id_greater_than_zero",
         )
         self.check_staging_table_cleaned()
-        self.run_sql(f"delete from {schema}.seed where id = 0")
+        self.run_sql("delete from {database_schema}.seed where id = 0")
 
         # Insert a row into the seed model with an invalid name.
         self.run_sql_file("insert_invalid_name.sql")
@@ -106,10 +102,10 @@ class TestIncrementalConstraints(TestConstraints):
             model_name, err_msg="NOT NULL constraint violated for column: name"
         )
         self.check_staging_table_cleaned()
-        self.run_sql(f"delete from {schema}.seed where id = 3")
+        self.run_sql("delete from {database_schema}.seed where id = 3")
 
         # Insert a valid row into the seed model.
-        self.run_sql(f"insert into {schema}.seed values (3, 'Cathy', '2022-03-01')")
+        self.run_sql("insert into {database_schema}.seed values (3, 'Cathy', '2022-03-01')")
         self.run_dbt(["run", "--select", model_name])
         expected_model_name = "expected_incremental_model"
         self.run_dbt(["run", "--select", expected_model_name])
@@ -134,7 +130,7 @@ class TestIncrementalConstraints(TestConstraints):
 
 class TestSnapshotConstraints(TestConstraints):
     def check_snapshot_results(self, num_rows: int):
-        results = self.run_sql(f"select * from {self.unique_schema()}.my_snapshot", fetch="all")
+        results = self.run_sql("select * from {database_schema}.my_snapshot", fetch="all")
         self.assertEqual(len(results), num_rows)
 
     def test_snapshot(self):
@@ -237,7 +233,7 @@ class TestTableWithConstraintsDisabled(TestConstraints):
         self.check_constraints(model_name, {})
 
         # Insert a row into the seed model with the name being null.
-        self.run_sql(f"insert into {self.unique_schema()}.seed values (3, null, '2022-03-01')")
+        self.run_sql("insert into {database_schema}.seed values (3, null, '2022-03-01')")
 
         # Check the table can be created without failure.
         self.run_dbt(["run", "--select", model_name])
