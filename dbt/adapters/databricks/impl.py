@@ -6,11 +6,12 @@ from agate import Table
 from dbt.contracts.connection import AdapterResponse
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.databricks import DatabricksConnectionManager
-from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.column import DatabricksColumn
-
 from dbt.adapters.spark.impl import SparkAdapter
+
+from dbt.adapters.databricks.column import DatabricksColumn
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.relation import DatabricksRelation
+from dbt.adapters.databricks.utils import undefined_proof
 
 
 @dataclass
@@ -25,6 +26,7 @@ class DatabricksConfig(AdapterConfig):
     tblproperties: Optional[Dict[str, str]] = None
 
 
+@undefined_proof
 class DatabricksAdapter(SparkAdapter):
 
     Relation = DatabricksRelation
