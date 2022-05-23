@@ -224,8 +224,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self.get_result_from_cursor(cursor)
 
     def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> Table:
-        database = database if isinstance(database, str) else None
-        schema = schema if isinstance(schema, str) else None
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
