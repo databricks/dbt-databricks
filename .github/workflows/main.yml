@@ -167,7 +167,7 @@ jobs:
   test-build:
     name: verify packages / python ${{ matrix.python-version }} / ${{ matrix.os }}
 
-    if: needs.build.outputs.is_alpha == 0
+    # if: needs.build.outputs.is_alpha == 0
 
     needs: build
 
@@ -187,7 +187,7 @@ jobs:
 
       - name: Install python dependencies
         run: |
-          pip install --user --upgrade pip
+          python -m pip install --user --upgrade pip
           pip install --upgrade wheel
           pip --version
       - uses: actions/download-artifact@v2
