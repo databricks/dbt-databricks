@@ -1,11 +1,11 @@
 from contextlib import contextmanager
-from distutils.version import LooseVersion
 from dataclasses import dataclass
 import re
 import time
 from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from agate import Table
+from packaging.version import parse
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -168,7 +168,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             yield
 
         except Exception as exc:
-            if isinstance(exc, OperationalError) and LooseVersion(dbsql.__version__) < "2.0":
+            if isinstance(exc, OperationalError) and parse(dbsql.__version__) < parse("2.0"):
                 logger.debug(f"Error while running:\n{sql}")
                 logger.debug(exc)
                 msg = str(exc)
@@ -258,7 +258,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 dbt_databricks_version = __version__.version
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
-                if LooseVersion(dbsql.__version__) < "2.0":
+                if parse(dbsql.__version__) < parse("2.0"):
                     session_configs = creds.session_properties or {}
                     if creds.database:
                         session_configs[CATALOG_KEY_IN_SESSION_PROPERTIES] = creds.database
