@@ -65,7 +65,7 @@ class TestDatabricksAdapter(unittest.TestCase):
         )
 
     def test_two_catalog_settings(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             dbt.exceptions.DbtProfileError,
             "Got duplicate keys: \\(`databricks.catalog` in session_properties\\)"
             ' all map to "database"',
@@ -92,7 +92,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             )
 
     def test_database_and_catalog_settings(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             dbt.exceptions.DbtProfileError,
             'Got duplicate keys: \\(catalog\\) all map to "database"',
         ):

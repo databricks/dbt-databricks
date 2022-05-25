@@ -1,5 +1,10 @@
 ## dbt-databricks 1.2.0 (Release TBD)
 
+## dbt-databricks 1.1.1 (Release TBD)
+
+### Fixes
+- Block taking jinja2.runtime.Undefined into DatabricksAdapter ([#98](https://github.com/databricks/dbt-databricks/pull/98))
+
 ## dbt-databricks 1.1.0 (May 11, 2022)
 
 ### Features
