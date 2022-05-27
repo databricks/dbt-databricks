@@ -177,13 +177,6 @@ class DBTIntegrationTest(unittest.TestCase):
         return database
 
     @property
-    def database_schema(self):
-        if self.default_database is None:
-            return self.unique_schema()
-        else:
-            return f"{self.adapter.quote(self.default_database)}.{self.unique_schema()}"
-
-    @property
     def alternative_database(self):
         return None
 
