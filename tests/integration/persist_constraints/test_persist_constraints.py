@@ -21,7 +21,11 @@ class TestConstraints(DBTIntegrationTest):
         }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
-        rows = self.run_sql(f"show tblproperties {self.database_schema}.{model_name}", fetch="all")
+        rows = self.run_sql(
+            "show tblproperties {database_schema}.{model_name}",
+            fetch="all",
+            kwargs=dict(model_name=model_name),
+        )
         constraints = {
             row.key: row.value for row in rows if row.key.startswith("delta.constraints")
         }
