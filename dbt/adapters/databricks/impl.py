@@ -38,7 +38,12 @@ class DatabricksAdapter(SparkAdapter):
     AdapterSpecificConfigs = DatabricksConfig
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
-        """Get a list of existing schemas in database."""
+        """
+        Get a list of existing schemas in database.
+
+        If `database` is None, fallback to `show databases` SQL execution because
+        `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
+        """
         if database is not None:
             results = self.connections.list_schemas(database=database)
         else:
