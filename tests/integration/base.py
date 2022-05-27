@@ -450,7 +450,11 @@ class DBTIntegrationTest(unittest.TestCase):
 
         base_kwargs = {
             "schema": self.unique_schema(),
-            "database": self.adapter.quote(self.default_database),
+            "database": (
+                self.adapter.quote(self.default_database)
+                if self.default_database is not None
+                else None
+            ),
         }
         if kwargs is None:
             kwargs = {}
