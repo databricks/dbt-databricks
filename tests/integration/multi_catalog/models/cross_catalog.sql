@@ -1,7 +1,3 @@
-{{ config(
-    materialized = 'table'
-) }}
-
 select
   {{ ref('alternative_catalog') }}.id,
   {{ ref('alternative_catalog') }}.name,

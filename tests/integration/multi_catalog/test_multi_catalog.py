@@ -16,7 +16,14 @@ class TestMultiCatalog(DBTIntegrationTest):
 
     @property
     def alternative_database(self):
-        return os.getenv("DBT_DATABRICKS_UC_ALTERNATIVE_CATALOG", "hive_metastore")
+        return os.getenv("DBT_DATABRICKS_UC_ALTERNATIVE_CATALOG", "alternative")
+
+    @property
+    def project_config(self):
+        return {
+            "config-version": 2,
+            "models": {"materialized": "table"},
+        }
 
     def test_multi_catalog_run(self, seed_catalog):
         self.run_dbt(["seed"])
@@ -45,7 +52,7 @@ class TestMultiCatalog(DBTIntegrationTest):
         assert len(catalog.nodes) == 5
 
 
-class TestMultiCatalogRunSeedsInDefaultCatalog(TestMultiCatalog):
+class TestMultiCatalogTableModels(TestMultiCatalog):
     @use_profile("databricks_uc_cluster")
     def test_multi_catalog_run_databricks_uc_cluster(self):
         self.test_multi_catalog_run(self.default_database)
@@ -55,7 +62,24 @@ class TestMultiCatalogRunSeedsInDefaultCatalog(TestMultiCatalog):
         self.test_multi_catalog_run(self.default_database)
 
 
-class TestMultiCatalogRunSeedsInAlternativeCatalog(TestMultiCatalog):
+class TestMultiCatalogViewModels(TestMultiCatalog):
+    @property
+    def project_config(self):
+        return {
+            "config-version": 2,
+            "models": {"materialized": "view"},
+        }
+
+    @use_profile("databricks_uc_cluster")
+    def test_multi_catalog_run_databricks_uc_cluster(self):
+        self.test_multi_catalog_run(self.default_database)
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_multi_catalog_run_databricks_uc_sql_endpoint(self):
+        self.test_multi_catalog_run(self.default_database)
+
+
+class TestMultiCatalogSeedsInAlternativeCatalog(TestMultiCatalog):
     @property
     def project_config(self):
         return {
