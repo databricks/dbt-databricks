@@ -14,6 +14,7 @@ from dbt.adapters.spark.impl import (
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
     LIST_RELATIONS_MACRO_NAME,
+    LIST_SCHEMAS_MACRO_NAME,
 )
 from dbt.contracts.connection import AdapterResponse
 from dbt.contracts.graph.manifest import Manifest
@@ -58,14 +59,21 @@ class DatabricksAdapter(SparkAdapter):
     AdapterSpecificConfigs = DatabricksConfig
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
-        """Get a list of existing schemas in database."""
-        results = self.connections.list_schemas(database=database)
+        """
+        Get a list of existing schemas in database.
+
+        If `database` is `None`, fallback to executing `show databases` because
+        `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
+        """
+        if database is not None:
+            results = self.connections.list_schemas(database=database)
+        else:
+            results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
-        results = self.connections.list_schemas(database=database, schema=schema)
-        return schema.lower() in [row[0].lower() for row in results]
+        return schema.lower() in set(s.lower() for s in self.list_schemas(database=database))
 
     def execute(
         self,
