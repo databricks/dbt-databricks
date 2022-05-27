@@ -456,7 +456,7 @@ class DBTIntegrationTest(unittest.TestCase):
             if base_kwargs["database"] is not None:
                 base_kwargs[
                     "database_schema"
-                ] = f"{self.adapter.quote(base_kwargs['database'])}.{base_kwargs['schema']}"
+                ] = f"{base_kwargs['database']}.{base_kwargs['schema']}"
             else:
                 base_kwargs["database_schema"] = base_kwargs["schema"]
 
