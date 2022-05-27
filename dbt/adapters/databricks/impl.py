@@ -41,7 +41,7 @@ class DatabricksAdapter(SparkAdapter):
         """
         Get a list of existing schemas in database.
 
-        If `database` is None, fallback to `show databases` SQL execution because
+        If `database` is `None`, fallback to executing `show databases` because
         `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
         """
         if database is not None:
