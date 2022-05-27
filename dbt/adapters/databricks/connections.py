@@ -139,9 +139,7 @@ class DatabricksSQLConnectionWrapper(object):
         assert self._cursor is not None
         return self._cursor.description
 
-    def schemas(
-        self, catalog_name: Optional[str] = None, schema_name: Optional[str] = None
-    ) -> None:
+    def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
         assert self._cursor is not None
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
@@ -212,7 +210,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return self.get_result_from_cursor(cursor)
 
-    def list_schemas(self, database: Optional[str], schema: Optional[str] = None) -> Table:
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
