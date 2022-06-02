@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from distutils.version import LooseVersion
 from dataclasses import dataclass
+import os
 import re
 import time
 from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
@@ -14,6 +15,7 @@ from dbt.contracts.connection import Connection, ConnectionState
 from dbt.events import AdapterLogger
 from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
+from dbt.tracking import DBT_INVOCATION_ENV
 from dbt.utils import DECIMALS
 
 from dbt.adapters.spark.connections import SparkConnectionManager, _is_retryable_error
@@ -245,7 +247,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 cls.validate_creds(creds, required_fields)
 
                 dbt_databricks_version = __version__.version
-                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
+                dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
+                user_agent_entry = f"dbt-databricks/{dbt_databricks_version} ({dbt_invocation_env})"
 
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,

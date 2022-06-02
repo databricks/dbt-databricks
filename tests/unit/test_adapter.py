@@ -4,10 +4,11 @@ from unittest import mock
 from agate import Row
 import dbt.flags as flags
 from dbt.exceptions import RuntimeException
+from dbt.tracking import DBT_INVOCATION_ENV
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from .utils import config_from_parts_or_dicts
+from tests.unit.utils import config_from_parts_or_dicts
 
 
 class TestDatabricksAdapter(unittest.TestCase):
@@ -45,22 +46,30 @@ class TestDatabricksAdapter(unittest.TestCase):
         )
 
     def test_databricks_sql_connector_connection(self):
+        def connect_func(dbt_invocation_env):
+            def connect(
+                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                )
+
+            return connect
+
+        self._test_databricks_sql_connector_connection(connect_func("manual"))
+        with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: "dbt_invocation_env"}):
+            self._test_databricks_sql_connector_connection(connect_func("dbt_invocation_env"))
+
+    def _test_databricks_sql_connector_connection(self, connect):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        def databricks_sql_connector_connect(
-            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
-
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
-            new=databricks_sql_connector_connect,
-        ):  # noqa
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
