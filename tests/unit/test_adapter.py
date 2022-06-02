@@ -1,14 +1,15 @@
 import unittest
 from unittest import mock
 
-import dbt.exceptions
 from agate import Row
 import dbt.flags as flags
+import dbt.exceptions
+from dbt.tracking import DBT_INVOCATION_ENV
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
-from .utils import config_from_parts_or_dicts
+from tests.unit.utils import config_from_parts_or_dicts, envvar
 
 
 class TestDatabricksAdapter(unittest.TestCase):
@@ -116,35 +117,55 @@ class TestDatabricksAdapter(unittest.TestCase):
             )
 
     def test_databricks_sql_connector_connection_lt_2_0(self):
-        def connect(
-            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        def connect_func(dbt_invocation_env):
+            def connect(
+                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                )
 
-        self._test_databricks_sql_connector_connection("1.0.2", connect)
+            return connect
+
+        self._test_databricks_sql_connector_connection("1.0.2", connect_func("manual"))
+        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
+            self._test_databricks_sql_connector_connection(
+                "1.0.2", connect_func("dbt_invocation_env")
+            )
 
     def test_databricks_sql_connector_connection_ge_2_0(self):
-        def connect(
-            server_hostname,
-            http_path,
-            access_token,
-            session_configuration,
-            catalog,
-            _user_agent_entry,
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertIsNone(catalog)
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        def connect_func(dbt_invocation_env):
+            def connect(
+                server_hostname,
+                http_path,
+                access_token,
+                session_configuration,
+                catalog,
+                _user_agent_entry,
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertIsNone(catalog)
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                )
 
-        self._test_databricks_sql_connector_connection("2.0.0", connect)
+            return connect
+
+        self._test_databricks_sql_connector_connection("2.0.0", connect_func("manual"))
+        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
+            self._test_databricks_sql_connector_connection(
+                "2.0.0", connect_func("dbt_invocation_env")
+            )
 
     def _test_databricks_sql_connector_connection(self, version, connect):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
@@ -172,35 +193,55 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(connection.credentials.database)
 
     def test_databricks_sql_connector_catalog_connection_lt_2_0(self):
-        def connect(
-            server_hostname, http_path, access_token, session_configuration, _user_agent_entry
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertEqual(session_configuration[CATALOG_KEY_IN_SESSION_PROPERTIES], "main")
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        def connect_func(dbt_invocation_env):
+            def connect(
+                server_hostname, http_path, access_token, session_configuration, _user_agent_entry
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertEqual(session_configuration[CATALOG_KEY_IN_SESSION_PROPERTIES], "main")
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                )
 
-        self._test_databricks_sql_connector_catalog_connection("1.0.2", connect)
+            return connect
+
+        self._test_databricks_sql_connector_catalog_connection("1.0.2", connect_func("manual"))
+        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
+            self._test_databricks_sql_connector_catalog_connection(
+                "1.0.2", connect_func("dbt_invocation_env")
+            )
 
     def test_databricks_sql_connector_catalog_connection_ge_2_0(self):
-        def connect(
-            server_hostname,
-            http_path,
-            access_token,
-            session_configuration,
-            catalog,
-            _user_agent_entry,
-        ):
-            self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-            self.assertEqual(catalog, "main")
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+        def connect_func(dbt_invocation_env):
+            def connect(
+                server_hostname,
+                http_path,
+                access_token,
+                session_configuration,
+                catalog,
+                _user_agent_entry,
+            ):
+                self.assertEqual(server_hostname, "yourorg.databricks.com")
+                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+                self.assertEqual(catalog, "main")
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                )
 
-        self._test_databricks_sql_connector_catalog_connection("2.0.0", connect)
+            return connect
+
+        self._test_databricks_sql_connector_catalog_connection("2.0.0", connect_func("manual"))
+        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
+            self._test_databricks_sql_connector_catalog_connection(
+                "2.0.0", connect_func("dbt_invocation_env")
+            )
 
     def _test_databricks_sql_connector_catalog_connection(self, version, connect):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
