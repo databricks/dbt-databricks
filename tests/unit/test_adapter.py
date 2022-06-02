@@ -9,7 +9,7 @@ from dbt.tracking import DBT_INVOCATION_ENV
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
-from tests.unit.utils import config_from_parts_or_dicts, envvar
+from tests.unit.utils import config_from_parts_or_dicts
 
 
 class TestDatabricksAdapter(unittest.TestCase):
@@ -134,10 +134,9 @@ class TestDatabricksAdapter(unittest.TestCase):
             return connect
 
         self._test_databricks_sql_connector_connection("1.0.2", connect_func("manual"))
-        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
-            self._test_databricks_sql_connector_connection(
-                "1.0.2", connect_func("dbt_invocation_env")
-            )
+        self._test_databricks_sql_connector_connection(
+            "1.0.2", connect_func("dbt_invocation_env"), "dbt_invocation_env"
+        )
 
     def test_databricks_sql_connector_connection_ge_2_0(self):
         def connect_func(dbt_invocation_env):
@@ -162,35 +161,35 @@ class TestDatabricksAdapter(unittest.TestCase):
             return connect
 
         self._test_databricks_sql_connector_connection("2.0.0", connect_func("manual"))
-        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
-            self._test_databricks_sql_connector_connection(
-                "2.0.0", connect_func("dbt_invocation_env")
-            )
+        self._test_databricks_sql_connector_connection(
+            "2.0.0", connect_func("dbt_invocation_env"), "dbt_invocation_env"
+        )
 
-    def _test_databricks_sql_connector_connection(self, version, connect):
+    def _test_databricks_sql_connector_connection(self, version, connect, dbt_invocation_env=""):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
         with mock.patch("dbt.adapters.databricks.connections.dbsql.__version__", new=version):
             with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
-                connection = adapter.acquire_connection("dummy")
-                connection.handle  # trigger lazy-load
+                with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: dbt_invocation_env}):
+                    connection = adapter.acquire_connection("dummy")
+                    connection.handle  # trigger lazy-load
 
-                self.assertEqual(connection.state, "open")
-                self.assertIsNotNone(connection.handle)
-                self.assertEqual(
-                    connection.credentials.http_path,
-                    "sql/protocolv1/o/1234567890123456/1234-567890-test123",
-                )
-                self.assertEqual(
-                    connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-                )
-                self.assertEqual(connection.credentials.schema, "analytics")
-                self.assertEqual(len(connection.credentials.session_properties), 1)
-                self.assertEqual(
-                    connection.credentials.session_properties["spark.sql.ansi.enabled"], "true"
-                )
-                self.assertIsNone(connection.credentials.database)
+                    self.assertEqual(connection.state, "open")
+                    self.assertIsNotNone(connection.handle)
+                    self.assertEqual(
+                        connection.credentials.http_path,
+                        "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                    )
+                    self.assertEqual(
+                        connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                    )
+                    self.assertEqual(connection.credentials.schema, "analytics")
+                    self.assertEqual(len(connection.credentials.session_properties), 1)
+                    self.assertEqual(
+                        connection.credentials.session_properties["spark.sql.ansi.enabled"], "true"
+                    )
+                    self.assertIsNone(connection.credentials.database)
 
     def test_databricks_sql_connector_catalog_connection_lt_2_0(self):
         def connect_func(dbt_invocation_env):
@@ -210,10 +209,9 @@ class TestDatabricksAdapter(unittest.TestCase):
             return connect
 
         self._test_databricks_sql_connector_catalog_connection("1.0.2", connect_func("manual"))
-        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
-            self._test_databricks_sql_connector_catalog_connection(
-                "1.0.2", connect_func("dbt_invocation_env")
-            )
+        self._test_databricks_sql_connector_catalog_connection(
+            "1.0.2", connect_func("dbt_invocation_env"), "dbt_invocation_env"
+        )
 
     def test_databricks_sql_connector_catalog_connection_ge_2_0(self):
         def connect_func(dbt_invocation_env):
@@ -238,31 +236,33 @@ class TestDatabricksAdapter(unittest.TestCase):
             return connect
 
         self._test_databricks_sql_connector_catalog_connection("2.0.0", connect_func("manual"))
-        with envvar(DBT_INVOCATION_ENV, "dbt_invocation_env"):
-            self._test_databricks_sql_connector_catalog_connection(
-                "2.0.0", connect_func("dbt_invocation_env")
-            )
+        self._test_databricks_sql_connector_catalog_connection(
+            "2.0.0", connect_func("dbt_invocation_env"), "dbt_invocation_env"
+        )
 
-    def _test_databricks_sql_connector_catalog_connection(self, version, connect):
+    def _test_databricks_sql_connector_catalog_connection(
+        self, version, connect, dbt_invocation_env=""
+    ):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
         with mock.patch("dbt.adapters.databricks.connections.dbsql.__version__", new=version):
             with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
-                connection = adapter.acquire_connection("dummy")
-                connection.handle  # trigger lazy-load
+                with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: dbt_invocation_env}):
+                    connection = adapter.acquire_connection("dummy")
+                    connection.handle  # trigger lazy-load
 
-                self.assertEqual(connection.state, "open")
-                self.assertIsNotNone(connection.handle)
-                self.assertEqual(
-                    connection.credentials.http_path,
-                    "sql/protocolv1/o/1234567890123456/1234-567890-test123",
-                )
-                self.assertEqual(
-                    connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-                )
-                self.assertEqual(connection.credentials.schema, "analytics")
-                self.assertEqual(connection.credentials.database, "main")
+                    self.assertEqual(connection.state, "open")
+                    self.assertIsNotNone(connection.handle)
+                    self.assertEqual(
+                        connection.credentials.http_path,
+                        "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                    )
+                    self.assertEqual(
+                        connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                    )
+                    self.assertEqual(connection.credentials.schema, "analytics")
+                    self.assertEqual(connection.credentials.database, "main")
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None

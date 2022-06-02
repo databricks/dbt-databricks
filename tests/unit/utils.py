@@ -2,7 +2,6 @@
 Note that all imports should be inside the functions to avoid import/mocking
 issues.
 """
-from contextlib import contextmanager
 import string
 import os
 from unittest import mock
@@ -378,16 +377,3 @@ def replace_config(n, **kwargs):
         config=n.config.replace(**kwargs),
         unrendered_config=dict_replace(n.unrendered_config, **kwargs),
     )
-
-
-@contextmanager
-def envvar(key: str, value: str):
-    original = os.getenv(key)
-    try:
-        os.environ[key] = value
-        yield
-    finally:
-        if original is None:
-            del os.environ[key]
-        else:
-            os.environ[key] = original
