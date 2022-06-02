@@ -258,11 +258,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 cls.validate_creds(creds, required_fields)
 
                 dbt_databricks_version = __version__.version
-
-                default = "manual"
-                dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV, default)
-                if dbt_invocation_env == "":
-                    dbt_invocation_env = default
+                dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
 
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version} ({dbt_invocation_env})"
 
