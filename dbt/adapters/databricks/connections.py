@@ -248,7 +248,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 dbt_databricks_version = __version__.version
                 dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
-                user_agent_entry = f"dbt-databricks/{dbt_databricks_version} ({dbt_invocation_env})"
+                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {dbt_invocation_env}"
 
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,

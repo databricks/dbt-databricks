@@ -56,7 +56,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
                 )
 
             return connect
