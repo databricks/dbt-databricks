@@ -128,7 +128,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertNotIn(CATALOG_KEY_IN_SESSION_PROPERTIES, session_configuration)
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
                 )
 
             return connect
@@ -156,7 +156,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(catalog)
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
                 )
 
             return connect
@@ -204,7 +204,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertEqual(session_configuration[CATALOG_KEY_IN_SESSION_PROPERTIES], "main")
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
                 )
 
             return connect
@@ -232,7 +232,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertEqual(catalog, "main")
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version} ({dbt_invocation_env})",
+                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
                 )
 
             return connect
