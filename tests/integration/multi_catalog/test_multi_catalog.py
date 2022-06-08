@@ -29,6 +29,7 @@ class TestMultiCatalog(DBTIntegrationTest):
         self.run_dbt(["seed"])
 
         self.assertEqual(len(self.run_dbt(["run"])), 3)
+        self.assertEqual(len(self.run_dbt(["run"])), 3)
 
         self.assertManyRelationsEqual(
             [
@@ -39,6 +40,7 @@ class TestMultiCatalog(DBTIntegrationTest):
             ]
         )
 
+        self.run_dbt(["snapshot"])
         self.run_dbt(["snapshot"])
 
         results = self.run_sql(
