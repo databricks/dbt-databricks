@@ -120,11 +120,6 @@ class DatabricksAdapter(SparkAdapter):
 
         return relations
 
-    def get_relation(
-        self, database: Optional[str], schema: str, identifier: str
-    ) -> Optional[BaseRelation]:
-        return super(SparkAdapter, self).get_relation(database, schema, identifier)
-
     def parse_describe_extended(
         self, relation: DatabricksRelation, raw_rows: List[Row]
     ) -> List[DatabricksColumn]:
