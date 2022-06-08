@@ -49,7 +49,13 @@ your_profile_name:
       token: [dapiXXXXXXXXXXXXXXXXXXXXXXX]
 ```
 
+### Quick Starts
+These following quick starts will get you up and running with the `dbt-databricks` adapter:
+- [Developing your first dbt project](/docs/local-dev.md)
+- [Running dbt production jobs on Databricks Workflows](/docs/databricks-workflows.md)
+- [Using GitHub Actions for dbt CI/CD on Databricks](/docs/github-actions.md)
+- Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
+
 ### Compatibility
 
 The `dbt-databricks` adapter has been tested against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
-
