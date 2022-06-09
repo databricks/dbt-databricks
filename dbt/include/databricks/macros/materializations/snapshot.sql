@@ -73,7 +73,11 @@
 
       {{ adapter.valid_snapshot_target(target_relation) }}
 
-      {% set staging_table = databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
+      {% if target_relation.database is none %}
+          {% set staging_table = spark_build_snapshot_staging_table(strategy, sql, target_relation) %}
+      {% else %}
+          {% set staging_table = databricks_build_snapshot_staging_table(strategy, sql, target_relation) %}
+      {% endif %}
 
       -- this may no-op if the database does not require column expansion
       {% do adapter.expand_target_column_types(from_relation=staging_table,

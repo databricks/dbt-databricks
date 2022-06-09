@@ -4,10 +4,15 @@
 
 ### Features
 - Support for Databricks CATALOG as a DATABASE in DBT compilations ([#95](https://github.com/databricks/dbt-databricks/issues/95), [#89](https://github.com/databricks/dbt-databricks/pull/89), [#94](https://github.com/databricks/dbt-databricks/pull/94), [#105](https://github.com/databricks/dbt-databricks/pull/105))
+    - When using catalog, `spark_build_snapshot_staging_table` macro will not be used. If trying to override the macro, `databricks_build_snapshot_staging_table` should be overridden instead.
 
 ### Fixes
 - Block taking jinja2.runtime.Undefined into DatabricksAdapter ([#98](https://github.com/databricks/dbt-databricks/pull/98))
 - Avoid using Cursor.schema API when database is None ([#100](https://github.com/databricks/dbt-databricks/pull/100))
+
+### Under the hood
+- Add `DBT_INVOCATION_ENV` environment variable to the user agent string ([#106](https://github.com/databricks/dbt-databricks/pull/106), [#107](https://github.com/databricks/dbt-databricks/pull/107))
+- Drop databricks-sql-connector 1.0 ([#108](https://github.com/databricks/dbt-databricks/pull/108))
 
 ## dbt-databricks 1.1.0 (May 11, 2022)
 
