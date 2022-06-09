@@ -9,7 +9,7 @@ from dbt.adapters.databricks.utils import remove_undefined
 
 @dataclass
 class DatabricksIncludePolicy(Policy):
-    database: bool = False  # TODO: should be True
+    database: bool = True
     schema: bool = True
     identifier: bool = True
 

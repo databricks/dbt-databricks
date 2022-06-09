@@ -143,3 +143,23 @@
     {% endif %}
   {% endfor %}
 {% endmacro %}
+
+{% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
+    {%- set default_database = target.database -%}
+    {%- if custom_database_name is none -%}
+        {{ return(default_database) }}
+    {%- else -%}
+        {{ return(custom_database_name) }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro databricks__make_temp_relation(base_relation, suffix) %}
+    {% set tmp_identifier = base_relation.identifier ~ suffix %}
+    {% set tmp_relation = base_relation.incorporate(path = {
+        "identifier": tmp_identifier,
+        "schema": None,
+        "database": None
+    }) -%}
+
+    {% do return(tmp_relation) %}
+{% endmacro %}

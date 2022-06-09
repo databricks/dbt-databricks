@@ -19,10 +19,7 @@ class TestSetTblproperties(DBTIntegrationTest):
         self.assertTablesEqual("set_tblproperties_to_view", "expected")
 
         results = self.run_sql(
-            "show tblproperties {schema}.{table}".format(
-                schema=self.unique_schema(), table="set_tblproperties"
-            ),
-            fetch="all",
+            "show tblproperties {database_schema}.set_tblproperties", fetch="all"
         )
         tblproperties = [result[0] for result in results]
 
@@ -30,10 +27,7 @@ class TestSetTblproperties(DBTIntegrationTest):
         assert "delta.autoOptimize.autoCompact" in tblproperties
 
         results = self.run_sql(
-            "show tblproperties {schema}.{table}".format(
-                schema=self.unique_schema(), table="set_tblproperties_to_view"
-            ),
-            fetch="all",
+            "show tblproperties {database_schema}.set_tblproperties_to_view", fetch="all"
         )
         tblproperties = [result[0] for result in results]
 
