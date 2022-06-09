@@ -116,31 +116,36 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
-    def test_databricks_sql_connector_connection(self):
-        def connect_func(dbt_invocation_env):
-            def connect(
-                server_hostname,
-                http_path,
-                access_token,
-                session_configuration,
-                catalog,
-                _user_agent_entry,
-            ):
-                self.assertEqual(server_hostname, "yourorg.databricks.com")
-                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+    def _connect_func(self, *, expected_catalog=None, dbt_invocation_env="manual"):
+        def connect(
+            server_hostname,
+            http_path,
+            access_token,
+            session_configuration,
+            catalog,
+            _user_agent_entry,
+        ):
+            self.assertEqual(server_hostname, "yourorg.databricks.com")
+            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
+            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
+            if expected_catalog is None:
                 self.assertIsNone(catalog)
-                self.assertEqual(
-                    _user_agent_entry,
-                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
-                )
+            else:
+                self.assertEqual(catalog, expected_catalog)
+            self.assertEqual(
+                _user_agent_entry,
+                f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
+            )
 
-            return connect
+        return connect
 
-        self._test_databricks_sql_connector_connection(connect_func("manual"))
+    def test_databricks_sql_connector_connection(self):
+        self._test_databricks_sql_connector_connection(self._connect_func())
         with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: "dbt_invocation_env"}):
-            self._test_databricks_sql_connector_connection(connect_func("dbt_invocation_env"))
+            self._test_databricks_sql_connector_connection(
+                self._connect_func(dbt_invocation_env="dbt_invocation_env")
+            )
 
     def _test_databricks_sql_connector_connection(self, connect):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
@@ -165,31 +170,12 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertIsNone(connection.credentials.database)
 
     def test_databricks_sql_connector_catalog_connection(self):
-        def connect_func(dbt_invocation_env):
-            def connect(
-                server_hostname,
-                http_path,
-                access_token,
-                session_configuration,
-                catalog,
-                _user_agent_entry,
-            ):
-                self.assertEqual(server_hostname, "yourorg.databricks.com")
-                self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-                self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
-                self.assertEqual(catalog, "main")
-                self.assertEqual(
-                    _user_agent_entry,
-                    f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
-                )
-
-            return connect
-
-        self._test_databricks_sql_connector_catalog_connection(connect_func("manual"))
+        self._test_databricks_sql_connector_catalog_connection(
+            self._connect_func(expected_catalog="main")
+        )
         with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: "dbt_invocation_env"}):
             self._test_databricks_sql_connector_catalog_connection(
-                connect_func("dbt_invocation_env")
+                self._connect_func(expected_catalog="main", dbt_invocation_env="dbt_invocation_env")
             )
 
     def _test_databricks_sql_connector_catalog_connection(self, connect):
