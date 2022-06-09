@@ -360,11 +360,19 @@ class DBTIntegrationTest(unittest.TestCase):
         return schema_fqn
 
     def _create_schema_named(self, database, schema):
-        self.run_sql("CREATE SCHEMA {schema}")
+        self.run_sql(
+            "CREATE SCHEMA {database_schema}", kwargs=dict(database=database, schema=schema)
+        )
 
     def _drop_schema_named(self, database, schema):
-        self.run_sql("DROP SCHEMA IF EXISTS {schema} CASCADE")
-        self.run_sql("DROP SCHEMA IF EXISTS {schema}_dbt_test__audit CASCADE")
+        self.run_sql(
+            "DROP SCHEMA IF EXISTS {database_schema} CASCADE",
+            kwargs=dict(database=database, schema=schema),
+        )
+        self.run_sql(
+            "DROP SCHEMA IF EXISTS {database_schema}_dbt_test__audit CASCADE",
+            kwargs=dict(database=database, schema=schema),
+        )
 
     def _create_schemas(self):
         schema = self.unique_schema()
@@ -435,11 +443,22 @@ class DBTIntegrationTest(unittest.TestCase):
 
         base_kwargs = {
             "schema": self.unique_schema(),
-            "database": self.adapter.quote(self.default_database),
+            "database": (
+                self.adapter.quote(self.default_database)
+                if self.default_database is not None
+                else None
+            ),
         }
         if kwargs is None:
             kwargs = {}
-        base_kwargs.update(kwargs)
+        base_kwargs.update({key: value for key, value in kwargs.items() if value is not None})
+        if "database_schema" not in base_kwargs:
+            if base_kwargs["database"] is not None:
+                base_kwargs[
+                    "database_schema"
+                ] = f"{base_kwargs['database']}.{base_kwargs['schema']}"
+            else:
+                base_kwargs["database_schema"] = base_kwargs["schema"]
 
         to_return = to_return.format(**base_kwargs)
 
