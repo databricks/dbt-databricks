@@ -15,6 +15,9 @@ If you want to run the SQL on, say, a Databricks SQL endpoint or even another cl
 - An existing dbt project version controlled in git
 - Access to a Databricks workspace
 - You must have `CAN_MANAGE` permissions on Databricks Clusters as Databricks needs that privilege to install `dbt-core` and `dbt-databricks` as cluster libraries.
+- [Files in Repos](https://docs.databricks.com/repos/index.html#enable-support-for-arbitrary-files-in-databricks-repos) must be enabled and is only supported on Databricks Runtime (DBR) 8.4+ or DBR 11+. Please make sure the Automated Cluster has the appropriate DBR version as well.
+- Install and configure the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/index.html)
+- Install [jq](https://stedolan.github.io/jq/download/), a popular open source tool for parsing JSON from the command line
 
 # Update dbt project
 
@@ -84,19 +87,25 @@ A dbt run generates useful artifacts which you may want to retrieve for analysis
 
 Follow these steps to retrieve dbt artifacts from a job run:
 
-1. Generate a [Personal Access Token](https://docs.databricks.com/dev-tools/api/latest/authentication.html#generate-a-personal-access-token)
+1. Go to a job in Databricks and copy the _Task Run ID_. It appears in the sidebar under _Task run details_ when you click on a run.
 2. Enter the following command in your terminal:
 
 ```nofmt
+$ databricks jobs configure --version=2.1
+$ databricks runs get --run-id TASK_RUN_ID | jq .tasks
+```
 
-curl TODO
+3. The above command will return an array of tasks with their `run_id`s. Find the dbt task's `run_id` and run this command:
 
+```nofmt
+$ export DBT_ARTIFACT_URL="$(databricks runs get-output --run-id DBT_TASK_RUN_ID | jq -r .dbt_output.artifacts_link)"
+$ curl $DBT_ARTIFACT_URL --output artifact.tar.gz
 ```
 
 On macOS or Linux, you can run the following command to expand and decompress the archive:
 
 ```nofmt
-todo
+$ tar -xvf artifact.tar.gz
 ```
 
 # Common issues
