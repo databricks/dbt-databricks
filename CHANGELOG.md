@@ -4,6 +4,9 @@
 - Block taking jinja2.runtime.Undefined into DatabricksAdapter ([#98](https://github.com/databricks/dbt-databricks/pull/98))
 - Avoid using Cursor.schema API when database is None ([#100](https://github.com/databricks/dbt-databricks/pull/100))
 
+### Under the hood
+- Add `DBT_INVOCATION_ENV` environment variable to the user agent string ([#106](https://github.com/databricks/dbt-databricks/pull/106), [#107](https://github.com/databricks/dbt-databricks/pull/107))
+
 ## dbt-databricks 1.1.0 (May 11, 2022)
 
 ### Features
