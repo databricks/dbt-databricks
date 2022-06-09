@@ -6,7 +6,6 @@ import time
 from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from agate import Table
-from packaging.version import parse
 
 import dbt.exceptions
 from dbt.adapters.base import Credentials
@@ -169,25 +168,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
         try:
             yield
 
-        except Exception as exc:
-            if isinstance(exc, OperationalError) and parse(dbsql.__version__) < parse("2.0"):
-                logger.debug(f"Error while running:\n{sql}")
-                logger.debug(exc)
-                msg = str(exc)
-                m = self.DROP_JAVA_STACKTRACE_REGEX.search(msg)
-                if m:
-                    msg = f"Query execution failed.\nError message: {m.group().strip()}"
-                raise dbt.exceptions.RuntimeException(msg)
-            elif isinstance(exc, DBSQLError):
-                logger.debug(f"Error while running:\n{sql}")
-                logger.debug(f"{type(exc)}: {exc}")
-                if hasattr(exc, "context"):
-                    if "operation-id" in exc.context:
-                        logger.debug(f"operation-id: {exc.context['operation-id']}")
-                    if "diagnostic-info" in exc.context:
-                        logger.debug(f"diagnostic-info: {exc.context['diagnostic-info']}")
-                raise dbt.exceptions.RuntimeException(str(exc))
+        except DBSQLError as exc:
+            logger.debug(f"Error while running:\n{sql}")
+            logger.debug(f"{type(exc)}: {exc}")
+            if hasattr(exc, "context"):
+                if "operation-id" in exc.context:
+                    logger.debug(f"operation-id: {exc.context['operation-id']}")
+                if "diagnostic-info" in exc.context:
+                    logger.debug(f"diagnostic-info: {exc.context['diagnostic-info']}")
+            raise dbt.exceptions.RuntimeException(str(exc))
 
+        except Exception as exc:
             logger.debug(f"Error while running:\n{sql}")
             logger.debug(exc)
             if len(exc.args) == 0:
@@ -261,29 +252,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {dbt_invocation_env}"
 
-                if parse(dbsql.__version__) < parse("2.0"):
-                    session_configs = creds.session_properties or {}
-                    if creds.database:
-                        session_configs[CATALOG_KEY_IN_SESSION_PROPERTIES] = creds.database
-                    connect_args = dict(
-                        server_hostname=creds.host,
-                        http_path=creds.http_path,
-                        access_token=creds.token,
-                        session_configuration=session_configs,
-                        _user_agent_entry=user_agent_entry,
-                    )
-                else:
-                    connect_args = dict(
-                        server_hostname=creds.host,
-                        http_path=creds.http_path,
-                        access_token=creds.token,
-                        session_configuration=creds.session_properties,
-                        catalog=creds.database,
-                        _user_agent_entry=user_agent_entry,
-                    )
-
                 # TODO: what is the error when a user specifies a catalog they don't have access to
-                conn: DatabricksSQLConnection = dbsql.connect(**connect_args)
+                conn: DatabricksSQLConnection = dbsql.connect(
+                    server_hostname=creds.host,
+                    http_path=creds.http_path,
+                    access_token=creds.token,
+                    session_configuration=creds.session_properties,
+                    catalog=creds.database,
+                    _user_agent_entry=user_agent_entry,
+                )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:
