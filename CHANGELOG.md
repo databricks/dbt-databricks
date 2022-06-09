@@ -8,6 +8,7 @@
 
 ### Under the hood
 - Add `DBT_INVOCATION_ENV` environment variable to the user agent string ([#106](https://github.com/databricks/dbt-databricks/pull/106), [#107](https://github.com/databricks/dbt-databricks/pull/107))
+- Drop databricks-sql-connector 1.0 ([#108](https://github.com/databricks/dbt-databricks/pull/108))
 
 ## dbt-databricks 1.1.0 (May 11, 2022)
 
