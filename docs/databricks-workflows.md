@@ -15,7 +15,7 @@ If you want to run the SQL on, say, a Databricks SQL endpoint or even another cl
 - An existing dbt project version controlled in git
 - Access to a Databricks workspace
 - You must have `CAN_MANAGE` permissions on Databricks Clusters as Databricks needs that privilege to install `dbt-core` and `dbt-databricks` as cluster libraries.
-- [Files in Repos](https://docs.databricks.com/repos/index.html#enable-support-for-arbitrary-files-in-databricks-repos) must be enabled and is only supported on Databricks Runtime (DBR) 8.4+ or DBR 11+. Please make sure the Automated Cluster has the appropriate DBR version as well.
+- [Files in Repos](https://docs.databricks.com/repos/index.html#enable-support-for-arbitrary-files-in-databricks-repos) must be enabled and is only supported on Databricks Runtime (DBR) 8.4+ or DBR 11+ depending on the configuration. Please make sure the cluster has the appropriate DBR version.
 - Install and configure the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/index.html)
 - Install [jq](https://stedolan.github.io/jq/download/), a popular open source tool for parsing JSON from the command line
 
