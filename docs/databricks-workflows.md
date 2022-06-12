@@ -21,8 +21,6 @@ If you want to run the SQL on, say, a Databricks SQL endpoint or even another cl
 
 # Update dbt project
 
-> This is a temporary requirement during private preview. We will soon automatically generate a `profiles.yml` file.
-
 As a first step, you need to generate a `profiles.yml` file that contains information Databricks will use to connect to the Automated Cluster. Note that we do not check in secrets into this file. Instead, we use dbt's Jinja2 templating to retrieve these values at runtime.
 
 1. Open your dbt project in your favorite IDE
@@ -64,13 +62,12 @@ The dbt task only supports retrieve dbt projects from Git. Please follow [the do
 7. In the dialog, enter your Git repository URL, and choose the Git provider. Also, choose a branch / tag / commit e.g. `main`.
 8. If your dbt project is in the root of the git repository, leave the _Path_ field empty. Otherwise, provide the relative path e.g. `/my/relative/path`.
 9. You can customize dbt commands as needed, including any flag accepted by the dbt CLI.
-10. Since we provide a custom `profiles.yml` file in our dbt project, add `--profiles-dir .` to every dbt command as shown in the screenshot below. Note that this step will not be required once we remove the requirement for a custom `profiles.yml`:
 
 ![dbt-task-type](/docs/img/dbt-task-type.png)
 
-11. By default, Databricks installs recent versions of `dbt-core` and `dbt-databricks` from PyPi. You can customize these versions if you wish.
-12. You can customize the Automated Cluster if you wish by clicking _Edit_ in the Cluster dropdown.
-13. Click _Save_
+10. By default, Databricks installs recent versions of `dbt-core` and `dbt-databricks` from PyPi. You can customize these versions if you wish.
+11. You can customize the Automated Cluster if you wish by clicking _Edit_ in the Cluster dropdown.
+12. Click _Save_
 
 # Run the job and view dbt output
 You can now run your newly-saved job and see its output.
@@ -81,7 +78,7 @@ You can now run your newly-saved job and see its output.
 # Retrieve dbt artifacts using the Jobs API
 A dbt run generates useful artifacts which you may want to retrieve for analysis and more. Databricks saves the contents of `/logs` and `/target` directories as a compressed archive which you can retrieve using the Jobs API.
 
-> It is currently not possible to refer to a previous run's artifacts e.g. using the `--state` flag.
+> It is currently not possible to refer to a previous run's artifacts e.g. using the `--state` flag. You can, however, include a known good state in your repository.
 
 > [dbt-artifacts](https://github.com/brooklyn-data/dbt_artifacts) is a popular dbt package for ingesting dbt artifacts into tables. This is currently not supported on Databricks. Please contact us if you are interested in Databricks supporting this package.
 
@@ -98,7 +95,7 @@ $ databricks runs get --run-id TASK_RUN_ID | jq .tasks
 3. The above command will return an array of tasks with their `run_id`s. Find the dbt task's `run_id` and run this command:
 
 ```nofmt
-$ export DBT_ARTIFACT_URL="$(databricks runs get-output --run-id DBT_TASK_RUN_ID | jq -r .dbt_output.artifacts_link)"
+$ DBT_ARTIFACT_URL="$(databricks runs get-output --run-id DBT_TASK_RUN_ID | jq -r .dbt_output.artifacts_link)"
 $ curl $DBT_ARTIFACT_URL --output artifact.tar.gz
 ```
 
@@ -111,5 +108,28 @@ $ tar -xvf artifact.tar.gz
 # Common issues
 ## Unable to connect to Databricks
 - You must provide a `profiles.yml` file for now in the root of the Git repository. Please check that this file is present and is properly named e.g. it is not `profile.yml`
-- Check your Personal Access Token (PAT). It must not be expired.
+- If you do not use the automatically-generated `profiles.yml`, check your Personal Access Token (PAT). It must not be expired.
 - Consider adding `dbt debug` as the first command. This may give you a clue about the failure.
+
+## dbt cannot find my `dbt_project.yml` file
+If you have checked out the Git repository before enabling the _Files in Repos_ feature, the checkout might be cached invalidly. You need to push a dummy commit to your repository to force a fresh checkout.
+
+# Connecting to different sources (custom profile)
+By default the dbt task type will connect to the Automated Cluster dbt-core is running on without any configuration changes or need to check in any secrets. It does so by generating a default `profiles.yml` and telling dbt to use it. We have no restrictions on connection to any other dbt targets such as Databricks SQL, Amazon Redshift, Google BigQuery, Snowflak, or any other [supported adapter](https://docs.getdbt.com/docs/available-adapters). The automatically generated profile can be overridden by specifying an alternative profiles directory in the dbt command using `--profiles-dir <dir>`, where the path of the `<dir>` should be a relative path like `.` or `./my-directory`.
+
+If you'd like to connect to multiple outputs and include the current Automated Cluster as one of those, the following configuration can be used without exposing any secrets:
+```yaml
+databricks_demo:
+ target: databricks_cluster
+ outputs:
+   databricks_cluster:
+     type: databricks
+     connect_retries: 5
+     connect_timeout: 180
+     method: http
+     schema: "<your-schema>"
+     threads: 8 # This can be increased or decreased to control the parallism
+     host: "{{ env_var('DBT_HOST') }}"
+     http_path: "sql/protocolv1/o/{{ env_var('DBT_ORG_ID') }}/{{ env_var('DBT_CLUSTER_ID') }}"
+     token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
+```

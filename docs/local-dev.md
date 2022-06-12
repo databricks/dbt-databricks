@@ -33,6 +33,8 @@ Before you scaffold a new dbt project, you have to collect some information whic
 6. Copy the value of _Server hostname_. This will be the value of `host` when you scaffold a dbt project.
 7. Copy the value of _HTTP path_.  This will be the value of `http_path` when you scaffold a dbt project.
 
+![image](/docs/img/sql-endpoint-connection-details.png "SQL endpoint connection details")
+
 #### Databricks Clusters
 1. Log in to your Databricks workspace 
 2. Click the _Data Science & Engineering_ persona in the left navigation bar
@@ -42,6 +44,8 @@ Before you scaffold a new dbt project, you have to collect some information whic
 6. Scroll down some more and click _JDBC/ODBC_
 7. Copy the value of _Server Hostname_. This will be the value of `host` when you scaffold a dbt project.
 7. Copy the value of _HTTP Path_.  This will be the value of `http_path` when you scaffold a dbt project.
+
+![image](/docs/img/cluster-connection-details.png "SQL endpoint connection details")
 
 ## Scaffold a new dbt project
 Now, we are ready to scaffold a new dbt project. Switch to your terminal and type:

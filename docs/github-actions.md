@@ -16,36 +16,20 @@ dbt encourages software development lifecycle best-practices, including continuo
 - A fork of the [jaffle_shop](https://github.com/dbt-labs/jaffle_shop) demo project. You can, alternatively, follow along with your own dbt project.
 
 ## Create GitHub Action
-1. Open your terminal and create a file called `profiles.yml` in the root of the dbt project.
-
-```yaml
-jaffle_shop:
- target: databricks_job
- outputs:
-   databricks_job:
-     type: databricks
-     method: http
-     schema: "default"
-     host: "{{ env_var('DBT_HOST') }}"
-     http_path: "sql/protocolv1/o/{{ env_var('DBT_ORG_ID') }}/{{ env_var('DBT_CLUSTER_ID') }}"
-     token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
-
-```
-
-2. Create a `.github/workflows` directory
+1. Create a `.github/workflows` directory
 
 ```
 $ mkdir -p .github/workflows
 $ cd .github/workflows
 ```
 
-3. Create a `requirements.txt` file and paste the following, which specifies the version of the Databricks CLI to install
+2. Create a `requirements.txt` file and paste the following, which specifies the version of the Databricks CLI to install
 
 ```nofmt
-databricks-cli==0.16.6
+databricks-cli
 ```
 
-4. Create a file named `job.json` and paste the following content:
+3. Create a file named `job.json` and paste the following content:
 
 ```json
 {
@@ -54,11 +38,9 @@ databricks-cli==0.16.6
         {
             "task_key": "jaffle_shop_tests",
             "dbt_task": {
-                "project_directory": "",
-                "operation": "",
                 "commands": [
-                    "dbt --profiles-dir . debug",
-                    "dbt --profiles-dir . test"
+                    "dbt debug",
+                    "dbt test"
                 ]
             },
             "existing_cluster_id": "_EXISTING_CLUSTER_ID_",
@@ -73,17 +55,14 @@ databricks-cli==0.16.6
                         "package": "dbt-databricks>=1.0.0,<2.0.0"
                     }
                 }
-            ],
-            "timeout_seconds": 0,
-            "email_notifications": {}
+            ]
         }
     ],
     "git_source": {
         "git_url": "https://github.com/dbt/jaffle_shop",
         "git_provider": "gitHub",
         "git_branch": "_GITHUB_BRANCH_"
-    },
-    "format": "MULTI_TASK"
+    }
 }
 ```
 
