@@ -213,7 +213,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
-        current_catalog = None
+        current_catalog: Optional[str] = None
         try:
             if catalog is not None:
                 current_catalog = self.execute_macro(CURRENT_CATALOG_MACRO_NAME)[0][0]
