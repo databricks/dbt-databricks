@@ -213,6 +213,12 @@ class DatabricksAdapter(SparkAdapter):
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
+        """
+        A context manager to make the operation work in the specified catalog,
+        and move back to the current catalog after the operation.
+
+        If `catalog` is None, the operation works in the current catalog.
+        """
         current_catalog: Optional[str] = None
         try:
             if catalog is not None:

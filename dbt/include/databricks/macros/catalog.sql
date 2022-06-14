@@ -15,6 +15,6 @@
 
 {% macro databricks__use_catalog(catalog) -%}
   {% call statement() %}
-    use catalog `{{ catalog }}`
+    use catalog {{ adapter.quote(catalog) }}
   {% endcall %}
 {% endmacro %}
