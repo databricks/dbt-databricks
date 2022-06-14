@@ -3,11 +3,20 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import re
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+import base64
+import hashlib
+import os
+import re
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
+import dbt.exceptions
 from agate import Row, Table
 
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base.impl import catch_as_completed
+from databricks_api import DatabricksAPI
+from dbt.adapters.base import AdapterConfig, available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -19,7 +28,6 @@ from dbt.adapters.spark.impl import (
 from dbt.contracts.connection import AdapterResponse
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.relation import RelationType
-import dbt.exceptions
 from dbt.events import AdapterLogger
 from dbt.utils import executor
 
@@ -27,7 +35,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import undefined_proof
-
 
 logger = AdapterLogger("Databricks")
 
@@ -49,7 +56,6 @@ class DatabricksConfig(AdapterConfig):
 
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
-
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
@@ -232,3 +238,33 @@ class DatabricksAdapter(SparkAdapter):
         finally:
             if current_catalog is not None:
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
+
+    @available.parse_none
+    def upload_file(self, local_file_path: str, dbfs_file_path: str, overwrite: Optional[bool] = False,
+                    contents: Optional[str] = None, headers: Optional[Dict[str, str]] = None) -> None:
+        """
+        Upload a file to dbfs.
+
+        :param local_file_path: The local path to the file to upload.
+        :param dbfs_file_path: The path to the file in dbfs.
+        :param overwrite: Whether to overwrite the file if it already exists.
+        :param contents: The file contents to uploaded if no local file is provided.
+        :param headers: The headers to send with the request. If not provided, the default headers provided
+        by the underlying databricks-api will be used.
+
+        """
+        conn = self.connections.get_thread_connection()
+        creds = conn.credentials
+
+        dbapi_client = DatabricksAPI(
+            host=creds.host,
+            token=creds.token
+        )
+
+        dbapi_client.dbfs.put(
+            path=dbfs_file_path,
+            src_path=local_file_path,
+            overwrite=overwrite,
+            contents=contents,
+            headers=headers
+        )

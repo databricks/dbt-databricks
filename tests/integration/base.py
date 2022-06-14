@@ -14,6 +14,8 @@ import yaml
 from unittest.mock import patch
 
 import dbt.main as dbt
+from databricks_api import DatabricksAPI
+
 from dbt import flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
@@ -258,6 +260,10 @@ class DBTIntegrationTest(unittest.TestCase):
         self.set_packages()
         self.set_selectors()
         self.load_config()
+        self.dbapi_client = DatabricksAPI(
+            host=os.getenv("DBT_DATABRICKS_HOST_NAME"),
+            token=os.getenv("DBT_DATABRICKS_TOKEN"),
+        )
 
     def use_default_project(self, overrides=None):
         # create a dbt_project.yml
@@ -354,6 +360,7 @@ class DBTIntegrationTest(unittest.TestCase):
             logger.exception(
                 "Could not clean up after test - {} not removable".format(self.test_root_dir)
             )
+        self.dbapi_client.dbfs.delete("/tmp/integration-tests", recursive=True)
 
     def _get_schema_fqn(self, database, schema):
         schema_fqn = self.quote_as_configured(schema, "schema")

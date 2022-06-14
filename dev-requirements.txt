@@ -21,3 +21,5 @@ flaky
 
 mypy==0.920
 black==22.3.0
+
+databricks-api==0.7.0

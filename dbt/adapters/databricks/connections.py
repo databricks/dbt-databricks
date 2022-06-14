@@ -248,10 +248,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 cls.validate_creds(creds, required_fields)
 
-                dbt_databricks_version = __version__.version
-                dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
-                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {dbt_invocation_env}"
-
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
@@ -259,7 +255,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     access_token=creds.token,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
-                    _user_agent_entry=user_agent_entry,
+                    _user_agent_entry=cls.get_user_agent_entry(),
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
@@ -300,3 +296,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
+
+    @staticmethod
+    def get_user_agent_entry() -> str:
+        dbt_databricks_version = __version__.version
+        dbt_invocation_env = os.getenv(DBT_INVOCATION_ENV) or "manual"
+        return f"dbt-databricks/{dbt_databricks_version}; {dbt_invocation_env}"
