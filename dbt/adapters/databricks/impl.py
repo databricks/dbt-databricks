@@ -94,7 +94,7 @@ class DatabricksAdapter(SparkAdapter):
     ) -> List[DatabricksRelation]:
         kwargs = {"schema_relation": schema_relation}
         try:
-            # The catalog for `show table extended` needs to be the current catalog.
+            # The catalog for `show table extended` needs to match the current catalog.
             with self._catalog(schema_relation.database):
                 results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.RuntimeException as e:
