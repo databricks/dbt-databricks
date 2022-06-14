@@ -1,10 +1,13 @@
+from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass
 import re
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from agate import Row, Table
 
 from dbt.adapters.base import AdapterConfig
+from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -14,9 +17,11 @@ from dbt.adapters.spark.impl import (
     LIST_SCHEMAS_MACRO_NAME,
 )
 from dbt.contracts.connection import AdapterResponse
+from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
 from dbt.events import AdapterLogger
+from dbt.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -25,6 +30,9 @@ from dbt.adapters.databricks.utils import undefined_proof
 
 
 logger = AdapterLogger("Databricks")
+
+CURRENT_CATALOG_MACRO_NAME = "current_catalog"
+USE_CATALOG_MACRO_NAME = "use_catalog"
 
 
 @dataclass
@@ -86,7 +94,9 @@ class DatabricksAdapter(SparkAdapter):
     ) -> List[DatabricksRelation]:
         kwargs = {"schema_relation": schema_relation}
         try:
-            results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
+            # The catalog for `show table extended` needs to match the current catalog.
+            with self._catalog(schema_relation.database):
+                results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.RuntimeException as e:
             errmsg = getattr(e, "msg", "")
             if f"Database '{schema_relation}' not found" in errmsg:
@@ -176,6 +186,21 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
+    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
+        schema_map = self._get_catalog_schemas(manifest)
+
+        with executor(self.config) as tpe:
+            futures: List[Future[Table]] = []
+            for info, schemas in schema_map.items():
+                for schema in schemas:
+                    futures.append(
+                        tpe.submit_connected(
+                            self, schema, self._get_one_catalog, info, [schema], manifest
+                        )
+                    )
+            catalogs, exceptions = catch_as_completed(futures)
+        return catalogs, exceptions
+
     def _get_columns_for_catalog(self, relation: DatabricksRelation) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation)
 
@@ -185,3 +210,25 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
+
+    @contextmanager
+    def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
+        """
+        A context manager to make the operation work in the specified catalog,
+        and move back to the current catalog after the operation.
+
+        If `catalog` is None, the operation works in the current catalog.
+        """
+        current_catalog: Optional[str] = None
+        try:
+            if catalog is not None:
+                current_catalog = self.execute_macro(CURRENT_CATALOG_MACRO_NAME)[0][0]
+                if current_catalog is not None:
+                    if current_catalog != catalog:
+                        self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog))
+                    else:
+                        current_catalog = None
+            yield
+        finally:
+            if current_catalog is not None:
+                self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
