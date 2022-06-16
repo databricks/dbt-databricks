@@ -1,22 +1,15 @@
+import re
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
-import base64
-import hashlib
-import os
-import re
-from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Iterator
 
 import dbt.exceptions
 from agate import Row, Table
-
-from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base.impl import catch_as_completed
 from databricks_api import DatabricksAPI
 from dbt.adapters.base import AdapterConfig, available
+from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
