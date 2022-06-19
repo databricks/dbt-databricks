@@ -9,18 +9,6 @@ This page describes how to develop a dbt project on your computer using `dbt-dat
 - dbt-databricks v1.1.0+
 
 ##  Prepare to connect
-### Create a schema
-We will create a new schema in Databricks to house our dbt models. This will ensure that tables and views created by our demo models are nicely namespaced and don't pollute other useful datasets.
-
-Alternatively, you can skip this step and use the `default` schema. Note that schema was previously known as database in Databricks.
-
-1. Create a SQL notebook or create a query in Databricks SQL
-2. Run the following query:
-
-```sql
-CREATE SCHEMA databricks_demo;
-```
-
 ### Collect connection information
 Before you scaffold a new dbt project, you have to collect some information which dbt will use to connect to Databricks. Where you find this information depends on whether you are using Databricks Clusters or Databricks SQL endpoints. We recommend that you develop dbt models against Databricks SQL endpoints as they provide the latest SQL features and optimizations.
 

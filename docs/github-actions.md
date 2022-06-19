@@ -29,7 +29,7 @@ $ cd .github/workflows
 databricks-cli
 ```
 
-3. Create a file named `job.json` and paste the following content:
+3. Create a file named `job.json` and paste the following content. Please replace the value of `git_url` with your open repository's URL.
 
 ```json
 {
@@ -95,7 +95,7 @@ jobs:
     environment: your-workspace
     strategy:
       matrix:
-        python-version: ["pypy-3.7"]
+        python-version: ["pypy-3.8"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
