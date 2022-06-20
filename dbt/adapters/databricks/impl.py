@@ -233,8 +233,14 @@ class DatabricksAdapter(SparkAdapter):
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
 
     @available.parse_none
-    def upload_file(self, local_file_path: str, dbfs_file_path: str, overwrite: Optional[bool] = False,
-                    contents: Optional[str] = None, headers: Optional[Dict[str, str]] = None) -> None:
+    def upload_file(
+        self,
+        local_file_path: str,
+        dbfs_file_path: str,
+        overwrite: Optional[bool] = False,
+        contents: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> None:
         """
         Upload a file to dbfs.
 
@@ -249,15 +255,12 @@ class DatabricksAdapter(SparkAdapter):
         conn = self.connections.get_thread_connection()
         creds = conn.credentials
 
-        dbapi_client = DatabricksAPI(
-            host=creds.host,
-            token=creds.token
-        )
+        dbapi_client = DatabricksAPI(host=creds.host, token=creds.token)
 
         dbapi_client.dbfs.put(
             path=dbfs_file_path,
             src_path=local_file_path,
             overwrite=overwrite,
             contents=contents,
-            headers=headers
+            headers=headers,
         )

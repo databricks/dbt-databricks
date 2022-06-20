@@ -300,4 +300,3 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
-
