@@ -7,7 +7,6 @@ from typing import Iterator
 
 import dbt.exceptions
 from agate import Row, Table
-from databricks_api import DatabricksAPI
 from dbt.adapters.base import AdapterConfig, available
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.relation import BaseRelation
@@ -252,14 +251,9 @@ class DatabricksAdapter(SparkAdapter):
         by the underlying databricks-api will be used.
 
         """
-        conn = self.connections.get_thread_connection()
-        creds = conn.credentials
-
-        dbapi_client = DatabricksAPI(host=creds.host, token=creds.token)
-
-        dbapi_client.dbfs.put(
-            path=dbfs_file_path,
-            src_path=local_file_path,
+        self.connections.upload_file(
+            local_file_path=local_file_path,
+            dbfs_file_path=dbfs_file_path,
             overwrite=overwrite,
             contents=contents,
             headers=headers,

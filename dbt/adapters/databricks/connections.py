@@ -8,6 +8,9 @@ from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequ
 from agate import Table
 
 import dbt.exceptions
+from databricks_cli.sdk import ApiClient
+import databricks_cli.sdk.service as services
+from dbt.adapters.databricks.api import DatabricksAPI
 from dbt.adapters.base import Credentials
 from dbt.adapters.databricks import __version__
 from dbt.contracts.connection import Connection, ConnectionState
@@ -218,6 +221,25 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
+        )
+
+    def upload_file(
+        self,
+        local_file_path: str,
+        dbfs_file_path: str,
+        overwrite: Optional[bool] = False,
+        contents: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        conn = self.get_thread_connection()
+        creds = conn.credentials
+        dbapi_client = DatabricksAPI(host=creds.host, token=creds.token)
+        dbapi_client.DbfsService.put(
+            path=dbfs_file_path,
+            src_path=local_file_path,
+            overwrite=overwrite,
+            contents=contents,
+            headers=headers,
         )
 
     @classmethod

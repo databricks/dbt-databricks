@@ -14,7 +14,7 @@ import yaml
 from unittest.mock import patch
 
 import dbt.main as dbt
-from databricks_api import DatabricksAPI
+from dbt.adapters.databricks.api import DatabricksAPI
 
 from dbt import flags
 from dbt.deprecations import reset_deprecations
@@ -230,6 +230,7 @@ class DBTIntegrationTest(unittest.TestCase):
         _really_makedirs(self._logs_dir)
         self.test_original_source_path = _pytest_get_test_root()
         self.test_root_dir = self._generate_test_root_dir()
+        self.test_dbfs_root = f"/{self.prefix}/integration-tests"
 
         os.chdir(self.test_root_dir)
         try:
@@ -360,7 +361,7 @@ class DBTIntegrationTest(unittest.TestCase):
             logger.exception(
                 "Could not clean up after test - {} not removable".format(self.test_root_dir)
             )
-        self.dbapi_client.dbfs.delete("/tmp/integration-tests", recursive=True)
+        self.dbapi_client.DbfsService.delete(self.test_dbfs_root, recursive=True)
 
     def _get_schema_fqn(self, database, schema):
         schema_fqn = self.quote_as_configured(schema, "schema")
