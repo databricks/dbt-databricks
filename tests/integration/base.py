@@ -207,7 +207,7 @@ class DBTIntegrationTest(unittest.TestCase):
             if os.path.isdir(src) or src.endswith(".sql"):
                 # symlink all sql files and all directories.
                 os.symlink(src, tst)
-        os.symlink(self._logs_dir, os.path.join(self.test_root_dir, "logs"))
+        # os.symlink(self._logs_dir, os.path.join(self.test_root_dir, "logs"))
 
     @property
     def test_root_realpath(self):
