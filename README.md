@@ -50,6 +50,7 @@ your_profile_name:
   outputs:
     dev:
       type: databricks
+      catalog: [optional catalog name, if you are using Unity Catalog]
       schema: [database/schema name]
       host: [your.databrickshost.com]
       http_path: [/sql/your/http/path]

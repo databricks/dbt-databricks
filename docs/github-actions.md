@@ -47,11 +47,6 @@ databricks-cli
             "libraries": [
                 {
                     "pypi": {
-                        "package": "dbt-core>=1.0.0,<2.0.0"
-                    }
-                },
-                {
-                    "pypi": {
                         "package": "dbt-databricks>=1.0.0,<2.0.0"
                     }
                 }

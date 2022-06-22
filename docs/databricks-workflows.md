@@ -38,7 +38,7 @@ The dbt task only supports retrieve dbt projects from Git. Please follow [the do
 
 ![dbt-task-type](/docs/img/dbt-task-type.png)
 
-10. By default, Databricks installs recent versions of `dbt-core` and `dbt-databricks` from PyPi. You can customize these versions if you wish.
+10. By default, Databricks installs a recent version of `dbt-databricks` from PyPi, which will also install `dbt-spark` as well as `dbt-core`. You can customize this version if you wish.
 11. You can customize the Automated Cluster if you wish by clicking _Edit_ in the Cluster dropdown.
 12. Click _Save_
 
