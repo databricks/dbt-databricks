@@ -8,6 +8,12 @@ prompts:
   token:
     hint: 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
     hide_input: true
+  _choose_unity_catalog:
+    'use Unity Catalog':
+      catalog:
+        hint: 'initial catalog'
+    'not use Unity Catalog':
+      _fixed_catalog: null
   schema:
     hint: 'default schema that dbt will build objects in'
   threads:
