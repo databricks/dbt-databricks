@@ -46,6 +46,8 @@ class TestDateAdd(BaseDateAdd):
     pass
 
 
+# This test generates a super long create table sentence that exceeds HiveMetastore's limit
+@pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
 class TestDateDiff(BaseDateDiff):
     pass
 
