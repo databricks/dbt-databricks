@@ -289,7 +289,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     logger.warning(msg)
                     time.sleep(creds.connect_timeout)
                 else:
-                    logger.debug("failed to connect")
+                    logger.debug(f"failed to connect: {exc}")
                     _log_dbsql_errors(exc)
                     raise dbt.exceptions.FailedToConnectException("failed to connect") from e
         else:
