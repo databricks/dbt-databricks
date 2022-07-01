@@ -24,7 +24,7 @@ from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
-from databricks.sql.exc import Error as DBSQLError, OperationalError
+from databricks.sql.exc import Error as DBSQLError
 
 logger = AdapterLogger("Databricks")
 
@@ -99,15 +99,17 @@ class DatabricksSQLConnectionWrapper(object):
         if self._cursor:
             try:
                 self._cursor.cancel()
-            except OperationalError as exc:
+            except DBSQLError as exc:
                 logger.debug("Exception while cancelling query: {}".format(exc))
+                _log_dbsql_errors(exc)
 
     def close(self) -> None:
         if self._cursor:
             try:
                 self._cursor.close()
-            except OperationalError as exc:
+            except DBSQLError as exc:
                 logger.debug("Exception while closing cursor: {}".format(exc))
+                _log_dbsql_errors(exc)
         self._conn.close()
 
     def rollback(self, *args: Any, **kwargs: Any) -> None:
@@ -170,13 +172,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         except DBSQLError as exc:
             logger.debug(f"Error while running:\n{sql}")
-            logger.debug(f"{type(exc)}: {exc}")
-            if hasattr(exc, "context"):
-                if "operation-id" in exc.context:
-                    logger.debug(f"operation-id: {exc.context['operation-id']}")
-                if "diagnostic-info" in exc.context:
-                    logger.debug(f"diagnostic-info: {exc.context['diagnostic-info']}")
-            raise dbt.exceptions.RuntimeException(str(exc))
+            _log_dbsql_errors(exc)
+            raise dbt.exceptions.RuntimeException(str(exc)) from exc
 
         except Exception as exc:
             logger.debug(f"Error while running:\n{sql}")
@@ -187,9 +184,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             thrift_resp = exc.args[0]
             if hasattr(thrift_resp, "status"):
                 msg = thrift_resp.status.errorMessage
-                raise dbt.exceptions.RuntimeException(msg)
+                raise dbt.exceptions.RuntimeException(msg) from exc
             else:
-                raise dbt.exceptions.RuntimeException(str(exc))
+                raise dbt.exceptions.RuntimeException(str(exc)) from exc
 
     def _execute_cursor(
         self, log_sql: str, f: Callable[[DatabricksSQLConnectionWrapper], None]
@@ -292,6 +289,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     logger.warning(msg)
                     time.sleep(creds.connect_timeout)
                 else:
+                    logger.debug(f"failed to connect: {exc}")
+                    _log_dbsql_errors(exc)
                     raise dbt.exceptions.FailedToConnectException("failed to connect") from e
         else:
             assert exc is not None
@@ -300,3 +299,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
+
+
+def _log_dbsql_errors(exc: Exception) -> None:
+    if isinstance(exc, DBSQLError):
+        logger.debug(f"{type(exc)}: {exc}")
+        for key, value in sorted(exc.context.items()):
+            logger.debug(f"{key}: {value}")
