@@ -21,6 +21,7 @@ The `dbt-databricks` adapter contains all of the code enabling dbt to work with 
 
 - **Easy setup**. No need to install an ODBC driver as the adapter uses pure Python APIs.
 - **Open by default**. For example, it uses the the open and performant [Delta](https://delta.io/) table format by default. This has many benefits, including letting you use `MERGE` as the the default incremental materialization strategy.
+- **Support for Unity Catalog**. dbt-databricks>=1.1.1 supports the 3-level namespace of Unity Catalog (catalog / schema / relations) so you can organize and secure your data the way you like.
 - **Performance**. The adapter generates SQL expressions that are automatically accelerated by the native, vectorized [Photon](https://databricks.com/product/photon) execution engine.
 
 ## Choosing between dbt-databricks and dbt-spark
@@ -50,7 +51,7 @@ your_profile_name:
   outputs:
     dev:
       type: databricks
-      catalog: [optional catalog name, if you are using Unity Catalog]
+      catalog: [optional catalog name, if you are using Unity Catalog, only available in dbt-databricks>=1.1.1]
       schema: [database/schema name]
       host: [your.databrickshost.com]
       http_path: [/sql/your/http/path]

@@ -56,6 +56,8 @@ In the `http_path` field, enter the HTTP path you noted above.
 
 In the `token` field, enter the PAT you created earlier.
 
+In the `catalog` field, enter the name of the Unity Catalog if you are using it. Otherwise, enter `hive_metastore`. This field only shows if you are using dbt-databricks>=1.1.1.
+
 In `schema`, enter `databricks_demo`, which is the schema you created earlier.
 
 Leave threads at `1` for now.
