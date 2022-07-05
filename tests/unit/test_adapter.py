@@ -4,7 +4,6 @@ from unittest import mock
 from agate import Row
 import dbt.flags as flags
 import dbt.exceptions
-from dbt.tracking import DBT_INVOCATION_ENV
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
@@ -116,7 +115,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
-    def _connect_func(self, *, expected_catalog=None, dbt_invocation_env="manual"):
+    def _connect_func(self, *, expected_catalog=None):
         def connect(
             server_hostname,
             http_path,
@@ -133,19 +132,12 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(catalog)
             else:
                 self.assertEqual(catalog, expected_catalog)
-            self.assertEqual(
-                _user_agent_entry,
-                f"dbt-databricks/{__version__.version}; {dbt_invocation_env}",
-            )
+            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         return connect
 
     def test_databricks_sql_connector_connection(self):
         self._test_databricks_sql_connector_connection(self._connect_func())
-        with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: "dbt_invocation_env"}):
-            self._test_databricks_sql_connector_connection(
-                self._connect_func(dbt_invocation_env="dbt_invocation_env")
-            )
 
     def _test_databricks_sql_connector_connection(self, connect):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
@@ -173,10 +165,6 @@ class TestDatabricksAdapter(unittest.TestCase):
         self._test_databricks_sql_connector_catalog_connection(
             self._connect_func(expected_catalog="main")
         )
-        with mock.patch.dict("os.environ", **{DBT_INVOCATION_ENV: "dbt_invocation_env"}):
-            self._test_databricks_sql_connector_catalog_connection(
-                self._connect_func(expected_catalog="main", dbt_invocation_env="dbt_invocation_env")
-            )
 
     def _test_databricks_sql_connector_catalog_connection(self, connect):
         config = self._get_target_databricks_sql_connector_catalog(self.project_cfg)
