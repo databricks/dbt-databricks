@@ -14,6 +14,8 @@ import yaml
 from unittest.mock import patch
 
 import dbt.main as dbt
+from dbt.adapters.databricks.api import DatabricksAPI
+
 from dbt import flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
@@ -205,7 +207,7 @@ class DBTIntegrationTest(unittest.TestCase):
             if os.path.isdir(src) or src.endswith(".sql"):
                 # symlink all sql files and all directories.
                 os.symlink(src, tst)
-        os.symlink(self._logs_dir, os.path.join(self.test_root_dir, "logs"))
+        # os.symlink(self._logs_dir, os.path.join(self.test_root_dir, "logs"))
 
     @property
     def test_root_realpath(self):
@@ -228,6 +230,7 @@ class DBTIntegrationTest(unittest.TestCase):
         _really_makedirs(self._logs_dir)
         self.test_original_source_path = _pytest_get_test_root()
         self.test_root_dir = self._generate_test_root_dir()
+        self.test_dbfs_root = f"/{self.prefix}/integration-tests"
 
         os.chdir(self.test_root_dir)
         try:
@@ -258,6 +261,10 @@ class DBTIntegrationTest(unittest.TestCase):
         self.set_packages()
         self.set_selectors()
         self.load_config()
+        self.dbapi_client = DatabricksAPI(
+            host=os.getenv("DBT_DATABRICKS_HOST_NAME"),
+            token=os.getenv("DBT_DATABRICKS_TOKEN"),
+        )
 
     def use_default_project(self, overrides=None):
         # create a dbt_project.yml
@@ -354,6 +361,7 @@ class DBTIntegrationTest(unittest.TestCase):
             logger.exception(
                 "Could not clean up after test - {} not removable".format(self.test_root_dir)
             )
+        self.dbapi_client.DbfsService.delete(self.test_dbfs_root, recursive=True)
 
     def _get_schema_fqn(self, database, schema):
         schema_fqn = self.quote_as_configured(schema, "schema")
