@@ -29,5 +29,6 @@ def dbt_profile_target(request):
 def skip_by_profile_type(request):
     profile_type = request.config.getoption("--profile")
     if request.node.get_closest_marker("skip_profile"):
-        if request.node.get_closest_marker("skip_profile").args[0] == profile_type:
-            pytest.skip(f"skipped on '{profile_type}' profile")
+        for skip_profile_type in request.node.get_closest_marker("skip_profile").args:
+            if skip_profile_type == profile_type:
+                pytest.skip(f"skipped on '{profile_type}' profile")
