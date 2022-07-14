@@ -20,14 +20,7 @@ class TestModelGrantsDatabricks(BaseModelGrants):
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
 class TestIncrementalGrantsDatabricks(BaseIncrementalGrants):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-                "+incremental_strategy": "merge",
-            }
-        }
+    pass
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
@@ -41,14 +34,7 @@ class TestSeedGrantsDatabricks(BaseSeedGrants):
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
 class TestSnapshotGrantsDatabricks(BaseSnapshotGrants):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "snapshots": {
-                "+file_format": "delta",
-                "+incremental_strategy": "merge",
-            }
-        }
+    pass
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
