@@ -25,6 +25,12 @@ def dbt_profile_target(request):
     return get_databricks_cluster_target(profile_type)
 
 
+@pytest.fixture(scope="session")
+def is_uc(request):
+    profile_type = request.config.getoption("--profile")
+    return "_uc_" in profile_type
+
+
 @pytest.fixture(autouse=True)
 def skip_by_profile_type(request):
     profile_type = request.config.getoption("--profile")
