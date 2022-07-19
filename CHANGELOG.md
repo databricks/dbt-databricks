@@ -1,4 +1,4 @@
-## dbt-databricks 1.1.1 (Release TBD)
+## dbt-databricks 1.1.1 (July 19, 2022)
 
 ### Features
 - Support for Databricks CATALOG as a DATABASE in DBT compilations ([#95](https://github.com/databricks/dbt-databricks/issues/95), [#89](https://github.com/databricks/dbt-databricks/pull/89), [#94](https://github.com/databricks/dbt-databricks/pull/94), [#105](https://github.com/databricks/dbt-databricks/pull/105))
