@@ -3,9 +3,8 @@ import pytest
 from dbt.tests.adapter.basic.expected_catalog import (
     base_expected_catalog,
     expected_references_catalog,
-    no_stats,
 )
-from dbt.tests.util import AnyFloat, AnyString
+from dbt.tests.util import AnyInteger, AnyString
 
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
@@ -71,35 +70,13 @@ class TestDocsGenerateDatabricks(BaseDocsGenerate):
             time_type="timestamp",
             view_type="view",
             table_type="table",
-            model_stats=no_stats(),
+            model_stats=_StatsLikeDict(),
         )
 
 
 class TestDocsGenReferencesDatabricks(BaseDocsGenReferences):
     @pytest.fixture(scope="class")
-    def model_stats(self, is_uc):
-        if is_uc:
-            return no_stats()
-        else:
-            return {
-                "bytes": {
-                    "description": None,
-                    "id": "bytes",
-                    "include": True,
-                    "label": "bytes",
-                    "value": AnyFloat(),
-                },
-                "has_stats": {
-                    "id": "has_stats",
-                    "label": "Has Stats?",
-                    "value": True,
-                    "description": "Indicates whether there are statistics for this table",
-                    "include": False,
-                },
-            }
-
-    @pytest.fixture(scope="class")
-    def expected_catalog(self, project, model_stats):
+    def expected_catalog(self, project):
         return expected_references_catalog(
             project,
             role=AnyString(),
@@ -109,7 +86,25 @@ class TestDocsGenReferencesDatabricks(BaseDocsGenReferences):
             bigint_type="long",
             view_type="view",
             table_type="table",
-            model_stats=model_stats,
-            seed_stats=no_stats(),
-            view_summary_stats=no_stats(),
+            model_stats=_StatsLikeDict(),
+        )
+
+
+class _StatsLikeDict:
+    """Any stats-like dict. Use this in assert calls"""
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, dict)
+            and "has_stats" in other
+            and (
+                other["has_stats"]
+                == {
+                    "id": "has_stats",
+                    "label": "Has Stats?",
+                    "value": AnyInteger(),
+                    "description": "Indicates whether there are statistics for this table",
+                    "include": False,
+                }
+            )
         )
