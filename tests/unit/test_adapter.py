@@ -115,6 +115,28 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
+    def test_reserved_connection_parameters(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.DbtProfileError,
+            "The connection parameter `server_hostname` is reserved.",
+        ):
+            config_from_parts_or_dicts(
+                self.project_cfg,
+                {
+                    "outputs": {
+                        "test": {
+                            "type": "databricks",
+                            "schema": "analytics",
+                            "host": "yourorg.databricks.com",
+                            "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                            "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                            "connection_parameters": {"server_hostname": "theirorg.databricks.com"},
+                        }
+                    },
+                    "target": "test",
+                },
+            )
+
     def _connect_func(self, *, expected_catalog=None):
         def connect(
             server_hostname,
