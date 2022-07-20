@@ -3,12 +3,18 @@
 ## dbt-databricks 1.2.0 (Release TBD)
 
 ### Fixes
-- Incremental materialization updated to not drop table first if full refresh for delta lake format, as it already runs _create or replace table_ ([#286](https://github.com/dbt-labs/dbt-spark/issues/286), [#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
+- Incremental materialization updated to not drop table first if full refresh for delta lake format, as it already runs _create or replace table_ ([dbt-labs/dbt-spark#286](https://github.com/dbt-labs/dbt-spark/issues/286), [dbt-labs/dbt-spark#287](https://github.com/dbt-labs/dbt-spark/pull/287))
+
+### Features
+- Add grants to materializations ([dbt-labs/dbt-spark#366](https://github.com/dbt-labs/dbt-spark/issues/366), [dbt-labs/dbt-spark#381](https://github.com/dbt-labs/dbt-spark/pull/381))
+
+### Under the hood
+- Update `SparkColumn.numeric_type` to return `decimal` instead of `numeric`, since SparkSQL exclusively supports the former ([dbt-labs/dbt-spark#380](https://github.com/dbt-labs/dbt-spark/pull/380))
 
 ### Contributors
-- [@grindheim](https://github.com/grindheim) ([#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
+- [@grindheim](https://github.com/grindheim) ([dbt-labs/dbt-spark#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
 
-## dbt-databricks 1.1.1 (Release TBD)
+## dbt-databricks 1.1.1 (July 19, 2022)
 
 ### Features
 - Support for Databricks CATALOG as a DATABASE in DBT compilations ([#95](https://github.com/databricks/dbt-databricks/issues/95), [#89](https://github.com/databricks/dbt-databricks/pull/89), [#94](https://github.com/databricks/dbt-databricks/pull/94), [#105](https://github.com/databricks/dbt-databricks/pull/105))
