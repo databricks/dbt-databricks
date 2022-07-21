@@ -8,7 +8,7 @@
 ### Features
 - Add grants to materializations ([dbt-labs/dbt-spark#366](https://github.com/dbt-labs/dbt-spark/issues/366), [dbt-labs/dbt-spark#381](https://github.com/dbt-labs/dbt-spark/pull/381))
 - Add `connection_parameters` for databricks-sql-connector connection parameters ([#135](https://github.com/databricks/dbt-databricks/pull/135))
-    - This can be used to customize the connection by setting the additional parameters.
+    - This can be used to customize the connection by setting additional parameters.
     - The full parameters are listed at [Databricks SQL Connector for Python](https://docs.databricks.com/dev-tools/python-sql-connector.html#connect-method).
     - Currently, the following parameters are reserved for `dbt-databricks`. Please use the normal credential settings instead.
         - server_hostname
