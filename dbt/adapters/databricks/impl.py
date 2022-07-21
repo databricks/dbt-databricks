@@ -154,7 +154,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
                 column=column["col_name"],
-                column_index=idx,
+                column_index=(idx + 1),
                 dtype=column["data_type"],
             )
             for idx, column in enumerate(rows)
@@ -177,7 +177,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.table,
                 table_type=relation.type,
-                column_index=match_num,
+                column_index=(match_num + 1),
                 table_owner=owner,
                 column=column_name,
                 dtype=column_type,
