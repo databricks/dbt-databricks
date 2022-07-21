@@ -41,6 +41,7 @@ class DatabricksCredentials(Credentials):
     connect_retries: int = 0
     connect_timeout: int = 10
     session_properties: Optional[Dict[str, Any]] = None
+    connection_parameters: Optional[Dict[str, Any]] = None
     retry_all: bool = False
 
     _ALIASES = {
@@ -67,8 +68,29 @@ class DatabricksCredentials(Credentials):
                 )
         self.session_properties = session_properties
 
-        if self.database is not None and not self.database.strip():
-            raise dbt.exceptions.ValidationException(f"Invalid catalog name : {self.database}.")
+        if self.database is not None:
+            database = self.database.strip()
+            if not database:
+                raise dbt.exceptions.ValidationException(
+                    f"Invalid catalog name : `{self.database}`."
+                )
+            self.database = database
+
+        connection_parameters = self.connection_parameters or {}
+        for key in (
+            "server_hostname",
+            "http_path",
+            "access_token",
+            "session_configuration",
+            "catalog",
+            "schema",
+            "_user_agent_entry",
+        ):
+            if key in connection_parameters:
+                raise dbt.exceptions.ValidationException(
+                    f"The connection parameter `{key}` is reserved."
+                )
+        self.connection_parameters = connection_parameters
 
     @property
     def type(self) -> str:
@@ -269,7 +291,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     access_token=creds.token,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
+                    # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
+                    **creds.connection_parameters,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
