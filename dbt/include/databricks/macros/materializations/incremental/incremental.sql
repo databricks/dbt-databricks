@@ -2,7 +2,7 @@
 
   {#-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --#}
   {%- set raw_file_format = config.get('file_format', default='delta') -%}
-  {%- set raw_strategy = config.get('incremental_strategy', default='merge') -%}
+  {%- set raw_strategy = config.get('incremental_strategy') or 'merge' -%}
   {%- set grant_config = config.get('grants') -%}
 
   {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
