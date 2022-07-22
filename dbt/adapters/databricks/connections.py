@@ -98,7 +98,14 @@ class DatabricksCredentials(Credentials):
         return self.host
 
     def _connection_keys(self) -> Tuple[str, ...]:
-        return "host", "http_path", "database", "schema", "session_properties"
+        connection_keys = ["host", "http_path", "schema"]
+        if self.database:
+            connection_keys.insert(2, "catalog")
+        if self.session_properties:
+            connection_keys.append("session_properties")
+        if self.connection_parameters:
+            connection_keys.append("connection_parameters")
+        return tuple(connection_keys)
 
 
 class DatabricksSQLConnectionWrapper(object):
