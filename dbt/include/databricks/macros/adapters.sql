@@ -62,16 +62,17 @@
       {{ comment_clause() }}
       {{ tblproperties_clause() }}
       as
-        {{ compiled_code }}
+      {{ compiled_code }}
     {%- endif %}
-  {%- elif language == 'python' -%}    {#--
+  {%- elif language == 'python' -%}
+    {#--
     N.B. Python models _can_ write to temp views HOWEVER they use a different session
     and have already expired by the time they need to be used (I.E. in merges for incremental models)
 
     TODO: Deep dive into spark sessions to see if we can reuse a single session for an entire
     dbt invocation.
      --#}
-    {{ py_complete_script(compiled_code=compiled_code, target_relation=relation) }}
+    {{ py_write_table(compiled_code=compiled_code, target_relation=relation) }}
   {%- endif -%}
 {%- endmacro -%}
 

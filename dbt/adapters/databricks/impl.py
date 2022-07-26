@@ -7,10 +7,10 @@ import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from agate import Row, Table
-import requests  # type: ignore[import]
+import requests
 
 from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
@@ -216,12 +216,13 @@ class DatabricksAdapter(SparkAdapter):
             yield as_dict
 
     @available.parse_none
+    @log_code_execution
     def submit_python_job(
         self, parsed_model: dict, compiled_code: str, timeout: Optional[int] = None
-    ) -> str:
+    ) -> AdapterResponse:
         # TODO limit this function to run only when doing the materialization of python nodes
 
-        # assuming that for python job running over 1 day user would mannually overwrite this
+        # assuming that for python job running over 1 day user would manually overwrite this
         schema = getattr(parsed_model, "schema", self.config.credentials.schema)
         identifier = parsed_model["alias"]
         if not timeout:
@@ -245,7 +246,7 @@ class DatabricksAdapter(SparkAdapter):
         )
         if response.status_code != 200:
             raise dbt.exceptions.RuntimeException(
-                f"Error creating work_dir for python notebooks\n {response.content}"
+                f"Error creating work_dir for python notebooks\n {response.content!r}"
             )
 
         # add notebook
@@ -263,7 +264,7 @@ class DatabricksAdapter(SparkAdapter):
         )
         if response.status_code != 200:
             raise dbt.exceptions.RuntimeException(
-                f"Error creating python notebook.\n {response.content}"
+                f"Error creating python notebook.\n {response.content!r}"
             )
 
         # submit job
@@ -280,7 +281,7 @@ class DatabricksAdapter(SparkAdapter):
         )
         if submit_response.status_code != 200:
             raise dbt.exceptions.RuntimeException(
-                f"Error creating python run.\n {response.content}"
+                f"Error creating python run.\n {response.content!r}"
             )
 
         # poll until job finish
@@ -297,7 +298,7 @@ class DatabricksAdapter(SparkAdapter):
             )
             json_resp = resp.json()
             state = json_resp["state"]["life_cycle_state"]
-            logger.debug(f"Polling.... in state: {state}")
+            # logger.debug(f"Polling.... in state: {state}")
         if state != "TERMINATED":
             raise dbt.exceptions.RuntimeException(
                 "python model run ended in state"
@@ -319,7 +320,7 @@ class DatabricksAdapter(SparkAdapter):
                 "match the line number in your code due to dbt templating)\n"
                 f"{json_run_output['error_trace']}"
             )
-        return result_state
+        return self.connections.get_response(None)
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
