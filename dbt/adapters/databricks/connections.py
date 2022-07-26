@@ -103,8 +103,6 @@ class DatabricksCredentials(Credentials):
             connection_keys.insert(2, "catalog")
         if self.session_properties:
             connection_keys.append("session_properties")
-        if self.connection_parameters:
-            connection_keys.append("connection_parameters")
         return tuple(connection_keys)
 
 
