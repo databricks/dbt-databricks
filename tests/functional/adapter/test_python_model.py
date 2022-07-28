@@ -3,13 +3,22 @@ import os
 import pytest
 
 from dbt.tests.util import run_dbt, write_file
-from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTests
+from dbt.tests.adapter.python_model.test_python_model import (
+    BasePythonIncrementalTests,
+    BasePythonModelTests,
+)
 
 
-@pytest.skip("Need to supply extra config", allow_module_level=True)
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
 class TestPythonModelDatabricks(BasePythonModelTests):  # type: ignore[misc]
     pass
+
+
+@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+class TestPythonIncrementalModelDatabricks(BasePythonIncrementalTests):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {}
 
 
 models__simple_python_model = """
@@ -34,9 +43,8 @@ def model(dbt, spark):
 """
 
 
-@pytest.skip("Need to supply extra config", allow_module_level=True)
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
-class TestChangingSchemaDatabricks:  # type: ignore[misc]
+class TestChangingSchemaSpark:
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": models__simple_python_model}

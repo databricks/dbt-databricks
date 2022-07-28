@@ -1,5 +1,5 @@
 {% materialization table, adapter = 'databricks' %}
-  {%- set language = config.get('language') -%}
+  {%- set language = model['language'] -%}
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}
 
@@ -17,6 +17,8 @@
   {% if old_relation and not (old_relation.is_delta and config.get('file_format', default='delta') == 'delta') -%}
     {{ adapter.drop_relation(old_relation) }}
   {%- endif %}
+
+  -- build model
 
   {%- call statement('main', language=language) -%}
     {{ create_table_as(False, target_relation, compiled_code, language) }}

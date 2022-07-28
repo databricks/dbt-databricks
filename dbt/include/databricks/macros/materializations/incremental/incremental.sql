@@ -8,14 +8,14 @@
   {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
 
   {#-- Set vars --#}
+
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
-  {%- set language = config.get('language') -%}
+  {%- set language = model['language'] -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set target_relation = this -%}
   {%- set existing_relation = load_relation(this) -%}
   {%- set tmp_relation = make_temp_relation(this) -%}
-  {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
 
   {#-- Set Overwrite Mode --#}
   {%- if strategy == 'insert_overwrite' and partition_by -%}
@@ -35,9 +35,10 @@
     {%- endcall -%}
   {%- elif existing_relation.is_view or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
-    {%- if not is_delta -%} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
-      {%- do adapter.drop_relation(existing_relation) -%}
-    {%- endif -%}
+    {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+    {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+      {% do adapter.drop_relation(existing_relation) %}
+    {% endif %}
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}

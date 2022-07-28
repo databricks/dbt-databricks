@@ -46,7 +46,7 @@
 
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
   {%- if language == 'sql' -%}
-    {% if temporary -%}
+    {%- if temporary -%}
       {{ create_temporary_view(relation, compiled_code) }}
     {%- else -%}
       {% if config.get('file_format', default='delta') == 'delta' %}
@@ -63,7 +63,7 @@
       {{ tblproperties_clause() }}
       as
       {{ compiled_code }}
-    {%- endif %}
+    {%- endif -%}
   {%- elif language == 'python' -%}
     {#--
     N.B. Python models _can_ write to temp views HOWEVER they use a different session
