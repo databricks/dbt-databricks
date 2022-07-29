@@ -44,10 +44,9 @@ class TestPersistDocsDelta(DBTIntegrationTest):
             ("incremental_delta_model", "Incremental"),
         ]:
             results = self.run_sql(
-                "describe extended {schema}.{table}".format(
-                    schema=self.unique_schema(), table=table
-                ),
+                "describe extended {database_schema}.{table}",
                 fetch="all",
+                kwargs=dict(table=table),
             )
 
             for result in results:
