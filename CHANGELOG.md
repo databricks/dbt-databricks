@@ -1,7 +1,7 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
 ### Features
-- support python model through notebook, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377))
+- support python model through run command API, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377), [#126](https://github.com/databricks/dbt-databricks/pull/126))
 
 ## dbt-databricks 1.2.0 (Release TBD)
 
