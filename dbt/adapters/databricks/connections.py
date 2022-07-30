@@ -27,6 +27,7 @@ from databricks.sql.exc import Error as DBSQLError
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+EXTRACT_CLUSTER_ID_FROM_HTTP_PATH = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 
 
 @dataclass
@@ -44,8 +45,6 @@ class DatabricksCredentials(Credentials):
     _ALIASES = {
         "catalog": "database",
     }
-
-    DBR_CLUSTER_HTTP_PATH: ClassVar["re.Pattern[str]"] = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -107,7 +106,7 @@ class DatabricksCredentials(Credentials):
 
     @property
     def cluster_id(self) -> Optional[str]:
-        m = self.DBR_CLUSTER_HTTP_PATH.match(self.http_path)  # type: ignore[arg-type]
+        m = EXTRACT_CLUSTER_ID_FROM_HTTP_PATH.match(self.http_path)  # type: ignore[arg-type]
         if m:
             return m.group(1).strip()
         else:
