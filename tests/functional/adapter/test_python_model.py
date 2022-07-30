@@ -10,7 +10,7 @@ from dbt.tests.adapter.python_model.test_python_model import (
 
 
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
-class TestPythonModelDatabricks(BasePythonModelTests):  # type: ignore[misc]
+class TestPythonModelDatabricks(BasePythonModelTests):
     pass
 
 
