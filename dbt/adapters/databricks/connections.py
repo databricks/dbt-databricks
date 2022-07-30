@@ -45,6 +45,8 @@ class DatabricksCredentials(Credentials):
         "catalog": "database",
     }
 
+    DBR_CLUSTER_HTTP_PATH: ClassVar["re.Pattern[str]"] = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
+
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
         data = super().__pre_deserialize__(data)
@@ -102,6 +104,14 @@ class DatabricksCredentials(Credentials):
         if self.session_properties:
             connection_keys.append("session_properties")
         return tuple(connection_keys)
+
+    @property
+    def cluster_id(self) -> Optional[str]:
+        m = self.DBR_CLUSTER_HTTP_PATH.match(self.http_path)  # type: ignore[arg-type]
+        if m:
+            return m.group(1).strip()
+        else:
+            return None
 
 
 class DatabricksSQLConnectionWrapper(object):
@@ -183,10 +193,6 @@ class DatabricksSQLConnectionWrapper(object):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: ClassVar[str] = "databricks"
-
-    DROP_JAVA_STACKTRACE_REGEX: ClassVar["re.Pattern[str]"] = re.compile(
-        r"(?<=Caused by: )(.+?)(?=^\t?at )", re.DOTALL | re.MULTILINE
-    )
 
     @contextmanager
     def exception_handler(self, sql: str) -> Iterator[None]:

@@ -28,7 +28,7 @@ from dbt.events import AdapterLogger
 from dbt.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import DatabricksConnectionManager, DatabricksCredentials
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import undefined_proof
 
@@ -222,105 +222,83 @@ class DatabricksAdapter(SparkAdapter):
     ) -> AdapterResponse:
         # TODO limit this function to run only when doing the materialization of python nodes
 
-        # assuming that for python job running over 1 day user would manually overwrite this
-        schema = getattr(parsed_model, "schema", self.config.credentials.schema)
-        identifier = parsed_model["alias"]
+        credentials: DatabricksCredentials = self.config.credentials
+
         if not timeout:
             timeout = 60 * 60 * 24
         if timeout <= 0:
             raise ValueError("Timeout must larger than 0")
 
-        auth_header = {"Authorization": f"Bearer {self.connections.profile.credentials.token}"}
+        base64token = base64.b64encode(f"token:{credentials.token}".encode()).decode()
+        auth_header = {"Authorization": f"Basic {base64token}"}
 
-        # create new dir
-        if not self.connections.profile.credentials.user:
-            raise ValueError("Need to supply user in profile to submit python job")
-        # it is safe to call mkdirs even if dir already exists and have content inside
-        work_dir = f"/Users/{self.connections.profile.credentials.user}/{schema}"
+        cluster_id = credentials.cluster_id
+        if not cluster_id:
+            raise ValueError("Python model doesn't support SQL Warehouses")
+
+        # Create an execution context
         response = requests.post(
-            f"https://{self.connections.profile.credentials.host}/api/2.0/workspace/mkdirs",
+            f"https://{credentials.host}/api/1.2/contexts/create",
             headers=auth_header,
-            json={
-                "path": work_dir,
-            },
+            data=dict(clusterId=cluster_id, language="python"),
         )
         if response.status_code != 200:
             raise dbt.exceptions.RuntimeException(
-                f"Error creating work_dir for python notebooks\n {response.content!r}"
+                f"Error creating an execution context\n {response.content!r}"
             )
+        context_id = response.json()["id"]
 
-        # add notebook
-        b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
-        response = requests.post(
-            f"https://{self.connections.profile.credentials.host}/api/2.0/workspace/import",
-            headers=auth_header,
-            json={
-                "path": f"{work_dir}/{identifier}",
-                "content": b64_encoded_content,
-                "language": "PYTHON",
-                "overwrite": True,
-                "format": "SOURCE",
-            },
-        )
-        if response.status_code != 200:
-            raise dbt.exceptions.RuntimeException(
-                f"Error creating python notebook.\n {response.content!r}"
-            )
-
-        # submit job
-        submit_response = requests.post(
-            f"https://{self.connections.profile.credentials.host}/api/2.1/jobs/runs/submit",
-            headers=auth_header,
-            json={
-                "run_name": "debug task",
-                "existing_cluster_id": self.connections.profile.credentials.cluster,
-                "notebook_task": {
-                    "notebook_path": f"{work_dir}/{identifier}",
-                },
-            },
-        )
-        if submit_response.status_code != 200:
-            raise dbt.exceptions.RuntimeException(
-                f"Error creating python run.\n {response.content!r}"
-            )
-
-        # poll until job finish
-        state = None
-        start = time.time()
-        run_id = submit_response.json()["run_id"]
-        terminal_states = ["TERMINATED", "SKIPPED", "INTERNAL_ERROR"]
-        while state not in terminal_states and time.time() - start < timeout:
-            time.sleep(1)
-            resp = requests.get(
-                f"https://{self.connections.profile.credentials.host}"
-                f"/api/2.1/jobs/runs/get?run_id={run_id}",
+        try:
+            # Run a command
+            response = requests.post(
+                f"https://{credentials.host}/api/1.2/commands/execute",
                 headers=auth_header,
+                json=dict(
+                    clusterId=cluster_id,
+                    contextId=context_id,
+                    language="python",
+                    command=compiled_code,
+                ),
             )
-            json_resp = resp.json()
-            state = json_resp["state"]["life_cycle_state"]
-            # logger.debug(f"Polling.... in state: {state}")
-        if state != "TERMINATED":
-            raise dbt.exceptions.RuntimeException(
-                "python model run ended in state"
-                f"{state} with state_message\n{json_resp['state']['state_message']}"
-            )
+            if response.status_code != 200:
+                raise dbt.exceptions.RuntimeException(
+                    f"Error creating a command\n {response.content!r}"
+                )
+            command_id = response.json()["id"]
 
-        # get end state to return to user
-        run_output = requests.get(
-            f"https://{self.connections.profile.credentials.host}"
-            f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
-            headers=auth_header,
-        )
-        json_run_output = run_output.json()
-        result_state = json_run_output["metadata"]["state"]["result_state"]
-        if result_state != "SUCCESS":
-            raise dbt.exceptions.RuntimeException(
-                "Python model failed with traceback as:\n"
-                "(Note that the line number here does not "
-                "match the line number in your code due to dbt templating)\n"
-                f"{json_run_output['error_trace']}"
+            # poll until job finish
+            status = None
+            start = time.time()
+            terminal_states = ("Cancelled", "Error", "Finished")
+            while status not in terminal_states and time.time() - start < timeout:
+                time.sleep(1)
+                response = requests.get(
+                    f"https://{credentials.host}/api/1.2/commands/status",
+                    headers=auth_header,
+                    params=dict(clusterId=cluster_id, contextId=context_id, commandId=command_id),
+                )
+                json_resp = response.json()
+                status = json_resp["status"]
+                # logger.debug(f"Polling.... in state: {state}")
+            if status != "Finished":
+                raise dbt.exceptions.RuntimeException(
+                    "python model run ended in state"
+                    f"{status} with state_message\n{json_resp['results']['data']}"
+                )
+
+            return self.connections.get_response(None)
+
+        finally:
+            # Delete the execution context
+            response = requests.post(
+                f"https://{credentials.host}/api/1.2/contexts/destroy",
+                headers=auth_header,
+                data=dict(clusterId=cluster_id, contextId=context_id),
             )
-        return self.connections.get_response(None)
+            if response.status_code != 200:
+                raise dbt.exceptions.RuntimeException(
+                    f"Error deleting an execution context\n {response.content!r}"
+                )
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
