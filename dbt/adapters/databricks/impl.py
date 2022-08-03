@@ -211,6 +211,9 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
 
+    def valid_incremental_strategies(self) -> List[str]:
+        return ["append", "merge", "insert_overwrite"]
+
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
         """
