@@ -215,6 +215,9 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
 
+    def valid_incremental_strategies(self) -> List[str]:
+        return ["append", "merge", "insert_overwrite"]
+
     @available.parse_none
     @log_code_execution
     def submit_python_job(

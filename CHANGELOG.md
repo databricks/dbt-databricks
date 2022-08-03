@@ -3,6 +3,10 @@
 ### Features
 - support python model through run command API, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377), [#126](https://github.com/databricks/dbt-databricks/pull/126))
 
+### Under the hood
+- Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
+    - Now it uses `adapter.get_incremental_strategy_macro` instead of dbt-spark's `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
+
 ## dbt-databricks 1.2.0 (Release TBD)
 
 ### Features

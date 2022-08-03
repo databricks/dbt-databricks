@@ -5,7 +5,7 @@
   {%- set grant_config = config.get('grants') -%}
 
   {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
-  {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
+  {%- set incremental_strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
 
   {#-- Set vars --#}
 
@@ -15,10 +15,9 @@
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set target_relation = this -%}
   {%- set existing_relation = load_relation(this) -%}
-  {%- set tmp_relation = make_temp_relation(this) -%}
 
   {#-- Set Overwrite Mode --#}
-  {%- if strategy == 'insert_overwrite' and partition_by -%}
+  {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
     {%- call statement() -%}
       set spark.sql.sources.partitionOverwriteMode = DYNAMIC
     {%- endcall -%}
@@ -44,12 +43,16 @@
     {%- endcall -%}
   {%- else -%}
     {#-- Relation must be merged --#}
-    {%- call statement('create_tmp_relation', language=language) -%}
-      {{ create_table_as(True, tmp_relation, compiled_code, language) }}
+    {%- set temp_relation = make_temp_relation(this) -%}
+    {%- call statement('create_temp_relation', language=language) -%}
+      {{ create_table_as(True, temp_relation, compiled_code, language) }}
     {%- endcall -%}
-    {%- do process_schema_changes(on_schema_change, tmp_relation, existing_relation) -%}
+    {%- do process_schema_changes(on_schema_change, temp_relation, existing_relation) -%}
+    {%- set strategy_sql_macro_func = adapter.get_incremental_strategy_macro(context, incremental_strategy) -%}
+    {%- set strategy_arg_dict = ({'target_relation': target_relation, 'temp_relation': temp_relation, 'unique_key': unique_key }) -%}
+    {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
     {%- call statement('main') -%}
-      {{ dbt_spark_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) }}
+      {{ build_sql }}
     {%- endcall -%}
     {%- if language == 'python' -%}
       {#--
@@ -60,7 +63,7 @@
       Also, why does not either drop_relation or adapter.drop_relation work here?!
       --#}
       {% call statement('drop_relation') -%}
-        drop table if exists {{ tmp_relation }}
+        drop table if exists {{ temp_relation }}
       {%- endcall %}
     {%- endif -%}
   {%- endif -%}
