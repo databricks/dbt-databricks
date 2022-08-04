@@ -164,13 +164,16 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% macro databricks__make_temp_relation(base_relation, suffix) %}
+{% macro databricks__make_temp_relation(base_relation, suffix='__dbt_tmp', as_table=False) %}
     {% set tmp_identifier = base_relation.identifier ~ suffix %}
-    {% set tmp_relation = base_relation.incorporate(path = {
-        "identifier": tmp_identifier,
-        "schema": None,
-        "database": None
-    }) -%}
-
+    {%- if as_table -%}
+        {% set tmp_relation = api.Relation.create(
+            identifier=tmp_identifier,
+            schema=base_relation.schema,
+            database=base_relation.database,
+            type='table') %}
+    {%- else -%}
+        {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
+    {%- endif -%}
     {% do return(tmp_relation) %}
 {% endmacro %}

@@ -43,18 +43,27 @@
     {%- endcall -%}
   {%- else -%}
     {#-- Relation must be merged --#}
-    {%- set temp_relation = make_temp_relation(this) -%}
+    {%- set temp_relation = databricks__make_temp_relation(target_relation, as_table=language != 'sql') -%}
     {%- call statement('create_temp_relation', language=language) -%}
       {{ create_table_as(True, temp_relation, compiled_code, language) }}
     {%- endcall -%}
     {%- do process_schema_changes(on_schema_change, temp_relation, existing_relation) -%}
     {%- set strategy_sql_macro_func = adapter.get_incremental_strategy_macro(context, incremental_strategy) -%}
-    {%- set strategy_arg_dict = ({'target_relation': target_relation, 'temp_relation': temp_relation, 'unique_key': unique_key }) -%}
+    {%- set strategy_arg_dict = ({
+            'target_relation': target_relation,
+            'temp_relation': temp_relation,
+            'unique_key': unique_key,
+            'dest_columns': none,
+            'predicates': none}) -%}
     {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
-    {%- call statement('main') -%}
-      {{ build_sql }}
-    {%- endcall -%}
-    {%- if language == 'python' -%}
+    {%- if language == 'sql' -%}
+      {%- call statement('main') -%}
+        {{ build_sql }}
+      {%- endcall -%}
+    {%- elif language == 'python' -%}
+      {%- call statement_with_staging_table('main', temp_relation) -%}
+        {{ build_sql }}
+      {%- endcall -%}
       {#--
       This is yucky.
       See note in dbt-spark/dbt/include/spark/macros/adapters.sql
@@ -62,9 +71,6 @@
 
       Also, why does not either drop_relation or adapter.drop_relation work here?!
       --#}
-      {% call statement('drop_relation') -%}
-        drop table if exists {{ temp_relation }}
-      {%- endcall %}
     {%- endif -%}
   {%- endif -%}
 
