@@ -1,8 +1,20 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+import itertools
 import re
 import time
-from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agate import Table
 
@@ -97,8 +109,30 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return self.host
 
-    def _connection_keys(self) -> Tuple[str, ...]:
-        connection_keys = ["host", "http_path", "database", "schema"]
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
+        as_dict = self.to_dict(omit_none=False)
+        connection_keys = set(self._connection_keys(with_aliases=with_aliases))
+        aliases: List[str] = []
+        if with_aliases:
+            aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
+        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
+            if key in as_dict:
+                yield key, as_dict[key]
+
+    def _connection_keys(self, *, with_aliases: bool = False) -> Tuple[str, ...]:
+        # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
+        # is called from only:
+        #
+        # - `Profile` with `with_aliases=True`
+        # - `DebugTask` without `with_aliases` (`False` by default)
+        #
+        # Thus, if `with_aliases` is `True`, `DatabricksCredentials._connection_keys` should return
+        # the internal key names; otherwise it can use aliases to show in `dbt debug`.
+        connection_keys = ["host", "http_path", "schema"]
+        if with_aliases:
+            connection_keys.insert(2, "database")
+        elif self.database:
+            connection_keys.insert(2, "catalog")
         if self.session_properties:
             connection_keys.append("session_properties")
         return tuple(connection_keys)
