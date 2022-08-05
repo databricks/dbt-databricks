@@ -120,6 +120,14 @@ class DatabricksCredentials(Credentials):
                 yield key, as_dict[key]
 
     def _connection_keys(self, *, with_aliases: bool = False) -> Tuple[str, ...]:
+        # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
+        # is called from only:
+        #
+        # - `Profile` with `with_aliases=True`
+        # - `DebugTask` without `with_aliases` (`False` by default)
+        #
+        # Thus, if `with_aliases` is `True`, `DatabricksCredentials._connection_keys` should return
+        # the internal key names; otherwise it can use aliases to show in `dbt debug`.
         connection_keys = ["host", "http_path", "schema"]
         if with_aliases:
             connection_keys.insert(2, "database")
