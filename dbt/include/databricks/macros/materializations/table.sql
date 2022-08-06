@@ -11,11 +11,15 @@
 
   {{ run_hooks(pre_hooks) }}
 
-  -- setup: if the target relation already exists, drop it
-  -- in case if the existing and future table is delta, we want to do a
-  -- create or replace table instead of dropping, so we don't have the table unavailable
-  {% if old_relation and not (old_relation.is_delta and config.get('file_format', default='delta') == 'delta') -%}
-    {{ adapter.drop_relation(old_relation) }}
+  {% if old_relation %}
+    -- setup: if the target relation already exists, drop it
+    -- in case if the existing and future table is delta in the same location, we want to do a
+    -- create or replace table instead of dropping, so we don't have the table unavailable
+    {% set is_delta = (old_relation.is_delta and config.get('file_format', default='delta') == 'delta') %}
+    {% set is_same_location = (old_relation.location_root == config.get('location_root', validator=validation.any[basestring])) %}
+    {% if not (is_delta and is_same_location) %}
+      {{ adapter.drop_relation(old_relation) }}
+    {% endif %}
   {%- endif %}
 
   -- build model

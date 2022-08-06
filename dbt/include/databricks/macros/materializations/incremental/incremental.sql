@@ -27,12 +27,12 @@
 
   {{ run_hooks(pre_hooks) }}
 
-  {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
-
   {% if existing_relation is none %}
     {% set build_sql = create_table_as(False, target_relation, sql) %}
   {% elif existing_relation.is_view or full_refresh_mode %}
-    {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+    {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+    {% set is_same_location = (existing_relation.location_root == config.get('location_root', validator=validation.any[basestring])) %}
+    {% if not (is_delta and is_same_location) %} {#-- If Delta in the same location, we will `create or replace` below, so no need to drop --#}
       {% do adapter.drop_relation(existing_relation) %}
     {% endif %}
     {% set build_sql = create_table_as(False, target_relation, sql) %}
