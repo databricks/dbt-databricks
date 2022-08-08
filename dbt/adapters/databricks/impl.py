@@ -1,13 +1,12 @@
-import base64
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 import re
 import time
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union, cast
 
 from agate import Row, Table
-import requests
+from requests.exceptions import HTTPError
 
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
@@ -27,6 +26,7 @@ import dbt.exceptions
 from dbt.events import AdapterLogger
 from dbt.utils import executor
 
+from dbt.adapters.databricks.api_client import Api12Client
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager, DatabricksCredentials
 from dbt.adapters.databricks.relation import DatabricksRelation
@@ -232,76 +232,48 @@ class DatabricksAdapter(SparkAdapter):
         if timeout <= 0:
             raise ValueError("Timeout must larger than 0")
 
-        base64token = base64.b64encode(f"token:{credentials.token}".encode()).decode()
-        auth_header = {"Authorization": f"Basic {base64token}"}
+        api_client = Api12Client(host=credentials.host, token=cast(str, credentials.token))
 
         cluster_id = credentials.cluster_id
         if not cluster_id:
             raise ValueError("Python model doesn't support SQL Warehouses")
 
-        # Create an execution context
-        response = requests.post(
-            f"https://{credentials.host}/api/1.2/contexts/create",
-            headers=auth_header,
-            data=dict(clusterId=cluster_id, language="python"),
-        )
-        if response.status_code != 200:
-            raise dbt.exceptions.RuntimeException(
-                f"Error creating an execution context\n {response.content!r}"
-            )
-        context_id = response.json()["id"]
-
         try:
-            # Run a command
-            response = requests.post(
-                f"https://{credentials.host}/api/1.2/commands/execute",
-                headers=auth_header,
-                json=dict(
-                    clusterId=cluster_id,
-                    contextId=context_id,
-                    language="python",
+            # Create an execution context
+            context_id = api_client.create_context(cluster_id)
+
+            try:
+                # Run a command
+                command_id = api_client.execute_command(
+                    cluster_id=cluster_id,
+                    context_id=context_id,
                     command=compiled_code,
-                ),
-            )
-            if response.status_code != 200:
-                raise dbt.exceptions.RuntimeException(
-                    f"Error creating a command\n {response.content!r}"
-                )
-            command_id = response.json()["id"]
-
-            # poll until job finish
-            status = None
-            start = time.time()
-            terminal_states = ("Cancelled", "Error", "Finished")
-            while status not in terminal_states and time.time() - start < timeout:
-                time.sleep(1)
-                response = requests.get(
-                    f"https://{credentials.host}/api/1.2/commands/status",
-                    headers=auth_header,
-                    params=dict(clusterId=cluster_id, contextId=context_id, commandId=command_id),
-                )
-                json_resp = response.json()
-                status = json_resp["status"]
-                # logger.debug(f"Polling.... in state: {state}")
-            if status != "Finished":
-                raise dbt.exceptions.RuntimeException(
-                    "python model run ended in state"
-                    f"{status} with state_message\n{json_resp['results']['data']}"
                 )
 
-            return self.connections.get_response(None)
+                # poll until job finish
+                status = None
+                start = time.time()
+                terminal_states = ("Cancelled", "Error", "Finished")
+                while status not in terminal_states and time.time() - start < timeout:
+                    time.sleep(1)
+                    json_resp = api_client.command_status(
+                        cluster_id=cluster_id, context_id=context_id, command_id=command_id
+                    )
+                    status = json_resp["status"]
+                    # logger.debug(f"Polling.... in state: {state}")
+                if status != "Finished":
+                    raise dbt.exceptions.RuntimeException(
+                        "python model run ended in state"
+                        f"{status} with state_message\n{json_resp['results']['data']}"
+                    )
 
-        finally:
-            # Delete the execution context
-            response = requests.post(
-                f"https://{credentials.host}/api/1.2/contexts/destroy",
-                headers=auth_header,
-                data=dict(clusterId=cluster_id, contextId=context_id),
-            )
-            if response.status_code != 200:
-                raise dbt.exceptions.RuntimeException(
-                    f"Error deleting an execution context\n {response.content!r}"
-                )
+                return self.connections.get_response(None)
+
+            finally:
+                # Delete the execution context
+                api_client.destroy_context(cluster_id=cluster_id, context_id=context_id)
+        except HTTPError as e:
+            raise dbt.exceptions.RuntimeException(str(e)) from e
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
