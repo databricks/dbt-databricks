@@ -240,11 +240,11 @@ class DatabricksAdapter(SparkAdapter):
 
         try:
             # Create an execution context
-            context_id = api_client.create_context(cluster_id)
+            context_id = api_client.Context.create(cluster_id)
 
             try:
                 # Run a command
-                command_id = api_client.execute_command(
+                command_id = api_client.Command.execute(
                     cluster_id=cluster_id,
                     context_id=context_id,
                     command=compiled_code,
@@ -256,7 +256,7 @@ class DatabricksAdapter(SparkAdapter):
                 terminal_states = ("Cancelled", "Error", "Finished")
                 while status not in terminal_states and time.time() - start < timeout:
                     time.sleep(1)
-                    json_resp = api_client.command_status(
+                    json_resp = api_client.Command.status(
                         cluster_id=cluster_id, context_id=context_id, command_id=command_id
                     )
                     status = json_resp["status"]
@@ -271,7 +271,7 @@ class DatabricksAdapter(SparkAdapter):
 
             finally:
                 # Delete the execution context
-                api_client.destroy_context(cluster_id=cluster_id, context_id=context_id)
+                api_client.Context.destroy(cluster_id=cluster_id, context_id=context_id)
         except HTTPError as e:
             raise dbt.exceptions.RuntimeException(str(e)) from e
 

@@ -13,11 +13,18 @@ class Api12Client:
             api_version="1.2",
             command_name="dbt-databricks",
         )
+        self.Context = Context(self._api_client)
+        self.Command = Command(self._api_client)
 
-    def create_context(self, cluster_id: str) -> str:
+
+class Context:
+    def __init__(self, client: ApiClient):
+        self.client = client
+
+    def create(self, cluster_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#create-an-execution-context
         try:
-            response = self._api_client.perform_query(
+            response = self.client.perform_query(
                 method="POST",
                 path="/contexts/create",
                 data=dict(clusterId=cluster_id, language="python"),
@@ -28,10 +35,10 @@ class Api12Client:
                 f"Error creating an execution context\n {e.response.content!r}", response=e.response
             ) from e
 
-    def destroy_context(self, cluster_id: str, context_id: str) -> str:
+    def destroy(self, cluster_id: str, context_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#delete-an-execution-context
         try:
-            response = self._api_client.perform_query(
+            response = self.client.perform_query(
                 method="POST",
                 path="/contexts/destroy",
                 data=dict(clusterId=cluster_id, contextId=context_id),
@@ -42,10 +49,15 @@ class Api12Client:
                 f"Error deleting an execution context\n {e.response.content!r}", response=e.response
             ) from e
 
-    def execute_command(self, cluster_id: str, context_id: str, command: str) -> str:
+
+class Command:
+    def __init__(self, client: ApiClient):
+        self.client = client
+
+    def execute(self, cluster_id: str, context_id: str, command: str) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
         try:
-            response = self._api_client.perform_query(
+            response = self.client.perform_query(
                 method="POST",
                 path="/commands/execute",
                 data=dict(
@@ -61,10 +73,10 @@ class Api12Client:
                 f"Error creating a command\n {e.response.content!r}", response=e.response
             ) from e
 
-    def command_status(self, cluster_id: str, context_id: str, command_id: str) -> Dict[str, Any]:
+    def status(self, cluster_id: str, context_id: str, command_id: str) -> Dict[str, Any]:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-command
         try:
-            return self._api_client.perform_query(
+            return self.client.perform_query(
                 method="GET",
                 path="/commands/status",
                 data=dict(clusterId=cluster_id, contextId=context_id, commandId=command_id),
