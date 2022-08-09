@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import itertools
 import re
+import os
 import time
 from typing import (
     Any,
@@ -304,6 +305,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 dbt_databricks_version = __version__.version
                 user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
+                if os.environ.get('__DBT_JOB__') is not None:
+                    user_agent_entry = f"dbt-databricks-jobs/{dbt_databricks_version}"
 
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
