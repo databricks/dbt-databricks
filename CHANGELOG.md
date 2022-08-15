@@ -1,5 +1,8 @@
 ## dbt-databricks 1.1.2 (Release TBD)
 
+- Set upper bound for `databricks-sql-connector` when Python 3.10 ([#154](https://github.com/databricks/dbt-databricks/pull/154))
+    - Note that `databricks-sql-connector` does not officially support Python 3.10 yet.
+
 ## dbt-databricks 1.1.1 (July 19, 2022)
 
 ### Features
