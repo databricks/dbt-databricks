@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import itertools
+import os
 import re
 import time
 from typing import (
@@ -39,6 +40,7 @@ from databricks.sql.exc import Error as DBSQLError
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+CUSTOM_USER_AGENT = "__DBT_DATABRICKS_CUSTOM_USER_AGENT__"
 
 
 @dataclass
@@ -283,6 +285,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
 
     @classmethod
+    def validate_custom_user_agent(cls, custom_user_agent: str) -> None:
+        # Thrift doesn't allow nested () so we need to ensure that the passed user agent is valid
+        if not re.search("^[A-z0-9\\-]+$", custom_user_agent):
+            raise dbt.exceptions.ValidationException(
+                f"Invalid custom user-agent: {custom_user_agent}"
+            )
+
+    @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
@@ -290,6 +300,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         creds: DatabricksCredentials = connection.credentials
         exc: Optional[Exception] = None
+
+        dbt_databricks_version = __version__.version
+        user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
+
+        custom_user_agent = os.environ.get(CUSTOM_USER_AGENT)
+        if custom_user_agent is not None and len(custom_user_agent) > 0:
+            cls.validate_custom_user_agent(custom_user_agent)
+            user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {custom_user_agent}"
 
         for i in range(1 + creds.connect_retries):
             try:
@@ -301,9 +319,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 required_fields = ["host", "http_path", "token"]
 
                 cls.validate_creds(creds, required_fields)
-
-                dbt_databricks_version = __version__.version
-                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(

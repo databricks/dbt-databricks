@@ -7,7 +7,7 @@ import dbt.exceptions
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
+from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES, CUSTOM_USER_AGENT
 from tests.unit.utils import config_from_parts_or_dicts
 
 
@@ -137,7 +137,30 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
-    def _connect_func(self, *, expected_catalog=None):
+    def test_invalid_custom_user_agent(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.ValidationException,
+            "Invalid custom user-agent",
+        ):
+            config = self._get_target_databricks_sql_connector(self.project_cfg)
+            adapter = DatabricksAdapter(config)
+            with mock.patch.dict("os.environ", **{CUSTOM_USER_AGENT: "(Some-thing)"}):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
+
+    def test_custom_user_agent(self):
+        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_custom_user_agent="databricks-workflows"),
+        ):
+            with mock.patch.dict("os.environ", **{CUSTOM_USER_AGENT: "databricks-workflows"}):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
+
+    def _connect_func(self, *, expected_catalog=None, expected_custom_user_agent=None):
         def connect(
             server_hostname,
             http_path,
@@ -154,7 +177,13 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(catalog)
             else:
                 self.assertEqual(catalog, expected_catalog)
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+            if expected_custom_user_agent is not None:
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version}; {expected_custom_user_agent}",
+                )
+            else:
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         return connect
 
