@@ -1,6 +1,6 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
-## dbt-databricks 1.2.0 (Release TBD)
+## dbt-databricks 1.2.0 (August 16, 2022)
 
 ### Features
 - Add grants to materializations ([dbt-labs/dbt-spark#366](https://github.com/dbt-labs/dbt-spark/issues/366), [dbt-labs/dbt-spark#381](https://github.com/dbt-labs/dbt-spark/pull/381))
