@@ -40,7 +40,8 @@ from databricks.sql.exc import Error as DBSQLError
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
-CUSTOM_USER_AGENT = "__DBT_DATABRICKS_CUSTOM_USER_AGENT__"
+DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
+DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 
 
 @dataclass
@@ -285,11 +286,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
 
     @classmethod
-    def validate_custom_user_agent(cls, custom_user_agent: str) -> None:
+    def validate_invocation_env(cls, invocation_env: str) -> None:
         # Thrift doesn't allow nested () so we need to ensure that the passed user agent is valid
-        if not re.search("^[A-z0-9\\-]+$", custom_user_agent):
+        if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
             raise dbt.exceptions.ValidationException(
-                f"Invalid custom user-agent: {custom_user_agent}"
+                f"Invalid invocation environment: {invocation_env}"
             )
 
     @classmethod
@@ -304,10 +305,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         dbt_databricks_version = __version__.version
         user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
-        custom_user_agent = os.environ.get(CUSTOM_USER_AGENT)
-        if custom_user_agent is not None and len(custom_user_agent) > 0:
-            cls.validate_custom_user_agent(custom_user_agent)
-            user_agent_entry = f"dbt-databricks/{dbt_databricks_version}; {custom_user_agent}"
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        if invocation_env is not None and len(invocation_env) > 0:
+            cls.validate_invocation_env(invocation_env)
+            user_agent_entry = f"{user_agent_entry}; {invocation_env}"
 
         for i in range(1 + creds.connect_retries):
             try:

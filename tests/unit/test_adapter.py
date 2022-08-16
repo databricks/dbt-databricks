@@ -7,7 +7,10 @@ import dbt.exceptions
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES, CUSTOM_USER_AGENT
+from dbt.adapters.databricks.connections import (
+    CATALOG_KEY_IN_SESSION_PROPERTIES,
+    DBT_DATABRICKS_INVOCATION_ENV,
+)
 from tests.unit.utils import config_from_parts_or_dicts
 
 
@@ -140,11 +143,11 @@ class TestDatabricksAdapter(unittest.TestCase):
     def test_invalid_custom_user_agent(self):
         with self.assertRaisesRegex(
             dbt.exceptions.ValidationException,
-            "Invalid custom user-agent",
+            "Invalid invocation environment",
         ):
             config = self._get_target_databricks_sql_connector(self.project_cfg)
             adapter = DatabricksAdapter(config)
-            with mock.patch.dict("os.environ", **{CUSTOM_USER_AGENT: "(Some-thing)"}):
+            with mock.patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -154,13 +157,15 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
-            new=self._connect_func(expected_custom_user_agent="databricks-workflows"),
+            new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
-            with mock.patch.dict("os.environ", **{CUSTOM_USER_AGENT: "databricks-workflows"}):
+            with mock.patch.dict(
+                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
+            ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def _connect_func(self, *, expected_catalog=None, expected_custom_user_agent=None):
+    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None):
         def connect(
             server_hostname,
             http_path,
@@ -177,10 +182,10 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(catalog)
             else:
                 self.assertEqual(catalog, expected_catalog)
-            if expected_custom_user_agent is not None:
+            if expected_invocation_env is not None:
                 self.assertEqual(
                     _user_agent_entry,
-                    f"dbt-databricks/{__version__.version}; {expected_custom_user_agent}",
+                    f"dbt-databricks/{__version__.version}; {expected_invocation_env}",
                 )
             else:
                 self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
