@@ -1,8 +1,21 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+import itertools
+import os
 import re
 import time
-from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agate import Table
 
@@ -27,6 +40,8 @@ from databricks.sql.exc import Error as DBSQLError
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
+DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 
 
 @dataclass
@@ -97,8 +112,30 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return self.host
 
-    def _connection_keys(self) -> Tuple[str, ...]:
-        connection_keys = ["host", "http_path", "database", "schema"]
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
+        as_dict = self.to_dict(omit_none=False)
+        connection_keys = set(self._connection_keys(with_aliases=with_aliases))
+        aliases: List[str] = []
+        if with_aliases:
+            aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
+        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
+            if key in as_dict:
+                yield key, as_dict[key]
+
+    def _connection_keys(self, *, with_aliases: bool = False) -> Tuple[str, ...]:
+        # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
+        # is called from only:
+        #
+        # - `Profile` with `with_aliases=True`
+        # - `DebugTask` without `with_aliases` (`False` by default)
+        #
+        # Thus, if `with_aliases` is `True`, `DatabricksCredentials._connection_keys` should return
+        # the internal key names; otherwise it can use aliases to show in `dbt debug`.
+        connection_keys = ["host", "http_path", "schema"]
+        if with_aliases:
+            connection_keys.insert(2, "database")
+        elif self.database:
+            connection_keys.insert(2, "catalog")
         if self.session_properties:
             connection_keys.append("session_properties")
         return tuple(connection_keys)
@@ -249,6 +286,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
 
     @classmethod
+    def validate_invocation_env(cls, invocation_env: str) -> None:
+        # Thrift doesn't allow nested () so we need to ensure that the passed user agent is valid
+        if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
+            raise dbt.exceptions.ValidationException(
+                f"Invalid invocation environment: {invocation_env}"
+            )
+
+    @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
@@ -256,6 +301,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         creds: DatabricksCredentials = connection.credentials
         exc: Optional[Exception] = None
+
+        dbt_databricks_version = __version__.version
+        user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
+
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        if invocation_env is not None and len(invocation_env) > 0:
+            cls.validate_invocation_env(invocation_env)
+            user_agent_entry = f"{user_agent_entry}; {invocation_env}"
 
         for i in range(1 + creds.connect_retries):
             try:
@@ -267,9 +320,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 required_fields = ["host", "http_path", "token"]
 
                 cls.validate_creds(creds, required_fields)
-
-                dbt_databricks_version = __version__.version
-                user_agent_entry = f"dbt-databricks/{dbt_databricks_version}"
 
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
