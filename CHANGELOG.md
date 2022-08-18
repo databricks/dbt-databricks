@@ -1,4 +1,4 @@
-## dbt-databricks 1.1.2 (Release TBD)
+## dbt-databricks 1.1.2 (August 18, 2022)
 
 ### Under the hood
 - Set upper bound for `databricks-sql-connector` when Python 3.10 ([#154](https://github.com/databricks/dbt-databricks/pull/154))
