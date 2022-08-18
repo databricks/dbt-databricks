@@ -56,8 +56,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "dbt-spark~={}".format(dbt_spark_version),
-        "databricks-sql-connector>=2.0.2; python_version<'3.10'",
-        "databricks-sql-connector>=2.0.2,<2.0.3; python_version=='3.10'",
+        "databricks-sql-connector>=2.0.4",
     ],
     zip_safe=False,
     classifiers=[
@@ -69,6 +68,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
     python_requires=">=3.7",
 )

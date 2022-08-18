@@ -1,6 +1,7 @@
 ## dbt-databricks 1.1.3 (Release TBD)
 
 ### Features
+- Support Python 3.10 ([#158](https://github.com/databricks/dbt-databricks/pull/158))
 - Add `connection_parameters` for databricks-sql-connector connection parameters ([#135](https://github.com/databricks/dbt-databricks/pull/135))
     - This can be used to customize the connection by setting additional parameters.
     - The full parameters are listed at [Databricks SQL Connector for Python](https://docs.databricks.com/dev-tools/python-sql-connector.html#connect-method).
