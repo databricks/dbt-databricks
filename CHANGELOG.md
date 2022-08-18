@@ -1,5 +1,10 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
+## dbt-databricks 1.2.1 (Release TBD)
+
+### Features
+- Support Python 3.10 ([#158](https://github.com/databricks/dbt-databricks/pull/158))
+
 ## dbt-databricks 1.2.0 (August 16, 2022)
 
 ### Features
