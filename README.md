@@ -69,5 +69,5 @@ These following quick starts will get you up and running with the `dbt-databrick
 
 The `dbt-databricks` adapter has been tested:
 
-- with Python >=3.7, <3.10.
+- with Python 3.7 or above.
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
