@@ -5,13 +5,13 @@ from databricks_cli.sdk.api_client import ApiClient
 
 
 class Api12Client:
-    def __init__(self, host: str, token: str):
+    def __init__(self, host: str, token: str, command_name: str = ""):
         self._api_client = ApiClient(
             user="token",
             password=token,
             host=f"https://{host}",
             api_version="1.2",
-            command_name="dbt-databricks",
+            command_name=command_name,
         )
         self.Context = Context(self._api_client)
         self.Command = Command(self._api_client)

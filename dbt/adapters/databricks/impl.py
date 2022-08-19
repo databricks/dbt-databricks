@@ -1,9 +1,11 @@
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
+import os
 import re
 import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union, cast
+import uuid
 
 from agate import Row, Table
 from requests.exceptions import HTTPError
@@ -26,9 +28,14 @@ import dbt.exceptions
 from dbt.events import AdapterLogger
 from dbt.utils import executor
 
+from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.api_client import Api12Client
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager, DatabricksCredentials
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksCredentials,
+    DBT_DATABRICKS_INVOCATION_ENV,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import undefined_proof
 
@@ -232,7 +239,18 @@ class DatabricksAdapter(SparkAdapter):
         if timeout <= 0:
             raise ValueError("Timeout must larger than 0")
 
-        api_client = Api12Client(host=credentials.host, token=cast(str, credentials.token))
+        command_name = f"dbt-databricks_{version}"
+
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        if invocation_env is not None and len(invocation_env) > 0:
+            self.ConnectionManager.validate_invocation_env(invocation_env)
+            command_name = f"{command_name}-{invocation_env}"
+
+        command_name += "-" + str(uuid.uuid1())
+
+        api_client = Api12Client(
+            host=credentials.host, token=cast(str, credentials.token), command_name=command_name
+        )
 
         cluster_id = credentials.cluster_id
         if not cluster_id:
