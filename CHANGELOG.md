@@ -1,17 +1,39 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
-## dbt-databricks 1.2.0 (Release TBD)
+## dbt-databricks 1.2.1 (Release TBD)
+
+### Features
+- Support Python 3.10 ([#158](https://github.com/databricks/dbt-databricks/pull/158))
+
+## dbt-databricks 1.2.0 (August 16, 2022)
+
+### Features
+- Add grants to materializations ([dbt-labs/dbt-spark#366](https://github.com/dbt-labs/dbt-spark/issues/366), [dbt-labs/dbt-spark#381](https://github.com/dbt-labs/dbt-spark/pull/381))
+- Add `connection_parameters` for databricks-sql-connector connection parameters ([#135](https://github.com/databricks/dbt-databricks/pull/135))
+    - This can be used to customize the connection by setting additional parameters.
+    - The full parameters are listed at [Databricks SQL Connector for Python](https://docs.databricks.com/dev-tools/python-sql-connector.html#connect-method).
+    - Currently, the following parameters are reserved for `dbt-databricks`. Please use the normal credential settings instead.
+        - server_hostname
+        - http_path
+        - access_token
+        - session_configuration
+        - catalog
+        - schema
 
 ### Fixes
-- Incremental materialization updated to not drop table first if full refresh for delta lake format, as it already runs _create or replace table_ ([#286](https://github.com/dbt-labs/dbt-spark/issues/286), [#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
+- Incremental materialization updated to not drop table first if full refresh for delta lake format, as it already runs _create or replace table_ ([dbt-labs/dbt-spark#286](https://github.com/dbt-labs/dbt-spark/issues/286), [dbt-labs/dbt-spark#287](https://github.com/dbt-labs/dbt-spark/pull/287))
 
 ### Under the hood
-- Update `SparkColumn.numeric_type` to return `decimal` instead of `numeric`, since SparkSQL exclusively supports the former ([#380](https://github.com/dbt-labs/dbt-spark/pull/380))
+- Update `SparkColumn.numeric_type` to return `decimal` instead of `numeric`, since SparkSQL exclusively supports the former ([dbt-labs/dbt-spark#380](https://github.com/dbt-labs/dbt-spark/pull/380))
+- Make minimal changes to support dbt Core incremental materialization refactor ([dbt-labs/dbt-spark#402](https://github.com/dbt-labs/dbt-spark/issue/402), [dbt-labs/dbt-spark#394](httpe://github.com/dbt-labs/dbt-spark/pull/394), [#136](https://github.com/databricks/dbt-databricks/pull/136))
+- Add new basic tests `TestDocsGenerateDatabricks` and `TestDocsGenReferencesDatabricks` ([#134](https://github.com/databricks/dbt-databricks/pull/134))
+- Set upper bound for `databricks-sql-connector` when Python 3.10 ([#154](https://github.com/databricks/dbt-databricks/pull/154))
+    - Note that `databricks-sql-connector` does not officially support Python 3.10 yet.
 
 ### Contributors
-- [@grindheim](https://github.com/grindheim) ([#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
+- [@grindheim](https://github.com/grindheim) ([dbt-labs/dbt-spark#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
 
-## dbt-databricks 1.1.1 (Release TBD)
+## dbt-databricks 1.1.1 (July 19, 2022)
 
 ### Features
 - Support for Databricks CATALOG as a DATABASE in DBT compilations ([#95](https://github.com/databricks/dbt-databricks/issues/95), [#89](https://github.com/databricks/dbt-databricks/pull/89), [#94](https://github.com/databricks/dbt-databricks/pull/94), [#105](https://github.com/databricks/dbt-databricks/pull/105))
