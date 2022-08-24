@@ -1,3 +1,5 @@
+## dbt-databricks 1.2.2 (Release TBD)
+
 ## dbt-databricks 1.2.1 (August 24, 2022)
 
 ### Features
