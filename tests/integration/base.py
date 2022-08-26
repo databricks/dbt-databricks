@@ -478,7 +478,7 @@ class DBTIntegrationTest(unittest.TestCase):
             try:
                 cursor.execute(sql)
                 if fetch == "one":
-                    return cursor.fetchall()[0]
+                    return cursor.fetchone()
                 elif fetch == "all":
                     return cursor.fetchall()
                 else:

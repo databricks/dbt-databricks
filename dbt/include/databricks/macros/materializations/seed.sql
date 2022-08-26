@@ -29,7 +29,7 @@
           {%- endfor %}
       {% endset %}
 
-      {% do adapter.add_query(sql, bindings=bindings, abridge_sql_log=True) %}
+      {% do adapter.add_query(sql, bindings=bindings, abridge_sql_log=True, close_cursor=True) %}
 
       {% if loop.index0 == 0 %}
           {% do statements.append(sql) %}
