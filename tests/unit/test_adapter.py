@@ -7,7 +7,10 @@ import dbt.exceptions
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
+from dbt.adapters.databricks.connections import (
+    CATALOG_KEY_IN_SESSION_PROPERTIES,
+    DBT_DATABRICKS_INVOCATION_ENV,
+)
 from tests.unit.utils import config_from_parts_or_dicts
 
 
@@ -115,7 +118,54 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
-    def _connect_func(self, *, expected_catalog=None):
+    def test_reserved_connection_parameters(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.DbtProfileError,
+            "The connection parameter `server_hostname` is reserved.",
+        ):
+            config_from_parts_or_dicts(
+                self.project_cfg,
+                {
+                    "outputs": {
+                        "test": {
+                            "type": "databricks",
+                            "schema": "analytics",
+                            "host": "yourorg.databricks.com",
+                            "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                            "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                            "connection_parameters": {"server_hostname": "theirorg.databricks.com"},
+                        }
+                    },
+                    "target": "test",
+                },
+            )
+
+    def test_invalid_custom_user_agent(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.ValidationException,
+            "Invalid invocation environment",
+        ):
+            config = self._get_target_databricks_sql_connector(self.project_cfg)
+            adapter = DatabricksAdapter(config)
+            with mock.patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
+
+    def test_custom_user_agent(self):
+        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_invocation_env="databricks-workflows"),
+        ):
+            with mock.patch.dict(
+                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
+            ):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
+
+    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None):
         def connect(
             server_hostname,
             http_path,
@@ -132,7 +182,13 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(catalog)
             else:
                 self.assertEqual(catalog, expected_catalog)
-            self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+            if expected_invocation_env is not None:
+                self.assertEqual(
+                    _user_agent_entry,
+                    f"dbt-databricks/{__version__.version}; {expected_invocation_env}",
+                )
+            else:
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
 
         return connect
 
@@ -243,7 +299,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "col1",
-                "column_index": 0,
+                "column_index": 1,
                 "dtype": "decimal(22,0)",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -260,7 +316,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "col2",
-                "column_index": 1,
+                "column_index": 2,
                 "dtype": "string",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -277,7 +333,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "dt",
-                "column_index": 2,
+                "column_index": 3,
                 "dtype": "date",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -294,7 +350,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "struct_col",
-                "column_index": 3,
+                "column_index": 4,
                 "dtype": "struct<struct_inner_col:string>",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -368,7 +424,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "col1",
-                "column_index": 0,
+                "column_index": 1,
                 "dtype": "decimal(22,0)",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -436,7 +492,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "col1",
-                "column_index": 0,
+                "column_index": 1,
                 "dtype": "decimal(22,0)",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -457,7 +513,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "struct_col",
-                "column_index": 3,
+                "column_index": 4,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -521,7 +577,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "col2",
-                "column_index": 1,
+                "column_index": 2,
                 "dtype": "string",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -538,7 +594,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "struct_col",
-                "column_index": 3,
+                "column_index": 4,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -587,7 +643,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "dt",
-                "column_index": 2,
+                "column_index": 3,
                 "dtype": "date",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -612,7 +668,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_type": rel_type,
                 "table_owner": "root",
                 "column": "struct_col",
-                "column_index": 3,
+                "column_index": 4,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
