@@ -1,6 +1,10 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
-## dbt-databricks 1.2.1 (Release TBD)
+### Under the hood
+- Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
+    - Now dbt-databricks uses `adapter.get_incremental_strategy_macro` instead of `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
+
+## dbt-databricks 1.2.1 (August 24, 2022)
 
 ### Features
 - Support Python 3.10 ([#158](https://github.com/databricks/dbt-databricks/pull/158))
