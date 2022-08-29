@@ -1,5 +1,8 @@
 ## dbt-databricks 1.2.2 (Release TBD)
 
+### Under the hood
+- Explicitly close cursors ([#163](https://github.com/databricks/dbt-databricks/pull/163))
+
 ## dbt-databricks 1.2.1 (August 24, 2022)
 
 ### Features
