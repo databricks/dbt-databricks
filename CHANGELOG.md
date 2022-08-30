@@ -1,5 +1,8 @@
 ## dbt-databricks 1.1.4 (Release TBD)
 
+### Fixes
+- Data is duplicated on reloading seeds that are using an external table ([#114](https://github.com/databricks/dbt-databricks/issues/114), [#149](https://github.com/databricks/dbt-databricks/issues/149))
+
 ### Under the hood
 - Explicitly close cursors ([#163](https://github.com/databricks/dbt-databricks/pull/163))
 
