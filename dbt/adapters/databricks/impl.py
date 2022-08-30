@@ -269,20 +269,31 @@ class DatabricksAdapter(SparkAdapter):
                 )
 
                 # poll until job finish
-                status = None
+                status: str
                 start = time.time()
+                exceeded_timeout = False
                 terminal_states = ("Cancelled", "Error", "Finished")
-                while status not in terminal_states and time.time() - start < timeout:
-                    time.sleep(1)
-                    json_resp = api_client.Command.status(
+                while True:
+                    response = api_client.Command.status(
                         cluster_id=cluster_id, context_id=context_id, command_id=command_id
                     )
-                    status = json_resp["status"]
-                    # logger.debug(f"Polling.... in state: {state}")
+                    status = response["status"]
+                    if status in terminal_states:
+                        break
+                    if time.time() - start > timeout:
+                        exceeded_timeout = True
+                        break
+                    time.sleep(3)
+                if exceeded_timeout:
+                    raise dbt.exceptions.RuntimeException("python model run timed out")
                 if status != "Finished":
                     raise dbt.exceptions.RuntimeException(
-                        "python model run ended in state"
-                        f"{status} with state_message\n{json_resp['results']['data']}"
+                        "python model run ended in state "
+                        f"{status} with state_message\n{response['results']['data']}"
+                    )
+                if response["results"]["resultType"] == "error":
+                    raise dbt.exceptions.RuntimeException(
+                        f"Python model failed with traceback as:\n{response['results']['cause']}"
                     )
 
                 return self.connections.get_response(None)
