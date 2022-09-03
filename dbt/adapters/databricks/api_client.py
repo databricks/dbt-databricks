@@ -15,6 +15,9 @@ class Api12Client:
         self.Context = Context(self._api_client)
         self.Command = Command(self._api_client)
 
+    def close(self):
+        self._api_client.close()
+
 
 class Context:
     def __init__(self, client: ApiClient):

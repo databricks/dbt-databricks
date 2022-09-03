@@ -272,6 +272,10 @@ class DatabricksAdapter(SparkAdapter):
         if timeout <= 0:
             raise ValueError("Timeout must larger than 0")
 
+        cluster_id = credentials.cluster_id
+        if not cluster_id:
+            raise ValueError("Python model doesn't support SQL Warehouses")
+
         command_name = f"dbt-databricks_{version}"
 
         invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
@@ -284,10 +288,6 @@ class DatabricksAdapter(SparkAdapter):
         api_client = Api12Client(
             host=credentials.host, token=cast(str, credentials.token), command_name=command_name
         )
-
-        cluster_id = credentials.cluster_id
-        if not cluster_id:
-            raise ValueError("Python model doesn't support SQL Warehouses")
 
         try:
             # Create an execution context
@@ -336,6 +336,8 @@ class DatabricksAdapter(SparkAdapter):
                 api_client.Context.destroy(cluster_id=cluster_id, context_id=context_id)
         except HTTPError as e:
             raise dbt.exceptions.RuntimeException(str(e)) from e
+        finally:
+            api_client.close()
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
