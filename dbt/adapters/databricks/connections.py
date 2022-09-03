@@ -1,3 +1,4 @@
+import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
 import itertools
@@ -22,7 +23,8 @@ from agate import Table
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.databricks import __version__
-from dbt.contracts.connection import Connection, ConnectionState
+from dbt.clients import agate_helper
+from dbt.contracts.connection import AdapterResponse, Connection, ConnectionState
 from dbt.events import AdapterLogger
 from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
@@ -150,46 +152,53 @@ class DatabricksCredentials(Credentials):
             return None
 
 
-class DatabricksSQLConnectionWrapper(object):
+class DatabricksSQLConnectionWrapper:
     """Wrap a Databricks SQL connector in a way that no-ops transactions"""
 
     _conn: DatabricksSQLConnection
-    _cursor: Optional[DatabricksSQLCursor]
 
     def __init__(self, conn: DatabricksSQLConnection):
         self._conn = conn
-        self._cursor = None
 
-    def cursor(self) -> "DatabricksSQLConnectionWrapper":
-        self._cursor = self._conn.cursor()
-        return self
-
-    def cancel(self) -> None:
-        if self._cursor:
-            try:
-                self._cursor.cancel()
-            except DBSQLError as exc:
-                logger.debug("Exception while cancelling query: {}".format(exc))
-                _log_dbsql_errors(exc)
+    def cursor(self) -> "DatabricksSQLCursorWrapper":
+        return DatabricksSQLCursorWrapper(self._conn.cursor())
 
     def close(self) -> None:
-        if self._cursor:
-            try:
-                self._cursor.close()
-            except DBSQLError as exc:
-                logger.debug("Exception while closing cursor: {}".format(exc))
-                _log_dbsql_errors(exc)
         self._conn.close()
 
     def rollback(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("NotImplemented: rollback")
 
+
+class DatabricksSQLCursorWrapper:
+    """Wrap a Databricks SQL cursor in a way that no-ops transactions"""
+
+    _cursor: DatabricksSQLCursor
+
+    def __init__(self, cursor: DatabricksSQLCursor):
+        self._cursor = cursor
+
+    def cancel(self) -> None:
+        try:
+            self._cursor.cancel()
+        except DBSQLError as exc:
+            logger.debug("Exception while cancelling query: {}".format(exc))
+            _log_dbsql_errors(exc)
+
+    def close(self) -> None:
+        try:
+            self._cursor.close()
+        except DBSQLError as exc:
+            logger.debug("Exception while closing cursor: {}".format(exc))
+            _log_dbsql_errors(exc)
+
     def fetchall(self) -> Sequence[Tuple]:
-        assert self._cursor is not None
         return self._cursor.fetchall()
 
+    def fetchone(self) -> Optional[Tuple]:
+        return self._cursor.fetchone()
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
-        assert self._cursor is not None
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]
         if bindings is not None:
@@ -219,12 +228,18 @@ class DatabricksSQLConnectionWrapper(object):
             Optional[bool],
         ]
     ]:
-        assert self._cursor is not None
         return self._cursor.description
 
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
-        assert self._cursor is not None
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
+
+    def __del__(self) -> None:
+        if self._cursor.open:
+            # This should not happen. The cursor should explicitly be closed.
+            self._cursor.close()
+            with warnings.catch_warnings():
+                warnings.simplefilter("always")
+                warnings.warn("The cursor was closed by destructor.")
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -253,28 +268,62 @@ class DatabricksConnectionManager(SparkConnectionManager):
             else:
                 raise dbt.exceptions.RuntimeException(str(exc)) from exc
 
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        *,
+        close_cursor: bool = False,
+    ) -> Tuple[Connection, Any]:
+        conn, cursor = super().add_query(sql, auto_begin, bindings, abridge_sql_log)
+        if close_cursor and hasattr(cursor, "close"):
+            cursor.close()
+        return conn, cursor
+
+    def execute(
+        self, sql: str, auto_begin: bool = False, fetch: bool = False
+    ) -> Tuple[AdapterResponse, Table]:
+        sql = self._add_query_comment(sql)
+        _, cursor = self.add_query(sql, auto_begin)
+        try:
+            response = self.get_response(cursor)
+            if fetch:
+                table = self.get_result_from_cursor(cursor)
+            else:
+                table = agate_helper.empty_table()
+            return response, table
+        finally:
+            cursor.close()
+
     def _execute_cursor(
-        self, log_sql: str, f: Callable[[DatabricksSQLConnectionWrapper], None]
+        self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
     ) -> Table:
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
 
-        with self.exception_handler(log_sql):
-            fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
-            pre = time.time()
+        cursor: Optional[DatabricksSQLCursorWrapper] = None
+        try:
+            with self.exception_handler(log_sql):
+                fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+                pre = time.time()
 
-            handle: DatabricksSQLConnectionWrapper = connection.handle
-            cursor = handle.cursor()
-            f(cursor)
+                handle: DatabricksSQLConnectionWrapper = connection.handle
+                cursor = handle.cursor()
+                f(cursor)
 
-            fire_event(
-                SQLQueryStatus(
-                    status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                fire_event(
+                    SQLQueryStatus(
+                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                    )
                 )
-            )
 
-        return self.get_result_from_cursor(cursor)
+            return self.get_result_from_cursor(cursor)
+        finally:
+            if cursor is not None:
+                cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
         return self._execute_cursor(

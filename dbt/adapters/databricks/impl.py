@@ -21,7 +21,7 @@ from dbt.adapters.spark.impl import (
     LIST_RELATIONS_MACRO_NAME,
     LIST_SCHEMAS_MACRO_NAME,
 )
-from dbt.contracts.connection import AdapterResponse
+from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
@@ -221,6 +221,39 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
+
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        *,
+        close_cursor: bool = False,
+    ) -> Tuple[Connection, Any]:
+        return self.connections.add_query(
+            sql, auto_begin, bindings, abridge_sql_log, close_cursor=close_cursor
+        )
+
+    def run_sql_for_tests(
+        self, sql: str, fetch: str, conn: Connection
+    ) -> Optional[Union[Optional[Tuple], List[Tuple]]]:
+        cursor = conn.handle.cursor()
+        try:
+            cursor.execute(sql)
+            if fetch == "one":
+                return cursor.fetchone()
+            elif fetch == "all":
+                return cursor.fetchall()
+            else:
+                return None
+        except BaseException as e:
+            print(sql)
+            print(e)
+            raise
+        finally:
+            cursor.close()
+            conn.transaction_open = False
 
     def valid_incremental_strategies(self) -> List[str]:
         return ["append", "merge", "insert_overwrite"]
