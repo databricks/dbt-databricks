@@ -44,7 +44,7 @@ def model(dbt, spark):
 
 
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
-class TestChangingSchemaSpark:
+class TestChangingSchemaDatabricks:
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": models__simple_python_model}
