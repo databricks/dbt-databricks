@@ -5,6 +5,7 @@
 
 ### Under the hood
 - Explicitly close cursors ([#163](https://github.com/databricks/dbt-databricks/pull/163))
+- Upgrade databricks-sql-connector to 2.0.5 ([#166](https://github.com/databricks/dbt-databricks/pull/166))
 
 ## dbt-databricks 1.1.3 (August 24, 2022)
 
