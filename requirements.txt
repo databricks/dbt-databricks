@@ -1,2 +1,2 @@
-databricks-sql-connector>=2.0.4
+databricks-sql-connector>=2.0.5
 dbt-spark~=1.2.0
