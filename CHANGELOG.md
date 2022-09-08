@@ -1,4 +1,4 @@
-## dbt-databricks 1.1.4 (Release TBD)
+## dbt-databricks 1.1.4 (September 8, 2022)
 
 ### Fixes
 - Data is duplicated on reloading seeds that are using an external table ([#114](https://github.com/databricks/dbt-databricks/issues/114), [#149](https://github.com/databricks/dbt-databricks/issues/149))
