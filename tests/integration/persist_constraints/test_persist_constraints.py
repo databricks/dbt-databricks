@@ -37,7 +37,7 @@ class TestConstraints(DBTIntegrationTest):
         assert len(result.results) == 1
         res: RunResult = result.results[0]
         assert res.status == RunStatus.Error
-        assert err_msg in res.message
+        assert res.message and err_msg in res.message
 
     def check_staging_table_cleaned(self):
         tmp_tables = self.run_sql("SHOW TABLES IN {database_schema} LIKE '*__dbt_tmp'", fetch="all")

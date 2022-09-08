@@ -8,7 +8,6 @@ import time
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Dict,
     Iterable,
     Iterator,
@@ -57,7 +56,7 @@ EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.
 @dataclass
 class DatabricksCredentials(Credentials):
     host: str
-    database: Optional[str]
+    database: Optional[str]  # type: ignore[assignment]
     http_path: Optional[str] = None
     token: Optional[str] = None
     connect_retries: int = 0
@@ -280,7 +279,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
-    TYPE: ClassVar[str] = "databricks"
+    TYPE: str = "databricks"
 
     def set_query_header(self, manifest: Manifest) -> None:
         self.query_header = DatabricksMacroQueryStringSetter(self.profile, manifest)

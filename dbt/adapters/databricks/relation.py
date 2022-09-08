@@ -16,7 +16,7 @@ class DatabricksIncludePolicy(Policy):
 
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(SparkRelation):
-    include_policy: DatabricksIncludePolicy = DatabricksIncludePolicy()
+    include_policy: DatabricksIncludePolicy = DatabricksIncludePolicy()  # type: ignore[assignment]
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:

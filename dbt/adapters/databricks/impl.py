@@ -100,7 +100,7 @@ class DatabricksAdapter(SparkAdapter):
             if staging_table is not None:
                 self.drop_relation(staging_table)
 
-    def list_relations_without_caching(
+    def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
         kwargs = {"schema_relation": schema_relation}
@@ -141,7 +141,7 @@ class DatabricksAdapter(SparkAdapter):
 
         return relations
 
-    def parse_describe_extended(
+    def parse_describe_extended(  # type: ignore[override]
         self, relation: DatabricksRelation, raw_rows: List[Row]
     ) -> List[DatabricksColumn]:
         # Convert the Row to a dict
@@ -171,14 +171,14 @@ class DatabricksAdapter(SparkAdapter):
             for idx, column in enumerate(rows)
         ]
 
-    def parse_columns_from_information(
+    def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, relation.information)
+        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, cast(str, relation.information))
         owner = owner_match[0] if owner_match else None
-        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, relation.information)
+        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, cast(str, relation.information))
         columns = []
-        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, relation.information)
+        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, cast(str, relation.information))
         raw_table_stats = stats_match[0] if stats_match else None
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
         for match_num, match in enumerate(matches):
@@ -212,7 +212,9 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_columns_for_catalog(self, relation: DatabricksRelation) -> Iterable[Dict[str, Any]]:
+    def _get_columns_for_catalog(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation)
 
         for column in columns:
