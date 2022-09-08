@@ -7,7 +7,7 @@
 - Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
     - Now dbt-databricks uses `adapter.get_incremental_strategy_macro` instead of `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
 
-## dbt-databricks 1.2.2 (Release TBD)
+## dbt-databricks 1.2.2 (September 8, 2022)
 
 ### Fixes
 - Data is duplicated on reloading seeds that are using an external table ([#114](https://github.com/databricks/dbt-databricks/issues/114), [#149](https://github.com/databricks/dbt-databricks/issues/149))
@@ -15,6 +15,7 @@
 ### Under the hood
 - Explicitly close cursors ([#163](https://github.com/databricks/dbt-databricks/pull/163))
 - Upgrade databricks-sql-connector to 2.0.5 ([#166](https://github.com/databricks/dbt-databricks/pull/166))
+- Embed dbt-databricks and databricks-sql-connector versions to SQL comments ([#167](https://github.com/databricks/dbt-databricks/pull/167))
 
 ## dbt-databricks 1.2.1 (August 24, 2022)
 
