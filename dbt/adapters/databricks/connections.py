@@ -1,3 +1,4 @@
+import json
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
+DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 
 @dataclass
@@ -431,6 +433,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 "`http_path` must set when" " using the dbsql method to connect to Databricks"
             )
         required_fields = ["host", "http_path", "token"]
+        http_session_headers: str = os.environ.get(DBT_DATABRICKS_HTTP_SESSION_HEADERS)
+
+        if http_session_headers is not None:
+            http_session_headers: Dict[str, Any] = json.loads(http_session_headers)
 
         cls.validate_creds(creds, required_fields)
 
@@ -451,7 +457,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     catalog=creds.database,
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
-                    **connection_parameters,
+                    **creds.connection_parameters,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break

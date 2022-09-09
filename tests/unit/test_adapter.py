@@ -9,9 +9,12 @@ from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_INVOCATION_ENV,
+    DBT_DATABRICKS_INVOCATION_ENV, DBT_DATABRICKS_HTTP_SESSION_HEADERS,
 )
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+HEADER_DBSQL_ATTRIBUTION_FLAGS = "X-Databricks-Dbsql-Attribution-Flags"
 
 
 class TestDatabricksAdapter(unittest.TestCase):
@@ -196,9 +199,27 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def _connect_func(
-        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
-    ):
+    def test_http_headers(self):
+        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+                "dbt.adapters.databricks.connections.dbsql.connect",
+                new=self._connect_func(
+                    expected_http_headers=[(HEADER_DBSQL_ATTRIBUTION_FLAGS, {"jobId": 1, "runId": 12123})]
+                ),
+        ):
+            with mock.patch.dict(
+                    "os.environ",
+                    **{
+                        DBT_DATABRICKS_HTTP_SESSION_HEADERS:
+                            '{"X-Databricks-Dbsql-Attribution-Flags":{"jobId":1,"runId":12123}}'
+                    }
+            ):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle
+
+    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None):
         def connect(
             server_hostname,
             http_path,
