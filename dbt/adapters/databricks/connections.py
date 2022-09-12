@@ -434,10 +434,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 "`http_path` must set when" " using the dbsql method to connect to Databricks"
             )
         required_fields = ["host", "http_path", "token"]
-        http_session_headers: str = os.environ.get(DBT_DATABRICKS_HTTP_SESSION_HEADERS)
+        http_session_headers_str: Optional[str] = os.environ.get(
+            DBT_DATABRICKS_HTTP_SESSION_HEADERS
+        )
 
-        if http_session_headers is not None:
-            http_session_headers: List[Tuple[str, Any]] = list(json.loads(http_session_headers).items())
+        http_session_headers: Optional[List[Tuple[str, Any]]] = (
+            list(json.loads(http_session_headers_str).items())
+            if http_session_headers_str is not None
+            else None
+        )
 
         cls.validate_creds(creds, required_fields)
 
