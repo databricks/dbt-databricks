@@ -9,7 +9,8 @@ from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_INVOCATION_ENV, DBT_DATABRICKS_HTTP_SESSION_HEADERS,
+    DBT_DATABRICKS_INVOCATION_ENV,
+    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
 )
 from tests.unit.utils import config_from_parts_or_dicts
 
@@ -210,11 +211,10 @@ class TestDatabricksAdapter(unittest.TestCase):
                 ),
         ):
             with mock.patch.dict(
-                    "os.environ",
-                    **{
-                        DBT_DATABRICKS_HTTP_SESSION_HEADERS:
-                            '{"X-Databricks-Dbsql-Attribution-Flags":{"jobId":1,"runId":12123}}'
-                    }
+                "os.environ",
+                **{
+                    DBT_DATABRICKS_HTTP_SESSION_HEADERS: '{"X-Databricks-Dbsql-Attribution-Flags":{"jobId":1,"runId":12123}}'
+                },
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle
