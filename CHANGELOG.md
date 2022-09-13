@@ -1,6 +1,28 @@
 ## dbt-databricks 1.3.0 (Release TBD)
 
-## dbt-databricks 1.2.0 (Release TBD)
+### Features
+- Support python model through run command API, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377), [#126](https://github.com/databricks/dbt-databricks/pull/126))
+
+### Under the hood
+- Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
+    - Now dbt-databricks uses `adapter.get_incremental_strategy_macro` instead of `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
+
+## dbt-databricks 1.2.2 (September 8, 2022)
+
+### Fixes
+- Data is duplicated on reloading seeds that are using an external table ([#114](https://github.com/databricks/dbt-databricks/issues/114), [#149](https://github.com/databricks/dbt-databricks/issues/149))
+
+### Under the hood
+- Explicitly close cursors ([#163](https://github.com/databricks/dbt-databricks/pull/163))
+- Upgrade databricks-sql-connector to 2.0.5 ([#166](https://github.com/databricks/dbt-databricks/pull/166))
+- Embed dbt-databricks and databricks-sql-connector versions to SQL comments ([#167](https://github.com/databricks/dbt-databricks/pull/167))
+
+## dbt-databricks 1.2.1 (August 24, 2022)
+
+### Features
+- Support Python 3.10 ([#158](https://github.com/databricks/dbt-databricks/pull/158))
+
+## dbt-databricks 1.2.0 (August 16, 2022)
 
 ### Features
 - Add grants to materializations ([dbt-labs/dbt-spark#366](https://github.com/dbt-labs/dbt-spark/issues/366), [dbt-labs/dbt-spark#381](https://github.com/dbt-labs/dbt-spark/pull/381))
@@ -22,6 +44,8 @@
 - Update `SparkColumn.numeric_type` to return `decimal` instead of `numeric`, since SparkSQL exclusively supports the former ([dbt-labs/dbt-spark#380](https://github.com/dbt-labs/dbt-spark/pull/380))
 - Make minimal changes to support dbt Core incremental materialization refactor ([dbt-labs/dbt-spark#402](https://github.com/dbt-labs/dbt-spark/issue/402), [dbt-labs/dbt-spark#394](httpe://github.com/dbt-labs/dbt-spark/pull/394), [#136](https://github.com/databricks/dbt-databricks/pull/136))
 - Add new basic tests `TestDocsGenerateDatabricks` and `TestDocsGenReferencesDatabricks` ([#134](https://github.com/databricks/dbt-databricks/pull/134))
+- Set upper bound for `databricks-sql-connector` when Python 3.10 ([#154](https://github.com/databricks/dbt-databricks/pull/154))
+    - Note that `databricks-sql-connector` does not officially support Python 3.10 yet.
 
 ### Contributors
 - [@grindheim](https://github.com/grindheim) ([dbt-labs/dbt-spark#287](https://github.com/dbt-labs/dbt-spark/pull/287/))
