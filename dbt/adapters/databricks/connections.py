@@ -51,6 +51,7 @@ logger = AdapterLogger("Databricks")
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
+EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 
 
 @dataclass
@@ -148,6 +149,14 @@ class DatabricksCredentials(Credentials):
         if self.session_properties:
             connection_keys.append("session_properties")
         return tuple(connection_keys)
+
+    @property
+    def cluster_id(self) -> Optional[str]:
+        m = EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX.match(self.http_path)  # type: ignore[arg-type]
+        if m:
+            return m.group(1).strip()
+        else:
+            return None
 
 
 class DatabricksSQLConnectionWrapper:

@@ -1,13 +1,18 @@
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
+import os
 import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+import time
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union, cast
+import uuid
 
 from agate import Row, Table
+from requests.exceptions import HTTPError
 
 from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.impl import catch_as_completed, log_code_execution
+from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -23,8 +28,14 @@ import dbt.exceptions
 from dbt.events import AdapterLogger
 from dbt.utils import executor
 
+from dbt.adapters.databricks.__version__ import version
+from dbt.adapters.databricks.api_client import Api12Client
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksCredentials,
+    DBT_DATABRICKS_INVOCATION_ENV,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import undefined_proof
 
@@ -246,6 +257,87 @@ class DatabricksAdapter(SparkAdapter):
 
     def valid_incremental_strategies(self) -> List[str]:
         return ["append", "merge", "insert_overwrite"]
+
+    @available.parse_none
+    @log_code_execution
+    def submit_python_job(
+        self, parsed_model: dict, compiled_code: str, timeout: Optional[int] = None
+    ) -> AdapterResponse:
+        # TODO limit this function to run only when doing the materialization of python nodes
+
+        credentials: DatabricksCredentials = self.config.credentials
+
+        if not timeout:
+            timeout = 60 * 60 * 24
+        if timeout <= 0:
+            raise ValueError("Timeout must larger than 0")
+
+        cluster_id = credentials.cluster_id
+        if not cluster_id:
+            raise ValueError("Python model doesn't support SQL Warehouses")
+
+        command_name = f"dbt-databricks_{version}"
+
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        if invocation_env is not None and len(invocation_env) > 0:
+            self.ConnectionManager.validate_invocation_env(invocation_env)
+            command_name = f"{command_name}-{invocation_env}"
+
+        command_name += "-" + str(uuid.uuid1())
+
+        api_client = Api12Client(
+            host=credentials.host, token=cast(str, credentials.token), command_name=command_name
+        )
+
+        try:
+            # Create an execution context
+            context_id = api_client.Context.create(cluster_id)
+
+            try:
+                # Run a command
+                command_id = api_client.Command.execute(
+                    cluster_id=cluster_id,
+                    context_id=context_id,
+                    command=compiled_code,
+                )
+
+                # poll until job finish
+                status: str
+                start = time.time()
+                exceeded_timeout = False
+                terminal_states = ("Cancelled", "Error", "Finished")
+                while True:
+                    response = api_client.Command.status(
+                        cluster_id=cluster_id, context_id=context_id, command_id=command_id
+                    )
+                    status = response["status"]
+                    if status in terminal_states:
+                        break
+                    if time.time() - start > timeout:
+                        exceeded_timeout = True
+                        break
+                    time.sleep(3)
+                if exceeded_timeout:
+                    raise dbt.exceptions.RuntimeException("python model run timed out")
+                if status != "Finished":
+                    raise dbt.exceptions.RuntimeException(
+                        "python model run ended in state "
+                        f"{status} with state_message\n{response['results']['data']}"
+                    )
+                if response["results"]["resultType"] == "error":
+                    raise dbt.exceptions.RuntimeException(
+                        f"Python model failed with traceback as:\n{response['results']['cause']}"
+                    )
+
+                return self.connections.get_response(None)
+
+            finally:
+                # Delete the execution context
+                api_client.Context.destroy(cluster_id=cluster_id, context_id=context_id)
+        except HTTPError as e:
+            raise dbt.exceptions.RuntimeException(str(e)) from e
+        finally:
+            api_client.close()
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
