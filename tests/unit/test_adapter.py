@@ -204,12 +204,12 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        http_session_headers = '{"X-Databricks-Dbsql-Attribution-Flags":{"jobId":1,"runId":12123}}'
+        http_session_headers = f'{{"{HEADER_DBSQL_ATTRIBUTION_FLAGS}":{{"jobId":1,"runId":12123}}}}'
 
         with mock.patch(
                 "dbt.adapters.databricks.connections.dbsql.connect",
                 new=self._connect_func(
-                    expected_http_headers=[(HEADER_DBSQL_ATTRIBUTION_FLAGS, {"jobId": 1, "runId": 12123})]
+                    expected_http_headers=[(HEADER_DBSQL_ATTRIBUTION_FLAGS, '{"jobId": 1, "runId": 12123}')]
                 ),
         ):
             with mock.patch.dict(

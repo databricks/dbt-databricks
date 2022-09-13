@@ -53,7 +53,6 @@ DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
-HEADER_DBSQL_ATTRIBUTION_FLAGS = "X-Databricks-Dbsql-Attribution-Flags"
 
 
 @dataclass
@@ -438,8 +437,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
 
-        http_session_headers: Optional[List[Tuple[str, Any]]] = (
-            list(json.loads(http_session_headers_str).items())
+        http_session_headers: Optional[List[Tuple[str, str]]] = (
+            list(
+                {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}.items()
+            )
             if http_session_headers_str is not None
             else None
         )
