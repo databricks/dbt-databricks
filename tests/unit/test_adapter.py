@@ -15,9 +15,6 @@ from dbt.adapters.databricks.connections import (
 from tests.unit.utils import config_from_parts_or_dicts
 
 
-HEADER_DBSQL_ATTRIBUTION_FLAGS = "X-Databricks-Dbsql-Attribution-Flags"
-
-
 class TestDatabricksAdapter(unittest.TestCase):
     def setUp(self):
         flags.STRICT_MODE = False
@@ -204,20 +201,44 @@ class TestDatabricksAdapter(unittest.TestCase):
         config = self._get_target_databricks_sql_connector(self.project_cfg)
         adapter = DatabricksAdapter(config)
 
-        http_session_headers = f'{{"{HEADER_DBSQL_ATTRIBUTION_FLAGS}":{{"jobId":1,"runId":12123}}}}'
+        http_session_headers = '{"test":{"jobId":1,"runId":12123}}'
 
         with mock.patch(
-                "dbt.adapters.databricks.connections.dbsql.connect",
-                new=self._connect_func(
-                    expected_http_headers=[(HEADER_DBSQL_ATTRIBUTION_FLAGS, '{"jobId": 1, "runId": 12123}')]
-                ),
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(
+                expected_http_session_headers=[("test", '{"jobId": 1, "runId": 12123}')]
+            ),
         ):
             with mock.patch.dict(
                 "os.environ",
                 **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_session_headers},
             ):
                 connection = adapter.acquire_connection("dummy")
-                connection.handle
+                connection.handle  # trigger lazy-load
+
+    def test_multiple_http_headers(self):
+        config = self._get_target_databricks_sql_connector(self.project_cfg)
+        adapter = DatabricksAdapter(config)
+
+        http_session_headers = (
+            '{"test":{"jobId":1,"runId":12123},"dummy":{"jobId":1,"runId":12123}}'
+        )
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(
+                expected_http_headers=[
+                    ("test", '{"jobId": 1, "runId": 12123}'),
+                    ("dummy", '{"jobId": 1, "runId": 12123}'),
+                ]
+            ),
+        ):
+            with mock.patch.dict(
+                "os.environ",
+                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_session_headers},
+            ):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
 
     def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None):
         def connect(

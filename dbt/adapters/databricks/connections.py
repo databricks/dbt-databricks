@@ -413,6 +413,40 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
 
     @classmethod
+    def get_all_http_headers(
+        cls,
+        connection_parameters: Optional[Dict[str, Any]],
+        http_session_headers_str: Optional[str],
+    ) -> Optional[List[Tuple[str, str]]]:
+        user_http_session_headers: Dict[str, str] = (
+            dict(connection_parameters.get("http_headers", []))
+            if connection_parameters is not None
+            else {}
+        )
+
+        http_session_headers_dict: Dict[str, str] = (
+            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
+            if http_session_headers_str is not None
+            else {}
+        )
+
+        intersect_http_header_keys = (
+            user_http_session_headers.keys() & http_session_headers_dict.keys()
+        )
+
+        if len(intersect_http_header_keys) > 0:
+            raise dbt.exceptions.ValidationException(
+                f"Intersection with reserved http_headers in keys: {intersect_http_header_keys}"
+            )
+
+        http_session_headers_dict.update(user_http_session_headers)
+
+        if len(http_session_headers_dict) == 0:
+            return None
+
+        return list(http_session_headers_dict.items())
+
+    @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
@@ -437,12 +471,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
 
-        http_session_headers: Optional[List[Tuple[str, str]]] = (
-            list(
-                {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}.items()
-            )
-            if http_session_headers_str is not None
-            else None
+        http_session_headers: Optional[List[Tuple[str, str]]] = cls.get_all_http_headers(
+            creds.connection_parameters, http_session_headers_str
         )
 
         cls.validate_creds(creds, required_fields)
