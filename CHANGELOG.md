@@ -7,6 +7,11 @@
 - Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
     - Now dbt-databricks uses `adapter.get_incremental_strategy_macro` instead of `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
 
+## dbt-databricks 1.2.3 (Release TBD)
+
+### Fixes
+- `http_headers` should be dict in the profile ([#174](https://github.com/databricks/dbt-databricks/pull/174))
+
 ## dbt-databricks 1.2.2 (September 8, 2022)
 
 ### Fixes
