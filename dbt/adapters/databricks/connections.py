@@ -161,8 +161,22 @@ class DatabricksSQLConnectionWrapper:
     def cursor(self) -> "DatabricksSQLCursorWrapper":
         return DatabricksSQLCursorWrapper(self._conn.cursor())
 
+    def cancel(self) -> None:
+        cursors: List[DatabricksSQLCursor] = self._conn._cursors
+
+        for cursor in cursors:
+            try:
+                cursor.cancel()
+            except DBSQLError as exc:
+                logger.debug("Exception while cancelling query: {}".format(exc))
+                _log_dbsql_errors(exc)
+
     def close(self) -> None:
-        self._conn.close()
+        try:
+            self._conn.close()
+        except DBSQLError as exc:
+            logger.debug("Exception while closing connection: {}".format(exc))
+            _log_dbsql_errors(exc)
 
     def rollback(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("NotImplemented: rollback")
