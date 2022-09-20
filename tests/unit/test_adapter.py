@@ -67,6 +67,25 @@ class TestDatabricksAdapter(unittest.TestCase):
             },
         )
 
+    def _get_target_databricks_sql_connector_http_header(self, project, http_header):
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
+                        "connection_parameters": {"http_headers": http_header},
+                    }
+                },
+                "target": "test",
+            },
+        )
+
     def test_two_catalog_settings(self):
         with self.assertRaisesRegex(
             dbt.exceptions.DbtProfileError,
@@ -140,6 +159,18 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
+    def test_invalid_http_headers(self):
+        def test_http_headers(http_header):
+            with self.assertRaisesRegex(
+                dbt.exceptions.DbtProfileError,
+                "The connection parameter `http_headers` should be dict of strings.",
+            ):
+                self._get_target_databricks_sql_connector_http_header(self.project_cfg, http_header)
+
+        test_http_headers("a")
+        test_http_headers(["a", "b"])
+        test_http_headers({"a": 1, "b": 2})
+
     def test_invalid_custom_user_agent(self):
         with self.assertRaisesRegex(
             dbt.exceptions.ValidationException,
@@ -165,11 +196,14 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None):
+    def _connect_func(
+        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
+    ):
         def connect(
             server_hostname,
             http_path,
             access_token,
+            http_headers,
             session_configuration,
             catalog,
             _user_agent_entry,
@@ -189,6 +223,10 @@ class TestDatabricksAdapter(unittest.TestCase):
                 )
             else:
                 self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+            if expected_http_headers is None:
+                self.assertIsNone(http_headers)
+            else:
+                self.assertEqual(http_headers, expected_http_headers)
 
         return connect
 
@@ -239,6 +277,35 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(connection.credentials.schema, "analytics")
             self.assertEqual(connection.credentials.database, "main")
+
+    def test_databricks_sql_connector_http_header_connection(self):
+        self._test_databricks_sql_connector_http_header_connection(
+            {"aaa": "xxx"}, self._connect_func(expected_http_headers=[("aaa", "xxx")])
+        )
+        self._test_databricks_sql_connector_http_header_connection(
+            {"aaa": "xxx", "bbb": "yyy"},
+            self._connect_func(expected_http_headers=[("aaa", "xxx"), ("bbb", "yyy")]),
+        )
+
+    def _test_databricks_sql_connector_http_header_connection(self, http_headers, connect):
+        config = self._get_target_databricks_sql_connector_http_header(
+            self.project_cfg, http_headers
+        )
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+
+            self.assertEqual(connection.state, "open")
+            self.assertIsNotNone(connection.handle)
+            self.assertEqual(
+                connection.credentials.http_path,
+                "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(connection.credentials.schema, "analytics")
+            self.assertIsNone(connection.credentials.database)
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None
