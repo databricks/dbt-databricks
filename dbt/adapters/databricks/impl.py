@@ -69,6 +69,19 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig
 
+    @available.parse(lambda *a, **k: 0)
+    def dbr_version_compare(self, major: int, minor: int) -> int:
+        """
+        Returns the comparison result between the version of the cluster and the specified version.
+
+        - positive number if the cluster version is greater than the specified version.
+        - 0 if the versions are the same
+        - negative number if the cluster version is less than the specified version.
+
+        Always returns positive number if trying to connect to SQL Warehouse.
+        """
+        return self.connections.dbr_version_compare(major, minor)
+
     def list_schemas(self, database: Optional[str]) -> List[str]:
         """
         Get a list of existing schemas in database.
