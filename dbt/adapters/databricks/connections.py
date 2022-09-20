@@ -99,6 +99,16 @@ class DatabricksCredentials(Credentials):
                 raise dbt.exceptions.ValidationException(
                     f"The connection parameter `{key}` is reserved."
                 )
+        if "http_headers" in connection_parameters:
+            http_headers = connection_parameters["http_headers"]
+            if not isinstance(http_headers, dict) or any(
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in http_headers.items()
+            ):
+                raise dbt.exceptions.ValidationException(
+                    "The connection parameter `http_headers` should be dict of strings: "
+                    f"{http_headers}."
+                )
         self.connection_parameters = connection_parameters
 
     @property
@@ -371,27 +381,32 @@ class DatabricksConnectionManager(SparkConnectionManager):
             cls.validate_invocation_env(invocation_env)
             user_agent_entry = f"{user_agent_entry}; {invocation_env}"
 
+        if creds.http_path is None:
+            raise dbt.exceptions.DbtProfileError(
+                "`http_path` must set when" " using the dbsql method to connect to Databricks"
+            )
+        required_fields = ["host", "http_path", "token"]
+
+        cls.validate_creds(creds, required_fields)
+
+        connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
+        http_headers: List[Tuple[str, str]] = list(
+            connection_parameters.pop("http_headers", {}).items()
+        )
+
         for i in range(1 + creds.connect_retries):
             try:
-                if creds.http_path is None:
-                    raise dbt.exceptions.DbtProfileError(
-                        "`http_path` must set when"
-                        " using the dbsql method to connect to Databricks"
-                    )
-                required_fields = ["host", "http_path", "token"]
-
-                cls.validate_creds(creds, required_fields)
-
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
                     access_token=creds.token,
+                    http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
-                    **creds.connection_parameters,
+                    **connection_parameters,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
