@@ -211,7 +211,7 @@ class DatabricksSQLConnectionWrapper:
             if self._is_cluster:
                 with self._conn.cursor() as cursor:
                     cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
-                    dbr_version = cursor.fetchone()[1]
+                    dbr_version: str = cursor.fetchone()[1]
 
                 m = DBR_VERSION_REGEX.match(dbr_version)
                 assert m, f"Unknown DBR version: {dbr_version}"
@@ -219,7 +219,6 @@ class DatabricksSQLConnectionWrapper:
                 try:
                     minor = int(m.group(2))
                 except ValueError:
-                    # m.group(2) must be 'x'.
                     minor = sys.maxsize
                 self._dbr_version = (major, minor)
             else:
