@@ -55,14 +55,15 @@ EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.
 
 @dataclass
 class DatabricksCredentials(Credentials):
-    host: str
     database: Optional[str]  # type: ignore[assignment]
+    host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
-    connect_retries: int = 0
-    connect_timeout: int = 10
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
+
+    connect_retries: int = 0
+    connect_timeout: int = 10
     retry_all: bool = False
 
     _ALIASES = {
@@ -397,7 +398,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     @classmethod
     def validate_creds(cls, creds: DatabricksCredentials, required: List[str]) -> None:
         for key in required:
-            if not hasattr(creds, key):
+            if not getattr(creds, key):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
@@ -417,7 +418,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return connection
 
         creds: DatabricksCredentials = connection.credentials
-        exc: Optional[Exception] = None
+        cls.validate_creds(creds, ["host", "http_path", "token"])
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 
@@ -426,18 +427,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
             cls.validate_invocation_env(invocation_env)
             user_agent_entry = f"{user_agent_entry}; {invocation_env}"
 
-        if creds.http_path is None:
-            raise dbt.exceptions.DbtProfileError(
-                "`http_path` must set when" " using the dbsql method to connect to Databricks"
-            )
-        required_fields = ["host", "http_path", "token"]
-
-        cls.validate_creds(creds, required_fields)
-
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
         http_headers: List[Tuple[str, str]] = list(
             connection_parameters.pop("http_headers", {}).items()
         )
+
+        exc: Optional[Exception] = None
 
         for i in range(1 + creds.connect_retries):
             try:
