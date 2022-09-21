@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    cast,
 )
 
 from agate import Table
@@ -130,7 +131,7 @@ class DatabricksCredentials(Credentials):
 
     @property
     def unique_field(self) -> str:
-        return self.host
+        return cast(str, self.host)
 
     def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
