@@ -212,7 +212,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             ],
         )
 
-    def test_environment_users_http_headers_intersection(self):
+    def test_environment_users_http_headers_intersection_error(self):
         with self.assertRaisesRegex(
             dbt.exceptions.ValidationException,
             r"Intersection with reserved http_headers in keys: {'t'}",
@@ -222,6 +222,17 @@ class TestDatabricksAdapter(unittest.TestCase):
                 expected_http_headers=[],
                 user_http_headers={"t": "test", "nothing": "nothing"},
             )
+
+    def test_environment_users_http_headers_union_success(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"t":{"jobId":1,"runId":12123},"d":{"jobId":1,"runId":12123}}',
+            user_http_headers={"nothing": "nothing"},
+            expected_http_headers=[
+                ("t", '{"jobId": 1, "runId": 12123}'),
+                ("d", '{"jobId": 1, "runId": 12123}'),
+                ("nothing", "nothing"),
+            ],
+        )
 
     def _test_environment_http_headers(
         self, http_headers_str, expected_http_headers, user_http_headers=None
