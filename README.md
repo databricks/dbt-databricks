@@ -60,10 +60,10 @@ your_profile_name:
 
 ### Quick Starts
 These following quick starts will get you up and running with the `dbt-databricks` adapter:
-- [Developing your first dbt project](/docs/local-dev.md)
+- [Developing your first dbt project](https://github.com/databricks/dbt-databricks/blob/main/docs/local-dev.md)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
-- [Running dbt production jobs on Databricks Workflows](/docs/databricks-workflows.md)
-- [Using GitHub Actions for dbt CI/CD on Databricks](/docs/github-actions.md)
+- [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
+- [Using GitHub Actions for dbt CI/CD on Databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/github-actions.md)
 
 ### Compatibility
 
