@@ -288,7 +288,9 @@ class DatabricksAdapter(SparkAdapter):
         command_name += "-" + str(uuid.uuid1())
 
         api_client = Api12Client(
-            host=credentials.host, token=cast(str, credentials.token), command_name=command_name
+            host=cast(str, credentials.host),
+            token=cast(str, credentials.token),
+            command_name=command_name,
         )
 
         try:
