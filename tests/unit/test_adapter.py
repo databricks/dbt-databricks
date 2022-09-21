@@ -197,50 +197,58 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def test_http_headers(self):
-        config = self._get_target_databricks_sql_connector(self.project_cfg)
-        adapter = DatabricksAdapter(config)
-
-        http_session_headers = '{"test":{"jobId":1,"runId":12123}}'
-
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
-            new=self._connect_func(
-                expected_http_session_headers=[("test", '{"jobId": 1, "runId": 12123}')]
-            ),
-        ):
-            with mock.patch.dict(
-                "os.environ",
-                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_session_headers},
-            ):
-                connection = adapter.acquire_connection("dummy")
-                connection.handle  # trigger lazy-load
-
-    def test_multiple_http_headers(self):
-        config = self._get_target_databricks_sql_connector(self.project_cfg)
-        adapter = DatabricksAdapter(config)
-
-        http_session_headers = (
-            '{"test":{"jobId":1,"runId":12123},"dummy":{"jobId":1,"runId":12123}}'
+    def test_environment_single_http_header(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"test":{"jobId":1,"runId":12123}}',
+            expected_http_headers=[("test", '{"jobId": 1, "runId": 12123}')],
         )
 
+    def test_environment_multiple_http_headers(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"test":{"jobId":1,"runId":12123},"dummy":{"jobId":1,"runId":12123}}',
+            expected_http_headers=[
+                ("test", '{"jobId": 1, "runId": 12123}'),
+                ("dummy", '{"jobId": 1, "runId": 12123}'),
+            ],
+        )
+
+    def test_environment_users_http_headers_intersection(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.ValidationException,
+            r"Intersection with reserved http_headers in keys: {'t'}",
+        ):
+            self._test_environment_http_headers(
+                http_headers_str='{"t":{"jobId":1,"runId":12123},"d":{"jobId":1,"runId":12123}}',
+                expected_http_headers=[],
+                user_http_headers={"t": "test", "nothing": "nothing"},
+            )
+
+    def _test_environment_http_headers(
+        self, http_headers_str, expected_http_headers, user_http_headers=None
+    ):
+        if user_http_headers:
+            config = self._get_target_databricks_sql_connector_http_header(
+                self.project_cfg, user_http_headers
+            )
+        else:
+            config = self._get_target_databricks_sql_connector(self.project_cfg)
+
+        adapter = DatabricksAdapter(config)
+
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
-            new=self._connect_func(
-                expected_http_headers=[
-                    ("test", '{"jobId": 1, "runId": 12123}'),
-                    ("dummy", '{"jobId": 1, "runId": 12123}'),
-                ]
-            ),
+            new=self._connect_func(expected_http_headers=expected_http_headers),
         ):
             with mock.patch.dict(
                 "os.environ",
-                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_session_headers},
+                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None):
+    def _connect_func(
+        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
+    ):
         def connect(
             server_hostname,
             http_path,

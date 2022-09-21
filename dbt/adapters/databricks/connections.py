@@ -417,9 +417,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         cls,
         connection_parameters: Optional[Dict[str, Any]],
         http_session_headers_str: Optional[str],
-    ) -> Optional[List[Tuple[str, str]]]:
+    ) -> List[Tuple[str, str]]:
         user_http_session_headers: Dict[str, str] = (
-            dict(connection_parameters.get("http_headers", []))
+            connection_parameters.pop("http_headers", {})
             if connection_parameters is not None
             else {}
         )
@@ -440,9 +440,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
 
         http_session_headers_dict.update(user_http_session_headers)
-
-        if len(http_session_headers_dict) == 0:
-            return None
 
         return list(http_session_headers_dict.items())
 
@@ -467,19 +464,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 "`http_path` must set when" " using the dbsql method to connect to Databricks"
             )
         required_fields = ["host", "http_path", "token"]
+
+        cls.validate_creds(creds, required_fields)
+
         http_session_headers_str: Optional[str] = os.environ.get(
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
 
-        http_session_headers: Optional[List[Tuple[str, str]]] = cls.get_all_http_headers(
-            creds.connection_parameters, http_session_headers_str
-        )
-
-        cls.validate_creds(creds, required_fields)
-
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
-        http_headers: List[Tuple[str, str]] = list(
-            connection_parameters.pop("http_headers", {}).items()
+
+        http_headers: List[Tuple[str, str]] = cls.get_all_http_headers(
+            connection_parameters, http_session_headers_str
         )
 
         for i in range(1 + creds.connect_retries):
@@ -494,11 +489,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     catalog=creds.database,
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
-                    **creds.connection_parameters,
+                    **connection_parameters,
                 )
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:
+                print(e)
                 exc = e
                 if isinstance(e, EOFError):
                     # The user almost certainly has invalid credentials.
