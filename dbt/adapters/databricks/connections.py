@@ -494,7 +494,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:
-                print(e)
                 exc = e
                 if isinstance(e, EOFError):
                     # The user almost certainly has invalid credentials.
