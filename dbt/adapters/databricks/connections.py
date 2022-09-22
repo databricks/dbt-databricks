@@ -1,3 +1,4 @@
+import json
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ logger = AdapterLogger("Databricks")
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
+DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 
 @dataclass
@@ -407,6 +409,33 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
 
     @classmethod
+    def get_all_http_headers(
+        cls, user_http_session_headers: Dict[str, str]
+    ) -> List[Tuple[str, str]]:
+        http_session_headers_str: Optional[str] = os.environ.get(
+            DBT_DATABRICKS_HTTP_SESSION_HEADERS
+        )
+
+        http_session_headers_dict: Dict[str, str] = (
+            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
+            if http_session_headers_str is not None
+            else {}
+        )
+
+        intersect_http_header_keys = (
+            user_http_session_headers.keys() & http_session_headers_dict.keys()
+        )
+
+        if len(intersect_http_header_keys) > 0:
+            raise dbt.exceptions.ValidationException(
+                f"Intersection with reserved http_headers in keys: {intersect_http_header_keys}"
+            )
+
+        http_session_headers_dict.update(user_http_session_headers)
+
+        return list(http_session_headers_dict.items())
+
+    @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
@@ -431,8 +460,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         cls.validate_creds(creds, required_fields)
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
-        http_headers: List[Tuple[str, str]] = list(
-            connection_parameters.pop("http_headers", {}).items()
+
+        http_headers: List[Tuple[str, str]] = cls.get_all_http_headers(
+            connection_parameters.pop("http_headers", {})
         )
 
         for i in range(1 + creds.connect_retries):
