@@ -414,14 +414,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def get_all_http_headers(
-        cls,
-        connection_parameters: Optional[Dict[str, Any]],
-        http_session_headers_str: Optional[str],
+        cls, user_http_session_headers: Dict[str, str]
     ) -> List[Tuple[str, str]]:
-        user_http_session_headers: Dict[str, str] = (
-            connection_parameters.pop("http_headers", {})
-            if connection_parameters is not None
-            else {}
+        http_session_headers_str: Optional[str] = os.environ.get(
+            DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
 
         http_session_headers_dict: Dict[str, str] = (
@@ -467,14 +463,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         cls.validate_creds(creds, required_fields)
 
-        http_session_headers_str: Optional[str] = os.environ.get(
-            DBT_DATABRICKS_HTTP_SESSION_HEADERS
-        )
-
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         http_headers: List[Tuple[str, str]] = cls.get_all_http_headers(
-            connection_parameters, http_session_headers_str
+            connection_parameters.pop("http_headers", {})
         )
 
         for i in range(1 + creds.connect_retries):
@@ -494,7 +486,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 handle = DatabricksSQLConnectionWrapper(conn)
                 break
             except Exception as e:
-                print(e)
                 exc = e
                 if isinstance(e, EOFError):
                     # The user almost certainly has invalid credentials.
