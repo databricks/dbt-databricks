@@ -175,16 +175,20 @@ class DatabricksSQLConnectionWrapper:
 
     _conn: DatabricksSQLConnection
     _is_cluster: bool
+    _cursors: List[DatabricksSQLCursor]
 
     def __init__(self, conn: DatabricksSQLConnection, *, is_cluster: bool):
         self._conn = conn
         self._is_cluster = is_cluster
+        self._cursors = []
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
-        return DatabricksSQLCursorWrapper(self._conn.cursor())
+        cursor = self._conn.cursor()
+        self._cursors.append(cursor)
+        return DatabricksSQLCursorWrapper(cursor)
 
     def cancel(self) -> None:
-        cursors: List[DatabricksSQLCursor] = self._conn._cursors
+        cursors: List[DatabricksSQLCursor] = self._cursors
 
         for cursor in cursors:
             try:
