@@ -70,7 +70,7 @@ class DatabricksAdapter(SparkAdapter):
     AdapterSpecificConfigs = DatabricksConfig
 
     @available.parse(lambda *a, **k: 0)
-    def dbr_version_compare(self, major: int, minor: int) -> int:
+    def compare_dbr_version(self, major: int, minor: int) -> int:
         """
         Returns the comparison result between the version of the cluster and the specified version.
 
@@ -80,7 +80,7 @@ class DatabricksAdapter(SparkAdapter):
 
         Always returns positive number if trying to connect to SQL Warehouse.
         """
-        return self.connections.dbr_version_compare(major, minor)
+        return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
         """

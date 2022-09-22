@@ -337,7 +337,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
 
-    def dbr_version_compare(self, major: int, minor: int) -> int:
+    def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
 
         connection: DatabricksSQLConnectionWrapper = self.get_thread_connection().handle
