@@ -127,15 +127,19 @@ class DatabricksSQLConnectionWrapper:
     """Wrap a Databricks SQL connector in a way that no-ops transactions"""
 
     _conn: DatabricksSQLConnection
+    _cursors: List[DatabricksSQLCursor]
 
     def __init__(self, conn: DatabricksSQLConnection):
         self._conn = conn
+        self._cursors = []
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
-        return DatabricksSQLCursorWrapper(self._conn.cursor())
+        cursor = self._conn.cursor()
+        self._cursors.append(cursor)
+        return DatabricksSQLCursorWrapper(cursor)
 
     def cancel(self) -> None:
-        cursors: List[DatabricksSQLCursor] = self._conn._cursors
+        cursors: List[DatabricksSQLCursor] = self._cursors
 
         for cursor in cursors:
             try:
