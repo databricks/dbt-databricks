@@ -7,6 +7,7 @@ from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonIncrementalTests,
     BasePythonModelTests,
 )
+from dbt.tests.adapter.python_model.test_spark import BasePySparkTests
 
 
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
@@ -64,3 +65,8 @@ class TestChangingSchemaDatabricks:
             assert "On model.test.simple_python_model:" in log
             assert "spark.createDataFrame(data, schema=['test1', 'test3'])" in log
             assert "Execution status: OK in" in log
+
+
+@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+class TestPySparkDatabricks(BasePySparkTests):
+    pass
