@@ -251,6 +251,10 @@ class DatabricksAdapter(SparkAdapter):
         return ["append", "merge", "insert_overwrite"]
 
     @property
+    def default_python_submission_method(self) -> str:
+        return "commands"
+
+    @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
         return {"commands": CommandApiPythonJobHelper}
 

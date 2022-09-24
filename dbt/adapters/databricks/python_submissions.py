@@ -14,7 +14,6 @@ from dbt.adapters.databricks.connections import DatabricksCredentials, DBT_DATAB
 
 class CommandApiPythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
-    cluster_id: str
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         super().__init__(
@@ -28,15 +27,14 @@ class CommandApiPythonJobHelper(BaseDatabricksHelper):
         command_name += "-" + str(uuid.uuid1())
 
         self.api_client = Api12Client(
-            host=credentials.host, token=cast(str, credentials.token), command_name=command_name
+            host=cast(str, credentials.host),
+            token=cast(str, credentials.token),
+            command_name=command_name,
         )
 
-    def check_credentials(  # type: ignore[override]
-        self, credentials: DatabricksCredentials
-    ) -> None:
-        if not credentials.cluster_id:
+    def check_credentials(self) -> None:
+        if not self.cluster_id:
             raise ValueError("Databricks cluster is required for commands submission method.")
-        self.cluster_id = credentials.cluster_id
 
     def submit(self, compiled_code: str) -> None:
         cluster_id = self.cluster_id
