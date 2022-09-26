@@ -24,14 +24,23 @@ class TestCopyInto(DBTIntegrationTest):
     def test_copy_into(self):
         self.run_dbt(["run"])
         # Get the location of the source table.
-        rows = self.run_sql("describe table extended {database_schema}.source", fetch="all")
+        rows = self.run_sql(
+            "describe table extended {database_schema}.source", fetch="all"
+        )
         path = None
         for row in rows:
-            if row.col_name == 'Location':
+            if row.col_name == "Location":
                 path = row.data_type
         if path is None:
             raise Exception("No location found for the source table")
-        self.run_dbt(["run-operation", "databricks_copy_into", "--args", args.format(source_path=path)])
+        self.run_dbt(
+            [
+                "run-operation",
+                "databricks_copy_into",
+                "--args",
+                args.format(source_path=path),
+            ]
+        )
         self.assertTablesEqual("target", "expected_target")
 
     @use_profile("databricks_cluster")
