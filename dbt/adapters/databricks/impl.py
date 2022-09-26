@@ -8,6 +8,7 @@ from agate import Row, Table
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -58,6 +59,19 @@ class DatabricksAdapter(SparkAdapter):
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
+
+    @available.parse(lambda *a, **k: 0)
+    def compare_dbr_version(self, major: int, minor: int) -> int:
+        """
+        Returns the comparison result between the version of the cluster and the specified version.
+
+        - positive number if the cluster version is greater than the specified version.
+        - 0 if the versions are the same
+        - negative number if the cluster version is less than the specified version.
+
+        Always returns positive number if trying to connect to SQL Warehouse.
+        """
+        return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
         """

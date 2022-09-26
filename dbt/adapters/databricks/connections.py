@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import itertools
 import os
 import re
+import sys
 import time
 from typing import (
     Any,
@@ -50,6 +51,7 @@ from databricks.sql.exc import Error as DBSQLError
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
@@ -176,10 +178,12 @@ class DatabricksSQLConnectionWrapper:
     """Wrap a Databricks SQL connector in a way that no-ops transactions"""
 
     _conn: DatabricksSQLConnection
+    _is_cluster: bool
     _cursors: List[DatabricksSQLCursor]
 
-    def __init__(self, conn: DatabricksSQLConnection):
+    def __init__(self, conn: DatabricksSQLConnection, *, is_cluster: bool):
         self._conn = conn
+        self._is_cluster = is_cluster
         self._cursors = []
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
@@ -206,6 +210,30 @@ class DatabricksSQLConnectionWrapper:
 
     def rollback(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("NotImplemented: rollback")
+
+    _dbr_version: Tuple[int, int]
+
+    @property
+    def dbr_version(self) -> Tuple[int, int]:
+        if not hasattr(self, "_dbr_version"):
+            if self._is_cluster:
+                with self._conn.cursor() as cursor:
+                    cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
+                    dbr_version: str = cursor.fetchone()[1]
+
+                m = DBR_VERSION_REGEX.match(dbr_version)
+                assert m, f"Unknown DBR version: {dbr_version}"
+                major = int(m.group(1))
+                try:
+                    minor = int(m.group(2))
+                except ValueError:
+                    minor = sys.maxsize
+                self._dbr_version = (major, minor)
+            else:
+                # Assuming SQL Warehouse uses the latest version.
+                self._dbr_version = (sys.maxsize, sys.maxsize)
+
+        return self._dbr_version
 
 
 class DatabricksSQLCursorWrapper:
@@ -312,6 +340,13 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
+
+    def compare_dbr_version(self, major: int, minor: int) -> int:
+        version = (major, minor)
+
+        connection: DatabricksSQLConnectionWrapper = self.get_thread_connection().handle
+        dbr_version = connection.dbr_version
+        return (dbr_version > version) - (dbr_version < version)
 
     def set_query_header(self, manifest: Manifest) -> None:
         self.query_header = DatabricksMacroQueryStringSetter(self.profile, manifest)
@@ -483,7 +518,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
-                handle = DatabricksSQLConnectionWrapper(conn)
+                handle = DatabricksSQLConnectionWrapper(
+                    conn, is_cluster=creds.cluster_id is not None
+                )
                 break
             except Exception as e:
                 exc = e

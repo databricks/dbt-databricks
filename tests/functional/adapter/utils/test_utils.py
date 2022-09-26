@@ -22,7 +22,12 @@ from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 
 # requires modification
 from dbt.tests.adapter.utils.test_listagg import BaseListagg
+from dbt.tests.adapter.utils.fixture_dateadd import models__test_dateadd_yml
 from dbt.tests.adapter.utils.fixture_listagg import models__test_listagg_yml
+from tests.functional.adapter.utils.fixture_dateadd import (
+    models__test_dateadd_sql,
+    seeds__data_dateadd_csv,
+)
 from tests.functional.adapter.utils.fixture_listagg import models__test_listagg_no_order_by_sql
 
 
@@ -43,11 +48,20 @@ class TestConcat(BaseConcat):
 
 
 class TestDateAdd(BaseDateAdd):
-    pass
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"data_dateadd.csv": seeds__data_dateadd_csv}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "test_dateadd.yml": models__test_dateadd_yml,
+            "test_dateadd.sql": self.interpolate_macro_namespace(
+                models__test_dateadd_sql, "dateadd"
+            ),
+        }
 
 
-# This test generates a super long create table sentence that exceeds HiveMetastore's limit
-@pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
 class TestDateDiff(BaseDateDiff):
     pass
 
