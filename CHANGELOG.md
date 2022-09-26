@@ -1,4 +1,4 @@
-## dbt-databricks 1.1.5 (Release TBD)
+## dbt-databricks 1.1.5 (September 26, 2022)
 
 ### Fixes
 - Fix cancellation ([#173](https://github.com/databricks/dbt-databricks/pull/173))
