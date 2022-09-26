@@ -26,7 +26,10 @@ from dbt.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
-from dbt.adapters.databricks.python_submissions import CommandApiPythonJobHelper
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksAllPurposeClusterPythonJobHelper,
+    DbtDatabricksJobClusterPythonJobHelper,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import undefined_proof
 
@@ -265,12 +268,11 @@ class DatabricksAdapter(SparkAdapter):
         return ["append", "merge", "insert_overwrite"]
 
     @property
-    def default_python_submission_method(self) -> str:
-        return "commands"
-
-    @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
-        return {"commands": CommandApiPythonJobHelper}
+        return {
+            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
+            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+        }
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:

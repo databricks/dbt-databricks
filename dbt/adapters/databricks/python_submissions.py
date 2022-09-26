@@ -1,18 +1,16 @@
-import os
-from typing import Dict, cast
-import uuid
+from typing import Dict, Optional
 
-from requests import HTTPError
-
-import dbt.exceptions
-from dbt.adapters.spark.python_submissions import BaseDatabricksHelper
+from dbt.adapters.spark.python_submissions import (
+    AllPurposeClusterPythonJobHelper,
+    BaseDatabricksHelper,
+    JobClusterPythonJobHelper,
+)
 
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.api_client import Api12Client
-from dbt.adapters.databricks.connections import DatabricksCredentials, DBT_DATABRICKS_INVOCATION_ENV
+from dbt.adapters.databricks.connections import DatabricksCredentials
 
 
-class CommandApiPythonJobHelper(BaseDatabricksHelper):
+class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
@@ -20,56 +18,48 @@ class CommandApiPythonJobHelper(BaseDatabricksHelper):
             parsed_model=parsed_model, credentials=credentials  # type: ignore[arg-type]
         )
 
-        command_name = f"dbt-databricks_{version}"
-        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
-        if invocation_env is not None and len(invocation_env) > 0:
-            command_name = f"{command_name}-{invocation_env}"
-        command_name += "-" + str(uuid.uuid1())
+        user_agent = f"dbt-databricks/{version}"
 
-        self.api_client = Api12Client(
-            host=cast(str, credentials.host),
-            token=cast(str, credentials.token),
-            command_name=command_name,
+        invocation_env = credentials.get_invocation_env()
+        if invocation_env:
+            user_agent = f"{user_agent} ({invocation_env})"
+
+        connection_parameters = credentials.connection_parameters.copy()  # type: ignore[union-attr]
+
+        http_headers: Dict[str, str] = credentials.get_all_http_headers(
+            connection_parameters.pop("http_headers", {})
         )
 
+        self.auth_header.update({"User-Agent": user_agent, **http_headers})
+
+    @property
+    def cluster_id(self) -> Optional[str]:  # type: ignore[override]
+        return self.parsed_model.get(
+            "cluster_id",
+            self.credentials.extract_cluster_id(
+                self.parsed_model.get("http_path", self.credentials.http_path)
+            ),
+        )
+
+
+class DbtDatabricksJobClusterPythonJobHelper(
+    DbtDatabricksBasePythonJobHelper, JobClusterPythonJobHelper
+):
     def check_credentials(self) -> None:
+        self.credentials.validate_creds()
+        if not self.parsed_model["config"].get("job_cluster_config", None):
+            raise ValueError(
+                "`job_cluster_config` is required for `job_cluster` submission method."
+            )
+
+
+class DbtDatabricksAllPurposeClusterPythonJobHelper(
+    DbtDatabricksBasePythonJobHelper, AllPurposeClusterPythonJobHelper
+):
+    def check_credentials(self) -> None:
+        self.credentials.validate_creds()
         if not self.cluster_id:
-            raise ValueError("Databricks cluster is required for commands submission method.")
-
-    def submit(self, compiled_code: str) -> None:
-        cluster_id = self.cluster_id
-
-        try:
-            # Create an execution context
-            context_id = self.api_client.Context.create(cluster_id)
-
-            try:
-                # Run a command
-                command_id = self.api_client.Command.execute(
-                    cluster_id=cluster_id,
-                    context_id=context_id,
-                    command=compiled_code,
-                )
-
-                # poll until job finish
-                response = self.polling(
-                    status_func=self.api_client.Command.status,
-                    status_func_kwargs=dict(
-                        cluster_id=cluster_id, context_id=context_id, command_id=command_id
-                    ),
-                    get_state_func=lambda response: response["status"],
-                    terminal_states=("Cancelled", "Error", "Finished"),
-                    expected_end_state="Finished",
-                    get_state_msg_func=lambda response: response.json()["results"]["data"],
-                )
-                if response["results"]["resultType"] == "error":
-                    raise dbt.exceptions.RuntimeException(
-                        f"Python model failed with traceback as:\n"
-                        f"{response['results']['cause']}"
-                    )
-            finally:
-                # Delete the execution context
-                self.api_client.Context.destroy(cluster_id=cluster_id, context_id=context_id)
-
-        except HTTPError as e:
-            raise dbt.exceptions.RuntimeException(str(e)) from e
+            raise ValueError(
+                "Databricks `http_path` or `cluster_id` of all-purpose cluster is required "
+                "for `all_purpose_cluster` submission method."
+            )
