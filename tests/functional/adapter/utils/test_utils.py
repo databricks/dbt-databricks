@@ -7,6 +7,7 @@ from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
 from dbt.tests.adapter.utils.test_concat import BaseConcat
+from dbt.tests.adapter.utils.test_current_timestamp import BaseCurrentTimestampAware
 from dbt.tests.adapter.utils.test_dateadd import BaseDateAdd
 from dbt.tests.adapter.utils.test_datediff import BaseDateDiff
 from dbt.tests.adapter.utils.test_date_trunc import BaseDateTrunc
@@ -59,6 +60,10 @@ class TestCastBoolToText(BaseCastBoolToText):
 
 
 class TestConcat(BaseConcat):
+    pass
+
+
+class TestCurrentTimestamp(BaseCurrentTimestampAware):
     pass
 
 
