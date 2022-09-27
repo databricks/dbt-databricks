@@ -24,9 +24,7 @@ class TestCopyInto(DBTIntegrationTest):
     def test_copy_into(self):
         self.run_dbt(["run"])
         # Get the location of the source table.
-        rows = self.run_sql(
-            "describe table extended {database_schema}.source", fetch="all"
-        )
+        rows = self.run_sql("describe table extended {database_schema}.source", fetch="all")
         path = None
         for row in rows:
             if row.col_name == "Location":
