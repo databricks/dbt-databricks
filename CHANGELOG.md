@@ -6,6 +6,7 @@
 - Use builtin timestampadd and timestampdiff functions for dateadd/datediff macros if available ([#185](https://github.com/databricks/dbt-databricks/pull/185))
 - Implement testing for a test for various Python models ([#189](https://github.com/databricks/dbt-databricks/pull/189))
 - Implement testing for `type_boolean` in Databricks ([dbt-labs/dbt-spark#471](https://github.com/dbt-labs/dbt-spark/pull/471), [#188](https://github.com/databricks/dbt-databricks/pull/188))
+- Add a macro to support [COPY INTO](https://docs.databricks.com/spark/latest/spark-sql/language-manual/delta-copy-into.html) ([#190](https://github.com/databricks/dbt-databricks/pull/190))
 
 ### Under the hood
 - Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
