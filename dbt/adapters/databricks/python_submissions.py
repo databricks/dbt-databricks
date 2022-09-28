@@ -60,6 +60,6 @@ class DbtDatabricksAllPurposeClusterPythonJobHelper(
         self.credentials.validate_creds()
         if not self.cluster_id:
             raise ValueError(
-                "Databricks `http_path` or `cluster_id` of all-purpose cluster is required "
-                "for `all_purpose_cluster` submission method."
+                "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
+                "for the `all_purpose_cluster` submission method."
             )
