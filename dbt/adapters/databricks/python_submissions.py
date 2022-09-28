@@ -34,10 +34,10 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
 
     @property
     def cluster_id(self) -> Optional[str]:  # type: ignore[override]
-        return self.parsed_model.get(
+        return self.parsed_model["config"].get(
             "cluster_id",
             self.credentials.extract_cluster_id(
-                self.parsed_model.get("http_path", self.credentials.http_path)
+                self.parsed_model["config"].get("http_path", self.credentials.http_path)
             ),
         )
 
