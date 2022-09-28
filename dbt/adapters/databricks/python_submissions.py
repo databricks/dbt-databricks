@@ -49,7 +49,7 @@ class DbtDatabricksJobClusterPythonJobHelper(
         self.credentials.validate_creds()
         if not self.parsed_model["config"].get("job_cluster_config", None):
             raise ValueError(
-                "`job_cluster_config` is required for `job_cluster` submission method."
+                "`job_cluster_config` is required for the `job_cluster` submission method."
             )
 
 
