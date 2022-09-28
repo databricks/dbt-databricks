@@ -129,6 +129,50 @@ class DatabricksCredentials(Credentials):
                 )
         self.connection_parameters = connection_parameters
 
+    def validate_creds(self) -> None:
+        for key in ["host", "http_path", "token"]:
+            if not getattr(self, key):
+                raise dbt.exceptions.DbtProfileError(
+                    "The config '{}' is required to connect to Databricks".format(key)
+                )
+
+    @classmethod
+    def get_invocation_env(cls) -> Optional[str]:
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        if invocation_env:
+            # Thrift doesn't allow nested () so we need to ensure
+            # that the passed user agent is valid.
+            if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
+                raise dbt.exceptions.ValidationException(
+                    f"Invalid invocation environment: {invocation_env}"
+                )
+        return invocation_env
+
+    @classmethod
+    def get_all_http_headers(cls, user_http_session_headers: Dict[str, str]) -> Dict[str, str]:
+        http_session_headers_str: Optional[str] = os.environ.get(
+            DBT_DATABRICKS_HTTP_SESSION_HEADERS
+        )
+
+        http_session_headers_dict: Dict[str, str] = (
+            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
+            if http_session_headers_str is not None
+            else {}
+        )
+
+        intersect_http_header_keys = (
+            user_http_session_headers.keys() & http_session_headers_dict.keys()
+        )
+
+        if len(intersect_http_header_keys) > 0:
+            raise dbt.exceptions.ValidationException(
+                f"Intersection with reserved http_headers in keys: {intersect_http_header_keys}"
+            )
+
+        http_session_headers_dict.update(user_http_session_headers)
+
+        return http_session_headers_dict
+
     @property
     def type(self) -> str:
         return "databricks"
@@ -165,13 +209,17 @@ class DatabricksCredentials(Credentials):
             connection_keys.append("session_properties")
         return tuple(connection_keys)
 
-    @property
-    def cluster_id(self) -> Optional[str]:
-        m = EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX.match(self.http_path)  # type: ignore[arg-type]
+    @classmethod
+    def extract_cluster_id(cls, http_path: str) -> Optional[str]:
+        m = EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX.match(http_path)
         if m:
             return m.group(1).strip()
         else:
             return None
+
+    @property
+    def cluster_id(self) -> Optional[str]:
+        return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
 
 class DatabricksSQLConnectionWrapper:
@@ -438,68 +486,24 @@ class DatabricksConnectionManager(SparkConnectionManager):
         )
 
     @classmethod
-    def validate_creds(cls, creds: DatabricksCredentials, required: List[str]) -> None:
-        for key in required:
-            if not getattr(creds, key):
-                raise dbt.exceptions.DbtProfileError(
-                    "The config '{}' is required to connect to Databricks".format(key)
-                )
-
-    @classmethod
-    def validate_invocation_env(cls, invocation_env: str) -> None:
-        # Thrift doesn't allow nested () so we need to ensure that the passed user agent is valid
-        if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
-            raise dbt.exceptions.ValidationException(
-                f"Invalid invocation environment: {invocation_env}"
-            )
-
-    @classmethod
-    def get_all_http_headers(
-        cls, user_http_session_headers: Dict[str, str]
-    ) -> List[Tuple[str, str]]:
-        http_session_headers_str: Optional[str] = os.environ.get(
-            DBT_DATABRICKS_HTTP_SESSION_HEADERS
-        )
-
-        http_session_headers_dict: Dict[str, str] = (
-            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
-            if http_session_headers_str is not None
-            else {}
-        )
-
-        intersect_http_header_keys = (
-            user_http_session_headers.keys() & http_session_headers_dict.keys()
-        )
-
-        if len(intersect_http_header_keys) > 0:
-            raise dbt.exceptions.ValidationException(
-                f"Intersection with reserved http_headers in keys: {intersect_http_header_keys}"
-            )
-
-        http_session_headers_dict.update(user_http_session_headers)
-
-        return list(http_session_headers_dict.items())
-
-    @classmethod
     def open(cls, connection: Connection) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
 
         creds: DatabricksCredentials = connection.credentials
-        cls.validate_creds(creds, ["host", "http_path", "token"])
+        creds.validate_creds()
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 
-        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
-        if invocation_env is not None and len(invocation_env) > 0:
-            cls.validate_invocation_env(invocation_env)
+        invocation_env = creds.get_invocation_env()
+        if invocation_env:
             user_agent_entry = f"{user_agent_entry}; {invocation_env}"
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
-        http_headers: List[Tuple[str, str]] = cls.get_all_http_headers(
-            connection_parameters.pop("http_headers", {})
+        http_headers: List[Tuple[str, str]] = list(
+            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
         exc: Optional[Exception] = None
