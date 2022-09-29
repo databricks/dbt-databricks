@@ -269,7 +269,7 @@ class DatabricksSQLConnectionWrapper:
                     cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
                     dbr_version: str = cursor.fetchone()[1]
 
-                m = DBR_VERSION_REGEX.match(dbr_version)
+                m = DBR_VERSION_REGEX.search(dbr_version)
                 assert m, f"Unknown DBR version: {dbr_version}"
                 major = int(m.group(1))
                 try:
