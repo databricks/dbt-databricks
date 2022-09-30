@@ -44,7 +44,3 @@ class TestCopyInto(DBTIntegrationTest):
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
         self.test_copy_into()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_copy_into()
