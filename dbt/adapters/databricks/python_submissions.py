@@ -18,6 +18,8 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
             parsed_model=parsed_model, credentials=credentials  # type: ignore[arg-type]
         )
 
+        self.database = parsed_model.get("database")
+
         user_agent = f"dbt-databricks/{version}"
 
         invocation_env = credentials.get_invocation_env()
@@ -40,6 +42,21 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
                 self.parsed_model["config"].get("http_path", self.credentials.http_path)
             ),
         )
+
+    def _work_dir(self, path: str) -> str:
+        if self.database:
+            return path.replace(f"/{self.schema}/", f"/{self.database}/{self.schema}/")
+        else:
+            return path
+
+    def _create_work_dir(self, path: str) -> None:
+        super()._create_work_dir(self._work_dir(path))
+
+    def _upload_notebook(self, path: str, compiled_code: str) -> None:
+        super()._upload_notebook(self._work_dir(path), compiled_code)
+
+    def _submit_job(self, path: str, cluster_spec: dict) -> str:
+        return super()._submit_job(self._work_dir(path), cluster_spec)
 
 
 class DbtDatabricksJobClusterPythonJobHelper(
