@@ -443,8 +443,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             log_sql = redact_credentials(sql)
             if abridge_sql_log:
                 log_sql = "{}...".format(log_sql[:512])
-            else:
-                log_sql = log_sql
 
             fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
             pre = time.time()
