@@ -53,7 +53,9 @@ class TestDatabricksUtils(unittest.TestCase):
             "      'KEY1' = 'VALUE1', 'KEY2' = 'VALUE2', 'KEY3' = 'VALUE3'\n"
             "    )\n"
             "  )\n"
-            "fileformat = parquet"
+            "fileformat = parquet\n"
+            "format_options ('mergeSchema' = 'True')\n"
+            "copy_options ('mergeSchema' = 'True')"
         )
         expected = (
             "copy into target_table\n"
@@ -61,6 +63,8 @@ class TestDatabricksUtils(unittest.TestCase):
             "  WITH (\n"
             "    credential ('KEY1' = '[REDACTED]', 'KEY2' = '[REDACTED]', 'KEY3' = '[REDACTED]')\n"
             "  )\n"
-            "fileformat = parquet"
+            "fileformat = parquet\n"
+            "format_options ('mergeSchema' = 'True')\n"
+            "copy_options ('mergeSchema' = 'True')"
         )
         self.assertEqual(redact_credentials(sql), expected)
