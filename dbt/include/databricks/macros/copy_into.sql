@@ -70,6 +70,7 @@
     {%- endif %}
   {% endset %}
 
+  {% do log("Running COPY INTO" ~ adapter.redact_credentials(query), info=True) %}
   {% do run_query(query) %}
 
 {% endmacro %}
