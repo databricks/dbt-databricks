@@ -70,7 +70,6 @@
     {%- endif %}
   {% endset %}
 
-  {% do log("Running COPY INTO" ~ query, info=True) %}
   {% do run_query(query) %}
 
 {% endmacro %}
