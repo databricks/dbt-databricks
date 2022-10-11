@@ -31,7 +31,7 @@ from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.utils import undefined_proof
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
 logger = AdapterLogger("Databricks")
@@ -257,7 +257,7 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 return None
         except BaseException as e:
-            print(sql)
+            print(redact_credentials(sql))
             print(e)
             raise
         finally:
@@ -273,6 +273,10 @@ class DatabricksAdapter(SparkAdapter):
             "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
             "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
         }
+
+    @available
+    def redact_credentials(self, sql: str) -> str:
+        return redact_credentials(sql)
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:

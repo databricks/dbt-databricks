@@ -47,6 +47,7 @@ from databricks.sql.client import (
     Cursor as DatabricksSQLCursor,
 )
 from databricks.sql.exc import Error as DBSQLError
+from dbt.adapters.databricks.utils import redact_credentials
 
 logger = AdapterLogger("Databricks")
 
@@ -401,16 +402,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @contextmanager
     def exception_handler(self, sql: str) -> Iterator[None]:
+        log_sql = redact_credentials(sql)
+
         try:
             yield
 
         except DBSQLError as exc:
-            logger.debug(f"Error while running:\n{sql}")
+            logger.debug(f"Error while running:\n{log_sql}")
             _log_dbsql_errors(exc)
             raise dbt.exceptions.RuntimeException(str(exc)) from exc
 
         except Exception as exc:
-            logger.debug(f"Error while running:\n{sql}")
+            logger.debug(f"Error while running:\n{log_sql}")
             logger.debug(exc)
             if len(exc.args) == 0:
                 raise
@@ -431,10 +434,33 @@ class DatabricksConnectionManager(SparkConnectionManager):
         *,
         close_cursor: bool = False,
     ) -> Tuple[Connection, Any]:
-        conn, cursor = super().add_query(sql, auto_begin, bindings, abridge_sql_log)
-        if close_cursor and hasattr(cursor, "close"):
-            cursor.close()
-        return conn, cursor
+        connection = self.get_thread_connection()
+        if auto_begin and connection.transaction_open is False:
+            self.begin()
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
+
+        with self.exception_handler(sql):
+            log_sql = redact_credentials(sql)
+            if abridge_sql_log:
+                log_sql = "{}...".format(log_sql[:512])
+            else:
+                log_sql = log_sql
+
+            fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+            pre = time.time()
+
+            cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
+            cursor.execute(sql, bindings)
+
+            fire_event(
+                SQLQueryStatus(
+                    status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                )
+            )
+
+            if close_cursor:
+                cursor.close()
+            return connection, cursor
 
     def execute(
         self, sql: str, auto_begin: bool = False, fetch: bool = False
