@@ -31,7 +31,7 @@ class TestDatabricksUtils(unittest.TestCase):
             "copy into target_table\n"
             "from source_table\n"
             "  WITH (\n"
-            "    credential ('KEY_1' = 'VALUE1**asa!??sh', 'KEY_2' = 'VALUE2')\n"
+            "    credential ('KEY_1' = 'VALUE=1**asa!??sh', 'KEY_2' = 'VALUE2')\n"
             "  )\n"
             "fileformat = parquet"
         )

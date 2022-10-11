@@ -11,7 +11,7 @@ A = TypeVar("A", bound=BaseAdapter)
 
 
 CREDENTIAL_IN_COPY_INTO_REGEX = re.compile(
-    r"(?<=credential)\s*?\((\s*?'\w+'\s*?=\s*?'.*?'\s*?(?:,\s*?'\w*'\s*?=\s*?'.*?'\s*?)*?)\)"
+    r"(?<=credential)\s*?\((\s*?'.*?'\s*?=\s*?'.*?'\s*?(?:,\s*?'.*?'\s*?=\s*?'.*?'\s*?)*?)\)"
 )
 
 
