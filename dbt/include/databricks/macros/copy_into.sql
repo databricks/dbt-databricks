@@ -24,20 +24,20 @@
     {%- endif -%}
     {%- if source_credential or source_encryption %}
       WITH (
-	{% if source_credential -%}
-	  credential (
-	    {%- for name in source_credential -%}
-	      '{{ name }}' = '{{ source_credential[name] }}' {%- if not loop.last %}, {% endif -%}
-	    {%- endfor -%}
-	  )
-	{%- endif %}
-        {% if source_encryption -%}
-	  encryption (
-	    {%- for name in source_encryption -%}
-	      '{{ name }}' = '{{ source_encryption[name] }}' {%- if not loop.last %}, {% endif -%}
-	    {%- endfor -%}
-	  )
-	{%- endif %}
+      {%- if source_credential %}
+        credential (
+          {%- for name in source_credential -%}
+            '{{ name }}' = '{{ source_credential[name] }}' {%- if not loop.last %}, {% endif -%}
+          {%- endfor -%}
+        )
+      {%- endif %}
+      {%- if source_encryption %}
+        encryption (
+          {%- for name in source_encryption -%}
+            '{{ name }}' = '{{ source_encryption[name] }}' {%- if not loop.last %}, {% endif -%}
+          {%- endfor -%}
+        )
+      {%- endif %}
       )
     {%- endif -%}
   {%- endset -%}
