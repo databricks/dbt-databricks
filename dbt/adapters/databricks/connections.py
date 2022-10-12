@@ -440,25 +440,33 @@ class DatabricksConnectionManager(SparkConnectionManager):
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
 
         with self.exception_handler(sql):
-            log_sql = redact_credentials(sql)
-            if abridge_sql_log:
-                log_sql = "{}...".format(log_sql[:512])
+            cursor: Optional[DatabricksSQLCursorWrapper] = None
+            try:
+                log_sql = redact_credentials(sql)
+                if abridge_sql_log:
+                    log_sql = "{}...".format(log_sql[:512])
 
-            fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
-            pre = time.time()
+                fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+                pre = time.time()
 
-            cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
-            cursor.execute(sql, bindings)
+                cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
+                cursor.execute(sql, bindings)
 
-            fire_event(
-                SQLQueryStatus(
-                    status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                fire_event(
+                    SQLQueryStatus(
+                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                    )
                 )
-            )
 
-            if close_cursor:
-                cursor.close()
-            return connection, cursor
+                return connection, cursor
+            except DBSQLError:
+                if cursor is not None:
+                    cursor.close()
+                    cursor = None
+                raise
+            finally:
+                if close_cursor and cursor is not None:
+                    cursor.close()
 
     def execute(
         self, sql: str, auto_begin: bool = False, fetch: bool = False
@@ -482,9 +490,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
 
-        cursor: Optional[DatabricksSQLCursorWrapper] = None
-        try:
-            with self.exception_handler(log_sql):
+        with self.exception_handler(log_sql):
+            cursor: Optional[DatabricksSQLCursorWrapper] = None
+            try:
                 fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
                 pre = time.time()
 
@@ -498,10 +506,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     )
                 )
 
-            return self.get_result_from_cursor(cursor)
-        finally:
-            if cursor is not None:
-                cursor.close()
+                return self.get_result_from_cursor(cursor)
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
         return self._execute_cursor(
