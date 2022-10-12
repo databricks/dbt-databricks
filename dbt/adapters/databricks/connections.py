@@ -462,6 +462,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             except DBSQLError:
                 if cursor is not None:
                     cursor.close()
+                    cursor = None
                 raise
             finally:
                 if close_cursor and cursor is not None:
