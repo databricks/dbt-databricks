@@ -37,7 +37,7 @@ from dbt.contracts.graph.manifest import Manifest
 from dbt.events import AdapterLogger
 from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.utils import DECIMALS
+from dbt.utils import DECIMALS, cast_to_str
 
 from dbt.adapters.spark.connections import SparkConnectionManager, _is_retryable_error
 
@@ -437,7 +437,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
             self.begin()
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
@@ -446,7 +446,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if abridge_sql_log:
                     log_sql = "{}...".format(log_sql[:512])
 
-                fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
                 pre = time.time()
 
                 cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
@@ -488,12 +488,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> Table:
         connection = self.get_thread_connection()
 
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=connection.name))
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(log_sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
             try:
-                fire_event(SQLQuery(conn_name=connection.name, sql=log_sql))
+                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
                 pre = time.time()
 
                 handle: DatabricksSQLConnectionWrapper = connection.handle
