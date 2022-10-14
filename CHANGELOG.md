@@ -1,6 +1,6 @@
 ## dbt-databricks 1.4.0 (Release TBD)
 
-## dbt-databricks 1.3.0 (Release TBD)
+## dbt-databricks 1.3.0 (October 14, 2022)
 
 ### Features
 - Support python model through run command API, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377), [#126](https://github.com/databricks/dbt-databricks/pull/126))
