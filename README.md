@@ -71,3 +71,14 @@ The `dbt-databricks` adapter has been tested:
 
 - with Python 3.7 or above.
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
+
+### Tips and Tricks
+## Choosing compute for a Python model
+You can override the compute used for a specific Python model by setting the `http_path` property in model configuration. This can be useful if, for example, you want to run a Python model on an All Purpose cluster, while running SQL models on a SQL Warehouse. Note that this capability is only available for Python models.
+
+```
+def model(dbt, session):
+    dbt.config(
+      http_path="sql/protocolv1/..."
+    )
+```
