@@ -39,14 +39,19 @@ from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS, cast_to_str
 
-from dbt.adapters.spark.connections import SparkConnectionManager, _is_retryable_error
+from dbt.adapters.spark.connections import SparkConnectionManager
 
 from databricks import sql as dbsql
 from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
-from databricks.sql.exc import Error as DBSQLError
+from databricks.sql.exc import (
+    Error,
+    InternalError,
+    RequestError,
+    ServerOperationError,
+)
 from dbt.adapters.databricks.utils import redact_credentials
 
 logger = AdapterLogger("Databricks")
@@ -68,8 +73,8 @@ class DatabricksCredentials(Credentials):
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
 
-    connect_retries: int = 0
-    connect_timeout: int = 10
+    connect_retries: int = 1
+    connect_timeout: Optional[int] = None
     retry_all: bool = False
 
     _ALIASES = {
@@ -246,14 +251,14 @@ class DatabricksSQLConnectionWrapper:
         for cursor in cursors:
             try:
                 cursor.cancel()
-            except DBSQLError as exc:
+            except Error as exc:
                 logger.debug("Exception while cancelling query: {}".format(exc))
                 _log_dbsql_errors(exc)
 
     def close(self) -> None:
         try:
             self._conn.close()
-        except DBSQLError as exc:
+        except Error as exc:
             logger.debug("Exception while closing connection: {}".format(exc))
             _log_dbsql_errors(exc)
 
@@ -296,14 +301,14 @@ class DatabricksSQLCursorWrapper:
     def cancel(self) -> None:
         try:
             self._cursor.cancel()
-        except DBSQLError as exc:
+        except Error as exc:
             logger.debug("Exception while cancelling query: {}".format(exc))
             _log_dbsql_errors(exc)
 
     def close(self) -> None:
         try:
             self._cursor.close()
-        except DBSQLError as exc:
+        except Error as exc:
             logger.debug("Exception while closing cursor: {}".format(exc))
             _log_dbsql_errors(exc)
 
@@ -407,7 +412,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         try:
             yield
 
-        except DBSQLError as exc:
+        except Error as exc:
             logger.debug(f"Error while running:\n{log_sql}")
             _log_dbsql_errors(exc)
             raise dbt.exceptions.RuntimeException(str(exc)) from exc
@@ -459,7 +464,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
 
                 return connection, cursor
-            except DBSQLError:
+            except Error:
                 if cursor is not None:
                     cursor.close()
                     cursor = None
@@ -524,6 +529,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return connection
 
         creds: DatabricksCredentials = connection.credentials
+        timeout = creds.connect_timeout
+
         creds.validate_creds()
 
         user_agent_entry = f"dbt-databricks/{__version__}"
@@ -538,9 +545,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
-        exc: Optional[Exception] = None
-
-        for i in range(1 + creds.connect_retries):
+        def connect() -> DatabricksSQLConnectionWrapper:
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
@@ -554,53 +559,35 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
-                handle = DatabricksSQLConnectionWrapper(
-                    conn, is_cluster=creds.cluster_id is not None
-                )
-                break
-            except Exception as e:
-                exc = e
-                if isinstance(e, EOFError):
-                    # The user almost certainly has invalid credentials.
-                    # Perhaps a token expired, or something
-                    msg = "Failed to connect"
-                    if creds.token is not None:
-                        msg += ", is your token valid?"
-                    raise dbt.exceptions.FailedToConnectException(msg) from e
-                retryable_message = _is_retryable_error(e)
-                if retryable_message and creds.connect_retries > 0:
-                    msg = (
-                        f"Warning: {retryable_message}\n\tRetrying in "
-                        f"{creds.connect_timeout} seconds "
-                        f"({i} of {creds.connect_retries})"
-                    )
-                    logger.warning(msg)
-                    time.sleep(creds.connect_timeout)
-                elif creds.retry_all and creds.connect_retries > 0:
-                    msg = (
-                        f"Warning: {getattr(exc, 'message', 'No message')}, "
-                        f"retrying due to 'retry_all' configuration "
-                        f"set to true.\n\tRetrying in "
-                        f"{creds.connect_timeout} seconds "
-                        f"({i} of {creds.connect_retries})"
-                    )
-                    logger.warning(msg)
-                    time.sleep(creds.connect_timeout)
-                else:
-                    logger.debug(f"failed to connect: {exc}")
-                    _log_dbsql_errors(exc)
-                    raise dbt.exceptions.FailedToConnectException("failed to connect") from e
-        else:
-            assert exc is not None
-            raise exc
+                return DatabricksSQLConnectionWrapper(conn, is_cluster=creds.cluster_id is not None)
+            except Error as exc:
+                _log_dbsql_errors(exc)
+                raise
 
-        connection.handle = handle
-        connection.state = ConnectionState.OPEN
-        return connection
+        def exponential_backoff(attempt: int) -> int:
+            return attempt * attempt
+
+        retryable_exceptions = [
+            InternalError,
+            RequestError,
+            ServerOperationError,
+        ]
+        # this option is for backwards compatibility
+        if creds.retry_all:
+            retryable_exceptions = [Error]
+
+        return cls.retry_connection(
+            connection,
+            connect=connect,
+            logger=logger,
+            retryable_exceptions=retryable_exceptions,
+            retry_limit=creds.connect_retries,
+            retry_timeout=(timeout if timeout is not None else exponential_backoff),
+        )
 
 
 def _log_dbsql_errors(exc: Exception) -> None:
-    if isinstance(exc, DBSQLError):
+    if isinstance(exc, Error):
         logger.debug(f"{type(exc)}: {exc}")
         for key, value in sorted(exc.context.items()):
             logger.debug(f"{key}: {value}")
