@@ -234,6 +234,14 @@ class TestDatabricksAdapter(unittest.TestCase):
             ],
         )
 
+    def test_environment_http_headers_string(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"string":"some-string"}',
+            expected_http_headers=[
+                ("string", "some-string")
+            ],
+        )
+
     def _test_environment_http_headers(
         self, http_headers_str, expected_http_headers, user_http_headers=None
     ):

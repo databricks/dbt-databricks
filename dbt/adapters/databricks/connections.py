@@ -156,7 +156,7 @@ class DatabricksCredentials(Credentials):
         )
 
         http_session_headers_dict: Dict[str, str] = (
-            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
+            {k: v if isinstance(v, str) else json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
             if http_session_headers_str is not None
             else {}
         )
