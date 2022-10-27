@@ -1,5 +1,10 @@
 ## dbt-databricks 1.4.0 (Release TBD)
 
+## dbt-databricks 1.3.1 (Release TBD)
+
+### Under the hood
+- Show and log a warning when schema contains '.'. ([#221](https://github.com/databricks/dbt-databricks/pull/221))
+
 ## dbt-databricks 1.3.0 (October 14, 2022)
 
 ### Features
