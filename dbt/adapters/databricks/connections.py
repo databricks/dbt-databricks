@@ -88,7 +88,7 @@ class DatabricksCredentials(Credentials):
             logger.warning(
                f"The specified schema '{self.schema}' contains '.', which could cause unexpected behavior.\n"
                 "It will not be allowed in the future release.\n"
-                "If you are trying to set a catalog, use `catalog` instead.\n"
+                "If you are trying to set a catalog, please use `catalog` instead.\n"
             )
 
         session_properties = self.session_properties or {}
