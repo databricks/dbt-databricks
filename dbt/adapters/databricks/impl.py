@@ -113,13 +113,13 @@ class DatabricksAdapter(SparkAdapter):
                     f'Invalid value from "show table extended ...", '
                     f"got {len(row)} values, expected 4"
                 )
-            _schema, name, _, information = row
+            _, name, _, information = row
             rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
             is_delta = "Provider: delta" in information
             is_hudi = "Provider: hudi" in information
             relation = self.Relation.create(
                 database=schema_relation.database,
-                schema=_schema,
+                schema=schema_relation.schema,
                 identifier=name,
                 type=rel_type,
                 information=information,
