@@ -86,7 +86,7 @@ class DatabricksCredentials(Credentials):
     def __post_init__(self) -> None:
         if "." in self.schema:
             logger.warning(
-                "The specified schema contains '.', which could cause unexpected behavior.\n"
+               f"The specified schema '{self.schema}' contains '.', which could cause unexpected behavior.\n"
                 "It will not be allowed in the future release.\n"
                 "If you are trying to set a catalog, use `catalog` instead.\n"
             )
