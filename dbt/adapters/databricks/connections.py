@@ -84,6 +84,13 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
+        if "." in self.schema:
+            logger.warning(
+                "The specified schema contains '.', which could cause unexpected behavior.\n"
+                "It will not be allowed in the future release.\n"
+                "If you are trying to set a catalog, use `catalog` instead.\n"
+            )
+
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
             if self.database is None:
