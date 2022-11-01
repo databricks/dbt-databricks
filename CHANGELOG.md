@@ -1,5 +1,10 @@
 ## dbt-databricks 1.4.0 (Release TBD)
 
+### Breaking changes
+- Raise an exception when schema contains '.'. ([#222](https://github.com/databricks/dbt-databricks/pull/222))
+    - Containing a catalog in `schema` is not allowed anymore.
+    - Need to explicitly use `catalog` instead.
+
 ## dbt-databricks 1.3.1 (Release TBD)
 
 ### Under the hood
