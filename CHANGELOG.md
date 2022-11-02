@@ -1,4 +1,7 @@
-## dbt-databricks 1.3.1 (Release TBD)
+## dbt-databricks 1.3.2 (Release TBD)
+
+### Fixes
+- Fix copy into macro when passing `expression_list`. ([#223](https://github.com/databricks/dbt-databricks/pull/223))
 
 ## dbt-databricks 1.3.1 (November 1, 2022)
 
