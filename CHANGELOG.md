@@ -2,6 +2,7 @@
 
 ### Fixes
 - Fix copy into macro when passing `expression_list`. ([#223](https://github.com/databricks/dbt-databricks/pull/223))
+- Partially revert to fix the case where schema config contains uppercase letters. ([#224](https://github.com/databricks/dbt-databricks/pull/224))
 
 ## dbt-databricks 1.3.1 (November 1, 2022)
 
