@@ -137,6 +137,8 @@ class DatabricksAdapter(SparkAdapter):
             is_hudi = "Provider: hudi" in information
             relation = self.Relation.create(
                 database=schema_relation.database,
+                # Use `_schema` retrieved from the cluster to avoid mismatched case
+                # between the profile and the cluster.
                 schema=_schema,
                 identifier=name,
                 type=rel_type,
