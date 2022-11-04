@@ -1,5 +1,8 @@
 ## dbt-databricks 1.2.5 (Release TBD)
 
+### Fixes
+- Partially revert to fix the case where schema config contains uppercase letters. ([#224](https://github.com/databricks/dbt-databricks/pull/224))
+
 ## dbt-databricks 1.2.4 (November 1, 2022)
 
 ### Under the hood
