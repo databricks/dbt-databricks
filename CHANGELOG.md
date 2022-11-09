@@ -5,7 +5,7 @@
     - Containing a catalog in `schema` is not allowed anymore.
     - Need to explicitly use `catalog` instead.
 
-## dbt-databricks 1.3.2 (Release TBD)
+## dbt-databricks 1.3.2 (November 9, 2022)
 
 ### Fixes
 - Fix copy into macro when passing `expression_list`. ([#223](https://github.com/databricks/dbt-databricks/pull/223))
