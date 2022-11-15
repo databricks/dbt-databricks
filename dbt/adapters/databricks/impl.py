@@ -12,6 +12,7 @@ from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
     LIST_RELATIONS_MACRO_NAME,
@@ -179,6 +180,34 @@ class DatabricksAdapter(SparkAdapter):
             )
             for idx, column in enumerate(rows)
         ]
+
+    def get_columns_in_relation(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        columns = []
+        try:
+            rows: List[Row] = self.execute_macro(
+                GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+            )
+            columns = self.parse_describe_extended(relation, rows)
+        except dbt.exceptions.RuntimeException as e:
+            # spark would throw error when table doesn't exist, where other
+            # CDW would just return and empty list, normalizing the behavior here
+            errmsg = getattr(e, "msg", "")
+            if any(
+                msg in errmsg
+                for msg in (
+                    "[TABLE_OR_VIEW_NOT_FOUND]",
+                    "Table or view not found",
+                    "NoSuchTableException",
+                )
+            ):
+                pass
+            else:
+                raise e
+
+        # strip hudi metadata columns.
+        return [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation
