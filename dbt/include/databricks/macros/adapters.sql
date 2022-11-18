@@ -155,6 +155,34 @@
   {% endfor %}
 {% endmacro %}
 
+{% macro databricks__list_relations_without_caching(schema_relation) %}
+  {{ return(adapter.get_relations_without_caching(schema_relation)) }}
+{% endmacro %}
+
+{% macro show_tables(relation) %}
+  {{ return(adapter.dispatch('show_tables', 'dbt')(relation)) }}
+{% endmacro %}
+
+{% macro databricks__show_tables(relation) %}
+  {% call statement('show_tables', fetch_result=True) -%}
+    show tables in {{ relation }}
+  {% endcall %}
+
+  {% do return(load_result('show_tables').table) %}
+{% endmacro %}
+
+{% macro show_views(relation) %}
+  {{ return(adapter.dispatch('show_views', 'dbt')(relation)) }}
+{% endmacro %}
+
+{% macro databricks__show_views(relation) %}
+  {% call statement('show_views', fetch_result=True) -%}
+    show views in {{ relation }}
+  {% endcall %}
+
+  {% do return(load_result('show_views').table) %}
+{% endmacro %}
+
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- set default_database = target.database -%}
     {%- if custom_database_name is none -%}

@@ -14,7 +14,7 @@
   {%- set language = model['language'] -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set target_relation = this -%}
-  {%- set existing_relation = load_relation(this) -%}
+  {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
   {#-- Set Overwrite Mode --#}
   {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
