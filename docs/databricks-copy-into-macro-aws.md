@@ -1,8 +1,8 @@
 # Loading data from S3 into Delta using the `databricks_copy_into` macro
 
-While dbt is primarily a tool for transform data, dbt-databricks provides a handy macro `databricks_copy_into` for loading many different file formats, including Parquet and CSV, into tables in Databricks. This macro wraps the [COPY INTO](https://docs.databricks.com/sql/language-manual/delta-copy-into.html) SQL command.
+While dbt is primarily a tool for transforming data, dbt-databricks provides a handy macro `databricks_copy_into` for loading many different file formats, including Parquet and CSV, into tables in Databricks. This macro wraps the [COPY INTO](https://docs.databricks.com/sql/language-manual/delta-copy-into.html) SQL command.
 
-> We strongly recommend using _temporary credentials_ with `COPY INTO`. The rest of this guide follows this best practice.
+**We strongly recommend using _temporary credentials_ with `COPY INTO`.** The rest of this guide follows this best practice.
 
 ## Prerequisites
 - Access to a Databricks workspace
@@ -36,7 +36,7 @@ $ AWS_ACCESS_KEY_ID=<temp_access_key_id> AWS_SECRET_ACCESS_KEY=<temp_secret_acce
 
 4. Invoke the macro through dbt. The following example shows how to load a CSV file with a header specifying column names. You can specify any [option](https://docs.databricks.com/sql/language-manual/delta-copy-into.html#parameters) accepted by `COPY INTO`.
 
-> `<target_table>` must be an existing table in the schema targeted by your project. If the table does not exist, create it first using the [CREATE TABLE]() command e.g. `CREATE TABLE my_catalog.my_schema.my_table`.
+**`<target_table>` must be an existing table in the schema targeted by your project.** If the table does not exist, create it first using the [CREATE TABLE](https://docs.databricks.com/sql/language-manual/sql-ref-syntax-ddl-create-table.html) command e.g. `CREATE TABLE my_catalog.my_schema.my_table`.
 
 ```
 dbt run-operation databricks_copy_into --args "
