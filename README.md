@@ -63,6 +63,7 @@ These following quick starts will get you up and running with the `dbt-databrick
 - [Developing your first dbt project](https://github.com/databricks/dbt-databricks/blob/main/docs/local-dev.md)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
 - [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
+- [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/uc.md)
 - [Using GitHub Actions for dbt CI/CD on Databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/github-actions.md)
 
 ### Compatibility
