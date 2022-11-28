@@ -2,21 +2,23 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Type, Union, cast
 
 from agate import Row, Table
 
-from dbt.adapters.base import AdapterConfig
+from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
     LIST_RELATIONS_MACRO_NAME,
     LIST_SCHEMAS_MACRO_NAME,
 )
-from dbt.contracts.connection import AdapterResponse
+from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
@@ -25,8 +27,12 @@ from dbt.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksAllPurposeClusterPythonJobHelper,
+    DbtDatabricksJobClusterPythonJobHelper,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.utils import undefined_proof
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
 logger = AdapterLogger("Databricks")
@@ -57,6 +63,19 @@ class DatabricksAdapter(SparkAdapter):
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
+
+    @available.parse(lambda *a, **k: 0)
+    def compare_dbr_version(self, major: int, minor: int) -> int:
+        """
+        Returns the comparison result between the version of the cluster and the specified version.
+
+        - positive number if the cluster version is greater than the specified version.
+        - 0 if the versions are the same
+        - negative number if the cluster version is less than the specified version.
+
+        Always returns positive number if trying to connect to SQL Warehouse.
+        """
+        return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
         """
@@ -89,7 +108,7 @@ class DatabricksAdapter(SparkAdapter):
             if staging_table is not None:
                 self.drop_relation(staging_table)
 
-    def list_relations_without_caching(
+    def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
         kwargs = {"schema_relation": schema_relation}
@@ -119,6 +138,8 @@ class DatabricksAdapter(SparkAdapter):
             is_hudi = "Provider: hudi" in information
             relation = self.Relation.create(
                 database=schema_relation.database,
+                # Use `_schema` retrieved from the cluster to avoid mismatched case
+                # between the profile and the cluster.
                 schema=_schema,
                 identifier=name,
                 type=rel_type,
@@ -130,7 +151,7 @@ class DatabricksAdapter(SparkAdapter):
 
         return relations
 
-    def parse_describe_extended(
+    def parse_describe_extended(  # type: ignore[override]
         self, relation: DatabricksRelation, raw_rows: List[Row]
     ) -> List[DatabricksColumn]:
         # Convert the Row to a dict
@@ -160,14 +181,42 @@ class DatabricksAdapter(SparkAdapter):
             for idx, column in enumerate(rows)
         ]
 
-    def parse_columns_from_information(
+    def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, relation.information)
-        owner = owner_match[0] if owner_match else None
-        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, relation.information)
         columns = []
-        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, relation.information)
+        try:
+            rows: List[Row] = self.execute_macro(
+                GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+            )
+            columns = self.parse_describe_extended(relation, rows)
+        except dbt.exceptions.RuntimeException as e:
+            # spark would throw error when table doesn't exist, where other
+            # CDW would just return and empty list, normalizing the behavior here
+            errmsg = getattr(e, "msg", "")
+            if any(
+                msg in errmsg
+                for msg in (
+                    "[TABLE_OR_VIEW_NOT_FOUND]",
+                    "Table or view not found",
+                    "NoSuchTableException",
+                )
+            ):
+                pass
+            else:
+                raise e
+
+        # strip hudi metadata columns.
+        return [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
+
+    def parse_columns_from_information(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, cast(str, relation.information))
+        owner = owner_match[0] if owner_match else None
+        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, cast(str, relation.information))
+        columns = []
+        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, cast(str, relation.information))
         raw_table_stats = stats_match[0] if stats_match else None
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
         for match_num, match in enumerate(matches):
@@ -201,7 +250,9 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_columns_for_catalog(self, relation: DatabricksRelation) -> Iterable[Dict[str, Any]]:
+    def _get_columns_for_catalog(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation)
 
         for column in columns:
@@ -211,8 +262,52 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
 
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        *,
+        close_cursor: bool = False,
+    ) -> Tuple[Connection, Any]:
+        return self.connections.add_query(
+            sql, auto_begin, bindings, abridge_sql_log, close_cursor=close_cursor
+        )
+
+    def run_sql_for_tests(
+        self, sql: str, fetch: str, conn: Connection
+    ) -> Optional[Union[Optional[Tuple], List[Tuple]]]:
+        cursor = conn.handle.cursor()
+        try:
+            cursor.execute(sql)
+            if fetch == "one":
+                return cursor.fetchone()
+            elif fetch == "all":
+                return cursor.fetchall()
+            else:
+                return None
+        except BaseException as e:
+            print(redact_credentials(sql))
+            print(e)
+            raise
+        finally:
+            cursor.close()
+            conn.transaction_open = False
+
     def valid_incremental_strategies(self) -> List[str]:
         return ["append", "merge", "insert_overwrite"]
+
+    @property
+    def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
+        return {
+            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
+            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+        }
+
+    @available
+    def redact_credentials(self, sql: str) -> str:
+        return redact_credentials(sql)
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:

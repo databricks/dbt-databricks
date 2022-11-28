@@ -10,6 +10,7 @@ from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
 from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
     DBT_DATABRICKS_INVOCATION_ENV,
+    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
 )
 from tests.unit.utils import config_from_parts_or_dicts
 
@@ -61,6 +62,25 @@ class TestDatabricksAdapter(unittest.TestCase):
                         "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
                         "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                         "session_properties": {"spark.sql.ansi.enabled": "true"},
+                    }
+                },
+                "target": "test",
+            },
+        )
+
+    def _get_target_databricks_sql_connector_http_header(self, project, http_header):
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
+                        "connection_parameters": {"http_headers": http_header},
                     }
                 },
                 "target": "test",
@@ -140,6 +160,18 @@ class TestDatabricksAdapter(unittest.TestCase):
                 },
             )
 
+    def test_invalid_http_headers(self):
+        def test_http_headers(http_header):
+            with self.assertRaisesRegex(
+                dbt.exceptions.DbtProfileError,
+                "The connection parameter `http_headers` should be dict of strings.",
+            ):
+                self._get_target_databricks_sql_connector_http_header(self.project_cfg, http_header)
+
+        test_http_headers("a")
+        test_http_headers(["a", "b"])
+        test_http_headers({"a": 1, "b": 2})
+
     def test_invalid_custom_user_agent(self):
         with self.assertRaisesRegex(
             dbt.exceptions.ValidationException,
@@ -165,11 +197,80 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
-    def _connect_func(self, *, expected_catalog=None, expected_invocation_env=None):
+    def test_environment_single_http_header(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"test":{"jobId":1,"runId":12123}}',
+            expected_http_headers=[("test", '{"jobId": 1, "runId": 12123}')],
+        )
+
+    def test_environment_multiple_http_headers(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"test":{"jobId":1,"runId":12123},"dummy":{"jobId":1,"runId":12123}}',
+            expected_http_headers=[
+                ("test", '{"jobId": 1, "runId": 12123}'),
+                ("dummy", '{"jobId": 1, "runId": 12123}'),
+            ],
+        )
+
+    def test_environment_users_http_headers_intersection_error(self):
+        with self.assertRaisesRegex(
+            dbt.exceptions.ValidationException,
+            r"Intersection with reserved http_headers in keys: {'t'}",
+        ):
+            self._test_environment_http_headers(
+                http_headers_str='{"t":{"jobId":1,"runId":12123},"d":{"jobId":1,"runId":12123}}',
+                expected_http_headers=[],
+                user_http_headers={"t": "test", "nothing": "nothing"},
+            )
+
+    def test_environment_users_http_headers_union_success(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"t":{"jobId":1,"runId":12123},"d":{"jobId":1,"runId":12123}}',
+            user_http_headers={"nothing": "nothing"},
+            expected_http_headers=[
+                ("t", '{"jobId": 1, "runId": 12123}'),
+                ("d", '{"jobId": 1, "runId": 12123}'),
+                ("nothing", "nothing"),
+            ],
+        )
+
+    def test_environment_http_headers_string(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"string":"some-string"}',
+            expected_http_headers=[("string", "some-string")],
+        )
+
+    def _test_environment_http_headers(
+        self, http_headers_str, expected_http_headers, user_http_headers=None
+    ):
+        if user_http_headers:
+            config = self._get_target_databricks_sql_connector_http_header(
+                self.project_cfg, user_http_headers
+            )
+        else:
+            config = self._get_target_databricks_sql_connector(self.project_cfg)
+
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_http_headers=expected_http_headers),
+        ):
+            with mock.patch.dict(
+                "os.environ",
+                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
+            ):
+                connection = adapter.acquire_connection("dummy")
+                connection.handle  # trigger lazy-load
+
+    def _connect_func(
+        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
+    ):
         def connect(
             server_hostname,
             http_path,
             access_token,
+            http_headers,
             session_configuration,
             catalog,
             _user_agent_entry,
@@ -189,6 +290,10 @@ class TestDatabricksAdapter(unittest.TestCase):
                 )
             else:
                 self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
+            if expected_http_headers is None:
+                self.assertIsNone(http_headers)
+            else:
+                self.assertEqual(http_headers, expected_http_headers)
 
         return connect
 
@@ -239,6 +344,35 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(connection.credentials.schema, "analytics")
             self.assertEqual(connection.credentials.database, "main")
+
+    def test_databricks_sql_connector_http_header_connection(self):
+        self._test_databricks_sql_connector_http_header_connection(
+            {"aaa": "xxx"}, self._connect_func(expected_http_headers=[("aaa", "xxx")])
+        )
+        self._test_databricks_sql_connector_http_header_connection(
+            {"aaa": "xxx", "bbb": "yyy"},
+            self._connect_func(expected_http_headers=[("aaa", "xxx"), ("bbb", "yyy")]),
+        )
+
+    def _test_databricks_sql_connector_http_header_connection(self, http_headers, connect):
+        config = self._get_target_databricks_sql_connector_http_header(
+            self.project_cfg, http_headers
+        )
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+
+            self.assertEqual(connection.state, "open")
+            self.assertIsNotNone(connection.handle)
+            self.assertEqual(
+                connection.credentials.http_path,
+                "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.assertEqual(connection.credentials.schema, "analytics")
+            self.assertIsNone(connection.credentials.database)
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None
