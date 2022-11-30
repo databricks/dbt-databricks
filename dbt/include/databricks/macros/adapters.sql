@@ -205,3 +205,23 @@
     {%- endif -%}
     {% do return(tmp_relation) %}
 {% endmacro %}
+
+{% macro databricks__get_or_create_relation(database, schema, identifier, type, needs_information=False) %}
+  {%- set target_relation = adapter.get_relation(
+            database=database,
+            schema=schema,
+            identifier=identifier,
+            needs_information=needs_information) %}
+
+  {% if target_relation %}
+    {% do return([true, target_relation]) %}
+  {% endif %}
+
+  {%- set new_relation = api.Relation.create(
+      database=database,
+      schema=schema,
+      identifier=identifier,
+      type=type
+  ) -%}
+  {% do return([false, new_relation]) %}
+{% endmacro %}

@@ -27,18 +27,12 @@
   {%- set file_format = config.get('file_format', 'delta') -%}
   {%- set grant_config = config.get('grants') -%}
 
-  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=target_table, needs_information=True) -%}
-  {%- if existing_relation -%}
-    {%- set target_relation_exists, target_relation = True, existing_relation -%}
-  {%- else -%}
-    {%- set target_relation_exists = False -%}
-    {%- set target_relation = api.Relation.create(
-        database=model.database,
-        schema=model.schema,
-        identifier=target_table,
-        type='table'
-    ) -%}
-  {%- endif -%}
+  {% set target_relation_exists, target_relation = databricks__get_or_create_relation(
+          database=model.database,
+          schema=model.schema,
+          identifier=target_table,
+          type='table',
+          needs_information=True) -%}
 
   {%- if file_format not in ['delta', 'hudi'] -%}
     {% set invalid_format_msg -%}
