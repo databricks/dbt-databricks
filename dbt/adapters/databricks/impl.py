@@ -11,9 +11,9 @@ from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     LIST_RELATIONS_MACRO_NAME,
     LIST_SCHEMAS_MACRO_NAME,
     TABLE_OR_VIEW_NOT_FOUND_MESSAGES,
