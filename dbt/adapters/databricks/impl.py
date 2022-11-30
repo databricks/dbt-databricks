@@ -154,7 +154,7 @@ class DatabricksAdapter(SparkAdapter):
                 for row in tables
             ]
         else:
-            tables = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+            tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
             new_rows = [
                 (relation.database, row["database"], row["tableName"], "") for row in tables
             ]
