@@ -9,7 +9,7 @@
 
   {#-- Set vars --#}
 
-  {%- set incremental_predicates = config.get('incremental_predicates', default=none) -%}
+  {%- set incremental_predicates = config.get('predicates', default=none) or config.get('incremental_predicates', default=none) -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set language = model['language'] -%}

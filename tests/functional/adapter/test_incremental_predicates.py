@@ -26,8 +26,7 @@ select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 {% endif %}
 """
 
-@pytest.mark.skip_profile('spark_session', 'apache_spark')
-class TestIncrementalPredicatesMergeSpark(BaseIncrementalPredicates):
+class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -45,3 +44,24 @@ class TestIncrementalPredicatesMergeSpark(BaseIncrementalPredicates):
         return {
             "delete_insert_incremental_predicates.sql": models__spark_incremental_predicates_sql
         }
+
+
+class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": { 
+                "+predicates": [
+                    "dbt_internal_dest.id != 2"
+                ],
+                "+incremental_strategy": "merge",
+                "+file_format": "delta"
+            }
+        }
+        
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_incremental_predicates.sql": models__spark_incremental_predicates_sql
+        }
+        
