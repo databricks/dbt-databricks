@@ -359,6 +359,11 @@ class DatabricksSQLCursorWrapper:
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
+    def tables(self, catalog_name: str, schema_name: str, table_name: Optional[str] = None) -> None:
+        self._cursor.tables(
+            catalog_name=catalog_name, schema_name=schema_name, table_name=table_name
+        )
+
     def __del__(self) -> None:
         if self._cursor.open:
             # This should not happen. The cursor should explicitly be closed.
@@ -526,6 +531,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
+        )
+
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+        return self._execute_cursor(
+            f"GetTables(database={database}, schema={schema}, identifier={identifier})",
+            lambda cursor: cursor.tables(
+                catalog_name=database, schema_name=schema, table_name=identifier
+            ),
         )
 
     @classmethod
