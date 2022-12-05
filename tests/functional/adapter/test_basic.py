@@ -69,7 +69,7 @@ class TestDocsGenerateDatabricks(BaseDocsGenerate):
         return base_expected_catalog(
             project,
             role=AnyString(),
-            id_type="long",
+            id_type="bigint",
             text_type="string",
             time_type="timestamp",
             view_type="view",
@@ -84,10 +84,10 @@ class TestDocsGenReferencesDatabricks(BaseDocsGenReferences):
         return expected_references_catalog(
             project,
             role=AnyString(),
-            id_type="long",
+            id_type="bigint",
             text_type="string",
             time_type="timestamp",
-            bigint_type="long",
+            bigint_type="bigint",
             view_type="view",
             table_type="table",
             model_stats=_StatsLikeDict(),
