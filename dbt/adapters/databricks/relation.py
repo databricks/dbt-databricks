@@ -66,7 +66,8 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def location(self) -> Optional[str]:
-        if self.metadata is not None and self.metadata.get(KEY_TABLE_TYPE) == "EXTERNAL":
+        assert self.metadata is not None
+        if self.metadata.get(KEY_TABLE_TYPE) == "EXTERNAL":
             return self.metadata.get(KEY_LOCATION)
         else:
             return None
