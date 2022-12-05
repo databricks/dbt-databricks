@@ -8,7 +8,7 @@ from dbt.adapters.base import AdapterPlugin
 from dbt.include import databricks
 
 Plugin = AdapterPlugin(
-    adapter=DatabricksAdapter,
+    adapter=DatabricksAdapter,  # type: ignore[arg-type]
     credentials=DatabricksCredentials,
     include_path=databricks.PACKAGE_PATH,
     dependencies=["spark"],

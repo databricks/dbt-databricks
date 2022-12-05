@@ -11,7 +11,7 @@ from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
 from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
+from dbt.tests.adapter.basic.test_incremental import BaseIncremental, BaseIncrementalNotSchemaChange
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
 from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
@@ -43,6 +43,10 @@ class TestIncrementalDatabricks(BaseIncremental):
     pass
 
 
+class TestIncrementalNotSchemaChangeDatabricks(BaseIncrementalNotSchemaChange):
+    pass
+
+
 class TestGenericTestsDatabricks(BaseGenericTests):
     pass
 
@@ -65,7 +69,7 @@ class TestDocsGenerateDatabricks(BaseDocsGenerate):
         return base_expected_catalog(
             project,
             role=AnyString(),
-            id_type="long",
+            id_type="bigint",
             text_type="string",
             time_type="timestamp",
             view_type="view",
@@ -80,10 +84,10 @@ class TestDocsGenReferencesDatabricks(BaseDocsGenReferences):
         return expected_references_catalog(
             project,
             role=AnyString(),
-            id_type="long",
+            id_type="bigint",
             text_type="string",
             time_type="timestamp",
-            bigint_type="long",
+            bigint_type="bigint",
             view_type="view",
             table_type="table",
             model_stats=_StatsLikeDict(),

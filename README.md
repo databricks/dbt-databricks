@@ -59,11 +59,14 @@ your_profile_name:
 ```
 
 ### Quick Starts
+
 These following quick starts will get you up and running with the `dbt-databricks` adapter:
-- [Developing your first dbt project](/docs/local-dev.md)
+- [Developing your first dbt project](https://github.com/databricks/dbt-databricks/blob/main/docs/local-dev.md)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
-- [Running dbt production jobs on Databricks Workflows](/docs/databricks-workflows.md)
-- [Using GitHub Actions for dbt CI/CD on Databricks](/docs/github-actions.md)
+- [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
+- [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/uc.md)
+- [Using GitHub Actions for dbt CI/CD on Databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/github-actions.md)
+- [Loading data from S3 into Delta using the databricks_copy_into macro](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-copy-into-macro-aws.md)
 
 ### Compatibility
 
@@ -71,3 +74,14 @@ The `dbt-databricks` adapter has been tested:
 
 - with Python 3.7 or above.
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
+
+### Tips and Tricks
+## Choosing compute for a Python model
+You can override the compute used for a specific Python model by setting the `http_path` property in model configuration. This can be useful if, for example, you want to run a Python model on an All Purpose cluster, while running SQL models on a SQL Warehouse. Note that this capability is only available for Python models.
+
+```
+def model(dbt, session):
+    dbt.config(
+      http_path="sql/protocolv1/..."
+    )
+```

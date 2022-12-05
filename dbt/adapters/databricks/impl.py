@@ -1,26 +1,24 @@
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-import os
-import re
-import time
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union, cast
-import uuid
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Type, Union
 
-from agate import Row, Table
-from requests.exceptions import HTTPError
+from agate import Row, Table, Text
 
-from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base.impl import catch_as_completed, log_code_execution
+from dbt.adapters.base import AdapterConfig, PythonJobHelper
+from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
     LIST_RELATIONS_MACRO_NAME,
     LIST_SCHEMAS_MACRO_NAME,
+    TABLE_OR_VIEW_NOT_FOUND_MESSAGES,
 )
+from dbt.clients.agate_helper import empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.relation import RelationType
@@ -28,22 +26,23 @@ import dbt.exceptions
 from dbt.events import AdapterLogger
 from dbt.utils import executor
 
-from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.api_client import Api12Client
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import (
-    DatabricksConnectionManager,
-    DatabricksCredentials,
-    DBT_DATABRICKS_INVOCATION_ENV,
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksAllPurposeClusterPythonJobHelper,
+    DbtDatabricksJobClusterPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.utils import undefined_proof
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
 logger = AdapterLogger("Databricks")
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
+
+SHOW_TABLES_MACRO_NAME = "show_tables"
+SHOW_VIEWS_MACRO_NAME = "show_views"
 
 
 @dataclass
@@ -68,6 +67,19 @@ class DatabricksAdapter(SparkAdapter):
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
+
+    @available.parse(lambda *a, **k: 0)
+    def compare_dbr_version(self, major: int, minor: int) -> int:
+        """
+        Returns the comparison result between the version of the cluster and the specified version.
+
+        - positive number if the cluster version is greater than the specified version.
+        - 0 if the versions are the same
+        - negative number if the cluster version is less than the specified version.
+
+        Always returns positive number if trying to connect to SQL Warehouse.
+        """
+        return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> List[str]:
         """
@@ -100,14 +112,12 @@ class DatabricksAdapter(SparkAdapter):
             if staging_table is not None:
                 self.drop_relation(staging_table)
 
-    def list_relations_without_caching(
+    def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
         kwargs = {"schema_relation": schema_relation}
         try:
-            # The catalog for `show table extended` needs to match the current catalog.
-            with self._catalog(schema_relation.database):
-                results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
+            results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.RuntimeException as e:
             errmsg = getattr(e, "msg", "")
             if f"Database '{schema_relation}' not found" in errmsg:
@@ -117,33 +127,79 @@ class DatabricksAdapter(SparkAdapter):
                 logger.debug(f"{description} {schema_relation}: {e.msg}")
                 return []
 
-        relations = []
-        for row in results:
-            if len(row) != 4:
-                raise dbt.exceptions.RuntimeException(
-                    f'Invalid value from "show table extended ...", '
-                    f"got {len(row)} values, expected 4"
-                )
-            _schema, name, _, information = row
-            rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-            is_delta = "Provider: delta" in information
-            is_hudi = "Provider: hudi" in information
-            relation = self.Relation.create(
-                database=schema_relation.database,
-                schema=_schema,
+        return [
+            self.Relation.create(
+                database=database,
+                schema=schema,
                 identifier=name,
-                type=rel_type,
-                information=information,
-                is_delta=is_delta,
-                is_hudi=is_hudi,
+                type=self.Relation.get_relation_type(kind),
             )
-            relations.append(relation)
+            for database, schema, name, kind in results.select(
+                ["database_name", "schema_name", "name", "kind"]
+            )
+        ]
 
-        return relations
+    @available.parse(lambda *a, **k: empty_table())
+    def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
+        kwargs = {"relation": relation}
 
-    def parse_describe_extended(
+        new_rows: List[Tuple]
+        if relation.database is not None:
+            assert relation.schema is not None
+            tables = self.connections.list_tables(
+                database=relation.database, schema=relation.schema
+            )
+            new_rows = [
+                (row["TABLE_CAT"], row["TABLE_SCHEM"], row["TABLE_NAME"], row["TABLE_TYPE"].lower())
+                for row in tables
+            ]
+        else:
+            tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
+            new_rows = [
+                (relation.database, row["database"], row["tableName"], "") for row in tables
+            ]
+
+        if any(not row[3] for row in new_rows):
+            with self._catalog(relation.database):
+                views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+
+            view_names = set(views.columns["viewName"].values())
+            new_rows = [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    str(RelationType.View if row[2] in view_names else RelationType.Table),
+                )
+                for row in new_rows
+            ]
+
+        return Table(
+            new_rows,
+            column_names=["database_name", "schema_name", "name", "kind"],
+            column_types=[Text(), Text(), Text(), Text()],
+        )
+
+    def get_relation(
+        self,
+        database: Optional[str],
+        schema: str,
+        identifier: str,
+        *,
+        needs_information: bool = False,
+    ) -> Optional[DatabricksRelation]:
+        cached: Optional[DatabricksRelation] = super(SparkAdapter, self).get_relation(
+            database=database, schema=schema, identifier=identifier
+        )
+
+        if not needs_information:
+            return cached
+
+        return self._set_relation_information(cached) if cached else None
+
+    def parse_describe_extended(  # type: ignore[override]
         self, relation: DatabricksRelation, raw_rows: List[Row]
-    ) -> List[DatabricksColumn]:
+    ) -> Tuple[Dict[str, Any], List[DatabricksColumn]]:
         # Convert the Row to a dict
         dict_rows = [dict(zip(row._keys, row._values)) for row in raw_rows]
         # Find the separator between the rows and the metadata provided
@@ -156,7 +212,7 @@ class DatabricksAdapter(SparkAdapter):
 
         raw_table_stats = metadata.get(KEY_TABLE_STATISTICS)
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
-        return [
+        return metadata, [
             DatabricksColumn(
                 table_database=relation.database,
                 table_schema=relation.schema,
@@ -171,31 +227,50 @@ class DatabricksAdapter(SparkAdapter):
             for idx, column in enumerate(rows)
         ]
 
-    def parse_columns_from_information(
+    def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, relation.information)
-        owner = owner_match[0] if owner_match else None
-        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, relation.information)
-        columns = []
-        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, relation.information)
-        raw_table_stats = stats_match[0] if stats_match else None
-        table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
-        for match_num, match in enumerate(matches):
-            column_name, column_type, nullable = match.groups()
-            column = DatabricksColumn(
-                table_database=relation.database,
-                table_schema=relation.schema,
-                table_name=relation.table,
-                table_type=relation.type,
-                column_index=(match_num + 1),
-                table_owner=owner,
-                column=column_name,
-                dtype=column_type,
-                table_stats=table_stats,
+        return self._get_updated_relation(relation)[1]
+
+    def _get_updated_relation(
+        self, relation: DatabricksRelation
+    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
+        try:
+            rows = self.execute_macro(
+                GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
             )
-            columns.append(column)
-        return columns
+            metadata, columns = self.parse_describe_extended(relation, rows)
+        except dbt.exceptions.RuntimeException as e:
+            # spark would throw error when table doesn't exist, where other
+            # CDW would just return and empty list, normalizing the behavior here
+            errmsg = getattr(e, "msg", "")
+            found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
+            if any(found_msgs):
+                metadata = None
+                columns = []
+            else:
+                raise e
+
+        # strip hudi metadata columns.
+        columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
+
+        return (
+            self.Relation.create(
+                database=relation.database,
+                schema=relation.schema,
+                identifier=relation.identifier,
+                type=relation.type,
+                metadata=metadata,
+            ),
+            columns,
+        )
+
+    def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
+        """Update the information of the relation, or return it if it already exists."""
+        if relation.has_information():
+            return relation
+
+        return self._get_updated_relation(relation)[0]
 
     def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
         schema_map = self._get_catalog_schemas(manifest)
@@ -212,8 +287,10 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_columns_for_catalog(self, relation: DatabricksRelation) -> Iterable[Dict[str, Any]]:
-        columns = self.parse_columns_from_information(relation)
+    def _get_columns_for_catalog(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> Iterable[Dict[str, Any]]:
+        columns = self.get_columns_in_relation(relation)
 
         for column in columns:
             # convert DatabricksRelation into catalog dicts
@@ -248,7 +325,7 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 return None
         except BaseException as e:
-            print(sql)
+            print(redact_credentials(sql))
             print(e)
             raise
         finally:
@@ -258,86 +335,16 @@ class DatabricksAdapter(SparkAdapter):
     def valid_incremental_strategies(self) -> List[str]:
         return ["append", "merge", "insert_overwrite"]
 
-    @available.parse_none
-    @log_code_execution
-    def submit_python_job(
-        self, parsed_model: dict, compiled_code: str, timeout: Optional[int] = None
-    ) -> AdapterResponse:
-        # TODO limit this function to run only when doing the materialization of python nodes
+    @property
+    def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
+        return {
+            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
+            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+        }
 
-        credentials: DatabricksCredentials = self.config.credentials
-
-        if not timeout:
-            timeout = 60 * 60 * 24
-        if timeout <= 0:
-            raise ValueError("Timeout must larger than 0")
-
-        cluster_id = credentials.cluster_id
-        if not cluster_id:
-            raise ValueError("Python model doesn't support SQL Warehouses")
-
-        command_name = f"dbt-databricks_{version}"
-
-        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
-        if invocation_env is not None and len(invocation_env) > 0:
-            self.ConnectionManager.validate_invocation_env(invocation_env)
-            command_name = f"{command_name}-{invocation_env}"
-
-        command_name += "-" + str(uuid.uuid1())
-
-        api_client = Api12Client(
-            host=credentials.host, token=cast(str, credentials.token), command_name=command_name
-        )
-
-        try:
-            # Create an execution context
-            context_id = api_client.Context.create(cluster_id)
-
-            try:
-                # Run a command
-                command_id = api_client.Command.execute(
-                    cluster_id=cluster_id,
-                    context_id=context_id,
-                    command=compiled_code,
-                )
-
-                # poll until job finish
-                status: str
-                start = time.time()
-                exceeded_timeout = False
-                terminal_states = ("Cancelled", "Error", "Finished")
-                while True:
-                    response = api_client.Command.status(
-                        cluster_id=cluster_id, context_id=context_id, command_id=command_id
-                    )
-                    status = response["status"]
-                    if status in terminal_states:
-                        break
-                    if time.time() - start > timeout:
-                        exceeded_timeout = True
-                        break
-                    time.sleep(3)
-                if exceeded_timeout:
-                    raise dbt.exceptions.RuntimeException("python model run timed out")
-                if status != "Finished":
-                    raise dbt.exceptions.RuntimeException(
-                        "python model run ended in state "
-                        f"{status} with state_message\n{response['results']['data']}"
-                    )
-                if response["results"]["resultType"] == "error":
-                    raise dbt.exceptions.RuntimeException(
-                        f"Python model failed with traceback as:\n{response['results']['cause']}"
-                    )
-
-                return self.connections.get_response(None)
-
-            finally:
-                # Delete the execution context
-                api_client.Context.destroy(cluster_id=cluster_id, context_id=context_id)
-        except HTTPError as e:
-            raise dbt.exceptions.RuntimeException(str(e)) from e
-        finally:
-            api_client.close()
+    @available
+    def redact_credentials(self, sql: str) -> str:
+        return redact_credentials(sql)
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:

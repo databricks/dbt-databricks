@@ -1,9 +1,13 @@
 import pytest
 
+from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
+from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
+from dbt.tests.adapter.utils.test_array_construct import BaseArrayConstruct
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
 from dbt.tests.adapter.utils.test_concat import BaseConcat
+from dbt.tests.adapter.utils.test_current_timestamp import BaseCurrentTimestampAware
 from dbt.tests.adapter.utils.test_dateadd import BaseDateAdd
 from dbt.tests.adapter.utils.test_datediff import BaseDateDiff
 from dbt.tests.adapter.utils.test_date_trunc import BaseDateTrunc
@@ -22,11 +26,28 @@ from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 
 # requires modification
 from dbt.tests.adapter.utils.test_listagg import BaseListagg
+from dbt.tests.adapter.utils.fixture_dateadd import models__test_dateadd_yml
 from dbt.tests.adapter.utils.fixture_listagg import models__test_listagg_yml
+from tests.functional.adapter.utils.fixture_dateadd import (
+    models__test_dateadd_sql,
+    seeds__data_dateadd_csv,
+)
 from tests.functional.adapter.utils.fixture_listagg import models__test_listagg_no_order_by_sql
 
 
 class TestAnyValue(BaseAnyValue):
+    pass
+
+
+class TestArrayAppend(BaseArrayAppend):
+    pass
+
+
+class TestArrayConcat(BaseArrayConcat):
+    pass
+
+
+class TestArrayConstruct(BaseArrayConstruct):
     pass
 
 
@@ -42,12 +63,25 @@ class TestConcat(BaseConcat):
     pass
 
 
-class TestDateAdd(BaseDateAdd):
+class TestCurrentTimestamp(BaseCurrentTimestampAware):
     pass
 
 
-# This test generates a super long create table sentence that exceeds HiveMetastore's limit
-@pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+class TestDateAdd(BaseDateAdd):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"data_dateadd.csv": seeds__data_dateadd_csv}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "test_dateadd.yml": models__test_dateadd_yml,
+            "test_dateadd.sql": self.interpolate_macro_namespace(
+                models__test_dateadd_sql, "dateadd"
+            ),
+        }
+
+
 class TestDateDiff(BaseDateDiff):
     pass
 

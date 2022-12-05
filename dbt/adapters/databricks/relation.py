@@ -1,13 +1,22 @@
 from dataclasses import dataclass
-import re
 from typing import Any, Dict, Optional
 
-from dbt.adapters.base.relation import Policy
-from dbt.adapters.spark.relation import SparkRelation
+from dbt.adapters.base.relation import BaseRelation, Policy
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 
 from dbt.adapters.databricks.utils import remove_undefined
 
-INFORMATION_LOCATION_REGEX = re.compile(r"^Location: (.*)$", re.MULTILINE)
+
+KEY_LOCATION = "Location"
+KEY_TABLE_PROVIDER = "Provider"
+KEY_TABLE_TYPE = "Type"
+
+
+@dataclass
+class DatabricksQuotePolicy(Policy):
+    database: bool = False
+    schema: bool = False
+    identifier: bool = False
 
 
 @dataclass
@@ -18,8 +27,12 @@ class DatabricksIncludePolicy(Policy):
 
 
 @dataclass(frozen=True, eq=False, repr=False)
-class DatabricksRelation(SparkRelation):
-    include_policy: DatabricksIncludePolicy = DatabricksIncludePolicy()
+class DatabricksRelation(BaseRelation):
+    quote_policy = DatabricksQuotePolicy()
+    include_policy = DatabricksIncludePolicy()
+    quote_character: str = "`"
+
+    metadata: Optional[Dict[str, Any]] = None
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -30,17 +43,31 @@ class DatabricksRelation(SparkRelation):
             data["path"]["database"] = remove_undefined(data["path"]["database"])
         return data
 
-    def __post_init__(self) -> None:
-        return
+    def has_information(self) -> bool:
+        return self.metadata is not None
 
-    def render(self) -> str:
-        return super(SparkRelation, self).render()
+    @property
+    def is_delta(self) -> bool:
+        assert self.metadata is not None
+        return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
+
+    @property
+    def is_hudi(self) -> bool:
+        assert self.metadata is not None
+        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
+
+    @property
+    def owner(self) -> Optional[str]:
+        return self.metadata.get(KEY_TABLE_OWNER) if self.metadata is not None else None
+
+    @property
+    def stats(self) -> Optional[str]:
+        return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
 
     @property
     def location(self) -> Optional[str]:
-        if self.information is not None and "Type: EXTERNAL" in self.information:
-            location_match = re.findall(INFORMATION_LOCATION_REGEX, self.information)
-            return location_match[0] if location_match else None
+        if self.metadata is not None and self.metadata.get(KEY_TABLE_TYPE) == "EXTERNAL":
+            return self.metadata.get(KEY_LOCATION)
         else:
             return None
 

@@ -1,11 +1,51 @@
-## dbt-databricks 1.3.0 (Release TBD)
+## dbt-databricks 1.4.0 (Release TBD)
+
+### Breaking changes
+- Raise an exception when schema contains '.'. ([#222](https://github.com/databricks/dbt-databricks/pull/222))
+    - Containing a catalog in `schema` is not allowed anymore.
+    - Need to explicitly use `catalog` instead.
+
+## dbt-databricks 1.3.2 (November 9, 2022)
+
+### Fixes
+- Fix copy into macro when passing `expression_list`. ([#223](https://github.com/databricks/dbt-databricks/pull/223))
+- Partially revert to fix the case where schema config contains uppercase letters. ([#224](https://github.com/databricks/dbt-databricks/pull/224))
+
+## dbt-databricks 1.3.1 (November 1, 2022)
+
+### Under the hood
+- Show and log a warning when schema contains '.'. ([#221](https://github.com/databricks/dbt-databricks/pull/221))
+
+## dbt-databricks 1.3.0 (October 14, 2022)
 
 ### Features
 - Support python model through run command API, currently supported materializations are table and incremental. ([dbt-labs/dbt-spark#377](https://github.com/dbt-labs/dbt-spark/pull/377), [#126](https://github.com/databricks/dbt-databricks/pull/126))
+- Enable Pandas and Pandas-on-Spark DataFrames for dbt python models ([dbt-labs/dbt-spark#469](https://github.com/dbt-labs/dbt-spark/pull/469), [#181](https://github.com/databricks/dbt-databricks/pull/181))
+- Support job cluster in notebook submission method ([dbt-labs/dbt-spark#467](https://github.com/dbt-labs/dbt-spark/pull/467), [#194](https://github.com/databricks/dbt-databricks/pull/194))
+    - In `all_purpose_cluster` submission method, a config `http_path` can be specified in Python model config to switch the cluster where Python model runs.
+      ```py
+      def model(dbt, _):
+          dbt.config(
+              materialized='table',
+              http_path='...'
+          )
+          ...
+      ```
+- Use builtin timestampadd and timestampdiff functions for dateadd/datediff macros if available ([#185](https://github.com/databricks/dbt-databricks/pull/185))
+- Implement testing for a test for various Python models ([#189](https://github.com/databricks/dbt-databricks/pull/189))
+- Implement testing for `type_boolean` in Databricks ([dbt-labs/dbt-spark#471](https://github.com/dbt-labs/dbt-spark/pull/471), [#188](https://github.com/databricks/dbt-databricks/pull/188))
+- Add a macro to support [COPY INTO](https://docs.databricks.com/spark/latest/spark-sql/language-manual/delta-copy-into.html) ([#190](https://github.com/databricks/dbt-databricks/pull/190))
 
 ### Under the hood
 - Apply "Initial refactoring of incremental materialization" ([#148](https://github.com/databricks/dbt-databricks/pull/148))
     - Now dbt-databricks uses `adapter.get_incremental_strategy_macro` instead of `dbt_spark_get_incremental_sql` macro to dispatch the incremental strategy macro. The overwritten `dbt_spark_get_incremental_sql` macro will not work anymore.
+- Better interface for python submission ([dbt-labs/dbt-spark#452](https://github.com/dbt-labs/dbt-spark/pull/452), [#178](https://github.com/databricks/dbt-databricks/pull/178))
+
+## dbt-databricks 1.2.3 (September 26, 2022)
+
+### Fixes
+- Fix cancellation ([#173](https://github.com/databricks/dbt-databricks/pull/173))
+- `http_headers` should be dict in the profile ([#174](https://github.com/databricks/dbt-databricks/pull/174))
 
 ## dbt-databricks 1.2.2 (September 8, 2022)
 
