@@ -5,6 +5,11 @@
     - Containing a catalog in `schema` is not allowed anymore.
     - Need to explicitly use `catalog` instead.
 
+## dbt-databricks 1.3.3 (Release TBD)
+
+### Features
+- Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
+
 ## dbt-databricks 1.3.2 (November 9, 2022)
 
 ### Fixes
