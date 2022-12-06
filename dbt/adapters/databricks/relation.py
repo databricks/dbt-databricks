@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from dbt.adapters.base.relation import BaseRelation, Policy
@@ -26,8 +26,8 @@ class DatabricksIncludePolicy(Policy):
 
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):
-    quote_policy = DatabricksQuotePolicy()
-    include_policy = DatabricksIncludePolicy()
+    quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
+    include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
 
     metadata: Optional[Dict[str, Any]] = None
