@@ -5,6 +5,9 @@
     - Containing a catalog in `schema` is not allowed anymore.
     - Need to explicitly use `catalog` instead.
 
+### Features
+- Support Python 3.11 ([#233](https://github.com/databricks/dbt-databricks/pull/233))
+
 ## dbt-databricks 1.3.3 (Release TBD)
 
 ### Features
