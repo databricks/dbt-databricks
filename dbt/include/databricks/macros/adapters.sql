@@ -159,6 +159,18 @@
   {{ return(adapter.get_relations_without_caching(schema_relation)) }}
 {% endmacro %}
 
+{% macro show_table_extended(schema_relation) %}
+  {{ return(adapter.dispatch('show_table_extended', 'dbt')(schema_relation)) }}
+{% endmacro %}
+
+{% macro databricks__show_table_extended(schema_relation) %}
+  {% call statement('show_table_extended', fetch_result=True) -%}
+    show table extended in {{ schema_relation.without_identifier() }} like '{{ schema_relation.identifier }}'
+  {% endcall %}
+
+  {% do return(load_result('show_table_extended').table) %}
+{% endmacro %}
+
 {% macro show_tables(relation) %}
   {{ return(adapter.dispatch('show_tables', 'dbt')(relation)) }}
 {% endmacro %}
