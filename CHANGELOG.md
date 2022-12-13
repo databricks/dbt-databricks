@@ -12,6 +12,7 @@
 
 ### Features
 - Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
+- Use show table extended with table name list for get_catalog. ([#237](https://github.com/databricks/dbt-databricks/pull/237))
 
 ## dbt-databricks 1.3.2 (November 9, 2022)
 
