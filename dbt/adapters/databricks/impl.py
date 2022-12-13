@@ -124,7 +124,10 @@ class DatabricksAdapter(SparkAdapter):
             results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.RuntimeException as e:
             errmsg = getattr(e, "msg", "")
-            if f"Database '{schema_relation}' not found" in errmsg:
+            if (
+                "[SCHEMA_NOT_FOUND]" in errmsg
+                or f"Database '{schema_relation}' not found" in errmsg
+            ):
                 return []
             else:
                 description = "Error while retrieving information about"
@@ -153,11 +156,14 @@ class DatabricksAdapter(SparkAdapter):
                 results = self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.RuntimeException as e:
             errmsg = getattr(e, "msg", "")
-            if f"Database '{schema_relation}' not found" in errmsg:
+            if (
+                "[SCHEMA_NOT_FOUND]" in errmsg
+                or f"Database '{schema_relation.without_identifier()}' not found" in errmsg
+            ):
                 results = []
             else:
                 description = "Error while retrieving information about"
-                logger.debug(f"{description} {schema_relation}: {e.msg}")
+                logger.debug(f"{description} {schema_relation.without_identifier()}: {e.msg}")
                 results = []
 
         relations: List[Tuple[DatabricksRelation, str]] = []
