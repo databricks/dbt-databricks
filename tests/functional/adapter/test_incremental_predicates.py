@@ -33,9 +33,7 @@ class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
             "models": { 
                 "+incremental_predicates": [
                     "dbt_internal_dest.id != 2"
-                ],
-                "+incremental_strategy": "merge",
-                "+file_format": "delta"
+                ]
             }
         }
         
@@ -53,9 +51,7 @@ class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
             "models": { 
                 "+predicates": [
                     "dbt_internal_dest.id != 2"
-                ],
-                "+incremental_strategy": "merge",
-                "+file_format": "delta"
+                ]
             }
         }
         
