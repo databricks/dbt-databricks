@@ -26,17 +26,12 @@ select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 {% endif %}
 """
 
+
 class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": { 
-                "+incremental_predicates": [
-                    "dbt_internal_dest.id != 2"
-                ]
-            }
-        }
-        
+        return {"models": {"+incremental_predicates": ["dbt_internal_dest.id != 2"]}}
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -47,17 +42,10 @@ class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
 class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": { 
-                "+predicates": [
-                    "dbt_internal_dest.id != 2"
-                ]
-            }
-        }
-        
+        return {"models": {"+predicates": ["dbt_internal_dest.id != 2"]}}
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "delete_insert_incremental_predicates.sql": models__spark_incremental_predicates_sql
         }
-        
