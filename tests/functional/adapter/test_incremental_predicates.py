@@ -49,5 +49,7 @@ class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "delete_insert_incremental_predicates.sql": models__databricks_incremental_predicates_sql
+            "delete_insert_incremental_predicates.sql": (
+                models__databricks_incremental_predicates_sql
+            )
         }
