@@ -5,7 +5,7 @@ git+https://github.com/dbt-labs/dbt-core.git#egg=dbt-tests-adapter&subdirectory=
 
 # install latest changes in dbt-spark
 # TODO: how to automate switching from develop to version branches?
-git+https://github.com/dbt-labs/dbt-spark.git@feature/incremental-predicates#egg=dbt-spark
+git+https://github.com/dbt-labs/dbt-spark.git#egg=dbt-spark
 
 black==22.8.0
 flake8
