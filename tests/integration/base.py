@@ -900,7 +900,9 @@ def get_manifest():
     if os.path.exists(path):
         with open(path, "rb") as fp:
             manifest_mp = fp.read()
-        manifest: Manifest = Manifest.from_msgpack(manifest_mp)
+        manifest: Manifest = Manifest.from_msgpack(  # type: ignore[annotation-unchecked]
+            manifest_mp
+        )
         return manifest
     else:
         return None
