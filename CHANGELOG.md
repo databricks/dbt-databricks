@@ -7,6 +7,7 @@
 
 ### Features
 - Support Python 3.11 ([#233](https://github.com/databricks/dbt-databricks/pull/233))
+- Support `incremental_predicates` ([#161](https://github.com/databricks/dbt-databricks/pull/161))
 
 ## dbt-databricks 1.3.3 (Release TBD)
 
