@@ -2,7 +2,7 @@ import pytest
 from dbt.tests.adapter.incremental.test_incremental_predicates import BaseIncrementalPredicates
 
 
-models__spark_incremental_predicates_sql = """
+models__databricks_incremental_predicates_sql = """
 {{ config(
     materialized = 'incremental',
     unique_key = 'id'
@@ -35,7 +35,7 @@ class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "delete_insert_incremental_predicates.sql": models__spark_incremental_predicates_sql
+            "delete_insert_incremental_predicates.sql": models__databricks_incremental_predicates_sql
         }
 
 
@@ -47,5 +47,5 @@ class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "delete_insert_incremental_predicates.sql": models__spark_incremental_predicates_sql
+            "delete_insert_incremental_predicates.sql": models__databricks_incremental_predicates_sql
         }
