@@ -26,8 +26,8 @@ class DatabricksIncludePolicy(Policy):
 
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):
-    quote_policy = DatabricksQuotePolicy()
-    include_policy = DatabricksIncludePolicy()
+    quote_policy: Policy = DatabricksQuotePolicy()
+    include_policy: Policy = DatabricksIncludePolicy()
     quote_character: str = "`"
 
     metadata: Optional[Dict[str, Any]] = None
