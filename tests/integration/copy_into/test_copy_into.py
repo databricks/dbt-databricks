@@ -11,6 +11,17 @@ copy_options:
   mergeSchema: 'true'
 """
 
+args_with_expression_list = """
+target_table: target_with_expression_list
+source: {source_path}
+expression_list: 'id, name'
+file_format: parquet
+format_options:
+  mergeSchema: 'true'
+copy_options:
+  mergeSchema: 'true'
+"""
+
 
 class TestCopyInto(DBTIntegrationTest):
     @property
@@ -21,7 +32,7 @@ class TestCopyInto(DBTIntegrationTest):
     def models(self):
         return "models"
 
-    def test_copy_into(self):
+    def prepare(self):
         self.run_dbt(["run"])
         # Get the location of the source table.
         rows = self.run_sql("describe table extended {database_schema}.source", fetch="all")
@@ -31,6 +42,11 @@ class TestCopyInto(DBTIntegrationTest):
                 path = row.data_type
         if path is None:
             raise Exception("No location found for the source table")
+        return path
+
+    def test_copy_into(self):
+        path = self.prepare()
+
         self.run_dbt(
             [
                 "run-operation",
@@ -41,6 +57,25 @@ class TestCopyInto(DBTIntegrationTest):
         )
         self.assertTablesEqual("target", "expected_target")
 
+    def test_copy_into_with_expression_list(self):
+        path = self.prepare()
+
+        self.run_dbt(
+            [
+                "run-operation",
+                "databricks_copy_into",
+                "--args",
+                args_with_expression_list.format(source_path=path),
+            ]
+        )
+        self.assertTablesEqual(
+            "target_with_expression_list", "expected_target_with_expression_list"
+        )
+
     @use_profile("databricks_cluster")
-    def test_databricks_cluster(self):
+    def test_copy_into_databricks_cluster(self):
         self.test_copy_into()
+
+    @use_profile("databricks_cluster")
+    def test_copy_into_with_expression_list_databricks_cluster(self):
+        self.test_copy_into_with_expression_list()

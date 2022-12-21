@@ -89,6 +89,12 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
+        if "." in self.schema:
+            raise dbt.exceptions.ValidationException(
+                f"The schema should not contain '.': {self.schema}\n"
+                "If you are trying to set a catalog, please use `catalog` instead.\n"
+            )
+
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
             if self.database is None:
@@ -161,7 +167,10 @@ class DatabricksCredentials(Credentials):
         )
 
         http_session_headers_dict: Dict[str, str] = (
-            {k: json.dumps(v) for k, v in json.loads(http_session_headers_str).items()}
+            {
+                k: v if isinstance(v, str) else json.dumps(v)
+                for k, v in json.loads(http_session_headers_str).items()
+            }
             if http_session_headers_str is not None
             else {}
         )
@@ -353,6 +362,11 @@ class DatabricksSQLCursorWrapper:
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
+    def tables(self, catalog_name: str, schema_name: str, table_name: Optional[str] = None) -> None:
+        self._cursor.tables(
+            catalog_name=catalog_name, schema_name=schema_name, table_name=table_name
+        )
+
     def __del__(self) -> None:
         if self._cursor.open:
             # This should not happen. The cursor should explicitly be closed.
@@ -520,6 +534,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
+        )
+
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+        return self._execute_cursor(
+            f"GetTables(database={database}, schema={schema}, identifier={identifier})",
+            lambda cursor: cursor.tables(
+                catalog_name=database, schema_name=schema, table_name=identifier
+            ),
         )
 
     @classmethod

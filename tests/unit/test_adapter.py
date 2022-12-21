@@ -234,6 +234,12 @@ class TestDatabricksAdapter(unittest.TestCase):
             ],
         )
 
+    def test_environment_http_headers_string(self):
+        self._test_environment_http_headers(
+            http_headers_str='{"string":"some-string"}',
+            expected_http_headers=[("string", "some-string")],
+        )
+
     def _test_environment_http_headers(
         self, http_headers_str, expected_http_headers, user_http_headers=None
     ):
@@ -416,7 +422,29 @@ class TestDatabricksAdapter(unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+
+        self.assertDictEqual(
+            metadata,
+            {
+                "# col_name": "data_type",
+                "dt": "date",
+                None: None,
+                "# Detailed Table Information": None,
+                "Database": None,
+                "Owner": "root",
+                "Created Time": "Wed Feb 04 18:15:00 UTC 1815",
+                "Last Access": "Wed May 20 19:25:00 UTC 1925",
+                "Type": "MANAGED",
+                "Provider": "delta",
+                "Location": "/mnt/vo",
+                "Serde Library": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                "InputFormat": "org.apache.hadoop.mapred.SequenceFileInputFormat",
+                "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+                "Partition Provider": "Catalog",
+            },
+        )
+
         self.assertEqual(len(rows), 4)
         self.assertEqual(
             rows[0].to_column_dict(omit_none=False),
@@ -505,7 +533,7 @@ class TestDatabricksAdapter(unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        _, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
 
         self.assertEqual(rows[0].to_column_dict().get("table_owner"), "1234")
 
@@ -541,7 +569,28 @@ class TestDatabricksAdapter(unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+
+        self.assertEqual(
+            metadata,
+            {
+                None: None,
+                "# Detailed Table Information": None,
+                "Database": None,
+                "Owner": "root",
+                "Created Time": "Wed Feb 04 18:15:00 UTC 1815",
+                "Last Access": "Wed May 20 19:25:00 UTC 1925",
+                "Statistics": "1109049927 bytes, 14093476 rows",
+                "Type": "MANAGED",
+                "Provider": "delta",
+                "Location": "/mnt/vo",
+                "Serde Library": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                "InputFormat": "org.apache.hadoop.mapred.SequenceFileInputFormat",
+                "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+                "Partition Provider": "Catalog",
+            },
+        )
+
         self.assertEqual(len(rows), 1)
         self.assertEqual(
             rows[0].to_column_dict(omit_none=False),
@@ -605,11 +654,11 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
         relation = DatabricksRelation.create(
-            schema="default_schema", identifier="mytable", type=rel_type, information=information
+            schema="default_schema", identifier="mytable", type=rel_type
         )
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation)
+        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[0].to_column_dict(omit_none=False),
@@ -690,11 +739,11 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
         relation = DatabricksRelation.create(
-            schema="default_schema", identifier="myview", type=rel_type, information=information
+            schema="default_schema", identifier="myview", type=rel_type
         )
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation)
+        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[1].to_column_dict(omit_none=False),
@@ -756,11 +805,11 @@ class TestDatabricksAdapter(unittest.TestCase):
             " |    |-- struct_inner_col: string (nullable = true)\n"
         )
         relation = DatabricksRelation.create(
-            schema="default_schema", identifier="mytable", type=rel_type, information=information
+            schema="default_schema", identifier="mytable", type=rel_type
         )
 
         config = self._get_target_databricks_sql_connector(self.project_cfg)
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation)
+        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[2].to_column_dict(omit_none=False),

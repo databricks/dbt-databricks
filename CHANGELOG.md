@@ -1,5 +1,31 @@
 ## dbt-databricks 1.4.0 (Release TBD)
 
+### Breaking changes
+- Raise an exception when schema contains '.'. ([#222](https://github.com/databricks/dbt-databricks/pull/222))
+    - Containing a catalog in `schema` is not allowed anymore.
+    - Need to explicitly use `catalog` instead.
+
+### Features
+- Support Python 3.11 ([#233](https://github.com/databricks/dbt-databricks/pull/233))
+- Support `incremental_predicates` ([#161](https://github.com/databricks/dbt-databricks/pull/161))
+
+## dbt-databricks 1.3.3 (Release TBD)
+
+### Features
+- Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
+- Use show table extended with table name list for get_catalog. ([#237](https://github.com/databricks/dbt-databricks/pull/237))
+
+## dbt-databricks 1.3.2 (November 9, 2022)
+
+### Fixes
+- Fix copy into macro when passing `expression_list`. ([#223](https://github.com/databricks/dbt-databricks/pull/223))
+- Partially revert to fix the case where schema config contains uppercase letters. ([#224](https://github.com/databricks/dbt-databricks/pull/224))
+
+## dbt-databricks 1.3.1 (November 1, 2022)
+
+### Under the hood
+- Show and log a warning when schema contains '.'. ([#221](https://github.com/databricks/dbt-databricks/pull/221))
+
 ## dbt-databricks 1.3.0 (October 14, 2022)
 
 ### Features

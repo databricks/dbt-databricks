@@ -40,7 +40,7 @@ def _get_plugin_version():
 
 package_name = "dbt-databricks"
 package_version = _get_plugin_version()
-dbt_spark_version = "1.4.0a1"
+dbt_spark_version = "1.4.0b1"
 description = """The Databricks adapter plugin for dbt"""
 
 setup(
@@ -69,6 +69,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.7",
 )

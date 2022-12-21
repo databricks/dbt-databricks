@@ -9,12 +9,13 @@
 
   {#-- Set vars --#}
 
+  {%- set incremental_predicates = config.get('predicates', default=none) or config.get('incremental_predicates', default=none) -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set language = model['language'] -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set target_relation = this -%}
-  {%- set existing_relation = load_relation(this) -%}
+  {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
   {#-- Set Overwrite Mode --#}
   {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
@@ -54,7 +55,7 @@
             'temp_relation': temp_relation,
             'unique_key': unique_key,
             'dest_columns': none,
-            'predicates': none}) -%}
+            'incremental_predicates': incremental_predicates}) -%}
     {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
     {%- if language == 'sql' -%}
       {%- call statement('main') -%}

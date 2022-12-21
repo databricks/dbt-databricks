@@ -18,7 +18,7 @@
 
   {%- set source_clause -%}
     {%- if expression_list -%}
-      select {{ expression_list }} from '{{ source }}'
+      ( select {{ expression_list }} from '{{ source }}' )
     {%- else -%}
       '{{ source }}'
     {%- endif -%}
