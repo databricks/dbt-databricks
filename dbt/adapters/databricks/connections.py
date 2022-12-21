@@ -25,7 +25,7 @@ from agate import Table
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
-from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt.clients import agate_helper
 from dbt.contracts.connection import (
     AdapterResponse,
@@ -39,19 +39,14 @@ from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS, cast_to_str
 
-from dbt.adapters.spark.connections import SparkConnectionManager
-
 from databricks import sql as dbsql
 from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
-from databricks.sql.exc import (
-    Error,
-    InternalError,
-    RequestError,
-    ServerOperationError,
-)
+from databricks.sql.exc import Error
+
+from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
 logger = AdapterLogger("Databricks")
@@ -589,11 +584,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         def exponential_backoff(attempt: int) -> int:
             return attempt * attempt
 
-        retryable_exceptions = [
-            InternalError,
-            RequestError,
-            ServerOperationError,
-        ]
+        retryable_exceptions = []
         # this option is for backwards compatibility
         if creds.retry_all:
             retryable_exceptions = [Error]
