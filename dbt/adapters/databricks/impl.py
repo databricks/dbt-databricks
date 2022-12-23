@@ -191,14 +191,21 @@ class DatabricksAdapter(SparkAdapter):
     def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
         kwargs = {"relation": relation}
 
-        new_rows: List[Tuple]
+        new_rows: List[Tuple[Optional[str], str, str, str]]
         if relation.database is not None:
             assert relation.schema is not None
             tables = self.connections.list_tables(
                 database=relation.database, schema=relation.schema
             )
             new_rows = [
-                (row["TABLE_CAT"], row["TABLE_SCHEM"], row["TABLE_NAME"], row["TABLE_TYPE"].lower())
+                (
+                    row["TABLE_CAT"],
+                    row["TABLE_SCHEM"],
+                    row["TABLE_NAME"],
+                    # FIXME: "VIEW" will be returned as TABLE_TYPE for Materialized View.
+                    #        Currently we can't distinguish View and Materialized View here.
+                    row["TABLE_TYPE"].lower() if row["TABLE_TYPE"].lower() != "view" else "",
+                )
                 for row in tables
             ]
         else:
@@ -211,13 +218,21 @@ class DatabricksAdapter(SparkAdapter):
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
 
-            view_names = set(views.columns["viewName"].values())
+            view_names: Dict[str, bool] = {
+                view["viewName"]: view.get("isMaterialized", False) for view in views
+            }
             new_rows = [
                 (
                     row[0],
                     row[1],
                     row[2],
-                    str(RelationType.View if row[2] in view_names else RelationType.Table),
+                    str(
+                        RelationType.Table
+                        if row[2] not in view_names
+                        else RelationType.MaterializedView
+                        if view_names[row[2]]
+                        else RelationType.View
+                    ),
                 )
                 for row in new_rows
             ]

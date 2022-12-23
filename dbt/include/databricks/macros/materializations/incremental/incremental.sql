@@ -33,7 +33,7 @@
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
-  {%- elif existing_relation.is_view or should_full_refresh() -%}
+  {%- elif existing_relation.is_view or existing_relation.is_materialized_view or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
     {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
     {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}

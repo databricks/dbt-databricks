@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.contracts.relation import RelationType
 
 from dbt.adapters.databricks.utils import remove_undefined
 
@@ -43,6 +44,10 @@ class DatabricksRelation(BaseRelation):
 
     def has_information(self) -> bool:
         return self.metadata is not None
+
+    @property
+    def is_materialized_view(self) -> bool:
+        return self.type == RelationType.MaterializedView
 
     @property
     def is_delta(self) -> bool:

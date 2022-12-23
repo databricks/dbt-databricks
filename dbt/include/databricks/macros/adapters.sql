@@ -195,6 +195,18 @@
   {% do return(load_result('show_views').table) %}
 {% endmacro %}
 
+{% macro databricks__drop_relation(relation) -%}
+    {%- if relation.is_materialized_view -%}
+        {% call statement('drop_relation', auto_begin=False) -%}
+            drop materialized view if exists {{ relation }}
+        {%- endcall %}
+    {%- else -%}
+        {% call statement('drop_relation', auto_begin=False) -%}
+            drop {{ relation.type }} if exists {{ relation }}
+        {%- endcall %}
+    {%- endif -%}
+{% endmacro %}
+
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- set default_database = target.database -%}
     {%- if custom_database_name is none -%}
