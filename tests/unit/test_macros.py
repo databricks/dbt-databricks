@@ -345,8 +345,9 @@ class TestDatabricksMacros(unittest.TestCase):
         sql = self.__run_macro(
             template, "databricks__create_table_as", False, relation, "select 1"
         ).strip()
+        exp = "create or replace table `some_database`.`some_schema`.`some_table` using delta as select 1"
 
         self.assertEqual(
             sql,
-            "create or replace table `some_database`.`some_schema`.`some_table` using delta as select 1",
+            exp,
         )
