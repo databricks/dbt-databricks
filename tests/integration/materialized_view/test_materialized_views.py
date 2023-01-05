@@ -1,4 +1,5 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
+from dbt.contracts.results import RunResult, RunStatus
 
 
 class TestMaterializedView(DBTIntegrationTest):
@@ -12,7 +13,7 @@ class TestMaterializedView(DBTIntegrationTest):
 
     def test_materialized_view(self):
         self.run_dbt(["seed"])
-        self.run_dbt(["run"])
+        self.run_dbt(["run", "--select", "+mv"])
 
         self.assertTablesEqual("mv", "expected_1")
 
@@ -28,6 +29,21 @@ class TestMaterializedView(DBTIntegrationTest):
         self.run_dbt(["run", "--full-refresh", "--select", "mv"])
         self.assertTablesEqual("mv", "expected_2")
 
+    def test_materialized_view_no_cdf(self):
+        # The base table is not CDF.
+        result = self.run_dbt(["run", "--select", "+mv_nocdf"], expect_pass=False)
+        assert len(result.results) == 2
+        res: RunResult = result.results[1]
+        assert res.status == RunStatus.Error
+        assert (
+            res.message
+            and "The input for materialized view must have Change Data Feed enabled." in res.message
+        )
+
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_databricks_uc_sql_endpoint(self):
         self.test_materialized_view()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_materialized_view_no_cdf_databricks_uc_sql_endpoint(self):
+        self.test_materialized_view_no_cdf()
