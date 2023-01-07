@@ -11,7 +11,7 @@ class TestMaterializedView(DBTIntegrationTest):
     def models(self):
         return "models"
 
-    def test_materialized_view(self):
+    def test_materialized_view_base(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run", "--select", "+mv"])
 
@@ -41,8 +41,8 @@ class TestMaterializedView(DBTIntegrationTest):
         )
 
     @use_profile("databricks_uc_sql_endpoint")
-    def test_materialized_view_databricks_uc_sql_endpoint(self):
-        self.test_materialized_view()
+    def test_materialized_view_base_databricks_uc_sql_endpoint(self):
+        self.test_materialized_view_base()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_no_cdf_databricks_uc_sql_endpoint(self):

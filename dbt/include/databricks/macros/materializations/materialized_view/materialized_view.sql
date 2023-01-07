@@ -1,4 +1,4 @@
-{% materialization materializedview, adapter='databricks' %}
+{% materialization materialized_view, adapter='databricks' %}
   {%- set identifier = model['alias'] -%}
 
   {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
