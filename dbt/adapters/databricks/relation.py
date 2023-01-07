@@ -13,9 +13,9 @@ KEY_TABLE_PROVIDER = "Provider"
 
 @dataclass
 class DatabricksQuotePolicy(Policy):
-    database: bool = False
-    schema: bool = False
-    identifier: bool = False
+    database: bool = True
+    schema: bool = True
+    identifier: bool = True
 
 
 @dataclass

@@ -2,15 +2,18 @@ import unittest
 from unittest import mock
 import re
 from jinja2 import Environment, FileSystemLoader, PackageLoader
+from dbt.adapters.databricks.relation import DatabricksRelation
 
 
 class TestSparkMacros(unittest.TestCase):
     def setUp(self):
         self.parent_jinja_env = Environment(
-            loader=PackageLoader("dbt.include.spark", "macros"), extensions=["jinja2.ext.do"]
+            loader=PackageLoader("dbt.include.spark", "macros"),
+            extensions=["jinja2.ext.do"],
         )
         self.jinja_env = Environment(
-            loader=FileSystemLoader("dbt/include/databricks/macros"), extensions=["jinja2.ext.do"]
+            loader=FileSystemLoader("dbt/include/databricks/macros"),
+            extensions=["jinja2.ext.do"],
         )
 
         self.config = {}
@@ -92,7 +95,8 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1"
         ).strip()
         self.assertEqual(
-            sql, 'create table my_table using hudi options (compression "gzip" ) as select 1'
+            sql,
+            'create table my_table using hudi options (compression "gzip" ) as select 1',
         )
 
     def test_macros_create_table_as_hudi_options(self):
@@ -104,7 +108,8 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1 as id"
         ).strip()
         self.assertEqual(
-            sql, 'create table my_table using hudi options (primaryKey "id" ) as select 1 as id'
+            sql,
+            'create table my_table using hudi options (primaryKey "id" ) as select 1 as id',
         )
 
         self.config["file_format"] = "hudi"
@@ -114,7 +119,8 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1 as id"
         ).strip()
         self.assertEqual(
-            sql, 'create table my_table using hudi options (primaryKey "id" ) as select 1 as id'
+            sql,
+            'create table my_table using hudi options (primaryKey "id" ) as select 1 as id',
         )
 
         self.config["file_format"] = "hudi"
@@ -272,4 +278,79 @@ class TestSparkMacros(unittest.TestCase):
             sql,
             "create or replace view my_table "
             "tblproperties ('tblproperties_to_view' = 'true' ) as select 1",
+        )
+
+
+class TestDatabricksMacros(unittest.TestCase):
+    def setUp(self):
+        self.parent_jinja_env = Environment(
+            loader=PackageLoader("dbt.include.spark", "macros"),
+            extensions=["jinja2.ext.do"],
+        )
+        self.jinja_env = Environment(
+            loader=FileSystemLoader("dbt/include/databricks/macros"),
+            extensions=["jinja2.ext.do"],
+        )
+
+        self.config = {}
+        self.default_context = {
+            "validation": mock.Mock(),
+            "model": mock.Mock(),
+            "exceptions": mock.Mock(),
+            "config": mock.Mock(),
+            "adapter": mock.Mock(),
+            "return": lambda r: r,
+        }
+        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+            key, default
+        )
+
+    def __get_template(self, template_filename):
+        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
+        self.default_context.update(parent.module.__dict__)
+        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+
+    def __run_macro(self, template, name, temporary, relation, sql):
+        self.default_context["model"].alias = relation
+
+        def dispatch(macro_name, macro_namespace=None, packages=None):
+            if hasattr(template.module, f"databricks__{macro_name}"):
+                return getattr(template.module, f"databricks__{macro_name}")
+            else:
+                return self.default_context[f"spark__{macro_name}"]
+
+        self.default_context["adapter"].dispatch = dispatch
+
+        if temporary is not None:
+            value = getattr(template.module, name)(temporary, relation, sql)
+        else:
+            value = getattr(template.module, name)(relation, sql)
+        return re.sub(r"\s\s+", " ", value)
+
+    def test_macros_load(self):
+        self.jinja_env.get_template("adapters.sql")
+
+    def test_macros_create_table_as(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        sql = self.__run_macro(
+            template, "databricks__create_table_as", False, relation, "select 1"
+        ).strip()
+
+        self.assertEqual(
+            sql,
+            (
+                "create or replace table "
+                "`some_database`.`some_schema`.`some_table` "
+                "using delta as select 1"
+            ),
         )
