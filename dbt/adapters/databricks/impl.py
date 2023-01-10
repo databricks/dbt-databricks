@@ -18,6 +18,7 @@ from dbt.adapters.spark.impl import (
     KEY_TABLE_STATISTICS,
     LIST_RELATIONS_MACRO_NAME,
     LIST_SCHEMAS_MACRO_NAME,
+    TABLE_OR_VIEW_NOT_FOUND_MESSAGES,
 )
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
@@ -46,12 +47,6 @@ USE_CATALOG_MACRO_NAME = "use_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-
-TABLE_OR_VIEW_NOT_FOUND_MESSAGES = (
-    "[TABLE_OR_VIEW_NOT_FOUND]",
-    "Table or view not found",
-    "NoSuchTableException",
-)
 
 
 @dataclass
