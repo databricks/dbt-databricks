@@ -174,7 +174,7 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_invalid_custom_user_agent(self):
         with self.assertRaisesRegex(
-            dbt.exceptions.ValidationException,
+            dbt.exceptions.DbtValidationError,
             "Invalid invocation environment",
         ):
             config = self._get_target_databricks_sql_connector(self.project_cfg)
@@ -214,7 +214,7 @@ class TestDatabricksAdapter(unittest.TestCase):
 
     def test_environment_users_http_headers_intersection_error(self):
         with self.assertRaisesRegex(
-            dbt.exceptions.ValidationException,
+            dbt.exceptions.DbtValidationError,
             r"Intersection with reserved http_headers in keys: {'t'}",
         ):
             self._test_environment_http_headers(

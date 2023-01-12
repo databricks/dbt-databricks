@@ -1,3 +1,5 @@
+## dbt-databricks 1.5.0 (Release TBD)
+
 ## dbt-databricks 1.4.0 (Release TBD)
 
 ### Breaking changes
