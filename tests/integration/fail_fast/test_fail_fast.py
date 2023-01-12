@@ -1,4 +1,4 @@
-from dbt.exceptions import FailFastException
+from dbt.exceptions import FailFastError
 
 from tests.integration.base import DBTIntegrationTest, use_profile
 
@@ -16,7 +16,7 @@ class TesFailFast(DBTIntegrationTest):
         self.run_dbt(["run"])
 
         with self.assertRaisesRegex(
-            FailFastException, "Failing early due to test failure or runtime error"
+            FailFastError, "Failing early due to test failure or runtime error"
         ):
             self.run_dbt(["test", "--fail-fast"])
 
