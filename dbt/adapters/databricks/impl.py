@@ -122,7 +122,7 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"schema_relation": schema_relation}
         try:
             results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
-        except dbt.exceptions.RuntimeException as e:
+        except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if (
                 "[SCHEMA_NOT_FOUND]" in errmsg
@@ -154,7 +154,7 @@ class DatabricksAdapter(SparkAdapter):
             # The catalog for `show table extended` needs to match the current catalog.
             with self._catalog(schema_relation.database):
                 results = self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
-        except dbt.exceptions.RuntimeException as e:
+        except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if (
                 "[SCHEMA_NOT_FOUND]" in errmsg
@@ -169,7 +169,7 @@ class DatabricksAdapter(SparkAdapter):
         relations: List[Tuple[DatabricksRelation, str]] = []
         for row in results:
             if len(row) != 4:
-                raise dbt.exceptions.RuntimeException(
+                raise dbt.exceptions.DbtRuntimeError(
                     f'Invalid value from "show table extended ...", '
                     f"got {len(row)} values, expected 4"
                 )
@@ -288,7 +288,7 @@ class DatabricksAdapter(SparkAdapter):
                 GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
             )
             metadata, columns = self.parse_describe_extended(relation, rows)
-        except dbt.exceptions.RuntimeException as e:
+        except dbt.exceptions.DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
             errmsg = getattr(e, "msg", "")
@@ -368,7 +368,7 @@ class DatabricksAdapter(SparkAdapter):
         manifest: Manifest,
     ) -> Table:
         if len(schemas) != 1:
-            dbt.exceptions.raise_compiler_error(
+            raise dbt.exceptions.CompilationError(
                 f"Expected only one schema in spark _get_one_catalog, found " f"{schemas}"
             )
 

@@ -85,7 +85,7 @@ class DatabricksCredentials(Credentials):
 
     def __post_init__(self) -> None:
         if "." in self.schema:
-            raise dbt.exceptions.ValidationException(
+            raise dbt.exceptions.DbtValidationError(
                 f"The schema should not contain '.': {self.schema}\n"
                 "If you are trying to set a catalog, please use `catalog` instead.\n"
             )
@@ -96,7 +96,7 @@ class DatabricksCredentials(Credentials):
                 self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
                 del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
             else:
-                raise dbt.exceptions.ValidationException(
+                raise dbt.exceptions.DbtValidationError(
                     f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
                     'in session_properties) all map to "database"'
                 )
@@ -105,7 +105,7 @@ class DatabricksCredentials(Credentials):
         if self.database is not None:
             database = self.database.strip()
             if not database:
-                raise dbt.exceptions.ValidationException(
+                raise dbt.exceptions.DbtValidationError(
                     f"Invalid catalog name : `{self.database}`."
                 )
             self.database = database
@@ -121,7 +121,7 @@ class DatabricksCredentials(Credentials):
             "_user_agent_entry",
         ):
             if key in connection_parameters:
-                raise dbt.exceptions.ValidationException(
+                raise dbt.exceptions.DbtValidationError(
                     f"The connection parameter `{key}` is reserved."
                 )
         if "http_headers" in connection_parameters:
@@ -130,7 +130,7 @@ class DatabricksCredentials(Credentials):
                 not isinstance(key, str) or not isinstance(value, str)
                 for key, value in http_headers.items()
             ):
-                raise dbt.exceptions.ValidationException(
+                raise dbt.exceptions.DbtValidationError(
                     "The connection parameter `http_headers` should be dict of strings: "
                     f"{http_headers}."
                 )
@@ -150,7 +150,7 @@ class DatabricksCredentials(Credentials):
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
             if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
-                raise dbt.exceptions.ValidationException(
+                raise dbt.exceptions.DbtValidationError(
                     f"Invalid invocation environment: {invocation_env}"
                 )
         return invocation_env
@@ -175,7 +175,7 @@ class DatabricksCredentials(Credentials):
         )
 
         if len(intersect_http_header_keys) > 0:
-            raise dbt.exceptions.ValidationException(
+            raise dbt.exceptions.DbtValidationError(
                 f"Intersection with reserved http_headers in keys: {intersect_http_header_keys}"
             )
 
@@ -424,7 +424,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         except Error as exc:
             logger.debug(f"Error while running:\n{log_sql}")
             _log_dbsql_errors(exc)
-            raise dbt.exceptions.RuntimeException(str(exc)) from exc
+            raise dbt.exceptions.DbtRuntimeError(str(exc)) from exc
 
         except Exception as exc:
             logger.debug(f"Error while running:\n{log_sql}")
@@ -435,9 +435,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             thrift_resp = exc.args[0]
             if hasattr(thrift_resp, "status"):
                 msg = thrift_resp.status.errorMessage
-                raise dbt.exceptions.RuntimeException(msg) from exc
+                raise dbt.exceptions.DbtRuntimeError(msg) from exc
             else:
-                raise dbt.exceptions.RuntimeException(str(exc)) from exc
+                raise dbt.exceptions.DbtRuntimeError(str(exc)) from exc
 
     def add_query(
         self,
