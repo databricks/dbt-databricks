@@ -22,7 +22,7 @@
     -- If there's a table with the same name and we weren't told to full refresh,
     -- that's an error. If we were told to full refresh, drop it. This behavior differs
     -- for Snowflake and BigQuery, so multiple dispatch is used.
-    {%- if old_relation is not none -%}
+    {%- if old_relation is not none and not old_relation.is_materialized_view -%}
       {{ handle_existing_table(full_refresh_mode, old_relation) }}
     {%- endif -%}
 
