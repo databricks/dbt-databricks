@@ -12,10 +12,6 @@
 - Support `incremental_predicates` ([#161](https://github.com/databricks/dbt-databricks/pull/161))
 - Apply connection retry refactor, add defaults with exponential backoff ([#137](https://github.com/databricks/dbt-databricks/pull/137))
 - Quote by Default ([#241](https://github.com/databricks/dbt-databricks/pull/241))
-
-## dbt-databricks 1.3.3 (Release TBD)
-
-### Features
 - Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
 - Use show table extended with table name list for get_catalog. ([#237](https://github.com/databricks/dbt-databricks/pull/237))
 
