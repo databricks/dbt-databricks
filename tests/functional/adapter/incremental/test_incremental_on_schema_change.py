@@ -21,10 +21,20 @@ class IncrementalOnSchemaChangeIgnoreFail(BaseIncrementalOnSchemaChangeSetup):
         assert "Compilation Error" in results_two[1].message
 
 
+class TestAppendOnSchemaChange(IncrementalOnSchemaChangeIgnoreFail):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "append",
+            }
+        }
+
+
 @pytest.mark.skip_profile(
     "databricks_uc_cluster", "databricks_sql_endpoint", "databricks_uc_sql_endpoint"
 )
-class TestAppendOnSchemaChange(IncrementalOnSchemaChangeIgnoreFail):
+class TestAppendParquetOnSchemaChange(IncrementalOnSchemaChangeIgnoreFail):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -50,7 +60,7 @@ class TestInsertOverwriteOnSchemaChange(IncrementalOnSchemaChangeIgnoreFail):
         }
 
 
-class TestDeltaOnSchemaChange(BaseIncrementalOnSchemaChangeSetup):
+class TestMergeOnSchemaChange(BaseIncrementalOnSchemaChangeSetup):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
