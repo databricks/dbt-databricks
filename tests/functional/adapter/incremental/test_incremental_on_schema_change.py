@@ -61,8 +61,8 @@ class TestDeltaOnSchemaChange(BaseIncrementalOnSchemaChangeSetup):
 
     def run_incremental_sync_all_columns(self, project):
         select = "model_a incremental_sync_all_columns incremental_sync_all_columns_target"
-        compare_source = "incremental_sync_all_columns"
-        compare_target = "incremental_sync_all_columns_target"
+        compare_source = "incremental_sync_all_columns"  # noqa: F841
+        compare_target = "incremental_sync_all_columns_target"  # noqa: F841
         run_dbt(["run", "--models", select, "--full-refresh"])
         # Delta Lake doesn"t support removing columns -- show a nice compilation error
         results = run_dbt(["run", "--models", select], expect_pass=False)
@@ -70,8 +70,8 @@ class TestDeltaOnSchemaChange(BaseIncrementalOnSchemaChangeSetup):
 
     def run_incremental_sync_remove_only(self, project):
         select = "model_a incremental_sync_remove_only incremental_sync_remove_only_target"
-        compare_source = "incremental_sync_remove_only"
-        compare_target = "incremental_sync_remove_only_target"
+        compare_source = "incremental_sync_remove_only"  # noqa: F841
+        compare_target = "incremental_sync_remove_only_target"  # noqa: F841
         run_dbt(["run", "--models", select, "--full-refresh"])
         # Delta Lake doesn"t support removing columns -- show a nice compilation error
         results = run_dbt(["run", "--models", select], expect_pass=False)
