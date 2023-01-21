@@ -44,6 +44,8 @@ from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
+from databricks.sql.experimental.oauth_persistence import OAuthPersistence, OAuthToken
+from databricks.sql.auth.auth import AuthType
 from databricks.sql.exc import Error
 
 from dbt.adapters.databricks.__version__ import version as __version__
@@ -59,12 +61,27 @@ EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 
+class OAuthPersistenceCache(OAuthPersistence):
+    def __init__(self):
+        self.tokens = {}
+
+    def persist(self, hostname: str, oauth_token: OAuthToken):
+        self.tokens[hostname] = oauth_token
+
+    def read(self, hostname: str) -> Optional[OAuthToken]:
+        return self.tokens.get(hostname)
+
+
+oauth_token_cache = OAuthPersistenceCache()
+
+
 @dataclass
 class DatabricksCredentials(Credentials):
     database: Optional[str]  # type: ignore[assignment]
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
+    auth_type: Optional[str] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
 
@@ -120,6 +137,10 @@ class DatabricksCredentials(Credentials):
             "catalog",
             "schema",
             "_user_agent_entry",
+            "auth_type",
+            "oauth_client_id",
+            "oauth_redirect_port_range",
+            "experimental_oauth_persistence",
         ):
             if key in connection_parameters:
                 raise dbt.exceptions.DbtValidationError(
@@ -138,11 +159,16 @@ class DatabricksCredentials(Credentials):
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:
-        for key in ["host", "http_path", "token"]:
+        for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
+
+        if not self.token and (not self.auth_type or self.auth_type == "token"):
+            raise dbt.exceptions.DbtProfileError(
+                "The config token is required to connect to Databricks"
+            )
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
@@ -393,6 +419,9 @@ DATABRICKS_QUERY_COMMENT = f"""
 {{{{ return(tojson(comment_dict)) }}}}
 """
 
+DBT_ADAPTER_OAUTH_CLIENT_ID: str = "dbt-databricks"
+DBT_ADAPTER_OAUTH_PORT = 8050
+
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
     def _get_comment_macro(self) -> Optional[str]:
@@ -566,6 +595,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
         def connect() -> DatabricksSQLConnectionWrapper:
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
+                oauth_params = {}
+                if creds.auth_type == "oauth":
+                    oauth_params = {
+                        "auth_type": AuthType.DATABRICKS_OAUTH.value,
+                        "oauth_client_id": DBT_ADAPTER_OAUTH_CLIENT_ID,
+                        "oauth_redirect_port": DBT_ADAPTER_OAUTH_PORT,
+                        "experimental_oauth_persistence": oauth_token_cache,
+                    }
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
@@ -576,6 +613,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
+                    **oauth_params,
                 )
                 return DatabricksSQLConnectionWrapper(conn, is_cluster=creds.cluster_id is not None)
             except Error as exc:

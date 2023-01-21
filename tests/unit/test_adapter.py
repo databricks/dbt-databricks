@@ -11,6 +11,8 @@ from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
     DBT_DATABRICKS_INVOCATION_ENV,
     DBT_DATABRICKS_HTTP_SESSION_HEADERS,
+    DBT_ADAPTER_OAUTH_CLIENT_ID,
+    DBT_ADAPTER_OAUTH_PORT,
 )
 from tests.unit.utils import config_from_parts_or_dicts
 
@@ -42,6 +44,24 @@ class TestDatabricksAdapter(unittest.TestCase):
                         "host": "yourorg.databricks.com",
                         "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
                         "token": "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
+                    }
+                },
+                "target": "test",
+            },
+        )
+
+    def _get_target_databricks_sql_connector_oauth(self, project):
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "auth_type": "oauth",
                         "session_properties": {"spark.sql.ansi.enabled": "true"},
                     }
                 },
@@ -263,8 +283,25 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
+    def test_oauth_setting(self):
+        config = self._get_target_databricks_sql_connector_oauth(self.project_cfg)
+
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_oauth=True),
+        ):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+
     def _connect_func(
-        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
+        self,
+        *,
+        expected_catalog=None,
+        expected_invocation_env=None,
+        expected_http_headers=None,
+        expected_oauth=False,
     ):
         def connect(
             server_hostname,
@@ -274,10 +311,12 @@ class TestDatabricksAdapter(unittest.TestCase):
             session_configuration,
             catalog,
             _user_agent_entry,
+            **kwargs,
         ):
             self.assertEqual(server_hostname, "yourorg.databricks.com")
             self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            if not expected_oauth:
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
             if expected_catalog is None:
                 self.assertIsNone(catalog)
@@ -294,6 +333,12 @@ class TestDatabricksAdapter(unittest.TestCase):
                 self.assertIsNone(http_headers)
             else:
                 self.assertEqual(http_headers, expected_http_headers)
+
+            if expected_oauth:
+                self.assertEqual(kwargs.get("auth_type"), "databricks-oauth")
+                self.assertEqual(kwargs.get("oauth_client_id"), DBT_ADAPTER_OAUTH_CLIENT_ID)
+                self.assertEqual(kwargs.get("oauth_redirect_port"), DBT_ADAPTER_OAUTH_PORT)
+                self.assertIsNotNone(kwargs.get("experimental_oauth_persistence"))
 
         return connect
 
