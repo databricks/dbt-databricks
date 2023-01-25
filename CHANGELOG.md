@@ -1,4 +1,4 @@
-## dbt-databricks 1.4.0 (Release TBD)
+## dbt-databricks 1.4.0 (January 25, 2023)
 
 ### Breaking changes
 - Raise an exception when schema contains '.'. ([#222](https://github.com/databricks/dbt-databricks/pull/222))
