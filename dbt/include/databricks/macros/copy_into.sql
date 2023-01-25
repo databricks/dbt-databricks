@@ -7,6 +7,7 @@
   source_encryption=none,
   validate=none,
   files=none,
+  pattern=none,
   format_options=none,
   copy_options=none) -%}
 
@@ -47,12 +48,18 @@
     from {{ source_clause }}
     fileformat = {{ file_format }}
     {% if validate -%} validate {{ validate }} {%- endif %}
+    {% if files and pattern %}
+        {{ exceptions.raise_compiler_error("You can only specify one of 'files' or 'pattern'") }}
+    {% endif %}
     {% if files -%}
       files = (
         {%- for file in files -%}
           '{{ file }}' {%- if not loop.last %}, {% endif -%}
         {%- endfor -%}
       )
+    {%- endif %}
+    {% if pattern -%}
+        pattern = '{{ pattern }}'
     {%- endif %}
     {% if format_options -%}
       format_options (
