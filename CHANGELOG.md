@@ -12,6 +12,7 @@
 - Quote by Default ([#241](https://github.com/databricks/dbt-databricks/pull/241))
 - Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
 - Use show table extended with table name list for get_catalog. ([#237](https://github.com/databricks/dbt-databricks/pull/237))
+- Add support for a glob pattern in the databricks_copy_into macro ([#259](https://github.com/databricks/dbt-databricks/pull/259))
 
 ## dbt-databricks 1.3.2 (November 9, 2022)
 
