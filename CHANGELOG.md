@@ -1,6 +1,6 @@
 ## dbt-databricks 1.5.0 (Release TBD)
 
-## dbt-databricks 1.4.0 (Release TBD)
+## dbt-databricks 1.4.0 (January 25, 2023)
 
 ### Breaking changes
 - Raise an exception when schema contains '.'. ([#222](https://github.com/databricks/dbt-databricks/pull/222))
@@ -12,12 +12,9 @@
 - Support `incremental_predicates` ([#161](https://github.com/databricks/dbt-databricks/pull/161))
 - Apply connection retry refactor, add defaults with exponential backoff ([#137](https://github.com/databricks/dbt-databricks/pull/137))
 - Quote by Default ([#241](https://github.com/databricks/dbt-databricks/pull/241))
-
-## dbt-databricks 1.3.3 (Release TBD)
-
-### Features
 - Avoid show table extended command. ([#231](https://github.com/databricks/dbt-databricks/pull/231))
 - Use show table extended with table name list for get_catalog. ([#237](https://github.com/databricks/dbt-databricks/pull/237))
+- Add support for a glob pattern in the databricks_copy_into macro ([#259](https://github.com/databricks/dbt-databricks/pull/259))
 
 ## dbt-databricks 1.3.2 (November 9, 2022)
 
