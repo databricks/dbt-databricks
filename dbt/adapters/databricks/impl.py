@@ -141,7 +141,7 @@ class DatabricksAdapter(SparkAdapter):
                 identifier=name,
                 type=self.Relation.get_relation_type(kind),
             )
-            for database, schema, name, kind in results.select(
+            for database, schema, name, kind in results.select(  # type: ignore[attr-defined]
                 ["database_name", "schema_name", "name", "kind"]
             )
         ]
@@ -149,11 +149,12 @@ class DatabricksAdapter(SparkAdapter):
     def _list_relations_with_information(
         self, schema_relation: DatabricksRelation
     ) -> List[Tuple[DatabricksRelation, str]]:
+        results: List[Row]
         kwargs = {"schema_relation": schema_relation}
         try:
             # The catalog for `show table extended` needs to match the current catalog.
             with self._catalog(schema_relation.database):
-                results = self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
+                results = list(self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs))
         except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if (
@@ -299,8 +300,10 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         try:
-            rows = self.execute_macro(
-                GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+            rows: List[Row] = list(
+                self.execute_macro(
+                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+                )
             )
             metadata, columns = self.parse_describe_extended(relation, rows)
         except dbt.exceptions.DbtRuntimeError as e:

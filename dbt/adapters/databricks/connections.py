@@ -74,6 +74,7 @@ class DatabricksCredentials(Credentials):
 
     _ALIASES = {
         "catalog": "database",
+        "target_catalog": "target_database",
     }
 
     @classmethod
