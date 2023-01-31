@@ -92,3 +92,88 @@ class TestDatabricksRelation(unittest.TestCase):
 
         relation = DatabricksRelation.from_dict(data)
         self.assertEqual(relation.render(), "`some_schema`.`some_table`")
+
+    def test_matches(self):
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "SOME_TABLE",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertTrue(relation.matches("some_database", "some_schema", "SOME_TABLE"))
+
+        data = {
+            "path": {
+                "database": "SOME_DATABASE",
+                "schema": "SOME_SCHEMA",
+                "identifier": "SOME_TABLE",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertTrue(relation.matches("SOME_DATABASE", "SOME_SCHEMA", "SOME_TABLE"))
+
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertFalse(relation.matches("SOME_DATABASE", "SOME_SCHEMA", "TABLE"))
+
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        self.assertFalse(relation.matches("some_database", "some_schema", "table"))
