@@ -89,7 +89,7 @@ class DatabricksRelation(BaseRelation):
             if str(self.path.get_lowered_part(k)).strip(self.quote_character) != v.lower().strip(
                 self.quote_character
             ):
-                match = False  # type: ignore[union-attr]
+                match = False
 
         if not match:
             target = self.create(database=database, schema=schema, identifier=identifier)
