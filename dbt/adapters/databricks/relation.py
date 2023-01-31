@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-
+from dbt.contracts.relation import (
+    ComponentName,
+)
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 
 from dbt.adapters.databricks.utils import remove_undefined
-
+from dbt.utils import filter_null_values
+from dbt.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -61,3 +64,31 @@ class DatabricksRelation(BaseRelation):
     @property
     def stats(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
+
+    def matches(
+        self,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        identifier: Optional[str] = None,
+    ) -> bool:
+        search = filter_null_values(
+            {
+                ComponentName.Database: database,
+                ComponentName.Schema: schema,
+                ComponentName.Identifier: identifier,
+            }
+        )
+
+        if not search:
+            # nothing was passed in
+            raise DbtRuntimeError("Tried to match relation, but no search path was passed!")
+
+        match = True
+
+        for k, v in search.items():
+            if str(self.path.get_lowered_part(k)).strip(self.quote_character) != v.lower().strip(
+                self.quote_character
+            ):
+                match = False
+
+        return match
