@@ -4,8 +4,6 @@ from jinja2.runtime import Undefined
 
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksQuotePolicy
 
-from dbt.exceptions import ApproximateMatchError
-
 
 class TestDatabricksRelation(unittest.TestCase):
     def test_pre_deserialize(self):
