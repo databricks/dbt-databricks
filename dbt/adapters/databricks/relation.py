@@ -91,8 +91,4 @@ class DatabricksRelation(BaseRelation):
             ):
                 match = False
 
-        if not match:
-            target = self.create(database=database, schema=schema, identifier=identifier)
-            raise ApproximateMatchError(target, self)
-
         return match

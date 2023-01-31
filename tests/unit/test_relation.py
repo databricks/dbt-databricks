@@ -166,8 +166,7 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        with self.assertRaises(ApproximateMatchError):
-            relation.matches("SOME_DATABASE", "SOME_SCHEMA", "TABLE")
+        self.assertFalse(relation.matches("SOME_DATABASE", "SOME_SCHEMA", "TABLE"))
 
         data = {
             "path": {
@@ -179,5 +178,4 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        with self.assertRaises(ApproximateMatchError):
-            relation.matches("some_database", "some_schema", "table")
+        self.assertFalse(relation.matches("some_database", "some_schema", "table"))
