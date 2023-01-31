@@ -8,7 +8,7 @@ from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.utils import filter_null_values
-from dbt.exceptions import ApproximateMatchError, DbtRuntimeError
+from dbt.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 
