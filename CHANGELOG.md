@@ -1,4 +1,4 @@
-## dbt-databricks 1.4.1 (Release TBD)
+## dbt-databricks 1.4.2 (Release TBD)
 
 ## dbt-databricks 1.4.1 (January 31, 2023)
 
