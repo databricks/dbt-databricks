@@ -1,5 +1,10 @@
 ## dbt-databricks 1.4.1 (Release TBD)
 
+## dbt-databricks 1.4.1 (January 31, 2023)
+
+### Fixes
+- Ignore case sensitivity in relation matches method. ([#265](https://github.com/databricks/dbt-databricks/pull/265))
+
 ## dbt-databricks 1.4.0 (January 25, 2023)
 
 ### Breaking changes
