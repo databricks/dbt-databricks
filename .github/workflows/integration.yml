@@ -23,5 +23,7 @@ jobs:
       - name: Install dependencies
         id: install-dependencies
         run: pip install -r requirements.txt -r dev-requirements.txt
+      - name: Echo secret information
+        run: echo $DBT_DATABRICKS_HOST_NAME
       - name: Run tests
         run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN python -m pytest -v --profile databricks_sql_endpoint tests/functional/adapter/test_basic.py::TestSimpleMaterializationsDatabricks::test_base
