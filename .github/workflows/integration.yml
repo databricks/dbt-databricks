@@ -16,7 +16,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10
+          python-version: "3.10"
       - name: Install dependencies
         id: install-dependencies
         run: python3 -m pip install -r requirements.txt -r dev-requirements.txt
