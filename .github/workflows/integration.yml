@@ -23,6 +23,6 @@ jobs:
         id: install-tox
         run: python3 -m pip install tox
       - name: Create test.env
-        run: echo -e 'export DBT_DATABRICKS_HOSTNAME=$DBT_DATABRICKS_HOST_NAME\nexport DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH\nexport DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH=$DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH' >> test.env
+        run: echo -e 'DBT_DATABRICKS_HOSTNAME=$DBT_DATABRICKS_HOST_NAME\nDBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH\nDBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH=$DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH' >> test.env
       - name: Run tests
         run: tox -e integration-databricks-uc-sql-endpoint
