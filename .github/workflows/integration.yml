@@ -10,7 +10,7 @@ jobs:
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
-      DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -24,4 +24,4 @@ jobs:
         id: install-dependencies
         run: pip install -r requirements.txt -r dev-requirements.txt
       - name: Run tests
-        run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH=$DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH python -m pytest -v --profile databricks_sql_endpoint tests/functional/adapter/test_basic.py::TestSimpleMaterializationsDatabricks::test_base
+        run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN python -m pytest -v --profile databricks_sql_endpoint tests/functional/adapter/test_basic.py::TestSimpleMaterializationsDatabricks::test_base
