@@ -8,9 +8,9 @@ jobs:
   run-core-e2e-tests:
     runs-on: ubuntu-latest
     env:
-      host: ${{ secrets.DATABRICKS_HOST }}
-      http_path: ${{ secrets.DATABRICKS_HTTP_PATH }}
-      access_token: ${{ secrets.DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+      DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
