@@ -1,5 +1,11 @@
 ## dbt-databricks 1.5.0 (Release TBD)
 
+## dbt-databricks 1.4.2 (February 17, 2023)
+
+### Fixes
+- Fix test_grants to use the error class to check the error. ([#273](https://github.com/databricks/dbt-databricks/pull/273))
+- Raise exception on unexpected error of list relations ([#270](https://github.com/databricks/dbt-databricks/pull/270))
+
 ## dbt-databricks 1.4.1 (January 31, 2023)
 
 ### Fixes
