@@ -43,4 +43,4 @@ class TestInvalidGrantsDatabricks(BaseInvalidGrants):
         return "PRINCIPAL_DOES_NOT_EXIST"
 
     def privilege_does_not_exist_error(self):
-        return "FAKE_PRIVILEGE"
+        return "INVALID_PARAMETER_VALUE"
