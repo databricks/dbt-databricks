@@ -132,7 +132,7 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 description = "Error while retrieving information about"
                 logger.debug(f"{description} {schema_relation}: {e.msg}")
-                return []
+                raise e
 
         return [
             self.Relation.create(
@@ -165,7 +165,7 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 description = "Error while retrieving information about"
                 logger.debug(f"{description} {schema_relation.without_identifier()}: {e.msg}")
-                results = []
+                raise e
 
         relations: List[Tuple[DatabricksRelation, str]] = []
         for row in results:
