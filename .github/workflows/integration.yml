@@ -7,9 +7,11 @@ on:
 jobs:
   run-core-e2e-tests:
     runs-on: ubuntu-latest
+    environment: azure-prod-peco
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      TEST_PECO_WAREHOUSE_JDBC_URL: ${{ secrets.TEST_PECO_WAREHOUSE_JDBC_URL }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
