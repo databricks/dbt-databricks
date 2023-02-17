@@ -27,6 +27,8 @@ jobs:
       - name: Get http path from environment
         run: python .github/workflows/read_http_path.py
         shell: sh
+      - name: Verify http_path was found
+        run: echo $DBT_DATABRICKS_HTTP_PATH
       - name: Install dependencies
         id: install-dependencies
         run: pip install -r requirements.txt -r dev-requirements.txt
