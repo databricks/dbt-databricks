@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
-      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - name: Check out repository
@@ -26,6 +25,9 @@ jobs:
       - name: Install dependencies
         id: install-dependencies
         run: pip install -r requirements.txt -r dev-requirements.txt
+      - name: Get http path from environment
+        run: python ./github/workflows/read_http_path.py
+        shell: sh
       - name: Run adapter tests
         run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN python -m pytest -v --profile databricks_sql_endpoint tests/functional/adapter/*
       - name: Run integration tests
