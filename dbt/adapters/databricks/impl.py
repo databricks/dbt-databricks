@@ -61,10 +61,11 @@ class DatabricksConfig(AdapterConfig):
     tblproperties: Optional[Dict[str, str]] = None
 
 
-def check_not_found_error(errmsg) -> bool:
+def check_not_found_error(errmsg: str) -> bool:
     new_error = "[SCHEMA_NOT_FOUND]" in errmsg
     old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
-    return new_error or old_error
+    return new_error or old_error is not None
+
 
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
@@ -129,7 +130,7 @@ class DatabricksAdapter(SparkAdapter):
             results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
         except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
-            if (check_not_found_error(errmsg)):
+            if check_not_found_error(errmsg):
                 return []
             else:
                 description = "Error while retrieving information about"
@@ -159,7 +160,7 @@ class DatabricksAdapter(SparkAdapter):
                 results = list(self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs))
         except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
-            if (check_not_found_error(errmsg)):
+            if check_not_found_error(errmsg):
                 results = []
             else:
                 description = "Error while retrieving information about"

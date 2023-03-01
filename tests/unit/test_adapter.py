@@ -862,8 +862,8 @@ class TestDatabricksAdapter(unittest.TestCase):
             },
         )
 
-class TestCheckNotFound(unittest.TestCase):
 
+class TestCheckNotFound(unittest.TestCase):
     def test_prefix(self):
         self.assertTrue(check_not_found_error("Runtime error \n Database 'dbt' not found"))
 
