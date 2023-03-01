@@ -7,6 +7,7 @@ import dbt.exceptions
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
+from dbt.adapters.databricks.impl import check_not_found_error
 from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
     DBT_DATABRICKS_INVOCATION_ENV,
@@ -860,3 +861,25 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "stats:rows:value": 12345678,
             },
         )
+
+
+class TestCheckNotFound(unittest.TestCase):
+    def test_prefix(self):
+        self.assertTrue(check_not_found_error("Runtime error \n Database 'dbt' not found"))
+
+    def test_no_prefix_or_suffix(self):
+        self.assertTrue(check_not_found_error("Database not found"))
+
+    def test_quotes(self):
+        self.assertTrue(check_not_found_error("Database '`dbt`' not found"))
+
+    def test_suffix(self):
+        self.assertTrue(check_not_found_error("Database not found and \n foo"))
+
+    def test_error_condition(self):
+        self.assertTrue(check_not_found_error("[SCHEMA_NOT_FOUND]"))
+
+    def test_unexpected_error(self):
+        self.assertFalse(check_not_found_error("[DATABASE_NOT_FOUND]"))
+        self.assertFalse(check_not_found_error("Schema foo not found"))
+        self.assertFalse(check_not_found_error("Database 'foo' not there"))
