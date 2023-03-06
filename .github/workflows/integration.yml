@@ -25,8 +25,8 @@ jobs:
         shell: sh
       - name: Install dependencies
         id: install-dependencies
-        run: pip install -r requirements.txt -r dev-requirements.txt
+        # run: pip install -r requirements.txt -r dev-requirements.txt
+        # Tox will install any requirements needed
+        run: pip install tox
       - name: Run adapter tests
-        run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN python -m pytest -v --profile databricks_sql_endpoint tests/functional/adapter/*
-      - name: Run integration tests
-        run: DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN python -m pytest -v --profile databricks_sql_endpoint tests/integration/*
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-uc-sql-endpoint
