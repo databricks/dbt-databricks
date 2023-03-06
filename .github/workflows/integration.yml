@@ -1,5 +1,9 @@
 name: Integration Tests
-on: workflow_dispatch
+on:
+  push:
+    branches: [setup-integration-all-envs]
+  pull_request:
+    branches: [setup-integration-all-envs]
 jobs:
   run-tox-tests:
     runs-on: ubuntu-latest
