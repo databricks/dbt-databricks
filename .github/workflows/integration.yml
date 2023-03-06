@@ -1,5 +1,10 @@
 name: Integration Tests
-on: workflow_dispatch
+# on: workflow_dispatch
+on:
+  push:
+    branches: [add-integration-tests]
+  pull_request:
+    branches: [add-integration-tests]
 jobs:
   run-core-e2e-tests:
     runs-on: ubuntu-latest
