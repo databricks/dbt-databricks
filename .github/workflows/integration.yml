@@ -30,37 +30,37 @@ jobs:
         id: install-dependencies
         run: pip install tox
       - name: Run integration-databricks-sql-endpoint
-        run: > 
-          DBT_TEST_USER_1=notnecessaryformosttests@example.com
-          DBT_TEST_USER_2=notnecessaryformosttests@example.com
-          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+        run: >
+          DBT_TEST_USER_1=$DBT_TEST_USER_1
+          DBT_TEST_USER_2=$DBT_TEST_USER_2
+          DBT_TEST_USER_3=$DBT_TEST_USER_3
           DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
           DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_ENDPOINT_HTTP_PATH
           DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
           tox -e integration-databricks-sql-endpoint
       - name: Run integration-databricks-uc-sql-endpoint
         run: >
-          DBT_TEST_USER_1=notnecessaryformosttests@example.com
-          DBT_TEST_USER_2=notnecessaryformosttests@example.com
-          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_TEST_USER_1=$DBT_TEST_USER_1
+          DBT_TEST_USER_2=$DBT_TEST_USER_2
+          DBT_TEST_USER_3=$DBT_TEST_USER_3
           DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
           DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH
           DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
           tox -e integration-databricks-uc-sql-endpoint
       - name: Run integration-databricks-cluster
         run: >
-          DBT_TEST_USER_1=notnecessaryformosttests@example.com
-          DBT_TEST_USER_2=notnecessaryformosttests@example.com
-          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_TEST_USER_1=$DBT_TEST_USER_1
+          DBT_TEST_USER_2=$DBT_TEST_USER_2
+          DBT_TEST_USER_3=$DBT_TEST_USER_3
           DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
           DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH
           DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
           tox -e integration-databricks-cluster
       - name: Run integration-databricks-uc-cluster
         run: >
-          DBT_TEST_USER_1=notnecessaryformosttests@example.com
-          DBT_TEST_USER_2=notnecessaryformosttests@example.com
-          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_TEST_USER_1=$DBT_TEST_USER_1
+          DBT_TEST_USER_2=$DBT_TEST_USER_2
+          DBT_TEST_USER_3=$DBT_TEST_USER_3
           DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH
           DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH
           DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
