@@ -7,7 +7,13 @@ jobs:
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      TEST_PECO_WAREHOUSE_JDBC_URL: ${{ secrets.TEST_PECO_WAREHOUSE_JDBC_URL }}
+      DBT_TEST_USER_1: ${{ secrets.TEST_PECO_DBT_TEST_USER_1 }}
+      DBT_TEST_USER_2: ${{ secrets.TEST_PECO_DBT_TEST_USER_2 }}
+      DBT_TEST_USER_3: ${{ secrets.TEST_PECO_DBT_TEST_USER_3 }}
+      DBT_DATABRICKS_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_TEST_PECO_UC_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_CLUSTER_HTTP_PATH: ${{ secrets.DBT_TEST_PECO_CLUSTER_HTTP_PATH }}
+      DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH: ${{ secrets.DBT_TEST_PECO_UC_CLUSTER_HTTP_PATH }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -16,17 +22,42 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      - name: Get http path from environment
-        run: python .github/workflows/read_http_path.py
-        shell: sh
       - name: Install tox
         id: install-dependencies
         run: pip install tox
       - name: Run integration-databricks-sql-endpoint
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-sql-endpoint
+        run: > 
+          DBT_TEST_USER_1=notnecessaryformosttests@example.com
+          DBT_TEST_USER_2=notnecessaryformosttests@example.com
+          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
+          DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_ENDPOINT_HTTP_PATH
+          DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
+          tox -e integration-databricks-sql-endpoint
       - name: Run integration-databricks-uc-sql-endpoint
-        run: echo "Need to set up environment with deco team first."
+        run: >
+          DBT_TEST_USER_1=notnecessaryformosttests@example.com
+          DBT_TEST_USER_2=notnecessaryformosttests@example.com
+          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
+          DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH
+          DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
+          tox -e integration-databricks-uc-sql-endpoint
       - name: Run integration-databricks-cluster
-        run: echo "Need to set up environment with deco team first."
+        run: >
+          DBT_TEST_USER_1=notnecessaryformosttests@example.com
+          DBT_TEST_USER_2=notnecessaryformosttests@example.com
+          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME
+          DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH
+          DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
+          tox -e integration-databricks-cluster
       - name: Run integration-databricks-uc-cluster
-        run: echo "Need to set up environment with deco team first."
+        run: >
+          DBT_TEST_USER_1=notnecessaryformosttests@example.com
+          DBT_TEST_USER_2=notnecessaryformosttests@example.com
+          DBT_TEST_USER_3=notnecessaryformosttests@example.com
+          DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH
+          DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH
+          DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN
+          tox -e integration-databricks-uc-cluster
