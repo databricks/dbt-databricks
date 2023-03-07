@@ -126,4 +126,8 @@ cp test.env.example test.env
 
 Update `test.env` with the relevant HTTP paths and tokens. 
 
-We understand that not every contributor will have all four types of compute resources in their Databricks workspace. For this reason, we will run the full matrix of tests against our testing workspace before merging any changes to `main` (see the [pull request review process](#opening-a-pull-request) above). We ask that you include  integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
+
+#### Please test what you can
+We understand that not every contributor will have all four types of compute resources in their Databricks workspace. For this reason, once a change has been reviewed and merged into a staging branch, we will run the full matrix of tests against our testing workspace at our expense (see the [pull request review process](#opening-a-pull-request) for more detail).
+
+That said, we ask that you include integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
