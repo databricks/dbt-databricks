@@ -69,6 +69,10 @@ Use your real name (sorry, no pseudonyms or anonymous contributions.)
 
 If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
 
+## Pull Request Process
+
+TBD
+
 ## Set up your environment
 
 We recommend using a virtual environment for development. To install the project dependencies run:
@@ -88,49 +92,14 @@ Unit tests do not require a Databricks account.
 ```bash
 tox -e unit
 ```
-#### Only a specific test file
 
-```bash
-poetry run python -m pytest tests/unit/tests.py
-```
+#### Functional Tests
 
-#### Only a specific method
+TBD
 
-```bash
-poetry run python -m pytest tests/unit/tests.py::ClientTestSuite::test_closing_connection_closes_commands
-```
+#### Integration Tests
 
-#### e2e Tests
-
-End-to-end tests require a Databricks account. Before you can run them, you must set connection details for a Databricks SQL endpoint in your environment:
-
-```bash
-export host=""
-export http_path=""
-export access_token=""
-```
-
-There are several e2e test suites available:
-- `PySQLCoreTestSuite`
-- `PySQLLargeQueriesSuite`
-- `PySQLStagingIngestionTestSuite`
-- `PySQLRetryTestSuite.HTTP503Suite` **[not documented]**
-- `PySQLRetryTestSuite.HTTP429Suite` **[not documented]**
-- `PySQLUnityCatalogTestSuite` **[not documented]**
-
-To execute the core test suite:
-
-```bash
-poetry run python -m pytest tests/e2e/driver_tests.py::PySQLCoreTestSuite
-```
-
-The `PySQLCoreTestSuite` namespace contains tests for all of the connector's basic features and behaviours. This is the default namespace where tests should be written unless they require specially configured clusters or take an especially long-time to execute by design.
-
-The `PySQLLargeQueriesSuite` namespace contains long-running query tests and is kept separate. In general, if the `PySQLCoreTestSuite` passes then these tests will as well.
-
-The `PySQLStagingIngestionTestSuite` namespace requires a cluster running DBR version > 12.x which supports staging ingestion commands.
-
-The suites marked `[not documented]` require additional configuration which will be documented at a later time.
+TBD
 
 ### Linting
 
