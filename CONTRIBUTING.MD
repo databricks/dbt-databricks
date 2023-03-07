@@ -86,7 +86,7 @@ We recommend using a virtual environment for development. To install the project
 pip install -r requirements.txt -r dev-requirements.txt
 ``` 
 
-## Code quality & Tests
+## Code Quality & Tests
 
 This project uses [tox](https://tox.wiki/en/latest/) with `pytest` to run unit, functional, and integration tests.
 
