@@ -5,7 +5,11 @@ We happily welcome contributions to the `dbt-databricks` package. We use [GitHub
 Contributions are licensed on a license-in/license-out basis.
 
 ## Communication
-Before starting work on a major feature, please reach out to us via GitHub, Slack, email, etc. We will make sure no one else is already working on it and ask you to open a GitHub issue. A "major feature" is defined as any change that is > 100 LOC altered (not including tests), or changes any user-facing behavior. We will use the GitHub issue to discuss the feature and come to agreement. This is to prevent your time being wasted, as well as ours. The GitHub review process for major features is also important so that organizations with commit access can come to agreement on design. If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location. Small patches and bug fixes don't need prior communication.
+Before starting work on a major feature, please reach out to us via GitHub, Slack, email, etc. We will make sure no one else is already working on it and ask you to open a GitHub issue. A "major feature" is defined as any change that is > 100 LOC altered (not including tests), or changes any user-facing behavior.
+
+We will use the GitHub issue to discuss the feature and come to agreement. This is to prevent your time being wasted, as well as ours. The GitHub review process for major features is also important so that organizations with commit access can come to agreement on design.
+
+If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location. Small patches and bug fixes don't need prior communication.
 
 ## Opening a Pull Request
 
@@ -19,7 +23,7 @@ Before starting work on a major feature, please reach out to us via GitHub, Slac
 5. When all tests and checks have passed, a Databricks employee will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
 
 ## Coding Style
-We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79.
+We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79. Use the [`tox` linter command](#linting) to automatically format your changes.
 
 ## Sign your work
 The sign-off is a simple line at the end of the explanation for the patch. Your signature certifies that you wrote the patch or otherwise have the right to pass it on as an open-source patch. The rules are pretty simple: if you can certify the below (from developercertificate.org):
@@ -82,9 +86,9 @@ We recommend using a virtual environment for development. To install the project
 pip install -r requirements.txt -r dev-requirements.txt
 ``` 
 
-## Tests
+## Code quality & Tests
 
-This project uses [tox](https://tox.wiki/en/latest/) with `pytest` to run unit, functional, and integration tests. Run unit tests with `tox -e unit`.
+This project uses [tox](https://tox.wiki/en/latest/) with `pytest` to run unit, functional, and integration tests.
 
 ### Linting
 
@@ -97,7 +101,7 @@ tox -e linter
 To simplify reviews you can commit any format changes in a separate commit.
 ### Unit tests
 
-Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before
+Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before opening a pull request.
 
 ```bash
 tox -e unit
@@ -105,7 +109,7 @@ tox -e unit
 
 ### Functional & Integration Tests
 
-Functional and integration tests require a Databricks account with access to a workspace containing four compute resources comprising a matrix of multi-purpose cluster vs SQL warehouse  with and without Unity Catalog enabled. The `tox` commands to run each set of these tests appear below:
+Functional and integration tests require a Databricks account with access to a workspace containing four compute resources. These four comprise a matrix of multi-purpose cluster vs SQL warehouse with and without Unity Catalog enabled. The `tox` commands to run each set of these tests appear below:
 
 |Compute Type |Unity Catalog |Command|
 |-|-|-|
@@ -122,3 +126,4 @@ cp test.env.example test.env
 
 Update `test.env` with the relevant HTTP paths and tokens. 
 
+We understand that not every contributor will have all four types of compute resources in their Databricks workspace. For this reason, we will run the full matrix of tests against our testing workspace before merging any changes to `main` (see the [pull request review process](#opening-a-pull-request) above). We ask that you include  integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
