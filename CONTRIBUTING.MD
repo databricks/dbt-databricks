@@ -82,32 +82,43 @@ We recommend using a virtual environment for development. To install the project
 pip install -r requirements.txt -r dev-requirements.txt
 ``` 
 
-### Tests
+## Tests
 
 This project uses [tox](https://tox.wiki/en/latest/) with `pytest` to run unit, functional, and integration tests. Run unit tests with `tox -e unit`.
 
-#### Unit tests
-
-Unit tests do not require a Databricks account.
-
-```bash
-tox -e unit
-```
-
-#### Functional Tests
-
-TBD
-
-#### Integration Tests
-
-TBD
-
 ### Linting
 
-This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command:
+This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command and commit before opening your pull request.
 
 ```
 tox -e linter
 ```
 
-To simplify reviews you can format your changes in a separate commit.
+To simplify reviews you can commit any format changes in a separate commit.
+### Unit tests
+
+Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before
+
+```bash
+tox -e unit
+```
+
+### Functional & Integration Tests
+
+Functional and integration tests require a Databricks account with access to a workspace containing four compute resources comprising a matrix of multi-purpose cluster vs SQL warehouse  with and without Unity Catalog enabled. The `tox` commands to run each set of these tests appear below:
+
+|Compute Type |Unity Catalog |Command|
+|-|-|-|
+|SQL warehouse| Yes | `tox -e integration-databricks-uc-sql-endpoint`  |
+|SQL warehouse| No | `tox -e integration-databricks-sql-endpoint` |
+|Multi-purpose| Yes |  `tox -e integration-databricks-uc-cluster` |
+|Multi-Purpose| No | `tox -e integration-databricks-cluster` |
+
+These tests are configured with environment variables that `tox` reads from a file called [test.env](/test.env.example) which you can copy from the example:
+
+```sh
+cp test.env.example test.env
+```
+
+Update `test.env` with the relevant HTTP paths and tokens. 
+
