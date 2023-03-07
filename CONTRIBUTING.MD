@@ -13,13 +13,9 @@ Before starting work on a major feature, please reach out to us via GitHub, Slac
 2. Open your pull request and answer the questions in the pull request template as best as you can.
 3. A Databricks employee will work with you to review your pull request, suggest any changes, and verify that all pre-merge checks can pass (linting and unit tests). To keep this process smooth we recommend that you grant your PR reviewer commit permission to the feature branch of your fork on GitHub. This helps us unblock merging a PR for easy-to-fix nits like code formatting. 
 4. We will merge approved pull requests into the `main` branch in a two-step process:
-    
-    a.  First, a repository owner will create a staging branch from the latest `main`. This staging branch will include your PR number (example `staging-100`). Your change will be squashed and merged into this staging branch first.
-
-    b. Second, a repository owner will open a pull request to merge the staging branch into `main`. This step is needed to run our full matrix of functional and integration tests via Github Actions. For security purposes, GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace. 
-    
-    c. If any of the functional or integration tests fail as a result of your change, we will work with you to resolve them _on your fork_ and then repeat steps 3 and 4.
-
+    - First, a repository owner will create a staging branch from the latest `main`. This staging branch will include your PR number (example `staging-100`). Your change will be squashed and merged into this staging branch first.
+    - Second, a repository owner will open a pull request to merge the staging branch into `main`. This step is needed to run our full matrix of functional and integration tests via Github Actions. For security purposes, GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace. 
+        - If any of the functional or integration tests fail as a result of your change, we will work with you to resolve them _on your fork_ and then repeat steps 3 and 4.
 5. When all tests and checks have passed, a Databricks employee will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
 
 ## Coding Style
