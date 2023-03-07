@@ -5,14 +5,18 @@ We happily welcome contributions to the `dbt-databricks` package. We use [GitHub
 Contributions are licensed on a license-in/license-out basis.
 
 ## Communication
-Before starting work on a major feature, please reach out to us via GitHub, Slack, email, etc. We will make sure no one else is already working on it and ask you to open a GitHub issue.
-A "major feature" is defined as any change that is > 100 LOC altered (not including tests), or changes any user-facing behavior.
-We will use the GitHub issue to discuss the feature and come to agreement.
-This is to prevent your time being wasted, as well as ours.
-The GitHub review process for major features is also important so that organizations with commit access can come to agreement on design.
-If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location.
-Specifically, if the goal is to add a new extension, please read the extension policy.
-Small patches and bug fixes don't need prior communication.
+Before starting work on a major feature, please reach out to us via GitHub, Slack, email, etc. We will make sure no one else is already working on it and ask you to open a GitHub issue. A "major feature" is defined as any change that is > 100 LOC altered (not including tests), or changes any user-facing behavior. We will use the GitHub issue to discuss the feature and come to agreement. This is to prevent your time being wasted, as well as ours. The GitHub review process for major features is also important so that organizations with commit access can come to agreement on design. If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location. Small patches and bug fixes don't need prior communication.
+
+## Opening a Pull Request
+
+1. To contribute, please fork this repository and commit your changes to a feature branch including a [DCO Sign-off](#sign-your-work).
+2. Open your pull request and answer the questions in the pull request template as best as you can.
+3. A Databricks employee will work with you to review your pull request, suggest any changes, and verify that all pre-merge checks can pass (linting and unit tests). To keep this process smooth we recommend that you grant your PR reviewer commit permission to the feature branch of your fork on GitHub. This helps us unblock merging a PR for easy-to-fix nits like code formatting. 
+4. We will merge approved pull requests into the `main` branch in a two-step process:
+    a.  First, a repository owner will create a staging branch from the latest `main`. This staging branch will include your PR number (example `staging-100`). Your change will be squashed and merged into this staging branch first.
+    b. Second, a repository owner will open a pull request to merge the staging branch into `main`. This step is needed to run our full matrix of functional and integration tests via Github Actions. For security purposes, GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace. 
+    c. If any of the functional or integration tests fail as a result of your change, we will work with you to resolve them _on your fork_ and then repeat steps 3 and 4.
+5. When all tests and checks have passed, a Databricks employee will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
 
 ## Coding Style
 We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79.
@@ -69,9 +73,6 @@ Use your real name (sorry, no pseudonyms or anonymous contributions.)
 
 If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
 
-## Pull Request Process
-
-TBD
 
 ## Set up your environment
 
