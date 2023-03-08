@@ -67,6 +67,7 @@ These following quick starts will get you up and running with the `dbt-databrick
 - [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/uc.md)
 - [Using GitHub Actions for dbt CI/CD on Databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/github-actions.md)
 - [Loading data from S3 into Delta using the databricks_copy_into macro](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-copy-into-macro-aws.md)
+- [Contribute to this repository](CONTRIBUTING.MD)
 
 ### Compatibility
 
