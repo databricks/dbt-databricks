@@ -11,7 +11,7 @@ We will use the GitHub issue to discuss the feature and come to agreement. This 
 
 If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location. Small patches and bug fixes don't need prior communication.
 
-# Pull Request Requirements
+## Pull Request Requirements
 
 1. Fork our repository to make changes
 1. [Use our code style](#code-style)
