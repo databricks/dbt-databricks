@@ -11,19 +11,52 @@ We will use the GitHub issue to discuss the feature and come to agreement. This 
 
 If it is appropriate to write a design document, the document must be hosted either in the GitHub tracking issue, or linked to from the issue and hosted in a world-readable location. Small patches and bug fixes don't need prior communication.
 
-## Opening a Pull Request
+# Pull Request Requirements
 
-1. To contribute, please fork this repository and commit your changes to a feature branch including a [DCO Sign-off](#sign-your-work).
-2. Open your pull request and answer the questions in the pull request template as best as you can.
-3. A Databricks employee will work with you to review your pull request, suggest any changes, and verify that all pre-merge checks can pass (linting and unit tests). To keep this process smooth we recommend that you grant your PR reviewer commit permission to the feature branch of your fork on GitHub. This helps us unblock merging a PR for easy-to-fix nits like code formatting. 
-4. We will merge approved pull requests into the `main` branch in a two-step process:
-    - First, a repository owner will create a staging branch from the latest `main`. This staging branch will include your PR number (example `staging-100`). Your change will be squashed and merged into this staging branch first.
-    - Second, a repository owner will open a pull request to merge the staging branch into `main`. This step is needed to run our full matrix of functional and integration tests via Github Actions. For security purposes, GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace. 
-        - If any of the functional or integration tests fail as a result of your change, we will work with you to resolve them _on your fork_ and then repeat steps 3 and 4.
-5. When all tests and checks have passed, a Databricks employee will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
+1. Fork our repository to make changes
+1. [Use our code style](#code-style). This is checked automatically for all pull requests.
+1. [Run the unit tests](#unit-tests) (and [the integration tests](#functional--integration-tests) if you can). We run unit tests automatically
+1. [Sign your commits](#sign-your-work)
+1. [Open a pull request](#pull-request-review-process)
+    - Answer the PR template questions as best as you can
+    - _Recommended: [Allow edits from Maintainers]_
 
-## Coding Style
-We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79. Use the [`tox` linter command](#linting) to automatically format your changes.
+
+## Pull request review process
+
+dbt-databricks uses a **two-step review process** to merge PRs to `main`. We first squash patches to a staging branch that mirrors `main` so that we can run our full matrix of integration tests. Once these pass, the staging branch is merged to `main`.
+
+> **Note:** When you create a pull request we recommend that you _[Allow Edits from Maintainers]_. This smooths our two-step process and also lets your reviewer easily commit minor fixes or changes.
+
+A dbt-databricks maintainer will review your PR and may suggest changes for style and clarity, or they may request that you add unit or integration tests. 
+
+Once your patch is approved, a maintainer will create a staging branch from the latest `main`. Either you or the maintainer (if they have edit permission) will change the base branch of your PR to the staging branch. Then a maintainer will squash and merge the PR into the staging branch.
+
+dbt-databricks uses staging branches to run our full matrix of functional and integration tests via Github Actions. This extra step is required for security because GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace. 
+
+If any of the functional or integration tests fail as a result of your change, a maintainer will work with you to resolve them _on your fork_ and then repeat this step.
+
+When all tests and checks have passed, a maintainer will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
+
+---
+
+## Developing this repository
+
+See [docs/local-dev.md](docs/local-dev.md).
+
+## Code Style
+
+We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79. You can run [`tox` linter command](#linting) to automatically format the source code before committing your changes.
+
+### Linting
+
+This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command and commit before opening your pull request.
+
+```
+tox -e linter
+```
+
+To simplify reviews you can commit any format changes in a separate commit.
 
 ## Sign your work
 The sign-off is a simple line at the end of the explanation for the patch. Your signature certifies that you wrote the patch or otherwise have the right to pass it on as an open-source patch. The rules are pretty simple: if you can certify the below (from developercertificate.org):
@@ -78,27 +111,6 @@ Use your real name (sorry, no pseudonyms or anonymous contributions.)
 If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
 
 
-## Set up your environment
-
-We recommend using a virtual environment for development. To install the project dependencies run:
-
-```python
-pip install -r requirements.txt -r dev-requirements.txt
-``` 
-
-## Code Quality & Tests
-
-This project uses [tox](https://tox.wiki/en/latest/) with `pytest` to run unit, functional, and integration tests.
-
-### Linting
-
-This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command and commit before opening your pull request.
-
-```
-tox -e linter
-```
-
-To simplify reviews you can commit any format changes in a separate commit.
 ### Unit tests
 
 Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before opening a pull request.
@@ -131,3 +143,7 @@ Update `test.env` with the relevant HTTP paths and tokens.
 We understand that not every contributor will have all four types of compute resources in their Databricks workspace. For this reason, once a change has been reviewed and merged into a staging branch, we will run the full matrix of tests against our testing workspace at our expense (see the [pull request review process](#opening-a-pull-request) for more detail).
 
 That said, we ask that you include integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
+
+
+
+[Allow Edits from Maintainers]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork
