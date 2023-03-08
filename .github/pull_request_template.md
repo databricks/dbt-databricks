@@ -1,12 +1,14 @@
-resolves #
+<!-- Please review our pull request review process in CONTRIBUTING.md before your proceed. -->
+
+Resolves #
 
 <!---
   Include the number of the issue addressed by this PR above if applicable.
-  PRs for code changes without an associated issue *will not be merged*.
-  See CONTRIBUTING.md for more information.
-
+  
   Example:
     resolves #1234
+
+  Please review our pull request review process in CONTRIBUTING.md before your proceed.
 -->
 
 ### Description
