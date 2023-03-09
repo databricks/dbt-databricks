@@ -34,11 +34,31 @@
 
 {% macro databricks__tblproperties_clause() -%}
   {%- set tblproperties = config.get('tblproperties') -%}
+  {% if config.get('file_format', default='delta') == 'delta' %}
+    {#
+      always add autoOptimize for delta tables
+      https://docs.databricks.com/optimizations/auto-optimize.html
+    #}
+    {%- if tblproperties is none %}
+      {%-set tblproperties = {
+        'delta.autoOptimize.optimizeWrite': 'true',
+        'delta.autoOptimize.autoCompact': 'true'
+      } %}
+    {%- else -%}
+      {%- if tblproperties.get("delta.autoOptimize.optimizeWrite") is none %}
+        {%- set _ = tblproperties.update({"delta.autoOptimize.optimizeWrite":"true"}) %}
+      {%- endif %}
+      {%- if tblproperties.get('delta.autoOptimize.autoCompact') is none %}
+        {%- set _ = tblproperties.update({"delta.autoOptimize.autoCompact": "true"}) %}
+      {%- endif %}
+    {%- endif %}
+  {%- endif %}
+  
   {%- if tblproperties is not none %}
     tblproperties (
-      {%- for prop in tblproperties -%}
-      '{{ prop }}' = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
-      {%- endfor %}
+    {%- for prop in tblproperties -%}
+      '{{ prop }}' = '{{ tblproperties[prop] }}'{% if not loop.last %}, {% endif %}
+    {%- endfor %}
     )
   {%- endif %}
 {%- endmacro -%}

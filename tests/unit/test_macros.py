@@ -341,6 +341,7 @@ class TestDatabricksMacros(unittest.TestCase):
             "type": None,
         }
 
+
         relation = DatabricksRelation.from_dict(data)
         sql = self.__run_macro(
             template, "databricks__create_table_as", False, relation, "select 1"
@@ -351,6 +352,77 @@ class TestDatabricksMacros(unittest.TestCase):
             (
                 "create or replace table "
                 "`some_database`.`some_schema`.`some_table` "
-                "using delta as select 1"
+                "using delta "
+                "tblproperties ('delta.autoOptimize.optimizeWrite' = 'true', 'delta.autoOptimize.autoCompact' = 'true' ) "
+                "as select 1"
+            ),
+        )
+
+        self.config["file_format"] = "parquet"
+
+        sql2 = self.__run_macro(
+            template, "databricks__create_table_as", False, relation, "select 1"
+        ).strip()
+
+        self.assertEqual(
+            sql2,
+            (
+                "create table "
+                "`some_database`.`some_schema`.`some_table` "
+                "using parquet as select 1"
+            ),
+        )
+
+
+        self.config["file_format"] = "delta"
+        self.config["tblproperties"] = {'delta.autoOptimize.optimizeWrite': 'false'}
+
+        sql3 = self.__run_macro(
+            template, "databricks__create_table_as", False, relation, "select 1"
+        ).strip()
+
+        self.assertEqual(
+            sql3,
+            (
+                "create or replace table "
+                "`some_database`.`some_schema`.`some_table` "
+                "using delta "
+                "tblproperties ('delta.autoOptimize.optimizeWrite' = 'false', 'delta.autoOptimize.autoCompact' = 'true' ) "
+                "as select 1"
+            ),
+        )
+
+        self.config["tblproperties"] = {'delta.autoOptimize.autoCompact': 'false'}
+        sql4 = self.__run_macro(
+            template, "databricks__create_table_as", False, relation, "select 1"
+        ).strip()
+
+        self.assertEqual(
+            sql4,
+            (
+                "create or replace table "
+                "`some_database`.`some_schema`.`some_table` "
+                "using delta "
+                "tblproperties ('delta.autoOptimize.autoCompact' = 'false', 'delta.autoOptimize.optimizeWrite' = 'true' ) "
+                "as select 1"
+            ),
+        )
+
+        self.config["tblproperties"] = {
+            'delta.autoOptimize.autoCompact': 'false',
+            'delta.autoOptimize.optimizeWrite': 'false'
+        }
+        sql5 = self.__run_macro(
+            template, "databricks__create_table_as", False, relation, "select 1"
+        ).strip()
+
+        self.assertEqual(
+            sql5,
+            (
+                "create or replace table "
+                "`some_database`.`some_schema`.`some_table` "
+                "using delta "
+                "tblproperties ('delta.autoOptimize.autoCompact' = 'false', 'delta.autoOptimize.optimizeWrite' = 'false' ) "
+                "as select 1"
             ),
         )
