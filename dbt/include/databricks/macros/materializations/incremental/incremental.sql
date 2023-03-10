@@ -82,6 +82,8 @@
 
   {% do persist_constraints(target_relation, model) %}
 
+  {% do optimize(target_relation) %}
+
   {{ run_hooks(post_hooks) }}
 
   {{ return({'relations': [target_relation]}) }}

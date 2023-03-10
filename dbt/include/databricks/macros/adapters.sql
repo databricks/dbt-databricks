@@ -117,8 +117,8 @@
 
 {% macro databricks__optimize(relation) %}
   {% if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
-    {% call statement() %}
-      get_optimize_sql(relation)
+    {% call statement('run_optimize_stmt') %}
+      {{ get_optimize_sql(relation) }}
     {% endcall %}
   {% endif %}
 {% endmacro %}
@@ -127,12 +127,15 @@
   {% if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
      {%- set zorder = config.get('zorder', none) -%}
     optimize {{ relation }}
-    {# WHERE date >= current_timestamp() - INTERVAL 1 day #}
-    zorder by
-    {% if zorder is sequence and zorder is not mapping and zorder is not string %}
-        {{"(" ~ zorder | join(") and (") ~ ")"}}
+    {# TODO: predicates here? WHERE ...  #}
+    {% if zorder is sequence and zorder is not string %}
+      zorder by (
+        {%- for col in zorder -%}
+        {{ col }}{% if not loop.last %}, {% endif %}
+        {%- endfor -%}
+      )
     {% else %}
-        {{"(" ~ zorder ~ ")"}}
+      zorder by ({{zorder}})
     {% endif %}
   {% endif %}
 {% endmacro %}

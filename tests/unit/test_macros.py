@@ -367,17 +367,19 @@ class TestDatabricksMacros(unittest.TestCase):
             },
             "type": None,
         }
-        self.config["zorder"] = "foo"
         relation = DatabricksRelation.from_dict(data)
-        sql = self.__run_macro(
-            template, "get_optimize_sql", None, relation, None
-        ).strip()
+
+        self.config["zorder"] = "foo"
+        sql = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
 
         self.assertEqual(
             sql,
-            (
-                "optimize "
-                "`some_database`.`some_schema`.`some_table` "
-                "zorder by (foo)"
-            ),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo)"),
+        )
+        self.config["zorder"] = ["foo", "bar"]
+        sql2 = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
+
+        self.assertEqual(
+            sql2,
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
         )

@@ -31,7 +31,7 @@
 
   {% do persist_constraints(target_relation, model) %}
 
-  {% do optimze(target_relation) %}
+  {% do optimize(target_relation) %}
 
   {{ run_hooks(post_hooks) }}
 
