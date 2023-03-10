@@ -58,29 +58,41 @@ class TestDeltaStrategies(TestIncrementalStrategies):
     def models(self):
         return "models_delta"
 
-    def run_and_test(self):
+    def run_and_test_cluster(self):
         self.seed_and_run_twice()
         self.assertTablesEqual("append_delta", "expected_append")
         self.assertTablesEqual("merge_no_key", "expected_append")
         self.assertTablesEqual("merge_unique_key", "expected_upsert")
         self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
         self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
+        self.assertTablesEqual("insert_overwrite_no_partitions", "expected_overwrite")
+        self.assertTablesEqual("insert_overwrite_partitions", "expected_upsert")
+
+    def run_and_test_warehouse(self):
+        self.seed_and_run_twice()
+        self.assertTablesEqual("append_delta", "expected_append")
+        self.assertTablesEqual("merge_no_key", "expected_append")
+        self.assertTablesEqual("merge_unique_key", "expected_upsert")
+        self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
+        self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
+        self.assertTablesEqual("replace_where", "expected_replace_where")
+        
 
     @use_profile("databricks_cluster")
     def test_delta_strategies_databricks_cluster(self):
-        self.run_and_test()
+        self.run_and_test_cluster()
 
     @use_profile("databricks_uc_cluster")
     def test_delta_strategies_databricks_uc_cluster(self):
-        self.run_and_test()
+        self.run_and_test_cluster()
 
     @use_profile("databricks_sql_endpoint")
     def test_delta_strategies_databricks_sql_endpoint(self):
-        self.run_and_test()
+        self.run_and_test_warehouse()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_delta_strategies_databricks_uc_sql_endpoint(self):
-        self.run_and_test()
+        self.run_and_test_warehouse()
 
 
 # Uncomment this hudi integration test after the hudi 0.10.0 release to make it work.
