@@ -323,8 +323,10 @@ class TestDatabricksMacros(unittest.TestCase):
 
         if temporary is not None:
             value = getattr(template.module, name)(temporary, relation, sql)
-        else:
+        elif sql is not None:
             value = getattr(template.module, name)(relation, sql)
+        else:
+            value = getattr(template.module, name)(relation)
         return re.sub(r"\s\s+", " ", value)
 
     def test_macros_load(self):
@@ -352,5 +354,30 @@ class TestDatabricksMacros(unittest.TestCase):
                 "create or replace table "
                 "`some_database`.`some_schema`.`some_table` "
                 "using delta as select 1"
+            ),
+        )
+
+    def test_macros_optimize(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+        self.config["zorder"] = "foo"
+        relation = DatabricksRelation.from_dict(data)
+        sql = self.__run_macro(
+            template, "get_optimize_sql", None, relation, None
+        ).strip()
+
+        self.assertEqual(
+            sql,
+            (
+                "optimize "
+                "`some_database`.`some_schema`.`some_table` "
+                "zorder by (foo)"
             ),
         )
