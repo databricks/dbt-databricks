@@ -1,7 +1,4 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
-from dbt.tests.util import (
-    run_dbt_and_capture,
-)
 
 
 class TestZOrder(DBTIntegrationTest):
