@@ -23,8 +23,8 @@ jobs:
       - name: Install tox
         id: install-dependencies
         run: pip install tox
-      # - name: Run integration-databricks-uc-sql-endpoint
-      #   run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-uc-sql-endpoint
+      - name: Run integration-databricks-uc-sql-endpoint
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-uc-sql-endpoint
       - name: Run integration-uc-databricks-cluster
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-uc-databricks-cluster
   run-tox-tests-non-uc:
@@ -49,7 +49,7 @@ jobs:
       - name: Install tox
         id: install-dependencies
         run: pip install tox
-      # - name: Run integration-databricks-sql-endpoint
-      #   run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-sql-endpoint
+      - name: Run integration-databricks-sql-endpoint
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-sql-endpoint
       - name: Run integration-databricks-cluster
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-cluster
