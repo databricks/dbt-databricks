@@ -8,6 +8,7 @@ jobs:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_CATALOG }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
     steps:
       - name: Check out repository
@@ -34,6 +35,7 @@ jobs:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_CATALOG }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
     steps:
       - name: Check out repository
