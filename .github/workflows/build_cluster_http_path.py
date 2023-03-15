@@ -1,6 +1,6 @@
 import os
 
-workspace_id = os.getenv("DATABRICKS_HOST")[4:20]
+workspace_id = os.getenv("DBT_DATABRICKS_HOST_NAME")[4:20]
 cluster_id = os.getenv("TEST_PECO_CLUSTER_ID")
 http_path = f"sql/protocolv1/o/{workspace_id}/{cluster_id}"
 
