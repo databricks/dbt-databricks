@@ -1,8 +1,10 @@
 import os
 
+import pytest
 from tests.integration.base import DBTIntegrationTest, use_profile
 
 
+@pytest.mark.skip(reason="Multi catalog not created by DECO team yet (March 2023)")
 class TestMultiCatalog(DBTIntegrationTest):
     setup_alternate_db = True
 
@@ -54,6 +56,7 @@ class TestMultiCatalog(DBTIntegrationTest):
         assert len(catalog.nodes) == 5
 
 
+@pytest.mark.skip(reason="Multi catalog not created by DECO team yet (March 2023)")
 class TestMultiCatalogTableModels(TestMultiCatalog):
     @use_profile("databricks_uc_cluster")
     def test_multi_catalog_run_databricks_uc_cluster(self):
@@ -64,6 +67,7 @@ class TestMultiCatalogTableModels(TestMultiCatalog):
         self.test_multi_catalog_run(self.default_database)
 
 
+@pytest.mark.skip(reason="Multi catalog not created by DECO team yet (March 2023)")
 class TestMultiCatalogViewModels(TestMultiCatalog):
     @property
     def project_config(self):
@@ -81,6 +85,7 @@ class TestMultiCatalogViewModels(TestMultiCatalog):
         self.test_multi_catalog_run(self.default_database)
 
 
+@pytest.mark.skip(reason="Multi catalog not created by DECO team yet (March 2023)")
 class TestMultiCatalogSeedsInAlternativeCatalog(TestMultiCatalog):
     @property
     def project_config(self):
