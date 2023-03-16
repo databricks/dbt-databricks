@@ -31,9 +31,7 @@ class TestSparkMacros(unittest.TestCase):
             key, default
         )
 
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
-            key, default
-        )
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
 
     def __get_template(self, template_filename):
         parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
@@ -313,10 +311,7 @@ class TestDatabricksMacros(unittest.TestCase):
         self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
             key, default
         )
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
-            key, default
-        )
-
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
 
     def __get_template(self, template_filename):
         parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
@@ -397,7 +392,6 @@ class TestDatabricksMacros(unittest.TestCase):
             ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
         )
 
-
     def test_macros_optimize(self):
         template = self.__get_template("adapters.sql")
         data = {
@@ -415,7 +409,7 @@ class TestDatabricksMacros(unittest.TestCase):
 
         self.assertEqual(
             r,
-            'run_optimize_stmt',
+            "run_optimize_stmt",
         )
 
         self.var["FOO"] = True
@@ -423,7 +417,7 @@ class TestDatabricksMacros(unittest.TestCase):
 
         self.assertEqual(
             r,
-            'run_optimize_stmt',
+            "run_optimize_stmt",
         )
 
         self.var["DATABRICKS_SKIP_OPTIMIZE"] = True
@@ -431,7 +425,7 @@ class TestDatabricksMacros(unittest.TestCase):
 
         self.assertEqual(
             r,
-            '', # should skip
+            "",  # should skip
         )
 
         self.var["databricks_skip_optimize"] = True
@@ -439,8 +433,7 @@ class TestDatabricksMacros(unittest.TestCase):
 
         self.assertEqual(
             r,
-            '', # should skip
+            "",  # should skip
         )
 
         del self.var["databricks_skip_optimize"]
-
