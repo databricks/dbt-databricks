@@ -1,8 +1,10 @@
 import os
 
+import pytest
 from tests.integration.base import DBTIntegrationTest, use_profile
 
 
+@pytest.mark.skip(reason="Multi catalog not created by DECO team yet (March 2023)")
 class TestMultiCatalog(DBTIntegrationTest):
     setup_alternate_db = True
 
