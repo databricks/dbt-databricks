@@ -17,15 +17,21 @@ class TestSparkMacros(unittest.TestCase):
         )
 
         self.config = {}
+        self.var = {}
         self.default_context = {
             "validation": mock.Mock(),
             "model": mock.Mock(),
             "exceptions": mock.Mock(),
             "config": mock.Mock(),
             "adapter": mock.Mock(),
+            "var": mock.Mock(),
             "return": lambda r: r,
         }
         self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+            key, default
+        )
+
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
 
@@ -293,17 +299,24 @@ class TestDatabricksMacros(unittest.TestCase):
         )
 
         self.config = {}
+        self.var = {}
         self.default_context = {
             "validation": mock.Mock(),
             "model": mock.Mock(),
             "exceptions": mock.Mock(),
             "config": mock.Mock(),
+            "statement": lambda r, caller: r,
+            "var": mock.Mock(),
             "adapter": mock.Mock(),
             "return": lambda r: r,
         }
         self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
             key, default
         )
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
+            key, default
+        )
+
 
     def __get_template(self, template_filename):
         parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
@@ -357,7 +370,7 @@ class TestDatabricksMacros(unittest.TestCase):
             ),
         )
 
-    def test_macros_optimize(self):
+    def test_macros_get_optimize_sql(self):
         template = self.__get_template("adapters.sql")
         data = {
             "path": {
@@ -383,3 +396,51 @@ class TestDatabricksMacros(unittest.TestCase):
             sql2,
             ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
         )
+
+
+    def test_macros_optimize(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+        relation = DatabricksRelation.from_dict(data)
+
+        self.config["zorder"] = ["foo", "bar"]
+        r = self.__run_macro(template, "optimize", None, relation, None).strip()
+
+        self.assertEqual(
+            r,
+            'run_optimize_stmt',
+        )
+
+        self.var["FOO"] = True
+        r = self.__run_macro(template, "optimize", None, relation, None).strip()
+
+        self.assertEqual(
+            r,
+            'run_optimize_stmt',
+        )
+
+        self.var["DATABRICKS_SKIP_OPTIMIZE"] = True
+        r = self.__run_macro(template, "optimize", None, relation, None).strip()
+
+        self.assertEqual(
+            r,
+            '', # should skip
+        )
+
+        self.var["databricks_skip_optimize"] = True
+        r = self.__run_macro(template, "optimize", None, relation, None).strip()
+
+        self.assertEqual(
+            r,
+            '', # should skip
+        )
+
+        del self.var["databricks_skip_optimize"]
+

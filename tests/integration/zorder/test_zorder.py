@@ -12,7 +12,10 @@ class TestZOrder(DBTIntegrationTest):
 
     @property
     def project_config(self):
-        return {"config-version": 2}
+        return {
+            "config-version": 2,
+            "vars": {"databricks_skip_optimize": "True"}
+        }
 
     def test_zorder(self):
         self.run_dbt(["run"])

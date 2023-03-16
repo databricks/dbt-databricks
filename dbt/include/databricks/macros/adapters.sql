@@ -117,9 +117,11 @@
 
 {% macro databricks__optimize(relation) %}
   {% if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
-    {% call statement('run_optimize_stmt') %}
-      {{ get_optimize_sql(relation) }}
-    {% endcall %}
+    {% if var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and var('databricks_skip_optimize', 'false')|lower != 'true' %}
+      {% call statement('run_optimize_stmt') %}
+        {{ get_optimize_sql(relation) }}
+      {% endcall %}
+    {% endif %}
   {% endif %}
 {% endmacro %}
 
