@@ -111,6 +111,37 @@
   {% endif %}
 {% endmacro %}
 
+{% macro optimize(relation) %}
+  {{ return(adapter.dispatch('optimize', 'dbt')(relation)) }}
+{% endmacro %}
+
+{% macro databricks__optimize(relation) %}
+  {% if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
+    {% if var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and var('databricks_skip_optimize', 'false')|lower != 'true' %}
+      {% call statement('run_optimize_stmt') %}
+        {{ get_optimize_sql(relation) }}
+      {% endcall %}
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro get_optimize_sql(relation) %}
+  {% if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
+     {%- set zorder = config.get('zorder', none) -%}
+    optimize {{ relation }}
+    {# TODO: predicates here? WHERE ...  #}
+    {% if zorder is sequence and zorder is not string %}
+      zorder by (
+        {%- for col in zorder -%}
+        {{ col }}{% if not loop.last %}, {% endif %}
+        {%- endfor -%}
+      )
+    {% else %}
+      zorder by ({{zorder}})
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
 {% macro alter_table_add_constraints(relation, constraints) %}
   {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
 {% endmacro %}
