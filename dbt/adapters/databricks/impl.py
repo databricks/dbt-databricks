@@ -59,6 +59,7 @@ class DatabricksConfig(AdapterConfig):
     options: Optional[Dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     tblproperties: Optional[Dict[str, str]] = None
+    zorder: Optional[Union[List[str], str]] = None
 
 
 def check_not_found_error(errmsg: str) -> bool:
