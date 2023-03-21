@@ -2,8 +2,6 @@
 
 Databricks Workflows is a highly-reliable, managed orchestrator that lets you author and schedule DAGs of notebooks, Python scripts as well as dbt projects as production jobs.
 
-> The capability of running dbt in a Job is currently in public preview. You must be enrolled in the public preview to follow the steps in this guide. Features, capabilities and pricing may change at any time.
-
 In this guide, you will learn how to update an existing dbt project to run as a job, retrieve dbt run artifacts using the Jobs API and debug common issues.
 
 # Overview
@@ -91,7 +89,10 @@ By default the dbt task type will connect to the serverless SQL warehouse specif
 
 The automatically generated profile can be overridden by specifying an alternative profiles directory in the dbt command using `--profiles-dir <dir>`, where the path of the `<dir>` should be a relative path like `.` or `./my-directory`.
 
-If you'd like to connect to multiple outputs and include the current Automated Cluster as one of those, the following configuration can be used without exposing any secrets:
+If you'd like to connect to multiple outputs and including the current Interactive Cluster as one of those, the following configuration can be used without exposing any secrets:
+
+> Note: You cannot connect to an Automated Cluster.
+
 ```yaml
 databricks_demo:
  target: databricks_cluster
