@@ -91,7 +91,10 @@ By default the dbt task type will connect to the serverless SQL warehouse specif
 
 The automatically generated profile can be overridden by specifying an alternative profiles directory in the dbt command using `--profiles-dir <dir>`, where the path of the `<dir>` should be a relative path like `.` or `./my-directory`.
 
-If you'd like to connect to multiple outputs and include the current Automated Cluster as one of those, the following configuration can be used without exposing any secrets:
+If you'd like to connect to multiple outputs and including the current Interactive Cluster as one of those, the following configuration can be used without exposing any secrets:
+
+Note: You cannot connect to an Automated Cluster.
+
 ```yaml
 databricks_demo:
  target: databricks_cluster
