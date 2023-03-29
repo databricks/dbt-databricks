@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Tuple, Optional, Callable
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
@@ -6,7 +6,6 @@ from dbt.adapters.databricks.connections import DatabricksCredentials
 import base64
 import time
 import requests
-from typing import Any, Dict
 import uuid
 
 import dbt.exceptions
@@ -154,12 +153,12 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     def polling(
         self,
-        status_func,
-        status_func_kwargs,
-        get_state_func,
-        terminal_states,
-        expected_end_state,
-        get_state_msg_func,
+        status_func: Callable,
+        status_func_kwargs: Dict,
+        get_state_func: Callable,
+        terminal_states: Tuple[str, ...],
+        expected_end_state: str,
+        get_state_msg_func: Callable,
     ) -> Dict:
         state = None
         start = time.time()
@@ -278,7 +277,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
     def check_credentials(self) -> None:
         if not self.cluster_id:
             raise ValueError(
-                "Databricks cluster_id is required for all_purpose_cluster submission method with running with notebook."
+                "Databricks cluster_id is required for all_purpose_cluster submission method with\
+                      running with notebook."
             )
 
     def submit(self, compiled_code: str) -> None:
