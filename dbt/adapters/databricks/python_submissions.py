@@ -311,7 +311,6 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 context.destroy(context_id)
 
 
-
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
 
