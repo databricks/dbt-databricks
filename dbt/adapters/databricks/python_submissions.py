@@ -10,7 +10,6 @@ import uuid
 
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.spark import SparkCredentials
 from dbt.adapters.spark import __version__
 
 DEFAULT_POLLING_INTERVAL = 10
@@ -20,7 +19,7 @@ DBT_SPARK_VERSION = __version__.version
 
 
 class BaseDatabricksHelper(PythonJobHelper):
-    def __init__(self, parsed_model: Dict, credentials: SparkCredentials) -> None:
+    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.identifier = parsed_model["alias"]
         self.schema = parsed_model["schema"]
