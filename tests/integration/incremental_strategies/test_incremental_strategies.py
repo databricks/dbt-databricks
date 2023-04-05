@@ -76,7 +76,6 @@ class TestDeltaStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
         self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
         self.assertTablesEqual("replace_where", "expected_replace_where")
-        
 
     @use_profile("databricks_cluster")
     def test_delta_strategies_databricks_cluster(self):
