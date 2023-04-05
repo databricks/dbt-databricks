@@ -192,7 +192,9 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
 
 class DBContext:
-    def __init__(self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict) -> None:
+    def __init__(
+        self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict
+    ) -> None:
         self.auth_header = auth_header
         self.cluster_id = cluster_id
         self.host = credentials.host
@@ -231,7 +233,9 @@ class DBContext:
 
 
 class DBCommand:
-    def __init__(self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict) -> None:
+    def __init__(
+        self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict
+    ) -> None:
         self.auth_header = auth_header
         self.cluster_id = cluster_id
         self.host = credentials.host
