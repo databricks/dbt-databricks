@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple, Optional, Callable
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
+from dbt.adapters.databricks.auth import from_dict
 
 import base64
 import time
@@ -400,8 +401,11 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         http_headers: Dict[str, str] = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
+        provider = from_dict(credentials, credentials._credentials_provider)
+        header_factory= provider()
+        headers = header_factory()
 
-        self.auth_header.update({"User-Agent": user_agent, **http_headers})
+        self.auth_header.update({"User-Agent": user_agent, **http_headers, **headers})
 
     @property
     def cluster_id(self) -> Optional[str]:  # type: ignore[override]

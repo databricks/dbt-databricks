@@ -50,6 +50,42 @@ class TestDatabricksAdapter(unittest.TestCase):
             },
         )
 
+    def _get_target_databricks_sql_connector_no_token(self, project):
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
+                    }
+                },
+                "target": "test",
+            },
+        )
+    
+    def _get_target_databricks_sql_connector_client_creds(self, project):
+        return config_from_parts_or_dicts(
+            project,
+            {
+                "outputs": {
+                    "test": {
+                        "type": "databricks",
+                        "schema": "analytics",
+                        "host": "yourorg.databricks.com",
+                        "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                        "client_id": "foo",
+                        "client_secret": "bar",
+                        "session_properties": {"spark.sql.ansi.enabled": "true"},
+                    }
+                },
+                "target": "test",
+            },
+        )
+
     def _get_target_databricks_sql_connector_catalog(self, project):
         return config_from_parts_or_dicts(
             project,
@@ -264,8 +300,41 @@ class TestDatabricksAdapter(unittest.TestCase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
+    @unittest.skip("not ready")
+    def test_oauth_settings(self):
+        config = self._get_target_databricks_sql_connector_no_token(self.project_cfg)
+
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_no_token=True),
+        ):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+
+    @unittest.skip("not ready")
+    def test_client_creds_settings(self):
+        config = self._get_target_databricks_sql_connector_client_creds(self.project_cfg)
+
+        adapter = DatabricksAdapter(config)
+
+        with mock.patch(
+            "dbt.adapters.databricks.connections.dbsql.connect",
+            new=self._connect_func(expected_client_creds=True),
+        ):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+
+
     def _connect_func(
-        self, *, expected_catalog=None, expected_invocation_env=None, expected_http_headers=None
+        self, 
+        *, 
+        expected_catalog=None, 
+        expected_invocation_env=None, 
+        expected_http_headers=None,
+        expected_no_token=None,
+        expected_client_creds=None,
     ):
         def connect(
             server_hostname,
@@ -275,10 +344,15 @@ class TestDatabricksAdapter(unittest.TestCase):
             session_configuration,
             catalog,
             _user_agent_entry,
+            **kwargs,
         ):
             self.assertEqual(server_hostname, "yourorg.databricks.com")
             self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
-            self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            if not (expected_no_token or expected_client_creds):
+                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            if expected_client_creds:
+                self.assertEqual(kwargs.get("client_id"), "foo")
+                self.assertEqual(kwargs.get("client_secret"), "bar")
             self.assertEqual(session_configuration["spark.sql.ansi.enabled"], "true")
             if expected_catalog is None:
                 self.assertIsNone(catalog)

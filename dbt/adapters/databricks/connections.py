@@ -49,6 +49,10 @@ from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
+from databricks.sdk.core import CredentialsProvider
+
+from dbt.adapters.databricks.auth import authenticate
+
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
@@ -65,12 +69,16 @@ class DatabricksCredentials(Credentials):
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False
+
+    _credentials_provider: dict = None
 
     _ALIASES = {
         "catalog": "database",
@@ -116,6 +124,8 @@ class DatabricksCredentials(Credentials):
             "server_hostname",
             "http_path",
             "access_token",
+            "client_id",
+            "client_secret",
             "session_configuration",
             "catalog",
             "schema",
@@ -138,7 +148,7 @@ class DatabricksCredentials(Credentials):
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:
-        for key in ["host", "http_path", "token"]:
+        for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
@@ -404,6 +414,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
+    credentials_provider: CredentialsProvider = None
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
@@ -550,6 +561,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         creds.validate_creds()
+        # gotta keep this so we don't prompt users many times
+        if not cls.credentials_provider:
+            cls.provider = authenticate(creds)
+            creds._credentials_provider = cls.provider.as_dict()
+
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 
@@ -569,7 +585,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
-                    access_token=creds.token,
+                    credentials_provider=cls.credentials_provider,
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
