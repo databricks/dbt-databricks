@@ -283,25 +283,24 @@ class DBCommand:
                 f"Error getting status of command.\n {response.content!r}"
             )
         return response.json()
-    
-    def get_cluster_status(self):
+
+    def get_cluster_status(self) -> Dict:
 
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-cluster
 
         response = requests.get(
             f"https://{self.host}/api/1.2/clusters/status",
             headers=self.auth_header,
-            params={
-                "clusterId": self.cluster_id            },
+            params={"clusterId": self.cluster_id},
         )
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error getting status of cluster.\n {response.content!r}"
             )
-        
+
         return response.json()
-    
-    def start_cluster(self):
+
+    def start_cluster(self) -> None:
         """Send the start command and poll for the cluster status until it shows "Running"
 
         Raise an exception if the restart exceeds our timeout.
@@ -314,21 +313,20 @@ class DBCommand:
         response = requests.get(
             f"https://{self.host}/api/1.2/clusters/restart",
             headers=self.auth_header,
-            params={
-                "clusterId": self.cluster_id            },
+            params={"clusterId": self.cluster_id},
         )
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error starting terminated cluster.\n {response.content!r}"
             )
-        
+
         # seconds
-        MAX_CLUSTER_START_TIME = 900 
+        MAX_CLUSTER_START_TIME = 900
         start_time = time.time()
 
-        def get_elapsed():
+        def get_elapsed() -> float:
             return time.time() - start_time
-        
+
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
             if status_response.get("status") == "Running":
