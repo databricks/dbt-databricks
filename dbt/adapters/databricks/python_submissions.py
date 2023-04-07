@@ -8,9 +8,12 @@ import time
 import requests
 import uuid
 
+from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.spark import __version__
+
+logger = AdapterLogger("Databricks")
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
@@ -241,6 +244,12 @@ class DBCommand:
         self.host = credentials.host
 
     def execute(self, context_id: str, command: str) -> str:
+
+        if self.get_cluster_status().get("status") in ["Terminated", "Terminating"]:
+            logger.debug(f"Cluster {self.cluster_id} is not running. Attempting to restart.")
+            self.start_cluster()
+            logger.debug(f"Cluster {self.cluster_id} is now running.")
+
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
         response = requests.post(
             f"https://{self.host}/api/1.2/commands/execute",
@@ -274,6 +283,60 @@ class DBCommand:
                 f"Error getting status of command.\n {response.content!r}"
             )
         return response.json()
+    
+    def get_cluster_status(self):
+
+        # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-cluster
+
+        response = requests.get(
+            f"https://{self.host}/api/1.2/clusters/status",
+            headers=self.auth_header,
+            params={
+                "clusterId": self.cluster_id            },
+        )
+        if response.status_code != 200:
+            raise dbt.exceptions.DbtRuntimeError(
+                f"Error getting status of cluster.\n {response.content!r}"
+            )
+        
+        return response.json()
+    
+    def start_cluster(self):
+        """Send the start command and poll for the cluster status until it shows "Running"
+
+        Raise an exception if the restart exceeds our timeout.
+        """
+
+        # https://docs.databricks.com/dev-tools/api/1.2/index.html#restart-a-cluster
+
+        logger.debug(f"Sending restart command for cluster id {self.cluster_id}")
+
+        response = requests.get(
+            f"https://{self.host}/api/1.2/clusters/restart",
+            headers=self.auth_header,
+            params={
+                "clusterId": self.cluster_id            },
+        )
+        if response.status_code != 200:
+            raise dbt.exceptions.DbtRuntimeError(
+                f"Error starting terminated cluster.\n {response.content!r}"
+            )
+        
+        # seconds
+        MAX_CLUSTER_START_TIME = 900 
+        start_time = time.time()
+
+        def get_elapsed():
+            return time.time() - start_time
+        
+        while get_elapsed() < MAX_CLUSTER_START_TIME:
+            status_response = self.get_cluster_status()
+            if status_response.get("status") == "Running":
+                return
+            else:
+                time.sleep(5)
+
+        raise dbt.exceptions.DbtRuntimeError(f"Cluster {self.cluster_id} restart timed out")
 
 
 class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
