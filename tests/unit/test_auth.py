@@ -6,10 +6,16 @@ from dbt.adapters.databricks.connections import DatabricksCredentials
 
 class TestM2MAuth(unittest.TestCase):
     def test_m2m(self):
-        host =os.getenv("DBT_DATABRICKS_HOST_NAME")
-        client_id =os.getenv("DBT_DATABRICKS_CLIENT_ID")
-        client_secret =os.getenv("DBT_DATABRICKS_CLIENT_SECRET")
-        creds = DatabricksCredentials(host=host, client_id=client_id, client_secret=client_secret, database="andre", schema="dbt")
+        host = os.getenv("DBT_DATABRICKS_HOST_NAME")
+        client_id = os.getenv("DBT_DATABRICKS_CLIENT_ID")
+        client_secret = os.getenv("DBT_DATABRICKS_CLIENT_SECRET")
+        creds = DatabricksCredentials(
+            host=host,
+            client_id=client_id,
+            client_secret=client_secret,
+            database="andre",
+            schema="dbt",
+        )
         provider = authenticate(creds)
         self.assertIsNotNone(provider)
         headers_fn = provider()

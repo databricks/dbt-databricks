@@ -66,7 +66,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "target": "test",
             },
         )
-    
+
     def _get_target_databricks_sql_connector_client_creds(self, project):
         return config_from_parts_or_dicts(
             project,
@@ -326,12 +326,11 @@ class TestDatabricksAdapter(unittest.TestCase):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
-
     def _connect_func(
-        self, 
-        *, 
-        expected_catalog=None, 
-        expected_invocation_env=None, 
+        self,
+        *,
+        expected_catalog=None,
+        expected_invocation_env=None,
         expected_http_headers=None,
         expected_no_token=None,
         expected_client_creds=None,

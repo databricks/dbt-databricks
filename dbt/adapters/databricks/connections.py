@@ -566,7 +566,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             cls.credentials_provider = authenticate(creds)
         creds._credentials_provider = cls.credentials_provider.as_dict()
 
-
         user_agent_entry = f"dbt-databricks/{__version__}"
 
         invocation_env = creds.get_invocation_env()

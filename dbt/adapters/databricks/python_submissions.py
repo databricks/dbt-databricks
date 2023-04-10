@@ -402,7 +402,7 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
             connection_parameters.pop("http_headers", {})
         )
         provider = from_dict(credentials, credentials._credentials_provider)
-        header_factory= provider()
+        header_factory = provider()
         headers = header_factory()
 
         self.auth_header.update({"User-Agent": user_agent, **http_headers, **headers})
