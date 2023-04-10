@@ -563,8 +563,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds.validate_creds()
         # gotta keep this so we don't prompt users many times
         if not cls.credentials_provider:
-            cls.provider = authenticate(creds)
-            creds._credentials_provider = cls.provider.as_dict()
+            cls.credentials_provider = authenticate(creds)
+        creds._credentials_provider = cls.credentials_provider.as_dict()
 
 
         user_agent_entry = f"dbt-databricks/{__version__}"
