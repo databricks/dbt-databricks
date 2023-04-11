@@ -6,6 +6,7 @@ import itertools
 import os
 import re
 import sys
+import threading
 import time
 from typing import (
     Any,
@@ -50,8 +51,8 @@ from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
 from databricks.sdk.core import CredentialsProvider
-
-from dbt.adapters.databricks.auth import authenticate
+from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
+from dbt.adapters.databricks.auth import token_auth, m2m_auth
 
 logger = AdapterLogger("Databricks")
 
@@ -61,7 +62,11 @@ DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
+# CLIENT_ID = "databricks-cli"
 
+REDIRECT_URL = "http://localhost:8020"
+CLIENT_ID = "dbt-databricks"
+SCOPES = ["all-apis", "offline_access"]
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -79,6 +84,7 @@ class DatabricksCredentials(Credentials):
     retry_all: bool = False
 
     _credentials_provider: dict = None
+    _lock = threading.Lock() # to avoid concurrent auth
 
     _ALIASES = {
         "catalog": "database",
@@ -153,6 +159,14 @@ class DatabricksCredentials(Credentials):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
+        if (self.client_id and not self.client_secret):
+            raise dbt.exceptions.DbtProfileError(
+                "The config 'client_secret' is required to connect to Databricks when 'client_id' is present"
+            )
+        if (not self.client_id and self.client_secret):
+            raise dbt.exceptions.DbtProfileError(
+                "The config 'client_id' is required to connect to Databricks when 'client_secret' is present"
+            )
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
@@ -241,6 +255,69 @@ class DatabricksCredentials(Credentials):
     @property
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
+
+    def authenticate(self, in_provider: CredentialsProvider) -> CredentialsProvider:
+        self.validate_creds()
+        if self._credentials_provider:
+            return self._provider_from_dict()
+        if in_provider:
+            self._credentials_provider = in_provider.as_dict()
+            return in_provider
+
+        self._lock.acquire()
+        try:
+            if self.token:
+                return token_auth(self.token)
+
+            if self.client_id and self.client_secret:
+                return m2m_auth(self.host, self.client_id, self.client_secret)
+
+            if (self.client_id and not self.client_secret) or (
+                not self.client_id and self.client_secret
+            ):
+                raise "missing credentials"
+
+            oauth_client = OAuthClient(
+                host=self.host,
+                client_id=CLIENT_ID,
+                client_secret=None,
+                redirect_url=REDIRECT_URL,
+                scopes=SCOPES,
+            )
+
+            consent = oauth_client.initiate_consent()
+
+            provider = consent.launch_external_browser() 
+            self._credentials_provider = provider.as_dict()
+            return provider
+
+        finally:
+            self._lock.release()
+
+
+    def _provider_from_dict(self) -> CredentialsProvider:
+        if self.token:
+            return token_auth.from_dict(self._credentials_provider)
+
+        if self.client_id and self.client_secret:
+            return m2m_auth.from_dict(
+                host=self.host, client_id=self.client_id, client_secret=self.client_secret, raw=self._credentials_provider
+            )
+
+        if (self.client_id and not self.client_secret) or (
+            not self.client_id and self.client_secret
+        ):
+            raise "missing credentials"
+
+        oauth_client = OAuthClient(
+            host=self.host,
+            client_id=CLIENT_ID,
+            client_secret=None,
+            redirect_url=REDIRECT_URL,
+            scopes=SCOPES,
+        )
+
+        return RefreshableCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
 
 
 class DatabricksSQLConnectionWrapper:
@@ -560,11 +637,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        creds.validate_creds()
         # gotta keep this so we don't prompt users many times
-        if not cls.credentials_provider:
-            cls.credentials_provider = authenticate(creds)
-        creds._credentials_provider = cls.credentials_provider.as_dict()
+        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 

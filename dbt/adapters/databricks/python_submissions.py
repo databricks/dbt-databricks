@@ -2,7 +2,6 @@ from typing import Any, Dict, Tuple, Optional, Callable
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
-from dbt.adapters.databricks.auth import from_dict
 
 import base64
 import time
@@ -380,8 +379,11 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 context.destroy(context_id)
 
 
+from databricks.sdk.core import CredentialsProvider
+
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
+    _credentials_provider: CredentialsProvider = None
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         super().__init__(
@@ -401,8 +403,8 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         http_headers: Dict[str, str] = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
-        provider = from_dict(credentials, credentials._credentials_provider)
-        header_factory = provider()
+        self._credentials_provider = credentials.authenticate(self._credentials_provider)
+        header_factory = self._credentials_provider()
         headers = header_factory()
 
         self.auth_header.update({"User-Agent": user_agent, **http_headers, **headers})

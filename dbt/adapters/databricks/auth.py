@@ -1,62 +1,9 @@
+
 from typing import Dict
-from databricks.sdk.oauth import OAuthClient, ClientCredentials, Token, RefreshableCredentials
+from databricks.sdk.oauth import ClientCredentials, Token
 from databricks.sdk.core import CredentialsProvider, HeaderFactory
 
 import requests
-
-REDIRECT_URL = "http://localhost:8050"
-CLIENT_ID = "dbt-databricks"
-SCOPES = ["all-apis", "offline_access"]
-
-
-def authenticate(creds) -> CredentialsProvider:
-    if creds.token:
-        return token_auth(creds.token)
-
-    if creds.client_id and creds.client_secret:
-        return m2m_auth(creds.host, creds.client_id, creds.client_secret)
-
-    if (creds.client_id and not creds.client_secret) or (
-        not creds.client_id and creds.client_secret
-    ):
-        raise "missing credentials"
-
-    oauth_client = OAuthClient(
-        host=creds.host,
-        client_id=CLIENT_ID,
-        client_secret=None,
-        redirect_url=REDIRECT_URL,
-        scopes=SCOPES,
-    )
-
-    consent = oauth_client.initiate_consent()
-
-    return consent.launch_external_browser()
-
-
-def from_dict(creds, raw) -> CredentialsProvider:
-    if creds.token:
-        return token_auth.from_dict(raw)
-
-    if creds.client_id and creds.client_secret:
-        return m2m_auth.from_dict(
-            host=creds.host, client_id=creds.client_id, client_secret=creds.client_secret, raw=raw
-        )
-
-    if (creds.client_id and not creds.client_secret) or (
-        not creds.client_id and creds.client_secret
-    ):
-        raise "missing credentials"
-
-    oauth_client = OAuthClient(
-        host=creds.host,
-        client_id=CLIENT_ID,
-        client_secret=None,
-        redirect_url=REDIRECT_URL,
-        scopes=SCOPES,
-    )
-
-    return RefreshableCredentials.from_dict(client=oauth_client, raw=raw)
 
 
 class token_auth(CredentialsProvider):
