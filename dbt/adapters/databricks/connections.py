@@ -161,11 +161,17 @@ class DatabricksCredentials(Credentials):
                 )
         if self.client_id and not self.client_secret:
             raise dbt.exceptions.DbtProfileError(
-                "The config 'client_secret' is required to connect to Databricks when 'client_id' is present"
+                (
+                    "The config 'client_secret' is required to connect "
+                    "to Databricks when 'client_id' is present"
+                )
             )
         if not self.client_id and self.client_secret:
             raise dbt.exceptions.DbtProfileError(
-                "The config 'client_id' is required to connect to Databricks when 'client_secret' is present"
+                (
+                    "The config 'client_id' is required to connect "
+                    "to Databricks when 'client_secret' is present"
+                )
             )
 
     @classmethod
@@ -270,7 +276,11 @@ class DatabricksCredentials(Credentials):
                 return token_auth(self.token)
 
             if self.client_id and self.client_secret:
-                return m2m_auth(self.host, self.client_id, self.client_secret)
+                return m2m_auth(
+                    host=self.host,
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                )
 
             if (self.client_id and not self.client_secret) or (
                 not self.client_id and self.client_secret
