@@ -1,7 +1,12 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
-import os, pytest
+import os
+import pytest
 
-@pytest.mark.skip(reason="Run manually. Test must start with the Python compute resource in TERMINATED or TERMINATING state")
+
+@pytest.mark.skip(
+    reason="Run manually. Test must start with the Python compute\
+          resource in TERMINATED or TERMINATING state"
+)
 class TestPython(DBTIntegrationTest):
     @property
     def schema(self):
@@ -15,8 +20,7 @@ class TestPython(DBTIntegrationTest):
     def project_config(self):
         return {
             "config-version": 2,
-            "vars":
-                {"http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH")}
+            "vars": {"http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH")},
         }
 
     def python_exc(self):
