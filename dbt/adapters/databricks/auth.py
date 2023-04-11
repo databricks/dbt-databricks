@@ -1,4 +1,3 @@
-
 from typing import Dict
 from databricks.sdk.oauth import ClientCredentials, Token
 from databricks.sdk.core import CredentialsProvider, HeaderFactory

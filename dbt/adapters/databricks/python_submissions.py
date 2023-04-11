@@ -381,6 +381,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
 from databricks.sdk.core import CredentialsProvider
 
+
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
     _credentials_provider: CredentialsProvider = None

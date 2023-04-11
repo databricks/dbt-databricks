@@ -62,11 +62,11 @@ DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
-# CLIENT_ID = "databricks-cli"
 
 REDIRECT_URL = "http://localhost:8020"
 CLIENT_ID = "dbt-databricks"
 SCOPES = ["all-apis", "offline_access"]
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -84,7 +84,7 @@ class DatabricksCredentials(Credentials):
     retry_all: bool = False
 
     _credentials_provider: dict = None
-    _lock = threading.Lock() # to avoid concurrent auth
+    _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
         "catalog": "database",
@@ -159,11 +159,11 @@ class DatabricksCredentials(Credentials):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
-        if (self.client_id and not self.client_secret):
+        if self.client_id and not self.client_secret:
             raise dbt.exceptions.DbtProfileError(
                 "The config 'client_secret' is required to connect to Databricks when 'client_id' is present"
             )
-        if (not self.client_id and self.client_secret):
+        if not self.client_id and self.client_secret:
             raise dbt.exceptions.DbtProfileError(
                 "The config 'client_id' is required to connect to Databricks when 'client_secret' is present"
             )
@@ -287,13 +287,12 @@ class DatabricksCredentials(Credentials):
 
             consent = oauth_client.initiate_consent()
 
-            provider = consent.launch_external_browser() 
+            provider = consent.launch_external_browser()
             self._credentials_provider = provider.as_dict()
             return provider
 
         finally:
             self._lock.release()
-
 
     def _provider_from_dict(self) -> CredentialsProvider:
         if self.token:
@@ -301,7 +300,10 @@ class DatabricksCredentials(Credentials):
 
         if self.client_id and self.client_secret:
             return m2m_auth.from_dict(
-                host=self.host, client_id=self.client_id, client_secret=self.client_secret, raw=self._credentials_provider
+                host=self.host,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                raw=self._credentials_provider,
             )
 
         if (self.client_id and not self.client_secret) or (
@@ -639,7 +641,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         # gotta keep this so we don't prompt users many times
         cls.credentials_provider = creds.authenticate(cls.credentials_provider)
-
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 
