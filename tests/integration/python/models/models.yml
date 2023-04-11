@@ -1,0 +1,7 @@
+version: 2
+models:
+  - name: basic
+    config:
+      materialized: table
+      tags: [ 'python' ]
+      http_path: '{{ var("http_path") }}'
