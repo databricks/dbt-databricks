@@ -205,7 +205,9 @@ class DBContext:
     def create(self) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#create-an-execution-context
 
-        if self.get_cluster_status().get("status") in ["Terminated", "Terminating"]:
+        
+        current_status = self.get_cluster_status().get("state","").upper()
+        if current_status in ["TERMINATED", "TERMINATING"]:
             logger.debug(f"Cluster {self.cluster_id} is not running. Attempting to restart.")
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
@@ -254,7 +256,8 @@ class DBContext:
                 f"Error getting status of cluster.\n {response.content!r}"
             )
 
-        return response.json()
+        json_response = response.json()
+        return json_response
 
     def start_cluster(self) -> None:
         """Send the start command and poll for the cluster status until it shows "Running"
