@@ -7,7 +7,13 @@
 {% endmacro %}
 
 {% macro databricks__get_incremental_replace_where_sql(arg_dict) %}
-  {% do return(get_replace_where_sql(arg_dict["temp_relation"], arg_dict["target_relation"])) %}
+  {% do return(get_replace_where_sql(arg_dict)) %}
+{% endmacro %}
+
+{% macro get_incremental_replace_where_sql(arg_dict) %}
+
+  {{ return(adapter.dispatch('get_incremental_replace_where_sql', 'dbt')(arg_dict)) }}
+
 {% endmacro %}
 
 {% macro databricks__get_insert_overwrite_merge_sql(target, source, dest_columns, predicates, include_sql_header) %}

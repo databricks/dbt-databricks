@@ -53,20 +53,10 @@ class TestParquetInsertOverwrite(TestIncrementalStrategies):
         self.run_and_test()
 
 
-class TestDeltaStrategies(TestIncrementalStrategies):
+class TestDeltaStrategiesWarehouse(TestIncrementalStrategies):
     @property
     def models(self):
-        return "models_delta"
-
-    def run_and_test_cluster(self):
-        self.seed_and_run_twice()
-        self.assertTablesEqual("append_delta", "expected_append")
-        self.assertTablesEqual("merge_no_key", "expected_append")
-        self.assertTablesEqual("merge_unique_key", "expected_upsert")
-        self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
-        self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
-        self.assertTablesEqual("insert_overwrite_no_partitions", "expected_overwrite")
-        self.assertTablesEqual("insert_overwrite_partitions", "expected_upsert")
+        return "models_delta_warehouse"
 
     def run_and_test_warehouse(self):
         self.seed_and_run_twice()
@@ -77,14 +67,6 @@ class TestDeltaStrategies(TestIncrementalStrategies):
         self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
         self.assertTablesEqual("replace_where", "expected_replace_where")
 
-    @use_profile("databricks_cluster")
-    def test_delta_strategies_databricks_cluster(self):
-        self.run_and_test_cluster()
-
-    @use_profile("databricks_uc_cluster")
-    def test_delta_strategies_databricks_uc_cluster(self):
-        self.run_and_test_cluster()
-
     @use_profile("databricks_sql_endpoint")
     def test_delta_strategies_databricks_sql_endpoint(self):
         self.run_and_test_warehouse()
@@ -94,25 +76,38 @@ class TestDeltaStrategies(TestIncrementalStrategies):
         self.run_and_test_warehouse()
 
 
-# Uncomment this hudi integration test after the hudi 0.10.0 release to make it work.
-# class TestHudiStrategies(TestIncrementalStrategies):
-#     @property
-#     def models(self):
-#         return "models_hudi"
-#
-#     def run_and_test(self):
-#         self.seed_and_run_once()
-#         self.assertTablesEqual("append", "expected_append")
-#         self.assertTablesEqual("merge_no_key", "expected_append")
-#         self.assertTablesEqual("merge_unique_key", "expected_upsert")
-#         self.assertTablesEqual(
-#             "insert_overwrite_no_partitions", "expected_overwrite")
-#         self.assertTablesEqual(
-#             "insert_overwrite_partitions", "expected_upsert")
-#
-#     @use_profile("apache_spark")
-#     def test_hudi_strategies_apache_spark(self):
-#         self.run_and_test()
+class TestDeltaStrategiesCluster(TestIncrementalStrategies):
+    @property
+    def models(self):
+        return "models_delta_cluster"
+
+    @use_profile("databricks_cluster")
+    def test_delta_strategies_databricks_cluster(self):
+        self.seed_and_run_twice()
+        self.assertTablesEqual("append_delta", "expected_append")
+        self.assertTablesEqual("merge_no_key", "expected_append")
+        self.assertTablesEqual("merge_unique_key", "expected_upsert")
+        self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
+        self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
+        self.assertTablesEqual("insert_overwrite_no_partitions", "expected_overwrite")
+        self.assertTablesEqual("insert_overwrite_partitions", "expected_upsert")
+        self.assertTablesEqual("replace_where", "expected_replace_where")
+
+
+class TestDeltaStrategiesClusterUC(TestIncrementalStrategies):
+    @property
+    def models(self):
+        return "models_delta_cluster_uc"
+
+    @use_profile("databricks_uc_cluster")
+    def test_delta_strategies_databricks_uc_cluster(self):
+        self.seed_and_run_twice()
+        self.assertTablesEqual("append_delta", "expected_append")
+        self.assertTablesEqual("merge_no_key", "expected_append")
+        self.assertTablesEqual("merge_unique_key", "expected_upsert")
+        self.assertTablesEqual("merge_update_columns", "expected_partial_upsert")
+        self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
+        self.assertTablesEqual("replace_where", "expected_replace_where")
 
 
 class TestBadStrategies(TestIncrementalStrategies):
