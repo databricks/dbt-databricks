@@ -23,7 +23,7 @@ class token_auth(CredentialsProvider):
             return None
         return token_auth(raw["token"])
 
-    def __call__(self, *args: tuple, **kwargs: dict[str, Any]) -> HeaderFactory:
+    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
 
         def inner() -> Dict[str, str]:
@@ -62,7 +62,7 @@ class m2m_auth(CredentialsProvider):
         c._token_source._token = Token.from_dict(raw["token"])
         return c
 
-    def __call__(self, *args: tuple, **kwargs: dict[str, Any]) -> HeaderFactory:
+    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
         def inner() -> Dict[str, str]:
             token = self._token_source.token()
             return {"Authorization": f"{token.token_type} {token.access_token}"}
