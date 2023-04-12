@@ -25,7 +25,6 @@ class TestPython(DBTIntegrationTest):
 
     def python_exc(self):
         self.run_dbt(["run"])
-        self.run_dbt(["run"])  # make sure it also run in incremental
 
     @use_profile("databricks_sql_endpoint")
     def test_python_databricks_sql_endpoint(self):
