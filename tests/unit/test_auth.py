@@ -1,22 +1,21 @@
 import unittest
-import os
-from dbt.adapters.databricks.auth import authenticate, from_dict
 from dbt.adapters.databricks.connections import DatabricksCredentials
+import pytest
 
 
+@pytest.mark.skip(reason="Need to mock requests to OIDC")
 class TestM2MAuth(unittest.TestCase):
     def test_m2m(self):
-        host = os.getenv("DBT_DATABRICKS_HOST_NAME")
-        client_id = os.getenv("DBT_DATABRICKS_CLIENT_ID")
-        client_secret = os.getenv("DBT_DATABRICKS_CLIENT_SECRET")
+        host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
             host=host,
-            client_id=client_id,
-            client_secret=client_secret,
+            http_path="http://foo",
+            client_id="my-client-id",
+            client_secret="my-client-secret",
             database="andre",
             schema="dbt",
         )
-        provider = authenticate(creds)
+        provider = creds.authenticate(None)
         self.assertIsNotNone(provider)
         headers_fn = provider()
         headers = headers_fn()
@@ -25,17 +24,20 @@ class TestM2MAuth(unittest.TestCase):
         raw = provider.as_dict()
         self.assertIsNotNone(raw)
 
-        provider_b = from_dict(creds, raw)
+        provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
         self.assertEqual(headers, headers2)
 
 
+@pytest.mark.skip(reason="Need to mock requests to OIDC and mock opening browser")
 class TestU2MAuth(unittest.TestCase):
     def test_u2m(self):
-        host = "e2-dogfood.staging.cloud.databricks.com"
-        creds = DatabricksCredentials(host=host, database="andre", schema="dbt")
-        provider = authenticate(creds)
+        host = "my.cloud.databricks.com"
+        creds = DatabricksCredentials(
+            host=host, database="andre", http_path="http://foo", schema="dbt"
+        )
+        provider = creds.authenticate(None)
         self.assertIsNotNone(provider)
         headers_fn = provider()
         headers = headers_fn()
@@ -44,17 +46,19 @@ class TestU2MAuth(unittest.TestCase):
         raw = provider.as_dict()
         self.assertIsNotNone(raw)
 
-        provider_b = from_dict(creds, raw)
+        provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
         self.assertEqual(headers, headers2)
 
 
 class TestTokenAuth(unittest.TestCase):
-    def test_u2m(self):
-        host = "e2-dogfood.staging.cloud.databricks.com"
-        creds = DatabricksCredentials(host=host, token="foo", database="andre", schema="dbt")
-        provider = authenticate(creds)
+    def test_token(self):
+        host = "my.cloud.databricks.com"
+        creds = DatabricksCredentials(
+            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+        )
+        provider = creds.authenticate(None)
         self.assertIsNotNone(provider)
         headers_fn = provider()
         headers = headers_fn()
@@ -63,7 +67,7 @@ class TestTokenAuth(unittest.TestCase):
         raw = provider.as_dict()
         self.assertIsNotNone(raw)
 
-        provider_b = from_dict(creds, raw)
+        provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
         self.assertEqual(headers, headers2)

@@ -338,7 +338,7 @@ class TestDatabricksAdapter(unittest.TestCase):
         def connect(
             server_hostname,
             http_path,
-            access_token,
+            credentials_provider,
             http_headers,
             session_configuration,
             catalog,
@@ -348,7 +348,7 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertEqual(server_hostname, "yourorg.databricks.com")
             self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
             if not (expected_no_token or expected_client_creds):
-                self.assertEqual(access_token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+                self.assertEqual(credentials_provider._token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             if expected_client_creds:
                 self.assertEqual(kwargs.get("client_id"), "foo")
                 self.assertEqual(kwargs.get("client_secret"), "bar")

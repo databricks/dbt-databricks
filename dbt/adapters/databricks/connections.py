@@ -83,7 +83,7 @@ class DatabricksCredentials(Credentials):
     connect_timeout: Optional[int] = None
     retry_all: bool = False
 
-    _credentials_provider: dict = None
+    _credentials_provider: Optional[dict] = None
     _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
@@ -273,19 +273,18 @@ class DatabricksCredentials(Credentials):
         self._lock.acquire()
         try:
             if self.token:
-                return token_auth(self.token)
+                provider = token_auth(self.token)
+                self._credentials_provider = provider.as_dict()
+                return provider
 
             if self.client_id and self.client_secret:
-                return m2m_auth(
-                    host=self.host,
-                    client_id=self.client_id,
-                    client_secret=self.client_secret,
+                provider = m2m_auth(
+                    host=self.host or "",
+                    client_id=self.client_id or "",
+                    client_secret=self.client_secret or "",
                 )
-
-            if (self.client_id and not self.client_secret) or (
-                not self.client_id and self.client_secret
-            ):
-                raise "missing credentials"
+                self._credentials_provider = provider.as_dict()
+                return provider
 
             oauth_client = OAuthClient(
                 host=self.host,
@@ -310,16 +309,11 @@ class DatabricksCredentials(Credentials):
 
         if self.client_id and self.client_secret:
             return m2m_auth.from_dict(
-                host=self.host,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-                raw=self._credentials_provider,
+                host=self.host or "",
+                client_id=self.client_id or "",
+                client_secret=self.client_secret or "",
+                raw=self._credentials_provider or {"token": {}},
             )
-
-        if (self.client_id and not self.client_secret) or (
-            not self.client_id and self.client_secret
-        ):
-            raise "missing credentials"
 
         oauth_client = OAuthClient(
             host=self.host,
