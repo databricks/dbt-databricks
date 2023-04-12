@@ -292,7 +292,9 @@ class DBContext:
             else:
                 time.sleep(5)
 
-        raise dbt.exceptions.DbtRuntimeError(f"Cluster {self.cluster_id} restart timed out after {MAX_CLUSTER_START_TIME} seconds")
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Cluster {self.cluster_id} restart timed out after {MAX_CLUSTER_START_TIME} seconds"
+        )
 
 
 class DBCommand:
