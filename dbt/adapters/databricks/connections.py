@@ -51,8 +51,10 @@ from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
 from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
+from databricks.sdk.oauth import OAuthClient, RefreshableCredentials, Token
 from dbt.adapters.databricks.auth import token_auth, m2m_auth
+
+import keyring
 
 logger = AdapterLogger("Databricks")
 
@@ -270,6 +272,7 @@ class DatabricksCredentials(Credentials):
             self._credentials_provider = in_provider.as_dict()
             return in_provider
 
+        # dbt will spin up multiple threads. This has to be sync. So lock here
         self._lock.acquire()
         try:
             if self.token:
@@ -286,6 +289,7 @@ class DatabricksCredentials(Credentials):
                 self._credentials_provider = provider.as_dict()
                 return provider
 
+
             oauth_client = OAuthClient(
                 host=self.host,
                 client_id=CLIENT_ID,
@@ -293,11 +297,40 @@ class DatabricksCredentials(Credentials):
                 redirect_url=REDIRECT_URL,
                 scopes=SCOPES,
             )
+            # optional branch. Try and keep going if it does not work
+            try:
+                # try to get cached credentials
+                credsdict = keyring.get_password("dbt-databricks", self.host)
 
+                if credsdict:
+                    provider = RefreshableCredentials.from_dict(oauth_client, json.loads(credsdict))
+                    # if refresh token is expired, this will throw
+                    try:
+                        if provider.token().valid:
+                            return provider
+                    except Exception as e:
+                        logger.debug(e)
+                        # whatever it is, get rid of the cache
+                        keyring.delete_password("dbt-databricks", self.host)
+
+            # error with keyring. Maybe machine has no password persistency
+            except Exception as e:
+                logger.debug(e)
+                logger.info("could not retrieved saved token")
+
+            # no token, go fetch one
             consent = oauth_client.initiate_consent()
 
             provider = consent.launch_external_browser()
+            # save for later
             self._credentials_provider = provider.as_dict()
+            try:
+                keyring.set_password("dbt-databricks", self.host, json.dumps(self._credentials_provider))    
+            # error with keyring. Maybe machine has no password persistency
+            except Exception as e:
+                logger.debug(e)
+                logger.info("could not save token")
+
             return provider
 
         finally:
