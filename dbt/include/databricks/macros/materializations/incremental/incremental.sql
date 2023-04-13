@@ -4,8 +4,8 @@
   {%- set raw_strategy = config.get('incremental_strategy') or 'merge' -%}
   {%- set grant_config = config.get('grants') -%}
 
-  {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
-  {%- set incremental_strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
+  {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
+  {%- set incremental_strategy = dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) -%}
 
   {#-- Set vars --#}
 
@@ -17,7 +17,7 @@
   {%- set target_relation = this -%}
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
-  {#-- Set Overwrite Mode --#}
+  {#-- Set Overwrite Mode - does not work for warehouses --#}
   {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
     {%- call statement() -%}
       set spark.sql.sources.partitionOverwriteMode = DYNAMIC
