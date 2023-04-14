@@ -51,7 +51,7 @@ from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
 from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient, RefreshableCredentials, Token
+from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
 from dbt.adapters.databricks.auth import token_auth, m2m_auth
 
 import keyring
@@ -161,13 +161,6 @@ class DatabricksCredentials(Credentials):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
-        if self.client_id and not self.client_secret:
-            raise dbt.exceptions.DbtProfileError(
-                (
-                    "The config 'client_secret' is required to connect "
-                    "to Databricks when 'client_id' is present"
-                )
-            )
         if not self.client_id and self.client_secret:
             raise dbt.exceptions.DbtProfileError(
                 (
@@ -289,16 +282,16 @@ class DatabricksCredentials(Credentials):
                 self._credentials_provider = provider.as_dict()
                 return provider
 
-
             oauth_client = OAuthClient(
                 host=self.host,
-                client_id=CLIENT_ID,
+                client_id=self.client_id if self.client_id else CLIENT_ID,
                 client_secret=None,
                 redirect_url=REDIRECT_URL,
                 scopes=SCOPES,
             )
             # optional branch. Try and keep going if it does not work
             try:
+                keyring.delete_password("dbt-databricks", self.host)
                 # try to get cached credentials
                 credsdict = keyring.get_password("dbt-databricks", self.host)
 
@@ -325,7 +318,9 @@ class DatabricksCredentials(Credentials):
             # save for later
             self._credentials_provider = provider.as_dict()
             try:
-                keyring.set_password("dbt-databricks", self.host, json.dumps(self._credentials_provider))    
+                keyring.set_password(
+                    "dbt-databricks", self.host, json.dumps(self._credentials_provider)
+                )
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
                 logger.debug(e)

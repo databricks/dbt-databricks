@@ -12,6 +12,7 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.spark import __version__
+from databricks.sdk.core import CredentialsProvider
 
 logger = AdapterLogger("Databricks")
 
@@ -377,9 +378,6 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                     )
             finally:
                 context.destroy(context_id)
-
-
-from databricks.sdk.core import CredentialsProvider
 
 
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):

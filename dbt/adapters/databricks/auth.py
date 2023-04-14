@@ -1,8 +1,6 @@
 from typing import Any, Dict, Optional
 from databricks.sdk.oauth import ClientCredentials, Token, TokenSource
-from databricks.sdk.core import CredentialsProvider, HeaderFactory
-
-import requests
+from databricks.sdk.core import CredentialsProvider, HeaderFactory, Config, credentials_provider
 
 
 class token_auth(CredentialsProvider):
@@ -36,15 +34,27 @@ class m2m_auth(CredentialsProvider):
     _token_source: TokenSource = None
 
     def __init__(self, host: str, client_id: str, client_secret: str) -> None:
-        resp = requests.get(f"https://{host}/oidc/.well-known/oauth-authorization-server")
-        if not resp.ok:
-            return None
+        @credentials_provider("noop", [])
+        def noop_credentials(_: Any):
+            return lambda: {}
+
+        config = Config(host=host, credentials_provider=noop_credentials)
+        oidc = config.oidc_endpoints
+        scopes = []
+        if not oidc:
+            raise ValueError(f"{host} does not support OAuth")
+        if not scopes:
+            scopes = ["offline_access", "all-apis"]
+        if config.is_azure:
+            # Azure AD only supports full access to Azure Databricks.
+            scopes = [f"{config.effective_azure_login_app_id}/.default", "offline_access"]
         self._token_source = ClientCredentials(
             client_id=client_id,
             client_secret=client_secret,
-            token_url=resp.json()["token_endpoint"],
-            scopes=["all-apis"],  # hardcoded for now
-            use_header=True,
+            token_url=oidc.token_endpoint,
+            scopes=scopes,
+            use_header="microsoft" not in oidc.token_endpoint,
+            use_params="microsoft" in oidc.token_endpoint,
         )
 
     def auth_type(self) -> str:
