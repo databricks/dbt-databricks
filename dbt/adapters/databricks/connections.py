@@ -259,6 +259,7 @@ class DatabricksCredentials(Credentials):
 
     def authenticate(self, in_provider: CredentialsProvider) -> CredentialsProvider:
         self.validate_creds()
+        host: str = self.host or ""
         if self._credentials_provider:
             return self._provider_from_dict()
         if in_provider:
@@ -275,7 +276,7 @@ class DatabricksCredentials(Credentials):
 
             if self.client_id and self.client_secret:
                 provider = m2m_auth(
-                    host=self.host or "",
+                    host=host,
                     client_id=self.client_id or "",
                     client_secret=self.client_secret or "",
                 )
@@ -283,7 +284,7 @@ class DatabricksCredentials(Credentials):
                 return provider
 
             oauth_client = OAuthClient(
-                host=self.host,
+                host=host,
                 client_id=self.client_id if self.client_id else CLIENT_ID,
                 client_secret=None,
                 redirect_url=REDIRECT_URL,
@@ -291,9 +292,8 @@ class DatabricksCredentials(Credentials):
             )
             # optional branch. Try and keep going if it does not work
             try:
-                keyring.delete_password("dbt-databricks", self.host)
                 # try to get cached credentials
-                credsdict = keyring.get_password("dbt-databricks", self.host)
+                credsdict = keyring.get_password("dbt-databricks", host)
 
                 if credsdict:
                     provider = RefreshableCredentials.from_dict(oauth_client, json.loads(credsdict))
@@ -304,7 +304,7 @@ class DatabricksCredentials(Credentials):
                     except Exception as e:
                         logger.debug(e)
                         # whatever it is, get rid of the cache
-                        keyring.delete_password("dbt-databricks", self.host)
+                        keyring.delete_password("dbt-databricks", host)
 
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
@@ -318,9 +318,7 @@ class DatabricksCredentials(Credentials):
             # save for later
             self._credentials_provider = provider.as_dict()
             try:
-                keyring.set_password(
-                    "dbt-databricks", self.host, json.dumps(self._credentials_provider)
-                )
+                keyring.set_password("dbt-databricks", host, json.dumps(self._credentials_provider))
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
                 logger.debug(e)
