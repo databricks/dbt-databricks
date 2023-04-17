@@ -20,6 +20,7 @@ except ImportError:
     print('Please upgrade setuptools with "pip install --upgrade setuptools" and try again')
     sys.exit(1)
 
+# another comment to trigger a PR
 
 # pull long description from README
 this_directory = os.path.abspath(os.path.dirname(__file__))
