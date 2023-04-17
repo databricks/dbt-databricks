@@ -58,6 +58,7 @@ setup(
         "dbt-spark~={}".format(dbt_spark_version),
         "databricks-sql-connector>=2.5.0",
         "databricks-sdk",
+        "keyring>=23.13.0"
     ],
     zip_safe=False,
     classifiers=[
