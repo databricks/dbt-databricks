@@ -24,4 +24,4 @@ types-requests
 
 dbt-spark==1.5.0b4
 # dbt-core==1.4.*
-# dbt-tests-adapter==1.5.*
+dbt-tests-adapter==1.5.*
