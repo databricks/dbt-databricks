@@ -22,6 +22,6 @@ pytz
 tox>=3.2.0
 types-requests
 
-dbt-spark==1.4.*
-dbt-core==1.4.*
-dbt-tests-adapter==1.4.*
+dbt-spark==1.5.0b4
+# dbt-core==1.4.*
+dbt-tests-adapter==1.5.0rc1
