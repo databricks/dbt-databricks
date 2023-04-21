@@ -13,8 +13,9 @@ import pytest
 import yaml
 from unittest.mock import patch
 
-import dbt.main as dbt
-from dbt import flags
+from argparse import Namespace
+from dbt.cli.main import dbtRunner
+import dbt.flags as flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
 from dbt.clients.jinja import template_cache
@@ -87,6 +88,7 @@ class TestArgs:
         self.profiles_dir = None
         self.project_dir = None
         self.__dict__.update(kwargs)
+        self.threads = None
 
 
 def _profile_from_test_name(test_name):
@@ -218,14 +220,21 @@ class DBTIntegrationTest(unittest.TestCase):
         return normalize(tempfile.mkdtemp(prefix="dbt-int-test-"))
 
     def setUp(self):
-        self.dbt_core_install_root = os.path.dirname(dbt.__file__)
         log_manager.reset_handlers()
         self.initial_dir = INITIAL_ROOT
         os.chdir(self.initial_dir)
         # before we go anywhere, collect the initial path info
         self._logs_dir = os.path.join(self.initial_dir, "logs", self.prefix)
-        setup_event_logger(self._logs_dir)
-        _really_makedirs(self._logs_dir)
+        args = Namespace(
+            profiles_dir=".",
+            project_dir=".",
+            target=None,
+            profile=None,
+            threads=None,
+        )
+        flags.set_from_args(args, {})
+        flags.LOG_PATH = self._logs_dir
+        setup_event_logger(flags.get_flags())
         self.test_original_source_path = _pytest_get_test_root()
         self.test_root_dir = self._generate_test_root_dir()
 
@@ -427,10 +436,10 @@ class DBTIntegrationTest(unittest.TestCase):
 
         if profiles_dir:
             final_args.extend(["--profiles-dir", self.test_root_dir])
-        final_args.append("--log-cache-events")
 
         logger.info("Invoking dbt with {}".format(final_args))
-        return dbt.handle_and_check(final_args)
+        res = dbtRunner().invoke(args, log_cache_events=True, log_path=self._logs_dir)
+        return res.result, res.success
 
     def run_sql_file(self, path, kwargs=None):
         with open(path, "r") as f:
