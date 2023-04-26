@@ -13,7 +13,7 @@ import pytest
 import yaml
 from unittest.mock import patch
 
-import dbt.main as dbt
+import dbt.main as dbt  # type: ignore
 from dbt import flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
