@@ -48,3 +48,8 @@ models:
         meta:
           constraint: not_null
       - name: date
+
+  - name: table_model_contract
+    config:
+      contract:
+        enforced: true
