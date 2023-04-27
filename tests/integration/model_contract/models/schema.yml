@@ -2,16 +2,22 @@ version: 2
 
 models:
   - name: table_model
-    meta:
-      constraints:
-        - name: id_greater_than_zero
-          condition: id > 0
+    config:
+      contract:
+        enforced: true
     columns:
       - name: id
+        data_type: int
+        constraints:
+          - type: check
+            name: id_greater_than_zero
+            expression: id > 0
       - name: name
-        meta:
-          constraint: not_null
+        data_type: string
+        constraints:
+          - type: not_null
       - name: date
+        data_type: date
 
   - name: incremental_model
     meta:
@@ -52,7 +58,6 @@ models:
   - name: table_model_contract
     config:
       contract:
-<<<<<<< HEAD
         enforced: true
     columns:
       - name: id
@@ -61,6 +66,3 @@ models:
         data_type: string
       - name: date    
         data_type: date    
-=======
-        enforced: true
->>>>>>> d8f7244 (Throw error if model contract enforced)
