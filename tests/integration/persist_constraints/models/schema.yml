@@ -52,7 +52,6 @@ models:
   - name: table_model_contract
     config:
       contract:
-<<<<<<< HEAD
         enforced: true
     columns:
       - name: id
@@ -61,6 +60,3 @@ models:
         data_type: string
       - name: date    
         data_type: date    
-=======
-        enforced: true
->>>>>>> d8f7244 (Throw error if model contract enforced)
