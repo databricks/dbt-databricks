@@ -164,9 +164,7 @@ class DatabricksCredentials(Credentials):
                 )
         if not self.token and self.auth_type != "oauth":
             raise dbt.exceptions.DbtProfileError(
-                (
-                    "The config `auth_type: oauth` is required when not using access token"
-                )
+                ("The config `auth_type: oauth` is required when not using access token")
             )
 
         if not self.client_id and self.client_secret:
