@@ -25,9 +25,12 @@ def _build_databricks_cluster_target(
         "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
         "http_path": http_path,
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
+        "client_id": os.getenv("DBT_DATABRICKS_CLIENT_ID"),
+        "client_secret": os.getenv("DBT_DATABRICKS_CLIENT_SECRET"),
         "connect_retries": 3,
         "connect_timeout": 5,
         "retry_all": True,
+        "auth_type": "oauth",
     }
     if catalog is not None:
         profile["catalog"] = catalog

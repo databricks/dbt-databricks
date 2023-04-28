@@ -12,6 +12,7 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.spark import __version__
+from databricks.sdk.core import CredentialsProvider
 
 logger = AdapterLogger("Databricks")
 
@@ -381,6 +382,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
+    _credentials_provider: CredentialsProvider = None
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         super().__init__(
@@ -400,8 +402,11 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         http_headers: Dict[str, str] = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
+        self._credentials_provider = credentials.authenticate(self._credentials_provider)
+        header_factory = self._credentials_provider()
+        headers = header_factory()
 
-        self.auth_header.update({"User-Agent": user_agent, **http_headers})
+        self.auth_header.update({"User-Agent": user_agent, **http_headers, **headers})
 
     @property
     def cluster_id(self) -> Optional[str]:  # type: ignore[override]
