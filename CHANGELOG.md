@@ -1,5 +1,8 @@
 ## dbt-databricks 1.5.0 (Release TBD)
 
+### Fixes
+- Fix issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326))
+
 ## dbt-databricks 1.4.2 (February 17, 2023)
 
 ### Fixes
