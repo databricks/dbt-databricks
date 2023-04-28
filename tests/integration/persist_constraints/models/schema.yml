@@ -53,3 +53,10 @@ models:
     config:
       contract:
         enforced: true
+    columns:
+      - name: id
+        data_type: int
+      - name: name
+        data_type: string
+      - name: date    
+        data_type: date    
