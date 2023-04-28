@@ -80,6 +80,7 @@ class DatabricksCredentials(Credentials):
     client_secret: Optional[str] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
+    auth_type: Optional[str] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
@@ -161,6 +162,13 @@ class DatabricksCredentials(Credentials):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
+        if not self.token and self.auth_type != "oauth":
+            raise dbt.exceptions.DbtProfileError(
+                (
+                    "The config `auth_type: oauth` is required when not using access token"
+                )
+            )
+
         if not self.client_id and self.client_secret:
             raise dbt.exceptions.DbtProfileError(
                 (

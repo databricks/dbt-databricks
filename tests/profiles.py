@@ -30,6 +30,7 @@ def _build_databricks_cluster_target(
         "connect_retries": 3,
         "connect_timeout": 5,
         "retry_all": True,
+        "auth_type": "oauth",
     }
     if catalog is not None:
         profile["catalog"] = catalog
