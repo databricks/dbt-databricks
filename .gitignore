@@ -16,4 +16,4 @@ test.env
 .vscode
 *.log
 logs/
-.venv
+.venv*
