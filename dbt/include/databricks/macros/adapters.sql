@@ -105,6 +105,12 @@
 {% endmacro %}
 
 {% macro databricks__persist_constraints(relation, model) %}
+  {# Model contracts are not currently supported. #}
+  {%- set contract_config = config.get('contract') -%}
+  {% if contract_config and contract_config.enforced %}
+    {{ exceptions.raise_compiler_error('Model contracts are not currently supported.') }}
+  {% endif %}
+
   {% if config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
     {% do alter_table_add_constraints(relation, model.meta.constraints) %}
     {% do alter_column_set_constraints(relation, model.columns) %}
