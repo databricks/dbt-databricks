@@ -27,6 +27,9 @@
 - Added databricks-sdk>=0.1.1 for oauth flows
 - Updated databricks-sql-connector from >=2.4.0 to >= 2.5.0
 
+### Under the hood
+Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+
 ## dbt-databricks 1.4.2 (February 17, 2023)
 
 ### Fixes
