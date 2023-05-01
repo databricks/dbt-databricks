@@ -6,6 +6,7 @@ import itertools
 import os
 import re
 import sys
+import threading
 import time
 from typing import (
     Any,
@@ -49,6 +50,12 @@ from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
+from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
+from dbt.adapters.databricks.auth import token_auth, m2m_auth
+
+import keyring
+
 logger = AdapterLogger("Databricks")
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
@@ -58,6 +65,10 @@ DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
+REDIRECT_URL = "http://localhost:8020"
+CLIENT_ID = "dbt-databricks"
+SCOPES = ["all-apis", "offline_access"]
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -65,12 +76,18 @@ class DatabricksCredentials(Credentials):
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
+    auth_type: Optional[str] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False
+
+    _credentials_provider: Optional[Dict[str, Any]] = None
+    _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
         "catalog": "database",
@@ -116,6 +133,8 @@ class DatabricksCredentials(Credentials):
             "server_hostname",
             "http_path",
             "access_token",
+            "client_id",
+            "client_secret",
             "session_configuration",
             "catalog",
             "schema",
@@ -138,11 +157,23 @@ class DatabricksCredentials(Credentials):
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:
-        for key in ["host", "http_path", "token"]:
+        for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise dbt.exceptions.DbtProfileError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
+        if not self.token and self.auth_type != "oauth":
+            raise dbt.exceptions.DbtProfileError(
+                ("The config `auth_type: oauth` is required when not using access token")
+            )
+
+        if not self.client_id and self.client_secret:
+            raise dbt.exceptions.DbtProfileError(
+                (
+                    "The config 'client_id' is required to connect "
+                    "to Databricks when 'client_secret' is present"
+                )
+            )
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
@@ -231,6 +262,100 @@ class DatabricksCredentials(Credentials):
     @property
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
+
+    def authenticate(self, in_provider: CredentialsProvider) -> CredentialsProvider:
+        self.validate_creds()
+        host: str = self.host or ""
+        if self._credentials_provider:
+            return self._provider_from_dict()
+        if in_provider:
+            self._credentials_provider = in_provider.as_dict()
+            return in_provider
+
+        # dbt will spin up multiple threads. This has to be sync. So lock here
+        self._lock.acquire()
+        try:
+            if self.token:
+                provider = token_auth(self.token)
+                self._credentials_provider = provider.as_dict()
+                return provider
+
+            if self.client_id and self.client_secret:
+                provider = m2m_auth(
+                    host=host,
+                    client_id=self.client_id or "",
+                    client_secret=self.client_secret or "",
+                )
+                self._credentials_provider = provider.as_dict()
+                return provider
+
+            oauth_client = OAuthClient(
+                host=host,
+                client_id=self.client_id if self.client_id else CLIENT_ID,
+                client_secret=None,
+                redirect_url=REDIRECT_URL,
+                scopes=SCOPES,
+            )
+            # optional branch. Try and keep going if it does not work
+            try:
+                # try to get cached credentials
+                credsdict = keyring.get_password("dbt-databricks", host)
+
+                if credsdict:
+                    provider = RefreshableCredentials.from_dict(oauth_client, json.loads(credsdict))
+                    # if refresh token is expired, this will throw
+                    try:
+                        if provider.token().valid:
+                            return provider
+                    except Exception as e:
+                        logger.debug(e)
+                        # whatever it is, get rid of the cache
+                        keyring.delete_password("dbt-databricks", host)
+
+            # error with keyring. Maybe machine has no password persistency
+            except Exception as e:
+                logger.debug(e)
+                logger.info("could not retrieved saved token")
+
+            # no token, go fetch one
+            consent = oauth_client.initiate_consent()
+
+            provider = consent.launch_external_browser()
+            # save for later
+            self._credentials_provider = provider.as_dict()
+            try:
+                keyring.set_password("dbt-databricks", host, json.dumps(self._credentials_provider))
+            # error with keyring. Maybe machine has no password persistency
+            except Exception as e:
+                logger.debug(e)
+                logger.info("could not save token")
+
+            return provider
+
+        finally:
+            self._lock.release()
+
+    def _provider_from_dict(self) -> CredentialsProvider:
+        if self.token:
+            return token_auth.from_dict(self._credentials_provider)
+
+        if self.client_id and self.client_secret:
+            return m2m_auth.from_dict(
+                host=self.host or "",
+                client_id=self.client_id or "",
+                client_secret=self.client_secret or "",
+                raw=self._credentials_provider or {"token": {}},
+            )
+
+        oauth_client = OAuthClient(
+            host=self.host,
+            client_id=CLIENT_ID,
+            client_secret=None,
+            redirect_url=REDIRECT_URL,
+            scopes=SCOPES,
+        )
+
+        return RefreshableCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
 
 
 class DatabricksSQLConnectionWrapper:
@@ -404,6 +529,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
+    credentials_provider: CredentialsProvider = None
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
@@ -549,7 +675,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        creds.validate_creds()
+        # gotta keep this so we don't prompt users many times
+        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
 
         user_agent_entry = f"dbt-databricks/{__version__}"
 
@@ -569,7 +696,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 conn: DatabricksSQLConnection = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=creds.http_path,
-                    access_token=creds.token,
+                    credentials_provider=cls.credentials_provider,
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,

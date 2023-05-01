@@ -5,9 +5,11 @@ prompts:
     hint: yourorg.databricks.com
   http_path:
     hint: 'HTTP Path'
-  token:
-    hint: 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-    hide_input: true
+  _choose_access_token:
+    'use access token':
+      token:
+        hint: 'dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        hide_input: true
   _choose_unity_catalog:
     'use Unity Catalog':
       catalog:

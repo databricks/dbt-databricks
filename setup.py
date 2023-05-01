@@ -57,6 +57,8 @@ setup(
     install_requires=[
         "dbt-spark~={}".format(dbt_spark_version),
         "databricks-sql-connector>=2.5.0",
+        "databricks-sdk>=0.1.1",
+        "keyring>=23.13.0"
     ],
     zip_safe=False,
     classifiers=[
