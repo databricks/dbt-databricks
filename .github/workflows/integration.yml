@@ -1,6 +1,8 @@
 name: Integration Tests
 on:
-  push
+  push:
+    paths:
+      - '**.MD'
 jobs:
   run-tox-tests-uc:
     runs-on: ubuntu-latest

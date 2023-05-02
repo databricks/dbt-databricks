@@ -16,12 +16,19 @@ name: Tests and Code Checks
 
 on:
   push:
+    paths:
+      - '**.MD'
+
     branches:
       - "main"
       - "*.latest"
       - "releases/*"
   pull_request:
+    paths:
+    - '**.MD'
   workflow_dispatch:
+    paths:
+      - '**.MD'
 
 permissions: read-all
 
@@ -111,7 +118,7 @@ jobs:
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%dT%H_%M_%S')" #no colons allowed for artifacts
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         if: always()
         with:
           name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv

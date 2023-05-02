@@ -8,19 +8,48 @@ Once an admin correctly configured OAuth in Databricks, you can simply add the c
 
 For Azure, you admin needs to create a Public AD application for dbt and provide you with its client_id.
 
-``` YAML
-jaffle_shop:
-  outputs:
-    dev:
-      host: <databricks host name>
-      http_path: <http path for warehouse or cluster>
-      catalog: <UC catalog name>
-      schema: <schema name>
-      auth_type: oauth  # new
-      client_id: <azure application ID> # only necessary for Azure
-      type: databricks
-  target: dev
+### SSO Usage
+#### AWS
+It just works as long as admin has enabled `dbt-databricks` as an OAuth application:
+```
+curl -n -X POST https://accounts.cloud.databricks.com/api/2.0/accounts/<Account ID>/oauth2/published-app-integrations -d '{ "app_id" : "dbt-databricks" }'
+```
+Profile:
+```yaml
+  type: databricks
+  host: "<your databricks host name>"
+  http_path: "<http path for warehouse >"
+  auth_type: "oauth"
 ```
 
+#### Azure
+
+A Public client/ Native Azure AD Application must be created with redirect URL `http://localhost:8020` and with permission `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation`. 
+
+You must set `client_id` to the Azure client_id created for dbt and set `auth_type` to `oauth`:
+
+Profile:
+```yaml
+  type: databricks
+  host: "<your databricks host name>"
+  http_path: "<http path for warehouse >"
+  client_id: "<Azure AD Application ID>"
+  auth_type: "oauth"
+```
+
+#### GCP
+GCP is not supported at the moment.
+
+### CI/CD
+For automation and CI/CD use cases, `client_id` and `client_secret` from service principals are now available as config as well. When `client_secret` is present the dbt adapter will try to authenticate via 2-legged OAuth flow. Please set `auth_type` to `oauth`.
 
 
+Profile:
+```yaml
+  type: databricks
+  host: "<your databricks host name>"
+  http_path: "<http path for warehouse >"
+  client_id: "<Client ID from environment>"
+  client_secret: "<Client Secret from environment>"
+  auth_type: "oauth"
+```
