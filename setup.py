@@ -40,7 +40,7 @@ def _get_plugin_version():
 
 package_name = "dbt-databricks"
 package_version = _get_plugin_version()
-dbt_spark_version = "v1.5.0b4"
+dbt_spark_version = "v1.5.0"
 description = """The Databricks adapter plugin for dbt"""
 
 setup(
