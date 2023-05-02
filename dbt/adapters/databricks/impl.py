@@ -451,7 +451,7 @@ class DatabricksAdapter(SparkAdapter):
             schema_relation = self.Relation.create(
                 database=database,
                 schema=schema,
-                identifier="|".join(table_names),
+                identifier=("|".join(table_names) if len("|".join(table_names)) < 2048 else "*"),
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
