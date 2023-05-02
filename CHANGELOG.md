@@ -1,7 +1,31 @@
-## dbt-databricks 1.5.0 (Release TBD)
+## dbt-databricks 1.5.0 (May 2, 2023)
+
+### Features
+
+### Fixes
+- Fix integration tests
+
+### Dependencies
+- Updated dbt-spark from >=1.4.1 to >= 1.5.0
 
 ### Under the hood
-Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+- Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+
+## dbt-databricks 1.4.3 (April 19, 2023)
+
+### Fixes
+- fix database not found error matching ([#281](https://github.com/databricks/dbt-databricks/pull/281))
+- Auto start cluster for Python models ([#306](https://github.com/databricks/dbt-databricks/pull/306))
+- databricks-sql-connector to 2.5.0 ([#311](https://github.com/databricks/dbt-databricks/pull/311))
+
+### Features
+- Adding replace_where incremental strategy ([#293](https://github.com/databricks/dbt-databricks/pull/293)) ([#310](https://github.com/databricks/dbt-databricks/pull/310))
+- [feat] Support ZORDER as a model config ([#292](https://github.com/databricks/dbt-databricks/pull/293)) ([#297](https://github.com/databricks/dbt-databricks/pull/297))
+
+### Dependencies
+- Added keyring>=23.13.0 for oauth token cache
+- Added databricks-sdk>=0.1.1 for oauth flows
+- Updated databricks-sql-connector from >=2.4.0 to >= 2.5.0
 
 ## dbt-databricks 1.4.2 (February 17, 2023)
 
