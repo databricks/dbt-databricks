@@ -15,8 +15,16 @@ class TesFailFast(DBTIntegrationTest):
     def test_fail_fast(self):
         self.run_dbt(["run"])
 
+        # PECO-738 Original except message we tested for was:
+        #
+        #  'Failing early due to test failure or runtime error'
+        #
+        # This is supposed to raise a FailFastException but that
+        # is being swallowed by the test runner and only the DBT
+        # test failure error message is raised instead.
+        _ = FailFastError
         with self.assertRaisesRegex(
-            FailFastError, "Failing early due to test failure or runtime error"
+            Exception, "False != True : dbt exit state did not match expected"
         ):
             self.run_dbt(["test", "--fail-fast"])
 

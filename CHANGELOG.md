@@ -9,6 +9,9 @@
 - Adding replace_where incremental strategy ([#293](https://github.com/databricks/dbt-databricks/pull/293)) ([#310](https://github.com/databricks/dbt-databricks/pull/310))
 - [feat] Support ZORDER as a model config ([#292](https://github.com/databricks/dbt-databricks/pull/293)) ([#297](https://github.com/databricks/dbt-databricks/pull/297))
 
+### Under the hood
+Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+
 ## dbt-databricks 1.4.2 (February 17, 2023)
 
 ### Fixes
