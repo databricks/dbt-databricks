@@ -404,7 +404,7 @@ class DatabricksAdapter(SparkAdapter):
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
-                logger.debug("Getting table schema for relation {}", relation)
+                logger.debug("Getting table schema for relation {}", str(relation))
                 columns.extend(self._get_columns_for_catalog(relation, information))
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 

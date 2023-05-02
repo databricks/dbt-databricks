@@ -40,7 +40,6 @@ def _get_plugin_version():
 
 package_name = "dbt-databricks"
 package_version = _get_plugin_version()
-dbt_spark_version = "1.4.1"
 description = """The Databricks adapter plugin for dbt"""
 
 setup(
@@ -55,7 +54,7 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-spark~={}".format(dbt_spark_version),
+        "dbt-spark>=1.5.0",
         "databricks-sql-connector>=2.5.0",
         "databricks-sdk>=0.1.1",
         "keyring>=23.13.0"
