@@ -278,28 +278,3 @@ class TestTableWithConstraintsDisabled(TestConstraints):
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
         self.test_delta_constraints_disabled()
-
-
-class TestModelContractNotSupported(TestConstraints):
-    def test_model_contract_not_supported(self):
-        model_name = "table_model_contract"
-        self.run_dbt(["seed"])
-        self.run_and_check_failure(
-            model_name, err_msg="Model contracts are not currently supported."
-        )
-
-    @use_profile("databricks_cluster")
-    def test_databricks_cluster(self):
-        self.test_model_contract_not_supported()
-
-    @use_profile("databricks_uc_cluster")
-    def test_databricks_uc_cluster(self):
-        self.test_model_contract_not_supported()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_model_contract_not_supported()
-
-    @use_profile("databricks_uc_sql_endpoint")
-    def test_databricks_uc_sql_endpoint(self):
-        self.test_model_contract_not_supported()

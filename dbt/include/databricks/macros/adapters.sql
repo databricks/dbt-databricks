@@ -133,11 +133,11 @@
 {% macro databricks__persist_constraints(relation, model) %}
   {% if has_constraints() %}
     {# databricks constraints implementation #}
-    {% do alter_table_add_constraints(relation, model.meta.constraints) %}
+    {% do alter_table_add_constraints(relation, model) %}
     {% do alter_column_set_constraints(relation, model.columns) %}
   {% elif has_contract() %}
     {# dbt 1.5 model contract #}
-    {% do alter_table_add_constraints(relation, model.columns) %}
+    {% do alter_table_add_constraints(relation, model) %}
     {% do alter_column_set_constraints(relation, model.columns) %}
   {% endif %}
 {% endmacro %}
@@ -146,8 +146,10 @@
   {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
 {% endmacro %}
 
-{% macro databricks__alter_table_add_constraints(relation, constraints) %}
+{% macro databricks__alter_table_add_constraints(relation, model) %}
+{{ exceptions.warn('alter_table_add_constraints') }}
   {% if has_constraints() and constraints is sequence %}
+    {% set constraints = model.meta.constraints %}
     {# databricks constraints implementation #}
     {% for constraint in constraints %}
       {% set name = constraint['name'] %}
@@ -166,24 +168,13 @@
       {% endif %}
     {% endfor %}
   {% elif has_contract() %}
+  {{ exceptions.warn('has_contract') }}
     {# dbt 1.5 model contract #}
-    {% set column_dict = constraints %}
-    {% for column_name in column_dict %}
-      {% set constraints = column_dict[column_name]['constraints'] %}
-      {% for constraint in constraints %}
-        {% if constraint.type == 'check' %}
-          {% set name = constraint['name'] %}
-          {% if not name %}
-          {%- set name = local_md5(column_name ~ ";" ~ constraint.expression ~ ";" ~ loop.index) -%}
-          {% endif %}
-          {{ exceptions.warn('adding table constraint') }}
-          {{ exceptions.warn(name) }}
-          {{ exceptions.warn(constraint.expression) }}
-          {% call statement() %}
-            alter table {{ relation }} add constraint {{ name }} check ({{ constraint.expression }});
-          {% endcall %}
-        {% endif %}
-      {% endfor %}
+    {% set statements = get_constraints_sql(relation, model.constraints, {}) %}
+    {% for stmt in statements %}
+      {% call statement() %}
+        {{ stmt }}
+      {% endcall %}
     {% endfor %}
   {% endif %}
 {% endmacro %}
@@ -215,6 +206,7 @@
         {% if constraint.type != 'not_null' %}
           {{ exceptions.warn('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
         {% else %}
+        {% do get_constraint_sql(relation, constraint, column_dict[column_name]) %}
           {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
           {% call statement() %}
             alter table {{ relation }} change column {{ quoted_name }} set not null {{ constraint.expression or "" }};
@@ -223,6 +215,38 @@
       {% endfor %}
     {% endfor %}
   {% endif %}
+{% endmacro %}
+
+{% macro get_constraints_sql(relation, constraints, column) %}
+  {% set statements = [] %}
+  {% for constraint in constraints %}
+    {% set statement = get_constraint_sql(relation, constraint, column) %}
+    {% if statement %}
+      {% do statements.append(statement) %}
+    {% endif %}
+  {% endfor %}
+
+  {{ return(statements) }}
+{% endmacro %}
+
+{% macro get_constraint_sql(relation, constraint, column) %}
+{{ exceptions.warn('get_constraint_sql') }}
+  {% if constraint.type == 'check' %}
+{{ exceptions.warn('check') }}
+    {% set name = constraint['name'] %}
+      {% if not name %}
+        {%- set name = local_md5(column_name ~ ";" ~ constraint.expression ~ ";" ~ loop.index) -%}
+      {% endif %}
+      {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ constraint.expression ~ ");" %}
+{{ exceptions.warn(stmt) }}
+      {{ return(stmt) }}
+    {% elif constraint.type == 'not_null' %}
+      {% set quoted_name = adapter.quote(column['name']) if column['quote'] else column['name'] %}
+      {% set stmt = "alter table " ~ relation ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
+{{ exceptions.warn(stmt) }}
+      {{ return(stmt) }}
+    {% endif %}
+    {{ return("") }}
 {% endmacro %}
 
 {% macro optimize(relation) %}

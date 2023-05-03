@@ -124,7 +124,6 @@
 
   {% do persist_docs(target_relation, model) %}
 
-{{ exceptions.warn('calling persist constraints from snapshot.sql') }}
   {% do persist_constraints(target_relation, model) %}
 
   {{ run_hooks(post_hooks, inside_transaction=True) }}

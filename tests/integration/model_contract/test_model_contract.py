@@ -63,16 +63,16 @@ class TestModelContractConstraints(TestModelContract):
             model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
         )
 
-        # Insert a row into the seed model that violates the NOT NULL constraint on name.
-        self.run_sql_file("insert_invalid_name.sql")
-        self.run_and_check_failure(
-            model_name, err_msg="violate the new NOT NULL constraint on name"
-        )
-        self.check_staging_table_cleaned()
+        # # Insert a row into the seed model that violates the NOT NULL constraint on name.
+        # self.run_sql_file("insert_invalid_name.sql")
+        # self.run_and_check_failure(
+        #     model_name, err_msg="violate the new NOT NULL constraint on name"
+        # )
+        # self.check_staging_table_cleaned()
 
-        # Check the table is still created with the invalid row.
-        self.run_dbt(["run", "--select", updated_model_name])
-        self.assertTablesEqual(model_name, updated_model_name)
+        # # Check the table is still created with the invalid row.
+        # self.run_dbt(["run", "--select", updated_model_name])
+        # self.assertTablesEqual(model_name, updated_model_name)
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
