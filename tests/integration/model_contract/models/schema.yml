@@ -5,13 +5,14 @@ models:
     config:
       contract:
         enforced: true
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        expression: id > 0
+        columns: [id]
     columns:
       - name: id
         data_type: int
-        constraints:
-          - type: check
-            name: id_greater_than_zero
-            expression: id > 0
       - name: name
         data_type: string
         constraints:
@@ -20,40 +21,56 @@ models:
         data_type: string
 
   - name: incremental_model
-    meta:
-      constraints:
-        - name: id_greater_than_zero
-          condition: id > 0
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        columns: [id]
+        expression: id > 0
     columns:
       - name: id
+        data_type: int
       - name: name
-        meta:
-          constraint: not_null
+        data_type: string
+        constraints: 
+          - type: not_null
       - name: date
+        data_type: string
 
   - name: invalid_check_constraint
-    meta:
-      constraints:
-        - name: invalid_constraint
-          condition:
+    constraints:
+      - type: check
+        name: invalid_constraint
+        columns: []
+        condition:
 
   - name: invalid_column_constraint
     columns:
       - name: id
-        meta:
-          constraint: invalid
+        data_type: int
+        constraints: 
+          - type: check
+            expression: invalid
+      - name: name
+        data_type: string
+      - name: date
+        data_type: string
+
 
   - name: table_model_disable_constraints
-    meta:
-      constraints:
-        - name: id_greater_than_zero
-          condition: id > 0
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        exprssion: id > 0
+        columns: [id]
     columns:
       - name: id
+        data_type: int
       - name: name
-        meta:
-          constraint: not_null
+        data_type: string
+        constraints
+          - type: not_null
       - name: date
+        data_type: string
 
   - name: table_model_contract
     config:

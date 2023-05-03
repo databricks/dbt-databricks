@@ -33,7 +33,6 @@
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
-    {{ exceptions.warn('calling persist constraints from incremental.sql 1') }}
     {% do persist_constraints(target_relation, model) %}
   {%- elif existing_relation.is_view or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
@@ -45,7 +44,6 @@
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
 
-{{ exceptions.warn('calling persist constraints from incremental.sql 2') }}
     {% do persist_constraints(target_relation, model) %}
   {%- else -%}
     {#-- Relation must be merged --#}
