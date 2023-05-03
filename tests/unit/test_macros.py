@@ -27,16 +27,22 @@ class TestSparkMacros(unittest.TestCase):
             "var": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+        self.default_context[
+            "config"
+        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
+
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
 
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
-
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
+        parent = self.parent_jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+        return self.jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -64,7 +70,9 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1"
         ).strip()
 
-        self.assertEqual(sql, "create or replace table my_table using delta as select 1")
+        self.assertEqual(
+            sql, "create or replace table my_table using delta as select 1"
+        )
 
     def test_macros_create_table_as_file_format(self):
         template = self.__get_template("adapters.sql")
@@ -308,15 +316,21 @@ class TestDatabricksMacros(unittest.TestCase):
             "adapter": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+        self.default_context[
+            "config"
+        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
 
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
+        parent = self.parent_jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+        return self.jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -335,6 +349,20 @@ class TestDatabricksMacros(unittest.TestCase):
             value = getattr(template.module, name)(relation, sql)
         else:
             value = getattr(template.module, name)(relation)
+        return re.sub(r"\s\s+", " ", value)
+
+    def __run_macro2(self, template, name, relation, *args):
+        self.default_context["model"].alias = relation
+
+        def dispatch(macro_name, macro_namespace=None, packages=None):
+            if hasattr(template.module, f"databricks__{macro_name}"):
+                return getattr(template.module, f"databricks__{macro_name}")
+            else:
+                return self.default_context[f"spark__{macro_name}"]
+
+        self.default_context["adapter"].dispatch = dispatch
+
+        value = getattr(template.module, name)(*args)
         return re.sub(r"\s\s+", " ", value)
 
     def test_macros_load(self):
@@ -378,18 +406,30 @@ class TestDatabricksMacros(unittest.TestCase):
         relation = DatabricksRelation.from_dict(data)
 
         self.config["zorder"] = "foo"
-        sql = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
+        sql = self.__run_macro(
+            template, "get_optimize_sql", None, relation, None
+        ).strip()
 
         self.assertEqual(
             sql,
-            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo)"),
+            (
+                "optimize "
+                "`some_database`.`some_schema`.`some_table` "
+                "zorder by (foo)"
+            ),
         )
         self.config["zorder"] = ["foo", "bar"]
-        sql2 = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
+        sql2 = self.__run_macro(
+            template, "get_optimize_sql", None, relation, None
+        ).strip()
 
         self.assertEqual(
             sql2,
-            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
+            (
+                "optimize "
+                "`some_database`.`some_schema`.`some_table` "
+                "zorder by (foo, bar)"
+            ),
         )
 
     def test_macros_optimize(self):
@@ -437,3 +477,99 @@ class TestDatabricksMacros(unittest.TestCase):
         )
 
         del self.var["databricks_skip_optimize"]
+
+    def test_macros_has_contract(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+        relation = DatabricksRelation.from_dict(data)
+
+        r = self.__run_macro2(template, "has_contract", relation).strip()
+        self.assertFalse(bool(r))
+
+        r = self.__run_macro2(template, "has_contract", relation, True).strip()
+        self.assertFalse(bool(r))
+
+        self.config["contract"] = {"enforced": True}
+        self.config["file_format"] = "hudi"
+        r = self.__run_macro2(template, "has_contract", relation).strip()
+        self.assertFalse(bool(r))
+
+        r = self.__run_macro2(template, "has_contract", relation, True).strip()
+        self.assertTrue(bool(r))
+
+        self.config["file_format"] = "delta"
+        r = self.__run_macro2(template, "has_contract", relation).strip()
+        self.assertTrue(bool(r))
+
+    def test_macros_has_constraints(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+        relation = DatabricksRelation.from_dict(data)
+
+        r = self.__run_macro2(template, "has_constraints", relation).strip()
+        self.assertFalse(bool(r))
+
+        self.config["persist_constraints"] = True
+        self.config["file_format"] = "hudi"
+        r = self.__run_macro2(template, "has_constraints", relation).strip()
+        self.assertFalse(bool(r))
+
+        self.config["file_format"] = "delta"
+        r = self.__run_macro2(template, "has_constraints", relation).strip()
+        self.assertTrue(bool(r))
+
+    def test_macros_persist_constraints_constraints(self):
+        template = self.__get_template("adapters.sql")
+        data = {
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": None,
+        }
+        relation = DatabricksRelation.from_dict(data)
+
+        r = self.__run_macro2(
+            template, "persist_constraints", relation, relation, {}
+        ).strip()
+        self.assertEqual(r, "")
+
+        self.config["persist_constraints"] = True
+        r = self.__run_macro2(
+            template, "persist_constraints", relation, relation, {}
+        ).strip()
+        self.assertEqual(r, "")
+
+        self.config["file_format"] = "hudi"
+        self.config["meta"] = {"name": "id_greater_than_0", "condition": "id > 0"}
+
+        r = self.__run_macro2(
+            template, "persist_constraints", relation, relation, {}
+        ).strip()
+        self.assertEqual(r, "")
+
+        self.config["file_format"] = "delta"
+        r = self.__run_macro2(template, "has_constraints", relation).strip()
+        self.assertTrue(bool(r))
+
+        constraints = [{"name": "id_greater_than_0", "condition": "id > 0"}]
+
+        r = self.__run_macro2(
+            template, "databricks__alter_table_add_constraints", relation, relation, {}
+        ).strip()
+        self.assertEqual(r, "")
