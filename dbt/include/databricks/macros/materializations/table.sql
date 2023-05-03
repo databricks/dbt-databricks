@@ -29,6 +29,7 @@
 
   {% do persist_docs(target_relation, model) %}
 
+{{ exceptions.warn('calling persist constraints from table.sql') }}
   {% do persist_constraints(target_relation, model) %}
 
   {% do optimize(target_relation) %}

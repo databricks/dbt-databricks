@@ -17,7 +17,7 @@ models:
         constraints:
           - type: not_null
       - name: date
-        data_type: date
+        data_type: string
 
   - name: incremental_model
     meta:

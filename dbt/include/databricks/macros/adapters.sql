@@ -54,7 +54,8 @@
       {% else %}
         create table {{ relation }}
       {% endif %}
-      {% if has_contract(true) %}
+      {%- set contract_config = config.get('contract') -%}
+      {% if has_contract(all_file_formats=True) %}
         {{ get_assert_columns_equivalent(compiled_code) }}
         {%- set compiled_code = get_select_subquery(compiled_code) %}
       {% endif %}
@@ -83,7 +84,8 @@
 {% macro databricks__create_view_as(relation, sql) -%}
   create or replace view {{ relation }}
   {{ comment_clause() }}
-  {% if has_contract(true) -%}
+  {%- set contract_config = config.get('contract') -%}
+  {% if has_contract(all_file_formats=True) %}
     {{ get_assert_columns_equivalent(sql) }}
   {%- endif %}
   {{ tblproperties_clause() }}
@@ -109,18 +111,18 @@
 {# Check if model contract is enforced #}
 {% macro has_contract(all_file_formats) %}
   {%- set contract_config = config.get('contract') -%}
-  {% if contract_config and (all_file_formats or contract_config.enforced and config.get('file_format', 'delta') == 'delta') %}
-    {{ return(true) }}
+  {% if contract_config and contract_config.enforced and (all_file_formats or config.get('file_format', 'delta') == 'delta') %}
+    {{ return('True') }}
   {% endif %}
-  {{ return(false) }}
+  {{ return('') }}
 {% endmacro %}
 
 {# Check if model has constraints #}
 {% macro has_constraints() %}
   {% if config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
-    {{ return(true) }}
+    {{ return('True') }}
   {% endif %}
-  {{ return(false) }}
+  {{ return('') }}
 {% endmacro %}
 
 {# Persist table-level and column-level constraints. #}
@@ -129,13 +131,13 @@
 {% endmacro %}
 
 {% macro databricks__persist_constraints(relation, model) %}
-  {% if has_contract() %}
-    {# dbt 1.5 model contract #}
-    {% do alter_table_add_constraints(relation, model.columnms) %}
-    {% do alter_column_set_constraints(relation, model.columns) %}
-  {% elif has_constraints() %}
+  {% if has_constraints() %}
     {# databricks constraints implementation #}
     {% do alter_table_add_constraints(relation, model.meta.constraints) %}
+    {% do alter_column_set_constraints(relation, model.columns) %}
+  {% elif has_contract() %}
+    {# dbt 1.5 model contract #}
+    {% do alter_table_add_constraints(relation, model.columns) %}
     {% do alter_column_set_constraints(relation, model.columns) %}
   {% endif %}
 {% endmacro %}
@@ -169,10 +171,16 @@
     {% for column_name in column_dict %}
       {% set constraints = column_dict[column_name]['constraints'] %}
       {% for constraint in constraints %}
-        {% if constraints.type == 'check' and not is_incremental() %}
-          {%- set constraint_hash = local_md5(column_name ~ ";" ~ constraint.expression ~ ";" ~ loop.index) -%}
+        {% if constraint.type == 'check' %}
+          {% set name = constraint['name'] %}
+          {% if not name %}
+          {%- set name = local_md5(column_name ~ ";" ~ constraint.expression ~ ";" ~ loop.index) -%}
+          {% endif %}
+          {{ exceptions.warn('adding table constraint') }}
+          {{ exceptions.warn(name) }}
+          {{ exceptions.warn(constraint.expression) }}
           {% call statement() %}
-            alter table {{ relation }} add constraint {{ constraint_hash }} check {{ constraint.expression }};
+            alter table {{ relation }} add constraint {{ name }} check ({{ constraint.expression }});
           {% endcall %}
         {% endif %}
       {% endfor %}
@@ -192,10 +200,12 @@
         {% if constraint != 'not_null' %}
           {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
         {% endif %}
-        {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
-        {% call statement() %}
-          alter table {{ relation }} change column {{ quoted_name }} set not null
-        {% endcall %}
+        {% if not is_incremental() %}
+          {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
+          {% call statement() %}
+            alter table {{ relation }} change column {{ quoted_name }} set not null
+          {% endcall %}
+        {% endif %}
       {% endif %}
     {% endfor %}
   {% elif has_contract() %}
