@@ -21,6 +21,9 @@ models:
         data_type: string
 
   - name: incremental_model
+    config:
+      contract:
+        enforced: true
     constraints:
       - type: check
         name: id_greater_than_zero
@@ -36,14 +39,10 @@ models:
       - name: date
         data_type: string
 
-  - name: invalid_check_constraint
-    constraints:
-      - type: check
-        name: invalid_constraint
-        columns: []
-        condition:
-
   - name: invalid_column_constraint
+    config:
+      contract:
+        enforced: true
     columns:
       - name: id
         data_type: int
@@ -54,7 +53,6 @@ models:
         data_type: string
       - name: date
         data_type: string
-
 
   - name: table_model_disable_constraints
     constraints:
@@ -67,19 +65,63 @@ models:
         data_type: int
       - name: name
         data_type: string
-        constraints
+        constraints:
           - type: not_null
       - name: date
         data_type: string
 
-  - name: table_model_contract
+  - name: primary_key
     config:
       contract:
         enforced: true
+    constraints:
+      - type: not_null
+        columns: [id, name]
+      - type: primary_key
+        name: my_primary_key
+        columns: [id, name]
     columns:
       - name: id
         data_type: int
       - name: name
         data_type: string
-      - name: date    
-        data_type: date    
+      - name: date
+        data_type: string
+
+  - name: foreign_key_parent
+    config:
+      persist_constraints: true
+    meta:
+      constraints:
+        - type: not_null
+          columns: [pid, pname]
+        - type: primary_key
+          name: my_primary_key
+          columns: [pid, pname]
+    columns:
+      - name: pid
+        data_type: int
+      - name: pname
+        data_type: string
+      - name: date
+        data_type: string
+
+  - name: foreign_key
+    config:
+      persist_constraints: true
+    meta:
+      constraints:
+        - type: not_null
+          columns: [id, name]
+        - type: foreign_key
+          name: my_foreign_key
+          columns: [id, name]
+          parent: foreign_key_parent
+          parent_columns: [pid, pname]
+    columns:
+      - name: id
+        data_type: int
+      - name: name
+        data_type: string
+      - name: date
+        data_type: string

@@ -27,22 +27,16 @@ class TestSparkMacros(unittest.TestCase):
             "var": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context[
-            "config"
-        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
-
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
+        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
             key, default
         )
 
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
+
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(
-            template_filename, globals=self.default_context
-        )
+        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(
-            template_filename, globals=self.default_context
-        )
+        return self.jinja_env.get_template(template_filename, globals=self.default_context)
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -70,9 +64,7 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1"
         ).strip()
 
-        self.assertEqual(
-            sql, "create or replace table my_table using delta as select 1"
-        )
+        self.assertEqual(sql, "create or replace table my_table using delta as select 1")
 
     def test_macros_create_table_as_file_format(self):
         template = self.__get_template("adapters.sql")
@@ -316,21 +308,15 @@ class TestDatabricksMacros(unittest.TestCase):
             "adapter": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context[
-            "config"
-        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
+        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
             key, default
         )
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
 
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(
-            template_filename, globals=self.default_context
-        )
+        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(
-            template_filename, globals=self.default_context
-        )
+        return self.jinja_env.get_template(template_filename, globals=self.default_context)
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -363,7 +349,8 @@ class TestDatabricksMacros(unittest.TestCase):
         self.default_context["adapter"].dispatch = dispatch
 
         value = getattr(template.module, name)(*args)
-        return re.sub(r"\s\s+", " ", value)
+        value = re.sub(r"\s\s+", " ", value)
+        return value
 
     def test_macros_load(self):
         self.jinja_env.get_template("adapters.sql")
@@ -406,30 +393,18 @@ class TestDatabricksMacros(unittest.TestCase):
         relation = DatabricksRelation.from_dict(data)
 
         self.config["zorder"] = "foo"
-        sql = self.__run_macro(
-            template, "get_optimize_sql", None, relation, None
-        ).strip()
+        sql = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
 
         self.assertEqual(
             sql,
-            (
-                "optimize "
-                "`some_database`.`some_schema`.`some_table` "
-                "zorder by (foo)"
-            ),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo)"),
         )
         self.config["zorder"] = ["foo", "bar"]
-        sql2 = self.__run_macro(
-            template, "get_optimize_sql", None, relation, None
-        ).strip()
+        sql2 = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
 
         self.assertEqual(
             sql2,
-            (
-                "optimize "
-                "`some_database`.`some_schema`.`some_table` "
-                "zorder by (foo, bar)"
-            ),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
         )
 
     def test_macros_optimize(self):
@@ -478,8 +453,7 @@ class TestDatabricksMacros(unittest.TestCase):
 
         del self.var["databricks_skip_optimize"]
 
-    def test_macros_has_contract(self):
-        template = self.__get_template("adapters.sql")
+    def get_test_relation(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -489,87 +463,320 @@ class TestDatabricksMacros(unittest.TestCase):
             "type": None,
         }
         relation = DatabricksRelation.from_dict(data)
+        return relation
 
-        r = self.__run_macro2(template, "has_contract", relation).strip()
-        self.assertFalse(bool(r))
-
-        r = self.__run_macro2(template, "has_contract", relation, True).strip()
-        self.assertFalse(bool(r))
-
-        self.config["contract"] = {"enforced": True}
-        self.config["file_format"] = "hudi"
-        r = self.__run_macro2(template, "has_contract", relation).strip()
-        self.assertFalse(bool(r))
-
-        r = self.__run_macro2(template, "has_contract", relation, True).strip()
-        self.assertTrue(bool(r))
-
-        self.config["file_format"] = "delta"
-        r = self.__run_macro2(template, "has_contract", relation).strip()
-        self.assertTrue(bool(r))
-
-    def test_macros_has_constraints(self):
+    def test_macros_databricks_constraints_to_dbt(self):
         template = self.__get_template("adapters.sql")
-        data = {
-            "path": {
-                "database": "some_database",
-                "schema": "some_schema",
-                "identifier": "some_table",
-            },
-            "type": None,
-        }
-        relation = DatabricksRelation.from_dict(data)
+        relation = self.get_test_relation()
+        constraint = {"name": "name", "condition": "id > 0"}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint]
+        ).strip()
+        self.assertEquals(r, "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]")
 
-        r = self.__run_macro2(template, "has_constraints", relation).strip()
-        self.assertFalse(bool(r))
+        constraint = {"condition": "id > 0"}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint]
+        ).strip()
+        assert "raise_compiler_error" in r
+
+        constraint = {"name": "name", "condition": ""}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint]
+        ).strip()
+        assert "raise_compiler_error" in r
+
+        constraint = {"type": "check", "name": "name", "expression": "id > 0"}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint]
+        ).strip()
+        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
+
+        column = {"name": "col"}
+        constraint = {"name": "name", "condition": "id > 0"}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint], column
+        ).strip()
+        assert "raise_compiler_error" in r
+
+        constraint = {"type": "check", "name": "name", "expression": "id > 0"}
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint], column
+        ).strip()
+        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
+
+        constraint = "not_null"
+        r = self.__run_macro2(
+            template, "databricks_constraints_to_dbt", relation, [constraint], column
+        ).strip()
+        self.assertEquals(r, "[{'type': 'not_null', 'columns': ['col']}]")
+
+    def test_macros_get_model_constraints(self):
+        template = self.__get_template("adapters.sql")
+        relation = self.get_test_relation()
+
+        columns = {
+            "id": {"name": "id", "data_type": "int"},
+            "name": {"name": "name", "data_type": "string"},
+        }
+        model = {
+            "columns": columns,
+            "constraints": [{"type": "not_null", "columns": ["id", "name"]}],
+        }
+
+        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
+        assert expected in r
 
         self.config["persist_constraints"] = True
-        self.config["file_format"] = "hudi"
-        r = self.__run_macro2(template, "has_constraints", relation).strip()
-        self.assertFalse(bool(r))
+        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
+        assert expected in r
 
-        self.config["file_format"] = "delta"
-        r = self.__run_macro2(template, "has_constraints", relation).strip()
-        self.assertTrue(bool(r))
+        model["meta"] = {"constraints": [{"type": "foo"}]}
+        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        expected = "[{'type': 'foo'}]"
+        assert expected in r
 
-    def test_macros_persist_constraints_constraints(self):
+        self.config["persist_constraints"] = False
+        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
+        assert expected in r
+
+    def test_macros_get_column_constraints(self):
         template = self.__get_template("adapters.sql")
-        data = {
-            "path": {
-                "database": "some_database",
-                "schema": "some_schema",
-                "identifier": "some_table",
-            },
-            "type": None,
-        }
-        relation = DatabricksRelation.from_dict(data)
+        relation = self.get_test_relation()
+        column = {"name": "id"}
 
-        r = self.__run_macro2(
-            template, "persist_constraints", relation, relation, {}
-        ).strip()
-        self.assertEqual(r, "")
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        self.assertEqual(r, "[]")
+
+        column["constraints"] = []
+        self.config["persist_constraints"] = True
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        self.assertEqual(r, "[]")
+
+        column["constraints"] = [{"type": "non_null"}]
+        self.config["persist_constraints"] = True
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        self.assertEqual(r, "[{'type': 'non_null'}]")
 
         self.config["persist_constraints"] = True
-        r = self.__run_macro2(
-            template, "persist_constraints", relation, relation, {}
-        ).strip()
-        self.assertEqual(r, "")
+        column["meta"] = {"constraint": "foo"}
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        assert "raise_compiler_error" in r
 
-        self.config["file_format"] = "hudi"
-        self.config["meta"] = {"name": "id_greater_than_0", "condition": "id > 0"}
+        column["meta"] = {"constraint": {"condition": "foo", "name": "name"}}
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        assert "raise_compiler_error" in r
 
-        r = self.__run_macro2(
-            template, "persist_constraints", relation, relation, {}
-        ).strip()
-        self.assertEqual(r, "")
+        column["meta"] = {"constraint": "not_null"}
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        self.assertEqual(r, "[{'type': 'not_null', 'columns': ['id']}]")
 
-        self.config["file_format"] = "delta"
-        r = self.__run_macro2(template, "has_constraints", relation).strip()
-        self.assertTrue(bool(r))
+        self.config["persist_constraints"] = False
+        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        self.assertEqual(r, "[{'type': 'non_null'}]")
 
-        constraints = [{"name": "id_greater_than_0", "condition": "id > 0"}]
+    def test_macros_get_constraint_sql_not_null(self):
+        template = self.__get_template("adapters.sql")
+        relation = self.get_test_relation()
 
-        r = self.__run_macro2(
-            template, "databricks__alter_table_add_constraints", relation, relation, {}
-        ).strip()
-        self.assertEqual(r, "")
+        columns = {
+            "id": {"name": "id", "data_type": "int"},
+            "name": {"name": "name", "data_type": "string"},
+        }
+        model = {"columns": columns}
+
+        def run(constraint, column={}):
+            r = self.__run_macro2(
+                template,
+                "get_constraint_sql",
+                relation,
+                relation,
+                constraint,
+                model,
+                column,
+            ).strip()
+
+            return r
+
+        r = run({"type": "not_null", "columns": ["id", "name"]}).strip()
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;', 'alter table `some_database`.`some_schema`.`some_table` change column name set not null ;']"  # noqa: E501
+        assert expected in r
+
+        r = run({"type": "not_null"}, columns["id"]).strip()
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;']"  # noqa: E501
+        assert expected in r
+
+        r = run({"type": "not_null", "columns": ["name"]}, columns["id"]).strip()
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column name set not null ;']"  # noqa: E501
+        assert expected in r
+
+    def test_macros_get_constraint_sql_check(self):
+        template = self.__get_template("adapters.sql")
+        relation = self.get_test_relation()
+
+        columns = {
+            "id": {"name": "id", "data_type": "int"},
+            "name": {"name": "name", "data_type": "string"},
+        }
+        model = {"columns": columns}
+
+        def run(constraint, column={}):
+            r = self.__run_macro2(
+                template,
+                "get_constraint_sql",
+                relation,
+                relation,
+                constraint,
+                model,
+            ).strip()
+
+            return r
+
+        constraint = {
+            "type": "check",
+            "expression": "id != name",
+            "name": "myconstraint",
+            "columns": ["id", "name"],
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint check (id != name);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "check",
+            "expression": "id != name",
+            "name": "myconstraint",
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint check (id != name);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "check",
+            "expression": "id != name",
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint None check (id != name);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "check",
+            "expression": "",
+            "name": "myconstraint",
+        }
+        r = run(constraint)
+        assert "raise_compiler_error" in r
+
+    def test_macros_get_constraint_sql_primary_key(self):
+        template = self.__get_template("adapters.sql")
+        relation = self.get_test_relation()
+
+        columns = {
+            "id": {"name": "id", "data_type": "int"},
+            "name": {"name": "name", "data_type": "string"},
+        }
+        model = {"columns": columns}
+
+        def run(constraint, column={}):
+            r = self.__run_macro2(
+                template,
+                "get_constraint_sql",
+                relation,
+                relation,
+                constraint,
+                model,
+                column,
+            ).strip()
+
+            return r
+
+        constraint = {
+            "type": "primary_key",
+            "name": "myconstraint",
+            "columns": ["name"],
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(name);']"  # noqa: E501
+        assert expected in r
+
+        column = {"name": "id"}
+        r = run(constraint, column)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(name);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "primary_key",
+            "name": "myconstraint",
+        }
+        r = run(constraint, column)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(id);']"  # noqa: E501
+        assert expected in r
+
+    def test_macros_get_constraint_sql_foreign_key(self):
+        template = self.__get_template("adapters.sql")
+        relation = self.get_test_relation()
+
+        columns = {
+            "id": {"name": "id", "data_type": "int"},
+            "name": {"name": "name", "data_type": "string"},
+        }
+        model = {"columns": columns}
+
+        def run(constraint, column={}):
+            r = self.__run_macro2(
+                template,
+                "get_constraint_sql",
+                relation,
+                relation,
+                constraint,
+                model,
+                column,
+            ).strip()
+
+            return r
+
+        constraint = {
+            "type": "foreign_key",
+            "name": "myconstraint",
+            "columns": ["name"],
+            "parent": "parent_table",
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name) references some_schema.parent_table;']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "foreign_key",
+            "name": "myconstraint",
+            "columns": ["name"],
+            "parent": "parent_table",
+            "parent_columns": ["parent_name"],
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name) references some_schema.parent_table(parent_name);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "foreign_key",
+            "name": "myconstraint",
+            "columns": ["name", "id"],
+            "parent": "parent_table",
+            "parent_columns": ["parent_name", "parent_id"],
+        }
+        r = run(constraint)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name, id) references some_schema.parent_table(parent_name, parent_id);']"  # noqa: E501
+        assert expected in r
+
+        constraint = {
+            "type": "foreign_key",
+            "name": "myconstraint",
+            "parent": "parent_table",
+            "parent_columns": ["parent_name"],
+        }
+        column = {"name": "id"}
+        r = run(constraint, column)
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(id) references some_schema.parent_table(parent_name);']"  # noqa: E501
+        assert expected in r
