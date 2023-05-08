@@ -55,7 +55,6 @@
         create table {{ relation }}
       {% endif %}
       {%- set contract_config = config.get('contract') -%}
-      {%- set contract_config = config.get('contract') -%}
       {% if contract_config and contract_config.enforced %}
         {{ get_assert_columns_equivalent(compiled_code) }}
         {%- set compiled_code = get_select_subquery(compiled_code) %}
@@ -214,7 +213,7 @@
   {% if type == 'check' %}
     {% set expression = constraint.get("expression", "") %}
     {% if not expression %}
-      {{ exceptions.raise_compiler_error('Invalid check constraint expression: ' ~ expression) }}
+      {{ exceptions.raise_compiler_error('Invalid check constraint expression') }}
     {% endif %}
 
     {% set name = constraint.get("name") %}
@@ -329,11 +328,11 @@
       {% else %}
         {% set name = constraint['name'] %}
         {% if not name %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
+          {{ exceptions.raise_compiler_error('Invalid check constraint name') }}
         {% endif %}
         {% set condition = constraint['condition'] %}
         {% if not condition %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
+          {{ exceptions.raise_compiler_error('Invalid check constraint condition') }}
         {% endif %}
         {% do dbt_constraints.append({"name": name, "type": "check", "expression": condition}) %}
       {% endif %}
