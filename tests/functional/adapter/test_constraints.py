@@ -40,6 +40,7 @@ from
 # - does not support a data type named 'text' (TODO handle this in the base test classes using string_type
 constraints_yml = model_schema_yml.replace("text", "string").replace("primary key", "")
 
+
 class DatabricksHTTPSetup:
     @pytest.fixture
     def string_type(self):
@@ -70,9 +71,7 @@ class DatabricksHTTPSetup:
         ]
 
 
-@pytest.mark.skip_profile(
-    "databricks_sql_endpoint", "databricks_cluster"
-)
+@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
 class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseTableConstraintsColumnsEqual
 ):
@@ -85,9 +84,7 @@ class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
         }
 
 
-@pytest.mark.skip_profile(
-    "databricks_sql_endpoint", "databricks_cluster"
-)
+@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
 class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseViewConstraintsColumnsEqual
 ):
@@ -100,9 +97,7 @@ class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
         }
 
 
-@pytest.mark.skip_profile(
-    "databricks_sql_endpoint", "databricks_cluster"
-)
+@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
 class TestSparkIncrementalConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseIncrementalConstraintsColumnsEqual
 ):
@@ -177,9 +172,7 @@ class BaseSparkConstraintsRollbackSetup:
         assert any(msg in error_message for msg in expected_error_messages)
 
 
-class TestSparkTableConstraintsRollback(
-    BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback
-):
+class TestSparkTableConstraintsRollback(BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback):
     @pytest.fixture(scope="class")
     def models(self):
         return {
