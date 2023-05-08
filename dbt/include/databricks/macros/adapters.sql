@@ -55,7 +55,8 @@
         create table {{ relation }}
       {% endif %}
       {%- set contract_config = config.get('contract') -%}
-      {% if has_contract(all_file_formats=True) %}
+      {%- set contract_config = config.get('contract') -%}
+      {% if contract_config and contract_config.enforced %}
         {{ get_assert_columns_equivalent(compiled_code) }}
         {%- set compiled_code = get_select_subquery(compiled_code) %}
       {% endif %}
@@ -85,7 +86,7 @@
   create or replace view {{ relation }}
   {{ comment_clause() }}
   {%- set contract_config = config.get('contract') -%}
-  {% if has_contract(all_file_formats=True) %}
+  {% if contract_config and contract_config.enforced %}
     {{ get_assert_columns_equivalent(sql) }}
   {%- endif %}
   {{ tblproperties_clause() }}
@@ -108,37 +109,23 @@
   {% endif %}
 {% endmacro %}
 
-{# Check if model contract is enforced #}
-{% macro has_contract(all_file_formats) %}
-  {%- set contract_config = config.get('contract') -%}
-  {% if contract_config and contract_config.enforced and (all_file_formats or config.get('file_format', 'delta') == 'delta') %}
-    {{ return('True') }}
-  {% endif %}
-  {{ return('') }}
-{% endmacro %}
-
-{# Check if model has constraints #}
-{% macro has_constraints() %}
-  {% if config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
-    {{ return('True') }}
-  {% endif %}
-  {{ return('') }}
-{% endmacro %}
-
 {# Persist table-level and column-level constraints. #}
 {% macro persist_constraints(relation, model) %}
   {{ return(adapter.dispatch('persist_constraints', 'dbt')(relation, model)) }}
 {% endmacro %}
 
 {% macro databricks__persist_constraints(relation, model) %}
-  {% if has_constraints() %}
-    {# databricks constraints implementation #}
+
+  {% set delta_format = config.get('file_format', 'delta') == 'delta' %}
+
+  {%- set contract_config = config.get('contract') -%}
+  {% set has_model_contract = contract_config and contract_config.enforced %}
+
+  {% set has_databricks_constraints = config.get('persist_constraints', False) %}
+
+  {% if (has_model_contract or has_databricks_constraints) and delta_format and not is_incremental() %}
     {% do alter_table_add_constraints(relation, model) %}
-    {% do alter_column_set_constraints(relation, model.columns) %}
-  {% elif has_contract() %}
-    {# dbt 1.5 model contract #}
-    {% do alter_table_add_constraints(relation, model) %}
-    {% do alter_column_set_constraints(relation, model.columns) %}
+    {% do alter_column_set_constraints(relation, model) %}
   {% endif %}
 {% endmacro %}
 
@@ -147,106 +134,215 @@
 {% endmacro %}
 
 {% macro databricks__alter_table_add_constraints(relation, model) %}
-{{ exceptions.warn('alter_table_add_constraints') }}
-  {% if has_constraints() and constraints is sequence %}
-    {% set constraints = model.meta.constraints %}
-    {# databricks constraints implementation #}
-    {% for constraint in constraints %}
-      {% set name = constraint['name'] %}
-      {% if not name %}
-        {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
-      {% endif %}
-      {% set condition = constraint['condition'] %}
-      {% if not condition %}
-        {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
-      {% endif %}
-      {# Skip if the update is incremental. #}
-      {% if not is_incremental() %}
-        {% call statement() %}
-          alter table {{ relation }} add constraint {{ name }} check ({{ condition }});
-        {% endcall %}
-      {% endif %}
-    {% endfor %}
-  {% elif has_contract() %}
-  {{ exceptions.warn('has_contract') }}
-    {# dbt 1.5 model contract #}
-    {% set statements = get_constraints_sql(relation, model.constraints, {}) %}
+    {% set constraints = get_model_constraints(model) %}
+
+    {% set statements = get_constraints_sql(relation, constraints, model) %}
     {% for stmt in statements %}
       {% call statement() %}
         {{ stmt }}
       {% endcall %}
     {% endfor %}
+
+{% endmacro %}
+
+{% macro get_model_constraints(model) %}
+  {% set constraints = model.get('constraints', []) %}
+  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
+  {% if has_databricks_constraints and model.get('meta', {}).get('constraints') is sequence %}
+    {% set db_constraints = model.get('meta', {}).get('constraints', []) %}
+    {% set constraints = databricks_constraints_to_dbt(db_constraints) %}
   {% endif %}
+  {{ return(constraints) }}
+{% endmacro %}
+
+{% macro get_column_constraints(column) %}
+  {% set constraints = column.get('constraints', []) %}
+  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
+  {% if has_databricks_constraints and column.get('meta', {}).get('constraint') %}
+    {% set db_constraint = column.get('meta', {}).get('constraint') %}
+    {% if db_constraint %}
+      {% set constraints = databricks_constraints_to_dbt([db_constraint], column) %}
+    {% endif %}
+    {% set db_constraints = [column.get('meta', {}).get('constraint')] %}
+    {% set constraints = databricks_constraints_to_dbt(db_constraints, column) %}
+  {% endif %}
+  {{ return(constraints) }}
 {% endmacro %}
 
 {% macro alter_column_set_constraints(relation, column_dict) %}
   {{ return(adapter.dispatch('alter_column_set_constraints', 'dbt')(relation, column_dict)) }}
 {% endmacro %}
 
-{% macro databricks__alter_column_set_constraints(relation, column_dict) %}
-  {% if has_constraints() %}
-    {% for column_name in column_dict %}
-      {% set constraint = column_dict[column_name]['meta']['constraint'] %}
-      {% if constraint %}
-        {% if constraint != 'not_null' %}
-          {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
-        {% endif %}
-        {% if not is_incremental() %}
-          {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
-          {% call statement() %}
-            alter table {{ relation }} change column {{ quoted_name }} set not null
-          {% endcall %}
-        {% endif %}
-      {% endif %}
+{% macro databricks__alter_column_set_constraints(relation, model) %}
+  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}  
+  {% set column_dict = model.columns %}
+  {% for column_name in column_dict %}
+    {% set column = column_dict[column_name] %}
+    {% set constraints = get_column_constraints(column)  %}
+
+    {% set statements = get_constraints_sql(relation, constraints, model, column) %}
+    {% for stmt in statements %}
+      {% call statement() %}
+        {{ stmt }}
+      {% endcall %}
     {% endfor %}
-  {% elif has_contract() %}
-    {% for column_name in column_dict %}
-      {% set constraints = column_dict[column_name]['constraints'] %}
-      {% for constraint in constraints %}
-        {% if constraint.type != 'not_null' %}
-          {{ exceptions.warn('Invalid constraint for column ' ~ column_name ~ '. Only `not_null` is supported.') }}
-        {% else %}
-        {% do get_constraint_sql(relation, constraint, column_dict[column_name]) %}
-          {% set quoted_name = adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name %}
-          {% call statement() %}
-            alter table {{ relation }} change column {{ quoted_name }} set not null {{ constraint.expression or "" }};
-          {% endcall %}
-        {% endif %}
-      {% endfor %}
-    {% endfor %}
-  {% endif %}
+
+  {% endfor %}
+
 {% endmacro %}
 
-{% macro get_constraints_sql(relation, constraints, column) %}
+{% macro get_constraints_sql(relation, constraints, model, column) %}
   {% set statements = [] %}
   {% for constraint in constraints %}
-    {% set statement = get_constraint_sql(relation, constraint, column) %}
-    {% if statement %}
-      {% do statements.append(statement) %}
+    {% if constraint %}
+      {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
+      {% for statement in constraint_statements %}
+        {% if statement %}
+          {% do statements.append(statement) %}
+        {% endif %}
+      {% endfor %}  
     {% endif %}
   {% endfor %}
 
   {{ return(statements) }}
 {% endmacro %}
 
-{% macro get_constraint_sql(relation, constraint, column) %}
-{{ exceptions.warn('get_constraint_sql') }}
-  {% if constraint.type == 'check' %}
-{{ exceptions.warn('check') }}
-    {% set name = constraint['name'] %}
-      {% if not name %}
-        {%- set name = local_md5(column_name ~ ";" ~ constraint.expression ~ ";" ~ loop.index) -%}
-      {% endif %}
-      {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ constraint.expression ~ ");" %}
-{{ exceptions.warn(stmt) }}
-      {{ return(stmt) }}
-    {% elif constraint.type == 'not_null' %}
-      {% set quoted_name = adapter.quote(column['name']) if column['quote'] else column['name'] %}
-      {% set stmt = "alter table " ~ relation ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
-{{ exceptions.warn(stmt) }}
-      {{ return(stmt) }}
+{% macro get_constraint_sql(relation, constraint, model, column={}) %}
+{{ exceptions.warn("get_constraint_sql") }}
+  {% set statements = [] %}
+  {% set type = constraint.get("type", "") %}
+
+  {% if type == 'check' %}
+    {% set expression = constraint.get("expression", "") %}
+    {% if not expression %}
+      {{ exceptions.raise_compiler_error('Invalid check constraint expression: ' ~ expression) }}
     {% endif %}
-    {{ return("") }}
+
+    {% set name = constraint.get("name") %}
+    {% if not name and local_md5 %}
+      {%- set name = local_md5 (column.get("name", "") ~ ";" ~ expression ~ ";") -%}
+    {% endif %}
+    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
+    {% do statements.append(stmt) %}
+  {% elif type == 'not_null' %}
+    {% set column_names = constraint.get("columns", []) %}
+    {% if column and not column_names %}
+      {% set column_names = [column['name']] %}
+    {% endif %}
+    {% for column_name in column_names %}
+      {% set column = model.get('columns', {}).get(column_name) %}
+      {% if column %}
+        {% set quoted_name = adapter.quote(column['name']) if column['quote'] else column['name'] %}
+        {% set stmt = "alter table " ~ relation ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
+        {% do statements.append(stmt) %}
+      {% else %}
+        {{ exceptions.warn('not_null constraint on invalid column: ' ~ column_name) }}
+      {% endif %}
+    {% endfor %}
+  {% elif type == 'primary_key' %}
+    {% if constraint.get('warn_unenforced') %}
+      {{ exceptions.warn("unenforced constraint type: " ~ type)}}
+    {% endif %}
+    {% set column_names = constraint.get("columns", []) %}
+    {% if column and not column_names %}
+      {% set column_names = [column['name']] %}
+    {% endif %}
+    {% set quoted_names = [] %}
+    {% for column_name in column_names %}
+      {% set column = model.get('columns', {}).get(column_name) %}
+      {% if not column %}
+        {{ exceptions.warn('Invalid primary key column: ' ~ column_name) }}
+      {% else %}
+        {% set quoted_name = adapter.quote(column['name']) if column['quote'] else column['name'] %}
+        {% do quoted_names.append(quoted_name) %}
+      {% endif %}
+    {% endfor %}
+
+    {% set joined_names = quoted_names|join(", ") %}
+
+    {% set name = constraint.get("name") %}
+    {% if not name and local_md5 %}
+      {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
+    {% endif %}
+    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
+    {% do statements.append(stmt) %}
+  {% elif type == 'foreign_key' %}
+
+    {% if constraint.get('warn_unenforced') %}
+      {{ exceptions.warn("unenforced constraint type: " ~ constraint.type)}}
+    {% endif %}
+
+    {% set column_names = constraint.get("columns", []) %}
+    {% if column and not column_names %}
+      {% set column_names = [column['name']] %}
+    {% endif %}
+    {% set quoted_names = [] %}
+    {% for column_name in column_names %}
+      {% set column = model.get('columns', {}).get(column_name) %}
+      {% if not column %}
+        {{ exceptions.warn('Invalid foreign key column: ' ~ column_name) }}
+      {% else %}
+        {% set quoted_name = adapter.quote(column['name']) if column['quote'] else column['name'] %}
+        {% do quoted_names.append(quoted_name) %}
+      {% endif %}
+    {% endfor %}
+
+    {% set joined_names = quoted_names|join(", ") %}
+
+    {% set name = constraint.get("name") %}
+    {% if not name and local_md5 %}
+      {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
+    {% endif %}
+
+    {% set parent = constraint.get("parent") %}
+    {% if not parent %} 
+      {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
+    {% endif %}
+    {% if not "." in parent %}
+      {% set parent = relation.schema ~ "." ~ parent%}
+    {% endif %}
+    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
+    {% set parent_columns = constraint.get("parent_columns") %}
+    {% if parent_columns %}
+      {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
+    {% endif %}
+    {% set stmt = stmt ~ ";" %}
+    {% do statements.append(stmt) %}
+  {% elif constraint.get('warn_unsupported') %}
+    {{ exceptions.warn("unsupported constraint type: " ~ constraint.type)}}
+  {% endif %}
+
+{{ exceptions.warn(statements) }}
+  {{ return(statements) }}
+{% endmacro %}
+
+{% macro databricks_constraints_to_dbt(constraints, column) %}
+  {% set dbt_constraints = [] %}
+  {% for constraint in constraints %}
+    {% if constraint.get and constraint.get("type") %}
+      {% do dbt_constraints.append(constraint) %}
+    {% else %}
+      {% if column %}
+        {% if constraint == "not_null" %}
+          {% do dbt_constraints.append({"type": "not_null", "columns": [column.get("name")]}) %}
+        {% else %}
+          {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column.get("name", "") ~ '. Only `not_null` is supported.') }}
+        {% endif %}
+      {% else %}
+        {% set name = constraint['name'] %}
+        {% if not name %}
+          {{ exceptions.raise_compiler_error('Invalid check constraint name: ' ~ name) }}
+        {% endif %}
+        {% set condition = constraint['condition'] %}
+        {% if not condition %}
+          {{ exceptions.raise_compiler_error('Invalid check constraint condition: ' ~ condition) }}
+        {% endif %}
+        {% do dbt_constraints.append({"name": name, "type": "check", "expression": condition}) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {{ return(dbt_constraints) }}
 {% endmacro %}
 
 {% macro optimize(relation) %}

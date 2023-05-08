@@ -40,45 +40,6 @@ from
 # - does not support a data type named 'text' (TODO handle this in the base test classes using string_type
 constraints_yml = model_schema_yml.replace("text", "string").replace("primary key", "")
 
-
-class PyodbcSetup:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-            }
-        }
-
-    @pytest.fixture
-    def string_type(self):
-        return "STR"
-
-    @pytest.fixture
-    def int_type(self):
-        return "INT"
-
-    @pytest.fixture
-    def schema_int_type(self):
-        return "INT"
-
-    @pytest.fixture
-    def data_types(self, int_type, schema_int_type, string_type):
-        # sql_column_value, schema_data_type, error_data_type
-        return [
-            # TODO: the int type is tricky to test in test__constraints_wrong_column_data_type without a schema_string_type to override.
-            # uncomment the line below once https://github.com/dbt-labs/dbt-core/issues/7121 is resolved
-            # ['1', schema_int_type, int_type],
-            ['"1"', "string", string_type],
-            ["true", "boolean", "BOOL"],
-            ['array("1","2","3")', "string", string_type],
-            ["array(1,2,3)", "string", string_type],
-            ["6.45", "decimal", "DECIMAL"],
-            ["cast('2019-01-01' as date)", "date", "DATE"],
-            ["cast('2019-01-01' as timestamp)", "timestamp", "DATETIME"],
-        ]
-
-
 class DatabricksHTTPSetup:
     @pytest.fixture
     def string_type(self):
@@ -109,43 +70,8 @@ class DatabricksHTTPSetup:
         ]
 
 
-@pytest.mark.skip_profile("spark_session", "apache_spark", "databricks_http_cluster")
-class TestSparkTableConstraintsColumnsEqualPyodbc(PyodbcSetup, BaseTableConstraintsColumnsEqual):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model_wrong_order.sql": my_model_wrong_order_sql,
-            "my_model_wrong_name.sql": my_model_wrong_name_sql,
-            "constraints_schema.yml": constraints_yml,
-        }
-
-
-@pytest.mark.skip_profile("spark_session", "apache_spark", "databricks_http_cluster")
-class TestSparkViewConstraintsColumnsEqualPyodbc(PyodbcSetup, BaseViewConstraintsColumnsEqual):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model_wrong_order.sql": my_model_view_wrong_order_sql,
-            "my_model_wrong_name.sql": my_model_view_wrong_name_sql,
-            "constraints_schema.yml": constraints_yml,
-        }
-
-
-@pytest.mark.skip_profile("spark_session", "apache_spark", "databricks_http_cluster")
-class TestSparkIncrementalConstraintsColumnsEqualPyodbc(
-    PyodbcSetup, BaseIncrementalConstraintsColumnsEqual
-):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model_wrong_order.sql": my_model_incremental_wrong_order_sql,
-            "my_model_wrong_name.sql": my_model_incremental_wrong_name_sql,
-            "constraints_schema.yml": constraints_yml,
-        }
-
-
 @pytest.mark.skip_profile(
-    "spark_session", "apache_spark", "databricks_sql_endpoint", "databricks_cluster"
+    "databricks_sql_endpoint", "databricks_cluster"
 )
 class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseTableConstraintsColumnsEqual
@@ -160,7 +86,7 @@ class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
 
 
 @pytest.mark.skip_profile(
-    "spark_session", "apache_spark", "databricks_sql_endpoint", "databricks_cluster"
+    "databricks_sql_endpoint", "databricks_cluster"
 )
 class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseViewConstraintsColumnsEqual
@@ -175,7 +101,7 @@ class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
 
 
 @pytest.mark.skip_profile(
-    "spark_session", "apache_spark", "databricks_sql_endpoint", "databricks_cluster"
+    "databricks_sql_endpoint", "databricks_cluster"
 )
 class TestSparkIncrementalConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseIncrementalConstraintsColumnsEqual
@@ -203,7 +129,6 @@ class BaseSparkConstraintsDdlEnforcementSetup:
         return _expected_sql_spark
 
 
-@pytest.mark.skip_profile("spark_session", "apache_spark")
 class TestSparkTableConstraintsDdlEnforcement(
     BaseSparkConstraintsDdlEnforcementSetup, BaseConstraintsRuntimeDdlEnforcement
 ):
@@ -215,7 +140,6 @@ class TestSparkTableConstraintsDdlEnforcement(
         }
 
 
-@pytest.mark.skip_profile("spark_session", "apache_spark")
 class TestSparkIncrementalConstraintsDdlEnforcement(
     BaseSparkConstraintsDdlEnforcementSetup, BaseIncrementalConstraintsRuntimeDdlEnforcement
 ):
@@ -253,7 +177,6 @@ class BaseSparkConstraintsRollbackSetup:
         assert any(msg in error_message for msg in expected_error_messages)
 
 
-@pytest.mark.skip_profile("spark_session", "apache_spark")
 class TestSparkTableConstraintsRollback(
     BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback
 ):
@@ -272,7 +195,6 @@ class TestSparkTableConstraintsRollback(
         return "red"
 
 
-@pytest.mark.skip_profile("spark_session", "apache_spark")
 class TestSparkIncrementalConstraintsRollback(
     BaseSparkConstraintsRollbackSetup, BaseIncrementalConstraintsRollback
 ):
