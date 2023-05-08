@@ -208,7 +208,6 @@
 {% endmacro %}
 
 {% macro get_constraint_sql(relation, constraint, model, column={}) %}
-{{ exceptions.warn("get_constraint_sql") }}
   {% set statements = [] %}
   {% set type = constraint.get("type", "") %}
 
@@ -312,7 +311,6 @@
     {{ exceptions.warn("unsupported constraint type: " ~ constraint.type)}}
   {% endif %}
 
-{{ exceptions.warn(statements) }}
   {{ return(statements) }}
 {% endmacro %}
 
