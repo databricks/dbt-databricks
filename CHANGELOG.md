@@ -1,3 +1,21 @@
+## dbt-databricks 1.5.1 (May 9, 2023)
+
+### Fixes
+- Add explicit dependency to protobuf >4 to work around dbt-core issue
+
+## dbt-databricks 1.5.0 (May 2, 2023)
+
+### Features
+- Added support for OAuth (SSO and client credentials) ([#327](https://github.com/databricks/dbt-databricks/pull/327))
+### Fixes
+- Fix integration tests ([#316](https://github.com/databricks/dbt-databricks/pull/316))
+
+### Dependencies
+- Updated dbt-spark from >=1.4.1 to >= 1.5.0 ([#316](https://github.com/databricks/dbt-databricks/pull/316))
+
+### Under the hood
+- Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+
 ## dbt-databricks 1.4.3 (April 19, 2023)
 
 ### Fixes

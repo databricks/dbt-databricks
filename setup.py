@@ -57,7 +57,8 @@ setup(
         "dbt-spark>=1.5.0",
         "databricks-sql-connector>=2.5.0",
         "databricks-sdk>=0.1.1",
-        "keyring>=23.13.0"
+        "keyring>=23.13.0",
+        "protobuf>=4.21.0" # workaround for dbt-core issue
     ],
     zip_safe=False,
     classifiers=[
