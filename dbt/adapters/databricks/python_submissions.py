@@ -23,9 +23,9 @@ DBT_SPARK_VERSION = __version__.version
 
 class BearerAuth(requests.auth.AuthBase):
     """See issue #337.
-    
+
     We use this mix-in to stop requests from implicitly reading .netrc
-    
+
     Solution taken from SO post in issue description.
     """
 
@@ -35,6 +35,7 @@ class BearerAuth(requests.auth.AuthBase):
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         r.headers["Authorization"] = f"Bearer {self.token}"
         return r
+
 
 class BaseDatabricksHelper(PythonJobHelper):
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
@@ -155,7 +156,8 @@ class BaseDatabricksHelper(PythonJobHelper):
         # get end state to return to user
         run_output = requests.get(
             f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
-            auth=self.auth, headers=self.extra_headers, 
+            auth=self.auth,
+            headers=self.extra_headers,
         )
         json_run_output = run_output.json()
         result_state = json_run_output["metadata"]["state"]["result_state"]
@@ -215,7 +217,11 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
 class DBContext:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth: BearerAuth, extra_headers: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth: BearerAuth,
+        extra_headers: dict,
     ) -> None:
         self.auth = auth
         self.extra_headers = extra_headers
@@ -323,7 +329,11 @@ class DBContext:
 
 class DBCommand:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth: BearerAuth, extra_headers: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth: BearerAuth,
+        extra_headers: dict,
     ) -> None:
         self.auth = auth
         self.extra_headers = extra_headers
@@ -334,7 +344,7 @@ class DBCommand:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
         response = requests.post(
             f"https://{self.host}/api/1.2/commands/execute",
-            auth = self.auth,
+            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
@@ -353,7 +363,7 @@ class DBCommand:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-command
         response = requests.get(
             f"https://{self.host}/api/1.2/commands/status",
-            auth = self.auth,
+            auth=self.auth,
             headers=self.extra_headers,
             params={
                 "clusterId": self.cluster_id,
