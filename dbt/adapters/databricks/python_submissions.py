@@ -21,11 +21,12 @@ SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
 DBT_SPARK_VERSION = __version__.version
 
+
 class BearerAuth(requests.auth.AuthBase):
     """See issue #337.
-    
+
     We use this mix-in to stop requests from implicitly reading .netrc
-    
+
     Solution taken from SO post in issue description.
     """
 
@@ -35,7 +36,6 @@ class BearerAuth(requests.auth.AuthBase):
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         r.headers["Authorization"] = f"Bearer {self.token}"
         return r
-
 
 
 class BaseDatabricksHelper(PythonJobHelper):
@@ -218,7 +218,11 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
 class DBContext:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth: BearerAuth, extra_headers: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth: BearerAuth,
+        extra_headers: dict,
     ) -> None:
         self.auth = auth
         self.extra_headers = extra_headers
@@ -326,7 +330,11 @@ class DBContext:
 
 class DBCommand:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth: BearerAuth, extra_headers: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth: BearerAuth,
+        extra_headers: dict,
     ) -> None:
         self.auth = auth
         self.extra_headers = extra_headers
