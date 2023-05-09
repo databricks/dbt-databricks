@@ -8,6 +8,7 @@ import unittest
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from io import StringIO
 
 import pytest
 import yaml
@@ -414,7 +415,8 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def run_dbt_and_capture(self, *args, **kwargs):
         try:
-            stringbuf = capture_stdout_logs()
+            stringbuf = StringIO()
+            capture_stdout_logs(stringbuf)
             res = self.run_dbt(*args, **kwargs)
             stdout = stringbuf.getvalue()
 

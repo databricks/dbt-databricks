@@ -114,17 +114,24 @@
 {% endmacro %}
 
 {% macro databricks__persist_constraints(relation, model) %}
-
-  {% set delta_format = config.get('file_format', 'delta') == 'delta' %}
-
   {%- set contract_config = config.get('contract') -%}
   {% set has_model_contract = contract_config and contract_config.enforced %}
-
   {% set has_databricks_constraints = config.get('persist_constraints', False) %}
 
-  {% if (has_model_contract or has_databricks_constraints) and delta_format and not is_incremental() %}
-    {% do alter_table_add_constraints(relation, model) %}
-    {% do alter_column_set_constraints(relation, model) %}
+  {% if (has_model_contract or has_databricks_constraints) %}
+    {% if config.get('file_format', 'delta') != 'delta' %}
+      {# Constraints are only supported for delta tables #}
+      {{ exceptions.warn("Constraints not supported for file format: " ~ config.get('file_format')) }}
+    {% elif relation.is_view %}
+      {# Constraints are not supported for views. This point in the code should not have been reached. #}
+      {{ exceptions.raise_compiler_error("Constraints not supported for views.") }}
+    {% elif is_incremental() %}
+      {# Constraints are not applied for incremental updates. This point in the code should not have been reached #}
+      {{ exceptions.raise_compiler_error("Constraints are not applied for incremental updates. Full refresh is required to update constraints.") }}
+    {% else %}
+      {% do alter_table_add_constraints(relation, model) %}
+      {% do alter_column_set_constraints(relation, model) %}
+    {% endif %}
   {% endif %}
 {% endmacro %}
 
@@ -134,20 +141,18 @@
 
 {% macro databricks__alter_table_add_constraints(relation, model) %}
     {% set constraints = get_model_constraints(model) %}
-
     {% set statements = get_constraints_sql(relation, constraints, model) %}
     {% for stmt in statements %}
       {% call statement() %}
         {{ stmt }}
       {% endcall %}
     {% endfor %}
-
 {% endmacro %}
 
 {% macro get_model_constraints(model) %}
   {% set constraints = model.get('constraints', []) %}
-  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
-  {% if has_databricks_constraints and model.get('meta', {}).get('constraints') is sequence %}
+  {% if config.get('persist_constraints', False) and model.get('meta', {}).get('constraints') is sequence %}
+    {# Databricks constraints implementation.  Constraints are in the meta property. #}
     {% set db_constraints = model.get('meta', {}).get('constraints', []) %}
     {% set constraints = databricks_constraints_to_dbt(db_constraints) %}
   {% endif %}
@@ -156,12 +161,8 @@
 
 {% macro get_column_constraints(column) %}
   {% set constraints = column.get('constraints', []) %}
-  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}
-  {% if has_databricks_constraints and column.get('meta', {}).get('constraint') %}
-    {% set db_constraint = column.get('meta', {}).get('constraint') %}
-    {% if db_constraint %}
-      {% set constraints = databricks_constraints_to_dbt([db_constraint], column) %}
-    {% endif %}
+  {% if config.get('persist_constraints', False) and column.get('meta', {}).get('constraint') %}
+    {# Databricks constraints implementation.  Constraint is in the meta property. #}
     {% set db_constraints = [column.get('meta', {}).get('constraint')] %}
     {% set constraints = databricks_constraints_to_dbt(db_constraints, column) %}
   {% endif %}
@@ -173,21 +174,17 @@
 {% endmacro %}
 
 {% macro databricks__alter_column_set_constraints(relation, model) %}
-  {% set has_databricks_constraints = config.get('persist_constraints', False) and config.get('file_format', 'delta') == 'delta' %}  
   {% set column_dict = model.columns %}
   {% for column_name in column_dict %}
     {% set column = column_dict[column_name] %}
     {% set constraints = get_column_constraints(column)  %}
-
     {% set statements = get_constraints_sql(relation, constraints, model, column) %}
     {% for stmt in statements %}
       {% call statement() %}
         {{ stmt }}
       {% endcall %}
     {% endfor %}
-
   {% endfor %}
-
 {% endmacro %}
 
 {% macro get_constraints_sql(relation, constraints, model, column) %}
@@ -218,6 +215,7 @@
 
     {% set name = constraint.get("name") %}
     {% if not name and local_md5 %}
+      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
       {%- set name = local_md5 (column.get("name", "") ~ ";" ~ expression ~ ";") -%}
     {% endif %}
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
@@ -260,6 +258,7 @@
 
     {% set name = constraint.get("name") %}
     {% if not name and local_md5 %}
+      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
       {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
     {% endif %}
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
@@ -289,6 +288,7 @@
 
     {% set name = constraint.get("name") %}
     {% if not name and local_md5 %}
+      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
       {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
     {% endif %}
 
@@ -314,9 +314,11 @@
 {% endmacro %}
 
 {% macro databricks_constraints_to_dbt(constraints, column) %}
+  {# convert constraints defined using the original databricks format #}
   {% set dbt_constraints = [] %}
   {% for constraint in constraints %}
     {% if constraint.get and constraint.get("type") %}
+      {# already in model contract format #}
       {% do dbt_constraints.append(constraint) %}
     {% else %}
       {% if column %}

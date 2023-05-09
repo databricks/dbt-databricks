@@ -44,7 +44,9 @@
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
 
-    {% do persist_constraints(target_relation, model) %}
+    {% if not existing_relation.is_view %}
+      {% do persist_constraints(target_relation, model) %}
+    {% endif %}
   {%- else -%}
     {#-- Relation must be merged --#}
     {%- set temp_relation = databricks__make_temp_relation(target_relation, as_table=language != 'sql') -%}

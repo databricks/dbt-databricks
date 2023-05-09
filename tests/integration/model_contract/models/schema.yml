@@ -125,3 +125,37 @@ models:
         data_type: string
       - name: date
         data_type: string
+
+  - name: not_delta
+    config:
+      file_format: parquet
+      contract:
+        enforced: True
+    constraints:
+      - name: check_constraint
+        type: check
+        expression: id > 0
+    columns:
+      - name: id
+        data_type: int
+      - name: name
+        data_type: string
+      - name: date
+        data_type: string
+
+  - name: a_view
+    config:
+      materialized: view
+      contract:
+        enforced: True
+    constraints:
+      - name: check_constraint
+        type: check
+        expression: id > 0
+    columns:
+      - name: id
+        data_type: int
+      - name: name
+        data_type: string
+      - name: date
+        data_type: string

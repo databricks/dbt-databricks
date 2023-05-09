@@ -270,3 +270,55 @@ class TestModelLevelForeignKey(TestModelContract):
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
         self.test_table_constraints()
+
+
+class TestModelContractNotDelta(TestModelContract):
+    def test_table_constraints(self):
+        self.run_dbt(["seed"])
+        model_name = "not_delta"
+        result, logoutput = self.run_dbt_and_capture(
+            ["run", "--select", model_name], expect_pass=True
+        )
+        assert "Constraints not supported for file format: parquet" in logoutput
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
+
+
+class TestModelContractView(TestModelContract):
+    def test_table_constraints(self):
+        # persist_constraints should not be called for a view materialization. If it is and
+        # error is raised.
+        # Successfully creating the view indicates that it wasn't called.
+        self.run_dbt(["seed"])
+        model_name = "a_view"
+        self.run_dbt(["run", "--select", model_name])
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()

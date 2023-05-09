@@ -20,6 +20,7 @@ from dbt.tests.adapter.constraints.fixtures import (
     my_incremental_model_sql,
 )
 
+
 # constraints are enforced via 'alter' statements that run after table creation
 _expected_sql_spark = """
 create or replace table <model_identifier>
@@ -45,15 +46,15 @@ constraints_yml = model_schema_yml.replace("text", "string").replace("primary ke
 class DatabricksHTTPSetup:
     @pytest.fixture
     def string_type(self):
-        return "STRING_TYPE"
+        return "string"
 
     @pytest.fixture
     def int_type(self):
-        return "INT_TYPE"
+        return "int"
 
     @pytest.fixture
     def schema_int_type(self, int_type):
-        return "INT"
+        return "int"
 
     @pytest.fixture
     def data_types(self, schema_int_type, int_type, string_type):
@@ -65,12 +66,12 @@ class DatabricksHTTPSetup:
             # https://github.com/dbt-labs/dbt-core/issues/7121 is resolved
             # ['1', schema_int_type, int_type],
             ['"1"', "string", string_type],
-            ["true", "boolean", "BOOLEAN_TYPE"],
-            ['array("1","2","3")', "array<string>", "ARRAY_TYPE"],
-            ["array(1,2,3)", "array<int>", "ARRAY_TYPE"],
-            ["cast('2019-01-01' as date)", "date", "DATE_TYPE"],
-            ["cast('2019-01-01' as timestamp)", "timestamp", "TIMESTAMP_TYPE"],
-            ["cast(1.0 AS DECIMAL(4, 2))", "decimal", "DECIMAL_TYPE"],
+            ["true", "boolean", "boolean"],
+            ['array("1","2","3")', "array<string>", "array"],
+            ["array(1,2,3)", "array<int>", "array"],
+            ["cast('2019-01-01' as date)", "date", "date"],
+            ["cast('2019-01-01' as timestamp)", "timestamp", "timestamp"],
+            ["cast(1.0 AS DECIMAL(4, 2))", "decimal", "decimal"],
         ]
 
 
