@@ -1,7 +1,13 @@
+
 ## dbt-databricks 1.5.2 TBD
 
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+
+## dbt-databricks 1.5.1 (May 9, 2023)
+
+### Fixes
+- Add explicit dependency to protobuf >4 to work around dbt-core issue
 
 ## dbt-databricks 1.5.0 (May 2, 2023)
 
