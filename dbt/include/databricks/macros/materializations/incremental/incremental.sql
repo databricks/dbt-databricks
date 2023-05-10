@@ -33,6 +33,7 @@
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
+    {% do persist_constraints(target_relation, model) %}
   {%- elif existing_relation.is_view or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
     {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
@@ -42,6 +43,10 @@
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
+
+    {% if not existing_relation.is_view %}
+      {% do persist_constraints(target_relation, model) %}
+    {% endif %}
   {%- else -%}
     {#-- Relation must be merged --#}
     {%- set temp_relation = databricks__make_temp_relation(target_relation, as_table=language != 'sql') -%}
@@ -80,7 +85,6 @@
 
   {% do persist_docs(target_relation, model) %}
 
-  {% do persist_constraints(target_relation, model) %}
 
   {% do optimize(target_relation) %}
 
