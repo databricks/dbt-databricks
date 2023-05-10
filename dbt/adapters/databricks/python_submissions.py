@@ -12,7 +12,7 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.spark import __version__
-from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.core import CredentialsProvider, HeaderFactory
 
 logger = AdapterLogger("Databricks")
 
@@ -30,11 +30,11 @@ class BearerAuth(requests.auth.AuthBase):
     Solution taken from SO post in issue description.
     """
 
-    def __init__(self, token: Optional[str]):
-        self.token = token
+    def __init__(self, headers: HeaderFactory):
+        self.headers = headers()
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        r.headers["Authorization"] = f"Bearer {self.token}"
+        r.headers.update(**self.headers)
         return r
 
 
@@ -47,7 +47,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.timeout = self.get_timeout()
         self.polling_interval = DEFAULT_POLLING_INTERVAL
         self.check_credentials()
-        self.auth = BearerAuth(token=self.credentials.token)
         self.extra_headers = {
             "User-Agent": f"dbt-labs-dbt-spark/{DBT_SPARK_VERSION} (Databricks)",
         }
@@ -441,9 +440,9 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         )
         self._credentials_provider = credentials.authenticate(self._credentials_provider)
         header_factory = self._credentials_provider()
-        headers = header_factory()
+        self.auth = BearerAuth(header_factory)
 
-        self.extra_headers.update({"User-Agent": user_agent, **http_headers, **headers})
+        self.extra_headers.update({"User-Agent": user_agent, **http_headers})
 
     @property
     def cluster_id(self) -> Optional[str]:  # type: ignore[override]
