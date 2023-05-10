@@ -1,9 +1,15 @@
+import os
 from tests.integration.base import DBTIntegrationTest, use_profile
 from typing import Dict
 from dbt.contracts.results import RunResult, RunStatus
+from dbt.logger import log_manager
+from dbt.cli.main import dbtRunner
+from dbt.events import AdapterLogger
+
+logger = AdapterLogger("Databricks")
 
 
-class TestConstraints(DBTIntegrationTest):
+class TestModelContract(DBTIntegrationTest):
     @property
     def schema(self):
         return "constraints"
@@ -11,14 +17,6 @@ class TestConstraints(DBTIntegrationTest):
     @property
     def models(self):
         return "models"
-
-    @property
-    def project_config(self):
-        return {
-            "config-version": 2,
-            "models": {"test": {"+persist_constraints": True}},
-            "snapshots": {"test": {"+persist_constraints": True}},
-        }
 
     def check_constraints(self, model_name: str, expected: Dict[str, str]):
         rows = self.run_sql(
@@ -44,12 +42,13 @@ class TestConstraints(DBTIntegrationTest):
         assert len(tmp_tables) == 0
 
 
-class TestTableConstraints(TestConstraints):
+class TestModelContractConstraints(TestModelContract):
     def test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "table_model"
         expected_model_name = "expected_model"
         updated_model_name = "expected_model_with_invalid_name"
+
         self.run_dbt(["run", "--select", model_name])
         self.run_dbt(["run", "--select", expected_model_name])
         self.assertTablesEqual(model_name, expected_model_name)
@@ -84,7 +83,7 @@ class TestTableConstraints(TestConstraints):
         self.test_table_constraints()
 
 
-class TestIncrementalConstraints(TestConstraints):
+class TestIncrementalModelContractConstraints(TestModelContract):
     def test_incremental_constraints(self):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
@@ -132,53 +131,35 @@ class TestIncrementalConstraints(TestConstraints):
         self.test_incremental_constraints()
 
 
-class TestSnapshotConstraints(TestConstraints):
-    def check_snapshot_results(self, num_rows: int):
-        results = self.run_sql("select * from {database_schema}.my_snapshot", fetch="all")
-        self.assertEqual(len(results), num_rows)
+class TestInvalidModelContractCheckConstraints(TestModelContract):
+    @property
+    def models(self):
+        return "invalid_check_constraint"
 
-    def test_snapshot(self):
-        self.run_dbt(["seed"])
-        self.run_dbt(["snapshot"])
-        self.check_snapshot_results(num_rows=2)
-        self.check_staging_table_cleaned()
+    def run_dbt(self, args=None, profiles_dir=True):
+        log_manager.reset_handlers()
+        if args is None:
+            args = ["run"]
 
-        self.run_sql_file("insert_invalid_name.sql")
-        results = self.run_dbt(["snapshot"], expect_pass=False)
-        assert "NOT NULL constraint violated for column: name" in results.results[0].message
-        self.check_staging_table_cleaned()
+        final_args = []
 
-        self.run_dbt(["seed"])
-        self.run_sql_file("insert_invalid_id.sql")
-        results = self.run_dbt(["snapshot"], expect_pass=False)
-        assert "CHECK constraint id_greater_than_zero" in results.results[0].message
-        self.check_staging_table_cleaned()
+        if os.getenv("DBT_TEST_SINGLE_THREADED") in ("y", "Y", "1"):
+            final_args.append("--single-threaded")
 
-        # Check the snapshot table is not updated.
-        self.check_snapshot_results(num_rows=2)
+        final_args.extend(args)
 
-    @use_profile("databricks_cluster")
-    def test_databricks_cluster(self):
-        self.test_snapshot()
+        if profiles_dir:
+            final_args.extend(["--profiles-dir", self.test_root_dir])
 
-    @use_profile("databricks_uc_cluster")
-    def test_databricks_uc_cluster(self):
-        self.test_snapshot()
+        logger.info("Invoking dbt with {}".format(final_args))
+        res = dbtRunner().invoke(args, log_cache_events=True, log_path=self._logs_dir)
+        return res
 
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_snapshot()
-
-    @use_profile("databricks_uc_sql_endpoint")
-    def test_databricks_uc_sql_endpoint(self):
-        self.test_snapshot()
-
-
-class TestInvalidCheckConstraints(TestConstraints):
     def test_invalid_check_constraints(self):
         model_name = "invalid_check_constraint"
-        self.run_dbt(["seed"])
-        self.run_and_check_failure(model_name, err_msg="Invalid check constraint condition")
+        res = self.run_dbt(["run", "--select", model_name])
+        self.assertFalse(res.success, "dbt exit state did not match expected")
+        assert res.exception and "Constraint validation failed" in res.exception.msg
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
@@ -197,13 +178,13 @@ class TestInvalidCheckConstraints(TestConstraints):
         self.test_invalid_check_constraints()
 
 
-class TestInvalidColumnConstraints(TestConstraints):
+class TestInvalidModelContractColumnConstraints(TestModelContract):
     def test_invalid_column_constraints(self):
-        model_name = "invalid_column_constraint"
         self.run_dbt(["seed"])
+        model_name = "invalid_column_constraint"
         self.run_and_check_failure(
             model_name,
-            err_msg="Invalid constraint for column id. Only `not_null` is supported.",
+            err_msg="Runtime Error in model invalid_column_constraint",
         )
 
     @use_profile("databricks_cluster")
@@ -223,7 +204,7 @@ class TestInvalidColumnConstraints(TestConstraints):
         self.test_invalid_column_constraints()
 
 
-class TestTableWithConstraintsDisabled(TestConstraints):
+class TestTableWithModelContractConstraintsDisabled(TestModelContract):
     def test_delta_constraints_disabled(self):
         self.run_dbt(["seed"])
         model_name = "table_model_disable_constraints"
@@ -259,3 +240,85 @@ class TestTableWithConstraintsDisabled(TestConstraints):
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
         self.test_delta_constraints_disabled()
+
+
+class TestModelLevelPrimaryKey(TestModelContract):
+    def test_table_constraints(self):
+        self.run_dbt(["seed"])
+        model_name = "primary_key"
+        self.run_dbt(["run", "--select", model_name])
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
+
+
+class TestModelLevelForeignKey(TestModelContract):
+    def test_table_constraints(self):
+        self.run_dbt(["seed"])
+        self.run_dbt(["run", "--select", "foreign_key_parent"])
+        self.run_dbt(["run", "--select", "foreign_key"])
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
+
+
+class TestModelContractNotDelta(TestModelContract):
+    def test_table_constraints(self):
+        self.run_dbt(["seed"])
+        model_name = "not_delta"
+        result, logoutput = self.run_dbt_and_capture(
+            ["run", "--select", model_name], expect_pass=True
+        )
+        assert "Constraints not supported for file format: parquet" in logoutput
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
+
+
+class TestModelContractView(TestModelContract):
+    def test_table_constraints(self):
+        # persist_constraints should not be called for a view materialization. If it is and
+        # error is raised.
+        # Successfully creating the view indicates that it wasn't called.
+        self.run_dbt(["seed"])
+        model_name = "a_view"
+        self.run_dbt(["run", "--select", model_name])
+
+    @use_profile("databricks_cluster")
+    def test_databricks_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_cluster")
+    def test_databricks_uc_cluster(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_sql_endpoint")
+    def test_databricks_sql_endpoint(self):
+        self.test_table_constraints()
+
+    @use_profile("databricks_uc_sql_endpoint")
+    def test_databricks_uc_sql_endpoint(self):
+        self.test_table_constraints()
