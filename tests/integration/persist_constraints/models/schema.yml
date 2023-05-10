@@ -59,4 +59,4 @@ models:
       - name: name
         data_type: string
       - name: date    
-        data_type: date    
+        data_type: string    

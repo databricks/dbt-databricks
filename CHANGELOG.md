@@ -1,3 +1,9 @@
+
+## dbt-databricks 1.5.2 TBD
+
+### Features
+- Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
 ### Fixes
@@ -31,6 +37,9 @@
 - Added keyring>=23.13.0 for oauth token cache
 - Added databricks-sdk>=0.1.1 for oauth flows
 - Updated databricks-sql-connector from >=2.4.0 to >= 2.5.0
+
+### Under the hood
+Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
 
 ## dbt-databricks 1.4.2 (February 17, 2023)
 

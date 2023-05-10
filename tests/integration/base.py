@@ -8,6 +8,7 @@ import unittest
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from io import StringIO
 
 import pytest
 import yaml
@@ -370,7 +371,8 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def _create_schema_named(self, database, schema):
         self.run_sql(
-            "CREATE SCHEMA {database_schema}", kwargs=dict(database=database, schema=schema)
+            "CREATE SCHEMA {database_schema}",
+            kwargs=dict(database=database, schema=schema),
         )
 
     def _drop_schema_named(self, database, schema):
@@ -413,7 +415,8 @@ class DBTIntegrationTest(unittest.TestCase):
 
     def run_dbt_and_capture(self, *args, **kwargs):
         try:
-            stringbuf = capture_stdout_logs()
+            stringbuf = StringIO()
+            capture_stdout_logs(stringbuf)
             res = self.run_dbt(*args, **kwargs)
             stdout = stringbuf.getvalue()
 
@@ -840,7 +843,9 @@ class DBTIntegrationTest(unittest.TestCase):
             "parsed date {} happened before {}".format(parsed, start.strftime(datefmt)),
         )
         self.assertGreaterEqual(
-            end, parsed, "parsed date {} happened after {}".format(parsed, end.strftime(datefmt))
+            end,
+            parsed,
+            "parsed date {} happened after {}".format(parsed, end.strftime(datefmt)),
         )
 
 
