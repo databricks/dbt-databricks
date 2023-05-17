@@ -51,7 +51,7 @@ from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.utils import redact_credentials
 
 from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
+from databricks.sdk.oauth import OAuthClient, SessionCredentials
 from dbt.adapters.databricks.auth import token_auth, m2m_auth
 
 import keyring
@@ -302,7 +302,7 @@ class DatabricksCredentials(Credentials):
                 credsdict = keyring.get_password("dbt-databricks", host)
 
                 if credsdict:
-                    provider = RefreshableCredentials.from_dict(oauth_client, json.loads(credsdict))
+                    provider = SessionCredentials.from_dict(oauth_client, json.loads(credsdict))
                     # if refresh token is expired, this will throw
                     try:
                         if provider.token().valid:
@@ -355,7 +355,7 @@ class DatabricksCredentials(Credentials):
             scopes=SCOPES,
         )
 
-        return RefreshableCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
+        return SessionCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
 
 
 class DatabricksSQLConnectionWrapper:
