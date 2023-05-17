@@ -1,3 +1,8 @@
+## dbt-databricks 1.5.2 (May 17, 2023)
+
+### Fixes
+- Sets databricks sdk dependency to 0.1.6 to avoid SDK breaking changes
+
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
 ### Fixes
