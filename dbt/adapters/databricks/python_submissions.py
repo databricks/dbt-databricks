@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Optional, Callable
+from typing import Any, Dict, Tuple, Optional, Callable, Union
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
@@ -50,6 +50,8 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.extra_headers = {
             "User-Agent": f"dbt-labs-dbt-spark/{DBT_SPARK_VERSION} (Databricks)",
         }
+
+        self.auth: Union[BearerAuth, None] = None
 
     @property
     def cluster_id(self) -> str:
@@ -220,7 +222,7 @@ class DBContext:
         self,
         credentials: DatabricksCredentials,
         cluster_id: str,
-        auth: BearerAuth,
+        auth: Union[BearerAuth, None],
         extra_headers: dict,
     ) -> None:
         self.auth = auth
@@ -332,7 +334,7 @@ class DBCommand:
         self,
         credentials: DatabricksCredentials,
         cluster_id: str,
-        auth: BearerAuth,
+        auth: Union[BearerAuth, None],
         extra_headers: dict,
     ) -> None:
         self.auth = auth
