@@ -43,6 +43,31 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro comment_clause() -%}
+  {{ return(adapter.dispatch('comment_clause', 'dbt')()) }}
+{%- endmacro -%}
+
+{% macro databricks__comment_clause() %}
+  {%- set raw_persist_docs = config.get('persist_docs', {}) -%}
+  {%- if raw_persist_docs is mapping -%}
+    {%- set raw_columns = raw_persist_docs.get('columns', false) -%}
+      {%- if raw_columns -%}
+      (
+        {% for col in model.columns -%}
+          {{ model.columns[col].name }} comment '{{ model.columns[col].description | replace("'", "\\'") }}'
+          {{- ", " if not loop.last else "" }}
+        {% endfor %}
+      )
+      {% endif %}
+    {%- set raw_relation = raw_persist_docs.get('relation', false) -%}
+      {%- if raw_relation -%}
+      comment '{{ model.description | replace("'", "\\'") }}'
+      {% endif %}
+  {%- elif raw_persist_docs -%}
+    {{ exceptions.raise_compiler_error("Invalid value provided for 'persist_docs'. Expected dict but got value: " ~ raw_persist_docs) }}
+  {% endif %}
+{%- endmacro -%}
+
 
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
   {%- if language == 'sql' -%}
