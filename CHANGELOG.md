@@ -1,8 +1,11 @@
 
-## dbt-databricks 1.5.2 TBD
+## dbt-databricks 1.5.3 TBD
+
+## dbt-databricks 1.5.2 (June 7, 2023)
 
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+- Bump databricks-sql-connector version to 2.6.0 to add HTTP 1.1 support and a default socket timeout.
 
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
