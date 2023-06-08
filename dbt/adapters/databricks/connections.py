@@ -154,6 +154,8 @@ class DatabricksCredentials(Credentials):
                     "The connection parameter `http_headers` should be dict of strings: "
                     f"{http_headers}."
                 )
+        if "_socket_timeout" not in connection_parameters:
+            connection_parameters["_socket_timeout"] = 180
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:

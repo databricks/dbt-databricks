@@ -31,6 +31,9 @@ def _build_databricks_cluster_target(
         "connect_timeout": 5,
         "retry_all": True,
         "auth_type": "oauth",
+        # "connection_parameters": {
+        #     "_socket_timeout": 60
+        # }
     }
     if catalog is not None:
         profile["catalog"] = catalog
