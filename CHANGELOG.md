@@ -1,3 +1,9 @@
+## dbt-databricks 1.5.3 (June 8, 2023)
+
+### Fixes
+- Pins dependencies to minor versions
+- Sets default socket timeout to 180s
+
 ## dbt-databricks 1.5.2 (May 17, 2023)
 
 ### Fixes
