@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 from dbt.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.dataclass_schema import StrEnum
 
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.utils import filter_null_values
+from dbt.utils import filter_null_values, classproperty
 from dbt.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
@@ -27,8 +28,18 @@ class DatabricksIncludePolicy(Policy):
     identifier: bool = True
 
 
+class DatabricksRelationType(StrEnum):
+    Table = "table"
+    View = "view"
+    CTE = "cte"
+    MaterializedView = "materializedview"
+    External = "external"
+    StreamingTable = "streamingtable"
+
+
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):
+    type: Optional[DatabricksRelationType] = None  # type: ignore
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
@@ -46,6 +57,14 @@ class DatabricksRelation(BaseRelation):
 
     def has_information(self) -> bool:
         return self.metadata is not None
+
+    @property
+    def is_materialized_view(self) -> bool:
+        return self.type == DatabricksRelationType.MaterializedView
+
+    @property
+    def is_streaming_table(self) -> bool:
+        return self.type == DatabricksRelationType.StreamingTable
 
     @property
     def is_delta(self) -> bool:
@@ -92,3 +111,7 @@ class DatabricksRelation(BaseRelation):
                 match = False
 
         return match
+
+    @classproperty
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+        return DatabricksRelationType

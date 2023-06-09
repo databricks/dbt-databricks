@@ -3,7 +3,18 @@ from contextlib import contextmanager
 from itertools import chain
 from dataclasses import dataclass
 import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 from agate import Row, Table, Text
 
@@ -35,7 +46,7 @@ from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
     DbtDatabricksJobClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.relation import DatabricksRelation
+from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
@@ -70,7 +81,6 @@ def check_not_found_error(errmsg: str) -> bool:
 
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
-
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
@@ -193,33 +203,68 @@ class DatabricksAdapter(SparkAdapter):
     def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
         kwargs = {"relation": relation}
 
-        new_rows: List[Tuple]
+        new_rows: List[Tuple[Optional[str], str, str, str]]
         if relation.database is not None:
             assert relation.schema is not None
             tables = self.connections.list_tables(
                 database=relation.database, schema=relation.schema
             )
-            new_rows = [
-                (row["TABLE_CAT"], row["TABLE_SCHEM"], row["TABLE_NAME"], row["TABLE_TYPE"].lower())
-                for row in tables
-            ]
+
+            new_rows = []
+            for row in tables:
+                # list_tables returns TABLE_TYPE as view for both materialized views and for
+                # streaming tables.  Set type to "" in this case and it will be resolved below.
+                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"].lower() != "view" else ""
+                row = (row["TABLE_CAT"], row["TABLE_SCHEM"], row["TABLE_NAME"], type)
+                new_rows.append(row)
+
         else:
             tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
             new_rows = [
                 (relation.database, row["database"], row["tableName"], "") for row in tables
             ]
 
+        # if there are any table types to be resolved
         if any(not row[3] for row in new_rows):
+            # Get view names and create a dictionay of view name to materialization
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
 
-            view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
+            view_names: Dict[str, bool] = {
+                view["viewName"]: view.get("isMaterialized", False) for view in views
+            }
+
+            # a function to resolve an unknown table type
+            def typeFromNames(
+                database: Optional[str], schema: str, name: str
+            ) -> DatabricksRelationType:
+                if name in view_names:
+                    # it is either a view or a materialized view
+                    return (
+                        DatabricksRelationType.MaterializedView
+                        if view_names[name]
+                        else DatabricksRelationType.View
+                    )
+                else:
+                    # not a view so it might be a streaming table
+                    # get extended information to determine
+                    rel = self.Relation.create(database, schema, name)
+                    rel = self._set_relation_information(rel)
+                    if (
+                        rel.metadata is not None
+                        and rel.metadata.get("Type", "table") == "STREAMING_TABLE"
+                    ):
+                        return DatabricksRelationType.StreamingTable
+                    else:
+                        return DatabricksRelationType.Table
+
+            # create a new collection of rows with the correct table types
             new_rows = [
                 (
                     row[0],
                     row[1],
                     row[2],
-                    str(RelationType.View if row[2] in view_names else RelationType.Table),
+                    str(row[3] if row[3] else typeFromNames(row[0], row[1], row[2])),
                 )
                 for row in new_rows
             ]
@@ -288,7 +333,8 @@ class DatabricksAdapter(SparkAdapter):
         try:
             rows: List[Row] = list(
                 self.execute_macro(
-                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                    kwargs={"relation": relation},
                 )
             )
             metadata, columns = self.parse_describe_extended(relation, rows)
@@ -311,7 +357,7 @@ class DatabricksAdapter(SparkAdapter):
                 database=relation.database,
                 schema=relation.schema,
                 identifier=relation.identifier,
-                type=relation.type,
+                type=relation.type,  # type: ignore
                 metadata=metadata,
             ),
             columns,
@@ -359,7 +405,12 @@ class DatabricksAdapter(SparkAdapter):
                 for schema in schemas:
                     futures.append(
                         tpe.submit_connected(
-                            self, schema, self._get_one_catalog, info, [schema], manifest
+                            self,
+                            schema,
+                            self._get_one_catalog,
+                            info,
+                            [schema],
+                            manifest,
                         )
                     )
             catalogs, exceptions = catch_as_completed(futures)
