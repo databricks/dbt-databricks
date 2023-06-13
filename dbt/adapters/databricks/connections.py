@@ -8,6 +8,7 @@ import re
 import sys
 import threading
 import time
+import requests
 from typing import (
     Any,
     Callable,
@@ -449,11 +450,75 @@ class DatabricksSQLCursorWrapper:
         return self._cursor.fetchone()
 
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
+        # print(f"execute: {sql}")
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]
         if bindings is not None:
             bindings = [self._fix_binding(binding) for binding in bindings]
         self._cursor.execute(sql, bindings)
+
+        # if the command was to refresh a materialized view we need to poll
+        # the pipeline until the refresh is finished.
+        refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
+        if refresh_search:
+            view_name = refresh_search.group(1).replace("`", "")
+            self.pollMaterializedViewPipeline(view_name)
+
+    def pollMaterializedViewPipeline(
+        self,
+        view_name: str,
+    ) -> None:
+        # interval in seconds
+        polling_interval = 10
+
+        # timeout in seconds
+        # TODO: update to longer value
+        timeout = 60 * 5
+
+        stopped_states = ("DELETED", "FAILED", "IDLE")
+        host = self._cursor.connection.host
+        headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
+
+        url = f"https://{host}/api/2.1/unity-catalog/tables/{view_name}"
+        resp1 = requests.get(url, headers=headers)
+        if resp1.status_code != 200:
+            raise dbt.exceptions.DbtRuntimeError(
+                f"Error getting materialized view info: {view_name}"
+            )
+
+        pipeline_id = resp1.json().get("pipeline_id")
+        url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
+
+        state = None
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+        state = response.json().get("state")
+
+        start = time.time()
+        exceeded_timeout = False
+        while state not in stopped_states:
+            if time.time() - start > timeout:
+                exceeded_timeout = True
+                break
+
+            print(f"refreshing {view_name}, pipeline: {state}")
+
+            # should we do exponential backoff?
+            time.sleep(polling_interval)
+
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+            state = response.json().get("state")
+
+        if exceeded_timeout:
+            raise dbt.exceptions.DbtRuntimeError("timed out waiting for materialized view refresh")
+
+        if state == "FAILED":
+            raise dbt.exceptions.DbtRuntimeError(f"error refreshing {view_name}")
+
+        return
 
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
@@ -595,7 +660,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                        status=str(self.get_response(cursor)),
+                        elapsed=round((time.time() - pre), 2),
                     )
                 )
 
@@ -643,7 +709,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                        status=str(self.get_response(cursor)),
+                        elapsed=round((time.time() - pre), 2),
                     )
                 )
 
