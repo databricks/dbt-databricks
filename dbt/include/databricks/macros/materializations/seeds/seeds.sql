@@ -7,6 +7,7 @@
 
   {%- set exists_as_table = (old_relation is not none and old_relation.is_table) -%}
   {%- set exists_as_view = (old_relation is not none and (old_relation.is_view or old_relation.is_materialized_view)) -%}
+  {%- set exists_as_streaming_table = (old_relation is not none and old_relation.is_streaming_table) -%}
 
   {%- set grant_config = config.get('grants') -%}
   {%- set agate_table = load_agate_table() -%}
@@ -23,6 +24,8 @@
   {% set create_table_sql = "" %}
   {% if exists_as_view %}
     {{ exceptions.raise_compiler_error("Cannot seed to '{}', it is a view or a materialized view".format(old_relation)) }}
+  {% elif exists_as_streaming_table %}
+    {{ exceptions.raise_compiler_error("Cannot seed to '{}', it is a streaming table".format(old_relation)) }}
   {% elif exists_as_table %}
     {% set create_table_sql = reset_csv_table(model, full_refresh_mode, old_relation, agate_table) %}
   {% else %}

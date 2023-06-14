@@ -421,6 +421,10 @@
         {% call statement('drop_relation', auto_begin=False) -%}
             drop materialized view if exists {{ relation }}
         {%- endcall %}
+    {%- elif relation.is_streaming_table-%}
+        {% call statement('drop_relation', auto_begin=False) -%}
+            drop table if exists {{ relation }}
+        {%- endcall %}    
     {%- else -%}
         {% call statement('drop_relation', auto_begin=False) -%}
             drop {{ relation.type }} if exists {{ relation }}

@@ -18,14 +18,21 @@
   -- This behavior differs for Snowflake and BigQuery, so multiple dispatch is used.
   -- Also full refresh command is not yet supported for streaming tables so we drop/recreate.
   {%- if old_relation is not none and (not exists_as_streaming_table or full_refresh_mode) -%}
-     {{ handle_existing_table(full_refresh_mode, old_relation) }}
+    {{ handle_existing_table(full_refresh_mode, old_relation) }}
+    {%- set old_relation = None -%}
   {%- endif -%}
  
   -- create or refresh streaming table
-  {% call statement('main') -%}
-    {{ get_create_or_refresh_streaming_table_as_sql(target_relation, sql) }}
-  {%- endcall %}
-
+  {%- if old_relation is not none -%}
+    {% call statement('main') -%}
+      {{ get_refresh_streaming_table_as_sql(target_relation, sql) }}
+    {%- endcall %}
+  {%- else -%}
+    {% call statement('main') -%}
+        {{ get_create_streaming_table_as_sql(target_relation, sql) }}
+    {%- endcall %}
+  {%- endif -%}
+  
   {% set should_revoke = should_revoke(exists_as_streaming_table, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
 

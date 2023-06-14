@@ -3,7 +3,7 @@
 {%- endmacro %}
 
 {% macro databricks__get_create_materialized_view_as_sql(relation, sql) -%}
-  create or replace materialized view {{ relation }}
+  create materialized view {{ relation }}
   as
     {{ sql }}
 {% endmacro %}
