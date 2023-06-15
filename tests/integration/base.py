@@ -153,7 +153,8 @@ class DBTIntegrationTest(unittest.TestCase):
             _randint = random.randint(0, 9999)
             _runtime_timedelta = datetime.utcnow() - datetime(1970, 1, 1, 0, 0, 0)
             _runtime = (
-                int(_runtime_timedelta.total_seconds() * 1e6) + _runtime_timedelta.microseconds
+                int(_runtime_timedelta.total_seconds() * 1e6)
+                + _runtime_timedelta.microseconds
             )
 
             self._prefix = f"test{_runtime}{_randint:04}"
@@ -362,7 +363,9 @@ class DBTIntegrationTest(unittest.TestCase):
             shutil.rmtree(self.test_root_dir)
         except EnvironmentError:
             logger.exception(
-                "Could not clean up after test - {} not removable".format(self.test_root_dir)
+                "Could not clean up after test - {} not removable".format(
+                    self.test_root_dir
+                )
             )
 
     def _get_schema_fqn(self, database, schema):
@@ -463,7 +466,9 @@ class DBTIntegrationTest(unittest.TestCase):
         }
         if kwargs is None:
             kwargs = {}
-        base_kwargs.update({key: value for key, value in kwargs.items() if value is not None})
+        base_kwargs.update(
+            {key: value for key, value in kwargs.items() if value is not None}
+        )
         if "database_schema" not in base_kwargs:
             if base_kwargs["database"] is not None:
                 base_kwargs[
@@ -554,7 +559,9 @@ class DBTIntegrationTest(unittest.TestCase):
         with self.get_connection():
             columns = self.adapter.get_columns_in_relation(relation)
 
-        return sorted(((c.name, c.dtype, c.char_size) for c in columns), key=lambda x: x[0])
+        return sorted(
+            ((c.name, c.dtype, c.char_size) for c in columns), key=lambda x: x[0]
+        )
 
     def get_table_columns(self, table, schema=None, database=None):
         schema = self.unique_schema() if schema is None else schema
@@ -670,7 +677,9 @@ class DBTIntegrationTest(unittest.TestCase):
 
         return column_specs
 
-    def assertManyRelationsEqual(self, relations, default_schema=None, default_database=None):
+    def assertManyRelationsEqual(
+        self, relations, default_schema=None, default_database=None
+    ):
         if default_schema is None:
             default_schema = self.unique_schema()
         if default_database is None:
@@ -686,9 +695,13 @@ class DBTIntegrationTest(unittest.TestCase):
             if len(relation) == 3:
                 relation = self._make_relation(*relation)
             elif len(relation) == 2:
-                relation = self._make_relation(relation[0], relation[1], default_database)
+                relation = self._make_relation(
+                    relation[0], relation[1], default_database
+                )
             elif len(relation) == 1:
-                relation = self._make_relation(relation[0], default_schema, default_database)
+                relation = self._make_relation(
+                    relation[0], default_schema, default_database
+                )
             else:
                 raise ValueError("relation must be a sequence of 1, 2, or 3 values")
 
@@ -720,7 +733,9 @@ class DBTIntegrationTest(unittest.TestCase):
             if first_relation is None:
                 first_relation = relation
             else:
-                sql = self._assertTablesEqualSql(first_relation, relation, columns=first_columns)
+                sql = self._assertTablesEqualSql(
+                    first_relation, relation, columns=first_columns
+                )
                 result = self.run_sql(sql, fetch="one")
 
                 self.assertEqual(result[0], 0, "row_count_difference nonzero: " + sql)
@@ -807,7 +822,9 @@ class DBTIntegrationTest(unittest.TestCase):
             self.assertEqual(
                 a_name,
                 b_name,
-                '{} vs {}: column "{}" != "{}"'.format(relation_a, relation_b, a_name, b_name),
+                '{} vs {}: column "{}" != "{}"'.format(
+                    relation_a, relation_b, a_name, b_name
+                ),
             )
 
             self.assertEqual(

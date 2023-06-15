@@ -6,7 +6,10 @@ from dbt.tests.util import (
     run_dbt_and_capture,
     write_file,
 )
-from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency, seeds__update_csv
+from dbt.tests.adapter.concurrency.test_concurrency import (
+    BaseConcurrency,
+    seeds__update_csv,
+)
 
 
 class TestConncurenncyDatabricks(BaseConcurrency):

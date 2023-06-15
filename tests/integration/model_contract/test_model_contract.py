@@ -26,7 +26,9 @@ class TestModelContract(DBTIntegrationTest):
             kwargs=dict(model_name=model_name),
         )
         constraints = {
-            row.key: row.value for row in rows if row.key.startswith("delta.constraints")
+            row.key: row.value
+            for row in rows
+            if row.key.startswith("delta.constraints")
         }
         assert len(constraints) == len(expected)
         self.assertDictEqual(constraints, expected)
@@ -39,7 +41,9 @@ class TestModelContract(DBTIntegrationTest):
         assert res.message and err_msg in res.message
 
     def check_staging_table_cleaned(self):
-        tmp_tables = self.run_sql("SHOW TABLES IN {database_schema} LIKE '*__dbt_tmp'", fetch="all")
+        tmp_tables = self.run_sql(
+            "SHOW TABLES IN {database_schema} LIKE '*__dbt_tmp'", fetch="all"
+        )
         assert len(tmp_tables) == 0
 
 
@@ -54,7 +58,9 @@ class TestModelContractConstraints(TestModelContract):
         self.run_dbt(["run", "--select", expected_model_name])
         self.assertTablesEqual(model_name, expected_model_name)
 
-        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
+        self.check_constraints(
+            model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
+        )
 
         # Insert a row into the seed model that violates the NOT NULL constraint on name.
         self.run_sql_file("insert_invalid_name.sql")
@@ -89,7 +95,9 @@ class TestIncrementalModelContractConstraints(TestModelContract):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
-        self.check_constraints(model_name, {"delta.constraints.id_greater_than_zero": "id > 0"})
+        self.check_constraints(
+            model_name, {"delta.constraints.id_greater_than_zero": "id > 0"}
+        )
 
         # Insert a row into the seed model with an invalid id.
         self.run_sql_file("insert_invalid_id.sql")
@@ -109,7 +117,9 @@ class TestIncrementalModelContractConstraints(TestModelContract):
         self.run_sql("delete from {database_schema}.seed where id = 3")
 
         # Insert a valid row into the seed model.
-        self.run_sql("insert into {database_schema}.seed values (3, 'Cathy', '2022-03-01')")
+        self.run_sql(
+            "insert into {database_schema}.seed values (3, 'Cathy', '2022-03-01')"
+        )
         self.run_dbt(["run", "--select", model_name])
         expected_model_name = "expected_incremental_model"
         self.run_dbt(["run", "--select", expected_model_name])
@@ -219,7 +229,9 @@ class TestTableWithModelContractConstraintsDisabled(TestModelContract):
         self.check_constraints(model_name, {})
 
         # Insert a row into the seed model with the name being null.
-        self.run_sql("insert into {database_schema}.seed values (3, null, '2022-03-01')")
+        self.run_sql(
+            "insert into {database_schema}.seed values (3, null, '2022-03-01')"
+        )
 
         # Check the table can be created without failure.
         self.run_dbt(["run", "--select", model_name])

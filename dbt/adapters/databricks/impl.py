@@ -3,7 +3,18 @@ from contextlib import contextmanager
 from itertools import chain
 from dataclasses import dataclass
 import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 from agate import Row, Table, Text
 
@@ -102,12 +113,16 @@ class DatabricksAdapter(SparkAdapter):
         if database is not None:
             results = self.connections.list_schemas(database=database)
         else:
-            results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
+            results = self.execute_macro(
+                LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database}
+            )
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
-        return schema.lower() in set(s.lower() for s in self.list_schemas(database=database))
+        return schema.lower() in set(
+            s.lower() for s in self.list_schemas(database=database)
+        )
 
     def execute(
         self,
@@ -158,14 +173,18 @@ class DatabricksAdapter(SparkAdapter):
         try:
             # The catalog for `show table extended` needs to match the current catalog.
             with self._catalog(schema_relation.database):
-                results = list(self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs))
+                results = list(
+                    self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
+                )
         except dbt.exceptions.DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if check_not_found_error(errmsg):
                 results = []
             else:
                 description = "Error while retrieving information about"
-                logger.debug(f"{description} {schema_relation.without_identifier()}: {e.msg}")
+                logger.debug(
+                    f"{description} {schema_relation.without_identifier()}: {e.msg}"
+                )
                 raise e
 
         relations: List[Tuple[DatabricksRelation, str]] = []
@@ -176,7 +195,9 @@ class DatabricksAdapter(SparkAdapter):
                     f"got {len(row)} values, expected 4"
                 )
             _schema, name, _, information = row
-            rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
+            rel_type = (
+                RelationType.View if "Type: VIEW" in information else RelationType.Table
+            )
             relation = self.Relation.create(
                 database=schema_relation.database,
                 # Use `_schema` retrieved from the cluster to avoid mismatched case
@@ -200,13 +221,19 @@ class DatabricksAdapter(SparkAdapter):
                 database=relation.database, schema=relation.schema
             )
             new_rows = [
-                (row["TABLE_CAT"], row["TABLE_SCHEM"], row["TABLE_NAME"], row["TABLE_TYPE"].lower())
+                (
+                    row["TABLE_CAT"],
+                    row["TABLE_SCHEM"],
+                    row["TABLE_NAME"],
+                    row["TABLE_TYPE"].lower(),
+                )
                 for row in tables
             ]
         else:
             tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
             new_rows = [
-                (relation.database, row["database"], row["tableName"], "") for row in tables
+                (relation.database, row["database"], row["tableName"], "")
+                for row in tables
             ]
 
         if any(not row[3] for row in new_rows):
@@ -219,7 +246,11 @@ class DatabricksAdapter(SparkAdapter):
                     row[0],
                     row[1],
                     row[2],
-                    str(RelationType.View if row[2] in view_names else RelationType.Table),
+                    str(
+                        RelationType.View
+                        if row[2] in view_names
+                        else RelationType.Table
+                    ),
                 )
                 for row in new_rows
             ]
@@ -288,7 +319,8 @@ class DatabricksAdapter(SparkAdapter):
         try:
             rows: List[Row] = list(
                 self.execute_macro(
-                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME, kwargs={"relation": relation}
+                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                    kwargs={"relation": relation},
                 )
             )
             metadata, columns = self.parse_describe_extended(relation, rows)
@@ -317,7 +349,9 @@ class DatabricksAdapter(SparkAdapter):
             columns,
         )
 
-    def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
+    def _set_relation_information(
+        self, relation: DatabricksRelation
+    ) -> DatabricksRelation:
         """Update the information of the relation, or return it if it already exists."""
         if relation.has_information():
             return relation
@@ -359,7 +393,12 @@ class DatabricksAdapter(SparkAdapter):
                 for schema in schemas:
                     futures.append(
                         tpe.submit_connected(
-                            self, schema, self._get_one_catalog, info, [schema], manifest
+                            self,
+                            schema,
+                            self._get_one_catalog,
+                            info,
+                            [schema],
+                            manifest,
                         )
                     )
             catalogs, exceptions = catch_as_completed(futures)
@@ -373,7 +412,8 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Table:
         if len(schemas) != 1:
             raise dbt.exceptions.CompilationError(
-                f"Expected only one schema in spark _get_one_catalog, found " f"{schemas}"
+                f"Expected only one schema in spark _get_one_catalog, found "
+                f"{schemas}"
             )
 
         database = information_schema.database
@@ -403,7 +443,9 @@ class DatabricksAdapter(SparkAdapter):
                 identifier="|".join(table_names),
                 quote_policy=self.config.quoting,
             )
-            for relation, information in self._list_relations_with_information(schema_relation):
+            for relation, information in self._list_relations_with_information(
+                schema_relation
+            ):
                 logger.debug("Getting table schema for relation {}", str(relation))
                 columns.extend(self._get_columns_for_catalog(relation, information))
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
@@ -481,10 +523,14 @@ class DatabricksAdapter(SparkAdapter):
                 current_catalog = self.execute_macro(CURRENT_CATALOG_MACRO_NAME)[0][0]
                 if current_catalog is not None:
                     if current_catalog != catalog:
-                        self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog))
+                        self.execute_macro(
+                            USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog)
+                        )
                     else:
                         current_catalog = None
             yield
         finally:
             if current_catalog is not None:
-                self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
+                self.execute_macro(
+                    USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog)
+                )

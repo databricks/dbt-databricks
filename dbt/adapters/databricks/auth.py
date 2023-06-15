@@ -1,6 +1,11 @@
 from typing import Any, Dict, Optional
 from databricks.sdk.oauth import ClientCredentials, Token, TokenSource
-from databricks.sdk.core import CredentialsProvider, HeaderFactory, Config, credentials_provider
+from databricks.sdk.core import (
+    CredentialsProvider,
+    HeaderFactory,
+    Config,
+    credentials_provider,
+)
 
 
 class token_auth(CredentialsProvider):
@@ -45,7 +50,10 @@ class m2m_auth(CredentialsProvider):
             raise ValueError(f"{host} does not support OAuth")
         if config.is_azure:
             # Azure AD only supports full access to Azure Databricks.
-            scopes = [f"{config.effective_azure_login_app_id}/.default", "offline_access"]
+            scopes = [
+                f"{config.effective_azure_login_app_id}/.default",
+                "offline_access",
+            ]
         self._token_source = ClientCredentials(
             client_id=client_id,
             client_secret=client_secret,
@@ -65,7 +73,9 @@ class m2m_auth(CredentialsProvider):
             return {"token": {}}
 
     @staticmethod
-    def from_dict(host: str, client_id: str, client_secret: str, raw: dict) -> CredentialsProvider:
+    def from_dict(
+        host: str, client_id: str, client_secret: str, raw: dict
+    ) -> CredentialsProvider:
         c = m2m_auth(host=host, client_id=client_id, client_secret=client_secret)
         c._token_source._token = Token.from_dict(raw["token"])
         return c

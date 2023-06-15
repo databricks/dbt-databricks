@@ -180,7 +180,9 @@ class BaseSparkConstraintsRollbackSetup:
 
 
 @pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
-class TestSparkTableConstraintsRollback(BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback):
+class TestSparkTableConstraintsRollback(
+    BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {

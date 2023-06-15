@@ -164,7 +164,9 @@ class DatabricksCredentials(Credentials):
                 )
         if not self.token and self.auth_type != "oauth":
             raise dbt.exceptions.DbtProfileError(
-                ("The config `auth_type: oauth` is required when not using access token")
+                (
+                    "The config `auth_type: oauth` is required when not using access token"
+                )
             )
 
         if not self.client_id and self.client_secret:
@@ -188,7 +190,9 @@ class DatabricksCredentials(Credentials):
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(cls, user_http_session_headers: Dict[str, str]) -> Dict[str, str]:
+    def get_all_http_headers(
+        cls, user_http_session_headers: Dict[str, str]
+    ) -> Dict[str, str]:
         http_session_headers_str: Optional[str] = os.environ.get(
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
@@ -223,13 +227,17 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
+    def connection_info(
+        self, *, with_aliases: bool = False
+    ) -> Iterable[Tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
         aliases: List[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
-        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
+        for key in itertools.chain(
+            self._connection_keys(with_aliases=with_aliases), aliases
+        ):
             if key in as_dict:
                 yield key, as_dict[key]
 
@@ -302,7 +310,9 @@ class DatabricksCredentials(Credentials):
                 credsdict = keyring.get_password("dbt-databricks", host)
 
                 if credsdict:
-                    provider = SessionCredentials.from_dict(oauth_client, json.loads(credsdict))
+                    provider = SessionCredentials.from_dict(
+                        oauth_client, json.loads(credsdict)
+                    )
                     # if refresh token is expired, this will throw
                     try:
                         if provider.token().valid:
@@ -324,7 +334,9 @@ class DatabricksCredentials(Credentials):
             # save for later
             self._credentials_provider = provider.as_dict()
             try:
-                keyring.set_password("dbt-databricks", host, json.dumps(self._credentials_provider))
+                keyring.set_password(
+                    "dbt-databricks", host, json.dumps(self._credentials_provider)
+                )
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
                 logger.debug(e)
@@ -355,7 +367,9 @@ class DatabricksCredentials(Credentials):
             scopes=SCOPES,
         )
 
-        return SessionCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
+        return SessionCredentials.from_dict(
+            client=oauth_client, raw=self._credentials_provider
+        )
 
 
 class DatabricksSQLConnectionWrapper:
@@ -483,7 +497,9 @@ class DatabricksSQLCursorWrapper:
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
-    def tables(self, catalog_name: str, schema_name: str, table_name: Optional[str] = None) -> None:
+    def tables(
+        self, catalog_name: str, schema_name: str, table_name: Optional[str] = None
+    ) -> None:
         self._cursor.tables(
             catalog_name=catalog_name, schema_name=schema_name, table_name=table_name
         )
@@ -578,7 +594,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
             self.begin()
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
+        fire_event(
+            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
+        )
 
         with self.exception_handler(sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
@@ -587,15 +605,20 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if abridge_sql_log:
                     log_sql = "{}...".format(log_sql[:512])
 
-                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
+                fire_event(
+                    SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql)
+                )
                 pre = time.time()
 
-                cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
+                cursor = cast(
+                    DatabricksSQLConnectionWrapper, connection.handle
+                ).cursor()
                 cursor.execute(sql, bindings)
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                        status=str(self.get_response(cursor)),
+                        elapsed=round((time.time() - pre), 2),
                     )
                 )
 
@@ -629,12 +652,16 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> Table:
         connection = self.get_thread_connection()
 
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
+        fire_event(
+            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
+        )
 
         with self.exception_handler(log_sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
             try:
-                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
+                fire_event(
+                    SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql)
+                )
                 pre = time.time()
 
                 handle: DatabricksSQLConnectionWrapper = connection.handle
@@ -643,7 +670,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(cursor)), elapsed=round((time.time() - pre), 2)
+                        status=str(self.get_response(cursor)),
+                        elapsed=round((time.time() - pre), 2),
                     )
                 )
 
@@ -658,7 +686,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
-    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+    def list_tables(
+        self, database: str, schema: str, identifier: Optional[str] = None
+    ) -> Table:
         return self._execute_cursor(
             f"GetTables(database={database}, schema={schema}, identifier={identifier})",
             lambda cursor: cursor.tables(
@@ -687,7 +717,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         http_headers: List[Tuple[str, str]] = list(
-            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
+            creds.get_all_http_headers(
+                connection_parameters.pop("http_headers", {})
+            ).items()
         )
 
         def connect() -> DatabricksSQLConnectionWrapper:
@@ -704,7 +736,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
-                return DatabricksSQLConnectionWrapper(conn, is_cluster=creds.cluster_id is not None)
+                return DatabricksSQLConnectionWrapper(
+                    conn, is_cluster=creds.cluster_id is not None
+                )
             except Error as exc:
                 _log_dbsql_errors(exc)
                 raise

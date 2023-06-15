@@ -36,8 +36,16 @@ class TestMultiCatalog(DBTIntegrationTest):
         self.assertManyRelationsEqual(
             [
                 ("seed", self.unique_schema(), seed_catalog),
-                ("alternative_catalog", self.unique_schema(), self.alternative_database),
-                ("refer_alternative_catalog", self.unique_schema(), self.default_database),
+                (
+                    "alternative_catalog",
+                    self.unique_schema(),
+                    self.alternative_database,
+                ),
+                (
+                    "refer_alternative_catalog",
+                    self.unique_schema(),
+                    self.default_database,
+                ),
                 ("cross_catalog", self.unique_schema(), self.default_database),
             ]
         )

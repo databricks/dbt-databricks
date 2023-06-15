@@ -27,16 +27,22 @@ class TestSparkMacros(unittest.TestCase):
             "var": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+        self.default_context[
+            "config"
+        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
+
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
 
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
-
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
+        parent = self.parent_jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+        return self.jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -64,7 +70,9 @@ class TestSparkMacros(unittest.TestCase):
             template, "databricks__create_table_as", False, "my_table", "select 1"
         ).strip()
 
-        self.assertEqual(sql, "create or replace table my_table using delta as select 1")
+        self.assertEqual(
+            sql, "create or replace table my_table using delta as select 1"
+        )
 
     def test_macros_create_table_as_file_format(self):
         template = self.__get_template("adapters.sql")
@@ -308,15 +316,21 @@ class TestDatabricksMacros(unittest.TestCase):
             "adapter": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+        self.default_context[
+            "config"
+        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
 
     def __get_template(self, template_filename):
-        parent = self.parent_jinja_env.get_template(template_filename, globals=self.default_context)
+        parent = self.parent_jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
         self.default_context.update(parent.module.__dict__)
-        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+        return self.jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
 
     def __run_macro(self, template, name, temporary, relation, sql):
         self.default_context["model"].alias = relation
@@ -393,18 +407,30 @@ class TestDatabricksMacros(unittest.TestCase):
         relation = DatabricksRelation.from_dict(data)
 
         self.config["zorder"] = "foo"
-        sql = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
+        sql = self.__run_macro(
+            template, "get_optimize_sql", None, relation, None
+        ).strip()
 
         self.assertEqual(
             sql,
-            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo)"),
+            (
+                "optimize "
+                "`some_database`.`some_schema`.`some_table` "
+                "zorder by (foo)"
+            ),
         )
         self.config["zorder"] = ["foo", "bar"]
-        sql2 = self.__run_macro(template, "get_optimize_sql", None, relation, None).strip()
+        sql2 = self.__run_macro(
+            template, "get_optimize_sql", None, relation, None
+        ).strip()
 
         self.assertEqual(
             sql2,
-            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
+            (
+                "optimize "
+                "`some_database`.`some_schema`.`some_table` "
+                "zorder by (foo, bar)"
+            ),
         )
 
     def test_macros_optimize(self):
@@ -472,7 +498,9 @@ class TestDatabricksMacros(unittest.TestCase):
         r = self.__run_macro2(
             template, "databricks_constraints_to_dbt", relation, [constraint]
         ).strip()
-        self.assertEquals(r, "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]")
+        self.assertEquals(
+            r, "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]"
+        )
 
         constraint = {"condition": "id > 0"}
         r = self.__run_macro2(
@@ -490,7 +518,9 @@ class TestDatabricksMacros(unittest.TestCase):
         r = self.__run_macro2(
             template, "databricks_constraints_to_dbt", relation, [constraint]
         ).strip()
-        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
+        self.assertEquals(
+            r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
+        )
 
         column = {"name": "col"}
         constraint = {"name": "name", "condition": "id > 0"}
@@ -503,7 +533,9 @@ class TestDatabricksMacros(unittest.TestCase):
         r = self.__run_macro2(
             template, "databricks_constraints_to_dbt", relation, [constraint], column
         ).strip()
-        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
+        self.assertEquals(
+            r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
+        )
 
         constraint = "not_null"
         r = self.__run_macro2(
@@ -524,22 +556,30 @@ class TestDatabricksMacros(unittest.TestCase):
             "constraints": [{"type": "not_null", "columns": ["id", "name"]}],
         }
 
-        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        r = self.__run_macro2(
+            template, "get_model_constraints", relation, model
+        ).strip()
         expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
         assert expected in r
 
         self.config["persist_constraints"] = True
-        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        r = self.__run_macro2(
+            template, "get_model_constraints", relation, model
+        ).strip()
         expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
         assert expected in r
 
         model["meta"] = {"constraints": [{"type": "foo"}]}
-        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        r = self.__run_macro2(
+            template, "get_model_constraints", relation, model
+        ).strip()
         expected = "[{'type': 'foo'}]"
         assert expected in r
 
         self.config["persist_constraints"] = False
-        r = self.__run_macro2(template, "get_model_constraints", relation, model).strip()
+        r = self.__run_macro2(
+            template, "get_model_constraints", relation, model
+        ).strip()
         expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
         assert expected in r
 
@@ -548,34 +588,48 @@ class TestDatabricksMacros(unittest.TestCase):
         relation = self.get_test_relation()
         column = {"name": "id"}
 
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         self.assertEqual(r, "[]")
 
         column["constraints"] = []
         self.config["persist_constraints"] = True
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         self.assertEqual(r, "[]")
 
         column["constraints"] = [{"type": "non_null"}]
         self.config["persist_constraints"] = True
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         self.assertEqual(r, "[{'type': 'non_null'}]")
 
         self.config["persist_constraints"] = True
         column["meta"] = {"constraint": "foo"}
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         assert "raise_compiler_error" in r
 
         column["meta"] = {"constraint": {"condition": "foo", "name": "name"}}
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         assert "raise_compiler_error" in r
 
         column["meta"] = {"constraint": "not_null"}
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         self.assertEqual(r, "[{'type': 'not_null', 'columns': ['id']}]")
 
         self.config["persist_constraints"] = False
-        r = self.__run_macro2(template, "get_column_constraints", relation, column).strip()
+        r = self.__run_macro2(
+            template, "get_column_constraints", relation, column
+        ).strip()
         self.assertEqual(r, "[{'type': 'non_null'}]")
 
     def test_macros_get_constraint_sql_not_null(self):

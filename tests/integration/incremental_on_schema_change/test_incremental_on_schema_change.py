@@ -42,14 +42,20 @@ class TestIncrementalOnSchemaChange(DBTIntegrationTest):
 
     def run_incremental_fail_on_schema_change(self):
         select = "model_a incremental_fail"
-        results_one = self.run_dbt(["run", "--models", select, "--full-refresh"])  # noqa: F841
+        results_one = self.run_dbt(
+            ["run", "--models", select, "--full-refresh"]
+        )  # noqa: F841
         results_two = self.run_dbt(["run", "--models", select], expect_pass=False)
         self.assertIn("Compilation Error", results_two[1].message)
 
     def run_incremental_sync_all_columns(self):
         # this doesn't work on Delta today
-        select = "model_a incremental_sync_all_columns incremental_sync_all_columns_target"
-        results_one = self.run_dbt(["run", "--models", select, "--full-refresh"])  # noqa: F841
+        select = (
+            "model_a incremental_sync_all_columns incremental_sync_all_columns_target"
+        )
+        results_one = self.run_dbt(
+            ["run", "--models", select, "--full-refresh"]
+        )  # noqa: F841
         results_two = self.run_dbt(["run", "--models", select], expect_pass=False)
         self.assertIn("Compilation Error", results_two[1].message)
 

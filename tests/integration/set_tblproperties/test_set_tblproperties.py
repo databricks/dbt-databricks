@@ -24,7 +24,9 @@ class TestSetTblproperties(DBTIntegrationTest):
             assert prop in tblproperties
 
     def check_snapshot_results(self, num_rows: int):
-        results = self.run_sql("select * from {database_schema}.my_snapshot", fetch="all")
+        results = self.run_sql(
+            "select * from {database_schema}.my_snapshot", fetch="all"
+        )
         self.assertEqual(len(results), num_rows)
 
     def test_set_tblproperties(self):

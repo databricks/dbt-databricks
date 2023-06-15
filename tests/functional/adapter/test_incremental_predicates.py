@@ -1,5 +1,7 @@
 import pytest
-from dbt.tests.adapter.incremental.test_incremental_predicates import BaseIncrementalPredicates
+from dbt.tests.adapter.incremental.test_incremental_predicates import (
+    BaseIncrementalPredicates,
+)
 
 
 models__databricks_incremental_predicates_sql = """

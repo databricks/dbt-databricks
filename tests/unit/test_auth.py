@@ -56,7 +56,11 @@ class TestTokenAuth(unittest.TestCase):
     def test_token(self):
         host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
-            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+            host=host,
+            token="foo",
+            database="andre",
+            http_path="http://foo",
+            schema="dbt",
         )
         provider = creds.authenticate(None)
         self.assertIsNotNone(provider)

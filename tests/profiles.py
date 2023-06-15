@@ -67,7 +67,8 @@ def databricks_uc_cluster_target():
 def databricks_uc_sql_endpoint_target():
     return _build_databricks_cluster_target(
         http_path=os.getenv(
-            "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
+            "DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH",
+            os.getenv("DBT_DATABRICKS_HTTP_PATH"),
         ),
         catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
     )
