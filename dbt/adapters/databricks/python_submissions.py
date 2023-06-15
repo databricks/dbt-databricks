@@ -92,11 +92,13 @@ class BaseDatabricksHelper(PythonJobHelper):
         job_spec.update(cluster_spec)  # updates 'new_cluster' config
         # PYPI packages
         packages = self.parsed_model["config"].get("packages", [])
+        # custom index URL or default
+        index_url = self.parsed_model["config"].get("index_url", "https://pypi.org/simple")
         # additional format of packages
         additional_libs = self.parsed_model["config"].get("additional_libs", [])
         libraries = []
         for package in packages:
-            libraries.append({"pypi": {"package": package}})
+            libraries.append({"pypi": {"package": package, "repo": index_url}})
         for lib in additional_libs:
             libraries.append(lib)
         job_spec.update({"libraries": libraries})  # type: ignore
