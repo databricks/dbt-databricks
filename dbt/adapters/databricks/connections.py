@@ -365,16 +365,31 @@ class DatabricksSQLConnectionWrapper:
     _conn: DatabricksSQLConnection
     _is_cluster: bool
     _cursors: List[DatabricksSQLCursor]
+    _creds: DatabricksCredentials
+    _user_agent: str
 
-    def __init__(self, conn: DatabricksSQLConnection, *, is_cluster: bool):
+    def __init__(
+        self,
+        conn: DatabricksSQLConnection,
+        *,
+        is_cluster: bool,
+        creds: DatabricksCredentials,
+        user_agent: str,
+    ):
         self._conn = conn
         self._is_cluster = is_cluster
         self._cursors = []
+        self._creds = creds
+        self._user_agent = user_agent
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
         cursor = self._conn.cursor()
         self._cursors.append(cursor)
-        return DatabricksSQLCursorWrapper(cursor)
+        return DatabricksSQLCursorWrapper(
+            cursor,
+            creds=self._creds,
+            user_agent=self._user_agent,
+        )
 
     def cancel(self) -> None:
         cursors: List[DatabricksSQLCursor] = self._cursors
@@ -425,9 +440,13 @@ class DatabricksSQLCursorWrapper:
     """Wrap a Databricks SQL cursor in a way that no-ops transactions"""
 
     _cursor: DatabricksSQLCursor
+    _user_agent: str
+    _creds: DatabricksCredentials
 
-    def __init__(self, cursor: DatabricksSQLCursor):
+    def __init__(self, cursor: DatabricksSQLCursor, creds: DatabricksCredentials, user_agent: str):
         self._cursor = cursor
+        self._creds = creds
+        self._user_agent = user_agent
 
     def cancel(self) -> None:
         try:
@@ -460,6 +479,10 @@ class DatabricksSQLCursorWrapper:
         # if the command was to refresh a materialized view we need to poll
         # the pipeline until the refresh is finished.
         refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
+        if not refresh_search:
+            refresh_search = re.search(
+                r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql
+            )
         if refresh_search:
             view_name = refresh_search.group(1).replace("`", "")
             self.pollMaterializedViewPipeline(view_name)
@@ -472,12 +495,12 @@ class DatabricksSQLCursorWrapper:
         polling_interval = 10
 
         # timeout in seconds
-        # TODO: update to longer value
-        timeout = 60 * 5
+        timeout = 60 * 60 * 4
 
-        stopped_states = ("DELETED", "FAILED", "IDLE")
-        host = self._cursor.connection.host
+        stopped_states = ("COMPLETED", "FAILED", "CANCELED")
+        host = self._creds.host
         headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
+        headers["User-Agent"] = self._user_agent
 
         url = f"https://{host}/api/2.1/unity-catalog/tables/{view_name}"
         resp1 = requests.get(url, headers=headers)
@@ -493,7 +516,13 @@ class DatabricksSQLCursorWrapper:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
-        state = response.json().get("state")
+
+        updates = response.json().get("latest_updates", [])
+        if len(updates) == 0:
+            raise dbt.exceptions.DbtRuntimeError(f"No update created for pipeline: {pipeline_id}")
+        latest_update = updates[0]
+        state = latest_update.get("state")
+        update_id = latest_update.get("update_id")
 
         start = time.time()
         exceeded_timeout = False
@@ -502,15 +531,21 @@ class DatabricksSQLCursorWrapper:
                 exceeded_timeout = True
                 break
 
-            print(f"refreshing {view_name}, pipeline: {state}")
-
             # should we do exponential backoff?
             time.sleep(polling_interval)
 
             response = requests.get(url, headers=headers)
             if response.status_code != 200:
                 raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
-            state = response.json().get("state")
+
+            updates = response.json().get("latest_updates", [])
+
+            latest_update = self.findUpdate(updates, update_id)
+            if not latest_update:
+                raise dbt.exceptions.DbtRuntimeError(f"unable to find update {update_id}")
+
+            state = latest_update.get("state")
+            print(f"refreshing {view_name}, update: {update_id} {state}")
 
         if exceeded_timeout:
             raise dbt.exceptions.DbtRuntimeError("timed out waiting for materialized view refresh")
@@ -518,7 +553,18 @@ class DatabricksSQLCursorWrapper:
         if state == "FAILED":
             raise dbt.exceptions.DbtRuntimeError(f"error refreshing {view_name}")
 
+        if state == "CANCELED":
+            raise dbt.exceptions.DbtRuntimeError(f"refreshing {view_name} cancelled")
+
         return
+
+    @classmethod
+    def findUpdate(cls, updates: List, id: str) -> Optional[Dict]:
+        matches = [x for x in updates if x.get("update_id") == id]
+        if matches:
+            return matches[0]
+
+        return None
 
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
@@ -771,7 +817,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
-                return DatabricksSQLConnectionWrapper(conn, is_cluster=creds.cluster_id is not None)
+                return DatabricksSQLConnectionWrapper(
+                    conn,
+                    is_cluster=creds.cluster_id is not None,
+                    creds=creds,
+                    user_agent=user_agent_entry,
+                )
             except Error as exc:
                 _log_dbsql_errors(exc)
                 raise
