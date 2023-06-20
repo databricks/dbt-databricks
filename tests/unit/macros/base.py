@@ -27,20 +27,26 @@ class TestMacros(unittest.TestCase):
             "var": mock.Mock(),
             "return": lambda r: r,
         }
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
+        self.default_context[
+            "config"
+        ].get = lambda key, default=None, **kwargs: self.config.get(key, default)
+
+        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(
             key, default
         )
 
-        self.default_context["var"] = lambda key, default=None, **kwargs: self.var.get(key, default)
-
     def _get_template(self, template_filename, parent_context=None):
         parent_filename = parent_context or template_filename
-        parent = self.parent_jinja_env.get_template(parent_filename, globals=self.default_context)
+        parent = self.parent_jinja_env.get_template(
+            parent_filename, globals=self.default_context
+        )
         self.default_context.update(parent.module.__dict__)
 
-        return self.jinja_env.get_template(template_filename, globals=self.default_context)
+        return self.jinja_env.get_template(
+            template_filename, globals=self.default_context
+        )
 
-    def _run_macro(self, name, *args):
+    def _run_macro_raw(self, name, *args):
         def dispatch(macro_name, macro_namespace=None, packages=None):
             if hasattr(self.template.module, f"databricks__{macro_name}"):
                 return getattr(self.template.module, f"databricks__{macro_name}")
@@ -49,5 +55,8 @@ class TestMacros(unittest.TestCase):
 
         self.default_context["adapter"].dispatch = dispatch
 
-        value = getattr(self.template.module, name)(*args)
+        return getattr(self.template.module, name)(*args)
+
+    def _run_macro(self, name, *args):
+        value = self._run_macro_raw(self, name, *args)
         return re.sub(r"\s\s+", " ", value).strip()

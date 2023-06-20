@@ -7,7 +7,7 @@ import pytest
 #     reason="Run manually. Test must start with the Python compute\
 #           resource in TERMINATED or TERMINATING state"
 # )
-class TestPython(DBTIntegrationTest):
+class TestPythonConfig(DBTIntegrationTest):
     @property
     def schema(self):
         return "python"
@@ -21,26 +21,14 @@ class TestPython(DBTIntegrationTest):
         return {
             "config-version": 2,
             "vars": {
-                "http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH"),
-                "location_root": "",
+                "http_path": os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH"),
+                "location_root": os.getenv("DBT_DATABRICKS_LOCATION_ROOT"),
             },
         }
 
     def python_exc(self):
-        self.run_dbt(["run", "-s", "basic"])
-
-    @use_profile("databricks_sql_endpoint")
-    def test_python_databricks_sql_endpoint(self):
-        self.python_exc()
+        self.run_dbt(["build", "-s", "complex_config"])
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_python_databricks_uc_sql_endpoint(self):
-        self.use_default_project(
-            {
-                "vars": {
-                    "http_path": os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH"),
-                    "location_root": "",
-                }
-            }
-        )
         self.python_exc()

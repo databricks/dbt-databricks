@@ -3,5 +3,19 @@ models:
   - name: basic
     config:
       materialized: table
-      tags: [ 'python' ]
+      tags: ["python"]
       http_path: '{{ var("http_path") }}'
+  - name: complex_config
+    config:
+      marterialized: table
+      tags: ["python"]
+      http_path: '{{ var("http_path") }}'
+      location_root: '{{ var("location_root") }}'
+    columns:
+      - name: date
+        tests:
+          - not_null
+
+      - name: name
+        tests:
+          - unique
