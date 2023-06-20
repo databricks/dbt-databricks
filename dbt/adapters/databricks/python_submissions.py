@@ -256,7 +256,7 @@ class DBContext:
             )
 
         json_response = response.json()
-        return json_response
+        return dict(json_response)
 
     def start_cluster(self) -> None:
         """Send the start command and poll for the cluster status until it shows "Running"
