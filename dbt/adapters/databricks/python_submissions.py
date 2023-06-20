@@ -256,7 +256,7 @@ class DBContext:
             )
 
         json_response = response.json()
-        return dict(json_response)
+        return json_response
 
     def start_cluster(self) -> None:
         """Send the start command and poll for the cluster status until it shows "Running"
@@ -287,7 +287,7 @@ class DBContext:
 
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
-            if status_response.get("state").lower() == "running":
+            if str(status_response.get("state")).lower() == "running":
                 return
             else:
                 time.sleep(5)
