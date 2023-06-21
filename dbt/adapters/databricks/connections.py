@@ -165,9 +165,7 @@ class DatabricksCredentials(Credentials):
                 )
         if not self.token and self.auth_type != "oauth":
             raise dbt.exceptions.DbtProfileError(
-                (
-                    "The config `auth_type: oauth` is required when not using access token"
-                )
+                ("The config `auth_type: oauth` is required when not using access token")
             )
 
         if not self.client_id and self.client_secret:
@@ -191,9 +189,7 @@ class DatabricksCredentials(Credentials):
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(
-        cls, user_http_session_headers: Dict[str, str]
-    ) -> Dict[str, str]:
+    def get_all_http_headers(cls, user_http_session_headers: Dict[str, str]) -> Dict[str, str]:
         http_session_headers_str: Optional[str] = os.environ.get(
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
@@ -228,17 +224,13 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(
-        self, *, with_aliases: bool = False
-    ) -> Iterable[Tuple[str, Any]]:
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
         aliases: List[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
-        for key in itertools.chain(
-            self._connection_keys(with_aliases=with_aliases), aliases
-        ):
+        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
                 yield key, as_dict[key]
 
@@ -311,9 +303,7 @@ class DatabricksCredentials(Credentials):
                 credsdict = keyring.get_password("dbt-databricks", host)
 
                 if credsdict:
-                    provider = SessionCredentials.from_dict(
-                        oauth_client, json.loads(credsdict)
-                    )
+                    provider = SessionCredentials.from_dict(oauth_client, json.loads(credsdict))
                     # if refresh token is expired, this will throw
                     try:
                         if provider.token().valid:
@@ -335,9 +325,7 @@ class DatabricksCredentials(Credentials):
             # save for later
             self._credentials_provider = provider.as_dict()
             try:
-                keyring.set_password(
-                    "dbt-databricks", host, json.dumps(self._credentials_provider)
-                )
+                keyring.set_password("dbt-databricks", host, json.dumps(self._credentials_provider))
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
                 logger.debug(e)
@@ -368,9 +356,7 @@ class DatabricksCredentials(Credentials):
             scopes=SCOPES,
         )
 
-        return SessionCredentials.from_dict(
-            client=oauth_client, raw=self._credentials_provider
-        )
+        return SessionCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
 
 
 class DatabricksSQLConnectionWrapper:
@@ -457,9 +443,7 @@ class DatabricksSQLCursorWrapper:
     _user_agent: str
     _creds: DatabricksCredentials
 
-    def __init__(
-        self, cursor: DatabricksSQLCursor, creds: DatabricksCredentials, user_agent: str
-    ):
+    def __init__(self, cursor: DatabricksSQLCursor, creds: DatabricksCredentials, user_agent: str):
         self._cursor = cursor
         self._creds = creds
         self._user_agent = user_agent
@@ -511,22 +495,21 @@ class DatabricksSQLCursorWrapper:
         timeout = 60 * 60
 
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
-        host = self._creds.host
-        headers = (
-            self._cursor.connection.thrift_backend._auth_provider._header_factory()
-        )
+        host: str = self._creds.host or ""
+        headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
         headers["User-Agent"] = self._user_agent
 
         pipeline_id = _get_table_view_pipeline_id(host, headers, model_name)
         pipeline = _get_pipeline_state(host, headers, pipeline_id)
         latest_update = _find_update(pipeline)
+        if not latest_update:
+            raise dbt.exceptions.DbtRuntimeError(f"Nod update created for pipeline: {pipeline_id}")
+
         state = latest_update.get("state")
-        update_id = latest_update.get("update_id")
+        update_id = latest_update.get("update_id", "")
         prev_state = state
 
-        print(
-            f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}"
-        )
+        print(f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}")
 
         start = time.time()
         exceeded_timeout = False
@@ -559,15 +542,18 @@ class DatabricksSQLCursorWrapper:
                     logger.error(msg)
 
                 latest_update = _find_update(pipeline)
+                if not latest_update:
+                    raise dbt.exceptions.DbtRuntimeError(
+                        f"Nod update created for pipeline: {pipeline_id}"
+                    )
+
                 latest_update_id = latest_update.get("update_id", "")
                 if latest_update_id != update_id:
                     update_id = latest_update_id
                     state = None
 
         if exceeded_timeout:
-            raise dbt.exceptions.DbtRuntimeError(
-                "timed out waiting for materialized view refresh"
-            )
+            raise dbt.exceptions.DbtRuntimeError("timed out waiting for materialized view refresh")
 
         if state == "FAILED":
             msg = _get_update_error_msg(host, headers, pipeline_id, update_id)
@@ -614,9 +600,7 @@ class DatabricksSQLCursorWrapper:
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
-    def tables(
-        self, catalog_name: str, schema_name: str, table_name: Optional[str] = None
-    ) -> None:
+    def tables(self, catalog_name: str, schema_name: str, table_name: Optional[str] = None) -> None:
         self._cursor.tables(
             catalog_name=catalog_name, schema_name=schema_name, table_name=table_name
         )
@@ -711,9 +695,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
             self.begin()
-        fire_event(
-            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
-        )
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
@@ -722,14 +704,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if abridge_sql_log:
                     log_sql = "{}...".format(log_sql[:512])
 
-                fire_event(
-                    SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql)
-                )
+                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
                 pre = time.time()
 
-                cursor = cast(
-                    DatabricksSQLConnectionWrapper, connection.handle
-                ).cursor()
+                cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
                 cursor.execute(sql, bindings)
 
                 fire_event(
@@ -769,16 +747,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> Table:
         connection = self.get_thread_connection()
 
-        fire_event(
-            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
-        )
+        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(log_sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
             try:
-                fire_event(
-                    SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql)
-                )
+                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
                 pre = time.time()
 
                 handle: DatabricksSQLConnectionWrapper = connection.handle
@@ -803,9 +777,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
-    def list_tables(
-        self, database: str, schema: str, identifier: Optional[str] = None
-    ) -> Table:
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
         return self._execute_cursor(
             f"GetTables(database={database}, schema={schema}, identifier={identifier})",
             lambda cursor: cursor.tables(
@@ -834,9 +806,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         http_headers: List[Tuple[str, str]] = list(
-            creds.get_all_http_headers(
-                connection_parameters.pop("http_headers", {})
-            ).items()
+            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
         def connect() -> DatabricksSQLConnectionWrapper:
@@ -894,9 +864,7 @@ def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
     name = ""
     refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
     if not refresh_search:
-        refresh_search = re.search(
-            r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql
-        )
+        refresh_search = re.search(r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql)
 
     if refresh_search:
         name = refresh_search.group(1).replace("`", "")
@@ -912,7 +880,7 @@ def _get_table_view_pipeline_id(host: str, headers: dict, name: str) -> str:
             f"Error getting materialized view/streaming table info: {name}"
         )
 
-    pipeline_id = resp1.json().get("pipeline_id")
+    pipeline_id = resp1.json().get("pipeline_id", "")
     if not pipeline_id:
         raise dbt.exceptions.DbtRuntimeError(
             f"Error materialized view/streaming table {name} does not have a pipeline id"
@@ -924,17 +892,14 @@ def _get_table_view_pipeline_id(host: str, headers: dict, name: str) -> str:
 def _get_pipeline_state(host: str, headers: dict, pipeline_id: str) -> dict:
     url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
 
-    state = None
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(
-            f"Error getting pipeline info: {pipeline_id}"
-        )
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
 
     return response.json()
 
 
-def _find_update(pipeline: List, id: str = "") -> Optional[Dict]:
+def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
     updates = pipeline.get("latest_updates", [])
     if not updates:
         raise dbt.exceptions.DbtRuntimeError(
@@ -951,13 +916,11 @@ def _find_update(pipeline: List, id: str = "") -> Optional[Dict]:
     return None
 
 
-def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id) -> str:
+def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id: str) -> str:
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
     response = requests.get(events_url, headers=headers)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(
-            f"Error getting pipeline event info: {pipeline_id}"
-        )
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info: {pipeline_id}")
 
     events = response.json().get("events", [])
     update_events = [
