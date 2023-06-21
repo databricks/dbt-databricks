@@ -478,51 +478,38 @@ class DatabricksSQLCursorWrapper:
 
         # if the command was to refresh a materialized view we need to poll
         # the pipeline until the refresh is finished.
-        refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
-        if not refresh_search:
-            refresh_search = re.search(
-                r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql
-            )
-        if refresh_search:
-            view_name = refresh_search.group(1).replace("`", "")
-            self.pollMaterializedViewPipeline(view_name)
+        self.pollRefreshPipeline(sql)
 
-    def pollMaterializedViewPipeline(
+    def pollRefreshPipeline(
         self,
-        view_name: str,
+        sql: str,
     ) -> None:
+        should_poll, model_name = _should_poll_refresh(sql)
+        if not should_poll:
+            return
+
         # interval in seconds
         polling_interval = 10
 
         # timeout in seconds
-        timeout = 60 * 60 * 4
+        timeout = 60 * 60
 
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
-        host = self._creds.host
+        host: str = self._creds.host or ""
         headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
         headers["User-Agent"] = self._user_agent
 
-        url = f"https://{host}/api/2.1/unity-catalog/tables/{view_name}"
-        resp1 = requests.get(url, headers=headers)
-        if resp1.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error getting materialized view info: {view_name}"
-            )
+        pipeline_id = _get_table_view_pipeline_id(host, headers, model_name)
+        pipeline = _get_pipeline_state(host, headers, pipeline_id)
+        latest_update = _find_update(pipeline)
+        if not latest_update:
+            raise dbt.exceptions.DbtRuntimeError(f"Nod update created for pipeline: {pipeline_id}")
 
-        pipeline_id = resp1.json().get("pipeline_id")
-        url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
-
-        state = None
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
-
-        updates = response.json().get("latest_updates", [])
-        if len(updates) == 0:
-            raise dbt.exceptions.DbtRuntimeError(f"No update created for pipeline: {pipeline_id}")
-        latest_update = updates[0]
         state = latest_update.get("state")
-        update_id = latest_update.get("update_id")
+        update_id = latest_update.get("update_id", "")
+        prev_state = state
+
+        print(f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}")
 
         start = time.time()
         exceeded_timeout = False
@@ -534,27 +521,46 @@ class DatabricksSQLCursorWrapper:
             # should we do exponential backoff?
             time.sleep(polling_interval)
 
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+            pipeline = _get_pipeline_state(host, headers, pipeline_id)
+            update = _find_update(pipeline, update_id)
+            if not update:
+                raise dbt.exceptions.DbtRuntimeError(
+                    f"Error getting pipeline update info: {pipeline_id}, update: {update_id}"
+                )
 
-            updates = response.json().get("latest_updates", [])
+            state = update.get("state")
+            if state != prev_state:
+                print(
+                    f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}"
+                )
+                prev_state = state
 
-            latest_update = self.findUpdate(updates, update_id)
-            if not latest_update:
-                raise dbt.exceptions.DbtRuntimeError(f"unable to find update {update_id}")
+            if state == "FAILED":
+                logger.error(f"pipeline {pipeline_id} update {update_id} failed")
+                msg = _get_update_error_msg(host, headers, pipeline_id, update_id)
+                if msg:
+                    logger.error(msg)
 
-            state = latest_update.get("state")
-            print(f"refreshing {view_name}, update: {update_id} {state}")
+                latest_update = _find_update(pipeline)
+                if not latest_update:
+                    raise dbt.exceptions.DbtRuntimeError(
+                        f"Nod update created for pipeline: {pipeline_id}"
+                    )
+
+                latest_update_id = latest_update.get("update_id", "")
+                if latest_update_id != update_id:
+                    update_id = latest_update_id
+                    state = None
 
         if exceeded_timeout:
             raise dbt.exceptions.DbtRuntimeError("timed out waiting for materialized view refresh")
 
         if state == "FAILED":
-            raise dbt.exceptions.DbtRuntimeError(f"error refreshing {view_name}")
+            msg = _get_update_error_msg(host, headers, pipeline_id, update_id)
+            raise dbt.exceptions.DbtRuntimeError(f"error refreshing {model_name} {msg}")
 
         if state == "CANCELED":
-            raise dbt.exceptions.DbtRuntimeError(f"refreshing {view_name} cancelled")
+            raise dbt.exceptions.DbtRuntimeError(f"refreshing {model_name} cancelled")
 
         return
 
@@ -850,3 +856,88 @@ def _log_dbsql_errors(exc: Exception) -> None:
         logger.debug(f"{type(exc)}: {exc}")
         for key, value in sorted(exc.context.items()):
             logger.debug(f"{key}: {value}")
+
+
+def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
+    # if the command was to refresh a materialized view we need to poll
+    # the pipeline until the refresh is finished.
+    name = ""
+    refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
+    if not refresh_search:
+        refresh_search = re.search(r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql)
+
+    if refresh_search:
+        name = refresh_search.group(1).replace("`", "")
+
+    return refresh_search is not None, name
+
+
+def _get_table_view_pipeline_id(host: str, headers: dict, name: str) -> str:
+    url = f"https://{host}/api/2.1/unity-catalog/tables/{name}"
+    resp1 = requests.get(url, headers=headers)
+    if resp1.status_code != 200:
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Error getting materialized view/streaming table info: {name}"
+        )
+
+    pipeline_id = resp1.json().get("pipeline_id", "")
+    if not pipeline_id:
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Error materialized view/streaming table {name} does not have a pipeline id"
+        )
+
+    return pipeline_id
+
+
+def _get_pipeline_state(host: str, headers: dict, pipeline_id: str) -> dict:
+    url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+
+    return response.json()
+
+
+def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
+    updates = pipeline.get("latest_updates", [])
+    if not updates:
+        raise dbt.exceptions.DbtRuntimeError(
+            f"No updates for pipeline: {pipeline.get('pipeline_id', '')}"
+        )
+
+    if not id:
+        return updates[0]
+
+    matches = [x for x in updates if x.get("update_id") == id]
+    if matches:
+        return matches[0]
+
+    return None
+
+
+def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id: str) -> str:
+    events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
+    response = requests.get(events_url, headers=headers)
+    if response.status_code != 200:
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info: {pipeline_id}")
+
+    events = response.json().get("events", [])
+    update_events = [
+        e
+        for e in events
+        if e.get("event_type", "") == "update_progress"
+        and e.get("origin", {}).get("update_id") == update_id
+    ]
+
+    error_events = [
+        e
+        for e in update_events
+        if e.get("details", {}).get("update_progress", {}).get("state", "") == "FAILED"
+    ]
+
+    msg = ""
+    if error_events:
+        msg = error_events[0].get("message", "")
+
+    return msg
