@@ -511,7 +511,9 @@ class DatabricksSQLCursorWrapper:
         update_id = latest_update.get("update_id", "")
         prev_state = state
 
-        logger.info(f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}")
+        logger.info(
+            f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}"
+        )
 
         start = time.time()
         exceeded_timeout = False
