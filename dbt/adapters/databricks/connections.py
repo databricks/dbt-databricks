@@ -58,6 +58,27 @@ import keyring
 
 logger = AdapterLogger("Databricks")
 
+import logging
+from dbt.events.eventmgr import LoggerConfig, LineFormat
+from dbt.events.base_types import EventLevel
+from dbt.events.functions import EVENT_MANAGER
+
+class DbtCoreHandler(logging.Handler):
+    def __init__(self, level, *args, **kwargs):
+        super().__init__(level=level)
+        self.logger = AdapterLogger("databricks-sql-connector")
+
+    def emit(self, record: logging.LogRecord):
+        log_func = getattr(self.logger, record.levelname.lower())
+        log_func(record.msg)
+
+pysql_handler = DbtCoreHandler(level=0)
+
+pysql_logger = logging.getLogger("databricks.sql")
+pysql_logger.setLevel(logging.DEBUG)
+pysql_logger.addHandler(pysql_handler)
+
+
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
