@@ -63,6 +63,7 @@ from dbt.events.eventmgr import LoggerConfig, LineFormat
 from dbt.events.base_types import EventLevel
 from dbt.events.functions import EVENT_MANAGER
 
+
 class DbtCoreHandler(logging.Handler):
     def __init__(self, level, *args, **kwargs):
         super().__init__(level=level)
@@ -71,6 +72,7 @@ class DbtCoreHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         log_func = getattr(self.logger, record.levelname.lower())
         log_func(record.msg)
+
 
 pysql_handler = DbtCoreHandler(level=0)
 
