@@ -9,9 +9,7 @@ class TestAdaptersMacros(TestMacros):
         super().setUp()
         self.template = self._get_template("adapters.sql")
 
-    def _render_create_table_as(
-        self, relation="my_table", temporary=False, sql="select 1"
-    ):
+    def _render_create_table_as(self, relation="my_table", temporary=False, sql="select 1"):
         self.default_context["model"].alias = relation
 
         return self._run_macro("databricks__create_table_as", temporary, relation, sql)
@@ -21,9 +19,7 @@ class TestSparkMacros(TestAdaptersMacros):
     def test_macros_create_table_as(self):
         sql = self._render_create_table_as()
 
-        self.assertEqual(
-            sql, "create or replace table my_table using delta as select 1"
-        )
+        self.assertEqual(sql, "create or replace table my_table using delta as select 1")
 
     def test_macros_create_table_as_file_format(self):
         for format in ["parquet", "hudi"]:
@@ -255,11 +251,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
 
         self.assertEqual(
             sql,
-            (
-                "optimize "
-                "`some_database`.`some_schema`.`some_table` "
-                "zorder by (foo)"
-            ),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo)"),
         )
 
     def test_macro_get_optimize_sql_multiple_args(self):
@@ -268,11 +260,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
 
         self.assertEqual(
             sql,
-            (
-                "optimize "
-                "`some_database`.`some_schema`.`some_table` "
-                "zorder by (foo, bar)"
-            ),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
         )
 
     def test_macros_optimize_with_extraneous_info(self):
@@ -306,9 +294,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
         constraint = {"name": "name", "condition": "id > 0"}
         r = self.__render_constraints([constraint])
 
-        self.assertEquals(
-            r, "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]"
-        )
+        self.assertEquals(r, "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]")
 
     def test_macros_databricks_constraints_missing_name(self):
         constraint = {"condition": "id > 0"}
@@ -326,9 +312,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
         constraint = {"type": "check", "name": "name", "expression": "id > 0"}
         r = self.__render_constraints([constraint])
 
-        self.assertEquals(
-            r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
-        )
+        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
 
     def test_macros_databricks_constraints_with_column_missing_expression(self):
         column = {"name": "col"}
@@ -341,9 +325,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
         constraint = {"type": "check", "name": "name", "expression": "id > 0"}
         r = self.__render_constraints([constraint], column)
 
-        self.assertEquals(
-            r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
-        )
+        self.assertEquals(r, "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]")
 
     def test_macros_databricks_constraints_with_column_not_null(self):
         column = {"name": "col"}
@@ -467,18 +449,14 @@ class TestDatabricksMacros(TestAdaptersMacros):
 
     def test_macros_get_constraint_sql_not_null_with_columns(self):
         model = self.__model()
-        r = self.__render_constraint_sql(
-            {"type": "not_null", "columns": ["id", "name"]}, model
-        )
+        r = self.__render_constraint_sql({"type": "not_null", "columns": ["id", "name"]}, model)
         expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;', 'alter table `some_database`.`some_schema`.`some_table` change column name set not null ;']"  # noqa: E501
 
         assert expected in r
 
     def test_macros_get_constraint_sql_not_null_with_column(self):
         model = self.__model()
-        r = self.__render_constraint_sql(
-            {"type": "not_null"}, model, model["columns"]["id"]
-        )
+        r = self.__render_constraint_sql({"type": "not_null"}, model, model["columns"]["id"])
 
         expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;']"  # noqa: E501
         assert expected in r
