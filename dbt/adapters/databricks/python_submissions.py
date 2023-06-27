@@ -300,11 +300,7 @@ class DBContext:
 
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
-<<<<<<< HEAD
             if str(status_response.get("state")).lower() == "running":
-=======
-            if status_response.get("state") == "RUNNING":
->>>>>>> 0cfeeca (wip)
                 return
             else:
                 time.sleep(5)
