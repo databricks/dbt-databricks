@@ -161,7 +161,7 @@ class TestInvalidModelContractCheckConstraints(TestModelContract):
         res = self.run_dbt(["run", "--select", model_name])
         self.assertFalse(res.success, "dbt exit state did not match expected")
 
-        # dbt 1.5.2 changed the error message returned when an invalid constraint is 
+        # dbt 1.5.2 changed the error message returned when an invalid constraint is
         # encountered. Check for either to maintain compatability with all 1.5.x versions.
         expectedErrors = ["Constraint validation failed", "Contract enforcement failed"]
         assert res.exception and [m for m in expectedErrors if m in res.exception.msg]
