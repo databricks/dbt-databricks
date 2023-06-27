@@ -68,6 +68,8 @@ class DbtCoreHandler(logging.Handler):
         self.logger = AdapterLogger("databricks-sql-connector")
 
     def emit(self, record: logging.LogRecord) -> None:
+        # record.levelname will be debug, info, warning, error, or critical
+        # these map 1-to-1 with methods of the AdapterLogger
         log_func = getattr(self.logger, record.levelname.lower())
         log_func(record.msg)
 
