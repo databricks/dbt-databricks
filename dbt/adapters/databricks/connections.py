@@ -462,7 +462,7 @@ class DatabricksSQLCursorWrapper:
 
         This UUID can be tied back to the Databricks query history API
         """
-        
+
         _as_hex = uuid.UUID(bytes=self._cursor.active_result_set.command_id.operationId.guid)
 
         return str(_as_hex)
@@ -542,6 +542,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 @dataclass
 class DatabricksAdapterResponse(AdapterResponse):
     query_id: str = ""
+
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
@@ -741,15 +742,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
-    
+
     @classmethod
-    def get_response(cls, cursor:DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
+    def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
         query_id = cursor.hex_query_id
         message = "OK"
-        return DatabricksAdapterResponse(
-            _message=message,
-            query_id=query_id
-        )  # type: ignore
+        return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
 
 
 def _log_dbsql_errors(exc: Exception) -> None:
