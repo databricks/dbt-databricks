@@ -1,4 +1,5 @@
 import json
+import logging
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from typing import (
     Sequence,
     Tuple,
     cast,
+    Union,
+    Mapping,
 )
 
 from agate import Table
@@ -58,18 +61,13 @@ import keyring
 
 logger = AdapterLogger("Databricks")
 
-import logging
-from dbt.events.eventmgr import LoggerConfig, LineFormat
-from dbt.events.base_types import EventLevel
-from dbt.events.functions import EVENT_MANAGER
-
 
 class DbtCoreHandler(logging.Handler):
-    def __init__(self, level, *args, **kwargs):
+    def __init__(self, level: Union[str, int], *args: Tuple, **kwargs: Mapping):
         super().__init__(level=level)
         self.logger = AdapterLogger("databricks-sql-connector")
 
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record: logging.LogRecord) -> None:
         log_func = getattr(self.logger, record.levelname.lower())
         log_func(record.msg)
 
