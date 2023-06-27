@@ -53,6 +53,7 @@ from dbt.adapters.databricks.utils import redact_credentials
 from databricks.sdk.core import CredentialsProvider
 from databricks.sdk.oauth import OAuthClient, RefreshableCredentials
 from dbt.adapters.databricks.auth import token_auth, m2m_auth
+from dbt.adapters.spark.connections import SparkConnectionMethod
 
 import keyring
 
@@ -74,6 +75,7 @@ SCOPES = ["all-apis", "offline_access"]
 class DatabricksCredentials(Credentials):
     database: Optional[str]  # type: ignore[assignment]
     host: Optional[str] = None
+    method: Optional[SparkConnectionMethod] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
     client_id: Optional[str] = None
@@ -675,6 +677,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return connection
 
         creds: DatabricksCredentials = connection.credentials
+
+        if creds.method == SparkConnectionMethod.SESSION:
+            return SparkConnectionManager.open(connection)
+
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
