@@ -1,7 +1,6 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
 import os
 import json
-import pytest
 import tempfile
 
 
