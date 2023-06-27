@@ -9,13 +9,13 @@ class TestPythonMacros(TestMacros):
     def test_py_get_writer__default_file_format(self):
         result = self._run_macro_raw("py_get_writer_options")
 
-        self.assertEqual(result, '.format("delta")\n')
+        self.assertEqual(result, '.format("delta")')
 
     def test_py_get_writer__specified_file_format(self):
         self.config["file_format"] = "parquet"
         result = self._run_macro_raw("py_get_writer_options")
 
-        self.assertEqual(result, '.format("parquet")\n')
+        self.assertEqual(result, '.format("parquet")')
 
     def test_py_get_writer__specified_location_root(self):
         self.config["location_root"] = "s3://fake_location"

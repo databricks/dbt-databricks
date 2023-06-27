@@ -3,10 +3,10 @@ import os
 import pytest
 
 
-# @pytest.mark.skip(
-#     reason="Run manually. Test must start with the Python compute\
-#           resource in TERMINATED or TERMINATING state"
-# )
+@pytest.mark.skip(
+    reason="Run manually. Test must start with the Python compute\
+          resource in TERMINATED or TERMINATING state"
+)
 class TestPythonConfig(DBTIntegrationTest):
     @property
     def schema(self):
