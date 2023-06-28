@@ -62,8 +62,9 @@ logger = AdapterLogger("Databricks")
 
 
 class DbtCoreHandler(logging.Handler):
+    def __init__(self, level: Union[str, int], dbt_logger: AdapterLogger):
         super().__init__(level=level)
-        self.logger = AdapterLogger("databricks-sql-connector")
+        self.logger = dbt_logger
 
     def emit(self, record: logging.LogRecord) -> None:
         # record.levelname will be debug, info, warning, error, or critical
