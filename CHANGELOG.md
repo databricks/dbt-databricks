@@ -5,6 +5,7 @@
 ### Features
 
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+- Include log events from databricks-sql-connector in dbt logging output.
 
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
