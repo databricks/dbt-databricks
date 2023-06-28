@@ -21,7 +21,6 @@ from typing import (
     Tuple,
     cast,
     Union,
-    Mapping,
 )
 
 from agate import Table
@@ -63,7 +62,6 @@ logger = AdapterLogger("Databricks")
 
 
 class DbtCoreHandler(logging.Handler):
-    def __init__(self, level: Union[str, int], *args: Tuple, **kwargs: Mapping):
         super().__init__(level=level)
         self.logger = AdapterLogger("databricks-sql-connector")
 
