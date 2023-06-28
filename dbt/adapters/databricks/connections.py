@@ -770,7 +770,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
-        query_id = cursor.hex_query_id
+        _query_id = getattr(cursor, "hex_query_id", None)
+        if cursor is None:
+            logger.debug("No cursor was provided. Query ID not available.")
+            query_id = "N/A"
+        else:
+            query_id = _query_id
         message = "OK"
         return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
 
