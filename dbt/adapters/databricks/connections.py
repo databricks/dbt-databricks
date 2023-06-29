@@ -1,4 +1,5 @@
 import json
+import uuid
 import logging
 import warnings
 from contextlib import contextmanager
@@ -480,6 +481,17 @@ class DatabricksSQLCursorWrapper:
             bindings = [self._fix_binding(binding) for binding in bindings]
         self._cursor.execute(sql, bindings)
 
+    @property
+    def hex_query_id(self) -> str:
+        """Return the hex GUID for this query
+
+        This UUID can be tied back to the Databricks query history API
+        """
+
+        _as_hex = uuid.UUID(bytes=self._cursor.active_result_set.command_id.operationId.guid)
+
+        return str(_as_hex)
+
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
         """Convert complex datatypes to primitives that can be loaded by
@@ -550,6 +562,11 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
             return DATABRICKS_QUERY_COMMENT
         else:
             return self.config.query_comment.comment
+
+
+@dataclass
+class DatabricksAdapterResponse(AdapterResponse):
+    query_id: str = ""
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -636,7 +653,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def execute(
         self, sql: str, auto_begin: bool = False, fetch: bool = False
-    ) -> Tuple[AdapterResponse, Table]:
+    ) -> Tuple[DatabricksAdapterResponse, Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -750,6 +767,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
+
+    @classmethod
+    def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
+        _query_id = getattr(cursor, "hex_query_id", None)
+        if cursor is None:
+            logger.debug("No cursor was provided. Query ID not available.")
+            query_id = "N/A"
+        else:
+            query_id = _query_id
+        message = "OK"
+        return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
 
 
 def _log_dbsql_errors(exc: Exception) -> None:

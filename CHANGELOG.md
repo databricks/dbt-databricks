@@ -6,6 +6,7 @@
 
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
 - Include log events from databricks-sql-connector in dbt logging output.
+- Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
 
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
