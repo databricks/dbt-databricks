@@ -1,10 +1,11 @@
-from mock import Mock
+from mock import MagicMock
 from tests.unit.macros.base import TestMacros
 
 
 class TestPythonMacros(TestMacros):
     def setUp(self):
         TestMacros.setUp(self)
+        self.default_context["model"] = MagicMock()
         self.template = self._get_template("python.sql", "adapters.sql")
 
     def test_py_get_writer__default_file_format(self):

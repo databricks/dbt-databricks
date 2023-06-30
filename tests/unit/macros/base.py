@@ -19,7 +19,7 @@ class TestMacros(unittest.TestCase):
         self.var = {}
         self.default_context = {
             "validation": mock.Mock(),
-            "model": mock.MagicMock(),
+            "model": mock.Mock(),
             "exceptions": mock.Mock(),
             "config": mock.Mock(),
             "statement": lambda r, caller: r,
