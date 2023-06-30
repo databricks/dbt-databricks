@@ -1,4 +1,4 @@
-## dbt-databricks 1.5.2 TBD
+## dbt-databricks 1.5.x TBD
 
 - Fixed issue where starting a terminated cluster in the python path would never return
 
