@@ -8,6 +8,22 @@
 - Include log events from databricks-sql-connector in dbt logging output.
 - Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
 
+## dbt-databricks 1.5.4 (June 9, 2023)
+
+### Features
+- Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+
+## dbt-databricks 1.5.3 (June 8, 2023)
+
+### Fixes
+- Pins dependencies to minor versions
+- Sets default socket timeout to 180s
+
+## dbt-databricks 1.5.2 (May 17, 2023)
+
+### Fixes
+- Sets databricks sdk dependency to 0.1.6 to avoid SDK breaking changes
+
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
 ### Fixes
