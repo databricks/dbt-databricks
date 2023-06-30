@@ -51,7 +51,8 @@ writer.saveAsTable("{{ target_relation }}")
 {%- set buckets = config.get('buckets', validator=validation.any[int]) -%}
 .format("{{ file_format }}")
 {%- if location_root is not none %}
-.option("path", "{{ location_root }}")
+{%- set identifier = model['alias'] %}
+.option("path", "{{ location_root }}/{{ identifier }}")
 {%- endif -%}
 {%- if partition_by is not none -%}
     {%- if partition_by is string -%}

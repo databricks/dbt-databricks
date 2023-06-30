@@ -1,3 +1,4 @@
+from mock import Mock
 from tests.unit.macros.base import TestMacros
 
 
@@ -19,9 +20,11 @@ class TestPythonMacros(TestMacros):
 
     def test_py_get_writer__specified_location_root(self):
         self.config["location_root"] = "s3://fake_location"
+        d = {"alias": "schema"}
+        self.default_context["model"].__getitem__.side_effect = d.__getitem__
         result = self._run_macro_raw("py_get_writer_options")
 
-        expected = '.format("delta")\n.option("path", "s3://fake_location")'
+        expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
         self.assertEqual(result, expected)
 
     def test_py_get_writer__partition_by_single_column(self):

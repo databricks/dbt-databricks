@@ -4,10 +4,10 @@ import pytest
 
 
 @pytest.mark.skip(
-    reason="Run manually. Test must start with the Python compute\
-          resource in TERMINATED or TERMINATING state"
+    reason="Run manually. Test must start with the Python compute resource in TERMINATED or \
+        TERMINATING state, as the purpose of the test is to validate successful cold start."
 )
-class TestPython(DBTIntegrationTest):
+class TestPythonAutostart(DBTIntegrationTest):
     @property
     def schema(self):
         return "python"
@@ -22,12 +22,11 @@ class TestPython(DBTIntegrationTest):
             "config-version": 2,
             "vars": {
                 "http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH"),
-                "location_root": "",
             },
         }
 
     def python_exc(self):
-        self.run_dbt(["run", "-s", "basic"])
+        self.run_dbt(["run"])
 
     @use_profile("databricks_sql_endpoint")
     def test_python_databricks_sql_endpoint(self):
@@ -39,7 +38,6 @@ class TestPython(DBTIntegrationTest):
             {
                 "vars": {
                     "http_path": os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH"),
-                    "location_root": "",
                 }
             }
         )
