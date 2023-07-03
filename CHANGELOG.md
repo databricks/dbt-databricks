@@ -1,9 +1,16 @@
+## dbt-databricks 1.5.x TBD
+
+- Fixed issue where starting a terminated cluster in the python path would never return
+
+### Features
+
+- Include log events from databricks-sql-connector in dbt logging output.
+- Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
+
 ## dbt-databricks 1.5.4 (June 9, 2023)
 
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
-- Include log events from databricks-sql-connector in dbt logging output.
-- Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
 
 ## dbt-databricks 1.5.3 (June 8, 2023)
 
@@ -45,8 +52,11 @@
 - Adding replace_where incremental strategy ([#293](https://github.com/databricks/dbt-databricks/pull/293)) ([#310](https://github.com/databricks/dbt-databricks/pull/310))
 - [feat] Support ZORDER as a model config ([#292](https://github.com/databricks/dbt-databricks/pull/293)) ([#297](https://github.com/databricks/dbt-databricks/pull/297))
 
-### Under the hood
-Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
+### Dependencies
+
+- Added keyring>=23.13.0 for oauth token cache
+- Added databricks-sdk>=0.1.1 for oauth flows
+- Updated databricks-sql-connector from >=2.4.0 to >= 2.5.0
 
 ### Under the hood
 Throw an error if a model has an enforced contract. ([#322](https://github.com/databricks/dbt-databricks/pull/322))
