@@ -243,7 +243,6 @@ class DBContext:
         return response.json()["id"]
 
     def get_cluster_status(self) -> Dict:
-
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
 
         response = requests.get(
@@ -288,7 +287,7 @@ class DBContext:
 
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
-            if status_response.get("state") == "Running":
+            if str(status_response.get("state")).lower() == "running":
                 return
             else:
                 time.sleep(5)
