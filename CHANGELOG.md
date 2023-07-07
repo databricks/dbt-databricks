@@ -1,5 +1,7 @@
 ## dbt-databricks 1.5.x TBD
 
+## dbt-databricks 1.5.5 (July 7, 2023)
+
 - Fixed issue where starting a terminated cluster in the python path would never return
 
 ### Features
