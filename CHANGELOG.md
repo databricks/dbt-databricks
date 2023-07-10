@@ -3,6 +3,7 @@
 
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+- Added option to install Python libraries on job clusters from a custom index url  ([#367](https://github.com/databricks/dbt-databricks/pull/367))
 
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
