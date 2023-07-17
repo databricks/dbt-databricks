@@ -3,7 +3,6 @@ from dbt.contracts.results import RunResult, RunStatus
 import pytest
 
 
-@pytest.mark.skip(reason="not yet ready for production")
 class TestMaterializedView(DBTIntegrationTest):
     @property
     def schema(self):
@@ -17,19 +16,19 @@ class TestMaterializedView(DBTIntegrationTest):
         self.run_dbt(["seed"])
         self.run_dbt(["run", "--select", "+mv"])
 
-        # self.assertTablesEqual("mv", "expected1")
+        self.assertTablesEqual("mv", "expected1")
 
         # Materialized View is not updated automatically.
         self.run_dbt(["run", "--select", "base"])
-        # self.assertTablesEqual("mv", "expected1")
+        self.assertTablesEqual("mv", "expected1")
 
         # Materialized View is updated after refresh.
         self.run_dbt(["run", "--select", "mv"])
-        # self.assertTablesEqual("mv", "expected2")
+        self.assertTablesEqual("mv", "expected2")
 
-        # # Materialized View is recreated with full refresh.
+        # Materialized View is recreated with full refresh.
         self.run_dbt(["run", "--full-refresh", "--select", "mv"])
-        # self.assertTablesEqual("mv", "expected_2")
+        self.assertTablesEqual("mv", "expected2")
 
     def test_materialized_view_no_cdf(self):
         # The base table is not CDF.
@@ -56,10 +55,12 @@ class TestMaterializedView(DBTIntegrationTest):
     def test_materialized_view_base_databricks_uc_sql_endpoint(self):
         self.test_materialized_view_base()
 
+    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_no_cdf_databricks_uc_sql_endpoint(self):
         self.test_materialized_view_no_cdf()
 
+    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_based_on_view_databricks_uc_sql_endpoint(self):
         self.test_materialized_view_based_on_view()
