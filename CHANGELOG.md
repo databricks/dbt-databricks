@@ -1,8 +1,29 @@
+## dbt-databricks 1.5.x TBD
 
-## dbt-databricks 1.5.2 TBD
+## dbt-databricks 1.5.5 (July 7, 2023)
+
+- Fixed issue where starting a terminated cluster in the python path would never return
+
+### Features
+
+- Include log events from databricks-sql-connector in dbt logging output.
+- Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
+
+## dbt-databricks 1.5.4 (June 9, 2023)
 
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
+
+## dbt-databricks 1.5.3 (June 8, 2023)
+
+### Fixes
+- Pins dependencies to minor versions
+- Sets default socket timeout to 180s
+
+## dbt-databricks 1.5.2 (May 17, 2023)
+
+### Fixes
+- Sets databricks sdk dependency to 0.1.6 to avoid SDK breaking changes
 
 ## dbt-databricks 1.5.1 (May 9, 2023)
 
@@ -34,6 +55,7 @@
 - [feat] Support ZORDER as a model config ([#292](https://github.com/databricks/dbt-databricks/pull/293)) ([#297](https://github.com/databricks/dbt-databricks/pull/297))
 
 ### Dependencies
+
 - Added keyring>=23.13.0 for oauth token cache
 - Added databricks-sdk>=0.1.1 for oauth flows
 - Updated databricks-sql-connector from >=2.4.0 to >= 2.5.0

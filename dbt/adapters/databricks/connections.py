@@ -1,4 +1,6 @@
 import json
+import uuid
+import logging
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -20,6 +22,7 @@ from typing import (
     Sequence,
     Tuple,
     cast,
+    Union,
 )
 
 from agate import Table
@@ -58,6 +61,29 @@ from dbt.adapters.databricks.auth import token_auth, m2m_auth
 import keyring
 
 logger = AdapterLogger("Databricks")
+
+
+class DbtCoreHandler(logging.Handler):
+    def __init__(self, level: Union[str, int], dbt_logger: AdapterLogger):
+        super().__init__(level=level)
+        self.logger = dbt_logger
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # record.levelname will be debug, info, warning, error, or critical
+        # these map 1-to-1 with methods of the AdapterLogger
+        log_func = getattr(self.logger, record.levelname.lower())
+        log_func(record.msg)
+
+
+dbt_adapter_logger = AdapterLogger("databricks-sql-connector")
+
+pysql_logger = logging.getLogger("databricks.sql")
+pysql_logger_level = os.environ.get("DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "INFO").upper()
+pysql_logger.setLevel(pysql_logger_level)
+
+pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
+pysql_logger.addHandler(pysql_handler)
+
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
@@ -155,6 +181,8 @@ class DatabricksCredentials(Credentials):
                     "The connection parameter `http_headers` should be dict of strings: "
                     f"{http_headers}."
                 )
+        if "_socket_timeout" not in connection_parameters:
+            connection_parameters["_socket_timeout"] = 180
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:
@@ -579,6 +607,17 @@ class DatabricksSQLCursorWrapper:
 
         return None
 
+    @property
+    def hex_query_id(self) -> str:
+        """Return the hex GUID for this query
+
+        This UUID can be tied back to the Databricks query history API
+        """
+
+        _as_hex = uuid.UUID(bytes=self._cursor.active_result_set.command_id.operationId.guid)
+
+        return str(_as_hex)
+
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
         """Convert complex datatypes to primitives that can be loaded by
@@ -649,6 +688,11 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
             return DATABRICKS_QUERY_COMMENT
         else:
             return self.config.query_comment.comment
+
+
+@dataclass
+class DatabricksAdapterResponse(AdapterResponse):
+    query_id: str = ""
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -736,7 +780,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def execute(
         self, sql: str, auto_begin: bool = False, fetch: bool = False
-    ) -> Tuple[AdapterResponse, Table]:
+    ) -> Tuple[DatabricksAdapterResponse, Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -856,6 +900,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
+
+    @classmethod
+    def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
+        _query_id = getattr(cursor, "hex_query_id", None)
+        if cursor is None:
+            logger.debug("No cursor was provided. Query ID not available.")
+            query_id = "N/A"
+        else:
+            query_id = _query_id
+        message = "OK"
+        return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
 
 
 def _log_dbsql_errors(exc: Exception) -> None:
