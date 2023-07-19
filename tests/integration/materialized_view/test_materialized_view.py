@@ -51,6 +51,7 @@ class TestMaterializedView(DBTIntegrationTest):
             and " The input for materialized view cannot be based on views." in res.message
         )
 
+    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_base_databricks_uc_sql_endpoint(self):
         self.test_materialized_view_base()
