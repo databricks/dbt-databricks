@@ -1,4 +1,7 @@
-## dbt-databricks 1.5.x TBD
+## dbt-databricks 1.6.0 (Release TBD)
+
+### Features
+- Added support for materialized_view and streaming_table materializations
 
 ### Fixes
 
