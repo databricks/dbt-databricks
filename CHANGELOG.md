@@ -1,5 +1,9 @@
 ## dbt-databricks 1.5.x TBD
 
+### Fixes
+
+- Fix issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326))
+
 ## dbt-databricks 1.5.5 (July 7, 2023)
 
 - Fixed issue where starting a terminated cluster in the python path would never return
