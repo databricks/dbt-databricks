@@ -40,7 +40,7 @@ class TestMacros(unittest.TestCase):
 
         return self.jinja_env.get_template(template_filename, globals=self.default_context)
 
-    def _run_macro(self, name, *args):
+    def _run_macro_raw(self, name, *args):
         def dispatch(macro_name, macro_namespace=None, packages=None):
             if hasattr(self.template.module, f"databricks__{macro_name}"):
                 return getattr(self.template.module, f"databricks__{macro_name}")
@@ -49,5 +49,8 @@ class TestMacros(unittest.TestCase):
 
         self.default_context["adapter"].dispatch = dispatch
 
-        value = getattr(self.template.module, name)(*args)
+        return getattr(self.template.module, name)(*args)
+
+    def _run_macro(self, name, *args):
+        value = self._run_macro_raw(name, *args)
         return re.sub(r"\s\s+", " ", value).strip()

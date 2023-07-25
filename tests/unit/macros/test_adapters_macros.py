@@ -1,4 +1,3 @@
-import re
 from dbt.adapters.databricks.relation import DatabricksRelation
 
 from tests.unit.macros.base import TestMacros
@@ -212,21 +211,6 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
 
         self.relation = DatabricksRelation.from_dict(data)
-
-    def __run_macro2(self, template, name, relation, *args):
-        self.default_context["model"].alias = relation
-
-        def dispatch(macro_name, macro_namespace=None, packages=None):
-            if hasattr(template.module, f"databricks__{macro_name}"):
-                return getattr(template.module, f"databricks__{macro_name}")
-            else:
-                return self.default_context[f"spark__{macro_name}"]
-
-        self.default_context["adapter"].dispatch = dispatch
-
-        value = getattr(template.module, name)(*args)
-        value = re.sub(r"\s\s+", " ", value)
-        return value
 
     def test_macros_create_table_as(self):
         sql = self._render_create_table_as(self.relation)

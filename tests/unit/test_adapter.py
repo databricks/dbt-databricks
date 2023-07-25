@@ -394,7 +394,8 @@ class TestDatabricksAdapter(unittest.TestCase):
             self.assertEqual(connection.credentials.schema, "analytics")
             self.assertEqual(len(connection.credentials.session_properties), 1)
             self.assertEqual(
-                connection.credentials.session_properties["spark.sql.ansi.enabled"], "true"
+                connection.credentials.session_properties["spark.sql.ansi.enabled"],
+                "true",
             )
             self.assertIsNone(connection.credentials.database)
 
@@ -455,7 +456,10 @@ class TestDatabricksAdapter(unittest.TestCase):
         rel_type = DatabricksRelation.get_relation_type.Table
 
         relation = DatabricksRelation.create(
-            database="test_catalog", schema="default_schema", identifier="mytable", type=rel_type
+            database="test_catalog",
+            schema="default_schema",
+            identifier="mytable",
+            type=rel_type,
         )
         assert relation.database == "test_catalog"
 
@@ -491,7 +495,10 @@ class TestDatabricksAdapter(unittest.TestCase):
             ("Location", "/mnt/vo"),
             ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"),
             ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat"),
-            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat"),
+            (
+                "OutputFormat",
+                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+            ),
             ("Partition Provider", "Catalog"),
         ]
 
@@ -638,7 +645,10 @@ class TestDatabricksAdapter(unittest.TestCase):
             ("Location", "/mnt/vo"),
             ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"),
             ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat"),
-            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat"),
+            (
+                "OutputFormat",
+                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+            ),
             ("Partition Provider", "Catalog"),
         ]
 
