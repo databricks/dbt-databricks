@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326))
+- Extend python model support to cover the same config options as SQL ([#379](https://github.com/databricks/dbt-databricks/pull/379))
 
 ## dbt-databricks 1.5.5 (July 7, 2023)
 
@@ -14,7 +15,6 @@
 
 - Include log events from databricks-sql-connector in dbt logging output.
 - Adapter now populates the `query_id` field in `run_results.json` with Query History API query ID.
-- Extend python model support to cover the same config options as SQL ([#379](https://github.com/databricks/dbt-databricks/pull/379))
 
 ## dbt-databricks 1.5.4 (June 9, 2023)
 
