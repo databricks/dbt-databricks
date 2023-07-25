@@ -3,5 +3,12 @@ models:
   - name: basic
     config:
       materialized: table
-      tags: [ 'python' ]
+      tags: ["python"]
       http_path: '{{ var("http_path") }}'
+    columns:
+      - name: id
+        tests:
+          - not_null
+      - name: name
+        tests:
+          - unique
