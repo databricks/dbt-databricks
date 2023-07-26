@@ -23,7 +23,6 @@ tox>=3.2.0
 types-requests
 types-mock
 
-dbt-spark==1.6.0rc1
 dbt-core==1.6.0rc1
 dbt-tests-adapter==1.6.0rc1
 # git+https://github.com/dbt-labs/dbt-spark.git@1.5.latest#egg=dbt-spark
