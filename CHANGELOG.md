@@ -1,5 +1,7 @@
 ## dbt-databricks 1.6.0 (Release TBD)
 
+## dbt-databricks 1.6.0rc3 (July 27, 2023)
+
 ### Features
 - Added support for materialized_view and streaming_table materializations
 - Support new dbt `limit` command-line flag
