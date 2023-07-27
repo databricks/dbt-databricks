@@ -2,6 +2,7 @@
 
 ### Features
 - Added support for materialized_view and streaming_table materializations
+- Support new dbt `limit` command-line flag
 
 ### Fixes
 
