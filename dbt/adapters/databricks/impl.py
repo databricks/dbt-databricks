@@ -124,11 +124,12 @@ class DatabricksAdapter(SparkAdapter):
         sql: str,
         auto_begin: bool = False,
         fetch: bool = False,
+        limit: Optional[int] = None,
         *,
         staging_table: Optional[BaseRelation] = None,
     ) -> Tuple[AdapterResponse, Table]:
         try:
-            return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch)
+            return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
             if staging_table is not None:
                 self.drop_relation(staging_table)
