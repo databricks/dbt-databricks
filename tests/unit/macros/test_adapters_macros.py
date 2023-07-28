@@ -477,7 +477,9 @@ class TestDatabricksMacros(TestAdaptersMacros):
         r = self.__render_constraint_sql(
             {"type": "not_null", "columns": ["id", "name"]}, model
         )
-        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;', 'alter table `some_database`.`some_schema`.`some_table` change column name set not null ;']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id " \
+                   "set not null ;', 'alter table `some_database`.`some_schema`.`some_table` " \
+                   "change column name set not null ;']"  # noqa: E501
 
         assert expected in r
 
@@ -487,7 +489,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
             {"type": "not_null"}, model, model["columns"]["id"]
         )
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id set not null ;']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column id " \
+                   "set not null ;']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_not_null_mismatched_columns(self):
@@ -496,7 +499,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
             {"type": "not_null", "columns": ["name"]}, model, model["columns"]["id"]
         )
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` change column name set not null ;']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` change column name " \
+                   "set not null ;']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_check(self):
@@ -509,7 +513,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint check (id != name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint check (id != name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_check_named_constraint(self):
@@ -521,7 +526,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint check (id != name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint check (id != name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_check_none_constraint(self):
@@ -532,7 +538,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint None check (id != name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint None " \
+                   "check (id != name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_check_missing_expression(self):
@@ -554,7 +561,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint primary key(name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_primary_key_with_specified_column(self):
@@ -567,7 +575,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         column = {"name": "id"}
         r = self.__render_constraint_sql(constraint, model, column)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint primary key(name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_primary_key_with_name(self):
@@ -579,7 +588,8 @@ class TestDatabricksMacros(TestAdaptersMacros):
         column = {"name": "id"}
         r = self.__render_constraint_sql(constraint, model, column)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint primary key(id);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint primary key(id);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_foreign_key(self):
@@ -592,7 +602,9 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name) references some_schema.parent_table;']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add " \
+                   "constraint myconstraint foreign key(name) references " \
+                   "some_schema.parent_table;']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_foreign_key_parent_column(self):
@@ -606,7 +618,9 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name) references some_schema.parent_table(parent_name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add " \
+                   "constraint myconstraint foreign key(name) references " \
+                   "some_schema.parent_table(parent_name);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_foreign_key_multiple_columns(self):
@@ -620,7 +634,9 @@ class TestDatabricksMacros(TestAdaptersMacros):
         }
         r = self.__render_constraint_sql(constraint, model)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(name, id) references some_schema.parent_table(parent_name, parent_id);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint foreign key(name, id) " \
+                   "references some_schema.parent_table(parent_name, parent_id);']"  # noqa: E501
         assert expected in r
 
     def test_macros_get_constraint_sql_foreign_key_columns_supplied_separately(self):
@@ -634,5 +650,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
         column = {"name": "id"}
         r = self.__render_constraint_sql(constraint, model, column)
 
-        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint myconstraint foreign key(id) references some_schema.parent_table(parent_name);']"  # noqa: E501
+        expected = "['alter table `some_database`.`some_schema`.`some_table` add constraint " \
+                   "myconstraint foreign key(id) references " \
+                   "some_schema.parent_table(parent_name);']"  # noqa: E501
         assert expected in r
