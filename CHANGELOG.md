@@ -4,7 +4,7 @@
 
 - Added support for materialized_view and streaming_table materializations
 - Support new dbt `limit` command-line flag
-- Support dbt clone operation
+- Support [dbt clone operation](https://github.com/databricks/dbt-databricks/pull/397)
 
 ## dbt-databricks 1.5.5 (July 7, 2023)
 
