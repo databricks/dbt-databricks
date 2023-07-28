@@ -105,6 +105,27 @@ class TestSparkMacros(TestAdaptersMacros):
             "using delta clustered by (cluster_1,cluster_2) into 1 buckets as select 1",
         )
 
+    def test_macros_create_table_as_liquid_cluster(self):
+        self.config["liquid_clustered_by"] = "cluster_1"
+        sql = self._render_create_table_as()
+
+        self.assertEqual(
+            sql,
+            "create or replace table my_table "
+            "using delta cluster by (cluster_1) as select 1",
+        )
+
+    def test_macros_create_table_as_liquid_clusters(self):
+        self.config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
+        self.config["buckets"] = "1"
+        sql = self._render_create_table_as()
+
+        self.assertEqual(
+            sql,
+            "create or replace table my_table "
+            "using delta cluster by (cluster_1,cluster_2) as select 1",
+        )
+
     def test_macros_create_table_as_location(self):
         self.config["location_root"] = "/mnt/root"
         sql = self._render_create_table_as()
@@ -140,6 +161,7 @@ class TestSparkMacros(TestAdaptersMacros):
     def test_macros_create_table_as_all_delta(self):
         self.config["location_root"] = "/mnt/root"
         self.config["partition_by"] = ["partition_1", "partition_2"]
+        self.config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
         self.config["clustered_by"] = ["cluster_1", "cluster_2"]
         self.config["buckets"] = "1"
         self.config["persist_docs"] = {"relation": True}
@@ -154,6 +176,7 @@ class TestSparkMacros(TestAdaptersMacros):
             "create or replace table my_table "
             "using delta "
             "partitioned by (partition_1,partition_2) "
+            "cluster by (cluster_1,cluster_2)"
             "clustered by (cluster_1,cluster_2) into 1 buckets "
             "location '/mnt/root/my_table' "
             "comment 'Description Test' "
