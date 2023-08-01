@@ -52,6 +52,9 @@ writer.saveAsTable("{{ target_relation }}")
 .format("{{ file_format }}")
 {%- if location_root is not none %}
 {%- set identifier = model['alias'] %}
+{%- if is_incremental() %}
+{%- set identifier = identifier + '_incremental' %}
+{%- endif %}
 .option("path", "{{ location_root }}/{{ identifier }}")
 {%- endif -%}
 {%- if partition_by is not none -%}
