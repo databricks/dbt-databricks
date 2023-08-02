@@ -779,14 +779,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cursor.close()
 
     def execute(
-        self, sql: str, auto_begin: bool = False, fetch: bool = False
+        self, sql: str, auto_begin: bool = False, fetch: bool = False, limit: Optional[int] = None
     ) -> Tuple[DatabricksAdapterResponse, Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
             response = self.get_response(cursor)
             if fetch:
-                table = self.get_result_from_cursor(cursor)
+                table = self.get_result_from_cursor(cursor, limit)
             else:
                 table = agate_helper.empty_table()
             return response, table
@@ -817,7 +817,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     )
                 )
 
-                return self.get_result_from_cursor(cursor)
+                return self.get_result_from_cursor(cursor, None)
             finally:
                 if cursor is not None:
                     cursor.close()
