@@ -80,7 +80,7 @@ def check_not_found_error(errmsg: str) -> bool:
     return new_error or old_error is not None
 
 
-def get_identifier_list_string(table_names: set[str]) -> str:
+def get_identifier_list_string(table_names: Set[str]) -> str:
     """Returns `"|".join(table_names)` by default.
 
     Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
