@@ -81,12 +81,12 @@ def check_not_found_error(errmsg: str) -> bool:
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
-    """Returns "|".join(table_names) by default.
+    """Returns `"|".join(table_names)` by default.
 
-    Returns "*" if DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS == "true"
+    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
     and the joined string exceeds 2048 characters
 
-    This is for AWS Glue Catalog users See issue #325.
+    This is for AWS Glue Catalog users. See issue #325.
     """
 
     _identifier = "|".join(table_names)
