@@ -1,5 +1,11 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+## dbt-databricks 1.6.1 (August 2, 2023)
+
+### Fixes
+
+- Revert change from #326 as it breaks DESCRIBE table in cases where the dbt API key does not have access to all tables in the schema
+
 ## dbt-databricks 1.6.0 (August 2, 2023)
 
 ### Features
