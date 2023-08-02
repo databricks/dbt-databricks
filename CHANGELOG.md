@@ -1,17 +1,23 @@
-## dbt-databricks 1.6.0 (Release TBD)
+## dbt-databricks 1.6.x (Release TBD)
 
-## dbt-databricks 1.6.0rc3 (July 27, 2023)
+## dbt-databricks 1.6.0 (August 2, 2023)
 
 ### Features
 
+- Support for dbt-core==1.6
 - Added support for materialized_view and streaming_table materializations
-- Support new dbt `limit` command-line flag
 - Support [dbt clone operation](https://github.com/databricks/dbt-databricks/pull/397)
+- Support new dbt `limit` command-line flag
 
 ### Fixes
 
 - Fix issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326))
 - Extend python model support to cover the same config options as SQL ([#379](https://github.com/databricks/dbt-databricks/pull/379))
+
+### Other
+
+- Drop support for Python 3.7
+- Support for revamped `dbt debug`
 
 ## dbt-databricks 1.5.5 (July 7, 2023)
 
