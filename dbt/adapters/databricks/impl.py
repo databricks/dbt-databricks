@@ -2,6 +2,7 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from itertools import chain
 from dataclasses import dataclass
+import os
 import re
 from typing import (
     Any,
@@ -77,6 +78,22 @@ def check_not_found_error(errmsg: str) -> bool:
     new_error = "[SCHEMA_NOT_FOUND]" in errmsg
     old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
     return new_error or old_error is not None
+
+
+def get_identifier_list_string(table_names: Set[str]) -> str:
+    """Returns `"|".join(table_names)` by default.
+
+    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
+    and the joined string exceeds 2048 characters
+
+    This is for AWS Glue Catalog users. See issue #325.
+    """
+
+    _identifier = "|".join(table_names)
+    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    if bypass_2048_char_limit == "true":
+        _identifier = _identifier if len(_identifier) < 2048 else "*"
+    return _identifier
 
 
 @undefined_proof
@@ -448,11 +465,12 @@ class DatabricksAdapter(SparkAdapter):
                     table_names.add(relation.identifier)
 
         columns: List[Dict[str, Any]] = []
+
         if len(table_names) > 0:
             schema_relation = self.Relation.create(
                 database=database,
                 schema=schema,
-                identifier="|".join(table_names),
+                identifier=get_identifier_list_string(table_names),
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
