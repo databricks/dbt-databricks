@@ -4,6 +4,8 @@
 
 - Follow up: re-implement fix for issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326)). Set `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` to `true` to enable this behaviour.
 
+- Add `fetchmany`, resolves #408
+
 ## dbt-databricks 1.6.1 (August 2, 2023)
 
 ### Fixes
