@@ -17,6 +17,8 @@
 
 - Improve testing of python model support so that we can package the new config options in this release ([#421](https://github.com/databricks/dbt-databricks/pull/421))
 
+- Add `fetchmany`, resolves #408
+
 ## dbt-databricks 1.6.1 (August 2, 2023)
 
 ### Fixes
