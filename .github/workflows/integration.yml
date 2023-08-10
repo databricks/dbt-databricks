@@ -3,7 +3,7 @@ on: push
 jobs:
   run-tox-tests-uc:
     runs-on: ubuntu-latest
-    environment: azure-prod-pecou
+    environment: azure-prod
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
