@@ -9,7 +9,7 @@ jobs:
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
-      TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
+      TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -30,7 +30,7 @@ jobs:
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-uc-databricks-cluster
   run-tox-tests-non-uc:
     runs-on: ubuntu-latest
-    environment: azure-prod-peco
+    environment: azure-prod
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
