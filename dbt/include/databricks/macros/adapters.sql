@@ -43,6 +43,25 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro liquid_clustered_cols(label, required=false) -%}
+  {{ return(adapter.dispatch('liquid_clustered_cols', 'dbt')(label, required)) }}
+{%- endmacro -%}
+
+{% macro databricks__liquid_clustered_cols(label, required=false) -%}
+  {%- set cols = config.get('liquid_clustered_by', validator=validation.any[list, basestring]) -%}
+  {%- if cols is not none %}
+    {%- if cols is string -%}
+      {%- set cols = [cols] -%}
+    {%- endif -%}
+    {{ label }} (
+    {%- for item in cols -%}
+      {{ item }}
+      {%- if not loop.last -%},{%- endif -%}
+    {%- endfor -%}
+    )
+  {%- endif %}
+{%- endmacro -%}
+
 
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
   {%- if language == 'sql' -%}
@@ -62,6 +81,7 @@
       {{ file_format_clause() }}
       {{ options_clause() }}
       {{ partition_cols(label="partitioned by") }}
+      {{ liquid_clustered_cols(label="cluster by") }}
       {{ clustered_cols(label="clustered by") }}
       {{ location_clause() }}
       {{ comment_clause() }}
