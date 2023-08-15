@@ -12,7 +12,7 @@ class TestMaterializedView(DBTIntegrationTest):
     def models(self):
         return "models"
 
-    def test_materialized_view_base(self):
+    def _test_materialized_view_base(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run", "--select", "+mv"])
 
@@ -30,7 +30,7 @@ class TestMaterializedView(DBTIntegrationTest):
         self.run_dbt(["run", "--full-refresh", "--select", "mv"])
         self.assertTablesEqual("mv", "expected2")
 
-    def test_materialized_view_no_cdf(self):
+    def _test_materialized_view_no_cdf(self):
         # The base table is not CDF.
         result = self.run_dbt(["run", "--select", "+mv_nocdf"], expect_pass=False)
         assert len(result.results) == 2
@@ -41,7 +41,7 @@ class TestMaterializedView(DBTIntegrationTest):
             and "The input for materialized view must have Change Data Feed enabled." in res.message
         )
 
-    def test_materialized_view_based_on_view(self):
+    def _test_materialized_view_based_on_view(self):
         result = self.run_dbt(["run", "--select", "+mv_on_view"], expect_pass=False)
         assert len(result.results) == 3
         res: RunResult = result.results[2]
@@ -54,14 +54,14 @@ class TestMaterializedView(DBTIntegrationTest):
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_base_databricks_uc_sql_endpoint(self):
-        self.test_materialized_view_base()
+        self._test_materialized_view_base()
 
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_no_cdf_databricks_uc_sql_endpoint(self):
-        self.test_materialized_view_no_cdf()
+        self._test_materialized_view_no_cdf()
 
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_materialized_view_based_on_view_databricks_uc_sql_endpoint(self):
-        self.test_materialized_view_based_on_view()
+        self._test_materialized_view_based_on_view()

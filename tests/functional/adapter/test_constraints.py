@@ -75,7 +75,7 @@ class DatabricksHTTPSetup:
         ]
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseTableConstraintsColumnsEqual
 ):
@@ -88,7 +88,7 @@ class TestSparkTableConstraintsColumnsEqualDatabricksHTTP(
         }
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseViewConstraintsColumnsEqual
 ):
@@ -101,7 +101,7 @@ class TestSparkViewConstraintsColumnsEqualDatabricksHTTP(
         }
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkIncrementalConstraintsColumnsEqualDatabricksHTTP(
     DatabricksHTTPSetup, BaseIncrementalConstraintsColumnsEqual
 ):
@@ -128,7 +128,7 @@ class BaseSparkConstraintsDdlEnforcementSetup:
         return _expected_sql_spark
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkTableConstraintsDdlEnforcement(
     BaseSparkConstraintsDdlEnforcementSetup, BaseConstraintsRuntimeDdlEnforcement
 ):
@@ -140,7 +140,7 @@ class TestSparkTableConstraintsDdlEnforcement(
         }
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkIncrementalConstraintsDdlEnforcement(
     BaseSparkConstraintsDdlEnforcementSetup,
     BaseIncrementalConstraintsRuntimeDdlEnforcement,
@@ -179,7 +179,7 @@ class BaseSparkConstraintsRollbackSetup:
         assert any(msg in error_message for msg in expected_error_messages)
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkTableConstraintsRollback(BaseSparkConstraintsRollbackSetup, BaseConstraintsRollback):
     @pytest.fixture(scope="class")
     def models(self):
@@ -196,7 +196,7 @@ class TestSparkTableConstraintsRollback(BaseSparkConstraintsRollbackSetup, BaseC
         return "red"
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestSparkIncrementalConstraintsRollback(
     BaseSparkConstraintsRollbackSetup, BaseIncrementalConstraintsRollback
 ):
