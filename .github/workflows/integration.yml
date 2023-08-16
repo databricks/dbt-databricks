@@ -34,7 +34,6 @@ jobs:
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
     steps:
@@ -51,7 +50,5 @@ jobs:
       - name: Install tox
         id: install-dependencies
         run: pip install tox
-      - name: Run integration-databricks-sql-endpoint
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-sql-endpoint
       - name: Run integration-databricks-cluster
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-cluster
