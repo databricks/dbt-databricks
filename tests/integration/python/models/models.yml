@@ -19,3 +19,8 @@ models:
       - name: name
         tests:
           - unique
+  - name: adding_column
+    config:
+      materialized: table
+      tags: ["python"]
+      http_path: '{{ var("http_path") }}'
