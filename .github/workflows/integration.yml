@@ -27,7 +27,7 @@ jobs:
       - name: Run integration-databricks-uc-sql-endpoint
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-uc-sql-endpoint
       - name: Run integration-uc-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-uc-databricks-cluster
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_TOKEN=$DBT_DATABRICKS_TOKEN tox -e integration-databricks-uc-cluster
   run-tox-tests-non-uc:
     runs-on: ubuntu-latest
     environment: azure-prod
