@@ -36,9 +36,7 @@ class TestPythonMacros(TestMacros):
         self.default_context["is_incremental"] = MagicMock(return_value=True)
         result = self._run_macro_raw("py_get_writer_options")
 
-        expected = (
-            '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
-        )
+        expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
         self.assertEqual(result, expected)
 
     def test_py_get_writer__partition_by_single_column(self):

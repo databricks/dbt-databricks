@@ -1,12 +1,7 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
 import os
-import pytest
 
 
-@pytest.mark.skip(
-    reason="Run manually. Test must start with the Python compute resource in TERMINATED or \
-        TERMINATING state, as the purpose of the test is to validate successful cold start."
-)
 class TestPythonAutostart(DBTIntegrationTest):
     @property
     def schema(self):
