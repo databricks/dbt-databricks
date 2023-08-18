@@ -4,7 +4,7 @@ workspace_id = os.getenv("DBT_DATABRICKS_HOST_NAME")[4:18]
 cluster_id = os.getenv("TEST_PECO_CLUSTER_ID")
 uc_cluster_id = os.getenv("TEST_PECO_UC_CLUSTER_ID")
 http_path = f"sql/protocolv1/o/{workspace_id}/{cluster_id}"
-uc_http_path = f"sql/protocolv1/o/{workspace_id}/{cluster_id}"
+uc_http_path = f"sql/protocolv1/o/{workspace_id}/{uc_cluster_id}"
 
 # https://stackoverflow.com/a/72225291/5093960
 env_file = os.getenv("GITHUB_ENV")
