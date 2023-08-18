@@ -1,6 +1,5 @@
 from tests.integration.base import DBTIntegrationTest, use_profile
 import os
-import pytest
 
 
 class TestPythonConfig(DBTIntegrationTest):
