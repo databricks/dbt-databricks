@@ -9,6 +9,7 @@ jobs:
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
@@ -17,7 +18,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.10"
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
@@ -36,6 +37,7 @@ jobs:
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
