@@ -5,6 +5,7 @@ models:
       materialized: table
       tags: ["python"]
       http_path: '{{ var("http_path") }}'
+
   - name: complex_config
     config:
       marterialized: table
@@ -19,6 +20,7 @@ models:
       - name: name
         tests:
           - unique
+
   - name: adding_column
     config:
       materialized: table

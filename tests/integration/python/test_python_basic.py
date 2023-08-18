@@ -16,7 +16,7 @@ class TestPythonBasic(DBTIntegrationTest):
         return {
             "config-version": 2,
             "vars": {
-                "http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH"),
+                "http_path": os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH"),
                 "location_root": "",
             },
         }
@@ -26,13 +26,4 @@ class TestPythonBasic(DBTIntegrationTest):
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_python_databricks_uc_sql_endpoint(self):
-        self.use_default_project(
-            {
-                "config-version": 2,
-                "vars": {
-                    "http_path": os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH"),
-                    "location_root": "",
-                },
-            }
-        )
         self.python_exc()
