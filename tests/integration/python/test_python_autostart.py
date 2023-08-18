@@ -17,8 +17,8 @@ class TestPythonAutostart(DBTIntegrationTest):
             "config-version": 2,
             "vars": {
                 "http_path": os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH"),
+                "location_root": "",
             },
-            "location_root": "",
         }
 
     def python_exc(self):
