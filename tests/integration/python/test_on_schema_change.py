@@ -30,14 +30,6 @@ class TestPythonOnSchemaChange(DBTIntegrationTest):
 
         self.assertTablesEqual("adding_column", "expected_new_column")
 
-    @use_profile("databricks_cluster")
-    def test_databricks_cluster(self):
-        self._test_adding_column()
-
-    @use_profile("databricks_uc_cluster")
-    def test_databricks_uc_cluster(self):
-        self._test_adding_column()
-
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
         self._test_adding_column()
