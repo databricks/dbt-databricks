@@ -51,7 +51,7 @@ from databricks.sql.client import (
 )
 from databricks.sql.exc import Error
 
-from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.utils import redact_credentials
 
 from databricks.sdk.core import CredentialsProvider
@@ -668,7 +668,7 @@ DATABRICKS_QUERY_COMMENT = f"""
 {{%- do comment_dict.update(
     app='dbt',
     dbt_version=dbt_version,
-    dbt_databricks_version='{__version__}',
+    dbt_databricks_version='{version}',
     databricks_sql_connector_version='{dbsql.__version__}',
     profile_name=target.get('profile_name'),
     target_name=target.get('target_name'),
@@ -855,7 +855,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         # gotta keep this so we don't prompt users many times
         cls.credentials_provider = creds.authenticate(cls.credentials_provider)
 
-        user_agent_entry = f"dbt-databricks/{__version__}"
+        user_agent_entry = f"dbt-databricks/{version}"
 
         invocation_env = creds.get_invocation_env()
         if invocation_env:

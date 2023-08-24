@@ -12,7 +12,7 @@ import uuid
 from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.spark import __version__
+from dbt.adapters.spark import __version__ as dbt_spark_version
 from databricks.sdk.core import CredentialsProvider
 
 logger = AdapterLogger("Databricks")
@@ -20,7 +20,7 @@ logger = AdapterLogger("Databricks")
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
-DBT_SPARK_VERSION = __version__.version
+DBT_SPARK_VERSION = dbt_spark_version.version
 
 
 class BaseDatabricksHelper(PythonJobHelper):

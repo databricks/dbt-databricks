@@ -1,0 +1,83 @@
+[tool.poetry]
+name = "dbt-databricks"
+version = "1.6.1"
+description = "The Databricks adapter plugin for dbt"
+homepage = "https://github.com/databricks/dbt-databricks"
+repository = "https://github.com/databricks/dbt-databricks"
+authors = ["Databricks <feedback@databricks.com>"]
+readme = "README.md"
+classifiers=[
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+packages = [{include = "dbt"}]
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+dbt-spark = "1.6.0"
+databricks-sql-connector = "~=2.7.0"
+databricks-sdk = ">=0.1.7"
+keyring = ">=23.13.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.7.0"
+flake8 = "^6.1.0"
+flaky = "^3.7.0"
+freezegun = "^1.2.2"
+ipdb = "^0.13.13"
+mock = "^5.1.0"
+mypy = "^1.5.1"
+pytest-csv = "^3.0.0"
+pytest-dotenv = "^0.5.2"
+pytest-xdist = "^3.3.1"
+pytz = "^2023.3"
+types-requests = "^2.31.0.2"
+types-mock = "^5.1.0.1"
+dbt-tests-adapter = "1.6.0"
+nox-poetry = "^1.0.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.mypy]
+strict_optional = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+  "databricks.*",
+  "agate.*",
+  "jinja2.*",
+  "yaml.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*'soft_unicode' has been renamed to 'soft_str'*:DeprecationWarning",
+    "ignore:unclosed file .*:ResourceWarning"
+]
+env_files = "test.env"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
+    "tests/functional"
+]

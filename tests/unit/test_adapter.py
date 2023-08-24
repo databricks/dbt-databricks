@@ -961,7 +961,6 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # If environment variable is set, then limit the number of characters
         with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
-
             # Long list of table names is capped
             self.assertEqual(get_identifier_list_string(table_names), "*")
 
@@ -991,7 +990,6 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # If environment variable is set, then limit the number of characters
         with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
-
             # Long list of table names is capped
             self.assertEqual(get_identifier_list_string(table_names), "*")
 
@@ -1005,7 +1003,6 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # If environment variable is set, then we may limit the number of characters
         with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
-
             # But a short list of table names is not capped
             self.assertEqual(
                 get_identifier_list_string(list(table_names)[:5]), "|".join(list(table_names)[:5])

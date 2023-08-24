@@ -5,7 +5,7 @@ on:
       - "**.MD"
       - "**.md"
 jobs:
-  run-tox-tests-uc-cluster:
+  run-integration-tests-uc-cluster:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
@@ -13,26 +13,47 @@ jobs:
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
-      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-uc-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-cluster
 
-  run-tox-tests-uc-sql:
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run UC cluster integration tests
+        run: poetry run nox -t uc_cluster
+
+  run-integration-tests-uc-sql:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
@@ -43,44 +64,88 @@ jobs:
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-uc-sql-endpoint
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-sql-endpoint
 
-  run-tox-tests-non-uc:
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run UC SQL Warehouse integration tests
+        run: poetry run nox -t uc_sql_endpoint
+
+  run-integration-tests-non-uc:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
-      DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
-      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-cluster
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run Non-UC cluster integration tests
+        run: poetry run nox -t cluster
