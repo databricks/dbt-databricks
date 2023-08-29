@@ -43,6 +43,11 @@ writer = (
 writer.saveAsTable("{{ target_relation }}")
 {% endmacro %}
 
+# Note: this is not the code used for performing incremental merges.
+# The current process uses this code to create a staging table that is
+# merged in using a SQL statement.  To see your incremental config in action,
+# look in the dbt.log
+
 {%- macro py_get_writer_options() -%}
 {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
 {%- set file_format = config.get('file_format', validator=validation.any[basestring])|default('delta', true) -%}
@@ -52,6 +57,9 @@ writer.saveAsTable("{{ target_relation }}")
 .format("{{ file_format }}")
 {%- if location_root is not none %}
 {%- set identifier = model['alias'] %}
+{%- if is_incremental() %}
+{%- set identifier = identifier + '__dbt_tmp' %}
+{%- endif %}
 .option("path", "{{ location_root }}/{{ identifier }}")
 {%- endif -%}
 {%- if partition_by is not none -%}

@@ -44,7 +44,8 @@ class TestCopyInto(DBTIntegrationTest):
             raise Exception("No location found for the source table")
         return path
 
-    def test_copy_into(self):
+    @use_profile("databricks_cluster")
+    def test_copy_into_databricks_cluster(self):
         path = self.prepare()
 
         self.run_dbt(
@@ -57,7 +58,8 @@ class TestCopyInto(DBTIntegrationTest):
         )
         self.assertTablesEqual("target", "expected_target")
 
-    def test_copy_into_with_expression_list(self):
+    @use_profile("databricks_cluster")
+    def test_copy_into_with_expression_list_databricks_cluster(self):
         path = self.prepare()
 
         self.run_dbt(
@@ -71,11 +73,3 @@ class TestCopyInto(DBTIntegrationTest):
         self.assertTablesEqual(
             "target_with_expression_list", "expected_target_with_expression_list"
         )
-
-    @use_profile("databricks_cluster")
-    def test_copy_into_databricks_cluster(self):
-        self.test_copy_into()
-
-    @use_profile("databricks_cluster")
-    def test_copy_into_with_expression_list_databricks_cluster(self):
-        self.test_copy_into_with_expression_list()

@@ -96,7 +96,6 @@ def _profile_from_test_name(test_name):
     adapter_names = (
         "databricks_cluster",
         "databricks_uc_cluster",
-        "databricks_sql_endpoint",
         "databricks_uc_sql_endpoint",
     )
     adapters_in_name = sum(x in test_name for x in adapter_names)

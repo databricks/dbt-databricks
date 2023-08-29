@@ -45,7 +45,7 @@ class TestConstraints(DBTIntegrationTest):
 
 
 class TestTableConstraints(TestConstraints):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "table_model"
         expected_model_name = "expected_model"
@@ -69,23 +69,19 @@ class TestTableConstraints(TestConstraints):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
 
 class TestIncrementalConstraints(TestConstraints):
-    def test_incremental_constraints(self):
+    def _test_incremental_constraints(self):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
@@ -117,19 +113,15 @@ class TestIncrementalConstraints(TestConstraints):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_incremental_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
 
 class TestSnapshotConstraints(TestConstraints):
@@ -137,7 +129,7 @@ class TestSnapshotConstraints(TestConstraints):
         results = self.run_sql("select * from {database_schema}.my_snapshot", fetch="all")
         self.assertEqual(len(results), num_rows)
 
-    def test_snapshot(self):
+    def _test_snapshot(self):
         self.run_dbt(["seed"])
         self.run_dbt(["snapshot"])
         self.check_snapshot_results(num_rows=2)
@@ -159,46 +151,38 @@ class TestSnapshotConstraints(TestConstraints):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_snapshot()
+        self._test_snapshot()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_snapshot()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_snapshot()
+        self._test_snapshot()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_snapshot()
+        self._test_snapshot()
 
 
 class TestInvalidCheckConstraints(TestConstraints):
-    def test_invalid_check_constraints(self):
+    def _test_invalid_check_constraints(self):
         model_name = "invalid_check_constraint"
         self.run_dbt(["seed"])
         self.run_and_check_failure(model_name, err_msg="Invalid check constraint condition")
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_invalid_check_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
 
 class TestInvalidColumnConstraints(TestConstraints):
-    def test_invalid_column_constraints(self):
+    def _test_invalid_column_constraints(self):
         model_name = "invalid_column_constraint"
         self.run_dbt(["seed"])
         self.run_and_check_failure(
@@ -208,23 +192,19 @@ class TestInvalidColumnConstraints(TestConstraints):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_invalid_column_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
 
 class TestTableWithConstraintsDisabled(TestConstraints):
-    def test_delta_constraints_disabled(self):
+    def _test_delta_constraints_disabled(self):
         self.run_dbt(["seed"])
         model_name = "table_model_disable_constraints"
         expected_model_name = "expected_model"
@@ -246,16 +226,12 @@ class TestTableWithConstraintsDisabled(TestConstraints):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_delta_constraints_disabled()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()

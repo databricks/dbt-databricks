@@ -67,10 +67,6 @@ class TestDeltaStrategiesWarehouse(TestIncrementalStrategies):
         self.assertTablesEqual("merge_exclude_columns", "expected_exclude_upsert")
         self.assertTablesEqual("replace_where", "expected_replace_where")
 
-    @use_profile("databricks_sql_endpoint")
-    def test_delta_strategies_databricks_sql_endpoint(self):
-        self.run_and_test_warehouse()
-
     @use_profile("databricks_uc_sql_endpoint")
     def test_delta_strategies_databricks_uc_sql_endpoint(self):
         self.run_and_test_warehouse()
@@ -128,10 +124,6 @@ class TestBadStrategies(TestIncrementalStrategies):
 
     @use_profile("databricks_uc_cluster")
     def test_bad_strategies_databricks_uc_cluster(self):
-        self.run_and_test()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_bad_strategies_databricks_sql_endpoint(self):
         self.run_and_test()
 
     @use_profile("databricks_uc_sql_endpoint")
