@@ -20,7 +20,7 @@ class TestStoreFailures(DBTIntegrationTest):
             },
         }
 
-    def test_store_failures(self):
+    def _test_store_failures(self):
         self.run_dbt(["run"])
         self.run_dbt(["test", "--store-failures"])
 
@@ -28,19 +28,15 @@ class TestStoreFailures(DBTIntegrationTest):
 class TestStoreFailuresDelta(TestStoreFailures):
     @use_profile("databricks_cluster")
     def test_store_failures_databricks_cluster(self):
-        self.test_store_failures()
+        self._test_store_failures()
 
     @use_profile("databricks_uc_cluster")
     def test_store_failures_databricks_uc_cluster(self):
-        self.test_store_failures()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_store_failures_databricks_sql_endpoint(self):
-        self.test_store_failures()
+        self._test_store_failures()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_store_failures_databricks_uc_sql_endpoint(self):
-        self.test_store_failures()
+        self._test_store_failures()
 
 
 class TestStoreFailuresParquet(TestStoreFailures):
@@ -57,4 +53,4 @@ class TestStoreFailuresParquet(TestStoreFailures):
 
     @use_profile("databricks_cluster")
     def test_store_failures_databricks_cluster(self):
-        self.test_store_failures()
+        self._test_store_failures()

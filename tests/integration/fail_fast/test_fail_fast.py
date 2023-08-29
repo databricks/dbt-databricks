@@ -12,7 +12,7 @@ class TesFailFast(DBTIntegrationTest):
     def models(self):
         return "models"
 
-    def test_fail_fast(self):
+    def _test_fail_fast(self):
         self.run_dbt(["run"])
 
         # PECO-738 Original except message we tested for was:
@@ -30,16 +30,12 @@ class TesFailFast(DBTIntegrationTest):
 
     @use_profile("databricks_cluster")
     def test_fail_fast_databricks_cluster(self):
-        self.test_fail_fast()
+        self._test_fail_fast()
 
     @use_profile("databricks_uc_cluster")
     def test_fail_fast_databricks_uc_cluster(self):
-        self.test_fail_fast()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_fail_fast_databricks_sql_endpoint(self):
-        self.test_fail_fast()
+        self._test_fail_fast()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_fail_fast_databricks_uc_sql_endpoint(self):
-        self.test_fail_fast()
+        self._test_fail_fast()

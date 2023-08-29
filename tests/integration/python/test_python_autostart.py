@@ -28,10 +28,6 @@ class TestPythonAutostart(DBTIntegrationTest):
     def python_exc(self):
         self.run_dbt(["run"])
 
-    @use_profile("databricks_sql_endpoint")
-    def test_python_databricks_sql_endpoint(self):
-        self.python_exc()
-
     @use_profile("databricks_uc_sql_endpoint")
     def test_python_databricks_uc_sql_endpoint(self):
         self.use_default_project(

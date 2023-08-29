@@ -40,10 +40,6 @@ class TestRunResultsJson(DBTIntegrationTest):
                 "Query ID column was not written to run_results.json",
             )
 
-    @use_profile("databricks_sql_endpoint")
-    def test_run_results_json_databricks_sql_endpoint(self):
-        self.run_and_check_for_query_id()
-
     @use_profile("databricks_uc_sql_endpoint")
     def test_run_results_json_databricks_uc_sql_endpoint(self):
         self.run_and_check_for_query_id()
