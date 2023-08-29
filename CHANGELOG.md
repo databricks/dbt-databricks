@@ -3,6 +3,7 @@
 ### Features
 
 - Follow up: re-implement fix for issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326)). Set `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` to `true` to enable this behaviour.
+- Add `liquid_clustered_by` config to enable Liquid Clustering for Delta-based dbt models.
 
 ## dbt-databricks 1.6.1 (August 2, 2023)
 
@@ -28,6 +29,7 @@
 
 - Drop support for Python 3.7
 - Support for revamped `dbt debug`
+
 
 ## dbt-databricks 1.5.5 (July 7, 2023)
 
