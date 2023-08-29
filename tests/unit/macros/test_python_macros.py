@@ -23,9 +23,20 @@ class TestPythonMacros(TestMacros):
         self.config["location_root"] = "s3://fake_location"
         d = {"alias": "schema"}
         self.default_context["model"].__getitem__.side_effect = d.__getitem__
+        self.default_context["is_incremental"] = MagicMock(return_value=False)
         result = self._run_macro_raw("py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
+        self.assertEqual(result, expected)
+
+    def test_py_get_writer__specified_location_root_on_incremental(self):
+        self.config["location_root"] = "s3://fake_location"
+        d = {"alias": "schema"}
+        self.default_context["model"].__getitem__.side_effect = d.__getitem__
+        self.default_context["is_incremental"] = MagicMock(return_value=True)
+        result = self._run_macro_raw("py_get_writer_options")
+
+        expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
         self.assertEqual(result, expected)
 
     def test_py_get_writer__partition_by_single_column(self):
