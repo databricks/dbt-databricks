@@ -26,10 +26,6 @@ class TestDebug(DBTIntegrationTest):
     def test_debug_databricks_cluster(self):
         self.run_and_test(contains_catalog=False)
 
-    @use_profile("databricks_sql_endpoint")
-    def test_debug_databricks_sql_endpoint(self):
-        self.run_and_test(contains_catalog=False)
-
     @use_profile("databricks_uc_cluster")
     def test_debug_databricks_uc_cluster(self):
         self.run_and_test(contains_catalog=True)

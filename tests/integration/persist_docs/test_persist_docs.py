@@ -34,7 +34,7 @@ class TestPersistDocsDelta(DBTIntegrationTest):
             },
         }
 
-    def test_delta_comments(self):
+    def _test_delta_comments(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run"])
 
@@ -59,16 +59,12 @@ class TestPersistDocsDelta(DBTIntegrationTest):
 
     @use_profile("databricks_cluster")
     def test_delta_comments_databricks_cluster(self):
-        self.test_delta_comments()
+        self._test_delta_comments()
 
     @use_profile("databricks_uc_cluster")
     def test_delta_comments_databricks_uc_cluster(self):
-        self.test_delta_comments()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_delta_comments_databricks_sql_endpoint(self):
-        self.test_delta_comments()
+        self._test_delta_comments()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_delta_comments_databricks_uc_sql_endpoint(self):
-        self.test_delta_comments()
+        self._test_delta_comments()

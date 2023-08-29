@@ -12,7 +12,7 @@ class TestStreamingTable(DBTIntegrationTest):
     def models(self):
         return "models"
 
-    def test_streaming_table_base(self):
+    def _test_streaming_table_base(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run", "--select", "+st"])
 
@@ -30,7 +30,7 @@ class TestStreamingTable(DBTIntegrationTest):
         self.run_dbt(["run", "--full-refresh", "--select", "st"])
         self.assertTablesEqual("st", "expected2")
 
-    def test_streaming_table_no_cdf(self):
+    def _test_streaming_table_no_cdf(self):
         # The base table is not CDF.
         result = self.run_dbt(["run", "--select", "+st_nocdf"], expect_pass=True)
         self.run_dbt(["run", "--select", "base"])
@@ -43,7 +43,7 @@ class TestStreamingTable(DBTIntegrationTest):
             and "The input for materialized view must have Change Data Feed enabled." in res.message
         )
 
-    def test_streaming_table_based_on_view(self):
+    def _test_streaming_table_based_on_view(self):
         result = self.run_dbt(["run", "--select", "+st_on_view"], expect_pass=False)
         assert len(result.results) == 3
         res: RunResult = result.results[2]
@@ -56,14 +56,14 @@ class TestStreamingTable(DBTIntegrationTest):
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_base_databricks_uc_sql_endpoint(self):
-        self.test_streaming_table_base()
+        self._test_streaming_table_base()
 
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_no_cdf_databricks_uc_sql_endpoint(self):
-        self.test_streaming_table_no_cdf()
+        self._test_streaming_table_no_cdf()
 
     @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_based_on_view_databricks_uc_sql_endpoint(self):
-        self.test_streaming_table_based_on_view()
+        self._test_streaming_table_based_on_view()

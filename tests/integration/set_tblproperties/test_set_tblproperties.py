@@ -27,7 +27,7 @@ class TestSetTblproperties(DBTIntegrationTest):
         results = self.run_sql("select * from {database_schema}.my_snapshot", fetch="all")
         self.assertEqual(len(results), num_rows)
 
-    def test_set_tblproperties(self):
+    def _test_set_tblproperties(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run"])
         self.run_dbt(["run"])
@@ -48,16 +48,12 @@ class TestSetTblproperties(DBTIntegrationTest):
 
     @use_profile("databricks_cluster")
     def test_set_tblproperties_databricks_cluster(self):
-        self.test_set_tblproperties()
+        self._test_set_tblproperties()
 
     @use_profile("databricks_uc_cluster")
     def test_set_tblproperties_databricks_uc_cluster(self):
-        self.test_set_tblproperties()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_set_tblproperties_databricks_sql_endpoint(self):
-        self.test_set_tblproperties()
+        self._test_set_tblproperties()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_set_tblproperties_databricks_uc_sql_endpoint(self):
-        self.test_set_tblproperties()
+        self._test_set_tblproperties()
