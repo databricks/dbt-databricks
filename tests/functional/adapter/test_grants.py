@@ -7,7 +7,7 @@ from dbt.tests.adapter.grants.test_snapshot_grants import BaseSnapshotGrants
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+# @pytest.mark.skip_profile("databricks_cluster")
 class TestModelGrantsDatabricks(BaseModelGrants):
     def privilege_grantee_name_overrides(self):
         # insert --> modify
@@ -20,13 +20,13 @@ class TestModelGrantsDatabricks(BaseModelGrants):
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+# @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalGrantsDatabricks(BaseIncrementalGrants):
     pass
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+# @pytest.mark.skip_profile("databricks_cluster")
 class TestSeedGrantsDatabricks(BaseSeedGrants):
     # seeds in dbt-spark are currently "full refreshed," in such a way that
     # the grants are not carried over
@@ -36,13 +36,13 @@ class TestSeedGrantsDatabricks(BaseSeedGrants):
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+# @pytest.mark.skip_profile("databricks_cluster")
 class TestSnapshotGrantsDatabricks(BaseSnapshotGrants):
     pass
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_sql_endpoint")
+# @pytest.mark.skip_profile("databricks_cluster")
 class TestInvalidGrantsDatabricks(BaseInvalidGrants):
     def grantee_does_not_exist_error(self):
         return "PRINCIPAL_DOES_NOT_EXIST"

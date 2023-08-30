@@ -44,7 +44,7 @@ class TestModelContract(DBTIntegrationTest):
 
 
 class TestModelContractConstraints(TestModelContract):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "table_model"
         expected_model_name = "expected_model"
@@ -69,23 +69,19 @@ class TestModelContractConstraints(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
 
 class TestIncrementalModelContractConstraints(TestModelContract):
-    def test_incremental_constraints(self):
+    def _test_incremental_constraints(self):
         self.run_dbt(["seed"])
         model_name = "incremental_model"
         self.run_dbt(["run", "--select", model_name, "--full-refresh"])
@@ -117,19 +113,15 @@ class TestIncrementalModelContractConstraints(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_incremental_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_incremental_constraints()
+        self._test_incremental_constraints()
 
 
 class TestInvalidModelContractCheckConstraints(TestModelContract):
@@ -156,7 +148,7 @@ class TestInvalidModelContractCheckConstraints(TestModelContract):
         res = dbtRunner().invoke(args, log_cache_events=True, log_path=self._logs_dir)
         return res
 
-    def test_invalid_check_constraints(self):
+    def _test_invalid_check_constraints(self):
         model_name = "invalid_check_constraint"
         res = self.run_dbt(["run", "--select", model_name])
         self.assertFalse(res.success, "dbt exit state did not match expected")
@@ -168,23 +160,19 @@ class TestInvalidModelContractCheckConstraints(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_invalid_check_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_invalid_check_constraints()
+        self._test_invalid_check_constraints()
 
 
 class TestInvalidModelContractColumnConstraints(TestModelContract):
-    def test_invalid_column_constraints(self):
+    def _test_invalid_column_constraints(self):
         self.run_dbt(["seed"])
         model_name = "invalid_column_constraint"
         self.run_and_check_failure(
@@ -194,23 +182,19 @@ class TestInvalidModelContractColumnConstraints(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_invalid_column_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_invalid_column_constraints()
+        self._test_invalid_column_constraints()
 
 
 class TestTableWithModelContractConstraintsDisabled(TestModelContract):
-    def test_delta_constraints_disabled(self):
+    def _test_delta_constraints_disabled(self):
         self.run_dbt(["seed"])
         model_name = "table_model_disable_constraints"
         expected_model_name = "expected_model"
@@ -232,54 +216,50 @@ class TestTableWithModelContractConstraintsDisabled(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_delta_constraints_disabled()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_delta_constraints_disabled()
+        self._test_delta_constraints_disabled()
 
 
 class TestModelLevelPrimaryKey(TestModelContract):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "primary_key"
         self.run_dbt(["run", "--select", model_name])
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
 
 class TestModelLevelForeignKey(TestModelContract):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         self.run_dbt(["seed"])
         self.run_dbt(["run", "--select", "foreign_key_parent"])
         self.run_dbt(["run", "--select", "foreign_key"])
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
 
 @pytest.mark.skip(reason="test needs redesign")
 class TestModelContractNotDelta(TestModelContract):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         self.run_dbt(["seed"])
         model_name = "not_delta"
         result, logoutput = self.run_dbt_and_capture(
@@ -289,23 +269,19 @@ class TestModelContractNotDelta(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
 
 class TestModelContractView(TestModelContract):
-    def test_table_constraints(self):
+    def _test_table_constraints(self):
         # persist_constraints should not be called for a view materialization. If it is and
         # error is raised.
         # Successfully creating the view indicates that it wasn't called.
@@ -315,16 +291,12 @@ class TestModelContractView(TestModelContract):
 
     @use_profile("databricks_cluster")
     def test_databricks_cluster(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_cluster")
     def test_databricks_uc_cluster(self):
-        self.test_table_constraints()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_databricks_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_databricks_uc_sql_endpoint(self):
-        self.test_table_constraints()
+        self._test_table_constraints()
