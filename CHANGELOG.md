@@ -1,5 +1,9 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+### Fixes
+
+- Improved legibility of python stack traces ([#434](https://github.com/databricks/dbt-databricks/pull/434)).
+
 ## dbt-databricks 1.6.2 (August 29, 2023)
 
 ### Features
