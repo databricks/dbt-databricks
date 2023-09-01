@@ -75,7 +75,7 @@ class TestDatabricksUtils(unittest.TestCase):
   [0;31mException[0m                                 Traceback (most recent call last)
   File [0;32m~/.ipykernel/1292/command--1-4090367456:79[0m
   [1;32m     70[0m [38;5;66;03m# COMMAND ----------[39;00m
-  [1;32m     71[0m 
+  [1;32m     71[0m
   [1;32m     72[0m [38;5;66;03m# how to execute python model in notebook[39;00m
 """
         expected_string = """Python model failed with traceback as:
@@ -83,7 +83,7 @@ class TestDatabricksUtils(unittest.TestCase):
   Exception                                 Traceback (most recent call last)
   File ~/.ipykernel/1292/command--1-4090367456:79
        70 # COMMAND ----------
-       71 
+       71
        72 # how to execute python model in notebook
 """
         self.assertEqual(remove_ansi(test_string), expected_string)
