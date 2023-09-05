@@ -3,6 +3,12 @@
 ### Fixes
 
 - Improved legibility of python stack traces ([#434](https://github.com/databricks/dbt-databricks/pull/434)).
+- Update our Databricks Workflow README to make clear that jobs clusters are not supported targets ([#436](https://github.com/databricks/dbt-databricks/pull/436))
+- Relaxed the constraint on databricks-sql-connector to allow newer versions ([#436](https://github.com/databricks/dbt-databricks/pull/436))
+
+### Under the hood
+
+- Switch to running integration tests with OAuth ([#436](https://github.com/databricks/dbt-databricks/pull/436))
 
 ## dbt-databricks 1.6.2 (August 29, 2023)
 
