@@ -19,7 +19,7 @@ When you run a dbt project as a Databricks Job, the dbt CLI runs on a single-nod
 - Install [jq](https://stedolan.github.io/jq/download/), a popular open source tool for parsing JSON from the command line
 
 Note: previously dbt tasks on Databricks Workflows could run using jobs clusters.
-That is no longer supported and will result in getting a 403 response when attempted.
+That is [no longer supported](https://docs.databricks.com/en/workflows/jobs/how-to/use-dbt-in-workflows.html#advanced-run-dbt-with-a-custom-profile) and will result in getting a 403 response when attempted.
 
 # Run dbt as a production job
 
