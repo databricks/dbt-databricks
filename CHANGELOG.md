@@ -3,21 +3,20 @@
 ### Fixes
 
 - Improved legibility of python stack traces ([#434](https://github.com/databricks/dbt-databricks/pull/434)).
+- Add `fetchmany`, resolves #408 (Thanks @NodeJSmith) ([#409](https://github.com/databricks/dbt-databricks/pull/409))
 
 ## dbt-databricks 1.6.2 (August 29, 2023)
 
 ### Features
 
 - Follow up: re-implement fix for issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326)). Set `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` to `true` to enable this behaviour.
-- Add `liquid_clustered_by` config to enable Liquid Clustering for Delta-based dbt models.
+- Add `liquid_clustered_by` config to enable Liquid Clustering for Delta-based dbt models (Thanks @ammarchalifah) ([#398](https://github.com/databricks/dbt-databricks/pull/398)).
 
 ### Under the hood
 
 - Dropping the databricks_sql_endpoint test profile as not truly testing different behavior than databricks_uc_sql_endpoint profile ([#417](https://github.com/databricks/dbt-databricks/pull/417))
 
 - Improve testing of python model support so that we can package the new config options in this release ([#421](https://github.com/databricks/dbt-databricks/pull/421))
-
-- Add `fetchmany`, resolves #408
 
 ## dbt-databricks 1.6.1 (August 2, 2023)
 
