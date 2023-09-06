@@ -18,8 +18,9 @@ When you run a dbt project as a Databricks Job, the dbt CLI runs on a single-nod
 - Install and configure the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/index.html)
 - Install [jq](https://stedolan.github.io/jq/download/), a popular open source tool for parsing JSON from the command line
 
-Note: previously dbt tasks on Databricks Workflows could run using jobs clusters.
-That is [no longer supported](https://docs.databricks.com/en/workflows/jobs/how-to/use-dbt-in-workflows.html#advanced-run-dbt-with-a-custom-profile) and will result in getting a 403 response when attempted.
+Note: previously dbt tasks on Databricks Workflows could target jobs clusters for compute.
+That is [no longer supported](https://docs.databricks.com/en/workflows/jobs/how-to/use-dbt-in-workflows.html#advanced-run-dbt-with-a-custom-profile).
+Job clusters can only be used for running the dbt-cli.
 
 # Run dbt as a production job
 
