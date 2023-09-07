@@ -2,6 +2,8 @@
 
 ### Fixes
 
+- Improved legibility of python stack traces ([#434](https://github.com/databricks/dbt-databricks/pull/434)).
+- Add `fetchmany`, resolves #408 (Thanks @NodeJSmith) ([#409](https://github.com/databricks/dbt-databricks/pull/409))
 - Improved legibility of python stack traces ([#434](https://github.com/databricks/dbt-databricks/pull/434))
 - Update our Databricks Workflow README to make clear that jobs clusters are not supported targets ([#436](https://github.com/databricks/dbt-databricks/pull/436))
 - Relaxed the constraint on databricks-sql-connector to allow newer versions ([#436](https://github.com/databricks/dbt-databricks/pull/436))
@@ -16,7 +18,7 @@
 ### Features
 
 - Follow up: re-implement fix for issue where the show tables extended command is limited to 2048 characters. ([#326](https://github.com/databricks/dbt-databricks/pull/326)). Set `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` to `true` to enable this behaviour.
-- Add `liquid_clustered_by` config to enable Liquid Clustering for Delta-based dbt models.
+- Add `liquid_clustered_by` config to enable Liquid Clustering for Delta-based dbt models (Thanks @ammarchalifah) ([#398](https://github.com/databricks/dbt-databricks/pull/398)).
 
 ### Under the hood
 
