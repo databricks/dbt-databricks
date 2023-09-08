@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple, Optional, Callable
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
+from dbt.adapters.databricks import utils
 
 import base64
 import time
@@ -146,7 +147,7 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "Python model failed with traceback as:\n"
                 "(Note that the line number here does not "
                 "match the line number in your code due to dbt templating)\n"
-                f"{json_run_output['error_trace']}"
+                f"{utils.remove_ansi(json_run_output['error_trace'])}"
             )
 
     def submit(self, compiled_code: str) -> None:
@@ -373,7 +374,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 if response["results"]["resultType"] == "error":
                     raise dbt.exceptions.DbtRuntimeError(
                         f"Python model failed with traceback as:\n"
-                        f"{response['results']['cause']}"
+                        f"{utils.remove_ansi(response['results']['cause'])}"
                     )
             finally:
                 context.destroy(context_id)

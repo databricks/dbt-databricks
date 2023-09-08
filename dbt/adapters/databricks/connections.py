@@ -78,7 +78,7 @@ class DbtCoreHandler(logging.Handler):
 dbt_adapter_logger = AdapterLogger("databricks-sql-connector")
 
 pysql_logger = logging.getLogger("databricks.sql")
-pysql_logger_level = os.environ.get("DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "INFO").upper()
+pysql_logger_level = os.environ.get("DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN").upper()
 pysql_logger.setLevel(pysql_logger_level)
 
 pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
@@ -496,6 +496,9 @@ class DatabricksSQLCursorWrapper:
     def fetchone(self) -> Optional[Tuple]:
         return self._cursor.fetchone()
 
+    def fetchmany(self, size: int) -> Sequence[Tuple]:
+        return self._cursor.fetchmany(size)
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
         # print(f"execute: {sql}")
         if sql.strip().endswith(";"):
@@ -779,7 +782,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cursor.close()
 
     def execute(
-        self, sql: str, auto_begin: bool = False, fetch: bool = False, limit: Optional[int] = None
+        self,
+        sql: str,
+        auto_begin: bool = False,
+        fetch: bool = False,
+        limit: Optional[int] = None,
     ) -> Tuple[DatabricksAdapterResponse, Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
