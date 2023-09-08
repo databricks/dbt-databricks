@@ -22,9 +22,11 @@ on:
       - "releases/*"
     paths-ignore:
       - "**.MD"
+      - "**.md"
   pull_request:
     paths-ignore:
       - "**.MD"
+      - "**.md"
   workflow_dispatch:
 
 permissions: read-all
