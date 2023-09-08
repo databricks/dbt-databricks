@@ -3,6 +3,7 @@ on:
   push:
     paths-ignore:
       - "**.MD"
+      - "**.md"
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest
