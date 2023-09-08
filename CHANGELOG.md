@@ -1,4 +1,6 @@
-## dbt-databricks 1.6.x (Release TBD)
+## dbt-databricks 1.6.x
+
+## dbt-databricks 1.6.3 (September 8, 2023)
 
 ### Fixes
 
