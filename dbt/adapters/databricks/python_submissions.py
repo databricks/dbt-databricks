@@ -118,7 +118,9 @@ class BaseDatabricksHelper(PythonJobHelper):
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating python run.\n {submit_response.content!r}"
             )
-        return submit_response.json()["run_id"]
+        response_json = submit_response.json()
+        logger.info(f"Submitted databricks job: {response_json}")
+        return response_json["run_id"]
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
         # it is safe to call mkdirs even if dir already exists and have content inside
