@@ -1,5 +1,9 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+### Fixes
+
+- Fixed an issue with AWS OAuth M2M flow ([#445](https://github.com/databricks/dbt-databricks/pull/445))
+
 ## dbt-databricks 1.6.3 (September 8, 2023)
 
 ### Fixes
