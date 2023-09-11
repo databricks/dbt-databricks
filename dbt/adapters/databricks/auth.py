@@ -40,12 +40,12 @@ class m2m_auth(CredentialsProvider):
 
         config = Config(host=host, credentials_provider=noop_credentials)
         oidc = config.oidc_endpoints
-        scopes = ["offline_access", "all-apis"]
+        scopes = ["all-apis"]
         if not oidc:
             raise ValueError(f"{host} does not support OAuth")
         if config.is_azure:
             # Azure AD only supports full access to Azure Databricks.
-            scopes = [f"{config.effective_azure_login_app_id}/.default", "offline_access"]
+            scopes = [f"{config.effective_azure_login_app_id}/.default"]
         self._token_source = ClientCredentials(
             client_id=client_id,
             client_secret=client_secret,
