@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fixed an issue with AWS OAuth M2M flow ([#445](https://github.com/databricks/dbt-databricks/pull/445))
+- Fixed an issue where every table in hive_metastore would get described ([#446](https://github.com/databricks/dbt-databricks/pull/446))
 
 ## dbt-databricks 1.6.3 (September 8, 2023)
 
