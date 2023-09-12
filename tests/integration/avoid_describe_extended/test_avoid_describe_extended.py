@@ -1,5 +1,3 @@
-import os
-import pytest
 from tests.integration.base import DBTIntegrationTest, use_profile
 
 
