@@ -1,5 +1,9 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+### Under the hood
+
+- Migrated to Poetry/Nox as part of plan of improving our dev/publish tools ([#425](https://github.com/databricks/dbt-databricks/pull/425))
+
 ## dbt-databricks 1.6.4 (September 14, 2023)
 
 ### Fixes
