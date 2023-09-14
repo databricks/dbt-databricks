@@ -113,7 +113,13 @@ If you set your `user.name` and `user.email` git configs, you can sign your comm
 
 ## Unit tests
 
-Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before opening a pull request.
+Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite for at least one supported Python version before opening a pull request.
+
+```zsh
+poetry run nox -s unit-<simple python version, e.g. 3.8>
+```
+
+If you wish to go above and beyond, ensure you have all supported Python versions installed (see noxfile.py for latest list) and run:
 
 ```zsh
 poetry run nox -s unit
