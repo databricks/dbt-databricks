@@ -1,41 +1,55 @@
 # Local development with dbt-databricks
+
 This page describes how to develop a dbt project on your computer using `dbt-databricks`. We will create an empty dbt project with information on how to connect to Databricks. We will then run our first dbt models.
 
 ## Prerequisites
+
 - Access to a Databricks workspace
 - Ability to create a Personal Access Token (PAT)
 - Python 3.8+
-- dbt-core v1.1.0+
-- dbt-databricks v1.1.0+
+- [Poetry 1.6+](https://python-poetry.org/docs/)
 
-##  Prepare to connect
+To install the project and all its dependencies run
+
+```
+poetry install
+```
+
+from within the project directory.
+
+## Prepare to connect
+
 ### Collect connection information
+
 Before you scaffold a new dbt project, you have to collect some information which dbt will use to connect to Databricks. Where you find this information depends on whether you are using Databricks Clusters or Databricks SQL endpoints. We recommend that you develop dbt models against Databricks SQL endpoints as they provide the latest SQL features and optimizations.
 
 #### Databricks SQL endpoints
-1. Log in to your Databricks workspace 
+
+1. Log in to your Databricks workspace
 2. Click the _SQL_ persona in the left navigation bar to switch to Databricks SQL
 3. Click _SQL Endpoints_
 4. Choose the SQL endpoint you want to connect to
 5. Click _Connection details_
 6. Copy the value of _Server hostname_. This will be the value of `host` when you scaffold a dbt project.
-7. Copy the value of _HTTP path_.  This will be the value of `http_path` when you scaffold a dbt project.
+7. Copy the value of _HTTP path_. This will be the value of `http_path` when you scaffold a dbt project.
 
 ![image](/docs/img/sql-endpoint-connection-details.png "SQL endpoint connection details")
 
 #### Databricks Clusters
-1. Log in to your Databricks workspace 
+
+1. Log in to your Databricks workspace
 2. Click the _Data Science & Engineering_ persona in the left navigation bar
 3. Click _Compute_
 4. Click on the cluster you want to connect to
 5. Near the bottom of the page, click _Advanced options_
 6. Scroll down some more and click _JDBC/ODBC_
 7. Copy the value of _Server Hostname_. This will be the value of `host` when you scaffold a dbt project.
-7. Copy the value of _HTTP Path_.  This will be the value of `http_path` when you scaffold a dbt project.
+8. Copy the value of _HTTP Path_. This will be the value of `http_path` when you scaffold a dbt project.
 
 ![image](/docs/img/cluster-connection-details.png "SQL endpoint connection details")
 
 ## Scaffold a new dbt project
+
 Now, we are ready to scaffold a new dbt project. Switch to your terminal and type:
 
 ```nofmt
@@ -63,6 +77,7 @@ In `schema`, enter `databricks_demo`, which is the schema you created earlier.
 Leave threads at `1` for now.
 
 ## Test connection
+
 You are now ready to test the connection to Databricks. In the terminal, enter the following command:
 
 ```nofmt
@@ -72,6 +87,7 @@ dbt debug
 If all goes well, you will see a successful connection. If you cannot connect to Databricks, double-check the PAT and update it accordingly in `~/.dbt/profiles.yml`.
 
 ## Run your first models
+
 At this point, you simply run the demo models in the `models/example` directory. In your terminal, type:
 
 ```nofmt

@@ -81,7 +81,7 @@ jobs:
         run: poetry install --no-interaction --no-root
 
       - name: Run linting
-        run: poetry run nox -t lint
+        run: poetry run nox -t lint_check
 
   unit:
     name: unit test / python ${{ matrix.python-version }}

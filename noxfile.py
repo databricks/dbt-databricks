@@ -1,19 +1,19 @@
 from nox_poetry import session
 
 
-@session(tags=["lint"])
+@session(tags=["lint", "lint_check"])
 def black(session):
     session.install("black")
     session.run("black", "--check", "dbt", "tests")
 
 
-@session
+@session(tags=["lint"])
 def black_fix(session):
     session.install("black")
     session.run("black", "dbt", "tests")
 
 
-@session(tags=["lint"])
+@session(tags=["lint", "lint_check"])
 def flake8(session):
     session.install("flake8")
     session.run(
@@ -21,7 +21,7 @@ def flake8(session):
     )
 
 
-@session(tags=["lint"])
+@session(tags=["lint", "lint_check"])
 def mypy(session):
     session.run_always("poetry", "install", external=True)
     session.run("mypy", "--explicit-package-bases", "dbt", "tests")

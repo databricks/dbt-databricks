@@ -25,6 +25,7 @@ The `dbt-databricks` adapter contains all of the code enabling dbt to work with 
 - **Performance**. The adapter generates SQL expressions that are automatically accelerated by the native, vectorized [Photon](https://databricks.com/product/photon) execution engine.
 
 ## Choosing between dbt-databricks and dbt-spark
+
 If you are developing a dbt project on Databricks, we recommend using `dbt-databricks` for the reasons noted above.
 
 `dbt-spark` is an actively developed adapter which works with Databricks as well as Apache Spark anywhere it is hosted e.g. on AWS EMR.
@@ -34,11 +35,13 @@ If you are developing a dbt project on Databricks, we recommend using `dbt-datab
 ### Installation
 
 Install using pip:
+
 ```nofmt
 pip install dbt-databricks
 ```
 
 Upgrade to the latest version
+
 ```nofmt
 pip install --upgrade dbt-databricks
 ```
@@ -61,6 +64,7 @@ your_profile_name:
 ### Quick Starts
 
 These following quick starts will get you up and running with the `dbt-databricks` adapter:
+
 - [Developing your first dbt project](https://github.com/databricks/dbt-databricks/blob/main/docs/local-dev.md)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
 - [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
@@ -73,11 +77,13 @@ These following quick starts will get you up and running with the `dbt-databrick
 
 The `dbt-databricks` adapter has been tested:
 
-- with Python 3.7 or above.
+- with Python 3.8 or above.
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
 
 ### Tips and Tricks
+
 ## Choosing compute for a Python model
+
 You can override the compute used for a specific Python model by setting the `http_path` property in model configuration. This can be useful if, for example, you want to run a Python model on an All Purpose cluster, while running SQL models on a SQL Warehouse. Note that this capability is only available for Python models.
 
 ```
