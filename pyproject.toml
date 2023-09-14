@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dbt-databricks"
-version = "1.6.1"
+version = "1.6.4"
 description = "The Databricks adapter plugin for dbt"
 homepage = "https://github.com/databricks/dbt-databricks"
 repository = "https://github.com/databricks/dbt-databricks"
@@ -22,7 +22,7 @@ packages = [{include = "dbt"}]
 [tool.poetry.dependencies]
 python = "^3.8.1"
 dbt-spark = "1.6.0"
-databricks-sql-connector = "~=2.7.0"
+databricks-sql-connector = ">=2.9.3,<3"
 databricks-sdk = ">=0.1.7"
 keyring = ">=23.13.0"
 
