@@ -264,6 +264,8 @@ class DatabricksAdapter(SparkAdapter):
                         if view_names[name]
                         else DatabricksRelationType.View
                     )
+                elif database is None or database == "hive_metastore":
+                    return DatabricksRelationType.Table
                 else:
                     # not a view so it might be a streaming table
                     # get extended information to determine
