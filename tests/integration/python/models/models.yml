@@ -21,6 +21,13 @@ models:
         tests:
           - unique
 
+  - name: custom_index
+    config:
+      materialized: table
+      tags: ["python"]
+      http_path: '{{ var("http_path") }}'
+      create_notebook: true
+
   - name: adding_column
     config:
       materialized: table
