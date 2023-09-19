@@ -1,4 +1,5 @@
 from dbt.adapters.databricks.relation import DatabricksRelation
+from mock import MagicMock
 
 from tests.unit.macros.base import TestMacros
 
@@ -205,6 +206,21 @@ class TestSparkMacros(TestAdaptersMacros):
             "comment 'Description Test' "
             "tblproperties ('delta.appendOnly' = 'true' ) "
             "as select 1",
+        )
+
+    def test_macros_temp_relation_view(self):
+        relation = {
+            "identifier": "my_table",
+            "schema": "my_schema",
+            "database": "my_database",
+        }
+
+        mock = MagicMock()
+        self.default_context["api"] = {"Relation": {"create": mock}}
+        relation = self._run_macro_raw("databricks__make_temp_relation", relation)
+
+        mock.assert_called_once_with(
+            identifier="my_table__dbt_tmp", schema="my_schema", database="my_database", type="view"
         )
 
     def test_macros_create_view_as_tblproperties(self):

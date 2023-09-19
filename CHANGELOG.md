@@ -2,7 +2,11 @@
 
 ### Features
 
-- When installing python libraries onto clusters, you can now specify an index_url (Thanks @casperdamen123) ([367](https://github.com/databricks/dbt-databricks/pull/367))
+- When installing python libraries onto clusters, you can now specify an index_url (Thanks @casperdamen123) ([#367](https://github.com/databricks/dbt-databricks/pull/367))
+
+### Fixes
+
+- temp views are now made in the catalog/schema matching the base relation, rather than in the default catalog/schema, reducing the risk of permission issues and better matching the behavior of other adapters (Thanks @Maayan-s) ([#345](https://github.com/databricks/dbt-databricks/pull/345))
 
 ## dbt-databricks 1.6.4 (September 14, 2023)
 
