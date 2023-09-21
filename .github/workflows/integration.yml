@@ -1,6 +1,10 @@
 name: Integration Tests
 on:
   push:
+    branches:
+      - "main"
+      - "*.latest"
+      - "releases/*"
     paths-ignore:
       - "**.MD"
       - "**.md"
