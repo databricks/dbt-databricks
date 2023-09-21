@@ -4,6 +4,10 @@ on:
     paths-ignore:
       - "**.MD"
       - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest
