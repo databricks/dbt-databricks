@@ -7,6 +7,7 @@
 ### Fixes
 
 - Node info now gets added to SQLQueryStatus (Thanks @colin-rogers-dbt) ([453](https://github.com/databricks/dbt-databricks/pull/453))
+- Fixing python model compatibility with newer DBRs ([459](https://github.com/databricks/dbt-databricks/pull/459))
 
 ## dbt-databricks 1.6.4 (September 14, 2023)
 

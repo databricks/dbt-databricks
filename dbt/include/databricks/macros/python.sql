@@ -6,6 +6,7 @@ df = model(dbt, spark)
 
 import pyspark
 
+{{ py_try_import('pyspark.sql.connect.dataframe', 'newer_pyspark_available') }}
 {{ py_try_import('pandas', 'pandas_available') }}
 {{ py_try_import('pyspark.pandas', 'pyspark_pandas_api_available') }}
 {{ py_try_import('databricks.koalas', 'koalas_available') }}
@@ -22,6 +23,8 @@ if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
 
 # convert to pyspark.sql.dataframe.DataFrame
 if isinstance(df, pyspark.sql.dataframe.DataFrame):
+    pass  # since it is already a Spark DataFrame
+elif newer_pyspark_available and isinstance(df, pyspark.sql.connect.dataframe.DataFrame):
     pass  # since it is already a Spark DataFrame
 elif pyspark_pandas_api_available and isinstance(df, pyspark.pandas.frame.DataFrame):
     df = df.to_spark()
