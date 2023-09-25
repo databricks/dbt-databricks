@@ -40,6 +40,7 @@ from dbt.contracts.connection import (
 )
 from dbt.contracts.graph.manifest import Manifest
 from dbt.events import AdapterLogger
+from dbt.events.contextvars import get_node_info
 from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS, cast_to_str
@@ -768,6 +769,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     SQLQueryStatus(
                         status=str(self.get_response(cursor)),
                         elapsed=round((time.time() - pre), 2),
+                        node_info=get_node_info(),
                     )
                 )
 
@@ -821,6 +823,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     SQLQueryStatus(
                         status=str(self.get_response(cursor)),
                         elapsed=round((time.time() - pre), 2),
+                        node_info=get_node_info(),
                     )
                 )
 
