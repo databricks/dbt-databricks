@@ -3,6 +3,7 @@
 ### Features
 
 - When installing python libraries onto clusters, you can now specify an index_url (Thanks @casperdamen123) ([367](https://github.com/databricks/dbt-databricks/pull/367))
+- Log job run information such as run_id when submitting jobs to databricks (Thanks @jeffrey-harrison) ([#454](https://github.com/databricks/dbt-databricks/pull/454))
 
 ### Fixes
 
