@@ -1,5 +1,7 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+## dbt-databricks 1.6.5 (September 26, 2023)
+
 ### Features
 
 - When installing python libraries onto clusters, you can now specify an index_url (Thanks @casperdamen123) ([367](https://github.com/databricks/dbt-databricks/pull/367))
