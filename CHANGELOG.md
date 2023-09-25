@@ -3,13 +3,14 @@
 ### Features
 
 - When installing python libraries onto clusters, you can now specify an index_url (Thanks @casperdamen123) ([367](https://github.com/databricks/dbt-databricks/pull/367))
-- Log job run information such as run_id when submitting jobs to databricks (Thanks @jeffrey-harrison) ([#454](https://github.com/databricks/dbt-databricks/pull/454))
+- Log job run information such as run_id when submitting Python jobs to databricks (Thanks @jeffrey-harrison) ([#454](https://github.com/databricks/dbt-databricks/pull/454))
 
 ### Fixes
 
 - Node info now gets added to SQLQueryStatus (Thanks @colin-rogers-dbt) ([453](https://github.com/databricks/dbt-databricks/pull/453))
 - Fixing python model compatibility with newer DBRs ([459](https://github.com/databricks/dbt-databricks/pull/459))
 - Updated the Databricks SDK dependency so as to prevent reliance on an insecure version of requests ([460](https://github.com/databricks/dbt-databricks/pull/460))
+- Update logic around submitting python jobs so that if the cluster is already starting, just wait for it to start rather than failing ([461](https://github.com/databricks/dbt-databricks/pull/461))
 
 ## dbt-databricks 1.6.4 (September 14, 2023)
 
