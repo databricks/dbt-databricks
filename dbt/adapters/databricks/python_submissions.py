@@ -223,6 +223,9 @@ class DBContext:
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
 
+        if current_status != "RUNNING":
+            self._wait_for_cluster_to_start()
+
         response = requests.post(
             f"https://{self.host}/api/1.2/contexts/create",
             headers=self.auth_header,
@@ -289,7 +292,12 @@ class DBContext:
                 f"Error starting terminated cluster.\n {response.content!r}"
             )
 
+        self._wait_for_cluster_to_start()
+
+    def _wait_for_cluster_to_start(self) -> None:
         # seconds
+        logger.info("Waiting for cluster to be ready")
+
         MAX_CLUSTER_START_TIME = 900
         start_time = time.time()
 
