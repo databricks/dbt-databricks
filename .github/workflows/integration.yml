@@ -1,17 +1,11 @@
 name: Integration Tests
 on:
   push:
-    branches:
-      - "main"
-      - "*.latest"
-      - "releases/*"
     paths-ignore:
       - "**.MD"
       - "**.md"
-  pull_request:
-    paths-ignore:
-      - "**.MD"
-      - "**.md"
+  workflow_dispatch:
+
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest
