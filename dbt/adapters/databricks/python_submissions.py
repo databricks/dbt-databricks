@@ -119,7 +119,7 @@ class BaseDatabricksHelper(PythonJobHelper):
                 f"Error creating python run.\n {submit_response.content!r}"
             )
         response_json = submit_response.json()
-        logger.info(f"Submitted databricks job: {response_json}")
+        logger.info(f"Job submission response={response_json}")
         return response_json["run_id"]
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
@@ -328,6 +328,7 @@ class DBCommand:
                 "command": command,
             },
         )
+        logger.info(f"Job submission response={response.json()}")
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating a command.\n {response.content!r}"
