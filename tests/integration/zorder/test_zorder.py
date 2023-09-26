@@ -16,7 +16,8 @@ class TestZOrder(DBTIntegrationTest):
 
     def _test_zorder(self):
         self.run_dbt(["run"])
-        self.run_dbt(["run"])  # make sure it also run in incremental
+        self.run_dbt(["run"])
+        self.assert_in_log("zorder")  # make sure it also run in incremental
 
     @use_profile("databricks_cluster")
     def test_zorder_databricks_cluster(self):
