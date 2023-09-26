@@ -380,25 +380,25 @@
   {%- endif -%}
 {%- endmacro -%}
 
-{%- macro get_optimize_sql(relation) -%}
+{%- macro get_optimize_sql(relation) %}
   optimize {{ relation }}
-  {%- if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' -%}
-    {%- if config.get('liquid_clustered_by', False) -%}
+  {%- if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
+    {%- if config.get('liquid_clustered_by', False) %}
       {{ exceptions.warn("Both zorder and liquid_clustered_by are set but they are incompatible. zorder will be ignored.") }}
-    {%- else -%}
-      {%- set zorder = config.get('zorder', none) -%}
+    {%- else %}
+      {%- set zorder = config.get('zorder', none) %}
       {# TODO: predicates here? WHERE ...  #}
-      {%- if zorder is sequence and zorder is not string -%}
+      {%- if zorder is sequence and zorder is not string %}
         zorder by (
-        {%- for col in zorder -%}
+        {%- for col in zorder %}
         {{ col }}{% if not loop.last %}, {% endif %}
-        {%- endfor -%}
+        {%- endfor %}
         )
-      {%- else -%}
+      {%- else %}
         zorder by ({{zorder}})
-      {%- endif -%}
-    {%- endif -%}
-  {%- endif -%}
+      {%- endif %}
+    {%- endif %}
+  {%- endif %}
 {%- endmacro -%}
 
 {% macro databricks__list_relations_without_caching(schema_relation) %}
