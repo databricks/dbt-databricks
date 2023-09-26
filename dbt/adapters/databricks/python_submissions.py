@@ -91,15 +91,23 @@ class BaseDatabricksHelper(PythonJobHelper):
             },
         }
         job_spec.update(cluster_spec)  # updates 'new_cluster' config
+
         # PYPI packages
         packages = self.parsed_model["config"].get("packages", [])
+
+        # custom index URL or default
+        index_url = self.parsed_model["config"].get("index_url", "https://pypi.org/simple")
+
         # additional format of packages
         additional_libs = self.parsed_model["config"].get("additional_libs", [])
         libraries = []
+
         for package in packages:
-            libraries.append({"pypi": {"package": package}})
+            libraries.append({"pypi": {"package": package, "repo": index_url}})
+
         for lib in additional_libs:
             libraries.append(lib)
+
         job_spec.update({"libraries": libraries})  # type: ignore
         submit_response = requests.post(
             f"https://{self.credentials.host}/api/2.1/jobs/runs/submit",
@@ -110,7 +118,9 @@ class BaseDatabricksHelper(PythonJobHelper):
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating python run.\n {submit_response.content!r}"
             )
-        return submit_response.json()["run_id"]
+        response_json = submit_response.json()
+        logger.info(f"Job submission response={response_json}")
+        return response_json["run_id"]
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
         # it is safe to call mkdirs even if dir already exists and have content inside
@@ -213,6 +223,9 @@ class DBContext:
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
 
+        if current_status != "RUNNING":
+            self._wait_for_cluster_to_start()
+
         response = requests.post(
             f"https://{self.host}/api/1.2/contexts/create",
             headers=self.auth_header,
@@ -279,7 +292,12 @@ class DBContext:
                 f"Error starting terminated cluster.\n {response.content!r}"
             )
 
+        self._wait_for_cluster_to_start()
+
+    def _wait_for_cluster_to_start(self) -> None:
         # seconds
+        logger.info("Waiting for cluster to be ready")
+
         MAX_CLUSTER_START_TIME = 900
         start_time = time.time()
 
@@ -318,6 +336,7 @@ class DBCommand:
                 "command": command,
             },
         )
+        logger.info(f"Job submission response={response.json()}")
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating a command.\n {response.content!r}"
