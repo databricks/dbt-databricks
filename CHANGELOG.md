@@ -1,5 +1,9 @@
 ## dbt-databricks 1.6.x (Release TBD)
 
+### Fixes
+
+- Optimize now runs after creating / updating liquid clustering tables ([463](https://github.com/databricks/dbt-databricks/pull/463))
+
 ## dbt-databricks 1.6.5 (September 26, 2023)
 
 ### Features
