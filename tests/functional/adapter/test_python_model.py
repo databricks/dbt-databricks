@@ -15,12 +15,16 @@ from dbt.tests.adapter.python_model.test_spark import (
 )
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile(
+    "databricks_sql_endpoint", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
+)
 class TestPythonModelDatabricks(BasePythonModelTests):
     pass
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile(
+    "databricks_sql_endpoint", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
+)
 class TestPythonIncrementalModelDatabricks(BasePythonIncrementalTests):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -49,7 +53,9 @@ def model(dbt, spark):
 """
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile(
+    "databricks_sql_endpoint", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
+)
 class TestChangingSchemaDatabricks:
     @pytest.fixture(scope="class")
     def models(self):
@@ -72,7 +78,9 @@ class TestChangingSchemaDatabricks:
             assert "Execution status: OK in" in log
 
 
-@pytest.mark.skip_profile("databricks_sql_endpoint", "databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile(
+    "databricks_sql_endpoint", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
+)
 class TestPySparkDatabricks(BasePySparkTests):
     @pytest.fixture(scope="class")
     def models(self):
