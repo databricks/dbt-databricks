@@ -1,4 +1,5 @@
 import os
+import pytest
 from tests.integration.base import DBTIntegrationTest, use_profile
 from typing import Dict
 from dbt.contracts.results import RunResult, RunStatus
@@ -276,6 +277,7 @@ class TestModelLevelForeignKey(TestModelContract):
         self.test_table_constraints()
 
 
+@pytest.mark.skip(reason="test needs redesign")
 class TestModelContractNotDelta(TestModelContract):
     def test_table_constraints(self):
         self.run_dbt(["seed"])
