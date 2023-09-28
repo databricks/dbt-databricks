@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from itertools import chain
 from dataclasses import dataclass
 import re
+import os
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
 
 from agate import Row, Table, Text
@@ -68,9 +69,22 @@ def check_not_found_error(errmsg: str) -> bool:
     return new_error or old_error is not None
 
 
+def get_identifier_list_string(table_names: Set[str]) -> str:
+    """Returns `"|".join(table_names)` by default.
+    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
+    and the joined string exceeds 2048 characters
+    This is for AWS Glue Catalog users. See issue #325.
+    """
+
+    _identifier = "|".join(table_names)
+    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    if bypass_2048_char_limit == "true":
+        _identifier = _identifier if len(_identifier) < 2048 else "*"
+    return _identifier
+
+
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
-
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
@@ -397,7 +411,7 @@ class DatabricksAdapter(SparkAdapter):
             schema_relation = self.Relation.create(
                 database=database,
                 schema=schema,
-                identifier="|".join(table_names),
+                identifier=get_identifier_list_string(table_names),
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
