@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Type
 from dbt.contracts.relation import (
-    ComponentName,
+    ComponentName, RelationType
 )
+
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.dataclass_schema import StrEnum
@@ -13,36 +14,27 @@ from dbt.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 
-
-@dataclass
-class DatabricksQuotePolicy(Policy):
-    database: bool = True
-    schema: bool = True
-    identifier: bool = True
-
-
-@dataclass
-class DatabricksIncludePolicy(Policy):
-    database: bool = True
-    schema: bool = True
-    identifier: bool = True
-
-
-class DatabricksRelationType(StrEnum):
-    Table = "table"
-    View = "view"
-    CTE = "cte"
-    MaterializedView = "materializedview"
-    External = "external"
-    StreamingTable = "streamingtable"
-
-
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):
     type: Optional[DatabricksRelationType] = None  # type: ignore
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
+    relation_configs = {
+        RelationType.MaterializedView.value: RedshiftMaterializedViewConfig,
+    }
+    renameable_relations = frozenset(
+        {
+            RelationType.View,
+            RelationType.Table,
+        }
+    )
+    replaceable_relations = frozenset(
+        {
+            RelationType.View,
+            RelationType.Table,
+        }
+    )
 
     metadata: Optional[Dict[str, Any]] = None
 

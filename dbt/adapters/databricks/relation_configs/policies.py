@@ -3,10 +3,6 @@ from dataclasses import dataclass
 from dbt.adapters.base.relation import Policy
 from dbt.dataclass_schema import StrEnum
 
-
-MAX_CHARACTERS_IN_IDENTIFIER = 127
-
-
 class DatabricksRelationType(StrEnum):
     Table = "table"
     View = "view"
