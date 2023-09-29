@@ -476,6 +476,9 @@ class DatabricksSQLCursorWrapper:
     def fetchone(self) -> Optional[Tuple]:
         return self._cursor.fetchone()
 
+    def fetchmany(self, size: int) -> Sequence[Tuple]:
+        return self._cursor.fetchmany(size)
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]

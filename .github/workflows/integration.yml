@@ -1,0 +1,86 @@
+name: Integration Tests
+on:
+  push:
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
+jobs:
+  run-tox-tests-uc-cluster:
+    runs-on: ubuntu-latest
+    environment: azure-prod
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Get http path from environment
+        run: python .github/workflows/build_cluster_http_path.py
+        shell: sh
+      - name: Install tox
+        id: install-dependencies
+        run: pip install tox
+      - name: Run integration-uc-databricks-cluster
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-cluster
+
+  run-tox-tests-uc-sql:
+    runs-on: ubuntu-latest
+    environment: azure-prod
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Get http path from environment
+        run: python .github/workflows/build_cluster_http_path.py
+        shell: sh
+      - name: Install tox
+        id: install-dependencies
+        run: pip install tox
+      - name: Run integration-databricks-uc-sql-endpoint
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-sql-endpoint
+
+  run-tox-tests-non-uc:
+    runs-on: ubuntu-latest
+    environment: azure-prod
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Get http path from environment
+        run: python .github/workflows/build_cluster_http_path.py
+        shell: sh
+      - name: Install tox
+        id: install-dependencies
+        run: pip install tox
+      - name: Run integration-databricks-cluster
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-cluster

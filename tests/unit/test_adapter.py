@@ -7,7 +7,7 @@ import dbt.exceptions
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from dbt.adapters.databricks.impl import check_not_found_error
+from dbt.adapters.databricks.impl import check_not_found_error, get_identifier_list_string
 from dbt.adapters.databricks.connections import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
     DBT_DATABRICKS_INVOCATION_ENV,
@@ -936,6 +936,66 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "stats:rows:value": 12345678,
             },
         )
+
+    def test_describe_table_extended_2048_char_limit(self):
+        """GIVEN a list of table_names whos total character length exceeds 2048 characters
+        WHEN the environment variable DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS is "true"
+        THEN the identifier list is replaced with "*"
+        """
+
+        table_names: set(str) = set([f"customers_{i}" for i in range(200)])
+
+        # By default, don't limit the number of characters
+        self.assertEqual(get_identifier_list_string(table_names), "|".join(table_names))
+
+        # If environment variable is set, then limit the number of characters
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+            # Long list of table names is capped
+            self.assertEqual(get_identifier_list_string(table_names), "*")
+
+            # Short list of table names is not capped
+            self.assertEqual(
+                get_identifier_list_string(list(table_names)[:5]), "|".join(list(table_names)[:5])
+            )
+
+    def test_describe_table_extended_should_not_limit(self):
+        """GIVEN a list of table_names whos total character length exceeds 2048 characters
+        WHEN the environment variable DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS is not set
+        THEN the identifier list is not truncated
+        """
+
+        table_names: set(str) = set([f"customers_{i}" for i in range(200)])
+
+        # By default, don't limit the number of characters
+        self.assertEqual(get_identifier_list_string(table_names), "|".join(table_names))
+
+    def test_describe_table_extended_should_limit(self):
+        """GIVEN a list of table_names whos total character length exceeds 2048 characters
+        WHEN the environment variable DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS is "true"
+        THEN the identifier list is replaced with "*"
+        """
+
+        table_names: set(str) = set([f"customers_{i}" for i in range(200)])
+
+        # If environment variable is set, then limit the number of characters
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+            # Long list of table names is capped
+            self.assertEqual(get_identifier_list_string(table_names), "*")
+
+    def test_describe_table_extended_may_limit(self):
+        """GIVEN a list of table_names whos total character length does not 2048 characters
+        WHEN the environment variable DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS is "true"
+        THEN the identifier list is not truncated
+        """
+
+        table_names: set(str) = set([f"customers_{i}" for i in range(200)])
+
+        # If environment variable is set, then we may limit the number of characters
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+            # But a short list of table names is not capped
+            self.assertEqual(
+                get_identifier_list_string(list(table_names)[:5]), "|".join(list(table_names)[:5])
+            )
 
 
 class TestCheckNotFound(unittest.TestCase):
