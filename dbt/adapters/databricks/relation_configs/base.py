@@ -8,6 +8,7 @@ from dbt.adapters.databricks.relation_configs.policies import (
     DatabricksQuotePolicy,
 )
 
+
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class DatabricksRelationConfigBase(RelationConfigBase):
     """

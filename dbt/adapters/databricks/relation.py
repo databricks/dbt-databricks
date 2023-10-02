@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Type
-from dbt.contracts.relation import (
-    ComponentName, RelationType
-)
+from dbt.contracts.relation import ComponentName, RelationType
 
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
@@ -19,6 +17,7 @@ from dbt.adapters.databricks.relation_configs import (
 )
 
 KEY_TABLE_PROVIDER = "Provider"
+
 
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):

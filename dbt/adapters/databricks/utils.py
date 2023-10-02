@@ -78,6 +78,7 @@ def remove_ansi(line: str) -> str:
     ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
     return ansi_escape.sub("", line)
 
+
 def evaluate_bool_str(value: str) -> bool:
     value = value.strip().lower()
     if value == "true":
@@ -97,6 +98,6 @@ def evaluate_bool(value: Union[str, bool]) -> bool:
         return evaluate_bool_str(value)
     else:
         raise TypeError(
-            f"Invalid type for boolean evaluation, "
+            "Invalid type for boolean evaluation, "
             f"expecting boolean or str, recieved: {type(value)}"
         )

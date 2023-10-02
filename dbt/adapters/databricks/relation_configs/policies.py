@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dbt.adapters.base.relation import Policy
 from dbt.dataclass_schema import StrEnum
 
+
 class DatabricksRelationType(StrEnum):
     Table = "table"
     View = "view"
@@ -10,6 +11,7 @@ class DatabricksRelationType(StrEnum):
     MaterializedView = "materializedview"
     External = "external"
     StreamingTable = "streamingtable"
+
 
 @dataclass
 class DatabricksIncludePolicy(Policy):
@@ -23,4 +25,3 @@ class DatabricksQuotePolicy(Policy):
     database: bool = True
     schema: bool = True
     identifier: bool = True
-

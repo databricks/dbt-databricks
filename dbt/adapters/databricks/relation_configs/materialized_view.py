@@ -37,7 +37,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
     database_name: str
     query: str
     backup: bool = True
-    partition: None # to be done
+    partition: None  # to be done
     schedule: bool = False
 
     @property
@@ -85,7 +85,9 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
             config_dict.update({"query": query.strip()})
 
         if model_node.config.get("partition"):
-            config_dict.update({"partition": DatabricksPartitionConfig.parse_model_node(model_node)})
+            config_dict.update(
+                {"partition": DatabricksPartitionConfig.parse_model_node(model_node)}
+            )
 
         return config_dict
 
@@ -117,9 +119,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
 
         Returns: a standard dictionary describing this `DatabricksMaterializedViewConfig` instance
         """
-        materialized_view: agate.Row = cls._get_first_row(
-            relation_results.get("materialized_view")
-        )
+        materialized_view: agate.Row = cls._get_first_row(relation_results.get("materialized_view"))
         query: agate.Row = cls._get_first_row(relation_results.get("query"))
 
         config_dict = {
@@ -145,6 +145,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
 
         return config_dict
 
+
 # @dataclass(frozen=True, eq=True, unsafe_hash=True)
 # class DatabricksAutoRefreshConfigChange(RelationConfigChange):
 #     context: Optional[bool] = None
@@ -152,7 +153,6 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
 #     @property
 #     def requires_full_refresh(self) -> bool:
 #         return False
-
 
 
 @dataclass
