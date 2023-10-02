@@ -12,6 +12,12 @@ from dbt.adapters.databricks.utils import remove_undefined
 from dbt.utils import filter_null_values, classproperty
 from dbt.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks.relation_configs import (
+    DatabricksIncludePolicy,
+    DatabricksQuotePolicy,
+    DatabricksRelationType,
+)
+
 KEY_TABLE_PROVIDER = "Provider"
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -21,7 +27,7 @@ class DatabricksRelation(BaseRelation):
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
     relation_configs = {
-        RelationType.MaterializedView.value: RedshiftMaterializedViewConfig,
+        # RelationType.MaterializedView.value: DatabricksMaterializedViewConfig,
     }
     renameable_relations = frozenset(
         {
