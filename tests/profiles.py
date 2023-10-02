@@ -21,6 +21,7 @@ def _build_databricks_cluster_target(
     profile: Dict[str, Any] = {
         "type": "databricks",
         "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
+        "database": os.getenv("DBT_DATABRICKS_DB_NAME"),
         "http_path": http_path,
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
         "client_id": os.getenv("DBT_DATABRICKS_CLIENT_ID"),
