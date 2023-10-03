@@ -11,19 +11,19 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
     sql = f"""
     select
         'table' as relation_type
-    from pg_tables
-    where schemaname = '{relation.schema}'
-    and tablename = '{relation.identifier}'
+    from information_schema.tables
+    where table_schema = '{relation.schema}'
+    and table_name = '{relation.identifier}'
+    and table_type = 'TABLE'
     union all
     select
-        case
-            when definition ilike '%create materialized view%'
-            then 'materialized_view'
+        case when
+            is_materialized = TRUE then 'materialized_view'
             else 'view'
         end as relation_type
-    from pg_views
-    where schemaname = '{relation.schema}'
-    and viewname = '{relation.identifier}'
+    from information_schema.views
+    where table_schema = '{relation.schema}'
+    and table_name = '{relation.identifier}'
     """
     results = project.run_sql(sql, fetch="all")
     if len(results) == 0:
