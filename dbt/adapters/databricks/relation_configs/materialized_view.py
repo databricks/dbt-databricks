@@ -22,12 +22,16 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
     """
     This config follow the specs found here:
     https://docs.databricks.com/en/sql/language-manual/sql-ref-syntax-ddl-create-materialized-view.html
+    more detailed docs
+    https://docs.databricks.com/en/sql/user/materialized-views.html
 
     The following parameters are configurable by dbt:
     - mv_name: name of the materialized view
     - query: the query that defines the view
-    - partition:
+    - partition
+    - comment
     - schedule
+    - TBLPROPERTIES
 
     There are currently no non-configurable parameters.
     """
@@ -37,8 +41,8 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
     database_name: str
     query: str
     backup: bool = True
-    partition: None  # to be done
-    schedule: bool = False
+    partition: str  # to be done
+    schedule: str
 
     @property
     def path(self) -> str:
