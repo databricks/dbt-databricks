@@ -30,9 +30,6 @@ from tests.functional.adapter.materialized_view_tests.utils import (
 MY_MATERIALIZED_VIEW = """
 {{ config(
     materialized='materialized_view',
-    sort_type='compound',
-    sort=['id'],
-    dist='id',
 ) }}
 select * from {{ ref('my_seed') }}
 """
