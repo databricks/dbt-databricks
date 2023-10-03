@@ -96,14 +96,17 @@ class BaseDatabricksHelper(PythonJobHelper):
         packages = self.parsed_model["config"].get("packages", [])
 
         # custom index URL or default
-        index_url = self.parsed_model["config"].get("index_url", "https://pypi.org/simple")
+        index_url = self.parsed_model["config"].get("index_url", None)
 
         # additional format of packages
         additional_libs = self.parsed_model["config"].get("additional_libs", [])
         libraries = []
 
         for package in packages:
-            libraries.append({"pypi": {"package": package, "repo": index_url}})
+            if index_url:
+                libraries.append({"pypi": {"package": package, "repo": index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
 
         for lib in additional_libs:
             libraries.append(lib)
