@@ -3,6 +3,7 @@
 ### Fixes
 
 - Optimize now runs after creating / updating liquid clustering tables ([463](https://github.com/databricks/dbt-databricks/pull/463))
+- fix Pylance import errors ([471](https://github.com/databricks/dbt-databricks/pull/471))
 
 ## dbt-databricks 1.6.5 (September 26, 2023)
 
