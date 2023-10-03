@@ -13,6 +13,10 @@
 
 ## questions
 
+### what's the new naming convention?
+
+- `DatabricksRelationConfigBase`
+
 ### overly sparse `RelationConfigBase`
 
 why does `RelationConfigBase` (`adapters/relation_configs/config_base.py`) only have two methods? all the other ones are copied and pasted?
