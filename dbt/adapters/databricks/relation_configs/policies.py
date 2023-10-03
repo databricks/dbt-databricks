@@ -8,7 +8,7 @@ class DatabricksRelationType(StrEnum):
     Table = "table"
     View = "view"
     CTE = "cte"
-    MaterializedView = "materializedview"
+    MaterializedView = "materialized_view"
     External = "external"
     StreamingTable = "streamingtable"
 
