@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, FrozenSet, Set
+from typing import Optional, Set
 
 import agate
 from dbt.adapters.relation_configs import (
@@ -9,14 +9,11 @@ from dbt.adapters.relation_configs import (
     RelationConfigValidationRule,
 )
 from dbt.contracts.graph.nodes import ModelNode
-from dbt.dataclass_schema import StrEnum
-from dbt.exceptions import DbtRuntimeError
-
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksPartitionConfig(DatabricksRelationConfigBase, RelationConfigValidationMixin):
+class DatabricksScheduleConfig(DatabricksRelationConfigBase, RelationConfigValidationMixin):
     """
     This config fallows the specs found here:
     https://docs.databricks.com/en/sql/language-manual/sql-ref-partition.html#partitioned-by
@@ -78,7 +75,7 @@ class DatabricksPartitionConfig(DatabricksRelationConfigBase, RelationConfigVali
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksPartitionConfigChange(RelationConfigChange):
+class DatabricksScheduleConfigChange(RelationConfigChange):
     context: Optional[bool] = None
 
     @property

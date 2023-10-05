@@ -13,6 +13,11 @@ from dbt.contracts.relation import ComponentName
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.partition import (
+    DatabricksPartitionConfig,
+    DatabricksPartitionConfigChange,
+)
+from dbt.adapters.databricks.relation_configs.schedule import DatabricksScheduleConfigChange
 
 from dbt.adapters.databricks.utils import evaluate_bool
 
@@ -41,8 +46,8 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
     database_name: str
     query: str
     backup: bool = True
-    partition: str  # to be done
-    schedule: str
+    partition: Optional[str] = None  # to be done
+    schedule: Optional[str] = None
 
     @property
     def path(self) -> str:
@@ -52,11 +57,9 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
             if part is not None
         )
 
-    # can be filled out later
-    # @property
-    # def validation_rules(self) -> Set[RelationConfigValidationRule]:
-    #     # sort and dist rules get run by default with the mixin
-    #     return {}
+    @property
+    def validation_rules(self) -> Set[RelationConfigValidationRule]:
+        return {}
 
     @classmethod
     def from_dict(cls, config_dict) -> "DatabricksMaterializedViewConfig":
@@ -130,48 +133,24 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
             "mv_name": materialized_view.get("table"),
             "schema_name": materialized_view.get("schema"),
             "database_name": materialized_view.get("database"),
-            "autorefresh": materialized_view.get("autorefresh"),
+            "schedule": materialized_view.get("schedule"),
             "query": cls._parse_query(query.get("definition")),
         }
-
-        # the default for materialized views differs from the default for diststyle in general
-        # only set it if we got a value
-        if materialized_view.get("diststyle"):
-            config_dict.update(
-                {"dist": DatabricksDistConfig.parse_relation_results(materialized_view)}
-            )
-
-        # TODO: this only shows the first column in the sort key
-        if materialized_view.get("sortkey1"):
-            config_dict.update(
-                {"sort": DatabricksSortConfig.parse_relation_results(materialized_view)}
-            )
 
         return config_dict
 
 
-# @dataclass(frozen=True, eq=True, unsafe_hash=True)
-# class DatabricksAutoRefreshConfigChange(RelationConfigChange):
-#     context: Optional[bool] = None
-
-#     @property
-#     def requires_full_refresh(self) -> bool:
-#         return False
-
-
 @dataclass
 class DatabricksMaterializedViewConfigChangeset:
-    dist: Optional[DatabricksPartitionConfigChange] = None
-    autorefresh: Optional[DatabricksAutoRefreshConfigChange] = None
+    partition: Optional[DatabricksPartitionConfigChange] = None
+    schedule: Optional[DatabricksScheduleConfigChange] = None
 
     @property
     def requires_full_refresh(self) -> bool:
         return any(
             {
-                self.autorefresh.requires_full_refresh if self.autorefresh else False,
-                self.backup.requires_full_refresh if self.backup else False,
-                self.dist.requires_full_refresh if self.dist else False,
-                self.sort.requires_full_refresh if self.sort else False,
+                self.schedule.requires_full_refresh if self.schedule else False,
+                self.partition.requires_full_refresh if self.partition else False,
             }
         )
 
@@ -179,9 +158,7 @@ class DatabricksMaterializedViewConfigChangeset:
     def has_changes(self) -> bool:
         return any(
             {
-                self.backup if self.backup else False,
-                self.dist if self.dist else False,
-                self.sort if self.sort else False,
-                self.autorefresh if self.autorefresh else False,
+                self.schedule if self.schedule else False,
+                self.partition if self.partition else False,
             }
         )

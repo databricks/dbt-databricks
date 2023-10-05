@@ -2,7 +2,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.relation_configs import DatabricksMaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import (
+    DatabricksMaterializedViewConfig,
+)
 
 
 @pytest.mark.parametrize("bool_value", [True, False, "True", "False", "true", "false"])
