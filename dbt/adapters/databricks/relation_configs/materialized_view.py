@@ -13,9 +13,9 @@ from dbt.contracts.relation import ComponentName
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
-from dbt.adapters.databricks.relation_configs.partition import (
-    DatabricksPartitionConfig,
-    DatabricksPartitionConfigChange,
+from dbt.adapters.databricks.relation_configs.partitioned_by import (
+    DatabricksPartitionedByConfig,
+    DatabricksPartitionedByConfigChange,
 )
 from dbt.adapters.databricks.relation_configs.schedule import DatabricksScheduleConfigChange
 
@@ -93,7 +93,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
 
         if model_node.config.get("partition"):
             config_dict.update(
-                {"partition": DatabricksPartitionConfig.parse_model_node(model_node)}
+                {"partition": DatabricksPartitionedByConfig.parse_model_node(model_node)}
             )
 
         return config_dict
@@ -142,7 +142,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
 
 @dataclass
 class DatabricksMaterializedViewConfigChangeset:
-    partition: Optional[DatabricksPartitionConfigChange] = None
+    partition: Optional[DatabricksPartitionedByConfigChange] = None
     schedule: Optional[DatabricksScheduleConfigChange] = None
 
     @property

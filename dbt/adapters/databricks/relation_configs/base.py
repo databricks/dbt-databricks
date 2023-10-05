@@ -31,7 +31,7 @@ class DatabricksRelationConfigBase(RelationConfigBase):
         return DatabricksQuotePolicy()
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> "RelationConfigBase":
+    def from_model_node(cls, model_node: ModelNode) -> RelationConfigBase:
         relation_config = cls.parse_model_node(model_node)
         relation = cls.from_dict(relation_config)
         return relation
@@ -43,7 +43,7 @@ class DatabricksRelationConfigBase(RelationConfigBase):
         )
 
     @classmethod
-    def from_relation_results(cls, relation_results: RelationResults) -> "RelationConfigBase":
+    def from_relation_results(cls, relation_results: RelationResults) -> RelationConfigBase:
         relation_config = cls.parse_relation_results(relation_results)
         relation = cls.from_dict(relation_config)
         return relation

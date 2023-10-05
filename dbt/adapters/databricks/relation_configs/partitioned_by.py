@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, FrozenSet, Set
+from typing import Dict, FrozenSet, Optional, Set
 
 import agate
 from dbt.adapters.relation_configs import (
@@ -16,7 +16,7 @@ from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConf
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksPartitionConfig(DatabricksRelationConfigBase, RelationConfigValidationMixin):
+class DatabricksPartitionedByConfig(DatabricksRelationConfigBase, RelationConfigValidationMixin):
     """
     This config fallows the specs found here:
     https://docs.databricks.com/en/sql/language-manual/sql-ref-partition.html#partitioned-by
@@ -26,32 +26,20 @@ class DatabricksPartitionConfig(DatabricksRelationConfigBase, RelationConfigVali
     - column_type: the type of the specified thing
     """
 
-    # sortkey: Optional[FrozenSet[str]] = None
-
-    def __post_init__(self):
-        # # maintains `frozen=True` while allowing for a variable default on `sort_type`
-        # if self.sortstyle is None and self.sortkey is None:
-        #     object.__setattr__(self, "sortstyle", DatabrickSortStyle.default())
-        # elif self.sortstyle is None:
-        #     object.__setattr__(self, "sortstyle", DatabrickSortStyle.default_with_columns())
-        super().__post_init__()
+    partitioned_by_columns: FrozenSet[str]
 
     @property
     def validation_rules(self) -> Set[RelationConfigValidationRule]:
-        # TODO
-
-        pass
-
-    @classmethod
-    def from_dict(cls, config_dict):
-        # TODO
-
+        # TODO: can we reference the schema here to ensure that the columns are valid?
         pass
 
     @classmethod
     def parse_model_node(cls, model_node: ModelNode) -> dict:
-        # TODO
-        pass
+        config = {}
+        partitioned_by = model_node.config.extra.get("partitioned_by", None)
+
+        if partitioned_by:
+            config["partitioned_by_columns"] = frozenset(partitioned_by.split(","))
 
     @classmethod
     def parse_relation_results(cls, relation_results_entry: agate.Row) -> dict:
@@ -78,7 +66,7 @@ class DatabricksPartitionConfig(DatabricksRelationConfigBase, RelationConfigVali
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksPartitionConfigChange(RelationConfigChange):
+class DatabricksPartitionedByConfigChange(RelationConfigChange):
     context: Optional[bool] = None
 
     @property
