@@ -45,9 +45,8 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
     schema_name: str
     database_name: str
     query: str
-    backup: bool = True
     partition: Optional[str] = None  # to be done
-    schedule: Optional[str] = None
+    schedule: Optional[str] = None  # to be done
 
     @property
     def path(self) -> str:
@@ -84,17 +83,18 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
             "database_name": model_node.database,
         }
 
-        autorefresh_value = model_node.config.extra.get("schedule")
-        if autorefresh_value is not None:
-            config_dict["schedule"] = evaluate_bool(autorefresh_value)
-
         if query := model_node.compiled_code:
             config_dict.update({"query": query.strip()})
 
-        if model_node.config.get("partition"):
-            config_dict.update(
-                {"partition": DatabricksPartitionedByConfig.parse_model_node(model_node)}
-            )
+        # TODO
+        # schedule = model_node.config.extra.get("schedule")
+        # if schedule is not None:
+        #     config_dict["schedule"] =
+
+        # if model_node.config.get("partition"):
+        #     config_dict.update(
+        #         {"partition": DatabricksPartitionedByConfig.parse_model_node(model_node)}
+        #     )
 
         return config_dict
 
@@ -103,6 +103,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
         """
         Translate agate objects from the database into a standard dictionary.
 
+        # TODO: Fix this, the description comes from Redshift
         Args:
             relation_results: the description of the materialized view from the database in this format:
 
@@ -133,7 +134,7 @@ class DatabricksMaterializedViewConfig(DatabricksRelationConfigBase, RelationCon
             "mv_name": materialized_view.get("table"),
             "schema_name": materialized_view.get("schema"),
             "database_name": materialized_view.get("database"),
-            "schedule": materialized_view.get("schedule"),
+            # "schedule": materialized_view.get("schedule"),
             "query": cls._parse_query(query.get("definition")),
         }
 
@@ -147,18 +148,20 @@ class DatabricksMaterializedViewConfigChangeset:
 
     @property
     def requires_full_refresh(self) -> bool:
-        return any(
-            {
-                self.schedule.requires_full_refresh if self.schedule else False,
-                self.partition.requires_full_refresh if self.partition else False,
-            }
-        )
+        return False
+        # return any(
+        #     {
+        #         self.schedule.requires_full_refresh if self.schedule else False,
+        #         self.partition.requires_full_refresh if self.partition else False,
+        #     }
+        # )
 
     @property
     def has_changes(self) -> bool:
-        return any(
-            {
-                self.schedule if self.schedule else False,
-                self.partition if self.partition else False,
-            }
-        )
+        return False
+        # return any(
+        #     {
+        #         self.schedule if self.schedule else False,
+        #         self.partition if self.partition else False,
+        #     }
+        # )

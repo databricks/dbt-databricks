@@ -35,6 +35,8 @@ select * from {{ ref('my_seed') }}
 """
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestDatabricksMaterializedViewsBasic(MaterializedViewBasic):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
@@ -72,6 +74,8 @@ class TestDatabricksMaterializedViewsBasic(MaterializedViewBasic):
         assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class DatabricksMaterializedViewChanges(MaterializedViewChanges):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
@@ -120,9 +124,7 @@ class DatabricksMaterializedViewChanges(MaterializedViewChanges):
     @staticmethod
     def change_config_via_replace(project, materialized_view):
         initial_model = get_model_file(project, materialized_view)
-        new_model = initial_model.replace("dist='id',", "").replace(
-            "sort=['id']", "sort=['value']"
-        )
+        new_model = initial_model.replace("dist='id',", "").replace("sort=['id']", "sort=['value']")
         set_model_file(project, materialized_view, new_model)
 
     @staticmethod
@@ -131,6 +133,8 @@ class DatabricksMaterializedViewChanges(MaterializedViewChanges):
         assert query_dist(project, materialized_view) == "EVEN"
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestDatabricksMaterializedViewChangesApply(
     DatabricksMaterializedViewChanges, MaterializedViewChangesApplyMixin
 ):
@@ -188,6 +192,8 @@ class TestDatabricksMaterializedViewChangesApply(
         assert_message_in_logs(f"Applying REPLACE to: {my_materialized_view}", logs)
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestDatabricksMaterializedViewChangesContinue(
     DatabricksMaterializedViewChanges, MaterializedViewChangesContinueMixin
 ):
@@ -229,6 +235,8 @@ class TestDatabricksMaterializedViewChangesContinue(
         assert_message_in_logs(f"Applying REPLACE to: {my_materialized_view}", logs, False)
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestDatabricksMaterializedViewChangesFail(
     DatabricksMaterializedViewChanges, MaterializedViewChangesFailMixin
 ):
@@ -245,6 +253,8 @@ select * from {{ ref('my_seed') }}
 """
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestDatabricksMaterializedViewWithBackupConfig:
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
