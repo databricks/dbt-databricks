@@ -1,4 +1,15 @@
-## dbt-databricks 1.6.x (Release TBD)
+## dbt-databricks 1.7.x (TBD)
+
+## dbt-databricks 1.6.6 (October 9, 2023)
+
+### Fixes
+
+- Optimize now runs after creating / updating liquid clustering tables ([463](https://github.com/databricks/dbt-databricks/pull/463))
+- Fixing an issue where the new python library install from index behavior breaks users who were already customizing their installs ([472](https://github.com/databricks/dbt-databricks/pull/472))
+
+### Under the Hood
+
+- fix Pylance import errors (thanks @dataders) ([471](https://github.com/databricks/dbt-databricks/pull/471))
 
 ## dbt-databricks 1.6.5 (September 26, 2023)
 

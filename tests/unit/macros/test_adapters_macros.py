@@ -266,7 +266,7 @@ class TestDatabricksMacros(TestAdaptersMacros):
 
         self.assertEqual(
             sql,
-            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by (foo, bar)"),
+            ("optimize " "`some_database`.`some_schema`.`some_table` " "zorder by ( foo, bar )"),
         )
 
     def test_macros_optimize_with_extraneous_info(self):

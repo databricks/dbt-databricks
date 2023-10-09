@@ -605,6 +605,12 @@ class DBTIntegrationTest(unittest.TestCase):
 
         return sql
 
+    def assert_in_log(self, message: str) -> None:
+        log_file = os.path.join(self._logs_dir, "dbt.log")
+        with open(log_file, "r") as f:
+            log = f.read()
+            assert message.lower() in log.lower()
+
     def assertTablesEqual(
         self,
         table_a,
