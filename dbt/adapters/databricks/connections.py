@@ -100,8 +100,8 @@ SCOPES = ["all-apis", "offline_access"]
 
 @dataclass
 class DatabricksCredentials(Credentials):
-    database: Optional[str] = None
-    schema: Optional[str] = None
+    database: Optional[str] = None  # type: ignore[assignment]
+    schema: Optional[str] = None  # type: ignore[assignment]
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
