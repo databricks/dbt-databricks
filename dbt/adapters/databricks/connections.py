@@ -131,7 +131,7 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
-        if "." in self.schema:
+        if "." in (self.schema or ""):
             raise dbt.exceptions.DbtValidationError(
                 f"The schema should not contain '.': {self.schema}\n"
                 "If you are trying to set a catalog, please use `catalog` instead.\n"
