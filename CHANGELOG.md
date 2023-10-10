@@ -1,5 +1,9 @@
 ## dbt-databricks 1.7.x (TBD)
 
+### Under the Hood
+
+- Compatibility with dbt-spark 1.7.0b2 ([467](https://github.com/databricks/dbt-databricks/pull/467))
+
 ## dbt-databricks 1.6.6 (October 9, 2023)
 
 ### Fixes

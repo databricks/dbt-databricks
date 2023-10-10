@@ -100,7 +100,8 @@ SCOPES = ["all-apis", "offline_access"]
 
 @dataclass
 class DatabricksCredentials(Credentials):
-    database: Optional[str]  # type: ignore[assignment]
+    database: Optional[str] = None  # type: ignore[assignment]
+    schema: Optional[str] = None  # type: ignore[assignment]
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
@@ -130,7 +131,7 @@ class DatabricksCredentials(Credentials):
         return data
 
     def __post_init__(self) -> None:
-        if "." in self.schema:
+        if "." in (self.schema or ""):
             raise dbt.exceptions.DbtValidationError(
                 f"The schema should not contain '.': {self.schema}\n"
                 "If you are trying to set a catalog, please use `catalog` instead.\n"
