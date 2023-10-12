@@ -18,8 +18,14 @@ from dbt.tests.adapter.constraints.fixtures import (
     my_model_incremental_wrong_order_sql,
     my_model_incremental_wrong_name_sql,
     my_incremental_model_sql,
+    incremental_foreign_key_model_raw_numbers_sql,
+    incremental_foreign_key_model_stg_numbers_sql,
 )
-
+from dbt.tests.util import (
+    run_dbt,
+    write_file,
+    read_file,
+)
 
 # constraints are enforced via 'alter' statements that run after table creation
 _expected_sql_spark = """
@@ -208,3 +214,58 @@ class TestSparkIncrementalConstraintsRollback(
             "my_model.sql": my_incremental_model_sql,
             "constraints_schema.yml": constraints_yml,
         }
+
+
+incremental_foreign_key_schema_yml = """
+version: 2
+
+models:
+  - name: raw_numbers
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    columns:
+        - name: n
+          data_type: integer
+          constraints:
+            - type: primary_key
+            - type: not_null
+  - name: stg_numbers
+    config:
+      contract:
+        enforced: true
+      materialized: incremental
+      on_schema_change: append_new_columns
+      unique_key: n
+    columns:
+      - name: n
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            name: fk_n
+            expression: (n) REFERENCES {schema}.raw_numbers
+"""
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDatabricksIncrementalForeignKeyConstraint:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": incremental_foreign_key_schema_yml,
+            "raw_numbers.sql": incremental_foreign_key_model_raw_numbers_sql,
+            "stg_numbers.sql": incremental_foreign_key_model_stg_numbers_sql,
+        }
+
+    def test_incremental_foreign_key_constraint(self, project):
+        unformatted_constraint_schema_yml = read_file("models", "schema.yml")
+        write_file(
+            unformatted_constraint_schema_yml.format(schema=project.test_schema),
+            "models",
+            "schema.yml",
+        )
+
+        run_dbt(["run", "--select", "raw_numbers"])
+        run_dbt(["run", "--select", "stg_numbers"])
+        run_dbt(["run", "--select", "stg_numbers"])
