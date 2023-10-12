@@ -23,6 +23,7 @@ from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation, InformationSchema
+from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
 from dbt.adapters.spark.impl import (
     SparkAdapter,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
@@ -417,7 +418,9 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
+    def get_catalog(
+        self, manifest: Manifest, selected_nodes: Optional[Set] = None
+    ) -> Tuple[Table, List[Exception]]:
         schema_map = self._get_catalog_schemas(manifest)
 
         with executor(self.config) as tpe:
