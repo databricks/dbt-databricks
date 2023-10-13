@@ -1,8 +1,15 @@
 ## dbt-databricks 1.7.x (TBD)
 
+## dbt-databricks 1.7.0rc1 (October 13, 2023)
+
+### Fixes
+
+- Fixed a bug where setting a primary key constraint before a null constraint would fail by ensuring null constraints happen first ([479](https://github.com/databricks/dbt-databricks/pull/479))
+- Foreign key constraints now work with dbt's constraint structure ([479](https://github.com/databricks/dbt-databricks/pull/479))
+
 ### Under the Hood
 
-- Compatibility with dbt-spark 1.7.0b2 ([467](https://github.com/databricks/dbt-databricks/pull/467))
+- Compatibility with dbt-spark 1.7.0rc1 ([479](https://github.com/databricks/dbt-databricks/pull/479))
 
 ## dbt-databricks 1.6.6 (October 9, 2023)
 

@@ -417,7 +417,9 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
+    def get_catalog(
+        self, manifest: Manifest, selected_nodes: Optional[Set] = None
+    ) -> Tuple[Table, List[Exception]]:
         schema_map = self._get_catalog_schemas(manifest)
 
         with executor(self.config) as tpe:
