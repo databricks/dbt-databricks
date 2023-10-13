@@ -1,5 +1,6 @@
 import pytest
 from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClonePossible
+from dbt.tests.adapter.dbt_clone.test_dbt_clone import TestCloneSameTargetAndState  # noqa F401
 
 
 class TestDatabricksClonePossible(BaseClonePossible):
