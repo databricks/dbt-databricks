@@ -40,7 +40,7 @@ class TestGetRelationLastModified:
         with project.adapter.connection_named("__test"):
             project.adapter.drop_schema(relation)
 
-    def test_get_relation_last_modified(self, project, set_env_vars, custom_schema):
+    def test_get_relation_last_modified(self, project, custom_schema):
         project.run_sql(
             f"create table {custom_schema}.test_table (id integer, name varchar(100) not null);"
         )
