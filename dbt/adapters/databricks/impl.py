@@ -22,7 +22,7 @@ from agate import Row, Table, Text
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
-from dbt.adapters.base.relation import BaseRelation, InformationSchema
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, SchemaSearchMap
 from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -49,7 +49,7 @@ from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
-from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
+from dbt.adapters.databricks.utils import is_hive, redact_credentials, undefined_proof
 
 
 logger = AdapterLogger("Databricks")
@@ -109,7 +109,10 @@ class DatabricksAdapter(SparkAdapter):
     AdapterSpecificConfigs = DatabricksConfig
 
     _capabilities = CapabilityDict(
-        {Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full)}
+        {
+            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+        }
     )
 
     @available.parse(lambda *a, **k: 0)
@@ -269,7 +272,7 @@ class DatabricksAdapter(SparkAdapter):
                         if view_names[name]
                         else DatabricksRelationType.View
                     )
-                elif database is None or database == "hive_metastore":
+                elif is_hive(database):
                     return DatabricksRelationType.Table
                 else:
                     # not a view so it might be a streaming table
@@ -425,38 +428,47 @@ class DatabricksAdapter(SparkAdapter):
     def get_catalog(
         self, manifest: Manifest, selected_nodes: Optional[Set] = None
     ) -> Tuple[Table, List[Exception]]:
-        schema_map = self._get_catalog_schemas(manifest)
-
         with executor(self.config) as tpe:
+            relations = self._get_catalog_relations(manifest, selected_nodes)
+            relations_by_schema = self._get_catalog_relations_by_info_schema(relations)
+
             futures: List[Future[Table]] = []
-            for info, schemas in schema_map.items():
-                for schema in schemas:
+
+            for info_schema in relations_by_schema:
+                if is_hive(info_schema.database):
                     futures.append(
                         tpe.submit_connected(
                             self,
-                            schema,
-                            self._get_one_catalog,
-                            info,
-                            [schema],
+                            info_schema.schema,
+                            self._get_hive_schema,
+                            info_schema,
+                            info_schema.schema,
                             manifest,
                         )
                     )
+                else:
+                    name = ".".join([str(info_schema.database), "information_schema"])
+                    relations = relations_by_schema[info_schema]
+                    fut = tpe.submit_connected(
+                        self,
+                        name,
+                        self._get_one_catalog_by_relations,
+                        info_schema,
+                        relations,
+                        manifest,
+                    )
+                    futures.append(fut)
+
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_one_catalog(
+    def _get_hive_schema(
         self,
         information_schema: InformationSchema,
-        schemas: Set[str],
+        schema: str,
         manifest: Manifest,
     ) -> Table:
-        if len(schemas) != 1:
-            raise dbt.exceptions.CompilationError(
-                f"Expected only one schema in spark _get_one_catalog, found " f"{schemas}"
-            )
-
         database = information_schema.database
-        schema = list(schemas)[0]
 
         nodes: Iterator[ResultNode] = chain(
             (
