@@ -43,9 +43,13 @@
         table_catalog as table_database,
         table_schema,
         table_name,
-        table_type,
+        lower(if(table_type in ('MANAGED', 'EXTERNAL'), 'table', table_type)) as table_type,
         comment as table_comment,
-        table_owner
+        table_owner,
+        'Last Modified' as `stats:last_modified:label`,
+        last_altered as `stats:last_modified:value`,
+        'The timestamp for last update/change' as `stats:last_modified:description`,
+        (last_altered is not null and table_type not ilike '%VIEW%') as `stats:last_modified:include`
     from {{ information_schema }}.tables
 {%- endmacro %}
 
@@ -56,7 +60,7 @@
         table_name,
         column_name,
         ordinal_position as column_index,
-        data_type as column_type,
+        lower(data_type) as column_type,
         comment as column_comment
     from {{ information_schema }}.columns
 {%- endmacro %}

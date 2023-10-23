@@ -69,7 +69,7 @@ class TestDocsGenerateDatabricks(BaseDocsGenerate):
         return base_expected_catalog(
             project,
             role=AnyString(),
-            id_type="bigint",
+            id_type="long",
             text_type="string",
             time_type="timestamp",
             view_type="view",
