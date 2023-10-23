@@ -43,7 +43,7 @@ class DatabricksInformationSchema(InformationSchema):
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
 
-    def is_hive_metastore(self):
+    def is_hive_metastore(self) -> bool:
         return self.database is None or self.database == "hive_metastore"
 
 
@@ -126,7 +126,7 @@ class DatabricksRelation(BaseRelation):
     def get_relation_type(cls) -> Type[DatabricksRelationType]:
         return DatabricksRelationType
 
-    def information_schema(self, view_name=None) -> InformationSchema:
+    def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
         # some of our data comes from jinja, where things can be `Undefined`.
         if not isinstance(view_name, str):
             view_name = None

@@ -20,8 +20,8 @@
         from {{ information_schema }}.tables
         where (
           {%- for relation in relations -%}
-            (upper(table_schema) = upper('{{ relation.schema }}') and
-             upper(table_name) = upper('{{ relation.identifier }}')){%- if not loop.last %} or {% endif -%}
+            (table_schema = '{{ relation.schema }}' and
+             table_name = '{{ relation.identifier }}'){%- if not loop.last %} or {% endif -%}
           {%- endfor -%}
         )
     {% endif %}
