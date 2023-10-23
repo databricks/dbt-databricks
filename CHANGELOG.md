@@ -1,5 +1,9 @@
 ## dbt-databricks 1.7.x (TBD)
 
+### Features
+
+- Added support for getting freshness from metadata ([481](https://github.com/databricks/dbt-databricks/pull/481))
+
 ## dbt-databricks 1.7.0rc1 (October 13, 2023)
 
 ### Fixes

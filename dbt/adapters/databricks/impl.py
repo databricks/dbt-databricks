@@ -23,6 +23,7 @@ from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation, InformationSchema
+from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
 from dbt.adapters.spark.impl import (
     SparkAdapter,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
@@ -106,6 +107,10 @@ class DatabricksAdapter(SparkAdapter):
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
+
+    _capabilities = CapabilityDict(
+        {Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full)}
+    )
 
     @available.parse(lambda *a, **k: 0)
     def compare_dbr_version(self, major: int, minor: int) -> int:
