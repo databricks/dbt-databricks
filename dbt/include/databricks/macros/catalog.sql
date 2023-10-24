@@ -34,8 +34,6 @@
     {%- endset -%}
 
   {{ return(run_query(query)) }}
-    {{ return(run_query(query)) }}
-
 {%- endmacro %}
 
 {% macro databricks__get_catalog_tables_sql(information_schema) -%}

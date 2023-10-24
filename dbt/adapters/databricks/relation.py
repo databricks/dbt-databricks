@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Set, Type
 from dbt.contracts.relation import (
     ComponentName,
 )
@@ -44,7 +44,7 @@ class DatabricksInformationSchema(InformationSchema):
     quote_character: str = "`"
 
     def is_hive_metastore(self) -> bool:
-        return self.database is None or self.database == "hive_metastore"
+        return is_hive_metastore(self.database)
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -135,3 +135,11 @@ class DatabricksRelation(BaseRelation):
         # Instead address this as <database>.information_schema by default
         info_schema = DatabricksInformationSchema.from_relation(self, view_name)
         return info_schema.incorporate(path={"schema": None})
+
+
+def is_hive_metastore(database: Optional[str]) -> bool:
+    return database is None or database.lower() == "hive_metastore"
+
+
+def extract_identifiers(relations: List[BaseRelation]) -> Set[str]:
+    return {r.identifier for r in relations if r.identifier is not None}

@@ -47,8 +47,12 @@ from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
     DbtDatabricksJobClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
-from dbt.adapters.databricks.utils import is_hive, redact_credentials, undefined_proof
+from dbt.adapters.databricks.relation import is_hive_metastore, extract_identifiers
+from dbt.adapters.databricks.relation import (
+    DatabricksRelation,
+    DatabricksRelationType,
+)
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
 logger = AdapterLogger("Databricks")
@@ -271,7 +275,7 @@ class DatabricksAdapter(SparkAdapter):
                         if view_names[name]
                         else DatabricksRelationType.View
                     )
-                elif is_hive(database):
+                elif is_hive_metastore(database):
                     return DatabricksRelationType.Table
                 else:
                     # not a view so it might be a streaming table
@@ -434,7 +438,7 @@ class DatabricksAdapter(SparkAdapter):
             futures: List[Future[Table]] = []
 
             for info_schema, relations in relations_by_catalog.items():
-                if is_hive(info_schema.database):
+                if is_hive_metastore(info_schema.database):
                     schema_map = defaultdict(list)
                     for relation in relations:
                         schema_map[relation.schema].append(relation)
@@ -469,7 +473,7 @@ class DatabricksAdapter(SparkAdapter):
         schema: str,
         relations: List[BaseRelation],
     ) -> Table:
-        table_names: Set[str] = set([x.identifier for x in relations if x.identifier is not None])
+        table_names = extract_identifiers(relations)
         columns: List[Dict[str, Any]] = []
 
         if len(table_names) > 0:
