@@ -1,6 +1,6 @@
+from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
-from itertools import chain
 from dataclasses import dataclass
 import os
 import re
@@ -22,7 +22,7 @@ from agate import Row, Table, Text
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, SchemaSearchMap
+from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -36,7 +36,6 @@ from dbt.adapters.spark.impl import (
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
-from dbt.contracts.graph.nodes import ResultNode
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
 from dbt.events import AdapterLogger
@@ -345,7 +344,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
                 column=column["col_name"],
-                column_index=(idx + 1),
+                column_index=idx,
                 dtype=column["data_type"],
             )
             for idx, column in enumerate(rows)
@@ -416,7 +415,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.table,
                 table_type=relation.type,
-                column_index=(match_num + 1),
+                column_index=match_num,
                 table_owner=owner,
                 column=column_name,
                 dtype=DatabricksColumn.translate_type(column_type),
@@ -429,26 +428,29 @@ class DatabricksAdapter(SparkAdapter):
         self, manifest: Manifest, selected_nodes: Optional[Set] = None
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            relations = self._get_catalog_relations(manifest, selected_nodes)
-            relations_by_schema = self._get_catalog_relations_by_info_schema(relations)
+            catalog_relations = self._get_catalog_relations(manifest, selected_nodes)
+            relations_by_catalog = self._get_catalog_relations_by_info_schema(catalog_relations)
 
             futures: List[Future[Table]] = []
 
-            for info_schema in relations_by_schema:
+            for info_schema, relations in relations_by_catalog.items():
                 if is_hive(info_schema.database):
-                    futures.append(
-                        tpe.submit_connected(
-                            self,
-                            info_schema.schema,
-                            self._get_hive_schema,
-                            info_schema,
-                            info_schema.schema,
-                            manifest,
+                    schema_map = defaultdict(list)
+                    for relation in relations:
+                        schema_map[relation.schema].append(relation)
+
+                    for schema, schema_relations in schema_map.items():
+                        futures.append(
+                            tpe.submit_connected(
+                                self,
+                                "hive_metastore",
+                                self._get_hive_catalog,
+                                schema,
+                                schema_relations,
+                            )
                         )
-                    )
                 else:
                     name = ".".join([str(info_schema.database), "information_schema"])
-                    relations = relations_by_schema[info_schema]
                     fut = tpe.submit_connected(
                         self,
                         name,
@@ -462,35 +464,17 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_hive_schema(
+    def _get_hive_catalog(
         self,
-        information_schema: InformationSchema,
         schema: str,
-        manifest: Manifest,
+        relations: List[BaseRelation],
     ) -> Table:
-        database = information_schema.database
-
-        nodes: Iterator[ResultNode] = chain(
-            (
-                node
-                for node in manifest.nodes.values()
-                if (node.is_relational and not node.is_ephemeral_model)
-            ),
-            manifest.sources.values(),
-        )
-
-        table_names: Set[str] = set()
-        for node in nodes:
-            if node.database == database and node.schema == schema:
-                relation = self.Relation.create_from(self.config, node)
-                if relation.identifier:
-                    table_names.add(relation.identifier)
-
+        table_names: Set[str] = set([x.identifier for x in relations if x.identifier is not None])
         columns: List[Dict[str, Any]] = []
 
         if len(table_names) > 0:
             schema_relation = self.Relation.create(
-                database=database,
+                database="hive_metastore",
                 schema=schema,
                 identifier=get_identifier_list_string(table_names),
                 quote_policy=self.config.quoting,
