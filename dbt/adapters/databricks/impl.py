@@ -36,6 +36,7 @@ from dbt.adapters.spark.impl import (
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
+from dbt.contracts.graph.nodes import ResultNode
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
 from dbt.events import AdapterLogger
@@ -117,6 +118,25 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    # override/overload
+    def acquire_connection(
+        self, name: Optional[str] = None, node: Optional[ResultNode] = None
+    ) -> Connection:
+        return self.connections.set_connection_name(name, node)
+
+    # override
+    @contextmanager
+    def connection_named(self, name: str, node: Optional[ResultNode] = None) -> Iterator[None]:
+        try:
+            if self.connections.query_header is not None:
+                self.connections.query_header.set(name, node)
+            self.acquire_connection(name, node)
+            yield
+        finally:
+            self.release_connection()
+            if self.connections.query_header is not None:
+                self.connections.query_header.reset()
 
     @available.parse(lambda *a, **k: 0)
     def compare_dbr_version(self, major: int, minor: int) -> int:
