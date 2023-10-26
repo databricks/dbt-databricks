@@ -156,6 +156,8 @@ class DatabricksCredentials(Credentials):
                     f"Invalid catalog name : `{self.database}`."
                 )
             self.database = database
+        else:
+            self.database = "hive_metastore"
 
         connection_parameters = self.connection_parameters or {}
         for key in (
