@@ -20,7 +20,6 @@ class BaseCopyInto:
     def models(self):
         return {"target.sql": fixtures.target, "schema.yml": fixtures.model_schema}
 
-    @pytest.fixture(scope="class")
     def path(self, project):
         util.run_dbt(["seed"])
 
@@ -48,10 +47,8 @@ class BaseCopyInto:
         )
 
 
-# TODO - Rewrite to use external tables (or possibly just delta instead of parquet?) so that we can
-# test UC
-@pytest.mark.skip_profile("databricks_uc_cluster")
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+# TODO: figure out a way to test this on UC
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
 class TestCopyInto(BaseCopyInto):
     args_formatter = """
 target_table: target
@@ -63,15 +60,13 @@ copy_options:
   mergeSchema: 'true'
 """
 
-    def test_copy_into(self, project, path):
+    def test_copy_into(self, project):
+        path = self.path(project)
         self.copy_into(path, self.args_formatter)
         util.check_relations_equal(project.adapter, ["target", "expected_target"])
 
 
-# TODO - Rewrite to use external tables (or possibly just delta instead of parquet?) so that we can
-# test UC
-@pytest.mark.skip_profile("databricks_uc_cluster")
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
 class TestCopyIntoWithExpressionList(BaseCopyInto):
     args_formatter = """
 target_table: target
@@ -85,5 +80,6 @@ copy_options:
 """
 
     def test_copy_into_with_expression_list(self, project, path):
+        path = self.path(project)
         self.copy_into(path, self.args_formatter)
         util.check_relations_equal(project.adapter, ["target", "expected_target_expression_list"])
