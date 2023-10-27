@@ -79,7 +79,7 @@ copy_options:
   mergeSchema: 'true'
 """
 
-    def test_copy_into_with_expression_list(self, project, path):
+    def test_copy_into_with_expression_list(self, project):
         path = self.path(project)
         self.copy_into(path, self.args_formatter)
         util.check_relations_equal(project.adapter, ["target", "expected_target_expression_list"])
