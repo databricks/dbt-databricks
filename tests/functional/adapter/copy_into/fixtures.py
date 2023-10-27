@@ -1,4 +1,4 @@
-expected_target_with_expression_list = """id,name,date
+expected_target_expression_list = """id,name,date
 0,Zero,2022-01-01
 1,Alice,null
 2,Bob,null
@@ -39,7 +39,7 @@ seeds:
         id: int
         name: string
         date: string
-  - name: expected_target_with_expression_list
+  - name: expected_target_expression_list
     config:
       column_types:
         id: int
