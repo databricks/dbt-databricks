@@ -48,6 +48,10 @@ class BaseCopyInto:
         )
 
 
+# TODO - Rewrite to use external tables (or possibly just delta instead of parquet?) so that we can
+# test UC
+@pytest.mark.skip_profile("databricks_uc_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestCopyInto(BaseCopyInto):
     args_formatter = """
 target_table: target
@@ -64,6 +68,10 @@ copy_options:
         util.check_relations_equal(project.adapter, ["target", "expected_target"])
 
 
+# TODO - Rewrite to use external tables (or possibly just delta instead of parquet?) so that we can
+# test UC
+@pytest.mark.skip_profile("databricks_uc_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestCopyIntoWithExpressionList(BaseCopyInto):
     args_formatter = """
 target_table: target
