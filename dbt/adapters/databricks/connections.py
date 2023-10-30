@@ -742,13 +742,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 raise dbt.exceptions.DbtRuntimeError(str(exc)) from exc
 
     def add_query(
-            self,
-            sql: str,
-            auto_begin: bool = True,
-            bindings: Optional[Any] = None,
-            abridge_sql_log: bool = False,
-            *,
-            close_cursor: bool = False,
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        *,
+        close_cursor: bool = False,
     ) -> Tuple[Connection, Any]:
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
