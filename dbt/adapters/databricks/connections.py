@@ -160,15 +160,15 @@ class DatabricksCredentials(Credentials):
 
         connection_parameters = self.connection_parameters or {}
         for key in (
-                "server_hostname",
-                "http_path",
-                "access_token",
-                "client_id",
-                "client_secret",
-                "session_configuration",
-                "catalog",
-                "schema",
-                "_user_agent_entry",
+            "server_hostname",
+            "http_path",
+            "access_token",
+            "client_id",
+            "client_secret",
+            "session_configuration",
+            "catalog",
+            "schema",
+            "_user_agent_entry",
         ):
             if key in connection_parameters:
                 raise dbt.exceptions.DbtValidationError(
@@ -177,8 +177,8 @@ class DatabricksCredentials(Credentials):
         if "http_headers" in connection_parameters:
             http_headers = connection_parameters["http_headers"]
             if not isinstance(http_headers, dict) or any(
-                    not isinstance(key, str) or not isinstance(value, str)
-                    for key, value in http_headers.items()
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in http_headers.items()
             ):
                 raise dbt.exceptions.DbtValidationError(
                     "The connection parameter `http_headers` should be dict of strings: "
@@ -235,7 +235,7 @@ class DatabricksCredentials(Credentials):
         )
 
         intersect_http_header_keys = (
-                user_http_session_headers.keys() & http_session_headers_dict.keys()
+            user_http_session_headers.keys() & http_session_headers_dict.keys()
         )
 
         if len(intersect_http_header_keys) > 0:
@@ -400,12 +400,12 @@ class DatabricksSQLConnectionWrapper:
     _user_agent: str
 
     def __init__(
-            self,
-            conn: DatabricksSQLConnection,
-            *,
-            is_cluster: bool,
-            creds: DatabricksCredentials,
-            user_agent: str,
+        self,
+        conn: DatabricksSQLConnection,
+        *,
+        is_cluster: bool,
+        creds: DatabricksCredentials,
+        user_agent: str,
     ):
         self._conn = conn
         self._is_cluster = is_cluster
@@ -788,11 +788,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cursor.close()
 
     def execute(
-            self,
-            sql: str,
-            auto_begin: bool = False,
-            fetch: bool = False,
-            limit: Optional[int] = None,
+        self,
+        sql: str,
+        auto_begin: bool = False,
+        fetch: bool = False,
+        limit: Optional[int] = None,
     ) -> Tuple[DatabricksAdapterResponse, Table]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
@@ -807,7 +807,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             cursor.close()
 
     def _execute_cursor(
-            self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
+        self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
     ) -> Table:
         connection = self.get_thread_connection()
 
@@ -1005,7 +1005,7 @@ def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id:
         e
         for e in events
         if e.get("event_type", "") == "update_progress"
-           and e.get("origin", {}).get("update_id") == update_id
+        and e.get("origin", {}).get("update_id") == update_id
     ]
 
     error_events = [
