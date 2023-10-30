@@ -1123,8 +1123,16 @@ def get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> O
     # Get the http path of the compute resource specified in the node's config.
     # If none is specified return the default path from creds.
     compute_name = get_compute_name(node)
-    http_path = creds.http_path
-    if compute_name and creds.compute:
-        http_path = creds.compute.get(compute_name, {}).get("http_path", creds.http_path)
+    if not node or not compute_name:
+        return creds.http_path
+
+    http_path = None
+    if creds.compute:
+        http_path = creds.compute.get(compute_name, {}).get("http_path", None)
+
+    if not http_path:
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Compute resource {compute_name} does not exist, relation: {node.relation_name}"
+        )
 
     return http_path
