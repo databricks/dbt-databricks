@@ -85,6 +85,7 @@ pysql_logger.setLevel(pysql_logger_level)
 pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
 pysql_logger.addHandler(pysql_handler)
 
+
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
@@ -515,8 +516,8 @@ class DatabricksSQLCursorWrapper:
         self.pollRefreshPipeline(sql)
 
     def pollRefreshPipeline(
-            self,
-            sql: str,
+        self,
+        sql: str,
     ) -> None:
         should_poll, model_name = _should_poll_refresh(sql)
         if not should_poll:
@@ -635,7 +636,7 @@ class DatabricksSQLCursorWrapper:
 
     @property
     def description(
-            self,
+        self,
     ) -> Sequence[
         Tuple[
             str,
