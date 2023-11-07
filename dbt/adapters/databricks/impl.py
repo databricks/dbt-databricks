@@ -428,12 +428,15 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(
-        self, manifest: Manifest, selected_nodes: Optional[Set] = None
+    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
+        catalog_relations = self._get_catalog_relations(manifest)
+        return self.get_catalog_by_relations(manifest, catalog_relations)
+
+    def get_catalog_by_relations(
+        self, manifest: Manifest, relations: Set[BaseRelation] = None
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            catalog_relations = self._get_catalog_relations(manifest, selected_nodes)
-            relations_by_catalog = self._get_catalog_relations_by_info_schema(catalog_relations)
+            relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
 
             futures: List[Future[Table]] = []
 
