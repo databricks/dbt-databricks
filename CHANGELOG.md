@@ -12,6 +12,7 @@
 ### Under the Hood
 
 - Added required adapter tests to ensure compatibility with 1.7.0 ([487](https://github.com/databricks/dbt-databricks/pull/487))
+- Improved large seed performance by not casting every value (thanks @nrichards17!) ([493](https://github.com/databricks/dbt-databricks/pull/493))
 
 ## dbt-databricks 1.7.0rc1 (October 13, 2023)
 
