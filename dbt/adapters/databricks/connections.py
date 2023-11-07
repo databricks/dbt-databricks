@@ -762,7 +762,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if abridge_sql_log:
                     log_sql = "{}...".format(log_sql[:512])
 
-                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
+                fire_event(
+                    SQLQuery(
+                        conn_name=cast_to_str(connection.name),
+                        sql=log_sql,
+                        node_info=get_node_info(),
+                    )
+                )
                 pre = time.time()
 
                 cursor = cast(DatabricksSQLConnectionWrapper, connection.handle).cursor()
@@ -815,7 +821,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
         with self.exception_handler(log_sql):
             cursor: Optional[DatabricksSQLCursorWrapper] = None
             try:
-                fire_event(SQLQuery(conn_name=cast_to_str(connection.name), sql=log_sql))
+                fire_event(
+                    SQLQuery(
+                        conn_name=cast_to_str(connection.name),
+                        sql=log_sql,
+                        node_info=get_node_info(),
+                    )
+                )
                 pre = time.time()
 
                 handle: DatabricksSQLConnectionWrapper = connection.handle

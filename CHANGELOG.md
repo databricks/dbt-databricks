@@ -5,6 +5,10 @@
 - Added support for getting info only on specified relations to improve performance of gathering metadata ([486](https://github.com/databricks/dbt-databricks/pull/486))
 - Added support for getting freshness from metadata ([481](https://github.com/databricks/dbt-databricks/pull/481))
 
+### Fixes
+
+- Node info now gets added to SQLQuery event ([494](https://github.com/databricks/dbt-databricks/pull/494))
+
 ### Under the Hood
 
 - Added required adapter tests to ensure compatibility with 1.7.0 ([487](https://github.com/databricks/dbt-databricks/pull/487))
