@@ -428,15 +428,22 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:
-        catalog_relations = self._get_catalog_relations(manifest)
-        return self.get_catalog_by_relations(manifest, catalog_relations)
+    def get_catalog(
+        self, manifest: Manifest, selected_nodes: Optional[Set[Any]] = None
+    ) -> Tuple[Table, List[Exception]]:
+        if selected_nodes:
+            relations: Set[BaseRelation] = {
+                self.Relation.create_from(self.config, n) for n in selected_nodes
+            }
+        else:
+            relations = set(self._get_catalog_relations(manifest))
+        return self.get_catalog_by_relations(manifest, relations)
 
     def get_catalog_by_relations(
-        self, manifest: Manifest, relations: Set[BaseRelation] = None
+        self, manifest: Manifest, catalog_relations: Set[BaseRelation]
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
+            relations_by_catalog = self._get_catalog_relations_by_info_schema(catalog_relations)
 
             futures: List[Future[Table]] = []
 
@@ -474,7 +481,7 @@ class DatabricksAdapter(SparkAdapter):
     def _get_hive_catalog(
         self,
         schema: str,
-        relations: List[BaseRelation],
+        relations: Set[BaseRelation],
     ) -> Table:
         table_names = extract_identifiers(relations)
         columns: List[Dict[str, Any]] = []
