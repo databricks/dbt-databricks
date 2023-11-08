@@ -925,10 +925,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         if not node:
             return cls.open
 
-        def _open(connection: Connection) -> Connection:
+        def open_for_model(connection: Connection) -> Connection:
             return cls._open(connection, node)
 
-        return _open
+        return open_for_model
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
@@ -961,9 +961,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
-        # If a model specifies a compute resource to use the http path
+        # If a model specifies a compute resource the http path
         # may be different than the http_path property of creds.
-        http_path = get_http_path(node, creds)
+        http_path = _get_http_path(node, creds)
 
         def connect() -> DatabricksSQLConnectionWrapper:
             try:
@@ -1110,19 +1110,19 @@ def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id:
     return msg
 
 
-def get_compute_name(node: Optional[ResultNode]) -> Optional[str]:
+def _get_compute_name(node: Optional[ResultNode]) -> Optional[str]:
     # Get the name of the specified compute resource from the node's
     # config.
     compute_name = None
-    if node and node.config and node.config.extra:
-        compute_name = node.config.extra.get("databricks_compute", None)
+    if node and node.config:
+        compute_name = node.config.get("databricks_compute", None)
     return compute_name
 
 
-def get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> Optional[str]:
+def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> Optional[str]:
     # Get the http path of the compute resource specified in the node's config.
     # If none is specified return the default path from creds.
-    compute_name = get_compute_name(node)
+    compute_name = _get_compute_name(node)
     if not node or not compute_name:
         return creds.http_path
 
