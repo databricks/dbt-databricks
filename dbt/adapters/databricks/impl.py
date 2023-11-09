@@ -236,7 +236,7 @@ class DatabricksAdapter(SparkAdapter):
         new_rows: List[Tuple[Optional[str], str, str, str]]
         if all([relation.database, relation.schema]):
             tables = self.connections.list_tables(
-                database=relation.database, schema=relation.schema
+                database=relation.database, schema=relation.schema  # type: ignore[arg-type]
             )
 
             new_rows = []
@@ -457,17 +457,17 @@ class DatabricksAdapter(SparkAdapter):
         return self.get_catalog_by_relations(manifest, relations)
 
     def get_catalog_by_relations(
-        self, manifest: Manifest, catalog_relations: Set[BaseRelation]
+        self, manifest: Manifest, relations: Set[BaseRelation]
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            relations_by_catalog = self._get_catalog_relations_by_info_schema(catalog_relations)
+            relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
 
             futures: List[Future[Table]] = []
 
-            for info_schema, relations in relations_by_catalog.items():
+            for info_schema, catalog_relations in relations_by_catalog.items():
                 if is_hive_metastore(info_schema.database):
                     schema_map = defaultdict(list)
-                    for relation in relations:
+                    for relation in catalog_relations:
                         schema_map[relation.schema].append(relation)
 
                     for schema, schema_relations in schema_map.items():
@@ -487,7 +487,7 @@ class DatabricksAdapter(SparkAdapter):
                         name,
                         self._get_one_catalog_by_relations,
                         info_schema,
-                        relations,
+                        catalog_relations,
                         manifest,
                     )
                     futures.append(fut)
