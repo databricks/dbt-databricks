@@ -284,9 +284,7 @@ class DatabricksAdapter(SparkAdapter):
 
             # a function to resolve an unknown table type
             def typeFromNames(database: Optional[str], name: str) -> DatabricksRelationType:
-                if is_hive_metastore(database):
-                    return DatabricksRelationType.Table
-                elif name in view_names:
+                if name in view_names:
                     # it is either a view or a materialized view
                     return (
                         DatabricksRelationType.MaterializedView
@@ -300,6 +298,8 @@ class DatabricksAdapter(SparkAdapter):
                         if table_names[name]
                         else DatabricksRelationType.Table
                     )
+                elif is_hive_metastore(database):
+                    return DatabricksRelationType.Table
                 else:
                     raise dbt.exceptions.DbtRuntimeError(
                         f"Unexpected relation type discovered: Database:{database}, Relation:{name}"
