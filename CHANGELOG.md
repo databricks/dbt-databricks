@@ -2,7 +2,7 @@
 
 ### Features
 
-- Added support for getting info only on specified relations to improve performance of gathering metadata ([486](https://github.com/databricks/dbt-databricks/pull/486))
+- Added support for getting info only on specified relations to improve performance of gathering metadata ([486](https://github.com/databricks/dbt-databricks/pull/486)), also (with generous help from from @mikealfare) ([499](https://github.com/databricks/dbt-databricks/pull/499))
 - Added support for getting freshness from metadata ([481](https://github.com/databricks/dbt-databricks/pull/481))
 
 ### Fixes
