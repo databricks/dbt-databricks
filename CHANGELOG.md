@@ -1,18 +1,19 @@
-## dbt-databricks 1.7.0 (TBD)
+## dbt-databricks 1.7.0 (November 9, 2023)
 
 ### Features
 
-- Added support for getting info only on specified relations to improve performance of gathering metadata ([486](https://github.com/databricks/dbt-databricks/pull/486))
+- Added support for getting info only on specified relations to improve performance of gathering metadata ([486](https://github.com/databricks/dbt-databricks/pull/486)), also (with generous help from from @mikealfare) ([499](https://github.com/databricks/dbt-databricks/pull/499))
 - Added support for getting freshness from metadata ([481](https://github.com/databricks/dbt-databricks/pull/481))
 
 ### Fixes
 
-- Node info now gets added to SQLQuery event ([494](https://github.com/databricks/dbt-databricks/pull/494))
+- Node info now gets added to SQLQuery event (thanks @davidharting!) ([494](https://github.com/databricks/dbt-databricks/pull/494))
+- Compatibility with dbt-spark and dbt-core 1.7.1 ([499](https://github.com/databricks/dbt-databricks/pull/499))
 
 ### Under the Hood
 
 - Added required adapter tests to ensure compatibility with 1.7.0 ([487](https://github.com/databricks/dbt-databricks/pull/487))
-- Improved large seed performance by not casting every value (thanks @nrichards17!) ([493](https://github.com/databricks/dbt-databricks/pull/493))
+- Improved large seed performance by not casting every value (thanks @nrichards17!) ([493](https://github.com/databricks/dbt-databricks/pull/493)). Note: for `file_format="parquet"` we still need to cast.
 
 ## dbt-databricks 1.7.0rc1 (October 13, 2023)
 

@@ -1,4 +1,4 @@
-from dbt.tests.adapter.simple_seed.test_seed import SeedUniqueDelimiterTestBase
+from dbt.tests.adapter.simple_seed.test_seed import SeedUniqueDelimiterTestBase, BaseTestEmptySeed
 from dbt.tests.util import run_dbt
 import pytest
 
@@ -557,3 +557,7 @@ class TestDatabricksSeedWithEmptyDelimiter(DatabricksSeedUniqueDelimiterTestBase
         """Testing failure of running dbt seed with an empty configured delimiter value"""
         seed_result = run_dbt(["seed"], expect_pass=False)
         assert "compilation error" in seed_result.results[0].message.lower()
+
+
+class TestDatabricksEmptySeed(BaseTestEmptySeed):
+    pass
