@@ -234,8 +234,7 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[Optional[str], str, str, str]]
-        if relation.database is not None:
-            assert relation.schema is not None
+        if all([relation.database, relation.schema]):
             tables = self.connections.list_tables(
                 database=relation.database, schema=relation.schema
             )
@@ -256,39 +255,59 @@ class DatabricksAdapter(SparkAdapter):
 
         # if there are any table types to be resolved
         if any(not row[3] for row in new_rows):
-            # Get view names and create a dictionay of view name to materialization
+            # Get view names and tables and create a dictionary of name to materialization
+            relation_all_tables = self.Relation.create(
+                database=relation.database,
+                schema=relation.schema,
+                identifier="*"
+            )
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+                tables = self.execute_macro(
+                    SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs={"relation": relation_all_tables}
+                )
 
             view_names: Dict[str, bool] = {
                 view["viewName"]: view.get("isMaterialized", False) for view in views
             }
 
+            def parse_type(information: str) -> str:
+                type_entry = [
+                    entry.strip()
+                    for entry in information.split("\n")
+                    if entry.split(":")[0] == "Type"
+                ]
+                return type_entry[0] if type_entry else ""
+
+            table_names: Dict[str, bool] = {
+                table["tableName"]: (parse_type(table["information"]) == "STREAMING_TABLE")
+                for table in tables
+            }
+
             # a function to resolve an unknown table type
             def typeFromNames(
-                database: Optional[str], schema: str, name: str
+                database: Optional[str], name: str
             ) -> DatabricksRelationType:
-                if name in view_names:
+                if is_hive_metastore(database):
+                    return DatabricksRelationType.Table
+                elif name in view_names:
                     # it is either a view or a materialized view
                     return (
                         DatabricksRelationType.MaterializedView
                         if view_names[name]
                         else DatabricksRelationType.View
                     )
-                elif is_hive_metastore(database):
-                    return DatabricksRelationType.Table
+                elif name in table_names:
+                    # it is either a table or a streaming table
+                    return (
+                        DatabricksRelationType.StreamingTable
+                        if table_names[name]
+                        else DatabricksRelationType.Table
+                    )
                 else:
-                    # not a view so it might be a streaming table
-                    # get extended information to determine
-                    rel = self.Relation.create(database, schema, name)
-                    rel = self._set_relation_information(rel)
-                    if (
-                        rel.metadata is not None
-                        and rel.metadata.get("Type", "table") == "STREAMING_TABLE"
-                    ):
-                        return DatabricksRelationType.StreamingTable
-                    else:
-                        return DatabricksRelationType.Table
+                    raise dbt.exceptions.DbtRuntimeError(
+                        f"Unexpected relation type discovered: Database:{database}, Relation:{name}"
+                    )
 
             # create a new collection of rows with the correct table types
             new_rows = [
@@ -296,7 +315,7 @@ class DatabricksAdapter(SparkAdapter):
                     row[0],
                     row[1],
                     row[2],
-                    str(row[3] if row[3] else typeFromNames(row[0], row[1], row[2])),
+                    str(row[3] if row[3] else typeFromNames(row[0], row[2])),
                 )
                 for row in new_rows
             ]
