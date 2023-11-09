@@ -256,10 +256,14 @@ class DatabricksAdapter(SparkAdapter):
         # if there are any table types to be resolved
         if any(not row[3] for row in new_rows):
             # Get view names and create a dictionary of view name to materialization
+            relation_all_tables = self.Relation.create(
+                database=relation.database, schema=relation.schema, identifier="*"
+            )
+
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
                 tables = self.execute_macro(
-                    SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs={"schema_relation": relation}
+                    SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs={"schema_relation": relation_all_tables}
                 )
             view_names: Dict[str, bool] = {
                 view["viewName"]: view.get("isMaterialized", False) for view in views
