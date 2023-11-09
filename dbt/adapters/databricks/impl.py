@@ -257,9 +257,7 @@ class DatabricksAdapter(SparkAdapter):
         if any(not row[3] for row in new_rows):
             # Get view names and tables and create a dictionary of name to materialization
             relation_all_tables = self.Relation.create(
-                database=relation.database,
-                schema=relation.schema,
-                identifier="*"
+                database=relation.database, schema=relation.schema, identifier="*"
             )
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
@@ -285,9 +283,7 @@ class DatabricksAdapter(SparkAdapter):
             }
 
             # a function to resolve an unknown table type
-            def typeFromNames(
-                database: Optional[str], name: str
-            ) -> DatabricksRelationType:
+            def typeFromNames(database: Optional[str], name: str) -> DatabricksRelationType:
                 if is_hive_metastore(database):
                     return DatabricksRelationType.Table
                 elif name in view_names:
