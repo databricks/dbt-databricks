@@ -549,7 +549,7 @@ class DatabricksAdapter(SparkAdapter):
             schema_relation = self.Relation.create(
                 database="hive_metastore",
                 schema=schema,
-                identifier=get_identifier_list_string(identifier),
+                identifier=identifier,
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
