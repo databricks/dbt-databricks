@@ -19,6 +19,27 @@
   {% endcall %}
 {% endmacro %}
 
+{% macro get_catalog(information_schema, schemas) -%}
+  {{ return(adapter.dispatch('get_catalog', 'dbt')(information_schema, schemas)) }}
+{% endmacro %}
+
+{% macro databricks__get_catalog(information_schema, schemas) -%}
+
+    {% set query %}
+        with tables as (
+            {{ databricks__get_catalog_tables_sql(information_schema) }}
+            {{ databricks__get_catalog_schemas_where_clause_sql(schemas) }}
+        ),
+        columns as (
+            {{ databricks__get_catalog_columns_sql(information_schema) }}
+            {{ databricks__get_catalog_schemas_where_clause_sql(schemas) }}
+        )
+        {{ databricks__get_catalog_results_sql() }}
+    {%- endset -%}
+
+  {{ return(run_query(query)) }}
+{%- endmacro %}
+
 {% macro databricks__get_catalog_relations(information_schema, relations) -%}
 
     {% set query %}
@@ -72,7 +93,7 @@
 
 {% macro databricks__get_catalog_schemas_where_clause_sql(schemas) -%}
     where ({%- for schema in schemas -%}
-        upper(table_schema) = upper('{{ schema }}'){%- if not loop.last %} or {% endif -%}
+        table_schema = lower('{{ schema }}'){%- if not loop.last %} or {% endif -%}
     {%- endfor -%})
 {%- endmacro %}
 
@@ -82,12 +103,12 @@
         {%- for relation in relations -%}
             {% if relation.schema and relation.identifier %}
                 (
-                    upper(table_schema) = upper('{{ relation.schema }}')
-                    and upper(table_name) = upper('{{ relation.identifier }}')
+                    table_schema = lower('{{ relation.schema }}')
+                    and table_name = lower('{{ relation.identifier }}')
                 )
             {% elif relation.schema %}
                 (
-                    upper(table_schema) = upper('{{ relation.schema }}')
+                    table_schema = lower('{{ relation.schema }}')
                 )
             {% else %}
                 {% do exceptions.raise_compiler_error(

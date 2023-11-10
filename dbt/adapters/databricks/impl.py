@@ -22,7 +22,7 @@ from agate import Row, Table, Text
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
-from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base.relation import BaseRelation, InformationSchema
 from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
 from dbt.adapters.spark.impl import (
     SparkAdapter,
@@ -60,7 +60,7 @@ logger = AdapterLogger("Databricks")
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
-
+GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
@@ -469,16 +469,54 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(
-        self, manifest: Manifest, selected_nodes: Optional[Set[Any]] = None
-    ) -> Tuple[Table, List[Exception]]:
-        if selected_nodes:
-            relations: Set[BaseRelation] = {
-                self.Relation.create_from(self.config, n) for n in selected_nodes
-            }
-        else:
-            relations = set(self._get_catalog_relations(manifest))
-        return self.get_catalog_by_relations(manifest, relations)
+    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:  # type: ignore
+        schema_map = self._get_catalog_schemas(manifest)
+
+        with executor(self.config) as tpe:
+            futures: List[Future[Table]] = []
+            for info, schemas in schema_map.items():
+                if is_hive_metastore(info.database):
+                    for schema in schemas:
+                        futures.append(
+                            tpe.submit_connected(
+                                self,
+                                "hive_metastore",
+                                self._get_hive_catalog,
+                                schema,
+                                "*",
+                            )
+                        )
+                else:
+                    name = ".".join([str(info.database), "information_schema"])
+                    fut = tpe.submit_connected(
+                        self,
+                        name,
+                        self._get_one_unity_catalog,
+                        info,
+                        schemas,
+                        manifest,
+                    )
+                    futures.append(fut)
+            catalogs, exceptions = catch_as_completed(futures)
+        return catalogs, exceptions
+
+    def _get_one_unity_catalog(
+        self, info: InformationSchema, schemas: Set[str], manifest: Manifest
+    ) -> Table:
+        kwargs = {
+            "information_schema": info,
+            "schemas": schemas,
+        }
+        table = self.execute_macro(
+            GET_CATALOG_MACRO_NAME,
+            kwargs=kwargs,
+            # pass in the full manifest, so we get any local project
+            # overrides
+            manifest=manifest,
+        )
+
+        results = self._catalog_filter_table(table, manifest)  # type: ignore[arg-type]
+        return results
 
     def get_catalog_by_relations(
         self, manifest: Manifest, relations: Set[BaseRelation]
@@ -495,13 +533,14 @@ class DatabricksAdapter(SparkAdapter):
                         schema_map[relation.schema].append(relation)
 
                     for schema, schema_relations in schema_map.items():
+                        table_names = extract_identifiers(schema_relations)
                         futures.append(
                             tpe.submit_connected(
                                 self,
                                 "hive_metastore",
                                 self._get_hive_catalog,
                                 schema,
-                                schema_relations,
+                                get_identifier_list_string(table_names),
                             )
                         )
                 else:
@@ -522,16 +561,15 @@ class DatabricksAdapter(SparkAdapter):
     def _get_hive_catalog(
         self,
         schema: str,
-        relations: Set[BaseRelation],
+        identifier: str,
     ) -> Table:
-        table_names = extract_identifiers(relations)
         columns: List[Dict[str, Any]] = []
 
-        if len(table_names) > 0:
+        if identifier:
             schema_relation = self.Relation.create(
                 database="hive_metastore",
                 schema=schema,
-                identifier=get_identifier_list_string(table_names),
+                identifier=identifier,
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
