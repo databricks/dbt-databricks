@@ -1,5 +1,9 @@
 ## dbt-databricks 1.7.x (TBD)
 
+### Under the Hood
+
+- Another attempt to improve catalog gathering performance ([503](https://github.com/databricks/dbt-databricks/pull/503))
+
 ## dbt-databricks 1.7.0 (November 9, 2023)
 
 ### Features
