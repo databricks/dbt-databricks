@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Set, Type
+from typing import Any, Dict, Iterable, Optional, Set, Type
 from dbt.contracts.relation import (
     ComponentName,
 )
@@ -141,5 +141,5 @@ def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"
 
 
-def extract_identifiers(relations: Set[BaseRelation]) -> Set[str]:
+def extract_identifiers(relations: Iterable[BaseRelation]) -> Set[str]:
     return {r.identifier for r in relations if r.identifier is not None}
