@@ -1,4 +1,4 @@
-## dbt-databricks 1.7.x (TBD)
+## dbt-databricks 1.7.1 (Nov 13, 2023)
 
 ### Under the Hood
 
