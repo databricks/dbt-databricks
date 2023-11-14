@@ -1,9 +1,9 @@
 from dbt.tests.adapter.basic.test_incremental import BaseIncremental, BaseIncrementalNotSchemaChange
 
 
-class TestDatabricksIncremental(BaseIncremental):
+class TestIncremental(BaseIncremental):
     pass
 
 
-class TestDatabricksIncrementalNotSchemaChange(BaseIncrementalNotSchemaChange):
+class TestIncrementalNotSchemaChange(BaseIncrementalNotSchemaChange):
     pass
