@@ -15,28 +15,28 @@ from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 
 class DatabricksConstraintsBase:
-    @pytest.fixture
-    def schema_string_type(self):
-        return "string"
+    @pytest.fixture(scope="class")
+    def schema_string_type(self, string_type):
+        return string_type
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def string_type(self):
         return "string"
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def int_type(self):
         return "int"
 
-    @pytest.fixture
-    def schema_int_type(self):
-        return "int"
+    @pytest.fixture(scope="class")
+    def schema_int_type(self, int_type):
+        return int_type
 
     @pytest.fixture(scope="class")
-    def data_types(self):
+    def data_types(self, schema_int_type, int_type, string_type):
         # sql_column_value, schema_data_type, error_data_type
         return [
-            ["1", "int", "int"],
-            ['"1"', "string", "string"],
+            ["1", int_type, int_type],
+            ['"1"', string_type, string_type],
             ["true", "boolean", "boolean"],
             ['array("1","2","3")', "array<string>", "array"],
             ["array(1,2,3)", "array<int>", "array"],
