@@ -7,7 +7,7 @@ import pytest
 from tests.functional.adapter.basic.typing import AnyLongType, StatsLikeDict
 
 
-class TestDatabricksDocsGenerate(BaseDocsGenerate):
+class TestDocsGenerate(BaseDocsGenerate):
     @pytest.fixture(scope="class")
     def expected_catalog(self, project):
         return expected_catalog.base_expected_catalog(
@@ -22,7 +22,7 @@ class TestDatabricksDocsGenerate(BaseDocsGenerate):
         )
 
 
-class TestDatabricksDocsGenReferences(BaseDocsGenReferences):
+class TestDocsGenReferences(BaseDocsGenReferences):
     @pytest.fixture(scope="class")
     def expected_catalog(self, project):
         return self.expected_references_catalog(

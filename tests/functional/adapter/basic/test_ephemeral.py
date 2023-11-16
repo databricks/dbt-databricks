@@ -1,5 +1,5 @@
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
 
 
-class TestDatabricksEphemeral(BaseEphemeral):
+class TestEphemeral(BaseEphemeral):
     pass
