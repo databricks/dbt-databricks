@@ -1124,7 +1124,7 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
     # If none is specified return the default path from creds.
     compute_name = _get_compute_name(node)
     if not node or not compute_name:
-        logger.debug(f"Using default compute resource.")
+        logger.debug("Using default compute resource.")
         return creds.http_path
 
     http_path = None
