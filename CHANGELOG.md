@@ -1,5 +1,11 @@
 ## dbt-databricks 1.7.x (TBD)
 
+### Features
+
+- Adding capability to specify compute on a per model basis ([488](https://github.com/databricks/dbt-databricks/pull/488))
+
+## dbt-databricks 1.7.1 (Nov 13, 2023)
+
 ### Under the Hood
 
 - Another attempt to improve catalog gathering performance ([503](https://github.com/databricks/dbt-databricks/pull/503))
