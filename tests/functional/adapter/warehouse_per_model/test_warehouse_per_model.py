@@ -113,8 +113,9 @@ class TestWarehousePerModel(BaseWarehousePerModel):
         _, log = util.run_dbt_and_capture(["--debug", "seed"])
         assert "`source` using compute resource 'alternate_warehouse2'" in log
 
-        _, log = util.run_dbt_and_capture(["--debug", "run", "--select", "target"])
+        _, log = util.run_dbt_and_capture(["--debug", "run", "--select", "target", "target3"])
         assert "`target` using compute resource 'alternate_warehouse'" in log
+        assert "`target3` using default compute resource" in log
 
         _, log = util.run_dbt_and_capture(["--debug", "snapshot"])
         assert "`target_snap` using compute resource 'alternate_warehouse3'" in log
