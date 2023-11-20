@@ -105,6 +105,8 @@ REDIRECT_URL = "http://localhost:8020"
 CLIENT_ID = "dbt-databricks"
 SCOPES = ["all-apis", "offline_access"]
 
+USE_LONG_SESSIONS = os.environ.get("DBT_DATABRICKS_LONG_SESSIONS", "true").upper() == "TRUE"
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -714,6 +716,12 @@ class DatabricksAdapterResponse(AdapterResponse):
     query_id: str = ""
 
 
+@dataclass(init=False)
+class DatabricksDBTConnection(Connection):
+    last_used_time: Optional[str] = None
+    acquire_release_count: int = 0
+
+
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: CredentialsProvider = None
@@ -773,14 +781,25 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         if conn is None:
             # Create a new connection
-            conn = Connection(
-                type=Identifier(self.TYPE),
-                name=conn_name,
-                state=ConnectionState.INIT,
-                transaction_open=False,
-                handle=None,
-                credentials=self.profile.credentials,
-            )
+            if USE_LONG_SESSIONS:
+                conn = DatabricksDBTConnection(
+                    type=Identifier(self.TYPE),
+                    name=conn_name,
+                    state=ConnectionState.INIT,
+                    transaction_open=False,
+                    handle=None,
+                    credentials=self.profile.credentials,
+                )
+            else:
+                conn = Connection(
+                    type=Identifier(self.TYPE),
+                    name=conn_name,
+                    state=ConnectionState.INIT,
+                    transaction_open=False,
+                    handle=None,
+                    credentials=self.profile.credentials,
+                )
+
             conn.handle = LazyHandle(self.get_open_for_model(node))
             # Add the connection to thread_connections for this thread
             self.set_thread_connection(conn)
@@ -795,7 +814,23 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 conn.name = conn_name
                 fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=conn_name))
 
+        if USE_LONG_SESSIONS:
+            conn.last_used_time = None
+            conn.acquire_release_count += 1
+
         return conn
+
+    def release(self) -> None:
+        if USE_LONG_SESSIONS:
+            with self.lock:
+                conn = self.get_if_exists()
+                if conn is None:
+                    return
+
+            conn.acquire_release_count -= 1
+            conn.last_used_time = time.time()
+        else:
+            super().release()
 
     def add_query(
         self,
