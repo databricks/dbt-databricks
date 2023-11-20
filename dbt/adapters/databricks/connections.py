@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import requests
+from threading import get_ident
 from typing import (
     Any,
     Callable,
@@ -1120,21 +1121,34 @@ def _get_compute_name(node: Optional[ResultNode]) -> Optional[str]:
 
 
 def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> Optional[str]:
-    # Get the http path of the compute resource specified in the node's config.
-    # If none is specified return the default path from creds.
-    compute_name = _get_compute_name(node)
-    if not node or not compute_name:
-        logger.debug("Using default compute resource.")
+    thread_id = (os.getpid(), get_ident())
+
+    # If there is no node we return the http_path for the default compute.
+    if not node:
+        logger.debug(f"Thread {thread_id}: using default compute resource.")
         return creds.http_path
 
+    # Get the name of the compute resource specified in the node's config.
+    # If none is specified return the http_path for the default compute.
+    compute_name = _get_compute_name(node)
+    if not compute_name:
+        logger.debug(f"On thread {thread_id}: {node.relation_name} using default compute resource.")
+        return creds.http_path
+
+    # Get the http_path for the named compute.
     http_path = None
     if creds.compute:
-        logger.debug(f"Using compute resource {compute_name}.")
         http_path = creds.compute.get(compute_name, {}).get("http_path", None)
 
+    # no http_path for the named compute resource is an error condition
     if not http_path:
         raise dbt.exceptions.DbtRuntimeError(
-            f"Compute resource {compute_name} does not exist, relation: {node.relation_name}"
+            f"Compute resource {compute_name} does not exist or "
+            f"does not specify http_path, relation: {node.relation_name}"
         )
+
+    logger.debug(
+        f"On thread {thread_id}: {node.relation_name} using compute resource '{compute_name}'."
+    )
 
     return http_path
