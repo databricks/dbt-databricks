@@ -24,6 +24,7 @@ from typing import (
     Tuple,
     cast,
     Union,
+    Hashable,
 )
 
 from agate import Table
@@ -35,6 +36,7 @@ from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt.clients import agate_helper
 from dbt.contracts.connection import (
     AdapterResponse,
+    AdapterRequiredConfig,
     Connection,
     ConnectionState,
     DEFAULT_QUERY_COMMENT,
@@ -44,7 +46,10 @@ from dbt.contracts.connection import (
 from dbt.events.types import (
     NewConnection,
     ConnectionReused,
+    ConnectionLeftOpenInCleanup,
+    ConnectionClosedInCleanup,
 )
+
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.graph.nodes import ResultNode
 from dbt.events import AdapterLogger
@@ -718,13 +723,22 @@ class DatabricksAdapterResponse(AdapterResponse):
 
 @dataclass(init=False)
 class DatabricksDBTConnection(Connection):
-    last_used_time: Optional[str] = None
+    last_used_time: Optional[float] = None
     acquire_release_count: int = 0
+    compute_name: str = ""
+    http_path: str = ""
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: CredentialsProvider = None
+
+    def __init__(self, profile: AdapterRequiredConfig) -> None:
+        super().__init__(profile)
+        if USE_LONG_SESSIONS:
+            self.threads_compute_connections: Dict[
+                Hashable, Dict[Hashable, DatabricksDBTConnection]
+            ] = {}
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
@@ -773,7 +787,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn_name: str = "master" if name is None else name
 
         # Get a connection for this thread
-        conn = self.get_if_exists()
+        if USE_LONG_SESSIONS:
+            conn = self.get_if_exists_compute(_get_compute_name(node) or "")
+        else:
+            conn = self.get_if_exists()
 
         if conn and conn.name == conn_name and conn.state == "open":
             # Found a connection and nothing to do, so just return it
@@ -782,6 +799,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         if conn is None:
             # Create a new connection
             if USE_LONG_SESSIONS:
+                compute_name = _get_compute_name(node=node) or ""
+                logger.debug(
+                    f"Creating DatabricksDBTConnection. thread: {self.get_thread_identifier}, compute: `{compute_name}`"
+                )
                 conn = DatabricksDBTConnection(
                     type=Identifier(self.TYPE),
                     name=conn_name,
@@ -790,6 +811,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     handle=None,
                     credentials=self.profile.credentials,
                 )
+                conn.compute_name = compute_name
+                conn.http_path = _get_http_path(node=node, creds=self.profile.credentials)
+                self.set_thread_compute_connection(conn)
+                self.clear_thread_connection()
             else:
                 conn = Connection(
                     type=Identifier(self.TYPE),
@@ -813,10 +838,30 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 orig_conn_name: str = conn.name or ""
                 conn.name = conn_name
                 fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=conn_name))
+            if USE_LONG_SESSIONS:
+                current_thread_conn = self.get_if_exists()
+                if current_thread_conn.compute_name != conn.compute_name:
+                    self.clear_thread_connection()
+                    self.set_thread_connection(conn)
+                logger.debug(
+                    f"Reusing DatabricksDBTConnection. thread: {self.get_thread_identifier}, compute: `{conn.compute_name}`"
+                )
+                if node:
+                    if not conn.compute_name:
+                        logger.debug(
+                            f"On thread {self.get_thread_identifier}: {node.relation_name} using default compute resource."
+                        )
+                    else:
+                        logger.debug(
+                            f"On thread {self.get_thread_identifier}: {node.relation_name} using compute resource '{conn.compute_name}'."
+                        )
 
         if USE_LONG_SESSIONS:
             conn.last_used_time = None
             conn.acquire_release_count += 1
+            logger.debug(
+                f"DatabricksDBTConnection: thread: {self.get_thread_identifier}, compute: `{conn.compute_name}`, acquire_release_count: {conn.acquire_release_count}, last_used: {conn.last_used_time}"
+            )
 
         return conn
 
@@ -829,8 +874,71 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
             conn.acquire_release_count -= 1
             conn.last_used_time = time.time()
+            logger.debug(
+                f"release DatabricksDBTConnection: thread: {self.get_thread_identifier}, compute: `{conn.compute_name}`, acquire_release_count: {conn.acquire_release_count}, last_used: {conn.last_used_time}"
+            )
         else:
             super().release()
+
+    def cleanup_all(self) -> None:
+        if USE_LONG_SESSIONS:
+            with self.lock:
+                for thread_connections in self.threads_compute_connections.values():
+                    for connection in thread_connections.values():
+                        if connection.acquire_release_count > 0 and connection.state not in {
+                            "init"
+                        }:
+                            fire_event(
+                                ConnectionLeftOpenInCleanup(conn_name=cast_to_str(connection.name))
+                            )
+                        else:
+                            fire_event(
+                                ConnectionClosedInCleanup(conn_name=cast_to_str(connection.name))
+                            )
+                        self.close(connection)
+
+                # garbage collect these connections
+                self.thread_connections.clear()
+                self.threads_compute_connections.clear()
+        else:
+            super().cleanup_all()
+
+    def set_thread_compute_connection(self, conn: Connection) -> None:
+        if not USE_LONG_SESSIONS:
+            raise dbt.exceptions.DbtInternalError(
+                "set_thread_compute_connection() should not be called when USE_LONG_SESSIONS is False"
+            )
+
+        thread_map = self.get_thread_compute_connections()
+        if conn.compute_name in thread_map:
+            raise dbt.exceptions.DbtInternalError(
+                f"In set_thread_compute_connection, connection exists for `{conn.compute_name}`"
+            )
+        thread_map[conn.compute_name] = conn
+
+    def get_thread_compute_connections(self) -> Dict[Hashable, DatabricksDBTConnection]:
+        if not USE_LONG_SESSIONS:
+            raise dbt.exceptions.DbtInternalError(
+                "get_thread_compute_connections() should not be called when USE_LONG_SESSIONS is False"
+            )
+
+        thread_id = self.get_thread_identifier()
+        with self.lock:
+            thread_map = self.threads_compute_connections.get(thread_id)
+            if not thread_map:
+                thread_map = {}
+                self.threads_compute_connections[thread_id] = thread_map
+            return thread_map
+
+    def get_if_exists_compute(self, compute_name: str) -> Optional[Connection]:
+        if not USE_LONG_SESSIONS:
+            raise dbt.exceptions.DbtInternalError(
+                "get_if_exists_compute() should not be called when USE_LONG_SESSIONS is False"
+            )
+
+        with self.lock:
+            threads_map = self.get_thread_compute_connections()
+            return threads_map.get(compute_name)
 
     def add_query(
         self,
