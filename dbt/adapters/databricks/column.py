@@ -6,6 +6,8 @@ from dbt.adapters.spark.column import SparkColumn
 
 @dataclass
 class DatabricksColumn(SparkColumn):
+    comment: str = ""
+
     TYPE_LABELS: ClassVar[Dict[str, str]] = {
         "LONG": "BIGINT",
     }

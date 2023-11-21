@@ -391,6 +391,7 @@ class DatabricksAdapter(SparkAdapter):
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
+                comment=column["comment"],
             )
             for idx, column in enumerate(rows)
         ]
@@ -657,3 +658,17 @@ class DatabricksAdapter(SparkAdapter):
         finally:
             if current_catalog is not None:
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
+
+    @available.parse(lambda *a, **k: {})
+    def get_persist_doc_columns(
+        self, existing_columns: List[DatabricksColumn], columns: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Returns a dictionary of columns that have updated comments."""
+        return_columns = {}
+        for column in existing_columns:
+            column_name = column.column
+            if column_name in columns and columns[column_name]["description"] == column.comment:
+                continue
+            return_columns[column_name] = columns[column_name]
+
+        return return_columns
