@@ -9,6 +9,7 @@ from dbt.config import RuntimeConfig
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
+from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.impl import check_not_found_error
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.connections import (
@@ -18,8 +19,10 @@ from dbt.adapters.databricks.connections import (
 )
 from tests.unit.utils import config_from_parts_or_dicts
 
+import pytest
 
-class TestDatabricksAdapter(unittest.TestCase):
+
+class DatabricksAdapterBase:
     def setUp(self):
         flags.STRICT_MODE = False
 
@@ -64,6 +67,8 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         return config_from_parts_or_dicts(self.project_cfg, self.profile_cfg)
 
+
+class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
     def test_two_catalog_settings(self):
         with self.assertRaisesRegex(
             dbt.exceptions.DbtProfileError,
@@ -916,3 +921,46 @@ class TestCheckNotFound(unittest.TestCase):
         self.assertFalse(check_not_found_error("[DATABASE_NOT_FOUND]"))
         self.assertFalse(check_not_found_error("Schema foo not found"))
         self.assertFalse(check_not_found_error("Database 'foo' not there"))
+
+
+class TestGetPersistDocColumns(DatabricksAdapterBase):
+    @pytest.fixture(scope="class")
+    def adapter(self) -> DatabricksAdapter:
+        self.setUp()
+        return DatabricksAdapter(self._get_config())
+
+    def create_column(self, name, comment) -> DatabricksColumn:
+        return DatabricksColumn(
+            column=name,
+            dtype="string",
+            comment=comment,
+        )
+
+    def test_get_persist_doc_columns_empty(self, adapter):
+        assert adapter.get_persist_doc_columns([], {}) == {}
+
+    def test_get_persist_doc_columns_no_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col2": {"name": "col2", "description": "comment2"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == column_dict
+
+    def test_get_persist_doc_columns_full_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col1": {"name": "col1", "description": "comment1"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == {}
+
+    def test_get_persist_doc_columns_partial_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col1": {"name": "col1", "description": "comment2"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == column_dict
+
+    def test_get_persist_doc_columns_mixed(self, adapter):
+        existing = [self.create_column("col1", "comment1"), self.create_column("col2", "comment2")]
+        column_dict = {
+            "col1": {"name": "col1", "description": "comment2"},
+            "col2": {"name": "col2", "description": "comment2"},
+        }
+        expected = {
+            "col1": {"name": "col1", "description": "comment2"},
+        }
+        assert adapter.get_persist_doc_columns(existing, column_dict) == expected

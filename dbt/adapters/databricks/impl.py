@@ -664,11 +664,14 @@ class DatabricksAdapter(SparkAdapter):
         self, existing_columns: List[DatabricksColumn], columns: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Returns a dictionary of columns that have updated comments."""
-        return_columns = {}
+        filter_columns = {}
         for column in existing_columns:
-            column_name = column.column
-            if column_name in columns and columns[column_name]["description"] == column.comment:
-                continue
-            return_columns[column_name] = columns[column_name]
+            filter_columns[column.column] = column.comment
+
+        return_columns = {}
+
+        for name, column in columns.items():
+            if name not in filter_columns or filter_columns[name] != column["description"]:
+                return_columns[name] = column
 
         return return_columns
