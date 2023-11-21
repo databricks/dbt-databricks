@@ -47,8 +47,10 @@ class TestPrePostModelHooks(BaseTestPrePost):
             "thread_id",
         ]
         field_list = ", ".join(["{}".format(f) for f in fields])
-        query = f"select {field_list} from {project.test_schema}.on_model_hook where test_state = '{state}'"
-
+        query = (
+            f"select {field_list} from {project.test_schema}.on_model_hook"
+            f" where test_state = '{state}'"
+        )
         vals = project.run_sql(query, fetch="all")
         assert len(vals) != 0, "nothing inserted into hooks table"
         assert len(vals) >= count, "too few rows in hooks table"
