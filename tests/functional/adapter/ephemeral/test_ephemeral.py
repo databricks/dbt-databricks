@@ -36,9 +36,9 @@ class TestEphemeralNested(BaseEphemeral):
 
         sql_file = re.sub(r"\d+", "", sql_file)
         expected_sql = (
-            "create or replace view `peco`.`test_test_ephemeral`.`root_view` as "
+            f"create or replace view `{project.database}`.`test_test_ephemeral`.`root_view` as "
             "with __dbt__cte__ephemeral_level_two as ("
-            "select * from `peco`.`test_test_ephemeral`.`source_table`"
+            f"select * from `{project.database}`.`test_test_ephemeral`.`source_table`"
             "),  __dbt__cte__ephemeral as ("
             "select * from __dbt__cte__ephemeral_level_two"
             ")select * from __dbt__cte__ephemeral"
