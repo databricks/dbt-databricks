@@ -670,8 +670,8 @@ class DatabricksAdapter(SparkAdapter):
 
         return_columns = {}
 
-        for name, column in columns.items():
-            if name not in filter_columns or filter_columns[name] != column["description"]:
-                return_columns[name] = column
+        for name, column_info in columns.items():
+            if name not in filter_columns or filter_columns[name] != column_info["description"]:
+                return_columns[name] = column_info
 
         return return_columns
