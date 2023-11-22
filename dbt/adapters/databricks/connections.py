@@ -110,7 +110,7 @@ REDIRECT_URL = "http://localhost:8020"
 CLIENT_ID = "dbt-databricks"
 SCOPES = ["all-apis", "offline_access"]
 
-USE_LONG_SESSIONS = os.environ.get("DBT_DATABRICKS_LONG_SESSIONS", "FALSE").upper() == "TRUE"
+USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "FALSE").upper() == "TRUE"
 
 
 @dataclass
@@ -770,10 +770,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def __init__(self, profile: AdapterRequiredConfig) -> None:
         super().__init__(profile)
-        if USE_LONG_SESSIONS:
-            self.threads_compute_connections: Dict[
-                Hashable, Dict[Hashable, DatabricksDBTConnection]
-            ] = {}
+        # if USE_LONG_SESSIONS:
+        self.threads_compute_connections: Dict[
+            Hashable, Dict[Hashable, DatabricksDBTConnection]
+        ] = {}
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
