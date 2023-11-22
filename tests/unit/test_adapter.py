@@ -653,7 +653,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "stats:bytes:include": True,
                 "stats:bytes:label": "bytes",
                 "stats:bytes:value": 123456789,
-                "comment": "",
+                "comment": None,
             },
         )
 
@@ -668,7 +668,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "column": "struct_col",
                 "column_index": 3,
                 "dtype": "struct",
-                "comment": "",
+                "comment": None,
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
@@ -732,7 +732,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "table_owner": "root",
                 "column": "col2",
                 "column_index": 1,
-                "comment": "",
+                "comment": None,
                 "dtype": "string",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -750,7 +750,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "table_owner": "root",
                 "column": "struct_col",
                 "column_index": 3,
-                "comment": "",
+                "comment": None,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -800,7 +800,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "table_owner": "root",
                 "column": "dt",
                 "column_index": 2,
-                "comment": "",
+                "comment": None,
                 "dtype": "date",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -826,7 +826,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 "table_owner": "root",
                 "column": "struct_col",
                 "column_index": 3,
-                "comment": "",
+                "comment": None,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -944,7 +944,7 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
     def test_get_persist_doc_columns_no_match(self, adapter):
         existing = [self.create_column("col1", "comment1")]
         column_dict = {"col2": {"name": "col2", "description": "comment2"}}
-        assert adapter.get_persist_doc_columns(existing, column_dict) == column_dict
+        assert adapter.get_persist_doc_columns(existing, column_dict) == {}
 
     def test_get_persist_doc_columns_full_match(self, adapter):
         existing = [self.create_column("col1", "comment1")]

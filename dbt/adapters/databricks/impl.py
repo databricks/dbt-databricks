@@ -664,14 +664,18 @@ class DatabricksAdapter(SparkAdapter):
         self, existing_columns: List[DatabricksColumn], columns: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Returns a dictionary of columns that have updated comments."""
-        filter_columns = {}
-        for column in existing_columns:
-            filter_columns[column.column] = column.comment
-
         return_columns = {}
 
-        for name, column_info in columns.items():
-            if name not in filter_columns or filter_columns[name] != column_info["description"]:
-                return_columns[name] = column_info
+        # Since existing_columns are gathered after writing the table, we don't need to include any
+        # columns from the model that are not in the existing_columns. If we did, it would lead to
+        # an error when we tried to alter the table.
+        for column in existing_columns:
+            name = column.column
+            if (
+                name in columns
+                and "description" in columns[name]
+                and columns[name]["description"] != (column.comment or "")
+            ):
+                return_columns[name] = columns[name]
 
         return return_columns

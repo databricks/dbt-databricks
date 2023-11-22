@@ -83,12 +83,7 @@
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
 
-  {% if existing_relation %}
-    {% do persist_incremental_column_docs(existing_relation, target_relation, model) %}
-  {% else %}
-    {% do persist_docs(target_relation, model) %}
-  {% endif %}
-
+  {% do persist_docs(target_relation, model) %}
   {% do optimize(target_relation) %}
 
   {{ run_hooks(post_hooks) }}
@@ -96,11 +91,3 @@
   {{ return({'relations': [target_relation]}) }}
 
 {%- endmaterialization %}
-
-{% macro persist_incremental_column_docs(existing_relation, target_relation, model) %}
-  {%- if existing_relation and config.persist_column_docs() and model.columns -%}
-    {%- set existing_columns = adapter.get_columns_in_relation(existing_relation) -%}
-    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
-    {% do alter_column_comment(target_relation, columns_to_persist_docs) %}
-  {%- endif -%}
-{% endmacro %}
