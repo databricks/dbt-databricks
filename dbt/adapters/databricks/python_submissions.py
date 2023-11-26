@@ -205,7 +205,10 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
             raise ValueError("job_cluster_config is required for commands submission method.")
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
+        cluster_spec = {
+            "new_cluster": self.parsed_model["config"]["job_cluster_config"],
+            "access_control_list": self.parsed_model["config"].get("access_control_list", [])
+        }
         self._submit_through_notebook(compiled_code, cluster_spec)
 
 
