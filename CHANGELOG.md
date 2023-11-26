@@ -3,6 +3,7 @@
 ### Features
 
 - Adding capability to specify compute on a per model basis ([488](https://github.com/databricks/dbt-databricks/pull/488))
+- Enabling access control list for job runs ([516](https://github.com/databricks/dbt-databricks/pull/516))
 
 ## dbt-databricks 1.7.1 (Nov 13, 2023)
 
