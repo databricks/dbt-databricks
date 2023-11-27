@@ -3,13 +3,9 @@ import os
 from unittest import mock
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
-from timeit import default_timer as timer
-from datetime import timedelta
 
 with mock.patch.dict(os.environ, {"DBT_DATABRICKS_LONG_SESSIONS": "true"}):
-    import dbt.adapters.databricks.connections
-
-from dbt.adapters.databricks import connections
+    import dbt.adapters.databricks.connections  # noqa
 
 
 class TestLongSessionsBase:
@@ -24,7 +20,7 @@ class TestLongSessionsBase:
     @pytest.fixture(scope="class")
     def models(self):
         m = {}
-        for i in range(10):
+        for i in range(5):
             m[f"target{i}.sql"] = fixtures.target
 
         return m

@@ -729,7 +729,7 @@ class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: Tuple[int, int] = (0, 0)
 
-    def _acquire(self, node: Optional[ResultNode]):
+    def _acquire(self, node: Optional[ResultNode]) -> None:
         """Indicate that this connection is in use."""
         logger.debug(f"DatabricksDBTConnection._acquire: {self._get_conn_info_str()}")
         self._log_usage(node)
@@ -737,7 +737,7 @@ class DatabricksDBTConnection(Connection):
         self.last_used_time = None
         self.acquire_release_count += 1
 
-    def _release(self):
+    def _release(self) -> None:
         """Indicate that this connection is not in use."""
         logger.debug(f"DatabricksDBTConnection._release: {self._get_conn_info_str()}")
         self.last_used_time = time.time()
@@ -748,17 +748,23 @@ class DatabricksDBTConnection(Connection):
 
     def _get_conn_info_str(self) -> str:
         """Generate a string describing this connection."""
-        return f"name: {self.name}, thread: {self.thread_identifier}, compute: `{self.compute_name}`, acquire_release_count: {self.acquire_release_count}, last_used: {self.last_used_time}"
+        return (
+            f"name: {self.name}, thread: {self.thread_identifier}, "
+            f"compute: `{self.compute_name}`, acquire_release_count: {self.acquire_release_count},"
+            f" last_used: {self.last_used_time}"
+        )
 
     def _log_usage(self, node: Optional[ResultNode]) -> None:
         if node:
             if not self.compute_name:
                 logger.debug(
-                    f"On thread {self.thread_identifier}: {node.relation_name} using default compute resource."
+                    f"On thread {self.thread_identifier}: {node.relation_name} "
+                    "using default compute resource."
                 )
             else:
                 logger.debug(
-                    f"On thread {self.thread_identifier}: {node.relation_name} using compute resource '{self.compute_name}'."
+                    f"On thread {self.thread_identifier}: {node.relation_name} "
+                    "using compute resource '{self.compute_name}'."
                 )
         else:
             logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
@@ -865,7 +871,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return super().release()
 
         with self.lock:
-            conn = self.get_if_exists()
+            conn = cast(Optional[DatabricksDBTConnection], self.get_if_exists())
             if conn is None:
                 return
 
@@ -937,8 +943,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             conn.name = new_name
             fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=new_name))
 
-        current_thread_conn = self.get_if_exists()
-        if current_thread_conn.compute_name != conn.compute_name:
+        current_thread_conn = cast(Optional[DatabricksDBTConnection], self.get_if_exists())
+        if current_thread_conn and current_thread_conn.compute_name != conn.compute_name:
             self.clear_thread_connection()
             self.set_thread_connection(conn)
 
@@ -956,7 +962,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         # Create a new connection
         compute_name = _get_compute_name(node=node) or ""
         logger.debug(
-            f"Creating DatabricksDBTConnection. name: {conn_name}, thread: {self.get_thread_identifier()}, compute: `{compute_name}`"
+            f"Creating DatabricksDBTConnection. name: {conn_name}, "
+            "thread: {self.get_thread_identifier()}, compute: `{compute_name}`"
         )
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
@@ -967,8 +974,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             credentials=self.profile.credentials,
         )
         conn.compute_name = compute_name
-        conn.http_path = _get_http_path(node=node, creds=self.profile.credentials)
-        conn.thread_identifier = self.get_thread_identifier()
+        creds = cast(DatabricksCredentials, self.profile.credentials)
+        conn.http_path = _get_http_path(node=node, creds=creds) or ""
+        conn.thread_identifier = cast(Tuple[int, int], self.get_thread_identifier())
 
         conn.handle = LazyHandle(self.get_open_for_model(node))
         # Add this connection to the thread/compute connection pool.
