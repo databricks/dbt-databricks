@@ -1,11 +1,13 @@
 from dataclasses import dataclass
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, Optional
 
 from dbt.adapters.spark.column import SparkColumn
 
 
 @dataclass
 class DatabricksColumn(SparkColumn):
+    comment: Optional[str] = None
+
     TYPE_LABELS: ClassVar[Dict[str, str]] = {
         "LONG": "BIGINT",
     }
