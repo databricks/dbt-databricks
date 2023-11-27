@@ -770,10 +770,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def __init__(self, profile: AdapterRequiredConfig) -> None:
         super().__init__(profile)
-        # if USE_LONG_SESSIONS:
-        self.threads_compute_connections: Dict[
-            Hashable, Dict[Hashable, DatabricksDBTConnection]
-        ] = {}
+        if USE_LONG_SESSIONS:
+            self.threads_compute_connections: Dict[
+                Hashable, Dict[Hashable, DatabricksDBTConnection]
+            ] = {}
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
@@ -900,7 +900,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         Creates a connection for this thread/node if one doesn't already
         exist, and will rename an existing connection."""
 
-        _long_sessions_only("_set_connection_name_long_sessions")
+        _long_sessions_only("_get_compute_connection")
 
         conn_name: str = "master" if name is None else name
 
@@ -923,7 +923,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         node: Optional[ResultNode] = None,
     ) -> DatabricksDBTConnection:
         """Update a connection that is being re-used with a new name, handle, etc."""
-        _long_sessions_only("_update_connection_for_compute")
+        _long_sessions_only("_update_compute_connection")
 
         compute_name = _get_compute_name(node=node) or ""
         if conn.name == new_name and conn.state == "open" and conn.compute_name == compute_name:
@@ -951,7 +951,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> DatabricksDBTConnection:
         """Create anew connection for the combination of current thread and compute associated
         with the given node."""
-        _long_sessions_only("_create_connection_for_compute")
+        _long_sessions_only("_create_compute_connection")
 
         # Create a new connection
         compute_name = _get_compute_name(node=node) or ""
@@ -986,7 +986,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def _add_compute_connection(self, conn: DatabricksDBTConnection) -> None:
         """Add a new connection to the map of connection per thread per compute."""
-        _long_sessions_only("_set_thread_compute_connection")
+        _long_sessions_only("_add_compute_connection")
 
         thread_map = self._get_compute_connections()
         if conn.compute_name in thread_map:
@@ -999,7 +999,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self,
     ) -> Dict[Hashable, DatabricksDBTConnection]:
         """Retrieve a map of compute name to connection for the current thread."""
-        _long_sessions_only("_get_thread_compute_connections")
+        _long_sessions_only("_get_compute_connections")
 
         thread_id = self.get_thread_identifier()
         with self.lock:
@@ -1013,7 +1013,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self, compute_name: str
     ) -> Optional[DatabricksDBTConnection]:
         """Get the connection for the current thread and named compute, if it exists."""
-        _long_sessions_only("_get_if_exists_compute")
+        _long_sessions_only("_get_if_exists_compute_connection")
 
         with self.lock:
             threads_map = self._get_compute_connections()
@@ -1385,7 +1385,7 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
 
 
 def _long_sessions_only(name: str) -> None:
-    """Helper function to raise exception is USE_LONG_SESSIONS is false."""
+    """Helper function to raise exception when USE_LONG_SESSIONS is false."""
     if not USE_LONG_SESSIONS:
         raise dbt.exceptions.DbtInternalError(
             f"{name}() should not be called when USE_LONG_SESSIONS is False"

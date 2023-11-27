@@ -3,6 +3,12 @@ import os
 from unittest import mock
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
+from timeit import default_timer as timer
+from datetime import timedelta
+
+with mock.patch.dict(os.environ, {"DBT_DATABRICKS_LONG_SESSIONS": "true"}):
+    import dbt.adapters.databricks.connections
+
 from dbt.adapters.databricks import connections
 
 
@@ -17,34 +23,28 @@ class TestLongSessionsBase:
 
     @pytest.fixture(scope="class")
     def models(self):
-        return {
-            "target.sql": fixtures.target,
-            "target2.sql": fixtures.target2,
-            "target3.sql": fixtures.target3,
-        }
+        m = {}
+        for i in range(10):
+            m[f"target{i}.sql"] = fixtures.target
+
+        return m
 
     def test_long_sessions(self, project):
-        connections.USE_LONG_SESSIONS = True
+        # connections.USE_LONG_SESSIONS = True
         _, log = util.run_dbt_and_capture(["--debug", "seed"])
-        open_count = log.count("Sending request: OpenSession")
-        assert open_count == 4
+        open_count = log.count("Sending request: OpenSession") / 2
+        assert open_count == 2
 
         _, log = util.run_dbt_and_capture(["--debug", "run"])
-        open_count = log.count("Sending request: OpenSession")
-        assert open_count == 4
+        open_count = log.count("Sending request: OpenSession") / 2
+        assert open_count == 2
 
 
 class TestLongSessionsMultipleThreads(TestLongSessionsBase):
     def test_long_sessions(self, project):
-        connections.USE_LONG_SESSIONS = True
-        _, log = util.run_dbt_and_capture(["--debug", "seed"])
-        open_count = log.count("Sending request: OpenSession")
-        assert open_count == 4
+        util.run_dbt_and_capture(["seed"])
 
-        _, log = util.run_dbt_and_capture(["--debug", "run", "--threads", "2"])
-        open_count = log.count("Sending request: OpenSession")
-        assert open_count == 6
-
-        _, log = util.run_dbt_and_capture(["--debug", "run", "--threads", "3"])
-        open_count = log.count("Sending request: OpenSession")
-        assert open_count == 8
+        for n_threads in [1, 2, 3]:
+            _, log = util.run_dbt_and_capture(["--debug", "run", "--threads", f"{n_threads}"])
+            open_count = log.count("Sending request: OpenSession") / 2
+            assert open_count == (n_threads + 1)
