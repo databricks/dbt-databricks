@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import patch, Mock
 
-from dbt.adapters.databricks.python_submissions import DBContext
+from dbt.adapters.databricks.connections import DatabricksCredentials
+
+from dbt.adapters.databricks.python_submissions import DBContext, BaseDatabricksHelper
 
 
 class TestDatabricksPythonSubmissions(unittest.TestCase):
@@ -18,3 +20,40 @@ class TestDatabricksPythonSubmissions(unittest.TestCase):
         context.start_cluster()
 
         mock_get.assert_called_once()
+
+
+class DatabricksTestHelper(BaseDatabricksHelper):
+    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials):
+        self.parsed_model = parsed_model
+        self.credentials = credentials
+
+
+class TestAclUpdate:
+    def test_empty_acl_empty_config(self):
+        helper = DatabricksTestHelper({"config": {}}, DatabricksCredentials())
+        assert helper._update_with_acls({}) == {}
+
+    def test_empty_acl_non_empty_config(self):
+        helper = DatabricksTestHelper({"config": {}}, DatabricksCredentials())
+        assert helper._update_with_acls({"a": "b"}) == {"a": "b"}
+
+    def test_non_empty_acl_empty_config(self):
+        expected_access_control = {
+            "access_control_list": [
+                {"user_name": "user2", "permission_level": "CAN_VIEW"},
+            ]
+        }
+        helper = DatabricksTestHelper({"config": expected_access_control}, DatabricksCredentials())
+        assert helper._update_with_acls({}) == expected_access_control
+
+    def test_non_empty_acl_non_empty_config(self):
+        expected_access_control = {
+            "access_control_list": [
+                {"user_name": "user2", "permission_level": "CAN_VIEW"},
+            ]
+        }
+        helper = DatabricksTestHelper({"config": expected_access_control}, DatabricksCredentials())
+        assert helper._update_with_acls({"a": "b"}) == {
+            "a": "b",
+            "access_control_list": expected_access_control["access_control_list"],
+        }
