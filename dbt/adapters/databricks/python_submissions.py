@@ -205,10 +205,10 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
             raise ValueError("job_cluster_config is required for commands submission method.")
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = {
-            "new_cluster": self.parsed_model["config"]["job_cluster_config"],
-            "access_control_list": self.parsed_model["config"].get("access_control_list", [])
-        }
+        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
+        acl = self.parsed_model["config"].get("access_control_list", None)
+        if acl:
+            cluster_spec.update({"access_control_list": acl})
         self._submit_through_notebook(compiled_code, cluster_spec)
 
 
@@ -377,7 +377,11 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         if self.parsed_model["config"].get("create_notebook", False):
-            self._submit_through_notebook(compiled_code, {"existing_cluster_id": self.cluster_id})
+            config = {"existing_cluster_id": self.cluster_id}
+            acl = self.parsed_model["config"].get("access_control_list", None)
+            if acl:
+                config.update({"access_control_list": acl})
+            self._submit_through_notebook(compiled_code, config)
         else:
             context = DBContext(self.credentials, self.cluster_id, self.auth_header)
             command = DBCommand(self.credentials, self.cluster_id, self.auth_header)
