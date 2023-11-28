@@ -833,7 +833,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         # Get a connection for this thread
         conn = self.get_if_exists()
 
-        if conn and conn.name == conn_name and conn.state == "open":
+        if conn and conn.name == conn_name and conn.state == ConnectionState.OPEN:
             # Found a connection and nothing to do, so just return it
             return conn
 
@@ -847,16 +847,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 handle=None,
                 credentials=self.profile.credentials,
             )
-
             conn.handle = LazyHandle(self.get_open_for_model(node))
-
             # Add the connection to thread_connections for this thread
             self.set_thread_connection(conn)
             fire_event(
                 NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
             )
         else:  # existing connection either wasn't open or didn't have the right name
-            if conn.state != "open":
+            if conn.state != ConnectionState.OPEN:
                 conn.handle = LazyHandle(self.get_open_for_model(node))
             if conn.name != conn_name:
                 orig_conn_name: str = conn.name or ""
@@ -885,7 +883,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         with self.lock:
             for thread_connections in self.threads_compute_connections.values():
                 for connection in thread_connections.values():
-                    if connection.acquire_release_count > 0 and connection.state not in {"init"}:
+                    if connection.acquire_release_count > 0:
                         fire_event(
                             ConnectionLeftOpenInCleanup(conn_name=cast_to_str(connection.name))
                         )
@@ -906,7 +904,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         Creates a connection for this thread/node if one doesn't already
         exist, and will rename an existing connection."""
 
-        _long_sessions_only("_get_compute_connection")
+        assert (
+            USE_LONG_SESSIONS
+        ), "This path, '_get_compute_connection', should only be reachable with USE_LONG_SESSIONS"
 
         conn_name: str = "master" if name is None else name
 
@@ -929,14 +929,21 @@ class DatabricksConnectionManager(SparkConnectionManager):
         node: Optional[ResultNode] = None,
     ) -> DatabricksDBTConnection:
         """Update a connection that is being re-used with a new name, handle, etc."""
-        _long_sessions_only("_update_compute_connection")
+        assert USE_LONG_SESSIONS, (
+            "This path, '_update_compute_connection', should only be "
+            "reachable with USE_LONG_SESSIONS"
+        )
 
         compute_name = _get_compute_name(node=node) or ""
-        if conn.name == new_name and conn.state == "open" and conn.compute_name == compute_name:
+        if (
+            conn.name == new_name
+            and conn.state == ConnectionState.OPEN
+            and conn.compute_name == compute_name
+        ):
             # Found a connection and nothing to do, so just return it
             return conn
 
-        if conn.state != "open":
+        if conn.state != ConnectionState.OPEN:
             conn.handle = LazyHandle(self.get_open_for_model(node))
         if conn.name != new_name:
             orig_conn_name: str = conn.name or ""
@@ -957,7 +964,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> DatabricksDBTConnection:
         """Create anew connection for the combination of current thread and compute associated
         with the given node."""
-        _long_sessions_only("_create_compute_connection")
+        assert USE_LONG_SESSIONS, (
+            "This path, '_create_compute_connection', should only be reachable "
+            "with USE_LONG_SESSIONS"
+        )
 
         # Create a new connection
         compute_name = _get_compute_name(node=node) or ""
@@ -994,20 +1004,25 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def _add_compute_connection(self, conn: DatabricksDBTConnection) -> None:
         """Add a new connection to the map of connection per thread per compute."""
-        _long_sessions_only("_add_compute_connection")
+        assert (
+            USE_LONG_SESSIONS
+        ), "This path, '_add_compute_connection', should only be reachable with USE_LONG_SESSIONS"
 
-        thread_map = self._get_compute_connections()
-        if conn.compute_name in thread_map:
-            raise dbt.exceptions.DbtInternalError(
-                f"In set_thread_compute_connection, connection exists for `{conn.compute_name}`"
-            )
-        thread_map[conn.compute_name] = conn
+        with self.lock:
+            thread_map = self._get_compute_connections()
+            if conn.compute_name in thread_map:
+                raise dbt.exceptions.DbtInternalError(
+                    f"In set_thread_compute_connection, connection exists for `{conn.compute_name}`"
+                )
+            thread_map[conn.compute_name] = conn
 
     def _get_compute_connections(
         self,
     ) -> Dict[Hashable, DatabricksDBTConnection]:
         """Retrieve a map of compute name to connection for the current thread."""
-        _long_sessions_only("_get_compute_connections")
+        assert (
+            USE_LONG_SESSIONS
+        ), "This path, '_get_compute_connections', should only be reachable with USE_LONG_SESSIONS"
 
         thread_id = self.get_thread_identifier()
         with self.lock:
@@ -1021,7 +1036,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self, compute_name: str
     ) -> Optional[DatabricksDBTConnection]:
         """Get the connection for the current thread and named compute, if it exists."""
-        _long_sessions_only("_get_if_exists_compute_connection")
+        assert USE_LONG_SESSIONS, (
+            "This path, '_get_if_exists_compute_connection', should only be reachable "
+            "with USE_LONG_SESSIONS"
+        )
 
         with self.lock:
             threads_map = self._get_compute_connections()
@@ -1390,11 +1408,3 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
         )
 
     return http_path
-
-
-def _long_sessions_only(name: str) -> None:
-    """Helper function to raise exception when USE_LONG_SESSIONS is false."""
-    if not USE_LONG_SESSIONS:
-        raise dbt.exceptions.DbtInternalError(
-            f"{name}() should not be called when USE_LONG_SESSIONS is False"
-        )

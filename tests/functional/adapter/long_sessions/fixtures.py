@@ -10,13 +10,7 @@ select * from {{ ref('source') }}
 """
 
 target2 = """
-{{config(materialized='table')}}
-
-select * from {{ ref('source') }}
-"""
-
-target3 = """
-{{config(materialized='table')}}
+{{config(materialized='table', databricks_compute='alternate_warehouse')}}
 
 select * from {{ ref('source') }}
 """
