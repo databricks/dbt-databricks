@@ -9,6 +9,7 @@ from dbt.config import RuntimeConfig
 
 from dbt.adapters.databricks import __version__
 from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
+from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.impl import check_not_found_error
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.connections import (
@@ -18,8 +19,10 @@ from dbt.adapters.databricks.connections import (
 )
 from tests.unit.utils import config_from_parts_or_dicts
 
+import pytest
 
-class TestDatabricksAdapter(unittest.TestCase):
+
+class DatabricksAdapterBase:
     def setUp(self):
         flags.STRICT_MODE = False
 
@@ -64,6 +67,8 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         return config_from_parts_or_dicts(self.project_cfg, self.profile_cfg)
 
+
+class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
     def test_two_catalog_settings(self):
         with self.assertRaisesRegex(
             dbt.exceptions.DbtProfileError,
@@ -362,35 +367,29 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # Mimics the output of Spark with a DESCRIBE TABLE EXTENDED
         plain_rows = [
-            ("col1", "decimal(22,0)"),
-            (
-                "col2",
-                "string",
-            ),
-            ("dt", "date"),
-            ("struct_col", "struct<struct_inner_col:string>"),
-            ("# Partition Information", "data_type"),
-            ("# col_name", "data_type"),
-            ("dt", "date"),
-            (None, None),
+            ("col1", "decimal(22,0)", "comment"),
+            ("col2", "string", "comment"),
+            ("dt", "date", None),
+            ("struct_col", "struct<struct_inner_col:string>", None),
+            ("# Partition Information", "data_type", None),
+            ("# col_name", "data_type", "comment"),
+            ("dt", "date", None),
+            (None, None, None),
             ("# Detailed Table Information", None),
             ("Database", None),
-            ("Owner", "root"),
-            ("Created Time", "Wed Feb 04 18:15:00 UTC 1815"),
-            ("Last Access", "Wed May 20 19:25:00 UTC 1925"),
-            ("Type", "MANAGED"),
-            ("Provider", "delta"),
-            ("Location", "/mnt/vo"),
-            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"),
-            ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat"),
-            (
-                "OutputFormat",
-                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
-            ),
-            ("Partition Provider", "Catalog"),
+            ("Owner", "root", None),
+            ("Created Time", "Wed Feb 04 18:15:00 UTC 1815", None),
+            ("Last Access", "Wed May 20 19:25:00 UTC 1925", None),
+            ("Type", "MANAGED", None),
+            ("Provider", "delta", None),
+            ("Location", "/mnt/vo", None),
+            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", None),
+            ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat", None),
+            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat", None),
+            ("Partition Provider", "Catalog", None),
         ]
 
-        input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
         metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
@@ -431,6 +430,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
+                "comment": "comment",
             },
         )
 
@@ -448,6 +448,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
+                "comment": "comment",
             },
         )
 
@@ -465,6 +466,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
+                "comment": None,
             },
         )
 
@@ -482,6 +484,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
+                "comment": None,
             },
         )
 
@@ -496,12 +499,12 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # Mimics the output of Spark with a DESCRIBE TABLE EXTENDED
         plain_rows = [
-            ("col1", "decimal(22,0)"),
-            ("# Detailed Table Information", None),
-            ("Owner", 1234),
+            ("col1", "decimal(22,0)", "comment"),
+            ("# Detailed Table Information", None, None),
+            ("Owner", 1234, None),
         ]
 
-        input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
         _, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
@@ -519,28 +522,25 @@ class TestDatabricksAdapter(unittest.TestCase):
 
         # Mimics the output of Spark with a DESCRIBE TABLE EXTENDED
         plain_rows = [
-            ("col1", "decimal(22,0)"),
-            ("# Partition Information", "data_type"),
-            (None, None),
-            ("# Detailed Table Information", None),
-            ("Database", None),
-            ("Owner", "root"),
-            ("Created Time", "Wed Feb 04 18:15:00 UTC 1815"),
-            ("Last Access", "Wed May 20 19:25:00 UTC 1925"),
-            ("Statistics", "1109049927 bytes, 14093476 rows"),
-            ("Type", "MANAGED"),
-            ("Provider", "delta"),
-            ("Location", "/mnt/vo"),
-            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"),
-            ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat"),
-            (
-                "OutputFormat",
-                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
-            ),
-            ("Partition Provider", "Catalog"),
+            ("col1", "decimal(22,0)", "comment"),
+            ("# Partition Information", "data_type", None),
+            (None, None, None),
+            ("# Detailed Table Information", None, None),
+            ("Database", None, None),
+            ("Owner", "root", None),
+            ("Created Time", "Wed Feb 04 18:15:00 UTC 1815", None),
+            ("Last Access", "Wed May 20 19:25:00 UTC 1925", None),
+            ("Statistics", "1109049927 bytes, 14093476 rows", None),
+            ("Type", "MANAGED", None),
+            ("Provider", "delta", None),
+            ("Location", "/mnt/vo", None),
+            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", None),
+            ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat", None),
+            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat", None),
+            ("Partition Provider", "Catalog", None),
         ]
 
-        input_cols = [Row(keys=["col_name", "data_type"], values=r) for r in plain_rows]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
         metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
@@ -576,6 +576,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_owner": "root",
                 "column": "col1",
                 "column_index": 0,
+                "comment": "comment",
                 "dtype": "decimal(22,0)",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -652,6 +653,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "stats:bytes:include": True,
                 "stats:bytes:label": "bytes",
                 "stats:bytes:value": 123456789,
+                "comment": None,
             },
         )
 
@@ -666,6 +668,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "column": "struct_col",
                 "column_index": 3,
                 "dtype": "struct",
+                "comment": None,
                 "numeric_scale": None,
                 "numeric_precision": None,
                 "char_size": None,
@@ -729,6 +732,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_owner": "root",
                 "column": "col2",
                 "column_index": 1,
+                "comment": None,
                 "dtype": "string",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -746,6 +750,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_owner": "root",
                 "column": "struct_col",
                 "column_index": 3,
+                "comment": None,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -795,6 +800,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_owner": "root",
                 "column": "dt",
                 "column_index": 2,
+                "comment": None,
                 "dtype": "date",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -820,6 +826,7 @@ class TestDatabricksAdapter(unittest.TestCase):
                 "table_owner": "root",
                 "column": "struct_col",
                 "column_index": 3,
+                "comment": None,
                 "dtype": "struct",
                 "numeric_scale": None,
                 "numeric_precision": None,
@@ -916,3 +923,46 @@ class TestCheckNotFound(unittest.TestCase):
         self.assertFalse(check_not_found_error("[DATABASE_NOT_FOUND]"))
         self.assertFalse(check_not_found_error("Schema foo not found"))
         self.assertFalse(check_not_found_error("Database 'foo' not there"))
+
+
+class TestGetPersistDocColumns(DatabricksAdapterBase):
+    @pytest.fixture(scope="class")
+    def adapter(self) -> DatabricksAdapter:
+        self.setUp()
+        return DatabricksAdapter(self._get_config())
+
+    def create_column(self, name, comment) -> DatabricksColumn:
+        return DatabricksColumn(
+            column=name,
+            dtype="string",
+            comment=comment,
+        )
+
+    def test_get_persist_doc_columns_empty(self, adapter):
+        assert adapter.get_persist_doc_columns([], {}) == {}
+
+    def test_get_persist_doc_columns_no_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col2": {"name": "col2", "description": "comment2"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == {}
+
+    def test_get_persist_doc_columns_full_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col1": {"name": "col1", "description": "comment1"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == {}
+
+    def test_get_persist_doc_columns_partial_match(self, adapter):
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {"col1": {"name": "col1", "description": "comment2"}}
+        assert adapter.get_persist_doc_columns(existing, column_dict) == column_dict
+
+    def test_get_persist_doc_columns_mixed(self, adapter):
+        existing = [self.create_column("col1", "comment1"), self.create_column("col2", "comment2")]
+        column_dict = {
+            "col1": {"name": "col1", "description": "comment2"},
+            "col2": {"name": "col2", "description": "comment2"},
+        }
+        expected = {
+            "col1": {"name": "col1", "description": "comment2"},
+        }
+        assert adapter.get_persist_doc_columns(existing, column_dict) == expected
