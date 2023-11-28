@@ -65,6 +65,12 @@ class BaseDatabricksHelper(PythonJobHelper):
                 f"Error creating work_dir for python notebooks\n {response.content!r}"
             )
 
+    def _update_with_acls(self, cluster_dict: dict) -> dict:
+        acl = self.parsed_model["config"].get("access_control_list", None)
+        if acl:
+            cluster_dict.update({"access_control_list": acl})
+        return cluster_dict
+
     def _upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
         response = requests.post(
@@ -206,7 +212,7 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
-        self._submit_through_notebook(compiled_code, cluster_spec)
+        self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
 
 
 class DBContext:
@@ -374,7 +380,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         if self.parsed_model["config"].get("create_notebook", False):
-            self._submit_through_notebook(compiled_code, {"existing_cluster_id": self.cluster_id})
+            config = {"existing_cluster_id": self.cluster_id}
+            self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
             context = DBContext(self.credentials, self.cluster_id, self.auth_header)
             command = DBCommand(self.credentials, self.cluster_id, self.auth_header)
