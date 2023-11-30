@@ -391,7 +391,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_type=relation.type,
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
-                table_comment=str(metadata.get("Comment")),
+                table_comment=metadata.get("Comment"),
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
@@ -465,7 +465,7 @@ class DatabricksAdapter(SparkAdapter):
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
         raw_table_stats = stats_match[0] if stats_match else None
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
-        comments = self._get_column_comments(relation)
+
         for match_num, match in enumerate(matches):
             column_name, column_type, nullable = match.groups()
             column = DatabricksColumn(
@@ -479,7 +479,6 @@ class DatabricksAdapter(SparkAdapter):
                 column=column_name,
                 dtype=DatabricksColumn.translate_type(column_type),
                 table_stats=table_stats,
-                comment=comments[column_name] if column_name in comments else None,
             )
             columns.append(column)
         return columns
@@ -597,12 +596,13 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
+        comments = self._get_column_comments(relation)
         for column in columns:
             # convert DatabricksRelation into catalog dicts
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
-            as_dict["column_comment"] = as_dict.pop("comment", None)
+            as_dict["column_comment"] = comments[as_dict["column_name"]]
             yield as_dict
 
     def add_query(
