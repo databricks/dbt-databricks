@@ -5,7 +5,7 @@
 - Adding capability to specify compute on a per model basis ([488](https://github.com/databricks/dbt-databricks/pull/488))
 - Selectively persist column docs that have changed between runs of incremental ([513](https://github.com/databricks/dbt-databricks/pull/513))
 - Enabling access control list for job runs (thanks @srggrs!)([518](https://github.com/databricks/dbt-databricks/pull/518))
-- Allow persisting of column docs on views ([519](https://github.com/databricks/dbt-databricks/pull/519))
+- Allow persisting of column comments on views and retrieving comments for docs on Hive ([519](https://github.com/databricks/dbt-databricks/pull/519))
 
 ## dbt-databricks 1.7.1 (Nov 13, 2023)
 
