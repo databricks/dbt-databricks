@@ -537,3 +537,11 @@
     {% do alter_column_comment(relation, columns_to_persist_docs) %}
   {% endif %}
 {% endmacro %}
+
+{% macro get_columns_comments(relation) -%}
+  {% call statement('get_columns_comments', fetch_result=True) -%}
+    describe table {{ relation }}
+  {% endcall %}
+  
+  {% do return(load_result('get_columns_comments').table) %}
+{% endmacro %}

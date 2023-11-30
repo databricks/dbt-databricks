@@ -18,7 +18,7 @@ class TestPersistDocs(BasePersistDocsBase):
             assert view_comment.startswith("View model description")
             self._assert_common_comments(view_comment)
         else:
-            assert view_comment == ""
+            assert view_comment == "" or view_comment is None
 
         view_id_comment = view_node["columns"]["id"]["comment"]
         if has_column_comments:
