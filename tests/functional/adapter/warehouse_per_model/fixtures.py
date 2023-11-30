@@ -44,7 +44,33 @@ models:
       - name: date
 """
 
+seed_properties = """
+version: 2
+
+seeds:
+  - name: source
+    config:
+      databricks_compute: alternate_warehouse2
+"""
+
 expected_target = """id,name,date
 1,Alice,2022-01-01
 2,Bob,2022-01-02
+"""
+
+target_snap = """
+{% snapshot target_snap %}
+
+{{
+    config(
+      target_schema='snapshots',
+      unique_key='id',
+      strategy='check',
+      check_cols=['id', 'name', 'date'],
+      databricks_compute='alternate_warehouse3'
+    )
+}}
+select * from {{ ref('target') }}
+
+{% endsnapshot %}
 """

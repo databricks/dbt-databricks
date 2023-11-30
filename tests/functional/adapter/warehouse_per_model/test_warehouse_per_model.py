@@ -90,11 +90,34 @@ class TestWarehousePerModel(BaseWarehousePerModel):
     def profiles_config_update(self, dbt_profile_target):
         outputs = {"default": dbt_profile_target}
         outputs["default"]["compute"] = {
-            "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]}
+            "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]},
+            "alternate_warehouse2": {"http_path": dbt_profile_target["http_path"]},
+            "alternate_warehouse3": {"http_path": dbt_profile_target["http_path"]},
         }
         return {"test": {"outputs": outputs, "target": "default"}}
 
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "source.csv": fixtures.source,
+            "properties.yml": fixtures.seed_properties,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {
+            "target_snap.sql": fixtures.target_snap,
+        }
+
     def test_wpm(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--select", "target"])
+        _, log = util.run_dbt_and_capture(["--debug", "seed"])
+        assert "`source` using compute resource 'alternate_warehouse2'" in log
+
+        _, log = util.run_dbt_and_capture(["--debug", "run", "--select", "target", "target3"])
+        assert "`target` using compute resource 'alternate_warehouse'" in log
+        assert "`target3` using default compute resource" in log
+
+        _, log = util.run_dbt_and_capture(["--debug", "snapshot"])
+        assert "`target_snap` using compute resource 'alternate_warehouse3'" in log
+
         util.check_relations_equal(project.adapter, ["target", "source"])

@@ -7,6 +7,10 @@ from dbt.adapters.databricks import connections
 class TestDatabricksConnectionHTTPPath(unittest.TestCase):
     """Test the various cases for determining a specified warehouse."""
 
+    errMsg = (
+        "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
+    )
+
     def test_get_http_path_model(self):
         default_path = "my_http_path"
         creds = connections.DatabricksCredentials(http_path=default_path)
@@ -42,21 +46,21 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
         node.config._extra["databricks_compute"] = "foo"
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {"foo": {}}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
@@ -99,21 +103,21 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
         node.config._extra["databricks_compute"] = "foo"
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {"foo": {}}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
@@ -155,21 +159,21 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
         node.config._extra["databricks_compute"] = "foo"
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 
         creds.compute = {"foo": {}}
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "Compute resource foo does not exist, relation: a_relation",
+            self.errMsg,
         ):
             connections._get_http_path(node, creds)
 

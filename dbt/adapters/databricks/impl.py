@@ -64,6 +64,7 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
+GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 
 
 @dataclass
@@ -104,6 +105,8 @@ def get_identifier_list_string(table_names: Set[str]) -> str:
 
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
+    INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
+
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
@@ -388,9 +391,11 @@ class DatabricksAdapter(SparkAdapter):
                 table_type=relation.type,
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
+                table_comment=metadata.get("Comment"),
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
+                comment=column["comment"],
             )
             for idx, column in enumerate(rows)
         ]
@@ -443,16 +448,24 @@ class DatabricksAdapter(SparkAdapter):
 
         return self._get_updated_relation(relation)[0]
 
+    def _get_column_comments(self, relation: DatabricksRelation) -> Dict[str, str]:
+        """Get the column comments for the relation."""
+        columns = self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+        return {row[0]: row[2] for row in columns}
+
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
     ) -> List[DatabricksColumn]:
         owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
         owner = owner_match[0] if owner_match else None
+        comment_match = re.findall(self.INFORMATION_COMMENT_REGEX, information)
+        table_comment = comment_match[0] if comment_match else None
         matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
         columns = []
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
         raw_table_stats = stats_match[0] if stats_match else None
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
+
         for match_num, match in enumerate(matches):
             column_name, column_type, nullable = match.groups()
             column = DatabricksColumn(
@@ -460,6 +473,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.table,
                 table_type=relation.type,
+                table_comment=table_comment,
                 column_index=match_num,
                 table_owner=owner,
                 column=column_name,
@@ -582,11 +596,13 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
+        comments = self._get_column_comments(relation)
         for column in columns:
             # convert DatabricksRelation into catalog dicts
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
+            as_dict["column_comment"] = comments[as_dict["column_name"]]
             yield as_dict
 
     def add_query(
@@ -657,3 +673,24 @@ class DatabricksAdapter(SparkAdapter):
         finally:
             if current_catalog is not None:
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
+
+    @available.parse(lambda *a, **k: {})
+    def get_persist_doc_columns(
+        self, existing_columns: List[DatabricksColumn], columns: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Returns a dictionary of columns that have updated comments."""
+        return_columns = {}
+
+        # Since existing_columns are gathered after writing the table, we don't need to include any
+        # columns from the model that are not in the existing_columns. If we did, it would lead to
+        # an error when we tried to alter the table.
+        for column in existing_columns:
+            name = column.column
+            if (
+                name in columns
+                and "description" in columns[name]
+                and columns[name]["description"] != (column.comment or "")
+            ):
+                return_columns[name] = columns[name]
+
+        return return_columns
