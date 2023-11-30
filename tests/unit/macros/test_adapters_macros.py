@@ -1,3 +1,4 @@
+from mock import MagicMock
 from dbt.adapters.databricks.relation import DatabricksRelation
 
 from tests.unit.macros.base import TestMacros
@@ -210,7 +211,7 @@ class TestSparkMacros(TestAdaptersMacros):
     def test_macros_create_view_as_tblproperties(self):
         self.config["tblproperties"] = {"tblproperties_to_view": "true"}
         self.default_context["model"].alias = "my_table"
-
+        self.default_context["get_columns_in_query"] = MagicMock(return_value=[])
         sql = self._run_macro("databricks__create_view_as", "my_table", "select 1")
 
         self.assertEqual(

@@ -101,8 +101,32 @@
   {%- endif -%}
 {%- endmacro -%}
 
+{% macro get_column_comment_sql(column_name, column_dict) -%}
+  {% if column_name in column_dict and column_dict[column_name]["description"] -%}
+    {% set escaped_description = column_dict[column_name]["description"] | replace("'", "\\'") %}
+    {% set column_comment_clause = "comment '" ~ escaped_description ~ "'" %}
+  {%- endif -%}
+  {{ adapter.quote(column_name) }} {{ column_comment_clause }}
+{% endmacro %}
+
+{% macro get_persist_docs_column_list(model_columns, query_columns) %}
+  {% for column_name in query_columns %}
+    {{ get_column_comment_sql(column_name, model_columns) }}
+    {{- ", " if not loop.last else "" }}
+  {% endfor %}
+{% endmacro %}
+
 {% macro databricks__create_view_as(relation, sql) -%}
   create or replace view {{ relation }}
+  {% if config.persist_column_docs() -%}
+    {% set model_columns = model.columns %}
+    {% set query_columns = get_columns_in_query(sql) %}
+    {% if query_columns %}
+      (
+        {{ get_persist_docs_column_list(model_columns, query_columns) }}
+      )
+    {% endif %}
+  {% endif %}
   {{ comment_clause() }}
   {%- set contract_config = config.get('contract') -%}
   {% if contract_config and contract_config.enforced %}
@@ -512,4 +536,12 @@
     {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
     {% do alter_column_comment(relation, columns_to_persist_docs) %}
   {% endif %}
+{% endmacro %}
+
+{% macro get_columns_comments(relation) -%}
+  {% call statement('get_columns_comments', fetch_result=True) -%}
+    describe table {{ relation }}
+  {% endcall %}
+  
+  {% do return(load_result('get_columns_comments').table) %}
 {% endmacro %}
