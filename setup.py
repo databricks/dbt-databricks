@@ -55,7 +55,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "dbt-spark~=1.5.0",
-        "databricks-sql-connector>=2.9.3",
+        "databricks-sql-connector>=2.9.3,<3.0.0",
         "databricks-sdk==0.9.0",
         "keyring>=23.13.0",
         "protobuf>=4.21.0",  # workaround for dbt-core issue

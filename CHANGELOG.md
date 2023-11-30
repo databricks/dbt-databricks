@@ -1,3 +1,9 @@
+## dbt-databricks 1.5.7 (November 30, 2023)
+
+### Fixes
+
+- Fix setup so that we restrict to less than version 3 of databricks-sql-connector
+
 ## dbt-databricks 1.5.6 (September 28, 2023)
 
 ### Fixes
