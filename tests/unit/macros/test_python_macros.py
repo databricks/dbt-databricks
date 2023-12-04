@@ -1,79 +1,86 @@
 from mock import MagicMock
-from tests.unit.macros.base import TestMacros
+from tests.unit.macros.base import MacroTestBase
+
+import pytest
 
 
-class TestPythonMacros(TestMacros):
-    def setUp(self):
-        TestMacros.setUp(self)
-        self.default_context["model"] = MagicMock()
-        self.template = self._get_template("python.sql", "adapters.sql")
-
-    def test_py_get_writer__default_file_format(self):
-        result = self._run_macro_raw("py_get_writer_options")
-
-        self.assertEqual(result, '.format("delta")')
-
-    def test_py_get_writer__specified_file_format(self):
-        self.config["file_format"] = "parquet"
-        result = self._run_macro_raw("py_get_writer_options")
-
-        self.assertEqual(result, '.format("parquet")')
-
-    def test_py_get_writer__specified_location_root(self):
-        self.config["location_root"] = "s3://fake_location"
+class TestPythonMacros(MacroTestBase):
+    @pytest.fixture(scope="class", autouse=True)
+    def modify_context(self, default_context) -> dict:
+        default_context["model"] = MagicMock()
         d = {"alias": "schema"}
-        self.default_context["model"].__getitem__.side_effect = d.__getitem__
-        self.default_context["is_incremental"] = MagicMock(return_value=False)
-        result = self._run_macro_raw("py_get_writer_options")
+        default_context["model"].__getitem__.side_effect = d.__getitem__
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "python.sql"
+
+    @pytest.fixture(scope="class")
+    def databricks_template_names(self) -> list:
+        return ["adapters.sql"]
+
+    def test_py_get_writer__default_file_format(self, template):
+        result = self.run_macro_raw(template, "py_get_writer_options")
+
+        assert result == '.format("delta")'
+
+    def test_py_get_writer__specified_file_format(self, config, template):
+        config["file_format"] = "parquet"
+        result = self.run_macro_raw(template, "py_get_writer_options")
+
+        assert result == '.format("parquet")'
+
+    def test_py_get_writer__specified_location_root(self, config, template, context):
+        config["location_root"] = "s3://fake_location"
+        context["is_incremental"] = MagicMock(return_value=False)
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
-        self.assertEqual(result, expected)
+        assert result == expected
 
-    def test_py_get_writer__specified_location_root_on_incremental(self):
-        self.config["location_root"] = "s3://fake_location"
-        d = {"alias": "schema"}
-        self.default_context["model"].__getitem__.side_effect = d.__getitem__
-        self.default_context["is_incremental"] = MagicMock(return_value=True)
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__specified_location_root_on_incremental(self, config, template, context):
+        config["location_root"] = "s3://fake_location"
+        context["is_incremental"] = MagicMock(return_value=True)
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
-        self.assertEqual(result, expected)
+        assert result == expected
 
-    def test_py_get_writer__partition_by_single_column(self):
-        self.config["partition_by"] = "name"
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__partition_by_single_column(self, config, template):
+        config["partition_by"] = "name"
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = ".format(\"delta\")\n.partitionBy(['name'])"
-        self.assertEqual(result, expected)
+        assert result == expected
 
-    def test_py_get_writer__partition_by_array(self):
-        self.config["partition_by"] = ["name", "date"]
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__partition_by_array(self, config, template):
+        config["partition_by"] = ["name", "date"]
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
-        self.assertEqual(result, (".format(\"delta\")\n.partitionBy(['name', 'date'])"))
+        assert result == ".format(\"delta\")\n.partitionBy(['name', 'date'])"
 
-    def test_py_get_writer__clustered_by_single_column(self):
-        self.config["clustered_by"] = "name"
-        self.config["buckets"] = 2
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__clustered_by_single_column(self, config, template):
+        config["clustered_by"] = "name"
+        config["buckets"] = 2
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
-        self.assertEqual(result, (".format(\"delta\")\n.bucketBy(2, ['name'])"))
+        assert result == ".format(\"delta\")\n.bucketBy(2, ['name'])"
 
-    def test_py_get_writer__clustered_by_array(self):
-        self.config["clustered_by"] = ["name", "date"]
-        self.config["buckets"] = 2
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__clustered_by_array(self, config, template):
+        config["clustered_by"] = ["name", "date"]
+        config["buckets"] = 2
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
-        self.assertEqual(result, (".format(\"delta\")\n.bucketBy(2, ['name', 'date'])"))
+        assert result == ".format(\"delta\")\n.bucketBy(2, ['name', 'date'])"
 
-    def test_py_get_writer__clustered_by_without_buckets(self):
-        self.config["clustered_by"] = ["name", "date"]
-        result = self._run_macro_raw("py_get_writer_options")
+    def test_py_get_writer__clustered_by_without_buckets(self, config, template):
+        config["clustered_by"] = ["name", "date"]
+        result = self.run_macro_raw(template, "py_get_writer_options")
 
-        self.assertEqual(result, ('.format("delta")'))
+        assert result == '.format("delta")'
 
-    def test_py_try_import__golden_path(self):
-        result = self._run_macro_raw("py_try_import", "pandas", "pandas_available")
+    def test_py_try_import__golden_path(self, template):
+        result = self.run_macro_raw(template, "py_try_import", "pandas", "pandas_available")
 
         expected = (
             "# make sure pandas exists before using it\n"
@@ -83,4 +90,4 @@ class TestPythonMacros(TestMacros):
             "except ImportError:\n"
             "    pandas_available = False\n"
         )
-        self.assertEqual(result, expected)
+        assert result == expected
