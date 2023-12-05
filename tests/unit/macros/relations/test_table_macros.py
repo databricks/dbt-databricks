@@ -1,6 +1,3 @@
-from mock import Mock
-from jinja2 import Environment, FileSystemLoader, PackageLoader
-import re
 import pytest
 
 from tests.unit.macros.base import MacroTestBase

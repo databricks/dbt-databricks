@@ -1,3 +1,4 @@
+from jinja2 import Template
 from mock import MagicMock
 from tests.unit.macros.base import MacroTestBase
 
@@ -6,7 +7,7 @@ import pytest
 
 class TestPythonMacros(MacroTestBase):
     @pytest.fixture(scope="class", autouse=True)
-    def modify_context(self, default_context) -> dict:
+    def modify_context(self, default_context) -> None:
         default_context["model"] = MagicMock()
         d = {"alias": "schema"}
         default_context["model"].__getitem__.side_effect = d.__getitem__
@@ -32,15 +33,16 @@ class TestPythonMacros(MacroTestBase):
 
     def test_py_get_writer__specified_location_root(self, config, template, context):
         config["location_root"] = "s3://fake_location"
-        context["is_incremental"] = MagicMock(return_value=False)
         result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
         assert result == expected
 
-    def test_py_get_writer__specified_location_root_on_incremental(self, config, template, context):
+    def test_py_get_writer__specified_location_root_on_incremental(
+        self, config, template: Template, context
+    ):
         config["location_root"] = "s3://fake_location"
-        context["is_incremental"] = MagicMock(return_value=True)
+        context["is_incremental"].return_value = True
         result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'

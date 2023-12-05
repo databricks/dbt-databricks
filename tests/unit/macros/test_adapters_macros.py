@@ -200,7 +200,7 @@ class TestDatabricksMacros(MacroTestBase):
             "get_constraint_sql",
             template_bundle.relation,
             constraint,
-            *args
+            *args,
         )
 
     @pytest.fixture(scope="class")
