@@ -26,7 +26,7 @@ class MacroTestBase:
     @pytest.fixture(autouse=True)
     def var(self, context) -> dict:
         """
-        Anything you put in this dict will be returned by config in the rendered template
+        Anything you put in this dict will be returned by var in the rendered template
         """
         local_var: Dict[str, Any] = {}
         context["var"] = lambda key, default=None, **kwargs: local_var.get(key, default)
