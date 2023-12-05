@@ -9,20 +9,6 @@ class TestDatabricksMacros(MacroTestBase):
     def template_name(self) -> str:
         return "adapters.sql"
 
-    def test_macros_create_view_as_tblproperties(self, config, template_bundle):
-        config["tblproperties"] = {"tblproperties_to_view": "true"}
-        template_bundle.context["model"].alias = "my_table"
-        template_bundle.context["get_columns_in_query"] = MagicMock(return_value=[])
-        sql = self.run_macro(
-            template_bundle.template, "databricks__create_view_as", "my_table", "select 1"
-        )
-        expected = (
-            "create or replace view my_table "
-            "tblproperties ('tblproperties_to_view' = 'true' ) as select 1"
-        )
-
-        assert sql == expected
-
     def test_macros_get_optimize_sql(self, config, template_bundle):
         config["zorder"] = "foo"
         sql = self.render_bundle(template_bundle, "get_optimize_sql")

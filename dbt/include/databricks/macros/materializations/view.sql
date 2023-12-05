@@ -1,6 +1,4 @@
 {% materialization view, adapter='databricks' -%}
-  {# copied from macro create_or_replace_view #}
-
   {%- set identifier = model['alias'] -%}
 
   {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
