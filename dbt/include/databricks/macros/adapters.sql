@@ -62,57 +62,6 @@
   {%- endif %}
 {%- endmacro -%}
 
-{% macro get_column_comment_sql(column_name, column_dict) -%}
-  {% if column_name in column_dict and column_dict[column_name]["description"] -%}
-    {% set escaped_description = column_dict[column_name]["description"] | replace("'", "\\'") %}
-    {% set column_comment_clause = "comment '" ~ escaped_description ~ "'" %}
-  {%- endif -%}
-  {{ adapter.quote(column_name) }} {{ column_comment_clause }}
-{% endmacro %}
-
-{% macro get_persist_docs_column_list(model_columns, query_columns) %}
-  {% for column_name in query_columns %}
-    {{ get_column_comment_sql(column_name, model_columns) }}
-    {{- ", " if not loop.last else "" }}
-  {% endfor %}
-{% endmacro %}
-
-{% macro databricks__create_view_as(relation, sql) -%}
-  create or replace view {{ relation }}
-  {% if config.persist_column_docs() -%}
-    {% set model_columns = model.columns %}
-    {% set query_columns = get_columns_in_query(sql) %}
-    {% if query_columns %}
-      (
-        {{ get_persist_docs_column_list(model_columns, query_columns) }}
-      )
-    {% endif %}
-  {% endif %}
-  {{ comment_clause() }}
-  {%- set contract_config = config.get('contract') -%}
-  {% if contract_config and contract_config.enforced %}
-    {{ get_assert_columns_equivalent(sql) }}
-  {%- endif %}
-  {{ tblproperties_clause() }}
-  as
-    {{ sql }}
-{% endmacro %}
-
-{% macro databricks__alter_column_comment(relation, column_dict) %}
-  {% if config.get('file_format', default='delta') in ['delta', 'hudi'] %}
-    {% for column_name in column_dict %}
-      {% set comment = column_dict[column_name]['description'] %}
-      {% set escaped_comment = comment | replace('\'', '\\\'') %}
-      {% set comment_query %}
-        alter table {{ relation }} change column
-            {{ adapter.quote(column_name) if column_dict[column_name]['quote'] else column_name }}
-            comment '{{ escaped_comment }}';
-      {% endset %}
-      {% do run_query(comment_query) %}
-    {% endfor %}
-  {% endif %}
-{% endmacro %}
-
 {# Persist table-level and column-level constraints. #}
 {% macro persist_constraints(relation, model) %}
   {{ return(adapter.dispatch('persist_constraints', 'dbt')(relation, model)) }}
@@ -431,23 +380,6 @@
   {% do return(load_result('show_views').table) %}
 {% endmacro %}
 
-
-{% macro databricks__drop_relation(relation) -%}
-    {%- if relation.is_materialized_view -%}
-        {% call statement('drop_relation', auto_begin=False) -%}
-            drop materialized view if exists {{ relation }}
-        {%- endcall %}
-    {%- elif relation.is_streaming_table-%}
-        {% call statement('drop_relation', auto_begin=False) -%}
-            drop table if exists {{ relation }}
-        {%- endcall %}    
-    {%- else -%}
-        {% call statement('drop_relation', auto_begin=False) -%}
-            drop {{ relation.type }} if exists {{ relation }}
-        {%- endcall %}
-    {%- endif -%}
-{% endmacro %}
-
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- set default_database = target.database -%}
     {%- if custom_database_name is none -%}
@@ -489,20 +421,4 @@
       type=type
   ) -%}
   {% do return([false, new_relation]) %}
-{% endmacro %}
-
-{% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
-  {% if for_columns and config.persist_column_docs() and model.columns %}
-    {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
-    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
-    {% do alter_column_comment(relation, columns_to_persist_docs) %}
-  {% endif %}
-{% endmacro %}
-
-{% macro get_columns_comments(relation) -%}
-  {% call statement('get_columns_comments', fetch_result=True) -%}
-    describe table {{ relation }}
-  {% endcall %}
-  
-  {% do return(load_result('get_columns_comments').table) %}
 {% endmacro %}
