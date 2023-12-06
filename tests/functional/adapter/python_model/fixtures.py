@@ -54,7 +54,7 @@ models:
   - name: my_python_model
     config:
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
-      
+
 sources:
   - name: test_source
     loader: custom
