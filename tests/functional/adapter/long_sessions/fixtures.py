@@ -14,3 +14,33 @@ target2 = """
 
 select * from {{ ref('source') }}
 """
+
+targetseq1 = """
+{{config(materialized='table', databricks_compute='alternate_warehouse')}}
+
+select * from {{ ref('source') }}
+"""
+
+targetseq2 = """
+{{config(materialized='table')}}
+
+select * from {{ ref('targetseq1') }}
+"""
+
+targetseq3 = """
+{{config(materialized='table')}}
+
+select * from {{ ref('targetseq2') }}
+"""
+
+targetseq4 = """
+{{config(materialized='table')}}
+
+select * from {{ ref('targetseq3') }}
+"""
+
+targetseq5 = """
+{{config(materialized='table', databricks_compute='alternate_warehouse')}}
+
+select * from {{ ref('targetseq4') }}
+"""

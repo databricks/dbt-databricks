@@ -70,6 +70,7 @@ class TestLongSessionsMultipleCompute:
         outputs["default"]["compute"] = {
             "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]},
         }
+
         return {"test": {"outputs": outputs, "target": "default"}}
 
     def test_long_sessions(self, project):
@@ -78,3 +79,38 @@ class TestLongSessionsMultipleCompute:
         _, log = util.run_dbt_and_capture(["--debug", "run"])
         open_count = log.count("Sending request: OpenSession") / 2
         assert open_count == 3
+
+
+class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
+    args_formatter = ""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        m = {
+            "targetseq1.sql": fixtures.targetseq1,
+            "targetseq2.sql": fixtures.targetseq2,
+            "targetseq3.sql": fixtures.targetseq3,
+            "targetseq4.sql": fixtures.targetseq4,
+            "targetseq5.sql": fixtures.targetseq5,
+        }
+        return m
+
+    @pytest.fixture(scope="class")
+    def profiles_config_update(self, dbt_profile_target):
+        outputs = {"default": dbt_profile_target}
+        outputs["default"]["connect_max_idle"] = 1
+        outputs["default"]["compute"] = {
+            "alternate_warehouse": {
+                "http_path": dbt_profile_target["http_path"],
+                "connect_max_idle": 1,
+            },
+        }
+
+        return {"test": {"outputs": outputs, "target": "default"}}
+
+    def test_long_sessions(self, project):
+        util.run_dbt(["--debug", "seed"])
+
+        _, log = util.run_dbt_and_capture(["--debug", "run"])
+        idle_count = log.count("closing idle connection") / 2
+        assert idle_count > 0
