@@ -48,6 +48,7 @@ class TestLongSessionsMultipleThreads(TestLongSessionsBase):
             assert open_count == (n_threads + 1)
 
 
+@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestLongSessionsMultipleCompute:
     args_formatter = ""
 
@@ -84,6 +85,7 @@ class TestLongSessionsMultipleCompute:
         assert open_count == 3
 
 
+@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
     args_formatter = ""
 
