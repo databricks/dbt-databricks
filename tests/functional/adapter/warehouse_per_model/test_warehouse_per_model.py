@@ -1,5 +1,3 @@
-import os
-import mock
 import pytest
 from dbt.tests import util
 from tests.functional.adapter.warehouse_per_model import fixtures
@@ -50,21 +48,18 @@ class BaseSpecifyingCompute(BaseWarehousePerModel):
             assert model_name in msg
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestSpecifyingInConfigBlock(BaseSpecifyingCompute):
     @pytest.fixture(scope="class")
     def test_config(self):
         return {"model_names": ["target"]}
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestSpecifyingInSchemaYml(BaseSpecifyingCompute):
     @pytest.fixture(scope="class")
     def test_config(self):
         return {"model_names": ["target2"]}
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestSpecifyingForProjectModels(BaseSpecifyingCompute):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -79,7 +74,6 @@ class TestSpecifyingForProjectModels(BaseSpecifyingCompute):
         return {"model_names": ["target3"]}
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestSpecifyingForProjectModelsInFolder(BaseSpecifyingCompute):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -98,6 +92,7 @@ class TestSpecifyingForProjectModelsInFolder(BaseSpecifyingCompute):
         return {"model_names": ["target4"]}
 
 
+@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestWarehousePerModel(BaseWarehousePerModel):
     @pytest.fixture(scope="class")
     def profiles_config_update(self, dbt_profile_target):
