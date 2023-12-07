@@ -13,7 +13,7 @@ class TestPythonMacros(MacroTestBase):
         default_context["model"].__getitem__.side_effect = d.__getitem__
 
     @pytest.fixture(scope="class")
-    def macro_folders_to_load(self) -> str:
+    def macro_folders_to_load(self) -> list:
         return ["macros/adapters"]
 
     @pytest.fixture(scope="class")
