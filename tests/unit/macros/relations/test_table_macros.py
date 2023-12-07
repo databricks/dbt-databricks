@@ -14,7 +14,7 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["adapters.sql", "file_format.sql", "tblproperties.sql"]
+        return ["file_format.sql", "tblproperties.sql"]
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         return self.run_macro(

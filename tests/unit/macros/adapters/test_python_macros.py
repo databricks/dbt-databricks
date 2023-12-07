@@ -13,12 +13,12 @@ class TestPythonMacros(MacroTestBase):
         default_context["model"].__getitem__.side_effect = d.__getitem__
 
     @pytest.fixture(scope="class")
-    def template_name(self) -> str:
-        return "python.sql"
+    def macro_folders_to_load(self) -> str:
+        return ["macros/adapters"]
 
     @pytest.fixture(scope="class")
-    def databricks_template_names(self) -> list:
-        return ["adapters.sql"]
+    def template_name(self) -> str:
+        return "python.sql"
 
     def test_py_get_writer__default_file_format(self, template):
         result = self.run_macro_raw(template, "py_get_writer_options")
