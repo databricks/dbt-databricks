@@ -4,7 +4,10 @@ from unittest import mock
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
 
-with mock.patch.dict(os.environ, {"DBT_DATABRICKS_LONG_SESSIONS": "true"}):
+with mock.patch.dict(
+    os.environ,
+    {"DBT_DATABRICKS_LONG_SESSIONS": "true", "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL": "DEBUG"},
+):
     import dbt.adapters.databricks.connections  # noqa
 
 
