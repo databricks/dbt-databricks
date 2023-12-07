@@ -10,11 +10,11 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def macro_folders_to_load(self) -> list:
-        return ["macros", "macros/relations/table"]
+        return ["macros/relations/table", "macros/relations", "macros"]
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["adapters.sql"]
+        return ["adapters.sql", "file_format.sql", "tblproperties.sql"]
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         return self.run_macro(
