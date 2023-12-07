@@ -778,7 +778,7 @@ class DatabricksDBTConnection(Connection):
             else:
                 logger.debug(
                     f"On thread {self.thread_identifier}: {node.relation_name} "
-                    "using compute resource '{self.compute_name}'."
+                    f"using compute resource '{self.compute_name}'."
                 )
         else:
             logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
