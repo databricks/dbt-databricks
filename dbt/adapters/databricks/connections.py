@@ -1179,12 +1179,19 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
+        database = database.strip("`")
+        if schema:
+            schema = schema.strip("`")
         return self._execute_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
     def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+        database = database.strip("`")
+        schema = schema.strip("`")
+        if identifier:
+            identifier = identifier.strip("`")
         return self._execute_cursor(
             f"GetTables(database={database}, schema={schema}, identifier={identifier})",
             lambda cursor: cursor.tables(
