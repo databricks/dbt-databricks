@@ -1,10 +1,16 @@
-import dataclasses
+from dataclasses import dataclass
 from typing import Optional
+from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt.contracts.graph.nodes import ModelNode
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksComponentProcessor,
+)
+from dbt.adapters.relation_configs.config_change import RelationConfigChange
+from dbt.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
 
-
-@dataclasses(frozen=True, eq=True, unsafe_hash=True)
+@dataclass(frozen=True, eq=True, unsafe_hash=True)
 class QueryConfig(DatabricksComponentConfig):
     query: str
 
@@ -12,11 +18,26 @@ class QueryConfig(DatabricksComponentConfig):
         return self.query
 
 
-class QueryProcessor(DatabricksComponentProcessor[CommentConfig]):
+class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     @classmethod
-    def process_description_row_impl(cls, row: Row) -> CommentConfig:
-        return CommentConfig(row[1])
+    def from_results(cls, result: RelationResults) -> QueryConfig:
+        row = result["information_schema.views"]
+        return QueryConfig(row["view_definition"])
 
     @classmethod
-    def process_model_node(cls, model_node: ModelNode) -> QueryConfig:
-        return CommentConfig(model_node.description)
+    def from_model_node(cls, model_node: ModelNode) -> QueryConfig:
+        query = model_node.compiled_code
+
+        if query:
+            return QueryConfig(query.strip())
+        else:
+            raise DbtRuntimeError(f"Cannot compile model {model_node.unique_id} with no SQL query")
+
+
+@dataclass(frozen=True, eq=True, unsafe_hash=True)
+class QueryConfigChange(RelationConfigChange):
+    context: Optional[QueryConfig] = None
+
+    @property
+    def requires_full_refresh(self) -> bool:
+        return True

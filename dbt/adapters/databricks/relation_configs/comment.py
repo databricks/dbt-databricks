@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from typing import Optional
-from agate import Row
+from typing import Optional, ClassVar
 from dbt.contracts.graph.nodes import ModelNode
 
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
+from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.adapters.relation_configs.config_change import RelationConfigChange
 
 
@@ -21,20 +21,18 @@ class CommentConfig(DatabricksComponentConfig):
 
 
 class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
-    @classmethod
-    def name(cls) -> str:
-        return "comment"
+    name: ClassVar[str] = "comment"
 
     @classmethod
-    def description_target(cls) -> str:
-        return "Comment"
+    def from_results(cls, results: RelationResults) -> CommentConfig:
+        table = results["describe_extended"]
+        for row in table.rows:
+            if row[0] == "Comment":
+                return CommentConfig(row[1])
+        return CommentConfig()
 
     @classmethod
-    def process_description_row_impl(cls, row: Row) -> CommentConfig:
-        return CommentConfig(row[1])
-
-    @classmethod
-    def process_model_node(cls, model_node: ModelNode) -> CommentConfig:
+    def from_model_node(cls, model_node: ModelNode) -> CommentConfig:
         return CommentConfig(model_node.description)
 
 
@@ -42,5 +40,6 @@ class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
 class CommentConfigChange(RelationConfigChange):
     context: Optional[CommentConfig] = None
 
+    @property
     def requires_full_refresh(self) -> bool:
         return False

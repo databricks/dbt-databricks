@@ -1,8 +1,9 @@
 from abc import ABC
 from dataclasses import dataclass
 import re
-from typing import Optional
-from agate import Row
+from typing import ClassVar, Optional
+
+from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.exceptions import DbtRuntimeError
 from dbt.adapters.relation_configs.config_change import RelationConfigChange
 from dbt.contracts.graph.nodes import ModelNode
@@ -41,32 +42,34 @@ class ManualRefreshConfig(RefreshConfig):
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
-    @classmethod
-    def name(cls) -> str:
-        return "refresh"
+    name: ClassVar[str] = "refresh"
 
     @classmethod
-    def description_target(cls) -> str:
-        return "Refresh Schedule"
+    def from_results(cls, results: RelationResults) -> RefreshConfig:
+        table = results["describe_extended"]
+        for row in table.rows:
+            if row[0] == "Refresh Schedule":
+                if row[1] == "MANUAL":
+                    return ManualRefreshConfig()
+
+                match = SCHEDULE_REGEX.match(row[1])
+
+                if match:
+                    cron, time_zone_value = match.groups()
+                    return ScheduledRefreshConfig(cron=cron, time_zone_value=time_zone_value)
+
+                raise DbtRuntimeError(
+                    f"Could not parse schedule from description: {row[1]}."
+                    " This is most likely a bug in the dbt-databricks adapter, so please file an issue!"
+                )
+
+        raise DbtRuntimeError(
+            f"Could not parse schedule for table."
+            " This is most likely a bug in the dbt-databricks adapter, so please file an issue!"
+        )
 
     @classmethod
-    def process_description_row_impl(cls, row: Row) -> RefreshConfig:
-        if row[1] == "MANUAL":
-            return ManualRefreshConfig()
-
-        match = SCHEDULE_REGEX.match(row[1])
-
-        if match:
-            cron, time_zone_value = match.groups()
-            return ScheduledRefreshConfig(cron=cron, time_zone_value=time_zone_value)
-        else:
-            raise DbtRuntimeError(
-                f"Could not parse schedule from description: {row[1]}."
-                " This is most likely a bug in the dbt-databricks adapter, so please file an issue!"
-            )
-
-    @classmethod
-    def process_model_node(cls, model_node: ModelNode) -> RefreshConfig:
+    def from_model_node(cls, model_node: ModelNode) -> RefreshConfig:
         schedule = model_node.config.extra.get("schedule")
         if schedule:
             if "cron" not in schedule:
@@ -82,5 +85,6 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
 class RefreshConfigChange(RelationConfigChange):
     context: Optional[RefreshConfig] = None
 
+    @property
     def requires_full_refresh(self) -> bool:
         return False
