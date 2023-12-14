@@ -34,7 +34,7 @@ class DatabricksComponentProcessor(ABC, Generic[Component]):
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksRelationConfigBase(RelationConfigBase, ABC):
+class DatabricksRelationConfigBase(RelationConfigBase):
     config_components: ClassVar[List[type[DatabricksComponentProcessor]]]
 
     @classmethod
@@ -57,3 +57,11 @@ class DatabricksRelationConfigBase(RelationConfigBase, ABC):
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class DatabricksRelationChangeSet:
     changes: List[RelationConfigChange]
+
+    @property
+    def requires_full_refresh(self) -> bool:
+        return any(change.requires_full_refresh for change in self.changes)
+
+    @property
+    def has_changes(self) -> bool:
+        return len(self.changes) > 0

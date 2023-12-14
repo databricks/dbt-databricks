@@ -4,22 +4,18 @@ from dbt.adapters.databricks.relation_configs.base import (
 )
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentConfig,
-    CommentConfigChange,
     CommentProcessor,
 )
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByConfig,
-    PartitionedByConfigChange,
     PartitionedByProcessor,
 )
 from dbt.adapters.databricks.relation_configs.query import (
     QueryConfig,
-    QueryConfigChange,
     QueryProcessor,
 )
 from dbt.adapters.databricks.relation_configs.refresh import (
     RefreshConfig,
-    RefreshConfigChange,
     RefreshProcessor,
 )
 

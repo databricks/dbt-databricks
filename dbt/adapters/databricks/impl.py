@@ -41,7 +41,7 @@ from dbt.adapters.spark.impl import (
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
-from dbt.contracts.graph.nodes import ResultNode
+from dbt.contracts.graph.nodes import ResultNode, ModelNode
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
 from dbt.events import AdapterLogger
@@ -58,6 +58,7 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
 )
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 
 
@@ -734,3 +735,7 @@ class DatabricksAdapter(SparkAdapter):
                 return_columns[name] = columns[name]
 
         return return_columns
+
+    @available.parse_none
+    def materialized_view_from_model(self, model: ModelNode) -> MaterializedViewConfig:
+        return MaterializedViewConfig.from_model_node(model)  # type: ignore
