@@ -1,3 +1,13 @@
+## dbt-databricks 1.6.8 (December 14, 2023)
+
+### Fixes
+
+- Backport of fix for where we were invoking create schema or not exists when the schema already exists (leading to permission issue) ([529](https://github.com/databricks/dbt-databricks/pull/529))
+
+### Under the Hood
+
+- Update dependency to dbt-spark 1.6.2
+
 ## dbt-databricks 1.6.7 (November 9, 2023)
 
 ### Under the Hood
