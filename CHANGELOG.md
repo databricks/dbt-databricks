@@ -6,7 +6,7 @@
 
 ### Under the Hood
 
-- Update dependency to dbt-spark 1.6.2
+- Update dependency to dbt-spark 1.6.2 (thanks @ChenyuLInx!)
 
 ## dbt-databricks 1.6.7 (November 9, 2023)
 
