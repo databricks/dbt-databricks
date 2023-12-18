@@ -3,7 +3,6 @@ import itertools
 from typing import ClassVar, List, Optional
 
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.adapters.relation_configs.config_change import RelationConfigChange
 from dbt.contracts.graph.nodes import ModelNode
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -22,7 +21,7 @@ class PartitionedByConfig(DatabricksComponentConfig):
 
 
 class PartitionedByProcessor(DatabricksComponentProcessor):
-    name: ClassVar[str] = "partitioned_by"
+    name: ClassVar[str] = "partition_by"
 
     @classmethod
     def from_results(cls, results: RelationResults) -> PartitionedByConfig:
@@ -44,12 +43,3 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
         if isinstance(partition_by, str):
             return PartitionedByConfig([partition_by])
         return PartitionedByConfig(partition_by)
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class PartitionedByConfigChange(RelationConfigChange):
-    context: Optional[PartitionedByConfig] = None
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        return True

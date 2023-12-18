@@ -31,6 +31,7 @@ from dbt.adapters.capability import (
 )
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
@@ -60,6 +61,7 @@ from dbt.adapters.databricks.relation import (
 )
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 logger = AdapterLogger("Databricks")
@@ -737,5 +739,28 @@ class DatabricksAdapter(SparkAdapter):
         return return_columns
 
     @available.parse_none
-    def materialized_view_from_model(self, model: ModelNode) -> MaterializedViewConfig:
+    def materialized_view_config_from_model(self, model: ModelNode) -> MaterializedViewConfig:
         return MaterializedViewConfig.from_model_node(model)  # type: ignore
+
+    @available.parse_none
+    def get_relation_config(self, relation: DatabricksRelation) -> MaterializedViewConfig:
+        if relation.type == RelationType.MaterializedView:
+            results = self.describe_materialized_view(relation)
+            return MaterializedViewConfig.from_results(results)
+        else:
+            raise dbt.exceptions.DbtRuntimeError(
+                f"The method `DatabricksAdapter.get_relation_config` is not implemented "
+                f"for the relation type: {relation.type}"
+            )
+
+    def describe_materialized_view(self, relation: DatabricksRelation) -> RelationResults:
+        kwargs = {"relation": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = self.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+        results["information_schema.views"] = self.execute_macro(
+            "get_view_description", kwargs=kwargs
+        )
+        results["show_tblproperties"] = self.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results

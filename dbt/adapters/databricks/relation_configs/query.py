@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.contracts.graph.nodes import ModelNode
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_change import RelationConfigChange
 from dbt.exceptions import DbtRuntimeError
 
 
@@ -19,6 +18,8 @@ class QueryConfig(DatabricksComponentConfig):
 
 
 class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
+    name: ClassVar[str] = "query"
+
     @classmethod
     def from_results(cls, result: RelationResults) -> QueryConfig:
         row = result["information_schema.views"]
@@ -32,12 +33,3 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
             return QueryConfig(query.strip())
         else:
             raise DbtRuntimeError(f"Cannot compile model {model_node.unique_id} with no SQL query")
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class QueryConfigChange(RelationConfigChange):
-    context: Optional[QueryConfig] = None
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        return True

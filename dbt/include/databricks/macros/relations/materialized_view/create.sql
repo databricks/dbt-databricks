@@ -5,6 +5,7 @@
   create materialized view {{ relation }}
   {% materialized_view.partition_by.to_sql_clause() -%}
   {% materialized_view.comment.to_sql_clause() -%}
+  {% materialized_view.tblproperties.to_sql_clause() -%}
   {% materialized_view.refresh.to_sql_clause() -%}
   as
     {{ sql }}

@@ -7,7 +7,6 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentProcessor,
 )
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.adapters.relation_configs.config_change import RelationConfigChange
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
@@ -34,12 +33,3 @@ class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
     @classmethod
     def from_model_node(cls, model_node: ModelNode) -> CommentConfig:
         return CommentConfig(model_node.description)
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class CommentConfigChange(RelationConfigChange):
-    context: Optional[CommentConfig] = None
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        return False

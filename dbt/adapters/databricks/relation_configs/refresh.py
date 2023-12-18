@@ -1,14 +1,14 @@
 from abc import ABC
 from dataclasses import dataclass
 import re
-from typing import ClassVar, Optional
+from typing import ClassVar, List, Optional
 
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.exceptions import DbtRuntimeError
-from dbt.adapters.relation_configs.config_change import RelationConfigChange
 from dbt.contracts.graph.nodes import ModelNode
 
 from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksAlterableComponentConfig,
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
@@ -16,14 +16,15 @@ from dbt.adapters.databricks.relation_configs.base import (
 SCHEDULE_REGEX = re.compile(r"CRON '(.*)' AT TIME ZONE '(.*)'")
 
 
-class RefreshConfig(DatabricksComponentConfig, ABC):
+class RefreshConfig(DatabricksAlterableComponentConfig, ABC):
     pass
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class ScheduledRefreshConfig(RefreshConfig):
     cron: str
-    time_zone_value: Optional[str]
+    time_zone_value: Optional[str] = None
+    alter: bool = False
 
     def to_sql_clause(self) -> str:
         schedule = f"SCHEDULE CRON '{self.cron}'"
@@ -33,11 +34,39 @@ class ScheduledRefreshConfig(RefreshConfig):
 
         return schedule
 
+    def to_alter_sql_clauses(self) -> List[str]:
+        prefix = "ALTER " if self.alter else "ADD "
+
+        return [prefix + self.to_sql_clause()]
+
+    def get_diff(self, other: DatabricksComponentConfig) -> "ScheduledRefreshConfig":
+        if not isinstance(other, RefreshConfig):
+            raise DbtRuntimeError(
+                f"Cannot diff {self.__class__.__name__} with {other.__class__.__name__}"
+            )
+
+        return ScheduledRefreshConfig(
+            cron=self.cron,
+            time_zone_value=self.time_zone_value,
+            alter=isinstance(other, ScheduledRefreshConfig),
+        )
+
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class ManualRefreshConfig(RefreshConfig):
     def to_sql_clause(self) -> str:
         return ""
+
+    def to_alter_sql_clauses(self) -> List[str]:
+        return ["DROP SCHEDULE"]
+
+    def get_diff(self, other: DatabricksComponentConfig) -> "ManualRefreshConfig":
+        if not isinstance(other, RefreshConfig):
+            raise DbtRuntimeError(
+                f"Cannot diff {self.__class__.__name__} with {other.__class__.__name__}"
+            )
+
+        return ManualRefreshConfig()
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
@@ -79,12 +108,3 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
             )
         else:
             return ManualRefreshConfig()
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class RefreshConfigChange(RelationConfigChange):
-    context: Optional[RefreshConfig] = None
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        return False

@@ -80,18 +80,18 @@ class TestPartitionedByProcessor:
 
     def test_from_model_node__without_partition_by(self):
         model = Mock()
-        model.config.extra.get.return_value = None
+        model.config.extra = {}
         spec = PartitionedByProcessor.from_model_node(model)
         assert spec == PartitionedByConfig(None)
 
     def test_from_model_node__single_column(self):
         model = Mock()
-        model.config.extra.get.return_value = "col_a"
+        model.config.extra = {"partition_by": "col_a"}
         spec = PartitionedByProcessor.from_model_node(model)
         assert spec == PartitionedByConfig(["col_a"])
 
     def test_from_model_node__multiple_columns(self):
         model = Mock()
-        model.config.extra.get.return_value = ["col_a", "col_b"]
+        model.config.extra = {"partition_by": ["col_a", "col_b"]}
         spec = PartitionedByProcessor.from_model_node(model)
         assert spec == PartitionedByConfig(["col_a", "col_b"])
