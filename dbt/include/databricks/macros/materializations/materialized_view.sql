@@ -1,4 +1,4 @@
-{% materialization materialized_view, databricks %}
+{% materialization materialized_view, adapter = 'databricks' %}
     {% set existing_relation = load_cached_relation(this) %}
     {% set target_relation = this.incorporate(type=this.MaterializedView) %}
 
