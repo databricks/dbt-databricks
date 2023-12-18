@@ -59,6 +59,7 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
 )
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
 from dbt.adapters.relation_configs.config_base import RelationResults
@@ -743,7 +744,7 @@ class DatabricksAdapter(SparkAdapter):
         return MaterializedViewConfig.from_model_node(model)  # type: ignore
 
     @available.parse_none
-    def get_relation_config(self, relation: DatabricksRelation) -> MaterializedViewConfig:
+    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
         if relation.type == RelationType.MaterializedView:
             results = self.describe_materialized_view(relation)
             return MaterializedViewConfig.from_results(results)
