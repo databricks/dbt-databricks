@@ -35,3 +35,44 @@
     {{ databricks__py_write_table(compiled_code=compiled_code, target_relation=relation) }}
   {%- endif -%}
 {%- endmacro -%}
+
+{% macro databricks__options_clause() -%}
+  {%- set options = config.get('options') -%}
+  {%- if config.get('file_format', default='delta') == 'hudi' -%}
+    {%- set unique_key = config.get('unique_key') -%}
+    {%- if unique_key is not none and options is none -%}
+      {%- set options = {'primaryKey': config.get('unique_key')} -%}
+    {%- elif unique_key is not none and options is not none and 'primaryKey' not in options -%}
+      {%- set _ = options.update({'primaryKey': config.get('unique_key')}) -%}
+    {%- elif options is not none and 'primaryKey' in options and options['primaryKey'] != unique_key -%}
+      {{ exceptions.raise_compiler_error("unique_key and options('primaryKey') should be the same column(s).") }}
+    {%- endif %}
+  {%- endif %}
+
+  {%- if options is not none %}
+    options (
+      {%- for option in options -%}
+      {{ option }} "{{ options[option] }}" {% if not loop.last %}, {% endif %}
+      {%- endfor %}
+    )
+  {%- endif %}
+{%- endmacro -%}
+
+{% macro liquid_clustered_cols(label, required=false) -%}
+  {{ return(adapter.dispatch('liquid_clustered_cols', 'dbt')(label, required)) }}
+{%- endmacro -%}
+
+{% macro databricks__liquid_clustered_cols(label, required=false) -%}
+  {%- set cols = config.get('liquid_clustered_by', validator=validation.any[list, basestring]) -%}
+  {%- if cols is not none %}
+    {%- if cols is string -%}
+      {%- set cols = [cols] -%}
+    {%- endif -%}
+    {{ label }} (
+    {%- for item in cols -%}
+      {{ item }}
+      {%- if not loop.last -%},{%- endif -%}
+    {%- endfor -%}
+    )
+  {%- endif %}
+{%- endmacro -%}
