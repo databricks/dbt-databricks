@@ -1,3 +1,23 @@
+{% macro get_alter_materialized_view_as_sql(
+    relation,
+    configuration_changes,
+    sql,
+    existing_relation,
+    backup_relation,
+    intermediate_relation
+) %}
+    {{- log('Applying ALTER to: ' ~ relation) -}}
+    {{- return(adapter.dispatch('get_alter_materialized_view_as_sql', 'dbt')(
+        relation,
+        configuration_changes,
+        sql,
+        existing_relation,
+        backup_relation,
+        intermediate_relation
+    )) -}}
+{% endmacro %}
+
+
 {% macro databricks__get_materialized_view_configuration_changes(existing_relation, new_config) -%}
     {% set _existing_materialized_view = adapter.get_relation_config(existing_relation) %}
     {%- set materialized_view = adapter.materialized_view_config_from_model(config.model) -%}
@@ -15,17 +35,14 @@
 ) %}
     -- apply a full refresh immediately if needed
     {% if configuration_changes.requires_full_refresh %}
-
-        {{ get_replace_sql(existing_relation, relation,  sql) }}
+        {{ return(databricks__get_replace_sql(existing_relation, relation,  sql)) }}
 
     -- otherwise apply individual changes as needed
     {% else %}
-
-        {%- set autorefresh = configuration_changes.autorefresh -%}
-        {%- if autorefresh -%}{{- log('Applying UPDATE AUTOREFRESH to: ' ~ relation) -}}{%- endif -%}
-
-        alter materialized view {{ relation }}
-            auto refresh {% if autorefresh.context %}yes{% else %}no{% endif %}
-
+        {% set changes = [] %}
+        {% for clause in configuration_changes.get_alter_sql_clauses() %}
+            {% do changes.append("alter materialized view " ~ relation ~ " " ~ clause) %}
+        {% endfor %}
+        {{ return(changes) }}
     {%- endif -%}
 {% endmacro %}

@@ -61,7 +61,7 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelationType,
 )
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
-from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
 from dbt.adapters.relation_configs.config_base import RelationResults
 
 
@@ -755,13 +755,15 @@ class DatabricksAdapter(SparkAdapter):
             )
 
     def describe_materialized_view(self, relation: DatabricksRelation) -> RelationResults:
-        kwargs = {"relation": relation}
+        kwargs = {"table_name": relation}
         results: RelationResults = dict()
         results["describe_extended"] = self.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
-        results["information_schema.views"] = self.execute_macro(
-            "get_view_description", kwargs=kwargs
+
+        kwargs = {"relation": relation}
+        results["information_schema.views"] = get_first_row(
+            self.execute_macro("get_view_description", kwargs=kwargs)
         )
         results["show_tblproperties"] = self.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results

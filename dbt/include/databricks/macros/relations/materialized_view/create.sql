@@ -1,6 +1,6 @@
 {% macro databricks__get_create_materialized_view_as_sql(relation, sql) -%}
 
-  {%- set materialized_view = adapter.materialized_view_from_model(config.model) -%}
+  {%- set materialized_view = adapter.materialized_view_config_from_model(config.model) -%}
   
   create materialized view {{ relation }}
   {{ materialized_view.partition_by.to_sql_clause() }}

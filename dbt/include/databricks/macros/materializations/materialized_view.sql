@@ -35,12 +35,12 @@
         {% set configuration_changes = get_materialized_view_configuration_changes(existing_relation, config) %}
 
         {% if configuration_changes is none %}
-            {% set build_sql = [refresh_materialized_view(target_relation)] %}
+            {% set build_sql = refresh_materialized_view(target_relation) %}
 
         {% elif on_configuration_change == 'apply' %}
             {% set build_sql = get_alter_materialized_view_as_sql(target_relation, configuration_changes, sql, existing_relation, None, None) %}
         {% elif on_configuration_change == 'continue' %}
-            {% set build_sql = [] %}
+            {% set build_sql = "" %}
             {{ exceptions.warn("Configuration changes were identified and `on_configuration_change` was set to `continue` for `" ~ target_relation ~ "`") }}
         {% elif on_configuration_change == 'fail' %}
             {{ exceptions.raise_fail_fast_error("Configuration changes were identified and `on_configuration_change` was set to `fail` for `" ~ target_relation ~ "`") }}
@@ -75,11 +75,18 @@
 
     {% set grant_config = config.get('grants') %}
 
-    {%- for sql in build_sql %}
+    {%- if build_sql is string %}
         {% call statement(name="main") %}
             {{ build_sql }}
         {% endcall %}
-    {% endfor %}
+    {%- else %}
+        {%- for sql in build_sql %}
+            {% call statement(name="main") %}
+                {{ sql }}
+            {% endcall %}
+        {% endfor %}
+    {% endif %}
+
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}

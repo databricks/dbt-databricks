@@ -5,6 +5,7 @@ from typing import Any, Callable, Type, TypeVar
 
 from dbt.adapters.base import BaseAdapter
 from jinja2.runtime import Undefined
+from agate import Table, Row
 
 
 A = TypeVar("A", bound=BaseAdapter)
@@ -77,3 +78,9 @@ def _wrap_function(func: Callable) -> Callable:
 def remove_ansi(line: str) -> str:
     ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
     return ansi_escape.sub("", line)
+
+
+def get_first_row(results: Table) -> Row:
+    if len(results.rows) == 0:
+        return Row(values=set())
+    return results.rows[0]
