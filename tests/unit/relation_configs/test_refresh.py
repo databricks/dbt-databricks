@@ -12,7 +12,7 @@ from agate import Table
 
 class TestRefreshProcessor:
     @pytest.fixture
-    def rows(self) -> List[List[str | Any]]:
+    def rows(self) -> List[List[Any]]:
         return [
             ["col_name", "data_type", "comment"],
             ["col_a", "int", "This is a comment"],
