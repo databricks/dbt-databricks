@@ -1,7 +1,6 @@
 from typing import Any, List
 from mock import Mock
 import pytest
-from agate import Row
 from dbt.adapters.databricks.relation_configs.refresh import (
     RefreshProcessor,
     ManualRefreshConfig,

@@ -1,5 +1,5 @@
 import pytest
-from agate import Table, Row
+from agate import Table
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig, CommentProcessor
 
 

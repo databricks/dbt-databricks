@@ -89,11 +89,12 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
 
                 raise DbtRuntimeError(
                     f"Could not parse schedule from description: {row[1]}."
-                    " This is most likely a bug in the dbt-databricks adapter, so please file an issue!"
+                    " This is most likely a bug in the dbt-databricks adapter,"
+                    " so please file an issue!"
                 )
 
         raise DbtRuntimeError(
-            f"Could not parse schedule for table."
+            "Could not parse schedule for table."
             " This is most likely a bug in the dbt-databricks adapter, so please file an issue!"
         )
 
@@ -102,7 +103,7 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         schedule = model_node.config.extra.get("schedule")
         if schedule:
             if "cron" not in schedule:
-                raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}.")
+                raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}")
             return ScheduledRefreshConfig(
                 cron=schedule["cron"], time_zone_value=schedule.get("time_zone_value")
             )

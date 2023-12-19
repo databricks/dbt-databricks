@@ -73,7 +73,8 @@ class DatabricksRelation(BaseRelation):
         }
     )
 
-    # list relations that can be atomically replaced (e.g. `CREATE OR REPLACE my_relation..` versus `DROP` and `CREATE`)
+    # list relations that can be atomically replaced (e.g. `CREATE OR REPLACE my_relation..`
+    # versus `DROP` and `CREATE`)
     replaceable_relations = frozenset(
         {
             RelationType.View,

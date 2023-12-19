@@ -27,4 +27,4 @@ class TestQueryProcessor:
             DbtRuntimeError,
             match="Cannot compile model 1 with no SQL query",
         ):
-            spec = QueryProcessor.from_model_node(model)
+            _ = QueryProcessor.from_model_node(model)

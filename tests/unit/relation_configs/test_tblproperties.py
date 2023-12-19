@@ -15,7 +15,7 @@ class TestTblPropertiesConfig:
             DbtRuntimeError,
             match="Cannot set and unset the same tblproperty in the same model",
         ):
-            config = TblPropertiesConfig({"prop": "1"}, to_unset=["prop"])
+            _ = TblPropertiesConfig({"prop": "1"}, to_unset=["prop"])
 
     @pytest.mark.parametrize(
         "input,expected",
@@ -171,7 +171,7 @@ class TestTblPropertiesProcessor:
             DbtRuntimeError,
             match="tblproperties must be a dictionary",
         ):
-            TblPropertiesProcessor.from_model_node(model)
+            _ = TblPropertiesProcessor.from_model_node(model)
 
     def test_from_model_node__with_incorrect_ignore_list(self):
         model = Mock()
@@ -182,4 +182,4 @@ class TestTblPropertiesProcessor:
             DbtRuntimeError,
             match="ignore_list must be a list",
         ):
-            TblPropertiesProcessor.from_model_node(model)
+            _ = TblPropertiesProcessor.from_model_node(model)
