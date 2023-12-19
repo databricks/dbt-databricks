@@ -79,7 +79,7 @@
         {% call statement(name="main") %}
             {{ build_sql }}
         {% endcall %}
-    {% endfor %
+    {% endfor %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
