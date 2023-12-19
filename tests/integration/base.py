@@ -189,7 +189,6 @@ class DBTIntegrationTest(unittest.TestCase):
                 "outputs": {
                     "dev": dict(
                         **get_databricks_cluster_target(adapter_type),
-                        schema=self.unique_schema(),
                     ),
                 },
                 "target": "dev",
