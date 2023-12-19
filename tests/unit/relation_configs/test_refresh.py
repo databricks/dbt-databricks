@@ -58,7 +58,7 @@ class TestRefreshProcessor:
         model.config.extra = {"schedule": {"time_zone_value": "UTC"}}
         with pytest.raises(
             DbtRuntimeError,
-            match="Schedule config must contain a 'cron' key, got {'time_zone_value': 'UTC'}.",
+            match="Schedule config must contain a 'cron' key, got {'time_zone_value': 'UTC'}",
         ):
             RefreshProcessor.from_model_node(model)
 

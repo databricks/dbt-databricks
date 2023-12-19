@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
-from typing_extensions import Self
+from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationConfigBase, RelationResults
 from dbt.contracts.graph.nodes import ModelNode
@@ -93,7 +93,7 @@ T = TypeVar("T", bound=DatabricksComponentConfig)
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class DatabricksRelationConfigBase(RelationConfigBase):
-    config_components: ClassVar[List[type[DatabricksComponentProcessor]]]
+    config_components: ClassVar[List[Type[DatabricksComponentProcessor]]]
 
     @classmethod
     def from_model_node(cls, model_node: ModelNode) -> RelationConfigBase:
