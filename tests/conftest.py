@@ -32,3 +32,38 @@ def skip_by_profile_type(request):
         for skip_profile_type in request.node.get_closest_marker("skip_profile").args:
             if skip_profile_type == profile_type:
                 pytest.skip(f"skipped on '{profile_type}' profile")
+
+
+# The profile dictionary, used to write out profiles.yml. It will pull in updates
+# from two separate sources, the 'profile_target' and 'profiles_config_update'.
+# The second one is useful when using alternative targets, etc.
+@pytest.fixture(scope="class")
+def dbt_profile_data(unique_schema, dbt_profile_target, profiles_config_update):
+    profile = {
+        "config": {"send_anonymous_usage_stats": False},
+        "test": {
+            "outputs": {
+                "default": {},
+            },
+            "target": "default",
+        },
+    }
+    target = dbt_profile_target
+    target["schema"] = unique_schema
+    profile["test"]["outputs"]["default"] = target
+
+    alternate_warehouse = target.copy()
+    alternate_warehouse["compute"] = {
+        "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]},
+        "alternate_warehouse2": {"http_path": dbt_profile_target["http_path"]},
+        "alternate_warehouse3": {"http_path": dbt_profile_target["http_path"]},
+    }
+    profile["test"]["outputs"]["alternate_warehouse"] = alternate_warehouse
+
+    idle_sessions = alternate_warehouse.copy()
+    idle_sessions["connect_max_idle"] = 1
+    profile["test"]["outputs"]["idle_sessions"] = idle_sessions
+
+    if profiles_config_update:
+        profile.update(profiles_config_update)
+    return profile
