@@ -16,12 +16,12 @@ class token_auth(CredentialsProvider):
         return {"token": self._token}
 
     @staticmethod
-    def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
+    def from_dict(raw: Optional[dict]) -> CredentialsProvider:
         if not raw:
             return None
         return token_auth(raw["token"])
 
-    def __call__(self, _: Config) -> HeaderFactory:
+    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
 
         def inner() -> Dict[str, str]:
