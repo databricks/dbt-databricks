@@ -167,11 +167,8 @@ class DBTIntegrationTest(unittest.TestCase):
         return None
 
     def unique_schema(self):
-        schema = self.schema
-
-        to_return = "{}_{}".format(self.prefix, schema)
-
-        return to_return.lower()
+        schema = self.config.credentials.schema
+        return schema.lower()
 
     @property
     def default_database(self):
