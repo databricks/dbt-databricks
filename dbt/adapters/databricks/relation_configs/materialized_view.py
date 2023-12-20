@@ -55,6 +55,9 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
 
         changes: List[Optional[DatabricksConfigChange]] = []
         changes.append(DatabricksConfigChange.get_change(existing.partition_by, self.partition_by))
+        changes.append(
+            DatabricksConfigChange.get_change(existing.tblproperties, self.tblproperties)
+        )
         changes.append(DatabricksConfigChange.get_change(existing.comment, self.comment))
         changes.append(DatabricksConfigChange.get_change(existing.refresh, self.refresh))
         changes.append(DatabricksConfigChange.get_change(existing.query, self.query))

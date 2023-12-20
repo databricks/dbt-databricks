@@ -35,7 +35,7 @@
 ) %}
     -- apply a full refresh immediately if needed
     {% if configuration_changes.requires_full_refresh %}
-        {{ return(databricks__get_replace_sql(existing_relation, relation,  sql)) }}
+        {{ return(get_replace_sql(existing_relation, relation,  sql)) }}
 
     -- otherwise apply individual changes as needed
     {% else %}
@@ -43,6 +43,7 @@
         {% for clause in configuration_changes.get_alter_sql_clauses() %}
             {% do changes.append("alter materialized view " ~ relation ~ " " ~ clause) %}
         {% endfor %}
+        {{ log(changes) }}
         {{ return(changes) }}
     {%- endif -%}
 {% endmacro %}

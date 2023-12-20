@@ -3,7 +3,6 @@ from typing import Any, Dict, List, ClassVar
 from dbt.contracts.graph.nodes import ModelNode
 
 from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksAlterableComponentConfig,
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
@@ -12,7 +11,7 @@ from dbt.exceptions import DbtRuntimeError
 
 
 @dataclass(frozen=True)
-class TblPropertiesConfig(DatabricksAlterableComponentConfig):
+class TblPropertiesConfig(DatabricksComponentConfig):
     tblproperties: Dict[str, str] = field(default_factory=dict)
     ignore_list: List[str] = field(default_factory=list)
     to_unset: List[str] = field(default_factory=list)
@@ -31,6 +30,8 @@ class TblPropertiesConfig(DatabricksAlterableComponentConfig):
         return ""
 
     def to_alter_sql_clauses(self) -> List[str]:
+        """For now this is not called because MVs do not currently allow altering tblproperties.
+        When that changes, switch to Alterable config to start invoking this method."""
         clauses = []
         without_ignore_list = self._without_ignore_list(self.tblproperties)
         if without_ignore_list:

@@ -90,13 +90,14 @@ class TestDatabricksUtils(unittest.TestCase):
 """
         self.assertEqual(remove_ansi(test_string), expected_string)
 
-    @pytest.mark.parametrize(
-        "input,expected",
-        [
-            (Table([]), Row(set())),
-            (Table([Row(["first", "row"]), Row(["second", "row"])]), Row(["first", "row"])),
-        ],
-    )
-    def test_get_first_row(self, input, expected):
-        first_row = get_first_row(input)
-        assert first_row == expected
+
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        (Table([]), Row(set())),
+        (Table([Row(["first", "row"]), Row(["second", "row"])]), Row(["first", "row"])),
+    ],
+)
+def test_get_first_row(input, expected):
+    first_row = get_first_row(input)
+    assert first_row == expected

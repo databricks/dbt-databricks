@@ -13,7 +13,6 @@ from dbt.adapters.databricks.relation_configs.refresh import (
     ManualRefreshConfig,
     ScheduledRefreshConfig,
 )
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
@@ -54,7 +53,7 @@ class TestDatabricksConfigChange:
 
     def test_get_change__with_diff(self):
         change = DatabricksConfigChange.get_change(
-            ManualRefreshConfig(), ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
+            ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC"), ManualRefreshConfig()
         )
         assert change == DatabricksConfigChange(
             RelationConfigChangeAction.alter, ManualRefreshConfig()
@@ -105,15 +104,7 @@ class TestDatabricksRelationChangeSet:
     def test_get_alter_sql_clauses__with_alterable_change(self):
         changeset = DatabricksRelationChangeSet(
             [
-                DatabricksConfigChange(
-                    RelationConfigChangeAction.alter,
-                    TblPropertiesConfig(tblproperties={"key": "value"}, to_unset=["other"]),
-                ),
                 DatabricksConfigChange(RelationConfigChangeAction.alter, ManualRefreshConfig()),
             ]
         )
-        assert changeset.get_alter_sql_clauses() == [
-            "SET TBLPROPERTIES ('key' = 'value')",
-            "UNSET TBLPROPERTIES IF EXISTS ('other')",
-            "DROP SCHEDULE",
-        ]
+        assert changeset.get_alter_sql_clauses() == ["DROP SCHEDULE"]

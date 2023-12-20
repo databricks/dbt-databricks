@@ -46,7 +46,7 @@ class DatabricksConfigChange(RelationConfigChange, Generic[Component]):
         return not isinstance(self.context, DatabricksAlterableComponentConfig)
 
     @classmethod
-    def get_change(cls, new: Component, existing: Component) -> Optional[Self]:
+    def get_change(cls, existing: Component, new: Component) -> Optional[Self]:
         if new != existing:
             return cls(RelationConfigChangeAction.alter, new.get_diff(existing))
         return None
