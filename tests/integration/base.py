@@ -165,10 +165,10 @@ class DBTIntegrationTest(unittest.TestCase):
     @property
     def selectors_config(self):
         return None
-    
+
     # To test schema-related aspects, whether lower or upper, we can choose to use either the default schema or the test-defined schema.
     def unique_schema(self, default_schema=None):
-        if not hasattr(self, 'schema'):
+        if not hasattr(self, "schema"):
             self.schema = default_schema
         return "{}_{}".format(self.prefix, self.schema)
 
@@ -193,8 +193,6 @@ class DBTIntegrationTest(unittest.TestCase):
                 "target": "dev",
             },
         }
-        profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(default_schema=profile["test"]["outputs"]["dev"]["schema"])
-        return profile
 
     def _pick_profile(self):
         test_name = self.id().split(".")[-1]
