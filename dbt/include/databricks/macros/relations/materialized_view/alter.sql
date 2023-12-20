@@ -18,12 +18,12 @@
 {% endmacro %}
 
 
-{% macro databricks__get_materialized_view_configuration_changes(existing_relation, new_config) -%}
-    {% set _existing_materialized_view = adapter.get_relation_config(existing_relation) %}
+{%- macro databricks__get_materialized_view_configuration_changes(existing_relation, new_config) -%}
+    {%- set _existing_materialized_view = adapter.get_relation_config(existing_relation) -%}
     {%- set materialized_view = adapter.materialized_view_config_from_model(config.model) -%}
     {%- set _configuration_changes = materialized_view.get_changeset(_existing_materialized_view) -%}
     {% do return(_configuration_changes) %}
-{% endmacro -%}
+{%- endmacro -%}
 
 {% macro databricks__get_alter_materialized_view_as_sql(
     relation,
