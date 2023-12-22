@@ -1,14 +1,11 @@
-from abc import ABC
-from dataclasses import dataclass
 import re
-from typing import ClassVar, List, Optional
+from typing import ClassVar, Optional
 
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.exceptions import DbtRuntimeError
 from dbt.contracts.graph.nodes import ModelNode
 
 from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksAlterableComponentConfig,
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
@@ -16,60 +13,25 @@ from dbt.adapters.databricks.relation_configs.base import (
 SCHEDULE_REGEX = re.compile(r"CRON '(.*)' AT TIME ZONE '(.*)'")
 
 
-class RefreshConfig(DatabricksAlterableComponentConfig, ABC):
-    pass
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class ScheduledRefreshConfig(RefreshConfig):
-    cron: str
+class RefreshConfig(DatabricksComponentConfig):
+    cron: Optional[str] = None
     time_zone_value: Optional[str] = None
-    alter: bool = False
+    is_altered: bool = False
 
-    def to_sql_clause(self) -> str:
-        schedule = f"SCHEDULE CRON '{self.cron}'"
+    @property
+    def requires_full_refresh(self) -> bool:
+        return False
 
-        if self.time_zone_value:
-            schedule += f" AT TIME ZONE '{self.time_zone_value}'"
-
-        return schedule
-
-    def to_alter_sql_clauses(self) -> List[str]:
-        prefix = "ALTER " if self.alter else "ADD "
-
-        return [prefix + self.to_sql_clause()]
-
-    def get_diff(self, other: DatabricksComponentConfig) -> "ScheduledRefreshConfig":
-        if not isinstance(other, RefreshConfig):
-            raise DbtRuntimeError(
-                f"Cannot diff {self.__class__.__name__} with {other.__class__.__name__}"
+    def get_diff(self, other: "RefreshConfig") -> Optional["RefreshConfig"]:
+        if self != other:
+            return RefreshConfig(
+                cron=self.cron,
+                time_zone_value=self.time_zone_value,
+                is_altered=self.cron is not None and other.cron is not None,
             )
-
-        return ScheduledRefreshConfig(
-            cron=self.cron,
-            time_zone_value=self.time_zone_value,
-            alter=isinstance(other, ScheduledRefreshConfig),
-        )
+        return None
 
 
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class ManualRefreshConfig(RefreshConfig):
-    def to_sql_clause(self) -> str:
-        return ""
-
-    def to_alter_sql_clauses(self) -> List[str]:
-        return ["DROP SCHEDULE"]
-
-    def get_diff(self, other: DatabricksComponentConfig) -> "ManualRefreshConfig":
-        if not isinstance(other, RefreshConfig):
-            raise DbtRuntimeError(
-                f"Cannot diff {self.__class__.__name__} with {other.__class__.__name__}"
-            )
-
-        return ManualRefreshConfig()
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
 class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
     name: ClassVar[str] = "refresh"
 
@@ -79,13 +41,13 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         for row in table.rows:
             if row[0] == "Refresh Schedule":
                 if row[1] == "MANUAL":
-                    return ManualRefreshConfig()
+                    return RefreshConfig()
 
                 match = SCHEDULE_REGEX.match(row[1])
 
                 if match:
                     cron, time_zone_value = match.groups()
-                    return ScheduledRefreshConfig(cron=cron, time_zone_value=time_zone_value)
+                    return RefreshConfig(cron=cron, time_zone_value=time_zone_value)
 
                 raise DbtRuntimeError(
                     f"Could not parse schedule from description: {row[1]}."
@@ -104,8 +66,8 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         if schedule:
             if "cron" not in schedule:
                 raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}")
-            return ScheduledRefreshConfig(
+            return RefreshConfig(
                 cron=schedule["cron"], time_zone_value=schedule.get("time_zone_value")
             )
         else:
-            return ManualRefreshConfig()
+            return RefreshConfig()

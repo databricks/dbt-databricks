@@ -1,10 +1,9 @@
 {% macro get_replace_sql(existing_relation, target_relation, sql) %}
     {{- log('Applying REPLACE to: ' ~ existing_relation) -}}
-    {{- return(adapter.dispatch('get_replace_sql', 'dbt')(existing_relation, target_relation, sql)) -}}
+    {% do return(adapter.dispatch('get_replace_sql', 'dbt')(existing_relation, target_relation, sql)) %}
 {% endmacro %}
 
 {% macro databricks__get_replace_sql(existing_relation, target_relation, sql) %}
-    {{ log('in get replace')}}
     {# /* use a create or replace statement if possible */ #}
 
     {% set is_replaceable = existing_relation.type == target_relation_type and existing_relation.can_be_replaced %}

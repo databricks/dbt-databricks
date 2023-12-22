@@ -35,12 +35,9 @@ materialized_view = """
         'cron': '0 0 * * * ? *',
         'time_zone': 'Etc/UTC'
     },
-    tblproperties_config = {
-        'tblproperties': {
-            'key': 'value'
-        },
-        'ignore_list': ['pipelines.pipelineId']
-    }
+    tblproperties={
+        'key': 'value'
+    },
 ) }}
 select * from {{ ref('my_seed') }}
 """

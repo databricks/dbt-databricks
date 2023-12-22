@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 import itertools
-from typing import ClassVar, List, Optional
+from typing import ClassVar, List
 
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.contracts.graph.nodes import ModelNode
@@ -10,14 +9,12 @@ from dbt.adapters.databricks.relation_configs.base import (
 )
 
 
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
 class PartitionedByConfig(DatabricksComponentConfig):
-    partition_by: Optional[List[str]] = None
+    partition_by: List[str]
 
-    def to_sql_clause(self) -> str:
-        if self.partition_by:
-            return f"PARTITIONED BY ({', '.join(self.partition_by)})"
-        return ""
+    @property
+    def requires_full_refresh(self) -> bool:
+        return True
 
 
 class PartitionedByProcessor(DatabricksComponentProcessor):
@@ -35,11 +32,13 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
             if not row[0].startswith("# "):
                 cols.append(row[0])
 
-        return PartitionedByConfig(cols)
+        return PartitionedByConfig(partition_by=cols)
 
     @classmethod
     def from_model_node(cls, model_node: ModelNode) -> PartitionedByConfig:
         partition_by = model_node.config.extra.get("partition_by")
         if isinstance(partition_by, str):
-            return PartitionedByConfig([partition_by])
-        return PartitionedByConfig(partition_by)
+            return PartitionedByConfig(partition_by=[partition_by])
+        if not partition_by:
+            return PartitionedByConfig(partition_by=[])
+        return PartitionedByConfig(partition_by=partition_by)

@@ -4,7 +4,7 @@ from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
-from dbt.adapters.databricks.relation_configs.refresh import ManualRefreshConfig
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
 
@@ -35,11 +35,13 @@ class TestMaterializedViewConfig:
         config = MaterializedViewConfig.from_results(results)
 
         assert config == MaterializedViewConfig(
-            PartitionedByConfig(["col_a", "col_b"]),
-            CommentConfig("This is the table comment"),
-            TblPropertiesConfig({"prop": "1", "other": "other"}),
-            ManualRefreshConfig(),
-            QueryConfig("select * from foo"),
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
+            }
         )
 
     def test_from_model_node(self):
@@ -47,22 +49,71 @@ class TestMaterializedViewConfig:
         model.compiled_code = "select * from foo"
         model.config.extra = {
             "partition_by": ["col_a", "col_b"],
-            "tblproperties_config": {
-                "tblproperties": {
-                    "prop": "1",
-                    "other": "other",
-                }
+            "tblproperties": {
+                "prop": "1",
+                "other": "other",
             },
-            "refresh": "manual",
         }
         model.description = "This is the table comment"
 
         config = MaterializedViewConfig.from_model_node(model)
 
         assert config == MaterializedViewConfig(
-            PartitionedByConfig(["col_a", "col_b"]),
-            CommentConfig("This is the table comment"),
-            TblPropertiesConfig({"prop": "1", "other": "other"}),
-            ManualRefreshConfig(),
-            QueryConfig("select * from foo"),
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
+            }
         )
+
+    def test_get_changeset__no_changes(self):
+        old = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
+            }
+        )
+        new = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
+            }
+        )
+
+        assert new.get_changeset(old) is None
+
+    def test_get_changeset__some_changes(self):
+        old = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
+            }
+        )
+        new = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(cron="*/5 * * * *"),
+                "query": QueryConfig(query="select * from foo"),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+        assert changeset.has_changes
+        assert changeset.requires_full_refresh
+        assert changeset.changes == {
+            "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+            "refresh": RefreshConfig(cron="*/5 * * * *"),
+        }

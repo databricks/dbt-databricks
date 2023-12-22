@@ -3,8 +3,7 @@ from mock import Mock
 import pytest
 from dbt.adapters.databricks.relation_configs.refresh import (
     RefreshProcessor,
-    ManualRefreshConfig,
-    ScheduledRefreshConfig,
+    RefreshConfig,
 )
 from dbt.exceptions import DbtRuntimeError
 from agate import Table
@@ -30,12 +29,12 @@ class TestRefreshProcessor:
             )
         }
         spec = RefreshProcessor.from_results(results)
-        assert spec == ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
+        assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
 
     def test_from_results__manual(self, rows):
         results = {"describe_extended": Table(rows=rows + [["Refresh Schedule", "MANUAL"]])}
         spec = RefreshProcessor.from_results(results)
-        assert spec == ManualRefreshConfig()
+        assert spec == RefreshConfig()
 
     def test_from_results__invalid(self, rows):
         results = {
@@ -51,7 +50,7 @@ class TestRefreshProcessor:
         model = Mock()
         model.config.extra = {}
         spec = RefreshProcessor.from_model_node(model)
-        assert spec == ManualRefreshConfig()
+        assert spec == RefreshConfig()
 
     def test_from_model_node__without_cron(self):
         model = Mock()
@@ -66,80 +65,36 @@ class TestRefreshProcessor:
         model = Mock()
         model.config.extra = {"schedule": {"cron": "*/5 * * * *"}}
         spec = RefreshProcessor.from_model_node(model)
-        assert spec == ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value=None)
+        assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value=None)
 
     def test_process_model_node__both(self):
         model = Mock()
         model.config.extra = {"schedule": {"cron": "*/5 * * * *", "time_zone_value": "UTC"}}
         spec = RefreshProcessor.from_model_node(model)
-        assert spec == ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
+        assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
 
 
-class TestScheduledRefreshConfig:
-    def test_to_sql_clause__no_timezone(self):
-        spec = ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value=None)
-        assert spec.to_sql_clause() == "SCHEDULE CRON '*/5 * * * *'"
-
-    def test_to_sql_clause__with_timezone(self):
-        spec = ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
-        assert spec.to_sql_clause() == "SCHEDULE CRON '*/5 * * * *' AT TIME ZONE 'UTC'"
-
-    def test_to_alter_sql_clauses__alter_false(self):
-        spec = ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC", alter=False)
-        assert spec.to_alter_sql_clauses() == [
-            "ADD SCHEDULE CRON '*/5 * * * *' AT TIME ZONE 'UTC'",
-        ]
-
-    def test_to_alter_sql_clauses__alter_true(self):
-        spec = ScheduledRefreshConfig(cron="*/5 * * * *", time_zone_value="UTC", alter=True)
-        assert spec.to_alter_sql_clauses() == [
-            "ALTER SCHEDULE CRON '*/5 * * * *' AT TIME ZONE 'UTC'",
-        ]
-
-    def test_get_diff__other_not_refresh(self):
-        config = ScheduledRefreshConfig(cron="*/5 * * * *")
-        other = Mock()
-        with pytest.raises(
-            DbtRuntimeError,
-            match="Cannot diff ScheduledRefreshConfig with Mock",
-        ):
-            config.get_diff(other)
-
-    def test_get_diff__other_manual_refresh(self):
-        config = ScheduledRefreshConfig(cron="*/5 * * * *")
-        other = ManualRefreshConfig()
+class TestRefreshConfig:
+    def test_get_diff__scheduled_other_manual_refresh(self):
+        config = RefreshConfig(cron="*/5 * * * *")
+        other = RefreshConfig()
         diff = config.get_diff(other)
-        assert diff == ScheduledRefreshConfig(cron="*/5 * * * *", alter=False)
+        assert diff == RefreshConfig(cron="*/5 * * * *", is_altered=False)
 
-    def test_get_diff__other_scheduled_refresh(self):
-        config = ScheduledRefreshConfig(cron="*/5 * * * *")
-        other = ScheduledRefreshConfig(cron="0 * * * *")
+    def test_get_diff__scheduled_other_scheduled_refresh(self):
+        config = RefreshConfig(cron="*/5 * * * *")
+        other = RefreshConfig(cron="0 * * * *")
         diff = config.get_diff(other)
-        assert diff == ScheduledRefreshConfig(cron="*/5 * * * *", alter=True)
+        assert diff == RefreshConfig(cron="*/5 * * * *", is_altered=True)
 
-
-class TestManualRefreshConfig:
-    def test_get_diff__other_not_refresh(self):
-        config = ManualRefreshConfig()
-        other = Mock()
-        with pytest.raises(
-            DbtRuntimeError,
-            match="Cannot diff ManualRefreshConfig with Mock",
-        ):
-            config.get_diff(other)
-
-    def test_get_diff__other_scheduled_refresh(self):
-        config = ManualRefreshConfig()
-        other = ScheduledRefreshConfig(cron="*/5 * * * *")
+    def test_get_diff__manual_other_scheduled_refresh(self):
+        config = RefreshConfig()
+        other = RefreshConfig(cron="*/5 * * * *")
         diff = config.get_diff(other)
         assert diff == config
 
-    def test_get_diff__other_manual_refresh(self):
-        config = ManualRefreshConfig()
-        other = ManualRefreshConfig()
+    def test_get_diff__manual_other_manual_refresh(self):
+        config = RefreshConfig()
+        other = RefreshConfig()
         diff = config.get_diff(other)
-        assert diff == config
-
-    def test_to_alter_sql_clauses(self):
-        spec = ManualRefreshConfig()
-        assert spec.to_alter_sql_clauses() == ["DROP SCHEDULE"]
+        assert diff is None

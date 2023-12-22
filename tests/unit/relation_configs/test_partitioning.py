@@ -1,26 +1,10 @@
 from mock import Mock
-import pytest
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByConfig,
     PartitionedByProcessor,
 )
-
-
-class TestPartitionedByConfig:
-    @pytest.mark.parametrize(
-        "input,expected",
-        [
-            (None, ""),
-            ([], ""),
-            (["col_a"], "PARTITIONED BY (col_a)"),
-            (["col_a", "col_b"], "PARTITIONED BY (col_a, col_b)"),
-        ],
-    )
-    def test_to_sql_clause(self, input, expected):
-        config = PartitionedByConfig(input)
-        assert config.to_sql_clause() == expected
 
 
 class TestPartitionedByProcessor:
@@ -38,7 +22,7 @@ class TestPartitionedByProcessor:
         }
 
         spec = PartitionedByProcessor.from_results(results)
-        assert spec == PartitionedByConfig([])
+        assert spec == PartitionedByConfig(partition_by=[])
 
     def test_from_results__single(self):
         results = {
@@ -57,7 +41,7 @@ class TestPartitionedByProcessor:
         }
 
         spec = PartitionedByProcessor.from_results(results)
-        assert spec == PartitionedByConfig(["col_a"])
+        assert spec == PartitionedByConfig(partition_by=["col_a"])
 
     def test_from_results__multiple(self):
         results = {
@@ -76,22 +60,22 @@ class TestPartitionedByProcessor:
             )
         }
         spec = PartitionedByProcessor.from_results(results)
-        assert spec == PartitionedByConfig(["col_a", "col_b"])
+        assert spec == PartitionedByConfig(partition_by=["col_a", "col_b"])
 
     def test_from_model_node__without_partition_by(self):
         model = Mock()
         model.config.extra = {}
         spec = PartitionedByProcessor.from_model_node(model)
-        assert spec == PartitionedByConfig(None)
+        assert spec == PartitionedByConfig(partition_by=[])
 
     def test_from_model_node__single_column(self):
         model = Mock()
         model.config.extra = {"partition_by": "col_a"}
         spec = PartitionedByProcessor.from_model_node(model)
-        assert spec == PartitionedByConfig(["col_a"])
+        assert spec == PartitionedByConfig(partition_by=["col_a"])
 
     def test_from_model_node__multiple_columns(self):
         model = Mock()
         model.config.extra = {"partition_by": ["col_a", "col_b"]}
         spec = PartitionedByProcessor.from_model_node(model)
-        assert spec == PartitionedByConfig(["col_a", "col_b"])
+        assert spec == PartitionedByConfig(partition_by=["col_a", "col_b"])

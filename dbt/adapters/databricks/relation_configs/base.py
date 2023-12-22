@@ -1,79 +1,42 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
 from typing_extensions import Self, Type
 
-from dbt.adapters.relation_configs.config_base import RelationConfigBase, RelationResults
+from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.contracts.graph.nodes import ModelNode
-from dbt.exceptions import DbtRuntimeError
-
-from dbt.adapters.relation_configs.config_change import (
-    RelationConfigChange,
-    RelationConfigChangeAction,
-)
 
 
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksComponentConfig(ABC):
-    @abstractmethod
-    def to_sql_clause(self) -> str:
-        raise NotImplementedError("Must be implemented by subclass")
-
-    def get_diff(self, other: "DatabricksComponentConfig") -> Self:
-        if not isinstance(other, self.__class__):
-            raise DbtRuntimeError(
-                f"Cannot diff {self.__class__.__name__} with {other.__class__.__name__}"
-            )
-        return self
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksAlterableComponentConfig(DatabricksComponentConfig, ABC):
-    @abstractmethod
-    def to_alter_sql_clauses(self) -> List[str]:
-        raise NotImplementedError("Must be implemented by subclass")
-
-
-Component = TypeVar("Component", bound=DatabricksComponentConfig)
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksConfigChange(RelationConfigChange, Generic[Component]):
-    context: Component
+class DatabricksComponentConfig(BaseModel, ABC):
+    model_config = ConfigDict(frozen=True)
 
     @property
+    @abstractmethod
     def requires_full_refresh(self) -> bool:
-        return not isinstance(self.context, DatabricksAlterableComponentConfig)
+        raise NotImplementedError("Must be implemented by subclass")
 
-    @classmethod
-    def get_change(cls, existing: Component, new: Component) -> Optional[Self]:
-        if new != existing:
-            return cls(RelationConfigChangeAction.alter, new.get_diff(existing))
+    def get_diff(self, other: Self) -> Optional[Self]:
+        if self != other:
+            return self
         return None
 
 
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksRelationChangeSet:
-    changes: List[DatabricksConfigChange]
+class DatabricksRelationChangeSet(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    changes: Dict[str, DatabricksComponentConfig]
 
     @property
     def requires_full_refresh(self) -> bool:
-        return any(change.requires_full_refresh for change in self.changes)
+        return any(change.requires_full_refresh for change in self.changes.values())
 
     @property
     def has_changes(self) -> bool:
         return len(self.changes) > 0
 
-    def get_alter_sql_clauses(self) -> List[str]:
-        assert (
-            not self.requires_full_refresh
-        ), "Cannot alter a relation when changes requires a full refresh"
-        return [
-            clause for change in self.changes for clause in change.context.to_alter_sql_clauses()
-        ]
+
+Component = TypeVar("Component", bound=DatabricksComponentConfig)
 
 
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
 class DatabricksComponentProcessor(ABC, Generic[Component]):
     name: ClassVar[str]
 
@@ -88,29 +51,38 @@ class DatabricksComponentProcessor(ABC, Generic[Component]):
         raise NotImplementedError("Must be implemented by subclass")
 
 
-T = TypeVar("T", bound=DatabricksComponentConfig)
-
-
-@dataclass(frozen=True, eq=True, unsafe_hash=True)
-class DatabricksRelationConfigBase(RelationConfigBase):
+class DatabricksRelationConfigBase(BaseModel, ABC):
     config_components: ClassVar[List[Type[DatabricksComponentProcessor]]]
+    config: Dict[str, DatabricksComponentConfig]
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> RelationConfigBase:
+    def from_model_node(cls, model_node: ModelNode) -> Self:
         config_dict: Dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
-            config_dict[component.name] = component.from_model_node(model_node)
+            model_component = component.from_model_node(model_node)
+            if model_component:
+                config_dict[component.name] = model_component
 
-        return cls.from_dict(config_dict)
+        return cls(config=config_dict)
 
     @classmethod
-    def from_results(cls, results: RelationResults) -> RelationConfigBase:
+    def from_results(cls, results: RelationResults) -> Self:
         config_dict: Dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
-            config_dict[component.name] = component.from_results(results)
+            result_component = component.from_results(results)
+            if result_component:
+                config_dict[component.name] = result_component
 
-        return cls.from_dict(config_dict)
+        return cls(config=config_dict)
 
-    @abstractmethod
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
-        raise NotImplementedError("Must be implemented by subclass")
+        changes = {}
+
+        for key, value in self.config.items():
+            diff = value.get_diff(existing.config[key])
+            if diff:
+                changes[key] = diff
+
+        if len(changes) > 0:
+            return DatabricksRelationChangeSet(changes=changes)
+        return None
