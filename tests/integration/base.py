@@ -165,10 +165,12 @@ class DBTIntegrationTest(unittest.TestCase):
     @property
     def selectors_config(self):
         return None
-
-    def unique_schema(self):
-        schema = self.config.credentials.schema
-        return schema.lower()
+    
+    # pass profile setting schema and test passed schema. Should not be make lower case to test upper case
+    def unique_schema(self, schema=None):
+        if schema is None:
+            return self.config.credentials.schema
+        return "{}_{}".format(self.prefix, schema)
 
     @property
     def default_database(self):
@@ -180,7 +182,7 @@ class DBTIntegrationTest(unittest.TestCase):
         return None
 
     def get_profile(self, adapter_type):
-        return {
+        profile = {
             "config": {"send_anonymous_usage_stats": False},
             "test": {
                 "outputs": {
@@ -191,6 +193,8 @@ class DBTIntegrationTest(unittest.TestCase):
                 "target": "dev",
             },
         }
+        profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(schema = profile["test"]["outputs"]["dev"]["schema"])
+        return profile
 
     def _pick_profile(self):
         test_name = self.id().split(".")[-1]
