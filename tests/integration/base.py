@@ -171,7 +171,7 @@ class DBTIntegrationTest(unittest.TestCase):
 
         to_return = "{}_{}".format(self.prefix, schema)
 
-        return to_return.lower()
+        return to_return
 
     @property
     def default_database(self):
