@@ -25,6 +25,10 @@ Skipped due to incorrect files in deployed package
 
 ## dbt-databricks 1.7.4 (Jan 24, 2024) (Pulled due to poor SQL Warehouse connection behavior)
 
+### Features
+
+- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+
 ### Fixes
 
 - Added python model specific connection handling to prevent using invalid sessions ([547](https://github.com/databricks/dbt-databricks/pull/547))
