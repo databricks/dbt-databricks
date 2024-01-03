@@ -9,6 +9,8 @@ from dbt.exceptions import DbtRuntimeError
 
 
 class QueryConfig(DatabricksComponentConfig):
+    """Component encapsulating the query that defines a relation."""
+
     query: str
 
     @property

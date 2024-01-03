@@ -10,14 +10,24 @@ from dbt.exceptions import DbtRuntimeError
 
 
 class TblPropertiesConfig(DatabricksComponentConfig):
+    """Component encapsulating the tblproperties of a relation."""
+
     tblproperties: Dict[str, str]
+
+    # List of tblproperties that should be ignored when comparing configs. These are generally
+    # set by Databricks and are not user-configurable.
     ignore_list: List[str] = ["pipelines.pipelineId"]
 
     @property
     def requires_full_refresh(self) -> bool:
+        # TODO: This is only True for MVs since they don't currently allow ALTER VIEW to change the
+        # tblproperties. Should be False for tables and views, if and when they move to this
+        # approach.
         return True
 
     def __eq__(self, __value: Any) -> bool:
+        """Override equality check to ignore certain tblproperties."""
+
         if not isinstance(__value, TblPropertiesConfig):
             return False
 

@@ -9,10 +9,14 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class CommentConfig(DatabricksComponentConfig):
+    """Component encapsulating the relation-level comment."""
+
     comment: Optional[str] = None
 
     @property
     def requires_full_refresh(self) -> bool:
+        # TODO: This is only True for MVs since they don't currently allow ALTER VIEW to change the
+        # comment. Should be False for tables and views, if and when they move to this approach.
         return True
 
 

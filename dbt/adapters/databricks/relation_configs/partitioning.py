@@ -10,6 +10,8 @@ from dbt.adapters.databricks.relation_configs.base import (
 
 
 class PartitionedByConfig(DatabricksComponentConfig):
+    """Component encapsulating the partitioning of relations."""
+
     partition_by: List[str]
 
     @property

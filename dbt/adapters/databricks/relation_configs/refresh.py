@@ -14,8 +14,14 @@ SCHEDULE_REGEX = re.compile(r"CRON '(.*)' AT TIME ZONE '(.*)'")
 
 
 class RefreshConfig(DatabricksComponentConfig):
+    """Component encapsulating the refresh schedule of a relation."""
+
     cron: Optional[str] = None
     time_zone_value: Optional[str] = None
+
+    # Property indicating whether the schedule change should be accomplished by an ADD SCHEDULE
+    # vs an ALTER SCHEDULE. This is only True when modifying an existing schedule, rather than
+    # switching from manual refresh to scheduled or vice versa.
     is_altered: bool = False
 
     @property
