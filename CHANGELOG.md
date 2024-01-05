@@ -1,5 +1,9 @@
 ## dbt-databricks 1.7.4 (TBD)
 
+### Fixes
+
+- Fix for issue where long-running python models led to invalid session errors ([544](https://github.com/databricks/dbt-databricks/pull/544))
+
 ## dbt-databricks 1.7.3 (Dec 12, 2023)
 
 ### Fixes
