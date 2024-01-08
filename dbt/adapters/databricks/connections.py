@@ -1067,7 +1067,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 for conn in thread_conns.values():
                     if conn.acquire_release_count == 0 and conn._idle_too_long():
                         logger.debug(f"closing idle connection: {conn._get_conn_info_str()}")
-                        self.close(conn)
+                        try:
+                            self.close(conn)
+                        except Exception as e:
+                            logger.warning(f"ignoring error when closing connection: {e}")
+
                         conn.handle = LazyHandle(self._open2)
 
     def get_thread_connection(self) -> Connection:
