@@ -890,6 +890,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn._release()
 
     # override
+    @classmethod
+    def close(cls, connection: Connection) -> Connection:
+        if not USE_LONG_SESSIONS:
+            return super().close(connection)
+
+        try:
+            return super().close(connection)
+        except Exception as e:
+            logger.warning(f"ignoring error when closing connection: {e}")
+            return connection
+
+    # override
     def cleanup_all(self) -> None:
         if not USE_LONG_SESSIONS:
             return super().cleanup_all()
@@ -1067,10 +1079,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 for conn in thread_conns.values():
                     if conn.acquire_release_count == 0 and conn._idle_too_long():
                         logger.debug(f"closing idle connection: {conn._get_conn_info_str()}")
-                        try:
-                            self.close(conn)
-                        except Exception as e:
-                            logger.warning(f"ignoring error when closing connection: {e}")
+                        self.close(conn)
 
                         conn.handle = LazyHandle(self._open2)
 
