@@ -166,8 +166,11 @@ class DBTIntegrationTest(unittest.TestCase):
     def selectors_config(self):
         return None
     
-    # pass profile setting schema and test passed schema. Should not be make lower case to test upper case
+    # To test schema related test lower or upper, we can chose if we want to use the default schema or the test define schema
     def unique_schema(self, schema=None):
+        if hasattr(self, 'schema'):
+            schema = self.schema
+            return "{}_{}".format(self.prefix, schema)
         if schema is None:
             return self.config.credentials.schema
         return "{}_{}".format(self.prefix, schema)
@@ -193,7 +196,8 @@ class DBTIntegrationTest(unittest.TestCase):
                 "target": "dev",
             },
         }
-        profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(schema = profile["test"]["outputs"]["dev"]["schema"])
+        if 'schema' in profile["test"]["outputs"]["dev"]:
+            profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(schema = profile["test"]["outputs"]["dev"]["schema"])
         return profile
 
     def _pick_profile(self):
