@@ -116,7 +116,7 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
-DEFAULT_MAX_IDLE_TIME = 600
+DEFAULT_MAX_IDLE_TIME = 250
 
 
 @dataclass
@@ -752,6 +752,12 @@ class DatabricksDBTConnection(Connection):
             self.acquire_release_count -= 1
 
         if self.acquire_release_count == 0:
+            logger.debug(f"idle too long? {self._idle_too_long()} {self._get_idle_time()}")
+            if self._idle_too_long():
+                logger.debug(f"Closing idle connection on release: {self._get_conn_info_str()}")
+                DatabricksConnectionManager.close(self)
+
+                self.handle = LazyHandle(DatabricksConnectionManager._open2)
             self.last_used_time = time.time()
 
     def _get_idle_time(self) -> float:
@@ -899,6 +905,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return super().close(connection)
         except Exception as e:
             logger.warning(f"ignoring error when closing connection: {e}")
+            connection.state = ConnectionState.CLOSED
             return connection
 
     # override
@@ -1077,6 +1084,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         with self.lock:
             for thread_conns in self.threads_compute_connections.values():
                 for conn in thread_conns.values():
+                    logger.debug(f"checking idle connection: {conn._get_conn_info_str()}")
                     if conn.acquire_release_count == 0 and conn._idle_too_long():
                         logger.debug(f"closing idle connection: {conn._get_conn_info_str()}")
                         self.close(conn)
@@ -1310,6 +1318,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def _open2(cls, connection: Connection) -> Connection:
+        logger.debug("In _open2")
         # Once long session management is no longer under the USE_LONG_SESSIONS toggle
         # this should be renamed and replace the _open class method.
         assert (
