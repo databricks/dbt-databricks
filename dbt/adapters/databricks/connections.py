@@ -116,7 +116,7 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
-DEFAULT_MAX_IDLE_TIME = 600
+DEFAULT_MAX_IDLE_TIME = 250
 
 
 @dataclass
@@ -441,6 +441,7 @@ class DatabricksSQLConnectionWrapper:
         self._user_agent = user_agent
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
+        logger.debug("DatabricksSQLConnectionWrapper.cursor")
         cursor = self._conn.cursor()
         self._cursors.append(cursor)
         return DatabricksSQLCursorWrapper(
@@ -450,6 +451,7 @@ class DatabricksSQLConnectionWrapper:
         )
 
     def cancel(self) -> None:
+        logger.debug("DatabricksSQLConnectionWrapper.cancel")
         cursors: List[DatabricksSQLCursor] = self._cursors
 
         for cursor in cursors:
@@ -460,6 +462,7 @@ class DatabricksSQLConnectionWrapper:
                 _log_dbsql_errors(exc)
 
     def close(self) -> None:
+        logger.debug("DatabricksSQLConnectionWrapper.close")
         try:
             self._conn.close()
         except Error as exc:
@@ -473,6 +476,7 @@ class DatabricksSQLConnectionWrapper:
 
     @property
     def dbr_version(self) -> Tuple[int, int]:
+        logger.debug("DatabricksSQLConnectionWrapper.dbr_version")
         if not hasattr(self, "_dbr_version"):
             if self._is_cluster:
                 with self._conn.cursor() as cursor:
@@ -507,6 +511,7 @@ class DatabricksSQLCursorWrapper:
         self._user_agent = user_agent
 
     def cancel(self) -> None:
+        logger.debug("DatabricksSQLCursorWrapper.cancel")
         try:
             self._cursor.cancel()
         except Error as exc:
@@ -514,6 +519,7 @@ class DatabricksSQLCursorWrapper:
             _log_dbsql_errors(exc)
 
     def close(self) -> None:
+        logger.debug("DatabricksSQLCursorWrapper.close")
         try:
             self._cursor.close()
         except Error as exc:
@@ -521,15 +527,19 @@ class DatabricksSQLCursorWrapper:
             _log_dbsql_errors(exc)
 
     def fetchall(self) -> Sequence[Tuple]:
+        logger.debug("DatabricksSQLCursorWrapper.fetchall")
         return self._cursor.fetchall()
 
     def fetchone(self) -> Optional[Tuple]:
+        logger.debug("DatabricksSQLCursorWrapper.fetchone")
         return self._cursor.fetchone()
 
     def fetchmany(self, size: int) -> Sequence[Tuple]:
+        logger.debug("DatabricksSQLCursorWrapper.fetchmany")
         return self._cursor.fetchmany(size)
 
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
+        logger.debug("DatabricksSQLCursorWrapper.execute")
         # print(f"execute: {sql}")
         if sql.strip().endswith(";"):
             sql = sql.strip()[:-1]
@@ -545,6 +555,7 @@ class DatabricksSQLCursorWrapper:
         self,
         sql: str,
     ) -> None:
+        logger.debug("DatabricksSQLCursorWrapper.pollRefreshPipeline")
         should_poll, model_name = _should_poll_refresh(sql)
         if not should_poll:
             return
@@ -634,6 +645,7 @@ class DatabricksSQLCursorWrapper:
 
     @classmethod
     def findUpdate(cls, updates: List, id: str) -> Optional[Dict]:
+        logger.debug("DatabricksSQLCursorWrapper.findUpdate")
         matches = [x for x in updates if x.get("update_id") == id]
         if matches:
             return matches[0]
@@ -642,6 +654,7 @@ class DatabricksSQLCursorWrapper:
 
     @property
     def hex_query_id(self) -> str:
+        logger.debug("DatabricksSQLCursorWrapper.hex_query_id")
         """Return the hex GUID for this query
 
         This UUID can be tied back to the Databricks query history API
@@ -653,6 +666,7 @@ class DatabricksSQLCursorWrapper:
 
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
+        logger.debug("DatabricksSQLCursorWrapper._fix_binding")
         """Convert complex datatypes to primitives that can be loaded by
         the Spark driver"""
         if isinstance(value, DECIMALS):
@@ -674,12 +688,15 @@ class DatabricksSQLCursorWrapper:
             Optional[bool],
         ]
     ]:
+        logger.debug("DatabricksSQLCursorWrapper.description")
         return self._cursor.description
 
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
+        logger.debug("DatabaseSQLCursorWrapper.schemas")
         self._cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
 
     def tables(self, catalog_name: str, schema_name: str, table_name: Optional[str] = None) -> None:
+        logger.debug("DatabaseSQLCursorWrapper.tables")
         self._cursor.tables(
             catalog_name=catalog_name, schema_name=schema_name, table_name=table_name
         )
@@ -752,6 +769,11 @@ class DatabricksDBTConnection(Connection):
             self.acquire_release_count -= 1
 
         if self.acquire_release_count == 0:
+            if self._idle_too_long():
+                logger.debug(f"Closing idle connection on release: {self._get_conn_info_str()}")
+                DatabricksConnectionManager.close(self)
+
+                self.handle = LazyHandle(DatabricksConnectionManager._open2)
             self.last_used_time = time.time()
 
     def _get_idle_time(self) -> float:
@@ -879,6 +901,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     # override
     def release(self) -> None:
+        logger.debug("DatabricksConnectionManager.release")
         if not USE_LONG_SESSIONS:
             return super().release()
 
@@ -891,6 +914,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     # override
     def cleanup_all(self) -> None:
+        logger.debug("DatabricksConnectionManager.cleanup_all")
         if not USE_LONG_SESSIONS:
             return super().cleanup_all()
 
@@ -917,6 +941,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         """Called by 'set_connection_name' in DatabricksConnectionManager.
         Creates a connection for this thread/node if one doesn't already
         exist, and will rename an existing connection."""
+        logger.debug("DatabricksConnectionManager._get_compute_connection")
 
         assert (
             USE_LONG_SESSIONS
@@ -945,11 +970,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
         node: Optional[ResultNode] = None,
     ) -> DatabricksDBTConnection:
         """Update a connection that is being re-used with a new name, handle, etc."""
+        logger.debug("DatabricksConnectionManager._update_compute_connection")
         assert USE_LONG_SESSIONS, (
             "This path, '_update_compute_connection', should only be "
             "reachable with USE_LONG_SESSIONS"
         )
 
+        # if conn._idle_too_long():
+        #     conn.state = ConnectionState.CLOSED
         if conn.name == new_name and conn.state == ConnectionState.OPEN:
             # Found a connection and nothing to do, so just return it
             return conn
@@ -975,6 +1003,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> DatabricksDBTConnection:
         """Create anew connection for the combination of current thread and compute associated
         with the given node."""
+        logger.debug("DatabricksConnectionManager._create_compute_connection")
+
         assert USE_LONG_SESSIONS, (
             "This path, '_create_compute_connection', should only be reachable "
             "with USE_LONG_SESSIONS"
@@ -1016,6 +1046,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def _add_compute_connection(self, conn: DatabricksDBTConnection) -> None:
         """Add a new connection to the map of connection per thread per compute."""
+        logger.debug("DatabricksSQLConnectionWrapper._add_compute_connection")
         assert (
             USE_LONG_SESSIONS
         ), "This path, '_add_compute_connection', should only be reachable with USE_LONG_SESSIONS"
@@ -1032,6 +1063,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self,
     ) -> Dict[Hashable, DatabricksDBTConnection]:
         """Retrieve a map of compute name to connection for the current thread."""
+        logger.debug("DatabricksSQLConnectionWrapper._get_compute_connections")
         assert (
             USE_LONG_SESSIONS
         ), "This path, '_get_compute_connections', should only be reachable with USE_LONG_SESSIONS"
@@ -1048,6 +1080,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self, compute_name: str
     ) -> Optional[DatabricksDBTConnection]:
         """Get the connection for the current thread and named compute, if it exists."""
+        logger.debug("DatabricksSQLConnectionWrapper._get_if_exists_compute_connection")
         assert USE_LONG_SESSIONS, (
             "This path, '_get_if_exists_compute_connection', should only be reachable "
             "with USE_LONG_SESSIONS"
@@ -1061,7 +1094,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         assert (
             USE_LONG_SESSIONS
         ), "This path, '_cleanup_idle_connections', should only be reachable with USE_LONG_SESSIONS"
-
+        logger.debug("DatabricksSQLConnectionWrapper._cleanup_idle_connections")
         with self.lock:
             for thread_conns in self.threads_compute_connections.values():
                 for conn in thread_conns.values():
@@ -1071,6 +1104,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                         conn.handle = LazyHandle(self._open2)
 
     def get_thread_connection(self) -> Connection:
+        logger.debug("DatabricksConnectionManager.get_thread_connection")
         if USE_LONG_SESSIONS:
             self._cleanup_idle_connections()
 
@@ -1085,6 +1119,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         *,
         close_cursor: bool = False,
     ) -> Tuple[Connection, Any]:
+        logger.debug("DatabricksConnectionManager.add_query")
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
             self.begin()
@@ -1135,6 +1170,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         fetch: bool = False,
         limit: Optional[int] = None,
     ) -> Tuple[DatabricksAdapterResponse, Table]:
+        logger.debug("DatabricksConnectionManager.execute")
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -1150,6 +1186,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def _execute_cursor(
         self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
     ) -> Table:
+        logger.debug("DatabricksConnectionManager._execute_cursor")
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
@@ -1185,6 +1222,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
+        logger.debug("DatabricksConnectionManager.list_schemas")
         database = database.strip("`")
         if schema:
             schema = schema.strip("`")
@@ -1194,6 +1232,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         )
 
     def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+        logger.debug("DatabricksConnectionManager.list_tables")
         database = database.strip("`")
         schema = schema.strip("`")
         if identifier:
@@ -1209,6 +1248,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def get_open_for_model(
         cls, node: Optional[ResultNode] = None
     ) -> Callable[[Connection], Connection]:
+        logger.debug("DatabricksConnectionManager.get_open_for_model")
         # If there is no node we can simply return the exsting class method open.
         # If there is a node create a closure that will call cls._open with the node.
         if not node:
@@ -1221,6 +1261,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
+        logger.debug("DatabricksConnectionManager.open")
         # Simply call _open with no ResultNode argument.
         # Because this is an overridden method we can't just add
         # a ResultNode parameter to open.
@@ -1228,6 +1269,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def _open(cls, connection: Connection, node: Optional[ResultNode] = None) -> Connection:
+        logger.debug("DatabricksConnectionManager._open")
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
@@ -1299,6 +1341,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def _open2(cls, connection: Connection) -> Connection:
         # Once long session management is no longer under the USE_LONG_SESSIONS toggle
         # this should be renamed and replace the _open class method.
+        logger.debug("DatabricksConnectionManager._open2")
         assert (
             USE_LONG_SESSIONS
         ), "This path, '_open2', should only be reachable with USE_LONG_SESSIONS"
@@ -1372,6 +1415,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
+        logger.debug("DatabricksConnectionManager.get_response")
         _query_id = getattr(cursor, "hex_query_id", None)
         if cursor is None:
             logger.debug("No cursor was provided. Query ID not available.")
