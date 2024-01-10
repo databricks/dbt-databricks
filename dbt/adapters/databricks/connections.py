@@ -116,7 +116,7 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
-DEFAULT_MAX_IDLE_TIME = 250
+DEFAULT_MAX_IDLE_TIME = 600
 
 
 @dataclass
