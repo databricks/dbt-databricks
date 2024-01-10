@@ -918,6 +918,19 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn._release()
 
     # override
+    @classmethod
+    def close(cls, connection: Connection) -> Connection:
+        if not USE_LONG_SESSIONS:
+            return super().close(connection)
+
+        try:
+            return super().close(connection)
+        except Exception as e:
+            logger.warning(f"ignoring error when closing connection: {e}")
+            connection.state = ConnectionState.CLOSED
+            return connection
+
+    # override
     def cleanup_all(self) -> None:
         if not USE_LONG_SESSIONS:
             return super().cleanup_all()
