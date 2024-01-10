@@ -44,7 +44,8 @@ def databricks_cluster_target():
     return _build_databricks_cluster_target(
         http_path=os.getenv(
             "DBT_DATABRICKS_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
-        )
+        ),
+        schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "default_schema"),
     )
 
 
@@ -54,7 +55,7 @@ def databricks_uc_cluster_target():
             "DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH", os.getenv("DBT_DATABRICKS_HTTP_PATH")
         ),
         catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
-        schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "schema"),
+        schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "default_schema"),
     )
 
 
@@ -65,5 +66,5 @@ def databricks_uc_sql_endpoint_target():
             os.getenv("DBT_DATABRICKS_HTTP_PATH"),
         ),
         catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
-        schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "schema"),
+        schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "default_schema"),
     )
