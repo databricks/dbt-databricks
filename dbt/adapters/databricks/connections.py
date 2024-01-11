@@ -800,7 +800,7 @@ class DatabricksDBTConnection(Connection):
         else:
             logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
 
-    def _reset_handle(self, open):
+    def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
         logger.debug(f"DatabricksDBTConnection._reset_handle: {self._get_conn_info_str()}")
         self.handle = LazyHandle(open)
         # Reset last_used_time to None because by refreshing this connection becomes associated
@@ -853,10 +853,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 raise dbt.exceptions.DbtRuntimeError(msg) from exc
             else:
                 raise dbt.exceptions.DbtRuntimeError(str(exc)) from exc
-
-    def get_thread_connection(self) -> Connection:
-        self._cleanup_idle_connections()
-        return super().get_thread_connection()
 
     # override/overload
     def set_connection_name(
