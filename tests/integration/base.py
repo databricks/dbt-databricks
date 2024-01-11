@@ -194,6 +194,11 @@ class DBTIntegrationTest(unittest.TestCase):
             },
         }
 
+        profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(
+            default_schema=profile["test"]["outputs"]["dev"]["schema"]
+        )
+        return profile
+
     def _pick_profile(self):
         test_name = self.id().split(".")[-1]
         return _profile_from_test_name(test_name)
