@@ -92,18 +92,7 @@ class TestSpecifyingForProjectModelsInFolder(BaseSpecifyingCompute):
         return {"model_names": ["target4"]}
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestWarehousePerModel(BaseWarehousePerModel):
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["compute"] = {
-            "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]},
-            "alternate_warehouse2": {"http_path": dbt_profile_target["http_path"]},
-            "alternate_warehouse3": {"http_path": dbt_profile_target["http_path"]},
-        }
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
@@ -118,16 +107,44 @@ class TestWarehousePerModel(BaseWarehousePerModel):
         }
 
     def test_wpm(self, project, profile_dir):
-        _, log = util.run_dbt_and_capture(["--debug", "seed", "--profiles-dir", profile_dir])
+        _, log = util.run_dbt_and_capture(
+            [
+                "--debug",
+                "seed",
+                "--profiles-dir",
+                profile_dir,
+                "--target",
+                "alternate_warehouse",
+            ]
+        )
         assert "`source` using compute resource 'alternate_warehouse2'" in log
 
         _, log = util.run_dbt_and_capture(
-            ["--debug", "run", "--select", "target", "target3", "--profiles-dir", profile_dir]
+            [
+                "--debug",
+                "run",
+                "--select",
+                "target",
+                "target3",
+                "--profiles-dir",
+                profile_dir,
+                "--target",
+                "alternate_warehouse",
+            ]
         )
         assert "`target` using compute resource 'alternate_warehouse'" in log
         assert "`target3` using default compute resource" in log
 
-        _, log = util.run_dbt_and_capture(["--debug", "snapshot", "--profiles-dir", profile_dir])
+        _, log = util.run_dbt_and_capture(
+            [
+                "--debug",
+                "snapshot",
+                "--profiles-dir",
+                profile_dir,
+                "--target",
+                "alternate_warehouse",
+            ]
+        )
         assert "`target_snap` using compute resource 'alternate_warehouse3'" in log
 
         util.check_relations_equal(project.adapter, ["target", "source"])
