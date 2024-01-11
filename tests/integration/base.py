@@ -168,9 +168,8 @@ class DBTIntegrationTest(unittest.TestCase):
     
     # To test schema-related aspects, whether lower or upper, we can choose to use either the default schema or the test-defined schema.
     def unique_schema(self, default_schema=None):
-        if hasattr(self, 'schema'):
-            return "{}_{}".format(self.prefix, self.schema)
-        self.schema = default_schema
+        if not hasattr(self, 'schema'):
+            self.schema = default_schema
         return "{}_{}".format(self.prefix, self.schema)
 
     @property
