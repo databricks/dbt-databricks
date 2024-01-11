@@ -2,7 +2,6 @@ from tests.integration.base import DBTIntegrationTest, use_profile
 
 
 class TestIncrementalOnSchemaChange(DBTIntegrationTest):
-
     @property
     def models(self):
         return "models"
