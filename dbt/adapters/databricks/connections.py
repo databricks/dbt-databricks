@@ -1070,6 +1070,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
                         self.close(conn)
                         conn.handle = LazyHandle(self._open2)
 
+    def get_thread_connection(self) -> Connection:
+        if USE_LONG_SESSIONS:
+            self._cleanup_idle_connections()
+
+        return super().get_thread_connection()
+
     def add_query(
         self,
         sql: str,

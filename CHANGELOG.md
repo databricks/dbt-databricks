@@ -1,3 +1,21 @@
+## dbt-databricks 1.7.4 (TBD)
+
+### Fixes
+
+- Fix for issue where long-running python models led to invalid session errors ([544](https://github.com/databricks/dbt-databricks/pull/544))
+- Allow schema to be specified in testing (thanks @case-k-git!) ([538](https://github.com/databricks/dbt-databricks/pull/538))
+
+## dbt-databricks 1.7.3 (Dec 12, 2023)
+
+### Fixes
+
+- Fix for issue where we were invoking create schema or not exists when the schema already exists (leading to permission issue) ([529](https://github.com/databricks/dbt-databricks/pull/529))
+- Fix for issue where we never reused connections ([517](https://github.com/databricks/dbt-databricks/pull/517))
+
+### Under the Hood
+
+- Refactor macro tests to be more usable ([524](https://github.com/databricks/dbt-databricks/pull/524))
+
 ## dbt-databricks 1.7.2 (Nov 30, 2023)
 
 ### Features
