@@ -1,25 +1,29 @@
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import Mock
 
+from mock import PropertyMock
 from dbt.adapters.databricks.connections import DatabricksCredentials
 
 from dbt.adapters.databricks.python_submissions import DBContext, BaseDatabricksHelper
 
 
 class TestDatabricksPythonSubmissions(unittest.TestCase):
-    @patch("requests.get")
-    @patch("requests.post")
-    def test_start_cluster_returns_on_receiving_running_state(self, mock_post, mock_get):
+    def test_start_cluster_returns_on_receiving_running_state(self):
+        session_mock = Mock()
         # Mock the start command
-        mock_post.return_value.status_code = 200
+        post_mock = Mock()
+        post_mock.status_code = 200
+        session_mock.post.return_value = post_mock
         # Mock the status command
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json = Mock(return_value={"state": "RUNNING"})
+        get_mock = Mock()
+        get_mock.status_code = 200
+        get_mock.json.return_value = {"state": "RUNNING"}
+        session_mock.get.return_value = get_mock
 
-        context = DBContext(Mock(), None, None)
+        context = DBContext(Mock(), None, None, session_mock)
         context.start_cluster()
 
-        mock_get.assert_called_once()
+        session_mock.get.assert_called_once()
 
 
 class DatabricksTestHelper(BaseDatabricksHelper):
