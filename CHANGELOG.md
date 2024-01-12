@@ -4,7 +4,7 @@
 
 - Fix for issue where long-running python models led to invalid session errors ([544](https://github.com/databricks/dbt-databricks/pull/544))
 - Allow schema to be specified in testing (thanks @case-k-git!) ([538](https://github.com/databricks/dbt-databricks/pull/538))
-- Fix dbt incremental_strategy behavior by fixing schema table existing check ([530](https://github.com/databricks/dbt-databricks/pull/530))
+- Fix dbt incremental_strategy behavior by fixing schema table existing check (thanks @case-k-git!) ([530](https://github.com/databricks/dbt-databricks/pull/530))
 
 ## dbt-databricks 1.7.3 (Dec 12, 2023)
 
