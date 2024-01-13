@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import Mock
 
-from mock import PropertyMock
 from dbt.adapters.databricks.connections import DatabricksCredentials
 
 from dbt.adapters.databricks.python_submissions import DBContext, BaseDatabricksHelper
