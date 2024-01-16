@@ -65,7 +65,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
         self.check_credentials()
         self.extra_headers = {
-            "User-Agent": f"dbt-labs-dbt-spark/{DBT_SPARK_VERSION} (Databricks)",
+            "User-Agent": f"dbt-databricks/{version}",
         }
 
         self.auth: Union[BearerAuth, None] = None
