@@ -72,3 +72,8 @@ def _wrap_function(func: Callable) -> Callable:
         return func(*new_args, **new_kwargs)
 
     return wrapper
+
+
+def remove_ansi(line: str) -> str:
+    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
+    return ansi_escape.sub("", line)

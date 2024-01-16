@@ -1,7 +1,9 @@
 import unittest
 
 from jinja2.runtime import Undefined
+import pytest
 
+from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksQuotePolicy
 
 
@@ -177,3 +179,35 @@ class TestDatabricksRelation(unittest.TestCase):
 
         relation = DatabricksRelation.from_dict(data)
         self.assertFalse(relation.matches("some_database", "some_schema", "table"))
+
+
+class TestRelationsFunctions:
+    @pytest.mark.parametrize(
+        "database, expected", [(None, True), ("hive_metastore", True), ("not_hive", False)]
+    )
+    def test_is_hive_metastore(self, database, expected):
+        assert relation.is_hive_metastore(database) is expected
+
+    @pytest.mark.parametrize(
+        "input, expected",
+        [
+            ([], set()),
+            ([DatabricksRelation.create(identifier=None)], set()),
+            (
+                [
+                    DatabricksRelation.create(identifier=None),
+                    DatabricksRelation.create(identifier="test"),
+                ],
+                {"test"},
+            ),
+            (
+                [
+                    DatabricksRelation.create(identifier="test"),
+                    DatabricksRelation.create(identifier="test"),
+                ],
+                {"test"},
+            ),
+        ],
+    )
+    def test_extract_identifiers(self, input, expected):
+        assert relation.extract_identifiers(input) == expected

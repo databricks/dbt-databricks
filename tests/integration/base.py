@@ -96,7 +96,6 @@ def _profile_from_test_name(test_name):
     adapter_names = (
         "databricks_cluster",
         "databricks_uc_cluster",
-        "databricks_sql_endpoint",
         "databricks_uc_sql_endpoint",
     )
     adapters_in_name = sum(x in test_name for x in adapter_names)
@@ -605,6 +604,12 @@ class DBTIntegrationTest(unittest.TestCase):
         sql = self.adapter.get_rows_different_sql(relation_a, relation_b, column_names)
 
         return sql
+
+    def assert_in_log(self, message: str) -> None:
+        log_file = os.path.join(self._logs_dir, "dbt.log")
+        with open(log_file, "r") as f:
+            log = f.read()
+            assert message.lower() in log.lower()
 
     def assertTablesEqual(
         self,

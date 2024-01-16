@@ -14,22 +14,19 @@ class TestZOrder(DBTIntegrationTest):
     def project_config(self):
         return {"config-version": 2}
 
-    def test_zorder(self):
+    def _test_zorder(self):
         self.run_dbt(["run"])
-        self.run_dbt(["run"])  # make sure it also run in incremental
+        self.run_dbt(["run"])
+        self.assert_in_log("zorder by")  # make sure it also run in incremental
 
     @use_profile("databricks_cluster")
     def test_zorder_databricks_cluster(self):
-        self.test_zorder()
+        self._test_zorder()
 
     @use_profile("databricks_uc_cluster")
     def test_zorder_databricks_uc_cluster(self):
-        self.test_zorder()
-
-    @use_profile("databricks_sql_endpoint")
-    def test_zorder_databricks_sql_endpoint(self):
-        self.test_zorder()
+        self._test_zorder()
 
     @use_profile("databricks_uc_sql_endpoint")
     def test_zorder_databricks_uc_sql_endpoint(self):
-        self.test_zorder()
+        self._test_zorder()

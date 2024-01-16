@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional, Set, Type
 from dbt.contracts.relation import (
     ComponentName,
 )
-from dbt.adapters.base.relation import BaseRelation, Policy
+from dbt.adapters.base.relation import BaseRelation, Policy, InformationSchema
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.dataclass_schema import StrEnum
 
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.utils import filter_null_values
+from dbt.utils import filter_null_values, classproperty
 from dbt.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
@@ -27,8 +28,28 @@ class DatabricksIncludePolicy(Policy):
     identifier: bool = True
 
 
+class DatabricksRelationType(StrEnum):
+    Table = "table"
+    View = "view"
+    CTE = "cte"
+    MaterializedView = "materializedview"
+    External = "external"
+    StreamingTable = "streamingtable"
+
+
+@dataclass(frozen=True, eq=False, repr=False)
+class DatabricksInformationSchema(InformationSchema):
+    quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
+    include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
+    quote_character: str = "`"
+
+    def is_hive_metastore(self) -> bool:
+        return is_hive_metastore(self.database)
+
+
 @dataclass(frozen=True, eq=False, repr=False)
 class DatabricksRelation(BaseRelation):
+    type: Optional[DatabricksRelationType] = None  # type: ignore
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
@@ -46,6 +67,14 @@ class DatabricksRelation(BaseRelation):
 
     def has_information(self) -> bool:
         return self.metadata is not None
+
+    @property
+    def is_materialized_view(self) -> bool:
+        return self.type == DatabricksRelationType.MaterializedView
+
+    @property
+    def is_streaming_table(self) -> bool:
+        return self.type == DatabricksRelationType.StreamingTable
 
     @property
     def is_delta(self) -> bool:
@@ -92,3 +121,25 @@ class DatabricksRelation(BaseRelation):
                 match = False
 
         return match
+
+    @classproperty
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+        return DatabricksRelationType
+
+    def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
+        # some of our data comes from jinja, where things can be `Undefined`.
+        if not isinstance(view_name, str):
+            view_name = None
+
+        # Kick the user-supplied schema out of the information schema relation
+        # Instead address this as <database>.information_schema by default
+        info_schema = DatabricksInformationSchema.from_relation(self, view_name)
+        return info_schema.incorporate(path={"schema": None})
+
+
+def is_hive_metastore(database: Optional[str]) -> bool:
+    return database is None or database.lower() == "hive_metastore"
+
+
+def extract_identifiers(relations: Iterable[BaseRelation]) -> Set[str]:
+    return {r.identifier for r in relations if r.identifier is not None}

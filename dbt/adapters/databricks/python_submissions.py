@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple, Optional, Callable, Union
 
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
+from dbt.adapters.databricks import utils
 
 import base64
 import time
@@ -82,6 +83,12 @@ class BaseDatabricksHelper(PythonJobHelper):
                 f"Error creating work_dir for python notebooks\n {response.content!r}"
             )
 
+    def _update_with_acls(self, cluster_dict: dict) -> dict:
+        acl = self.parsed_model["config"].get("access_control_list", None)
+        if acl:
+            cluster_dict.update({"access_control_list": acl})
+        return cluster_dict
+
     def _upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
         response = requests.post(
@@ -109,15 +116,26 @@ class BaseDatabricksHelper(PythonJobHelper):
             },
         }
         job_spec.update(cluster_spec)  # updates 'new_cluster' config
+
         # PYPI packages
         packages = self.parsed_model["config"].get("packages", [])
+
+        # custom index URL or default
+        index_url = self.parsed_model["config"].get("index_url", None)
+
         # additional format of packages
         additional_libs = self.parsed_model["config"].get("additional_libs", [])
         libraries = []
+
         for package in packages:
-            libraries.append({"pypi": {"package": package}})
+            if index_url:
+                libraries.append({"pypi": {"package": package, "repo": index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
+
         for lib in additional_libs:
             libraries.append(lib)
+
         job_spec.update({"libraries": libraries})  # type: ignore
         submit_response = requests.post(
             f"https://{self.credentials.host}/api/2.1/jobs/runs/submit",
@@ -129,7 +147,9 @@ class BaseDatabricksHelper(PythonJobHelper):
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating python run.\n {submit_response.content!r}"
             )
-        return submit_response.json()["run_id"]
+        response_json = submit_response.json()
+        logger.info(f"Job submission response={response_json}")
+        return response_json["run_id"]
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
         # it is safe to call mkdirs even if dir already exists and have content inside
@@ -168,7 +188,7 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "Python model failed with traceback as:\n"
                 "(Note that the line number here does not "
                 "match the line number in your code due to dbt templating)\n"
-                f"{json_run_output['error_trace']}"
+                f"{utils.remove_ansi(json_run_output['error_trace'])}"
             )
 
     def submit(self, compiled_code: str) -> None:
@@ -214,7 +234,7 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
-        self._submit_through_notebook(compiled_code, cluster_spec)
+        self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
 
 
 class DBContext:
@@ -238,6 +258,9 @@ class DBContext:
             logger.debug(f"Cluster {self.cluster_id} is not running. Attempting to restart.")
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
+
+        if current_status != "RUNNING":
+            self._wait_for_cluster_to_start()
 
         response = requests.post(
             f"https://{self.host}/api/1.2/contexts/create",
@@ -272,7 +295,6 @@ class DBContext:
         return response.json()["id"]
 
     def get_cluster_status(self) -> Dict:
-
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
 
         response = requests.get(
@@ -310,7 +332,12 @@ class DBContext:
                 f"Error starting terminated cluster.\n {response.content!r}"
             )
 
+        self._wait_for_cluster_to_start()
+
+    def _wait_for_cluster_to_start(self) -> None:
         # seconds
+        logger.info("Waiting for cluster to be ready")
+
         MAX_CLUSTER_START_TIME = 900
         start_time = time.time()
 
@@ -319,7 +346,7 @@ class DBContext:
 
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
-            if status_response.get("state") == "Running":
+            if str(status_response.get("state")).lower() == "running":
                 return
             else:
                 time.sleep(5)
@@ -355,6 +382,7 @@ class DBCommand:
                 "command": command,
             },
         )
+        logger.info(f"Job submission response={response.json()}")
         if response.status_code != 200:
             raise dbt.exceptions.DbtRuntimeError(
                 f"Error creating a command.\n {response.content!r}"
@@ -390,7 +418,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         if self.parsed_model["config"].get("create_notebook", False):
-            self._submit_through_notebook(compiled_code, {"existing_cluster_id": self.cluster_id})
+            config = {"existing_cluster_id": self.cluster_id}
+            self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
             context = DBContext(self.credentials, self.cluster_id, self.auth, self.extra_headers)
             command = DBCommand(self.credentials, self.cluster_id, self.auth, self.extra_headers)
@@ -412,7 +441,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 if response["results"]["resultType"] == "error":
                     raise dbt.exceptions.DbtRuntimeError(
                         f"Python model failed with traceback as:\n"
-                        f"{response['results']['cause']}"
+                        f"{utils.remove_ansi(response['results']['cause'])}"
                     )
             finally:
                 context.destroy(context_id)
