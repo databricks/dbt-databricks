@@ -15,7 +15,6 @@ from urllib3.util.retry import Retry
 from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.spark import __version__
 
 from databricks.sdk.core import CredentialsProvider, HeaderFactory
 from requests.adapters import HTTPAdapter
@@ -28,7 +27,6 @@ logger = AdapterLogger("Databricks")
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
-DBT_SPARK_VERSION = __version__.version
 
 
 class BearerAuth(AuthBase):
