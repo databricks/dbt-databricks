@@ -23,7 +23,12 @@ from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation, InformationSchema
-from dbt.adapters.capability import CapabilityDict, CapabilitySupport, Support, Capability
+from dbt.adapters.capability import (
+    CapabilityDict,
+    CapabilitySupport,
+    Support,
+    Capability,
+)
 from dbt.adapters.spark.impl import (
     SparkAdapter,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
@@ -286,7 +291,8 @@ class DatabricksAdapter(SparkAdapter):
             with self._catalog(relation.database):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
                 tables = self.execute_macro(
-                    SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs={"schema_relation": relation_all_tables}
+                    SHOW_TABLE_EXTENDED_MACRO_NAME,
+                    kwargs={"schema_relation": relation_all_tables},
                 )
             view_names: Dict[str, bool] = {
                 view["viewName"]: view.get("isMaterialized", False) for view in views
@@ -319,8 +325,11 @@ class DatabricksAdapter(SparkAdapter):
 
     def _parse_type(self, information: str) -> str:
         type_entry = [
-            entry.strip() for entry in information.split("\n") if entry.split(":")[0] == "Type"
+            entry.split(":")[1].strip()
+            for entry in information.split("\n")
+            if entry.startswith("Type:")
         ]
+
         return type_entry[0] if type_entry else ""
 
     def _type_from_names(
