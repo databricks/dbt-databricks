@@ -19,7 +19,7 @@ class TestDatabricksPythonSubmissions(unittest.TestCase):
         get_mock.json.return_value = {"state": "RUNNING"}
         session_mock.get.return_value = get_mock
 
-        context = DBContext(Mock(), None, None, session_mock)
+        context = DBContext(Mock(), None, None, None, session_mock)
         context.start_cluster()
 
         session_mock.get.assert_called_once()
