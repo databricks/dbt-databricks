@@ -23,7 +23,6 @@ from requests.auth import AuthBase
 from requests import PreparedRequest
 
 
-
 logger = AdapterLogger("Databricks")
 
 DEFAULT_POLLING_INTERVAL = 10
@@ -72,7 +71,9 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     @property
     def cluster_id(self) -> str:
-        return self.parsed_model["config"].get("cluster_id", self.credentials.cluster_id)
+        return self.parsed_model["config"].get(
+            "cluster_id", self.credentials.cluster_id
+        )
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)
@@ -185,15 +186,20 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "auth": self.auth,
                 "headers": self.extra_headers,
             },
-            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
+            get_state_func=lambda response: response.json()["state"][
+                "life_cycle_state"
+            ],
             terminal_states=("TERMINATED", "SKIPPED", "INTERNAL_ERROR"),
             expected_end_state="TERMINATED",
-            get_state_msg_func=lambda response: response.json()["state"]["state_message"],
+            get_state_msg_func=lambda response: response.json()["state"][
+                "state_message"
+            ],
         )
 
         # get end state to return to user
         run_output = self.session.get(
-            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
+            f"https://{self.credentials.host}"
+            f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
             auth=self.auth,
             headers=self.extra_headers,
         )
@@ -246,11 +252,17 @@ class BaseDatabricksHelper(PythonJobHelper):
 class JobClusterPythonJobHelper(BaseDatabricksHelper):
     def check_credentials(self) -> None:
         if not self.parsed_model["config"].get("job_cluster_config", None):
-            raise ValueError("job_cluster_config is required for commands submission method.")
+            raise ValueError(
+                "job_cluster_config is required for commands submission method."
+            )
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
-        self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
+        cluster_spec = {
+            "new_cluster": self.parsed_model["config"]["job_cluster_config"]
+        }
+        self._submit_through_notebook(
+            compiled_code, self._update_with_acls(cluster_spec)
+        )
 
 
 class DBContext:
@@ -273,7 +285,9 @@ class DBContext:
 
         current_status = self.get_cluster_status().get("state", "").upper()
         if current_status in ["TERMINATED", "TERMINATING"]:
-            logger.debug(f"Cluster {self.cluster_id} is not running. Attempting to restart.")
+            logger.debug(
+                f"Cluster {self.cluster_id} is not running. Attempting to restart."
+            )
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
 
@@ -441,8 +455,20 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             config = {"existing_cluster_id": self.cluster_id}
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
-            context = DBContext(self.credentials, self.cluster_id, self.auth, self.extra_headers, self.session)
-            command = DBCommand(self.credentials, self.cluster_id, self.auth, self.extra_headers, self.session)
+            context = DBContext(
+                self.credentials,
+                self.cluster_id,
+                self.auth,
+                self.extra_headers,
+                self.session,
+            )
+            command = DBCommand(
+                self.credentials,
+                self.cluster_id,
+                self.auth,
+                self.extra_headers,
+                self.session,
+            )
             context_id = context.create()
             try:
                 command_id = command.execute(context_id, compiled_code)
@@ -456,7 +482,9 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                     get_state_func=lambda response: response["status"],
                     terminal_states=("Cancelled", "Error", "Finished"),
                     expected_end_state="Finished",
-                    get_state_msg_func=lambda response: response.json()["results"]["data"],
+                    get_state_msg_func=lambda response: response.json()["results"][
+                        "data"
+                    ],
                 )
                 if response["results"]["resultType"] == "error":
                     raise dbt.exceptions.DbtRuntimeError(
@@ -489,7 +517,9 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         http_headers: Dict[str, str] = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
-        self._credentials_provider = credentials.authenticate(self._credentials_provider)
+        self._credentials_provider = credentials.authenticate(
+            self._credentials_provider
+        )
         header_factory = self._credentials_provider()
         self.auth = BearerAuth(header_factory)
 
