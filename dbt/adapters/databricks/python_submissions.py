@@ -16,10 +16,9 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 
-from databricks.sdk.core import CredentialsProvider, HeaderFactory
+from databricks.sdk.core import CredentialsProvider
 from requests.adapters import HTTPAdapter
-from requests.auth import AuthBase
-from requests import PreparedRequest
+from dbt.adapters.databricks.connections import BearerAuth
 
 
 logger = AdapterLogger("Databricks")
@@ -27,22 +26,6 @@ logger = AdapterLogger("Databricks")
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
-
-
-class BearerAuth(AuthBase):
-    """See issue #337.
-
-    We use this mix-in to stop requests from implicitly reading .netrc
-
-    Solution taken from SO post in issue description.
-    """
-
-    def __init__(self, headers: HeaderFactory):
-        self.headers = headers()
-
-    def __call__(self, r: PreparedRequest) -> PreparedRequest:
-        r.headers.update(**self.headers)
-        return r
 
 
 class BaseDatabricksHelper(PythonJobHelper):
@@ -65,8 +48,6 @@ class BaseDatabricksHelper(PythonJobHelper):
             "User-Agent": f"dbt-databricks/{version}",
         }
 
-        self.auth: Union[BearerAuth, None] = None
-
     @property
     def cluster_id(self) -> str:
         return self.parsed_model["config"].get("cluster_id", self.credentials.cluster_id)
@@ -85,7 +66,6 @@ class BaseDatabricksHelper(PythonJobHelper):
     def _create_work_dir(self, path: str) -> None:
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.0/workspace/mkdirs",
-            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "path": path,
@@ -106,7 +86,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.0/workspace/import",
-            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "path": path,
@@ -152,7 +131,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         job_spec.update({"libraries": libraries})  # type: ignore
         submit_response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/runs/submit",
-            auth=self.auth,
             headers=self.extra_headers,
             json=job_spec,
         )
@@ -179,7 +157,6 @@ class BaseDatabricksHelper(PythonJobHelper):
             status_func=self.session.get,
             status_func_kwargs={
                 "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
-                "auth": self.auth,
                 "headers": self.extra_headers,
             },
             get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
@@ -191,7 +168,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         # get end state to return to user
         run_output = self.session.get(
             f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
-            auth=self.auth,
             headers=self.extra_headers,
         )
         json_run_output = run_output.json()
@@ -255,11 +231,9 @@ class DBContext:
         self,
         credentials: DatabricksCredentials,
         cluster_id: str,
-        auth: Union[BearerAuth, None],
         extra_headers: dict,
         session: Session,
     ) -> None:
-        self.auth = auth
         self.extra_headers = extra_headers
         self.cluster_id = cluster_id
         self.host = credentials.host
@@ -279,7 +253,6 @@ class DBContext:
 
         response = self.session.post(
             f"https://{self.host}/api/1.2/contexts/create",
-            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
@@ -296,7 +269,6 @@ class DBContext:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#delete-an-execution-context
         response = self.session.post(
             f"https://{self.host}/api/1.2/contexts/destroy",
-            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
@@ -314,7 +286,6 @@ class DBContext:
 
         response = self.session.get(
             f"https://{self.host}/api/2.0/clusters/get",
-            auth=self.auth,
             headers=self.extra_headers,
             json={"cluster_id": self.cluster_id},
         )
@@ -338,7 +309,6 @@ class DBContext:
 
         response = self.session.post(
             f"https://{self.host}/api/2.0/clusters/start",
-            auth=self.auth,
             headers=self.extra_headers,
             json={"cluster_id": self.cluster_id},
         )
@@ -376,11 +346,9 @@ class DBCommand:
         self,
         credentials: DatabricksCredentials,
         cluster_id: str,
-        auth: Union[BearerAuth, None],
         extra_headers: dict,
         session: Session,
     ) -> None:
-        self.auth = auth
         self.extra_headers = extra_headers
         self.cluster_id = cluster_id
         self.host = credentials.host
@@ -390,7 +358,6 @@ class DBCommand:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
         response = self.session.post(
             f"https://{self.host}/api/1.2/commands/execute",
-            auth=self.auth,
             headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
@@ -410,7 +377,6 @@ class DBCommand:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-command
         response = self.session.get(
             f"https://{self.host}/api/1.2/commands/status",
-            auth=self.auth,
             headers=self.extra_headers,
             params={
                 "clusterId": self.cluster_id,
@@ -441,14 +407,12 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             context = DBContext(
                 self.credentials,
                 self.cluster_id,
-                self.auth,
                 self.extra_headers,
                 self.session,
             )
             command = DBCommand(
                 self.credentials,
                 self.cluster_id,
-                self.auth,
                 self.extra_headers,
                 self.session,
             )
@@ -500,7 +464,7 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         )
         self._credentials_provider = credentials.authenticate(self._credentials_provider)
         header_factory = self._credentials_provider()
-        self.auth = BearerAuth(header_factory)
+        self.session.auth = BearerAuth(header_factory)
 
         self.extra_headers.update({"User-Agent": user_agent, **http_headers})
 

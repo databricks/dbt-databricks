@@ -73,6 +73,10 @@ from databricks.sdk.core import CredentialsProvider
 from databricks.sdk.oauth import OAuthClient, SessionCredentials
 from dbt.adapters.databricks.auth import token_auth, m2m_auth
 
+from requests.auth import AuthBase
+from requests import PreparedRequest
+from databricks.sdk.core import HeaderFactory
+
 import keyring
 
 logger = AdapterLogger("Databricks")
@@ -117,6 +121,22 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
 DEFAULT_MAX_IDLE_TIME = 600
+
+
+class BearerAuth(AuthBase):
+    """See issue #337.
+
+    We use this mix-in to stop requests from implicitly reading .netrc
+
+    Solution taken from SO post in issue description.
+    """
+
+    def __init__(self, headers: HeaderFactory):
+        self.headers = headers()
+
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        r.headers.update(**self.headers)
+        return r
 
 
 @dataclass
