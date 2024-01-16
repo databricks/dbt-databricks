@@ -1,19 +1,23 @@
 from typing import Any, Dict, Tuple, Optional, Callable
 
+from requests import Session
+
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.connections import DatabricksCredentials
 from dbt.adapters.databricks import utils
 
 import base64
 import time
-import requests
 import uuid
+
+from urllib3.util.retry import Retry
 
 from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.spark import __version__
 from databricks.sdk.core import CredentialsProvider
+from requests.adapters import HTTPAdapter
 
 logger = AdapterLogger("Databricks")
 
@@ -31,6 +35,13 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.parsed_model = parsed_model
         self.timeout = self.get_timeout()
         self.polling_interval = DEFAULT_POLLING_INTERVAL
+
+        # This should be passed in, but not sure where this is actually instantiated
+        retry_strategy = Retry(total=4, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session = Session()
+        self.session.mount("https://", adapter)
+
         self.check_credentials()
         self.auth_header = {
             "Authorization": f"Bearer {self.credentials.token}",
@@ -53,7 +64,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         )
 
     def _create_work_dir(self, path: str) -> None:
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.credentials.host}/api/2.0/workspace/mkdirs",
             headers=self.auth_header,
             json={
@@ -73,7 +84,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     def _upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.credentials.host}/api/2.0/workspace/import",
             headers=self.auth_header,
             json={
@@ -118,7 +129,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             libraries.append(lib)
 
         job_spec.update({"libraries": libraries})  # type: ignore
-        submit_response = requests.post(
+        submit_response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/runs/submit",
             headers=self.auth_header,
             json=job_spec,
@@ -143,7 +154,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         run_id = self._submit_job(whole_file_path, cluster_spec)
 
         self.polling(
-            status_func=requests.get,
+            status_func=self.session.get,
             status_func_kwargs={
                 "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
                 "headers": self.auth_header,
@@ -155,7 +166,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         )
 
         # get end state to return to user
-        run_output = requests.get(
+        run_output = self.session.get(
             f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
             headers=self.auth_header,
         )
@@ -217,11 +228,16 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
 class DBContext:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth_header: dict,
+        session: Session,
     ) -> None:
         self.auth_header = auth_header
         self.cluster_id = cluster_id
         self.host = credentials.host
+        self.session = session
 
     def create(self) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#create-an-execution-context
@@ -235,7 +251,7 @@ class DBContext:
         if current_status != "RUNNING":
             self._wait_for_cluster_to_start()
 
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.host}/api/1.2/contexts/create",
             headers=self.auth_header,
             json={
@@ -251,7 +267,7 @@ class DBContext:
 
     def destroy(self, context_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#delete-an-execution-context
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.host}/api/1.2/contexts/destroy",
             headers=self.auth_header,
             json={
@@ -268,7 +284,7 @@ class DBContext:
     def get_cluster_status(self) -> Dict:
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
 
-        response = requests.get(
+        response = self.session.get(
             f"https://{self.host}/api/2.0/clusters/get",
             headers=self.auth_header,
             json={"cluster_id": self.cluster_id},
@@ -291,7 +307,7 @@ class DBContext:
 
         logger.debug(f"Sending restart command for cluster id {self.cluster_id}")
 
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.host}/api/2.0/clusters/start",
             headers=self.auth_header,
             json={"cluster_id": self.cluster_id},
@@ -327,15 +343,20 @@ class DBContext:
 
 class DBCommand:
     def __init__(
-        self, credentials: DatabricksCredentials, cluster_id: str, auth_header: dict
+        self,
+        credentials: DatabricksCredentials,
+        cluster_id: str,
+        auth_header: dict,
+        session: Session,
     ) -> None:
         self.auth_header = auth_header
         self.cluster_id = cluster_id
         self.host = credentials.host
+        self.session = session
 
     def execute(self, context_id: str, command: str) -> str:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
-        response = requests.post(
+        response = self.session.post(
             f"https://{self.host}/api/1.2/commands/execute",
             headers=self.auth_header,
             json={
@@ -354,7 +375,7 @@ class DBCommand:
 
     def status(self, context_id: str, command_id: str) -> Dict[str, Any]:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#get-information-about-a-command
-        response = requests.get(
+        response = self.session.get(
             f"https://{self.host}/api/1.2/commands/status",
             headers=self.auth_header,
             params={
@@ -383,8 +404,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             config = {"existing_cluster_id": self.cluster_id}
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
-            context = DBContext(self.credentials, self.cluster_id, self.auth_header)
-            command = DBCommand(self.credentials, self.cluster_id, self.auth_header)
+            context = DBContext(self.credentials, self.cluster_id, self.auth_header, self.session)
+            command = DBCommand(self.credentials, self.cluster_id, self.auth_header, self.session)
             context_id = context.create()
             try:
                 command_id = command.execute(context_id, compiled_code)
