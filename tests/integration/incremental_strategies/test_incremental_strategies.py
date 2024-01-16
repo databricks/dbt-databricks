@@ -4,7 +4,7 @@ from tests.integration.base import DBTIntegrationTest, use_profile
 class TestIncrementalStrategies(DBTIntegrationTest):
     @property
     def schema(self):
-        return "incremental_strategies"
+        return "Incremental_strategies"
 
     @property
     def project_config(self):

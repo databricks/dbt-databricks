@@ -166,12 +166,12 @@ class DBTIntegrationTest(unittest.TestCase):
     def selectors_config(self):
         return None
 
-    def unique_schema(self):
-        schema = self.schema
-
-        to_return = "{}_{}".format(self.prefix, schema)
-
-        return to_return.lower()
+    # To test schema-related aspects, whether lower or upper, we can choose to use either the
+    # default schema or the test-defined schema.
+    def unique_schema(self, default_schema=None):
+        if not hasattr(self, "schema"):
+            self.schema = default_schema
+        return "{}_{}".format(self.prefix, self.schema)
 
     @property
     def default_database(self):
@@ -183,18 +183,22 @@ class DBTIntegrationTest(unittest.TestCase):
         return None
 
     def get_profile(self, adapter_type):
-        return {
+        profile = {
             "config": {"send_anonymous_usage_stats": False},
             "test": {
                 "outputs": {
                     "dev": dict(
                         **get_databricks_cluster_target(adapter_type),
-                        schema=self.unique_schema(),
                     ),
                 },
                 "target": "dev",
             },
         }
+
+        profile["test"]["outputs"]["dev"]["schema"] = self.unique_schema(
+            default_schema=profile["test"]["outputs"]["dev"]["schema"]
+        )
+        return profile
 
     def _pick_profile(self):
         test_name = self.id().split(".")[-1]

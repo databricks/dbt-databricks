@@ -6,7 +6,10 @@ from tests.functional.adapter.long_sessions import fixtures
 
 with mock.patch.dict(
     os.environ,
-    {"DBT_DATABRICKS_LONG_SESSIONS": "true", "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL": "DEBUG"},
+    {
+        "DBT_DATABRICKS_LONG_SESSIONS": "true",
+        "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL": "DEBUG",
+    },
 ):
     import dbt.adapters.databricks.connections  # noqa
 
@@ -48,7 +51,6 @@ class TestLongSessionsMultipleThreads(TestLongSessionsBase):
             assert open_count == (n_threads + 1)
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestLongSessionsMultipleCompute:
     args_formatter = ""
 
@@ -68,24 +70,14 @@ class TestLongSessionsMultipleCompute:
 
         return m
 
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["compute"] = {
-            "alternate_warehouse": {"http_path": dbt_profile_target["http_path"]},
-        }
-
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     def test_long_sessions(self, project):
-        util.run_dbt_and_capture(["--debug", "seed"])
+        util.run_dbt_and_capture(["--debug", "seed", "--target", "alternate_warehouse"])
 
-        _, log = util.run_dbt_and_capture(["--debug", "run"])
+        _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "alternate_warehouse"])
         open_count = log.count("Sending request: OpenSession") / 2
         assert open_count == 3
 
 
-@pytest.mark.skip("May fail non-deterministically due to issue in dbt test framework.")
 class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
     args_formatter = ""
 
@@ -100,22 +92,9 @@ class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
         }
         return m
 
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["connect_max_idle"] = 1
-        outputs["default"]["compute"] = {
-            "alternate_warehouse": {
-                "http_path": dbt_profile_target["http_path"],
-                "connect_max_idle": 1,
-            },
-        }
-
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     def test_long_sessions(self, project):
-        util.run_dbt(["--debug", "seed"])
+        util.run_dbt(["--debug", "seed", "--target", "idle_sessions"])
 
-        _, log = util.run_dbt_and_capture(["--debug", "run"])
+        _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "idle_sessions"])
         idle_count = log.count("closing idle connection") / 2
         assert idle_count > 0
