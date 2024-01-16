@@ -259,11 +259,11 @@ class DBContext:
         credentials: DatabricksCredentials,
         cluster_id: str,
         auth: Union[BearerAuth, None],
-        auth_header: dict,
+        extra_headers: dict,
         session: Session,
     ) -> None:
         self.auth = auth
-        self.auth_header = auth_header
+        self.extra_headers = extra_headers
         self.cluster_id = cluster_id
         self.host = credentials.host
         self.session = session
@@ -283,7 +283,7 @@ class DBContext:
         response = self.session.post(
             f"https://{self.host}/api/1.2/contexts/create",
             auth=self.auth,
-            headers=self.auth_header,
+            headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
                 "language": SUBMISSION_LANGUAGE,
@@ -380,11 +380,11 @@ class DBCommand:
         credentials: DatabricksCredentials,
         cluster_id: str,
         auth: Union[BearerAuth, None],
-        auth_header: dict,
+        extra_headers: dict,
         session: Session,
     ) -> None:
         self.auth = auth
-        self.auth_header = auth_header
+        self.extra_headers = extra_headers
         self.cluster_id = cluster_id
         self.host = credentials.host
         self.session = session
@@ -394,7 +394,7 @@ class DBCommand:
         response = self.session.post(
             f"https://{self.host}/api/1.2/commands/execute",
             auth=self.auth,
-            headers=self.auth_header,
+            headers=self.extra_headers,
             json={
                 "clusterId": self.cluster_id,
                 "contextId": context_id,
@@ -441,8 +441,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             config = {"existing_cluster_id": self.cluster_id}
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
-            context = DBContext(self.credentials, self.cluster_id, self.auth, self.auth_header, self.session)
-            command = DBCommand(self.credentials, self.cluster_id, self.auth, self.auth_header, self.session)
+            context = DBContext(self.credentials, self.cluster_id, self.auth, self.extra_headers, self.session)
+            command = DBCommand(self.credentials, self.cluster_id, self.auth, self.extra_headers, self.session)
             context_id = context.create()
             try:
                 command_id = command.execute(context_id, compiled_code)
