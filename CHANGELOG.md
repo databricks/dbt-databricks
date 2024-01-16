@@ -1,8 +1,6 @@
 
 ## dbt-databricks 1.5.2 TBD
 
-- Fix: Python submissions should always use the auth token in `profiles.yml` (ignore .netrc file)
-
 ### Features
 - Added support for model contracts ([#336](https://github.com/databricks/dbt-databricks/pull/336))
 
