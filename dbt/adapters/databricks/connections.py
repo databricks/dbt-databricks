@@ -124,10 +124,11 @@ DEFAULT_MAX_IDLE_TIME = 600
 
 
 class BearerAuth(AuthBase):
-    """This mix-in is passed to our requests Session to explicitly use the bearer authentication method.
-    
-    Without this, a local .netrc file in the user's home directory will override the auth headers provided
-    by our header_factory. 
+    """This mix-in is passed to our requests Session to explicitly
+    use the bearer authentication method.
+
+    Without this, a local .netrc file in the user's home directory
+    will override the auth headers provided by our header_factory.
 
     More details in issue #337.
     """
@@ -579,7 +580,7 @@ class DatabricksSQLCursorWrapper:
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
         host: str = self._creds.host or ""
         headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
-        
+
         session = Session()
         session.auth = BearerAuth(headers)
         extra_headers = {"User-Agent": self._user_agent}
@@ -1522,7 +1523,9 @@ def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
     return None
 
 
-def _get_update_error_msg(session: Session, host: str, headers: dict, pipeline_id: str, update_id: str) -> str:
+def _get_update_error_msg(
+    session: Session, host: str, headers: dict, pipeline_id: str, update_id: str
+) -> str:
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
     response = session.get(events_url, headers=headers)
     if response.status_code != 200:
