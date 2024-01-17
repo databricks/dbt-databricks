@@ -10,7 +10,6 @@ import re
 import sys
 import threading
 import time
-import requests
 from threading import get_ident
 from typing import (
     Any,
@@ -78,6 +77,7 @@ from requests import PreparedRequest
 from databricks.sdk.core import HeaderFactory
 
 import keyring
+from requests import Session
 
 logger = AdapterLogger("Databricks")
 
@@ -124,11 +124,12 @@ DEFAULT_MAX_IDLE_TIME = 600
 
 
 class BearerAuth(AuthBase):
-    """See issue #337.
+    """This mix-in is passed to our requests Session to explicitly use the bearer authentication method.
+    
+    Without this, a local .netrc file in the user's home directory will override the auth headers provided
+    by our header_factory. 
 
-    We use this mix-in to stop requests from implicitly reading .netrc
-
-    Solution taken from SO post in issue description.
+    More details in issue #337.
     """
 
     def __init__(self, headers: HeaderFactory):
@@ -578,10 +579,13 @@ class DatabricksSQLCursorWrapper:
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
         host: str = self._creds.host or ""
         headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
-        headers["User-Agent"] = self._user_agent
+        
+        session = Session()
+        session.auth = BearerAuth(headers)
+        extra_headers = {"User-Agent": self._user_agent}
 
-        pipeline_id = _get_table_view_pipeline_id(host, headers, model_name)
-        pipeline = _get_pipeline_state(host, headers, pipeline_id)
+        pipeline_id = _get_table_view_pipeline_id(session, host, extra_headers, model_name)
+        pipeline = _get_pipeline_state(session, host, extra_headers, pipeline_id)
         # get the most recently created update for the pipeline
         latest_update = _find_update(pipeline)
         if not latest_update:
@@ -606,7 +610,7 @@ class DatabricksSQLCursorWrapper:
             # should we do exponential backoff?
             time.sleep(polling_interval)
 
-            pipeline = _get_pipeline_state(host, headers, pipeline_id)
+            pipeline = _get_pipeline_state(session, host, extra_headers, pipeline_id)
             # get the update we are currently polling
             update = _find_update(pipeline, update_id)
             if not update:
@@ -623,7 +627,7 @@ class DatabricksSQLCursorWrapper:
 
             if state == "FAILED":
                 logger.error(f"pipeline {pipeline_id} update {update_id} failed")
-                msg = _get_update_error_msg(host, headers, pipeline_id, update_id)
+                msg = _get_update_error_msg(session, host, extra_headers, pipeline_id, update_id)
                 if msg:
                     logger.error(msg)
 
@@ -644,7 +648,7 @@ class DatabricksSQLCursorWrapper:
             raise dbt.exceptions.DbtRuntimeError("timed out waiting for materialized view refresh")
 
         if state == "FAILED":
-            msg = _get_update_error_msg(host, headers, pipeline_id, update_id)
+            msg = _get_update_error_msg(session, host, extra_headers, pipeline_id, update_id)
             raise dbt.exceptions.DbtRuntimeError(f"error refreshing model {model_name} {msg}")
 
         if state == "CANCELED":
@@ -1474,9 +1478,9 @@ def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
     return refresh_search is not None, name
 
 
-def _get_table_view_pipeline_id(host: str, headers: dict, name: str) -> str:
+def _get_table_view_pipeline_id(session: Session, host: str, headers: dict, name: str) -> str:
     table_url = f"https://{host}/api/2.1/unity-catalog/tables/{name}"
-    resp1 = requests.get(table_url, headers=headers)
+    resp1 = session.get(table_url, headers=headers)
     if resp1.status_code != 200:
         raise dbt.exceptions.DbtRuntimeError(
             f"Error getting info for materialized view/streaming table: {name}"
@@ -1491,10 +1495,10 @@ def _get_table_view_pipeline_id(host: str, headers: dict, name: str) -> str:
     return pipeline_id
 
 
-def _get_pipeline_state(host: str, headers: dict, pipeline_id: str) -> dict:
+def _get_pipeline_state(session: Session, host: str, headers: dict, pipeline_id: str) -> dict:
     pipeline_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
 
-    response = requests.get(pipeline_url, headers=headers)
+    response = session.get(pipeline_url, headers=headers)
     if response.status_code != 200:
         raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
 
@@ -1518,9 +1522,9 @@ def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
     return None
 
 
-def _get_update_error_msg(host: str, headers: dict, pipeline_id: str, update_id: str) -> str:
+def _get_update_error_msg(session: Session, host: str, headers: dict, pipeline_id: str, update_id: str) -> str:
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
-    response = requests.get(events_url, headers=headers)
+    response = session.get(events_url, headers=headers)
     if response.status_code != 200:
         raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info: {pipeline_id}")
 
