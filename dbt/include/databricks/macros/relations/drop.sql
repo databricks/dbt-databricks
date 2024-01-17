@@ -9,3 +9,9 @@
         {{ drop_table(relation) }}
     {%- endif -%}
 {% endmacro %}
+
+{% macro databricks__drop_relation(relation) -%}
+    {% call statement('drop_relation', auto_begin=False) -%}
+        {{ get_drop_sql(relation) }}
+    {%- endcall %}
+{% endmacro %}
