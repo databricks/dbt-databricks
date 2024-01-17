@@ -1523,9 +1523,7 @@ def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
     return None
 
 
-def _get_update_error_msg(
-    session: Session, host: str, pipeline_id: str, update_id: str
-) -> str:
+def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_id: str) -> str:
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
     response = session.get(events_url)
     if response.status_code != 200:
