@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Optional, Callable, Union
+from typing import Any, Dict, Tuple, Optional, Callable
 
 from requests import Session
 
