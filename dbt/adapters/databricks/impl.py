@@ -283,45 +283,76 @@ class DatabricksAdapter(SparkAdapter):
 
         # if there are any table types to be resolved
         if any(not row[3] for row in new_rows):
-            # Get view names and create a dictionary of view name to materialization
-            relation_all_tables = self.Relation.create(
-                database=relation.database, schema=relation.schema, identifier="*"
-            )
-
-            with self._catalog(relation.database):
-                views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
-                tables = self.execute_macro(
-                    SHOW_TABLE_EXTENDED_MACRO_NAME,
-                    kwargs={"schema_relation": relation_all_tables},
-                )
-            view_names: Dict[str, bool] = {
-                view["viewName"]: view.get("isMaterialized", False) for view in views
-            }
-            table_names: Dict[str, bool] = {
-                table["tableName"]: (self._parse_type(table["information"]) == "STREAMING_TABLE")
-                for table in tables
-            }
-
-            # create a new collection of rows with the correct table types
-            new_rows = [
-                (
-                    row[0],
-                    row[1],
-                    row[2],
-                    str(
-                        row[3]
-                        if row[3]
-                        else self._type_from_names(row[0], row[2], view_names, table_names)
-                    ),
-                )
-                for row in new_rows
-            ]
+            if is_hive_metastore(relation.database):
+                new_rows = self._get_hive_types(relation, new_rows)
+            else:
+                new_rows = self._get_uc_types(relation, new_rows)
 
         return Table(
             new_rows,
             column_names=["database_name", "schema_name", "name", "kind"],
             column_types=[Text(), Text(), Text(), Text()],
         )
+
+    def _get_hive_types(
+        self, relation: DatabricksRelation, new_rows: List[Tuple[Optional[str], str, str, str]]
+    ) -> List[Tuple[Optional[str], str, str, str]]:
+        kwargs = {"relation": relation}
+
+        with self._catalog(relation.database):
+            views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+
+            view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
+            return [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    str(RelationType.View if row[2] in view_names else RelationType.Table),
+                )
+                for row in new_rows
+            ]
+
+    def _get_uc_types(
+        self, relation: DatabricksRelation, new_rows: List[Tuple[Optional[str], str, str, str]]
+    ) -> List[Tuple[Optional[str], str, str, str]]:
+        kwargs = {"relation": relation}
+
+        # Get view names and create a dictionary of view name to materialization
+        relation_all_tables = self.Relation.create(
+            database=relation.database, schema=relation.schema, identifier="*"
+        )
+
+        with self._catalog(relation.database):
+            views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+            tables = self.execute_macro(
+                SHOW_TABLE_EXTENDED_MACRO_NAME,
+                kwargs={"schema_relation": relation_all_tables},
+            )
+        view_names: Dict[str, bool] = {
+            view["viewName"]: view.get("isMaterialized", False) for view in views
+        }
+        table_names: Dict[str, bool] = {
+            table["tableName"]: (self._parse_type(table["information"]) == "STREAMING_TABLE")
+            for table in tables
+        }
+
+        # create a new collection of rows with the correct table types
+        new_rows = [
+            (
+                row[0],
+                row[1],
+                row[2],
+                str(
+                    row[3]
+                    if row[3]
+                    else self._type_from_names(row[0], row[2], view_names, table_names)
+                ),
+            )
+            for row in new_rows
+        ]
+
+        return new_rows
 
     def _parse_type(self, information: str) -> str:
         type_entry = [
