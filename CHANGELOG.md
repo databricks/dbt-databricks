@@ -6,6 +6,7 @@
 - Allow schema to be specified in testing (thanks @case-k-git!) ([538](https://github.com/databricks/dbt-databricks/pull/538))
 - Fix dbt incremental_strategy behavior by fixing schema table existing check (thanks @case-k-git!) ([530](https://github.com/databricks/dbt-databricks/pull/530))
 - Fixed bug that was causing streaming tables to be dropped and recreated instead of refreshed. ([552](https://github.com/databricks/dbt-databricks/pull/552))
+- Fixed Hive performance regression by streamlining materialization type acquisition ([557](https://github.com/databricks/dbt-databricks/pull/557))
 
 ### Under the Hood
 
