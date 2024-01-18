@@ -9,6 +9,7 @@
 ### Under the Hood
 
 - Adding retries around API calls in python model submission ([549](https://github.com/databricks/dbt-databricks/pull/549))
+- Upgrade to databricks-sql-connector 3.0.0 ([554](https://github.com/databricks/dbt-databricks/pull/554))
 
 ## dbt-databricks 1.7.3 (Dec 12, 2023)
 
