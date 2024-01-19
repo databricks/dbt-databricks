@@ -103,6 +103,16 @@
     {{ return(result_predicates) }}
 {% endmacro %}
 
+{% macro convert_to_list(v, default_value=none) %}
+    {% if v is none %}
+        {{ return(default_value) }}
+    {% elif v is sequence and v is not mapping and v is not string %}
+        {{ return(v) }}
+    {% else %}
+        {{ return([v]) }}
+    {% endif %}
+{% endmacro %}
+
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
@@ -110,7 +120,9 @@
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
-  {%- set partition_columns = config.get('partition_by', []) + config.get('liquid_clustered_by', []) -%}
+  {%- set partition_by_columns = convert_to_list(config.get('partition_by', none), default_value=[]) -%}
+  {%- set liquid_clustered_columns = convert_to_list(config.get('liquid_clustered_by', none), default_value=[]) -%}
+  {%- set partition_columns = partition_by_columns + liquid_clustered_columns -%}
 
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
