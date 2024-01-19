@@ -65,6 +65,16 @@
     {%- endif -%}
 {% endmacro %}
 
+{% macro convert_to_list(v, default_value=none) %}
+    {% if v is none %}
+        {{ return(default_value) }}
+    {% elif v is sequence and v is not mapping and v is not string %}
+        {{ return(v) }}
+    {% else %}
+        {{ return([v]) }}
+    {% endif %}
+{% endmacro %}
+
 {% macro add_dest_table_partition_predicates(predicates, partition_columns, source) %}
     {%- set result_predicates = [] if predicates is none else [] + predicates -%}
 
@@ -72,10 +82,8 @@
         {{ return(result_predicates) }}
     {% endif %}
 
-    {%- set _partition_columns = [partition_columns]
-        if partition_columns is not sequence
-        else partition_columns -%}
-    {%- set _partition_values_query %}
+    {%- set _partition_columns = [] + convert_to_list(partition_columns, default_value=[]) -%}
+    {%- set partition_values_query %}
         select
         {%- for partition_column in _partition_columns %}
             MIN({{ adapter.quote(partition_column) }}), 
@@ -83,7 +91,7 @@
         {%- endfor %}
         from {{ source }}
     {%- endset %}
-    {%- set partition_value_results = run_query(_partition_values_query) -%}
+    {%- set partition_value_results = run_query(partition_values_query) -%}
 
     {% if partition_value_results|length > 0 %}
         {%- for n in range(_partition_columns|length) %}
@@ -101,16 +109,6 @@
     {% endif %}
 
     {{ return(result_predicates) }}
-{% endmacro %}
-
-{% macro convert_to_list(v, default_value=none) %}
-    {% if v is none %}
-        {{ return(default_value) }}
-    {% elif v is sequence and v is not mapping and v is not string %}
-        {{ return(v) }}
-    {% else %}
-        {{ return([v]) }}
-    {% endif %}
 {% endmacro %}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
