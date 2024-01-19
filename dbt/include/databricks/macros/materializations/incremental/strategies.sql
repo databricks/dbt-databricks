@@ -130,7 +130,7 @@
       {% do predicates.append('FALSE') %}
   {% endif %}
 
-  {%- set predicates = add_dest_table_partition_predicates(predicates, partition_columns, source) -%}
+  {%- set predicates = add_dest_table_partition_predicates(predicates=predicates, partition_columns=partition_columns, source=source) -%}
 
   {{ sql_header if sql_header is not none }}
 
