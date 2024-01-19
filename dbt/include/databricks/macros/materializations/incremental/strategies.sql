@@ -57,6 +57,52 @@
 
 {% endmacro %}
 
+{% macro quote_value(val) %}
+    {%- if val is number or val is boolean -%}
+        {{ val }}
+    {%- else -%}
+        '{{ val }}'
+    {%- endif -%}
+{% endmacro %}
+
+{% macro add_dest_table_partition_predicates(predicates, partition_columns, source) %}
+    {%- set result_predicates = [] if predicates is none else [] + predicates -%}
+
+    {% if not partition_columns or not execute %}
+        {{ return(result_predicates) }}
+    {% endif %}
+
+    {%- set _partition_columns = [partition_columns]
+        if partition_columns is not sequence
+        else partition_columns -%}
+    {%- set _partition_values_query %}
+        select
+        {%- for partition_column in _partition_columns %}
+            MIN({{ adapter.quote(partition_column) }}), 
+            MAX({{ adapter.quote(partition_column) }}){%- if not loop.last %}, {%- endif %}
+        {%- endfor %}
+        from {{ source }}
+    {%- endset %}
+    {%- set partition_value_results = run_query(_partition_values_query) -%}
+
+    {% if partition_value_results|length > 0 %}
+        {%- for n in range(_partition_columns|length) %}
+            {%- set this_partition_min_value = partition_value_results.columns[n * 2][0] -%}
+            {%- set this_partition_max_value = partition_value_results.columns[n * 2 + 1][0] -%}
+
+            {% if this_partition_min_value is not none and this_partition_max_value is not none %}
+                {%- set this_partition_filter %}
+                    DBT_INTERNAL_DEST.{{ _partition_columns[n] }} >= {{ quote_value(this_partition_min_value) }}
+                    and DBT_INTERNAL_DEST.{{ _partition_columns[n] }} <= {{ quote_value(this_partition_max_value) }}
+                {%- endset %}
+                {% do result_predicates.append(this_partition_filter) %}
+            {% endif %}
+        {%- endfor %}
+    {% endif %}
+
+    {{ return(result_predicates) }}
+{% endmacro %}
+
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
@@ -64,6 +110,7 @@
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set partition_columns = config.get('partition_by', []) + config.get('liquid_clustered_by', []) -%}
 
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
@@ -82,6 +129,8 @@
   {% else %}
       {% do predicates.append('FALSE') %}
   {% endif %}
+
+  {%- set predicates = add_dest_table_partition_predicates(predicates, partition_columns, source) -%}
 
   {{ sql_header if sql_header is not none }}
 
