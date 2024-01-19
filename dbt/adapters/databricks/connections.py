@@ -579,7 +579,7 @@ class DatabricksSQLCursorWrapper:
 
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
         host: str = self._creds.host or ""
-        headers = self._cursor.connection.thrift_backend._auth_provider._header_factory()
+        headers = self._cursor.connection.thrift_backend._auth_provider._header_factory
 
         session = Session()
         session.auth = BearerAuth(headers)
