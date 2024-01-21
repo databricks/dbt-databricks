@@ -1486,7 +1486,7 @@ def _get_table_view_pipeline_id(session: Session, host: str, name: str) -> str:
     resp1 = session.get(table_url)
     if resp1.status_code != 200:
         raise dbt.exceptions.DbtRuntimeError(
-            f"Error getting info for materialized view/streaming table: {name}"
+            f"Error getting info for materialized view/streaming table {name}: {resp1.text}"
         )
 
     pipeline_id = resp1.json().get("pipeline_id", "")
@@ -1503,7 +1503,7 @@ def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:
 
     response = session.get(pipeline_url)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info for {pipeline_id}: {response.text}")
 
     return response.json()
 
@@ -1529,7 +1529,7 @@ def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
     response = session.get(events_url)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info: {pipeline_id}")
+        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info for {pipeline_id}: {response.text}")
 
     events = response.json().get("events", [])
     update_events = [
