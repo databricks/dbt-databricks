@@ -1154,7 +1154,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if (
                     conn.acquire_release_count == 0 or conn.language == "python"
                 ) and conn._idle_too_long():
-                    logger.debug(f"conn: {id(conn)}: closing")
+                    conn._log_info("closing idle connection")
                     self.close(conn)
                     conn._reset_handle(self._open2)
 
