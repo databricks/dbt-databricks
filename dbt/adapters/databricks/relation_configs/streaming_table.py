@@ -19,10 +19,9 @@ from dbt.adapters.databricks.relation_configs.tblproperties import (
 
 
 class StreamingTableConfig(DatabricksRelationConfigBase):
-    config_components = [
-        PartitionedByProcessor,
-        CommentProcessor,
-        TblPropertiesProcessor,
-        RefreshProcessor,
-        QueryProcessor,
-    ]
+    config_components = {
+        PartitionedByProcessor: False,
+        CommentProcessor: False,
+        TblPropertiesProcessor: False,
+        RefreshProcessor: False,
+    }

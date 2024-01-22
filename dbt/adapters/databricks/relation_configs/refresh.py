@@ -24,10 +24,6 @@ class RefreshConfig(DatabricksComponentConfig):
     # switching from manual refresh to scheduled or vice versa.
     is_altered: bool = False
 
-    @property
-    def requires_full_refresh(self) -> bool:
-        return False
-
     def get_diff(self, other: "RefreshConfig") -> Optional["RefreshConfig"]:
         if self != other:
             return RefreshConfig(

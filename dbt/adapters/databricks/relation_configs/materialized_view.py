@@ -19,10 +19,10 @@ from dbt.adapters.databricks.relation_configs.tblproperties import (
 
 
 class MaterializedViewConfig(DatabricksRelationConfigBase):
-    config_components = [
-        PartitionedByProcessor,
-        CommentProcessor,
-        TblPropertiesProcessor,
-        RefreshProcessor,
-        QueryProcessor,
-    ]
+    config_components = {
+        PartitionedByProcessor: True,
+        CommentProcessor: True,
+        TblPropertiesProcessor: True,
+        RefreshProcessor: False,
+        QueryProcessor: True,
+    }

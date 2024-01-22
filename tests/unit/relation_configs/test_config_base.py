@@ -1,6 +1,7 @@
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksRelationChangeSet,
+    RelationChange,
 )
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
@@ -29,12 +30,17 @@ class TestDatabricksRelationChangeSet:
         assert not changeset.requires_full_refresh
 
     def test_requires_full_refresh__has_only_alterable_changes(self):
-        changeset = DatabricksRelationChangeSet(changes={"refresh": RefreshConfig()})
+        changeset = DatabricksRelationChangeSet(
+            changes={"refresh": RelationChange(data=RefreshConfig(), requires_full_refresh=False)}
+        )
         assert not changeset.requires_full_refresh
 
     def test_requires_full_refresh__has_an_inalterable_change(self):
         changeset = DatabricksRelationChangeSet(
-            changes={"comment": CommentConfig(), "refresh": RefreshConfig()}
+            changes={
+                "comment": RelationChange(data=CommentConfig(), requires_full_refresh=True),
+                "refresh": RelationChange(data=RefreshConfig(), requires_full_refresh=False),
+            }
         )
         assert changeset.requires_full_refresh
 
@@ -43,5 +49,7 @@ class TestDatabricksRelationChangeSet:
         assert not changeset.has_changes
 
     def test_has_changes__has_changes(self):
-        changeset = DatabricksRelationChangeSet(changes={"refresh": RefreshConfig()})
+        changeset = DatabricksRelationChangeSet(
+            changes={"refresh": RelationChange(data=RefreshConfig(), requires_full_refresh=False)}
+        )
         assert changeset.has_changes

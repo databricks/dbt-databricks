@@ -13,12 +13,6 @@ class CommentConfig(DatabricksComponentConfig):
 
     comment: Optional[str] = None
 
-    @property
-    def requires_full_refresh(self) -> bool:
-        # TODO: This is only True for MVs since they don't currently allow ALTER VIEW to change the
-        # comment. Should be False for tables and views, if and when they move to this approach.
-        return True
-
 
 class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
     name: ClassVar[str] = "comment"

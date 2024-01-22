@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ConfigDict
-from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
+from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar
 from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.contracts.graph.nodes import ModelNode
 
 
-class DatabricksComponentConfig(BaseModel, ABC):
+class DatabricksComponentConfig(BaseModel):
     """Class for encapsulating a single component of a Databricks relation config.
 
     Ex: A materialized view has a `query` component, which is a string that if changed, requires a
@@ -15,15 +15,6 @@ class DatabricksComponentConfig(BaseModel, ABC):
     """
 
     model_config = ConfigDict(frozen=True)
-
-    @property
-    @abstractmethod
-    def requires_full_refresh(self) -> bool:
-        """Whether or not the relation that is configured by this component requires a full refresh
-        (i.e. a drop and recreate) if this component has changed.
-        """
-
-        raise NotImplementedError("Must be implemented by subclass")
 
     def get_diff(self, other: Self) -> Optional[Self]:
         """Get the config that must be applied when this component differs from the existing
@@ -49,11 +40,17 @@ class DatabricksComponentConfig(BaseModel, ABC):
         return None
 
 
+class RelationChange(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    data: DatabricksComponentConfig
+    requires_full_refresh: bool
+
+
 class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""
 
     model_config = ConfigDict(frozen=True)
-    changes: Dict[str, DatabricksComponentConfig]
+    changes: Dict[str, RelationChange]
 
     @property
     def requires_full_refresh(self) -> bool:
@@ -112,7 +109,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     # The list of components that make up the relation config. In the base implemenation, these
     # components are applied sequentially to either the existing relation, or the model node, to
     # build up the config.
-    config_components: ClassVar[List[Type[DatabricksComponentProcessor]]]
+    config_components: ClassVar[Dict[Type[DatabricksComponentProcessor], bool]]
     config: Dict[str, DatabricksComponentConfig]
 
     @classmethod
@@ -120,7 +117,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
         """Build the relation config from a model node."""
 
         config_dict: Dict[str, DatabricksComponentConfig] = {}
-        for component in cls.config_components:
+        for component in cls.config_components.keys():
             model_component = component.from_model_node(model_node)
             if model_component:
                 config_dict[component.name] = model_component
@@ -146,10 +143,12 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
         changes = {}
 
-        for key, value in self.config.items():
+        for component, requires_refresh in self.config_components.items():
+            key = component.name
+            value = self.config[key]
             diff = value.get_diff(existing.config[key])
             if diff:
-                changes[key] = diff
+                changes[key] = RelationChange(data=diff, requires_full_refresh=requires_refresh)
 
         if len(changes) > 0:
             return DatabricksRelationChangeSet(changes=changes)
