@@ -1439,7 +1439,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     **connection_parameters,
                 )
 
-                databricks_connection.session_id = conn.get_session_id_hex()
+                if conn:
+                    databricks_connection.session_id = conn.get_session_id_hex()
                 databricks_connection.last_used_time = time.time()
                 databricks_connection._log_info("session opened")
 
