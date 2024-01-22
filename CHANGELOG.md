@@ -14,6 +14,7 @@
 
 - Adding retries around API calls in python model submission ([549](https://github.com/databricks/dbt-databricks/pull/549))
 - Upgrade to databricks-sql-connector 3.0.0 ([554](https://github.com/databricks/dbt-databricks/pull/554))
+- Pinning pandas to < 2.2.0 to keep from breaking multiple tests ([564](https://github.com/databricks/dbt-databricks/pull/554))
 
 ## dbt-databricks 1.7.3 (Dec 12, 2023)
 
