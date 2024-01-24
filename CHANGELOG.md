@@ -10,11 +10,13 @@
 - Fix: Python models authentication could be overridden by a `.netrc` file in the user's home directory ([338](https://github.com/databricks/dbt-databricks/pull/338))
 - Fix: MV/ST REST api authentication could be overriden by a `.netrc` file in the user's home directory ([555](https://github.com/databricks/dbt-databricks/pull/555))
 - Show details in connection errors ([562](https://github.com/databricks/dbt-databricks/pull/562))
+- Updated connection debugging logging and setting connection last used time on session open.([565](https://github.com/databricks/dbt-databricks/pull/565))
 
 ### Under the Hood
 
 - Adding retries around API calls in python model submission ([549](https://github.com/databricks/dbt-databricks/pull/549))
 - Upgrade to databricks-sql-connector 3.0.0 ([554](https://github.com/databricks/dbt-databricks/pull/554))
+- Pinning pandas to < 2.2.0 to keep from breaking multiple tests ([564](https://github.com/databricks/dbt-databricks/pull/554))
 
 ## dbt-databricks 1.7.3 (Dec 12, 2023)
 
