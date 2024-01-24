@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 from dbt.adapters.base.relation import BaseRelation
+from dbt.tests import util
 import pytest
 
 from tests.functional.adapter.materialized_view_tests import fixtures
@@ -13,7 +14,7 @@ class TestMaterializedViewsMixin:
 
     @staticmethod
     def refresh_materialized_view(project, materialized_view: BaseRelation) -> None:
-        project.run_sql(f"refresh materialized view {materialized_view}")
+        util.run_dbt(["run", "--models", str(materialized_view.identifier)])
 
     @staticmethod
     def query_row_count(project, relation: BaseRelation) -> int:
