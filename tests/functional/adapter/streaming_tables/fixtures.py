@@ -36,7 +36,6 @@ select * from stream {{ ref('my_seed') }}
 complex_streaming_table = """
 {{ config(
     materialized='streaming_table',
-    description='this is a streaming table',
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',

@@ -44,28 +44,41 @@
 
     -- otherwise apply individual changes as needed
     {% else %}
-        {% do return(get_alter_st_internal(relation, configuration_changes, sql)) %}
+        {%- set alter_statement = get_alter_st_internal(relation, configuration_changes) -%}
+        {%- set create_statement = get_create_st_internal(relation, configuration_changes, sql) -%}
+        {%- set return_statements = [] -%}
+        {%- if create_statement -%}
+            {{ return_statements.append(create_statement) }}
+        {%- endif -%}
+        {%- if alter_statement -%}
+            {{ return_statements.append(alter_statement) }}
+        {%- endif -%}
+        {% do return(return_statements) %}
     {%- endif -%}
 {% endmacro %}
 
-{% macro get_alter_st_internal(relation, configuration_changes, sql) %}
+{% macro get_create_st_internal(relation, configuration_changes, sql) %}
   {%- set partition_by = configuration_changes.changes["partition_by"] -%}
   {%- set tblproperties = configuration_changes.changes["tblproperties"] -%}
   {%- set comment = configuration_changes.changes["comment"] -%}
-  {%- set refresh = configuration_changes.changes["refresh"] -%}
-
+  {{ log('Comment: ' ~ comment) }}
   CREATE OR REFRESH STREAMING TABLE {{ relation }}
-    {%- if partition_by -%}
+    {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by.data.partition_by) }}
-    {%- endif -%}
-    {%- if comment -%}
+    {%- endif %}
+    {% if comment -%}
         {{ get_create_sql_comment(comment.data.comment) }}
-    {%- endif -%}
-    {%- if tblproperties -%}
+    {%- endif %}
+    {% if tblproperties -%}
         {{ get_create_sql_tblproperties(tblproperties.data.tblproperties) }}
-    {%- endif -%}
-    {%- if refresh -%}
-        {{ get_create_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value) }}
-    {%- endif -%}
+    {%- endif %}
     AS {{ sql }}
+{% endmacro %}
+
+{% macro get_alter_st_internal(relation, configuration_changes) %}
+  {%- set refresh = configuration_changes.changes["refresh"] -%}
+  {%- if refresh -%}
+    ALTER STREAMING TABLE {{ relation }}
+        {{ get_alter_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value, refresh.data.is_altered) -}}
+  {%- endif -%}
 {% endmacro %}
