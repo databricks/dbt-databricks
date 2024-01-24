@@ -1355,7 +1355,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
-                    use_inline_params=True,
+                    use_inline_params="silent",
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
@@ -1433,7 +1433,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
-                    use_inline_params=True,
+                    use_inline_params="silent",
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
