@@ -14,9 +14,6 @@
     {% elif is_replaceable and existing_relation.is_table %}
         {{ get_replace_table_sql(target_relation, sql) }}
 
-    {% elif is_replaceable and existing_relation.is_materialized_view %}
-        {{ get_replace_materialized_view_sql(target_relation, sql) }}
-
     {# /* a create or replace statement is not possible, so try to stage and/or backup to be safe */ #}
 
     {# /* create target_relation as an intermediate relation, then swap it out with the existing one using a backup */ #}

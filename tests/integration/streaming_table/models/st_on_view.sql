@@ -2,4 +2,4 @@
     materialized = 'streaming_table',
 ) }}
 
-select id, count(*) as cnt from {{ ref('view_model') }} group by id
+select id, msg as msg from stream {{ ref('view_model') }}

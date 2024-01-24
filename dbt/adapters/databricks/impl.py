@@ -61,6 +61,7 @@ from dbt.adapters.databricks.relation import (
 )
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
 from dbt.adapters.relation_configs.config_base import RelationResults
 
@@ -744,10 +745,17 @@ class DatabricksAdapter(SparkAdapter):
         return MaterializedViewConfig.from_model_node(model)  # type: ignore
 
     @available.parse_none
+    def streaming_table_config_from_model(self, model: ModelNode) -> StreamingTableConfig:
+        return StreamingTableConfig.from_model_node(model)  # type: ignore
+
+    @available.parse_none
     def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
         if relation.type == RelationType.MaterializedView:
             results = self.describe_materialized_view(relation)
             return MaterializedViewConfig.from_results(results)
+        elif relation.type == DatabricksRelationType.StreamingTable:
+            results = self.describe_streaming_table(relation)
+            return StreamingTableConfig.from_results(results)
         else:
             raise dbt.exceptions.DbtRuntimeError(
                 f"The method `DatabricksAdapter.get_relation_config` is not implemented "
@@ -765,5 +773,17 @@ class DatabricksAdapter(SparkAdapter):
         results["information_schema.views"] = get_first_row(
             self.execute_macro("get_view_description", kwargs=kwargs)
         )
+        results["show_tblproperties"] = self.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results
+
+    def describe_streaming_table(self, relation: DatabricksRelation) -> RelationResults:
+        kwargs = {"table_name": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = self.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        kwargs = {"relation": relation}
+
         results["show_tblproperties"] = self.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results

@@ -31,39 +31,35 @@ class TestStreamingTable(DBTIntegrationTest):
         self.assertTablesEqual("st", "expected2")
 
     def _test_streaming_table_no_cdf(self):
-        # The base table is not CDF.
-        result = self.run_dbt(["run", "--select", "+st_nocdf"], expect_pass=True)
+        # The base table is not CDF, but that is no longer needed
+        self.run_dbt(["seed"])
+        self.run_dbt(["run", "--select", "+st_nocdf"], expect_pass=True)
         self.run_dbt(["run", "--select", "base"])
-        result = self.run_dbt(["run", "--select", "+st_nocdf"], expect_pass=True)
-        assert len(result.results) == 2
-        res: RunResult = result.results[1]
-        assert res.status == RunStatus.Error
-        assert (
-            res.message
-            and "The input for materialized view must have Change Data Feed enabled." in res.message
-        )
+        self.run_dbt(["run", "--select", "+st_nocdf"], expect_pass=True)
+        self.assertTablesEqual("st_nocdf", "expected2")
 
     def _test_streaming_table_based_on_view(self):
-        result = self.run_dbt(["run", "--select", "+st_on_view"], expect_pass=False)
-        assert len(result.results) == 3
-        res: RunResult = result.results[2]
-        assert res.status == RunStatus.Error
-        assert (
-            res.message
-            and " The input for materialized view cannot be based on views." in res.message
+        # If the base is a view, we can refresh a streaming table, provided the source of the view
+        # doesn't change.
+        self.run_dbt(["seed"])
+        self.run_dbt(["run", "--select", "+st_on_view"], expect_pass=True)
+        self.assertTablesEqual("st_on_view", "expected1")
+        self.run_dbt(["run", "--select", "base"])
+        result = self.run_dbt_and_capture(["run", "--select", "+st_on_view"], expect_pass=False)
+        expected_message = (
+            "has been failed due to a non-append only streaming source, and can't be"
+            " restarted until the affected table has been full refreshed"
         )
+        assert expected_message in result[1]
 
-    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_base_databricks_uc_sql_endpoint(self):
         self._test_streaming_table_base()
 
-    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_no_cdf_databricks_uc_sql_endpoint(self):
         self._test_streaming_table_no_cdf()
 
-    @pytest.mark.skip(reason="not yet ready for production")
     @use_profile("databricks_uc_sql_endpoint")
     def test_streaming_table_based_on_view_databricks_uc_sql_endpoint(self):
         self._test_streaming_table_based_on_view()

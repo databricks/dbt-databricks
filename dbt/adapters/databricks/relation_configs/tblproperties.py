@@ -16,7 +16,14 @@ class TblPropertiesConfig(DatabricksComponentConfig):
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
-    ignore_list: List[str] = ["pipelines.pipelineId"]
+    ignore_list: List[str] = [
+        "pipelines.pipelineId",
+        "delta.enableChangeDataFeed",
+        "delta.minReaderVersion",
+        "delta.minWriterVersion",
+        "pipeline_internal.catalogType",
+        "pipelines.metastore.tableName",
+    ]
 
     def __eq__(self, __value: Any) -> bool:
         """Override equality check to ignore certain tblproperties."""

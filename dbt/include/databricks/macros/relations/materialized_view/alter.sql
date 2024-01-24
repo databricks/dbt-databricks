@@ -39,12 +39,12 @@
 
     -- otherwise apply individual changes as needed
     {% else %}
-        {% do return(get_alter_internal(relation, configuration_changes)) %}
+        {% do return(get_alter_mv_internal(relation, configuration_changes)) %}
     {%- endif -%}
 {% endmacro %}
 
-{% macro get_alter_internal(relation, configuration_changes) %}
-    {%- set refresh = configuration_changes.changes["refresh"] -%}
+{% macro get_alter_mv_internal(relation, configuration_changes) %}
+    {%- set refresh = configuration_changes.changes["refresh"].data -%}
     -- Currently only schedule can be altered
     ALTER MATERIALIZED VIEW {{ relation }}
         {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, refresh.is_altered) -}}
