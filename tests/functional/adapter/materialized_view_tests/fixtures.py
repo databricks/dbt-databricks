@@ -6,8 +6,6 @@ from dbt.adapters.databricks.relation import DatabricksRelationType
 
 
 def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
-    # This is a hack to wait for UC to sync metadata
-    time.sleep(10)
     table_type = project.run_sql(
         f"select table_type from {relation.information_schema_only()}."
         f"`tables` where table_name = '{relation.identifier}'",

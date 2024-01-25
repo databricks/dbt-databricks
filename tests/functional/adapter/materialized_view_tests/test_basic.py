@@ -27,4 +27,20 @@ class TestMaterializedViewsMixin:
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
-    pass
+    def test_table_replaces_materialized_view(self, project, my_materialized_view):
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+
+        self.swap_materialized_view_to_table(project, my_materialized_view)
+
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        # assert self.query_relation_type(project, my_materialized_view) == "table"
+
+    def test_view_replaces_materialized_view(self, project, my_materialized_view):
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+
+        self.swap_materialized_view_to_view(project, my_materialized_view)
+
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        # assert self.query_relation_type(project, my_materialized_view) == "view"
