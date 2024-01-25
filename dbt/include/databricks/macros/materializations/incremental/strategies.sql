@@ -57,35 +57,27 @@
 
 {% endmacro %}
 
-{% macro _quote_value(val) %}
-    {%- if val is number or val is boolean -%}
+{% macro to_literal(val) %}
+    {%- if val is none -%}
+        NULL
+    {%- elif val is number or val is boolean -%}
         {{ val }}
     {%- else -%}
         '{{ val }}'
     {%- endif -%}
 {% endmacro %}
 
-{% macro _convert_to_list(v, default_value=none) %}
-    {% if v is none %}
-        {{ return(default_value) }}
-    {% elif v is sequence and v is not mapping and v is not string %}
-        {{ return(v) }}
-    {% else %}
-        {{ return([v]) }}
-    {% endif %}
-{% endmacro %}
-
-{% macro _add_dest_table_partition_predicates(predicates, partition_columns, source) %}
-    {%- set result_predicates = [] if predicates is none else [] + predicates -%}
+{% macro add_dest_table_partition_predicates(predicates, partition_columns, source) %}
+    {%- set result_predicates = convert_to_list(predicates, default_value=[]) -%}
 
     {% if not partition_columns or not execute %}
         {{ return(result_predicates) }}
     {% endif %}
 
-    {%- set _partition_columns = [] + _convert_to_list(partition_columns, default_value=[]) -%}
+    {%- set partition_columns = convert_to_list(partition_columns, default_value=[]) -%}
     {%- set partition_values_query %}
         select
-        {%- for partition_column in _partition_columns %}
+        {%- for partition_column in partition_columns %}
             MIN({{ adapter.quote(partition_column) }}), 
             MAX({{ adapter.quote(partition_column) }}){%- if not loop.last %}, {%- endif %}
         {%- endfor %}
@@ -94,14 +86,14 @@
     {%- set partition_value_results = run_query(partition_values_query) -%}
 
     {% if partition_value_results|length > 0 %}
-        {%- for n in range(_partition_columns|length) %}
+        {%- for n in range(partition_columns|length) %}
             {%- set this_partition_min_value = partition_value_results.columns[n * 2][0] -%}
             {%- set this_partition_max_value = partition_value_results.columns[n * 2 + 1][0] -%}
 
             {% if this_partition_min_value is not none and this_partition_max_value is not none %}
                 {%- set this_partition_filter %}
-                    DBT_INTERNAL_DEST.{{ _partition_columns[n] }} >= {{ _quote_value(this_partition_min_value) }}
-                    and DBT_INTERNAL_DEST.{{ _partition_columns[n] }} <= {{ _quote_value(this_partition_max_value) }}
+                    DBT_INTERNAL_DEST.{{ partition_columns[n] }} >= {{ to_literal(this_partition_min_value) }}
+                    and DBT_INTERNAL_DEST.{{ partition_columns[n] }} <= {{ to_literal(this_partition_max_value) }}
                 {%- endset %}
                 {% do result_predicates.append(this_partition_filter) %}
             {% endif %}
@@ -118,8 +110,8 @@
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
-  {%- set partition_by_columns = _convert_to_list(config.get('partition_by', none), default_value=[]) -%}
-  {%- set liquid_clustered_columns = _convert_to_list(config.get('liquid_clustered_by', none), default_value=[]) -%}
+  {%- set partition_by_columns = convert_to_list(config.get('partition_by', none), default_value=[]) -%}
+  {%- set liquid_clustered_columns = convert_to_list(config.get('liquid_clustered_by', none), default_value=[]) -%}
   {%- set partition_columns = partition_by_columns + liquid_clustered_columns -%}
 
   {% if unique_key %}
@@ -140,7 +132,7 @@
       {% do predicates.append('FALSE') %}
   {% endif %}
 
-  {%- set predicates = _add_dest_table_partition_predicates(predicates=predicates, partition_columns=partition_columns, source=source) -%}
+  {%- set predicates = add_dest_table_partition_predicates(predicates=predicates, partition_columns=partition_columns, source=source) -%}
 
   {{ sql_header if sql_header is not none }}
 
