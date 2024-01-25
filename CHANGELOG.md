@@ -1,4 +1,14 @@
+## dbt-databricks 1.7.5 (TBD)
+
+### Features
+
+- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+
 ## dbt-databricks 1.7.4 (Jan 24, 2024)
+
+### Features
+
+- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 
 ### Fixes
 
