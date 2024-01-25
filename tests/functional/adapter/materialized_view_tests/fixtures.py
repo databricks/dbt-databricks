@@ -1,4 +1,3 @@
-import time
 from typing import Optional
 from dbt.adapters.base import BaseRelation
 
