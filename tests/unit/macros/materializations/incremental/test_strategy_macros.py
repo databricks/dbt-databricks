@@ -26,9 +26,7 @@ class TestStrategytMacros(MacroTestBase):
         return "strategies.sql"
 
     @pytest.mark.parametrize("partition_columns", [["id"], [], None, "id"])
-    def test_add_dest_table_partition_predicates_returns_input(
-        self, template, partition_columns
-    ):
+    def test_add_dest_table_partition_predicates_returns_input(self, template, partition_columns):
         predicates = ["test", "123", "456"]
         expected = f"{predicates} {predicates}"
 
@@ -119,10 +117,7 @@ class TestStrategytMacroAddPartitionPredicatesExecutionWithQuery(MacroTestBase):
         )
 
         def side_effect(arg):
-            if (
-                re.sub(r"\s\s+", " ", arg).strip()
-                == re.sub(r"\s\s+", " ", expected_query).strip()
-            ):
+            if re.sub(r"\s\s+", " ", arg).strip() == re.sub(r"\s\s+", " ", expected_query).strip():
                 return run_query_return
 
             raise RuntimeError(f"Unexpected query: {arg}")
