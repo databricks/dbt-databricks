@@ -13,7 +13,15 @@ class TestConvertToListMacro(MacroTestBase):
         return "convert_to_list.sql"
 
     @pytest.mark.parametrize(
-        "func_input,expected", [(["a"], ["a"]), (None, []), ([], [])]
+        "func_input,expected",
+        [
+            (["a", "b", "c"], ["a", "b", "c"]),
+            (None, []),
+            ([], []),
+            ("a", ["a"]),
+            (True, [True]),
+            (1, [1]),
+        ],
     )
     def test_convert_to_list_default_empty_list(self, template, func_input, expected):
         actual = self.run_macro(template, "convert_to_list", func_input, [])
