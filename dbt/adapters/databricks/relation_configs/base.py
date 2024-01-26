@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ConfigDict
-from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar
+from typing import ClassVar, Dict, Generic, Optional, TypeVar
 from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationResults

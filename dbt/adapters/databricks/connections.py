@@ -222,7 +222,6 @@ class DatabricksCredentials(Credentials):
             "access_token",
             "client_id",
             "client_secret",
-            "session_configuration",
             "catalog",
             "schema",
             "_user_agent_entry",

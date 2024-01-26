@@ -61,7 +61,7 @@
   {%- set partition_by = configuration_changes.changes["partition_by"] -%}
   {%- set tblproperties = configuration_changes.changes["tblproperties"] -%}
   {%- set comment = configuration_changes.changes["comment"] -%}
-  {{ log('Comment: ' ~ comment) }}
+  {%- set refresh = configuration_changes.changes["refresh"] -%}
   CREATE OR REFRESH STREAMING TABLE {{ relation }}
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by.data.partition_by) }}
@@ -79,6 +79,6 @@
   {%- set refresh = configuration_changes.changes["refresh"] -%}
   {%- if refresh -%}
     ALTER STREAMING TABLE {{ relation }}
-        {{ get_alter_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value, refresh.data.is_altered) -}}
+        {{ get_alter_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value, False) -}}
   {%- endif -%}
 {% endmacro %}

@@ -1,4 +1,3 @@
-import time
 from typing import Optional
 from dbt.adapters.base.relation import BaseRelation
 from dbt.tests.adapter.materialized_view.files import (
@@ -35,11 +34,9 @@ class StreamingTableChanges:
     @staticmethod
     def change_config_via_alter(project, streaming_table):
         initial_model = util.get_model_file(project, streaming_table)
-        new_model = (
-            initial_model.replace("'cron': '0 0 * * * ? *'", "'cron': '0 5 * * * ? *'")
-            #            .replace("partition_by='id'", "partition_by='name'")
-            #            .replace("'key': 'value'", "'pipeline': 'altered'")
-        )
+        new_model = initial_model.replace(
+            "'cron': '0 0 * * * ? *'", "'cron': '0 5 * * * ? *'"
+        ).replace("'key': 'value'", "'pipeline': 'altered'")
         util.set_model_file(project, streaming_table, new_model)
 
     @staticmethod
@@ -49,9 +46,20 @@ class StreamingTableChanges:
         assert isinstance(results, StreamingTableConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
+        _check_tblproperties(results.config["tblproperties"], {"pipeline": "altered"})
 
-    #        assert results.config["partition_by"].partition_by == ["name"]
-    #        _check_tblproperties(results.config["tblproperties"].tblproperties, {"pipeline": "altered"})
+    @staticmethod
+    def change_config_via_replace(project, streaming_table):
+        initial_model = util.get_model_file(project, streaming_table)
+        new_model = initial_model.replace("partition_by='id'", "partition_by='value'")
+        util.set_model_file(project, streaming_table, new_model)
+
+    @staticmethod
+    def check_state_replace_change_is_applied(project, streaming_table):
+        with util.get_connection(project.adapter):
+            results = project.adapter.get_relation_config(streaming_table)
+        assert isinstance(results, StreamingTableConfig)
+        assert results.config["partition_by"].partition_by == ["value"]
 
     @staticmethod
     def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
@@ -91,6 +99,19 @@ class StreamingTableChanges:
         # ensure clean slate each method
         project.run_sql(f"drop schema if exists {project.test_schema} cascade")
 
+    def test_full_refresh_occurs_with_changes(self, project, my_streaming_table):
+        StreamingTableChanges.change_config_via_alter(project, my_streaming_table)
+        StreamingTableChanges.change_config_via_replace(project, my_streaming_table)
+        _, logs = util.run_dbt_and_capture(
+            ["--debug", "run", "--models", my_streaming_table.identifier, "--full-refresh"]
+        )
+        assert (
+            StreamingTableChanges.query_relation_type(project, my_streaming_table)
+            == "streaming_table"
+        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
+
 
 class TestStreamingTableChangesApply(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -107,6 +128,18 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
 
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
+
+    def test_change_is_applied_via_replace(self, project, my_streaming_table):
+        self.check_start_state(project, my_streaming_table)
+
+        self.change_config_via_alter(project, my_streaming_table)
+        self.change_config_via_replace(project, my_streaming_table)
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
+
+        self.check_state_alter_change_is_applied(project, my_streaming_table)
+        self.check_state_replace_change_is_applied(project, my_streaming_table)
+
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
 class TestStreamingTableChangesContinue(StreamingTableChanges):
@@ -130,6 +163,23 @@ class TestStreamingTableChangesContinue(StreamingTableChanges):
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
+    def test_change_is_not_applied_via_replace(self, project, my_streaming_table):
+        self.check_start_state(project, my_streaming_table)
+
+        self.change_config_via_alter(project, my_streaming_table)
+        self.change_config_via_replace(project, my_streaming_table)
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
+
+        self.check_start_state(project, my_streaming_table)
+
+        util.assert_message_in_logs(
+            f"Configuration changes were identified and `on_configuration_change` was set"
+            f" to `continue` for `{my_streaming_table}`",
+            logs,
+        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
+
 
 class TestStreamingTableChangesFail(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -140,6 +190,25 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
         self.check_start_state(project, my_streaming_table)
 
         self.change_config_via_alter(project, my_streaming_table)
+        _, logs = util.run_dbt_and_capture(
+            ["--debug", "run", "--models", my_streaming_table.name], expect_pass=False
+        )
+
+        self.check_start_state(project, my_streaming_table)
+
+        util.assert_message_in_logs(
+            f"Configuration changes were identified and `on_configuration_change` was set"
+            f" to `fail` for `{my_streaming_table}`",
+            logs,
+        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
+
+    def test_change_is_not_applied_via_replace(self, project, my_streaming_table):
+        self.check_start_state(project, my_streaming_table)
+
+        self.change_config_via_alter(project, my_streaming_table)
+        self.change_config_via_replace(project, my_streaming_table)
         _, logs = util.run_dbt_and_capture(
             ["--debug", "run", "--models", my_streaming_table.name], expect_pass=False
         )

@@ -23,6 +23,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "delta.minWriterVersion",
         "pipeline_internal.catalogType",
         "pipelines.metastore.tableName",
+        "pipeline_internal.enzymeMode",
     ]
 
     def __eq__(self, __value: Any) -> bool:
