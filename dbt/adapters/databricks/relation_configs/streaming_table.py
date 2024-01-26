@@ -11,6 +11,7 @@ from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
 from dbt.adapters.databricks.relation_configs.refresh import (
+    RefreshConfig,
     RefreshProcessor,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import (
@@ -41,10 +42,11 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
             diff = value.get_diff(existing.config[key])
             if key == "partition_by":
                 changes[key] = RelationChange(data=value, requires_full_refresh=diff is not None)
-            elif key != "refresh" and not diff:
-                diff = value
-            if diff:
-                changes[key] = RelationChange(data=diff, requires_full_refresh=requires_refresh)
+            else:
+                if not diff:
+                    diff = value
+                if diff != RefreshConfig():
+                    changes[key] = RelationChange(data=diff, requires_full_refresh=requires_refresh)
 
         if len(changes) > 0:
             return DatabricksRelationChangeSet(changes=changes)

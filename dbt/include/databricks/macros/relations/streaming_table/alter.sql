@@ -77,7 +77,7 @@
 
 {% macro get_alter_st_internal(relation, configuration_changes) %}
   {%- set refresh = configuration_changes.changes["refresh"] -%}
-  {%- if refresh -%}
+  {%- if refresh and refresh.data.cron -%}
     ALTER STREAMING TABLE {{ relation }}
         {{ get_alter_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value, False) -}}
   {%- endif -%}

@@ -81,7 +81,21 @@ class TestStreamingTableConfig:
             }
         )
 
-        assert new.get_changeset(old) is None
+        changeset = new.get_changeset(old)
+        assert not changeset.requires_full_refresh
+        assert changeset.changes == {
+            "tblproperties": RelationChange(
+                data=TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                requires_full_refresh=False,
+            ),
+            "comment": RelationChange(
+                data=CommentConfig(comment="This is the table comment"), requires_full_refresh=False
+            ),
+            "partition_by": RelationChange(
+                data=PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                requires_full_refresh=False,
+            ),
+        }
 
     def test_get_changeset__some_changes(self):
         old = StreamingTableConfig(
@@ -103,10 +117,17 @@ class TestStreamingTableConfig:
 
         changeset = new.get_changeset(old)
         assert changeset.has_changes
-        assert not changeset.requires_full_refresh
+        assert changeset.requires_full_refresh
         assert changeset.changes == {
             "partition_by": RelationChange(
-                data=PartitionedByConfig(partition_by=["col_a"]), requires_full_refresh=False
+                data=PartitionedByConfig(partition_by=["col_a"]), requires_full_refresh=True
+            ),
+            "comment": RelationChange(
+                data=CommentConfig(comment="This is the table comment"), requires_full_refresh=False
+            ),
+            "tblproperties": RelationChange(
+                data=TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                requires_full_refresh=False,
             ),
             "refresh": RelationChange(
                 data=RefreshConfig(cron="*/5 * * * *"), requires_full_refresh=False
