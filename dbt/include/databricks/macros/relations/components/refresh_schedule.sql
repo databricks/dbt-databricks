@@ -1,6 +1,4 @@
 {% macro get_create_sql_refresh_schedule(cron, time_zone_value) %}
-  {{ log("cron: " ~ cron) }}
-  {{ log("time_zone_value: " ~ time_zone_value) }}
   {%- if cron -%}
     SCHEDULE CRON '{{ cron }}'{%- if time_zone_value %} AT TIME ZONE '{{ time_zone_value }}'{%- endif -%}
   {%- endif -%}

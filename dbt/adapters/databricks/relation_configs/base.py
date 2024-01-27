@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ConfigDict
-from typing import ClassVar, Dict, Generic, Optional, TypeVar
+from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
 from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationResults
@@ -40,25 +40,12 @@ class DatabricksComponentConfig(BaseModel):
         return None
 
 
-class RelationChange(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    data: DatabricksComponentConfig
-    requires_full_refresh: bool
-
-
 class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""
 
     model_config = ConfigDict(frozen=True)
-    changes: Dict[str, RelationChange]
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        """Whether or not the relation that is to be configured by this change set requires a full
-        refresh.
-        """
-
-        return any(change.requires_full_refresh for change in self.changes.values())
+    changes: Dict[str, DatabricksComponentConfig]
+    requires_full_refresh: bool = False
 
     @property
     def has_changes(self) -> bool:
@@ -109,7 +96,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     # The list of components that make up the relation config. In the base implemenation, these
     # components are applied sequentially to either the existing relation, or the model node, to
     # build up the config.
-    config_components: ClassVar[Dict[Type[DatabricksComponentProcessor], bool]]
+    config_components: ClassVar[List[Type[DatabricksComponentProcessor]]]
     config: Dict[str, DatabricksComponentConfig]
 
     @classmethod
@@ -117,7 +104,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
         """Build the relation config from a model node."""
 
         config_dict: Dict[str, DatabricksComponentConfig] = {}
-        for component in cls.config_components.keys():
+        for component in cls.config_components:
             model_component = component.from_model_node(model_node)
             if model_component:
                 config_dict[component.name] = model_component
@@ -136,20 +123,11 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
         return cls(config=config_dict)
 
+    @abstractmethod
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         """Get the changeset that must be applied to the existing relation to make it match the
-        current state of the dbt project.
+        current state of the dbt project. If no changes are required, this method should return
+        None.
         """
 
-        changes = {}
-
-        for component, requires_refresh in self.config_components.items():
-            key = component.name
-            value = self.config[key]
-            diff = value.get_diff(existing.config[key])
-            if diff:
-                changes[key] = RelationChange(data=diff, requires_full_refresh=requires_refresh)
-
-        if len(changes) > 0:
-            return DatabricksRelationChangeSet(changes=changes)
-        return None
+        raise NotImplementedError("Must be implemented by subclass")

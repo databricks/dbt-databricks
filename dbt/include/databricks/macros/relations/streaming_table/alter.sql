@@ -58,27 +58,26 @@
 {% endmacro %}
 
 {% macro get_create_st_internal(relation, configuration_changes, sql) %}
-  {%- set partition_by = configuration_changes.changes["partition_by"] -%}
-  {%- set tblproperties = configuration_changes.changes["tblproperties"] -%}
-  {%- set comment = configuration_changes.changes["comment"] -%}
-  {%- set refresh = configuration_changes.changes["refresh"] -%}
+  {%- set partition_by = configuration_changes.changes["partition_by"].partition_by -%}
+  {%- set tblproperties = configuration_changes.changes["tblproperties"].tblproperties -%}
+  {%- set comment = configuration_changes.changes["comment"].comment -%}
   CREATE OR REFRESH STREAMING TABLE {{ relation }}
     {% if partition_by -%}
-        {{ get_create_sql_partition_by(partition_by.data.partition_by) }}
+        {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}
     {% if comment -%}
-        {{ get_create_sql_comment(comment.data.comment) }}
+        {{ get_create_sql_comment(comment) }}
     {%- endif %}
     {% if tblproperties -%}
-        {{ get_create_sql_tblproperties(tblproperties.data.tblproperties) }}
+        {{ get_create_sql_tblproperties(tblproperties) }}
     {%- endif %}
     AS {{ sql }}
 {% endmacro %}
 
 {% macro get_alter_st_internal(relation, configuration_changes) %}
   {%- set refresh = configuration_changes.changes["refresh"] -%}
-  {%- if refresh and refresh.data.cron -%}
+  {%- if refresh and refresh.cron -%}
     ALTER STREAMING TABLE {{ relation }}
-        {{ get_alter_sql_refresh_schedule(refresh.data.cron, refresh.data.time_zone_value, False) -}}
+        {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, False) -}}
   {%- endif -%}
 {% endmacro %}

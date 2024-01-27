@@ -1,4 +1,7 @@
+from typing import Dict, Optional
 from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
 from dbt.adapters.databricks.relation_configs.comment import (
@@ -19,10 +22,30 @@ from dbt.adapters.databricks.relation_configs.tblproperties import (
 
 
 class MaterializedViewConfig(DatabricksRelationConfigBase):
-    config_components = {
-        PartitionedByProcessor: True,
-        CommentProcessor: True,
-        TblPropertiesProcessor: True,
-        RefreshProcessor: False,
-        QueryProcessor: True,
-    }
+    config_components = [
+        PartitionedByProcessor,
+        CommentProcessor,
+        TblPropertiesProcessor,
+        RefreshProcessor,
+        QueryProcessor,
+    ]
+
+    def get_changeset(
+        self, existing: "MaterializedViewConfig"
+    ) -> Optional[DatabricksRelationChangeSet]:
+        changes: Dict[str, DatabricksComponentConfig] = {}
+        requires_refresh = False
+
+        for component in self.config_components:
+            key = component.name
+            value = self.config[key]
+            diff = value.get_diff(existing.config[key])
+            if diff:
+                requires_refresh = requires_refresh or key != "refresh"
+                changes[key] = diff
+
+        if len(changes) > 0:
+            return DatabricksRelationChangeSet(
+                changes=changes, requires_full_refresh=requires_refresh
+            )
+        return None

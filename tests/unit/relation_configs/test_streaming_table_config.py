@@ -1,6 +1,5 @@
 from agate import Table
 from mock import Mock
-from dbt.adapters.databricks.relation_configs.base import RelationChange
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
@@ -84,17 +83,9 @@ class TestStreamingTableConfig:
         changeset = new.get_changeset(old)
         assert not changeset.requires_full_refresh
         assert changeset.changes == {
-            "tblproperties": RelationChange(
-                data=TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
-                requires_full_refresh=False,
-            ),
-            "comment": RelationChange(
-                data=CommentConfig(comment="This is the table comment"), requires_full_refresh=False
-            ),
-            "partition_by": RelationChange(
-                data=PartitionedByConfig(partition_by=["col_a", "col_b"]),
-                requires_full_refresh=False,
-            ),
+            "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+            "comment": CommentConfig(comment="This is the table comment"),
+            "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
         }
 
     def test_get_changeset__some_changes(self):
@@ -119,17 +110,8 @@ class TestStreamingTableConfig:
         assert changeset.has_changes
         assert changeset.requires_full_refresh
         assert changeset.changes == {
-            "partition_by": RelationChange(
-                data=PartitionedByConfig(partition_by=["col_a"]), requires_full_refresh=True
-            ),
-            "comment": RelationChange(
-                data=CommentConfig(comment="This is the table comment"), requires_full_refresh=False
-            ),
-            "tblproperties": RelationChange(
-                data=TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
-                requires_full_refresh=False,
-            ),
-            "refresh": RelationChange(
-                data=RefreshConfig(cron="*/5 * * * *"), requires_full_refresh=False
-            ),
+            "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+            "comment": CommentConfig(comment="This is the table comment"),
+            "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+            "refresh": RefreshConfig(cron="*/5 * * * *"),
         }

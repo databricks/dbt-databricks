@@ -1,6 +1,5 @@
 from agate import Table, Row
 from mock import Mock
-from dbt.adapters.databricks.relation_configs.base import RelationChange
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
@@ -115,10 +114,6 @@ class TestMaterializedViewConfig:
         assert changeset.has_changes
         assert changeset.requires_full_refresh
         assert changeset.changes == {
-            "partition_by": RelationChange(
-                data=PartitionedByConfig(partition_by=["col_a"]), requires_full_refresh=True
-            ),
-            "refresh": RelationChange(
-                data=RefreshConfig(cron="*/5 * * * *"), requires_full_refresh=False
-            ),
+            "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+            "refresh": RefreshConfig(cron="*/5 * * * *"),
         }
