@@ -12,6 +12,7 @@ from dbt.adapters.databricks.relation import DatabricksRelationType
 from tests.functional.adapter.streaming_tables import fixtures
 
 
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTablesBasic:
     @staticmethod
     def insert_record(project, table: BaseRelation, record: Tuple[int, int]):
