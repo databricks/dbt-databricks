@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional
-from databricks.sdk.oauth import ClientCredentials, Token, TokenSource
+from databricks.sdk.oauth import ClientCredentials, Token
 from databricks.sdk.core import CredentialsProvider, HeaderFactory, Config, credentials_provider
 
 
@@ -16,12 +16,12 @@ class token_auth(CredentialsProvider):
         return {"token": self._token}
 
     @staticmethod
-    def from_dict(raw: Optional[dict]) -> CredentialsProvider:
+    def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
         if not raw:
             return None
         return token_auth(raw["token"])
 
-    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
+    def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
 
         def inner() -> Dict[str, str]:
@@ -31,8 +31,6 @@ class token_auth(CredentialsProvider):
 
 
 class m2m_auth(CredentialsProvider):
-    _token_source: TokenSource = None
-
     def __init__(self, host: str, client_id: str, client_secret: str) -> None:
         @credentials_provider("noop", [])
         def noop_credentials(_: Any):  # type: ignore
@@ -70,7 +68,7 @@ class m2m_auth(CredentialsProvider):
         c._token_source._token = Token.from_dict(raw["token"])
         return c
 
-    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
+    def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         def inner() -> Dict[str, str]:
             token = self._token_source.token()
             return {"Authorization": f"{token.token_type} {token.access_token}"}
