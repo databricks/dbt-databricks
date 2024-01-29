@@ -18,7 +18,6 @@ from dbt.adapters.base import PythonJobHelper
 
 from databricks.sdk.core import CredentialsProvider
 from requests.adapters import HTTPAdapter
-from dbt.adapters.databricks.connections import BearerAuth
 
 
 logger = AdapterLogger("Databricks")
@@ -464,9 +463,9 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         )
         self._credentials_provider = credentials.authenticate(self._credentials_provider)
         header_factory = self._credentials_provider()
-        self.session.auth = BearerAuth(header_factory)
+        auth_header = header_factory()
 
-        self.extra_headers.update({"User-Agent": user_agent, **http_headers})
+        self.extra_headers.update({"User-Agent": user_agent, **auth_header, **http_headers})
 
     @property
     def cluster_id(self) -> Optional[str]:  # type: ignore[override]
