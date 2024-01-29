@@ -103,6 +103,15 @@ pysql_logger.setLevel(pysql_logger_level)
 pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
 pysql_logger.addHandler(pysql_handler)
 
+dbt_adapter_logger_urllib3 = AdapterLogger("urllib3")
+
+urllib3_logger = logging.getLogger("urllib3")
+urllib3_logger_level = os.environ.get("DBT_DATABRICKS_URLLIB3_LOG_LEVEL", "WARN").upper()
+urllib3_logger.setLevel(urllib3_logger_level)
+
+urllib3_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger_urllib3, level=urllib3_logger_level)
+urllib3_logger.addHandler(urllib3_handler)
+
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
