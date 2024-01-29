@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.5 (Jan 29, 2024)
+
+### Fixes
+
+- Rollback databricks-sql-connector version to mitigate issues
+
 ## dbt-databricks 1.7.4 (Jan 24, 2024)
 
 ### Fixes
