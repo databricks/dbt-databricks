@@ -132,6 +132,23 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 DEFAULT_MAX_IDLE_TIME = 600
 
 
+class BearerAuth(AuthBase):
+    """This mix-in is passed to our requests Session to explicitly
+    use the bearer authentication method.
+
+    Without this, a local .netrc file in the user's home directory
+    will override the auth headers provided by our header_factory.
+
+    More details in issue #337.
+    """
+
+    def __init__(self, headers: HeaderFactory):
+        self.headers = headers()
+
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        r.headers.update(**self.headers)
+        return r
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -572,10 +589,10 @@ class DatabricksSQLCursorWrapper:
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
         host: str = self._creds.host or ""
         headers = self._cursor.connection.thrift_backend._auth_provider._header_factory
-        auth_header = headers()
 
         session = Session()
-        session.headers = {"User-Agent": self._user_agent, **auth_header}
+        session.auth = BearerAuth(headers)
+        session.headers = {"User-Agent": self._user_agent}
 
         pipeline_id = _get_table_view_pipeline_id(session, host, model_name)
         pipeline = _get_pipeline_state(session, host, pipeline_id)
