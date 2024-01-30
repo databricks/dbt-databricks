@@ -16,7 +16,6 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 
-from databricks.sdk.core import Config
 from requests.adapters import HTTPAdapter
 from dbt.adapters.databricks.connections import BearerAuth
 
