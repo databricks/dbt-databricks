@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.5 (Jan 29, 2024)
+
+### Fixes
+
+- Pin databricks sdk to 0.17.0 to fix connection timeout issue ([571](https://github.com/databricks/dbt-databricks/pull/571))
+
 ## dbt-databricks 1.7.4 (Jan 24, 2024)
 
 ### Fixes
