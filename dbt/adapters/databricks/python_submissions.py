@@ -463,7 +463,7 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
             connection_parameters.pop("http_headers", {})
         )
         self._credentials_provider = credentials.authenticate(self._credentials_provider)
-        header_factory = self._credentials_provider(Config())
+        header_factory = self._credentials_provider(None)  # type: ignore
         self.session.auth = BearerAuth(header_factory)
 
         self.extra_headers.update({"User-Agent": user_agent, **http_headers})
