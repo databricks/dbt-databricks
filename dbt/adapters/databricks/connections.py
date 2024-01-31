@@ -58,7 +58,7 @@ from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS, cast_to_str
 
-from databricks import sql as dbsql
+import databricks.sql as dbsql
 from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
@@ -85,6 +85,9 @@ mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.I
 st_refresh_regex = re.compile(
     r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
 )
+
+
+TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
 
 class DbtCoreHandler(logging.Handler):
@@ -349,15 +352,17 @@ class DatabricksCredentials(Credentials):
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
-    def authenticate(self, in_provider: CredentialsProvider) -> CredentialsProvider:
+    def authenticate(self, in_provider: Optional[TCredentialProvider]) -> TCredentialProvider:
         self.validate_creds()
         host: str = self.host or ""
         if self._credentials_provider:
-            return self._provider_from_dict()
+            return self._provider_from_dict()  # type: ignore
         if in_provider:
-            self._credentials_provider = in_provider.as_dict()
+            if isinstance(in_provider, m2m_auth) or isinstance(in_provider, token_auth):
+                self._credentials_provider = in_provider.as_dict()
             return in_provider
 
+        provider: TCredentialProvider
         # dbt will spin up multiple threads. This has to be sync. So lock here
         self._lock.acquire()
         try:
@@ -378,7 +383,7 @@ class DatabricksCredentials(Credentials):
             oauth_client = OAuthClient(
                 host=host,
                 client_id=self.client_id if self.client_id else CLIENT_ID,
-                client_secret=None,
+                client_secret="",
                 redirect_url=REDIRECT_URL,
                 scopes=SCOPES,
             )
@@ -421,7 +426,7 @@ class DatabricksCredentials(Credentials):
         finally:
             self._lock.release()
 
-    def _provider_from_dict(self) -> CredentialsProvider:
+    def _provider_from_dict(self) -> Optional[TCredentialProvider]:
         if self.token:
             return token_auth.from_dict(self._credentials_provider)
 
@@ -434,14 +439,16 @@ class DatabricksCredentials(Credentials):
             )
 
         oauth_client = OAuthClient(
-            host=self.host,
+            host=self.host or "",
             client_id=CLIENT_ID,
-            client_secret=None,
+            client_secret="",
             redirect_url=REDIRECT_URL,
             scopes=SCOPES,
         )
 
-        return SessionCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
+        return SessionCredentials.from_dict(
+            client=oauth_client, raw=self._credentials_provider or {"token": {}}
+        )
 
 
 class DatabricksSQLConnectionWrapper:
@@ -849,7 +856,7 @@ class DatabricksDBTConnection(Connection):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
-    credentials_provider: CredentialsProvider = None
+    credentials_provider: Optional[TCredentialProvider] = None
 
     def __init__(self, profile: AdapterRequiredConfig) -> None:
         super().__init__(profile)
