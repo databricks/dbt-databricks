@@ -90,9 +90,6 @@ st_refresh_regex = re.compile(
 TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
 
-TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
-
-
 class DbtCoreHandler(logging.Handler):
     def __init__(self, level: Union[str, int], dbt_logger: AdapterLogger):
         super().__init__(level=level)
