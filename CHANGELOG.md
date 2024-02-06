@@ -1,3 +1,11 @@
+## dbt-databricks 1.7.7 (TBD)
+
+## dbt-databricks 1.7.6 (Feb 6, 2024)
+
+### Fixes
+
+- Rollback databricks-sql-connector to 2.9.3 to actually fix connection timeout issue
+
 ## dbt-databricks 1.7.5 (Jan 29, 2024)
 
 ### Fixes
