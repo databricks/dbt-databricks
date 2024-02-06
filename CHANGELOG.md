@@ -1,18 +1,22 @@
 ## dbt-databricks 1.7.7 (TBD)
 
+### Features
+
+- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+
 ## dbt-databricks 1.7.6 (Feb 6, 2024)
 
 ### Fixes
 
-- Rollback databricks-sql-connector to 2.9.3 to actually fix connection timeout issue
+- Rollback databricks-sql-connector to 2.9.3 to actually fix connection timeout issue ([578](https://github.com/databricks/dbt-databricks/pull/578))
 
-## dbt-databricks 1.7.5 (Jan 29, 2024)
+## dbt-databricks 1.7.5 (Jan 30, 2024) (Pulled due to poor SQL Warehouse connection behavior)
 
 ### Fixes
 
 - Pin databricks sdk to 0.17.0 to fix connection timeout issue ([571](https://github.com/databricks/dbt-databricks/pull/571))
 
-## dbt-databricks 1.7.4 (Jan 24, 2024)
+## dbt-databricks 1.7.4 (Jan 24, 2024) (Pulled due to poor SQL Warehouse connection behavior)
 
 ### Fixes
 
