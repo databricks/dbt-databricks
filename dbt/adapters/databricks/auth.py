@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
-from databricks.sdk.oauth import ClientCredentials, Token, TokenSource
+from databricks.sdk.oauth import ClientCredentials, Token
 from databricks.sdk.core import CredentialsProvider, HeaderFactory, Config, credentials_provider
+from databricks.sdk.oauth import TokenSource
 
 
 class token_auth(CredentialsProvider):
@@ -16,12 +17,12 @@ class token_auth(CredentialsProvider):
         return {"token": self._token}
 
     @staticmethod
-    def from_dict(raw: Optional[dict]) -> CredentialsProvider:
+    def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
         if not raw:
             return None
         return token_auth(raw["token"])
 
-    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
+    def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
 
         def inner() -> Dict[str, str]:
@@ -31,7 +32,7 @@ class token_auth(CredentialsProvider):
 
 
 class m2m_auth(CredentialsProvider):
-    _token_source: TokenSource = None
+    _token_source: Optional[TokenSource] = None
 
     def __init__(self, host: str, client_id: str, client_secret: str) -> None:
         @credentials_provider("noop", [])
@@ -67,12 +68,12 @@ class m2m_auth(CredentialsProvider):
     @staticmethod
     def from_dict(host: str, client_id: str, client_secret: str, raw: dict) -> CredentialsProvider:
         c = m2m_auth(host=host, client_id=client_id, client_secret=client_secret)
-        c._token_source._token = Token.from_dict(raw["token"])
+        c._token_source._token = Token.from_dict(raw["token"])  # type: ignore
         return c
 
-    def __call__(self, *args: tuple, **kwargs: Dict[str, Any]) -> HeaderFactory:
+    def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         def inner() -> Dict[str, str]:
-            token = self._token_source.token()
+            token = self._token_source.token()  # type: ignore
             return {"Authorization": f"{token.token_type} {token.access_token}"}
 
         return inner

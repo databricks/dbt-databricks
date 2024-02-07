@@ -70,3 +70,11 @@
   {{ return(load_result('last_modified')) }}
 
 {% endmacro %}
+
+{% macro get_view_description(relation) %}
+  {% call statement('get_view_description', fetch_result=True) -%}
+    select * from {{ relation.information_schema() }}.`views` where table_schema = '{{ relation.schema }}' and table_name = '{{ relation.identifier }}'
+  {% endcall %}
+
+  {% do return(load_result('get_view_description').table) %}
+{% endmacro %}
