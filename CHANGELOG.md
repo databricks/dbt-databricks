@@ -9,6 +9,7 @@
 - Fixed Hive performance regression by streamlining materialization type acquisition ([557](https://github.com/databricks/dbt-databricks/pull/557))
 - Fix: Python models authentication could be overridden by a `.netrc` file in the user's home directory ([338](https://github.com/databricks/dbt-databricks/pull/338))
 - Fix: MV/ST REST api authentication could be overriden by a `.netrc` file in the user's home directory ([555](https://github.com/databricks/dbt-databricks/pull/555))
+- Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped ([580](https://github.com/databricks/dbt-databricks/pull/580))
 
 ### Under the Hood
 
