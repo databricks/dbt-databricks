@@ -58,7 +58,7 @@ from dbt.events.functions import fire_event
 from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
 from dbt.utils import DECIMALS, cast_to_str
 
-from databricks import sql as dbsql
+import databricks.sql as dbsql
 from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
@@ -80,6 +80,14 @@ import keyring
 from requests import Session
 
 logger = AdapterLogger("Databricks")
+
+mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
+st_refresh_regex = re.compile(
+    r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
+)
+
+
+TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
 
 class DbtCoreHandler(logging.Handler):
@@ -344,15 +352,17 @@ class DatabricksCredentials(Credentials):
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
-    def authenticate(self, in_provider: CredentialsProvider) -> CredentialsProvider:
+    def authenticate(self, in_provider: Optional[TCredentialProvider]) -> TCredentialProvider:
         self.validate_creds()
         host: str = self.host or ""
         if self._credentials_provider:
-            return self._provider_from_dict()
+            return self._provider_from_dict()  # type: ignore
         if in_provider:
-            self._credentials_provider = in_provider.as_dict()
+            if isinstance(in_provider, m2m_auth) or isinstance(in_provider, token_auth):
+                self._credentials_provider = in_provider.as_dict()
             return in_provider
 
+        provider: TCredentialProvider
         # dbt will spin up multiple threads. This has to be sync. So lock here
         self._lock.acquire()
         try:
@@ -373,7 +383,7 @@ class DatabricksCredentials(Credentials):
             oauth_client = OAuthClient(
                 host=host,
                 client_id=self.client_id if self.client_id else CLIENT_ID,
-                client_secret=None,
+                client_secret="",
                 redirect_url=REDIRECT_URL,
                 scopes=SCOPES,
             )
@@ -416,7 +426,7 @@ class DatabricksCredentials(Credentials):
         finally:
             self._lock.release()
 
-    def _provider_from_dict(self) -> CredentialsProvider:
+    def _provider_from_dict(self) -> Optional[TCredentialProvider]:
         if self.token:
             return token_auth.from_dict(self._credentials_provider)
 
@@ -429,14 +439,16 @@ class DatabricksCredentials(Credentials):
             )
 
         oauth_client = OAuthClient(
-            host=self.host,
+            host=self.host or "",
             client_id=CLIENT_ID,
-            client_secret=None,
+            client_secret="",
             redirect_url=REDIRECT_URL,
             scopes=SCOPES,
         )
 
-        return SessionCredentials.from_dict(client=oauth_client, raw=self._credentials_provider)
+        return SessionCredentials.from_dict(
+            client=oauth_client, raw=self._credentials_provider or {"token": {}}
+        )
 
 
 class DatabricksSQLConnectionWrapper:
@@ -771,9 +783,10 @@ class DatabricksDBTConnection(Connection):
     # the next time it is used.
     language: Optional[str] = None
 
+    session_id: Optional[str] = None
+
     def _acquire(self, node: Optional[ResultNode]) -> None:
         """Indicate that this connection is in use."""
-        logger.debug(f"DatabricksDBTConnection._acquire: {self._get_conn_info_str()}")
         self._log_usage(node)
         self.acquire_release_count += 1
         if self.last_used_time is None:
@@ -783,9 +796,10 @@ class DatabricksDBTConnection(Connection):
         else:
             self.language = None
 
+        self._log_info("_acquire")
+
     def _release(self) -> None:
         """Indicate that this connection is not in use."""
-        logger.debug(f"DatabricksDBTConnection._release: {self._get_conn_info_str()}")
         # Need to check for > 0 because in some situations the dbt code will make an extra
         # release call on a connection.
         if self.acquire_release_count > 0:
@@ -796,6 +810,8 @@ class DatabricksDBTConnection(Connection):
         if self.acquire_release_count == 0 and self.language != "python":
             self.last_used_time = time.time()
 
+        self._log_info("_release")
+
     def _get_idle_time(self) -> float:
         return 0 if self.last_used_time is None else time.time() - self.last_used_time
 
@@ -805,10 +821,14 @@ class DatabricksDBTConnection(Connection):
     def _get_conn_info_str(self) -> str:
         """Generate a string describing this connection."""
         return (
-            f"name: {self.name}, thread: {self.thread_identifier}, "
-            f"compute: `{self.compute_name}`, acquire_release_count: {self.acquire_release_count},"
-            f" idle time: {self._get_idle_time()}s, language: {self.language}"
+            f"sess: {self.session_id}, name: {self.name}, "
+            f"idle: {self._get_idle_time()}s, acqrelcnt: {self.acquire_release_count}, "
+            f"lang: {self.language}, thrd: {self.thread_identifier}, "
+            f"cmpt: `{self.compute_name}`, lut: {self.last_used_time}"
         )
+
+    def _log_info(self, caller: Optional[str]) -> None:
+        logger.debug(f"conn: {id(self)}: {caller} {self._get_conn_info_str()}")
 
     def _log_usage(self, node: Optional[ResultNode]) -> None:
         if node:
@@ -826,8 +846,9 @@ class DatabricksDBTConnection(Connection):
             logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
 
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
-        logger.debug(f"DatabricksDBTConnection._reset_handle: {self._get_conn_info_str()}")
+        self._log_info("_reset_handle")
         self.handle = LazyHandle(open)
+        self.session_id = None
         # Reset last_used_time to None because by refreshing this connection becomes associated
         # with a new session that hasn't been used yet.
         self.last_used_time = None
@@ -835,7 +856,7 @@ class DatabricksDBTConnection(Connection):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
-    credentials_provider: CredentialsProvider = None
+    credentials_provider: Optional[TCredentialProvider] = None
 
     def __init__(self, profile: AdapterRequiredConfig) -> None:
         super().__init__(profile)
@@ -1016,10 +1037,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # Found a connection and nothing to do, so just return it
             return conn
 
+        orig_conn_name: str = conn.name or ""
+
         if conn.state != ConnectionState.OPEN:
             conn.handle = LazyHandle(self._open2)
         if conn.name != new_name:
-            orig_conn_name: str = conn.name or ""
             conn.name = new_name
             fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=new_name))
 
@@ -1028,7 +1050,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.clear_thread_connection()
             self.set_thread_connection(conn)
 
-        logger.debug(f"Reusing DatabricksDBTConnection. {conn._get_conn_info_str()}")
+        conn._log_info(f"reusing connection {orig_conn_name}")
 
         return conn
 
@@ -1044,10 +1066,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         # Create a new connection
         compute_name = _get_compute_name(node=node) or ""
-        logger.debug(
-            f"Creating DatabricksDBTConnection. name: {conn_name}, "
-            f"thread: {self.get_thread_identifier()}, compute: `{compute_name}`"
-        )
+
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
             name=conn_name,
@@ -1063,6 +1082,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn.max_idle_time = _get_max_idle_time(node=node, creds=creds)
 
         conn.handle = LazyHandle(self._open2)
+
+        conn._log_info("Creating DatabricksDBTConnection")
+
         # Add this connection to the thread/compute connection pool.
         self._add_compute_connection(conn)
         # Remove the connection currently in use by this thread from the thread connection pool.
@@ -1129,6 +1151,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # if different models use different compute resources
             thread_conns = self._get_compute_connections()
             for conn in thread_conns.values():
+                conn._log_info("idle check connection:")
+
                 # Generally speaking we only want to close/refresh the connection if the
                 # acquire_release_count is zero.  i.e. the connection is not currently in use.
                 # However python models acquire a connection then run the pyton model, which
@@ -1142,15 +1166,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if (
                     conn.acquire_release_count == 0 or conn.language == "python"
                 ) and conn._idle_too_long():
-                    logger.debug(f"closing idle connection: {conn._get_conn_info_str()}")
+                    conn._log_info("closing idle connection")
                     self.close(conn)
                     conn._reset_handle(self._open2)
 
     def get_thread_connection(self) -> Connection:
+        conn = super().get_thread_connection()
+        dbr_conn = cast(DatabricksDBTConnection, conn)
+        dbr_conn._log_info("get_thread_connection:")
         if USE_LONG_SESSIONS:
             self._cleanup_idle_connections()
 
-        return super().get_thread_connection()
+        return conn
 
     def add_query(
         self,
@@ -1340,7 +1367,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
-                    use_inline_params=True,
+                    use_inline_params="silent",
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
@@ -1380,8 +1407,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
             USE_LONG_SESSIONS
         ), "This path, '_open2', should only be reachable with USE_LONG_SESSIONS"
 
+        databricks_connection = cast(DatabricksDBTConnection, connection)
+
         if connection.state == ConnectionState.OPEN:
-            logger.debug("Connection is already open, skipping open.")
+            databricks_connection._log_info("Connection is already open, skipping open.")
             return connection
 
         creds: DatabricksCredentials = connection.credentials
@@ -1404,7 +1433,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         # If a model specifies a compute resource the http path
         # may be different than the http_path property of creds.
-        http_path = cast(DatabricksDBTConnection, connection).http_path
+        http_path = databricks_connection.http_path
 
         def connect() -> DatabricksSQLConnectionWrapper:
             try:
@@ -1416,11 +1445,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
-                    use_inline_params=True,
+                    use_inline_params="silent",
                     # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
+
+                if conn:
+                    databricks_connection.session_id = conn.get_session_id_hex()
+                databricks_connection.last_used_time = time.time()
+                databricks_connection._log_info("session opened")
+
                 return DatabricksSQLConnectionWrapper(
                     conn,
                     is_cluster=creds.cluster_id is not None,
@@ -1471,9 +1506,9 @@ def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
     # if the command was to refresh a materialized view we need to poll
     # the pipeline until the refresh is finished.
     name = ""
-    refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
+    refresh_search = mv_refresh_regex.search(sql)
     if not refresh_search:
-        refresh_search = re.search(r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql)
+        refresh_search = st_refresh_regex.search(sql)
 
     if refresh_search:
         name = refresh_search.group(1).replace("`", "")
@@ -1486,7 +1521,7 @@ def _get_table_view_pipeline_id(session: Session, host: str, name: str) -> str:
     resp1 = session.get(table_url)
     if resp1.status_code != 200:
         raise dbt.exceptions.DbtRuntimeError(
-            f"Error getting info for materialized view/streaming table: {name}"
+            f"Error getting info for materialized view/streaming table {name}: {resp1.text}"
         )
 
     pipeline_id = resp1.json().get("pipeline_id", "")
@@ -1503,7 +1538,9 @@ def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:
 
     response = session.get(pipeline_url)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline info: {pipeline_id}")
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Error getting pipeline info for {pipeline_id}: {response.text}"
+        )
 
     return response.json()
 
@@ -1529,7 +1566,9 @@ def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_
     events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
     response = session.get(events_url)
     if response.status_code != 200:
-        raise dbt.exceptions.DbtRuntimeError(f"Error getting pipeline event info: {pipeline_id}")
+        raise dbt.exceptions.DbtRuntimeError(
+            f"Error getting pipeline event info for {pipeline_id}: {response.text}"
+        )
 
     events = response.json().get("events", [])
     update_events = [

@@ -1,6 +1,8 @@
 import unittest
 
-from dbt.adapters.databricks.utils import redact_credentials, remove_ansi
+import pytest
+from agate import Table, Row
+from dbt.adapters.databricks.utils import redact_credentials, remove_ansi, get_first_row
 
 
 class TestDatabricksUtils(unittest.TestCase):
@@ -87,3 +89,15 @@ class TestDatabricksUtils(unittest.TestCase):
        72 # how to execute python model in notebook
 """
         self.assertEqual(remove_ansi(test_string), expected_string)
+
+
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        (Table([]), Row(set())),
+        (Table([Row(["first", "row"]), Row(["second", "row"])]), Row(["first", "row"])),
+    ],
+)
+def test_get_first_row(input, expected):
+    first_row = get_first_row(input)
+    assert first_row == expected

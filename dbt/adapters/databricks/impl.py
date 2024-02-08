@@ -31,6 +31,7 @@ from dbt.adapters.capability import (
 )
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
@@ -41,7 +42,7 @@ from dbt.adapters.spark.impl import (
 from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.contracts.connection import AdapterResponse, Connection
 from dbt.contracts.graph.manifest import Manifest
-from dbt.contracts.graph.nodes import ResultNode
+from dbt.contracts.graph.nodes import ResultNode, ModelNode
 from dbt.contracts.relation import RelationType
 import dbt.exceptions
 from dbt.events import AdapterLogger
@@ -58,7 +59,10 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
 )
-from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 logger = AdapterLogger("Databricks")
@@ -734,3 +738,32 @@ class DatabricksAdapter(SparkAdapter):
                 return_columns[name] = columns[name]
 
         return return_columns
+
+    @available.parse_none
+    def materialized_view_config_from_model(self, model: ModelNode) -> MaterializedViewConfig:
+        return MaterializedViewConfig.from_model_node(model)  # type: ignore
+
+    @available.parse_none
+    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+        if relation.type == RelationType.MaterializedView:
+            results = self.describe_materialized_view(relation)
+            return MaterializedViewConfig.from_results(results)
+        else:
+            raise dbt.exceptions.DbtRuntimeError(
+                f"The method `DatabricksAdapter.get_relation_config` is not implemented "
+                f"for the relation type: {relation.type}"
+            )
+
+    def describe_materialized_view(self, relation: DatabricksRelation) -> RelationResults:
+        kwargs = {"table_name": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = self.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        kwargs = {"relation": relation}
+        results["information_schema.views"] = get_first_row(
+            self.execute_macro("get_view_description", kwargs=kwargs)
+        )
+        results["show_tblproperties"] = self.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results

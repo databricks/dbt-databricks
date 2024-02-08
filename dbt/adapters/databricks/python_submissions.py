@@ -3,7 +3,7 @@ from typing import Any, Dict, Tuple, Optional, Callable
 from requests import Session
 
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.connections import DatabricksCredentials
+from dbt.adapters.databricks.connections import DatabricksCredentials, TCredentialProvider
 from dbt.adapters.databricks import utils
 
 import base64
@@ -16,7 +16,6 @@ from dbt.events import AdapterLogger
 import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
 
-from databricks.sdk.core import CredentialsProvider
 from requests.adapters import HTTPAdapter
 from dbt.adapters.databricks.connections import BearerAuth
 
@@ -442,7 +441,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
 class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
     credentials: DatabricksCredentials  # type: ignore[assignment]
-    _credentials_provider: CredentialsProvider = None
+    _credentials_provider: Optional[TCredentialProvider] = None
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         super().__init__(
@@ -463,7 +462,7 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
             connection_parameters.pop("http_headers", {})
         )
         self._credentials_provider = credentials.authenticate(self._credentials_provider)
-        header_factory = self._credentials_provider()
+        header_factory = self._credentials_provider(None)  # type: ignore
         self.session.auth = BearerAuth(header_factory)
 
         self.extra_headers.update({"User-Agent": user_agent, **http_headers})

@@ -1,4 +1,25 @@
-## dbt-databricks 1.7.4 (TBD)
+## dbt-databricks 1.7.7 (TBD)
+
+### Features
+
+- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+
+### Fixes
+- Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped ([580](https://github.com/databricks/dbt-databricks/pull/580))
+
+## dbt-databricks 1.7.6 (Feb 6, 2024)
+
+### Fixes
+
+- Rollback databricks-sql-connector to 2.9.3 to actually fix connection timeout issue ([578](https://github.com/databricks/dbt-databricks/pull/578))
+
+## dbt-databricks 1.7.5 (Jan 30, 2024) (Pulled due to poor SQL Warehouse connection behavior)
+
+### Fixes
+
+- Pin databricks sdk to 0.17.0 to fix connection timeout issue ([571](https://github.com/databricks/dbt-databricks/pull/571))
+
+## dbt-databricks 1.7.4 (Jan 24, 2024) (Pulled due to poor SQL Warehouse connection behavior)
 
 ### Fixes
 
@@ -9,7 +30,8 @@
 - Fixed Hive performance regression by streamlining materialization type acquisition ([557](https://github.com/databricks/dbt-databricks/pull/557))
 - Fix: Python models authentication could be overridden by a `.netrc` file in the user's home directory ([338](https://github.com/databricks/dbt-databricks/pull/338))
 - Fix: MV/ST REST api authentication could be overriden by a `.netrc` file in the user's home directory ([555](https://github.com/databricks/dbt-databricks/pull/555))
-- Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped ([580](https://github.com/databricks/dbt-databricks/pull/580))
+- Show details in connection errors ([562](https://github.com/databricks/dbt-databricks/pull/562))
+- Updated connection debugging logging and setting connection last used time on session open.([565](https://github.com/databricks/dbt-databricks/pull/565))
 
 ### Under the Hood
 
