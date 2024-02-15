@@ -3,6 +3,7 @@
 ### Features
 
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+- Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
 
 ### Fixes
 - Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped (thanks @case-k-git!) ([580](https://github.com/databricks/dbt-databricks/pull/580))
@@ -24,10 +25,6 @@ Skipped due to incorrect files in deployed package
 - Pin databricks sdk to 0.17.0 to fix connection timeout issue ([571](https://github.com/databricks/dbt-databricks/pull/571))
 
 ## dbt-databricks 1.7.4 (Jan 24, 2024) (Pulled due to poor SQL Warehouse connection behavior)
-
-### Features
-
-- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 
 ### Fixes
 
