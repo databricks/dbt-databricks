@@ -832,14 +832,17 @@ class DatabricksDBTConnection(Connection):
 
     def _log_usage(self, node: Optional[ResultNode]) -> None:
         if node:
+            # ResultNode *should* have relation_name attr, but we work around a core
+            # issue by checking.
+            relation_name = getattr(node, "relation_name", "[unknown]")
             if not self.compute_name:
                 logger.debug(
-                    f"On thread {self.thread_identifier}: {node.relation_name} "
+                    f"On thread {self.thread_identifier}: {relation_name} "
                     "using default compute resource."
                 )
             else:
                 logger.debug(
-                    f"On thread {self.thread_identifier}: {node.relation_name} "
+                    f"On thread {self.thread_identifier}: {relation_name} "
                     f"using compute resource '{self.compute_name}'."
                 )
         else:
@@ -1606,6 +1609,10 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
 
     thread_id = (os.getpid(), get_ident())
 
+    # ResultNode *should* have relation_name attr, but we work around a core
+    # issue by checking.
+    relation_name = getattr(node, "relation_name", "[unknown]")
+
     # If there is no node we return the http_path for the default compute.
     if not node:
         if not USE_LONG_SESSIONS:
@@ -1618,7 +1625,7 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
     if not compute_name:
         if not USE_LONG_SESSIONS:
             logger.debug(
-                f"On thread {thread_id}: {node.relation_name} using default compute resource."
+                f"On thread {thread_id}: {relation_name} using default compute resource."
             )
         return creds.http_path
 
@@ -1631,12 +1638,12 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
     if not http_path:
         raise dbt.exceptions.DbtRuntimeError(
             f"Compute resource {compute_name} does not exist or "
-            f"does not specify http_path, relation: {node.relation_name}"
+            f"does not specify http_path, relation: {relation_name}"
         )
 
     if not USE_LONG_SESSIONS:
         logger.debug(
-            f"On thread {thread_id}: {node.relation_name} using compute resource '{compute_name}'."
+            f"On thread {thread_id}: {relation_name} using compute resource '{compute_name}'."
         )
 
     return http_path
