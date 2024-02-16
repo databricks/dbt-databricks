@@ -131,3 +131,6 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
         """
 
         raise NotImplementedError("Must be implemented by subclass")
+
+
+DatabricksRelationConfig = TypeVar("DatabricksRelationConfig", bound=DatabricksRelationConfigBase)

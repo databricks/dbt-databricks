@@ -3,7 +3,7 @@
 {%- endmacro %}
 
 {% macro databricks__get_create_streaming_table_as_sql(relation, sql) -%}
-  {%- set streaming_table = adapter.streaming_table_config_from_model(config.model) -%}
+  {%- set streaming_table = adapter.get_config_from_model(config.model) -%}
   {%- set partition_by = streaming_table.config["partition_by"].partition_by -%}
   {%- set tblproperties = streaming_table.config["tblproperties"].tblproperties -%}
   {%- set comment = streaming_table.config["comment"].comment -%}
