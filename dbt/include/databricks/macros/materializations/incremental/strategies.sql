@@ -75,13 +75,13 @@
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
               {% set this_key_match %}
-                  DBT_INTERNAL_SOURCE.{{ key }} = DBT_INTERNAL_DEST.{{ key }}
+                  DBT_INTERNAL_SOURCE.{{ key }} <=> DBT_INTERNAL_DEST.{{ key }}
               {% endset %}
               {% do predicates.append(this_key_match) %}
           {% endfor %}
       {% else %}
           {% set unique_key_match %}
-              DBT_INTERNAL_SOURCE.{{ unique_key }} = DBT_INTERNAL_DEST.{{ unique_key }}
+              DBT_INTERNAL_SOURCE.{{ unique_key }} <=> DBT_INTERNAL_DEST.{{ unique_key }}
           {% endset %}
           {% do predicates.append(unique_key_match) %}
       {% endif %}
