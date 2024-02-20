@@ -5,8 +5,9 @@
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 
 ### Fixes
+
 - Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped (thanks @case-k-git!) ([580](https://github.com/databricks/dbt-databricks/pull/580))
-- Fixed export of saved queries ([588](https://github.com/databricks/dbt-databricks/pull/588))
+- Fixed export of saved queries (thanks @peterallenwebb!) ([588](https://github.com/databricks/dbt-databricks/pull/588))
 
 ## dbt-databricks 1.7.7 (Feb 6, 2024)
 

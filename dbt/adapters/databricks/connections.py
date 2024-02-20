@@ -1624,9 +1624,7 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
     compute_name = _get_compute_name(node)
     if not compute_name:
         if not USE_LONG_SESSIONS:
-            logger.debug(
-                f"On thread {thread_id}: {relation_name} using default compute resource."
-            )
+            logger.debug(f"On thread {thread_id}: {relation_name} using default compute resource.")
         return creds.http_path
 
     # Get the http_path for the named compute.
