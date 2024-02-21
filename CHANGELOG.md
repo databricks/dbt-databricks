@@ -1,9 +1,5 @@
 ## dbt-databricks 1.7.8 (TBD)
 
-### Features
-
-- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
-
 ### Fixes
 
 - Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped (thanks @case-k-git!) ([580](https://github.com/databricks/dbt-databricks/pull/580))

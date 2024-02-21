@@ -14,7 +14,7 @@
   -- setup: if the target relation already exists, drop it
   -- in case if the existing and future table is delta, we want to do a
   -- create or replace table instead of dropping, so we don't have the table unavailable
-  {% if old_relation and (not (old_relation.is_delta and config.get('file_format', default='delta') == 'delta')) or (old_relation.is_materialized_view or old_relation.is_streaming_table) -%}
+  {% if old_relation and not (old_relation.is_delta and config.get('file_format', default='delta') == 'delta') -%}
     {{ adapter.drop_relation(old_relation) }}
   {%- endif %}
 
