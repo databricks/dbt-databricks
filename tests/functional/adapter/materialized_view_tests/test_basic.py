@@ -34,6 +34,8 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         self.swap_materialized_view_to_table(project, my_materialized_view)
 
         util.run_dbt(["run", "--models", my_materialized_view.identifier])
+
+        # UC doesn't sync metadata fast enough for this to pass consistently
         # assert self.query_relation_type(project, my_materialized_view) == "table"
 
     def test_view_replaces_materialized_view(self, project, my_materialized_view):
@@ -43,6 +45,7 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         self.swap_materialized_view_to_view(project, my_materialized_view)
 
         util.run_dbt(["run", "--models", my_materialized_view.identifier])
+
         # UC doesn't sync metadata fast enough for this to pass consistently
         # assert self.query_relation_type(project, my_materialized_view) == "view"
 
