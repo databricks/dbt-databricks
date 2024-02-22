@@ -5,7 +5,7 @@
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
 
-## dbt-databricks 1.7.8 (TBD)
+## dbt-databricks 1.7.8 (Feb 22, 2024)
 
 ### Fixes
 
