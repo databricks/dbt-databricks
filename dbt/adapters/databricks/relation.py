@@ -137,6 +137,10 @@ class DatabricksRelation(BaseRelation):
         info_schema = DatabricksInformationSchema.from_relation(self, view_name)
         return info_schema.incorporate(path={"schema": None})
 
+    @classproperty
+    def StreamingTable(cls) -> str:
+        return str(DatabricksRelationType.StreamingTable)
+
 
 def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"

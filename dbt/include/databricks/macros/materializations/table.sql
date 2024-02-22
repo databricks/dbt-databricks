@@ -1,4 +1,5 @@
 {% materialization table, adapter = 'databricks', supported_languages=['sql', 'python'] %}
+  {{ log("MATERIALIZING TABLE") }}
   {%- set language = model['language'] -%}
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}

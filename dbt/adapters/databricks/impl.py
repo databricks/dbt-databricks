@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
@@ -6,7 +7,9 @@ import os
 import re
 from typing import (
     Any,
+    ClassVar,
     Dict,
+    Generic,
     Iterable,
     Iterator,
     List,
@@ -58,7 +61,14 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
 )
-from dbt.adapters.databricks.utils import redact_credentials, undefined_proof
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksRelationConfig,
+    DatabricksRelationConfigBase,
+)
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
+from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 logger = AdapterLogger("Databricks")
@@ -732,3 +742,112 @@ class DatabricksAdapter(SparkAdapter):
                 return_columns[name] = columns[name]
 
         return return_columns
+
+    @available.parse(lambda *a, **k: {})
+    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+        if relation.type == DatabricksRelationType.MaterializedView:
+            return MaterializedViewAPI.get_relation_config(self, relation)
+        elif relation.type == DatabricksRelationType.StreamingTable:
+            return StreamingTableAPI.get_relation_config(self, relation)
+        else:
+            raise NotImplementedError(f"Relation type {relation.type} is not supported.")
+
+    @available.parse(lambda *a, **k: {})
+    def get_config_from_model(self, model: ModelNode) -> DatabricksRelationConfigBase:
+        if model.config.materialized == "materialized_view":
+            return MaterializedViewAPI.get_config_from_model(model)
+        elif model.config.materialized == "streaming_table":
+            return StreamingTableAPI.get_config_from_model(model)
+        else:
+            raise NotImplementedError(
+                f"Materialization {model.config.materialized} is not supported."
+            )
+
+
+@dataclass(frozen=True)
+class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
+    """Base class for the relation API, so as to provide some encapsulation from the adapter.
+    For the most part, these are just namespaces to group related methods together.
+    """
+
+    relation_type: ClassVar[DatabricksRelationType]
+
+    @classmethod
+    @abstractmethod
+    def config_type(cls) -> Type[DatabricksRelationConfig]:
+        """Get the config class for delegating calls."""
+
+        raise NotImplementedError("Must be implemented by subclass")
+
+    @classmethod
+    def get_relation_config(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> DatabricksRelationConfig:
+        """Get the relation config from the relation."""
+
+        assert relation.type == cls.relation_type
+        results = cls._describe_relation(adapter, relation)
+        return cls.config_type().from_results(results)
+
+    @classmethod
+    def get_config_from_model(cls, model: ModelNode) -> DatabricksRelationConfig:
+        """Get the relation config from the model node."""
+
+        return cls.config_type().from_model_node(model)
+
+    @classmethod
+    @abstractmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        """Describe the relation and return the results."""
+
+        raise NotImplementedError("Must be implemented by subclass")
+
+
+class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
+    relation_type = DatabricksRelationType.MaterializedView
+
+    @classmethod
+    def config_type(cls) -> Type[MaterializedViewConfig]:
+        return MaterializedViewConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        kwargs = {"table_name": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        kwargs = {"relation": relation}
+        results["information_schema.views"] = get_first_row(
+            adapter.execute_macro("get_view_description", kwargs=kwargs)
+        )
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results
+
+
+class StreamingTableAPI(RelationAPIBase[StreamingTableConfig]):
+    relation_type = DatabricksRelationType.StreamingTable
+
+    @classmethod
+    def config_type(cls) -> Type[StreamingTableConfig]:
+        return StreamingTableConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        kwargs = {"table_name": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        kwargs = {"relation": relation}
+
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results
