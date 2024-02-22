@@ -81,11 +81,6 @@ from requests import Session
 
 logger = AdapterLogger("Databricks")
 
-mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
-st_refresh_regex = re.compile(
-    r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
-)
-
 
 TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
@@ -1509,9 +1504,9 @@ def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
     # if the command was to refresh a materialized view we need to poll
     # the pipeline until the refresh is finished.
     name = ""
-    refresh_search = mv_refresh_regex.search(sql)
+    refresh_search = re.search(r"refresh\s+materialized\s+view\s+([`\w.]+)", sql)
     if not refresh_search:
-        refresh_search = st_refresh_regex.search(sql)
+        refresh_search = re.search(r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", sql)
 
     if refresh_search:
         name = refresh_search.group(1).replace("`", "")

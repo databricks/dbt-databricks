@@ -10,7 +10,6 @@ from dbt.dataclass_schema import StrEnum
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.utils import filter_null_values, classproperty
 from dbt.exceptions import DbtRuntimeError
-from dbt.adapters.base.relation import RelationType
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -33,7 +32,7 @@ class DatabricksRelationType(StrEnum):
     Table = "table"
     View = "view"
     CTE = "cte"
-    MaterializedView = "materialized_view"
+    MaterializedView = "materializedview"
     External = "external"
     StreamingTable = "streamingtable"
 
@@ -65,22 +64,6 @@ class DatabricksRelation(BaseRelation):
         else:
             data["path"]["database"] = remove_undefined(data["path"]["database"])
         return data
-
-    renameable_relations = frozenset(
-        {
-            RelationType.View,
-            RelationType.Table,
-        }
-    )
-
-    # list relations that can be atomically replaced (e.g. `CREATE OR REPLACE my_relation..`
-    # versus `DROP` and `CREATE`)
-    replaceable_relations = frozenset(
-        {
-            RelationType.View,
-            RelationType.Table,
-        }
-    )
 
     def has_information(self) -> bool:
         return self.metadata is not None
