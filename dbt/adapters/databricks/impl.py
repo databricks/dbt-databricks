@@ -9,6 +9,7 @@ from typing import (
     Any,
     ClassVar,
     Dict,
+    FrozenSet,
     Generic,
     Iterable,
     Iterator,
@@ -42,14 +43,12 @@ from dbt.adapters.spark.impl import (
     LIST_SCHEMAS_MACRO_NAME,
     TABLE_OR_VIEW_NOT_FOUND_MESSAGES,
 )
-from dbt.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
-from dbt.contracts.connection import AdapterResponse, Connection
-from dbt.contracts.graph.manifest import Manifest
-from dbt.contracts.graph.nodes import ResultNode, ModelNode
-from dbt.contracts.relation import RelationType
-import dbt.exceptions
-from dbt.events import AdapterLogger
-from dbt.utils import executor
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
+from dbt.adapters.contracts.connection import AdapterResponse, Connection
+from dbt.adapters.contracts.relation import RelationType
+import dbt.adapters.exceptions
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -70,6 +69,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import Materiali
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
 from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt.adapters.contracts.relation import RelationConfig
 
 
 logger = AdapterLogger("Databricks")
@@ -140,13 +140,13 @@ class DatabricksAdapter(SparkAdapter):
 
     # override/overload
     def acquire_connection(
-        self, name: Optional[str] = None, node: Optional[ResultNode] = None
+        self, name: Optional[str] = None, node: Optional[RelationConfig] = None
     ) -> Connection:
         return self.connections.set_connection_name(name, node)
 
     # override
     @contextmanager
-    def connection_named(self, name: str, node: Optional[ResultNode] = None) -> Iterator[None]:
+    def connection_named(self, name: str, node: Optional[RelationConfig] = None) -> Iterator[None]:
         try:
             if self.connections.query_header is not None:
                 self.connections.query_header.set(name, node)
@@ -534,7 +534,7 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:  # type: ignore
+    def get_catalog(self, manifest: Iterable[RelationConfig]) -> Tuple[Table, List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(manifest)
 
         with executor(self.config) as tpe:
@@ -566,25 +566,19 @@ class DatabricksAdapter(SparkAdapter):
         return catalogs, exceptions
 
     def _get_one_unity_catalog(
-        self, info: InformationSchema, schemas: Set[str], manifest: Manifest
+        self, info: InformationSchema, schemas: Set[str], manifest: Iterable[RelationConfig]
     ) -> Table:
         kwargs = {
             "information_schema": info,
             "schemas": schemas,
         }
-        table = self.execute_macro(
-            GET_CATALOG_MACRO_NAME,
-            kwargs=kwargs,
-            # pass in the full manifest, so we get any local project
-            # overrides
-            manifest=manifest,
-        )
+        table = self.execute_macro(GET_CATALOG_MACRO_NAME, kwargs=kwargs)
 
         results = self._catalog_filter_table(table, manifest)  # type: ignore[arg-type]
         return results
 
     def get_catalog_by_relations(
-        self, manifest: Manifest, relations: Set[BaseRelation]
+        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
             relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
@@ -616,7 +610,7 @@ class DatabricksAdapter(SparkAdapter):
                         self._get_one_catalog_by_relations,
                         info_schema,
                         catalog_relations,
-                        manifest,
+                        used_schemas,
                     )
                     futures.append(fut)
 
@@ -756,7 +750,8 @@ class DatabricksAdapter(SparkAdapter):
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
     @available.parse(lambda *a, **k: {})
-    def get_config_from_model(self, model: ModelNode) -> DatabricksRelationConfigBase:
+    def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
+        assert model.config, "Config was missing from relation"
         if model.config.materialized == "materialized_view":
             return MaterializedViewAPI.get_config_from_model(model)
         elif model.config.materialized == "streaming_table":
@@ -793,7 +788,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         return cls.config_type().from_results(results)
 
     @classmethod
-    def get_config_from_model(cls, model: ModelNode) -> DatabricksRelationConfig:
+    def get_config_from_model(cls, model: RelationConfig) -> DatabricksRelationConfig:
         """Get the relation config from the model node."""
 
         return cls.config_type().from_model_node(model)

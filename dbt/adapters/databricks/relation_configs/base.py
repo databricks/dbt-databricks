@@ -4,7 +4,7 @@ from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
 from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.contracts.graph.nodes import ModelNode
+from dbt.adapters.contracts.relation import RelationConfig
 
 
 class DatabricksComponentConfig(BaseModel):
@@ -75,7 +75,7 @@ class DatabricksComponentProcessor(ABC, Generic[Component]):
 
     @classmethod
     @abstractmethod
-    def from_model_node(cls, model_node: ModelNode) -> Component:
+    def from_model_node(cls, model_node: RelationConfig) -> Component:
         """Extract the component from the model node.
 
         While some components, e.g. query, can be extracted directly from the model node,
@@ -100,7 +100,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     config: Dict[str, DatabricksComponentConfig]
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> Self:
+    def from_model_node(cls, model_node: RelationConfig) -> Self:
         """Build the relation config from a model node."""
 
         config_dict: Dict[str, DatabricksComponentConfig] = {}

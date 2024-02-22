@@ -1,9 +1,11 @@
 import json
+from multiprocessing.context import SpawnContext
 import uuid
 import logging
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
+import decimal
 import itertools
 import os
 import re
@@ -21,6 +23,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     cast,
     Union,
     Hashable,
@@ -29,34 +32,34 @@ from numbers import Number
 
 from agate import Table
 
-import dbt.exceptions
-from dbt.adapters.base import Credentials
+import dbt.adapters.exceptions
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt.clients import agate_helper
-from dbt.contracts.connection import (
+from dbt_common.clients import agate_helper
+from dbt.adapters.contracts.connection import (
     AdapterResponse,
     AdapterRequiredConfig,
     Connection,
     ConnectionState,
+    Credentials,
     DEFAULT_QUERY_COMMENT,
     Identifier,
     LazyHandle,
 )
-from dbt.events.types import (
+from dbt.adapters.events.types import (
     NewConnection,
     ConnectionReused,
+    ConnectionUsed,
     ConnectionLeftOpenInCleanup,
     ConnectionClosedInCleanup,
+    SQLQuery,
+    SQLQueryStatus,
 )
 
-from dbt.contracts.graph.manifest import Manifest
-from dbt.contracts.graph.nodes import ResultNode
-from dbt.events import AdapterLogger
-from dbt.events.contextvars import get_node_info
-from dbt.events.functions import fire_event
-from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.utils import DECIMALS, cast_to_str
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.utils import cast_to_str
 
 import databricks.sql as dbsql
 from databricks.sql.client import (
@@ -78,6 +81,8 @@ from databricks.sdk.core import HeaderFactory
 
 import keyring
 from requests import Session
+from dbt.adapters.base.relation import RelationConfig
+
 
 logger = AdapterLogger("Databricks")
 
@@ -692,7 +697,7 @@ class DatabricksSQLCursorWrapper:
     def _fix_binding(cls, value: Any) -> Any:
         """Convert complex datatypes to primitives that can be loaded by
         the Spark driver"""
-        if isinstance(value, DECIMALS):
+        if isinstance(value, decimal.Decimal):
             return float(value)
         else:
             return value
@@ -785,7 +790,7 @@ class DatabricksDBTConnection(Connection):
 
     session_id: Optional[str] = None
 
-    def _acquire(self, node: Optional[ResultNode]) -> None:
+    def _acquire(self, node: Optional[RelationConfig]) -> None:
         """Indicate that this connection is in use."""
         self._log_usage(node)
         self.acquire_release_count += 1
@@ -830,7 +835,7 @@ class DatabricksDBTConnection(Connection):
     def _log_info(self, caller: Optional[str]) -> None:
         logger.debug(f"conn: {id(self)}: {caller} {self._get_conn_info_str()}")
 
-    def _log_usage(self, node: Optional[ResultNode]) -> None:
+    def _log_usage(self, node: Optional[RelationConfig]) -> None:
         if node:
             # ResultNode *should* have relation_name attr, but we work around a core
             # issue by checking.
@@ -861,8 +866,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: Optional[TCredentialProvider] = None
 
-    def __init__(self, profile: AdapterRequiredConfig) -> None:
-        super().__init__(profile)
+    def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext) -> None:
+        super().__init__(profile, mp_context)
         if USE_LONG_SESSIONS:
             self.threads_compute_connections: Dict[
                 Hashable, Dict[Hashable, DatabricksDBTConnection]
@@ -875,8 +880,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         dbr_version = connection.dbr_version
         return (dbr_version > version) - (dbr_version < version)
 
-    def set_query_header(self, manifest: Manifest) -> None:
-        self.query_header = DatabricksMacroQueryStringSetter(self.profile, manifest)
+    def set_query_header(self, query_header_context: Dict[str, Any]) -> None:
+        self.query_header = DatabricksMacroQueryStringSetter(self.profile, query_header_context)
 
     @contextmanager
     def exception_handler(self, sql: str) -> Iterator[None]:
@@ -905,7 +910,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     # override/overload
     def set_connection_name(
-        self, name: Optional[str] = None, node: Optional[ResultNode] = None
+        self, name: Optional[str] = None, node: Optional[RelationConfig] = None
     ) -> Connection:
         """Called by 'acquire_connection' in DatabricksAdapter, which is called by
         'connection_named', called by 'connection_for(node)'.
@@ -998,7 +1003,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.threads_compute_connections.clear()
 
     def _get_compute_connection(
-        self, name: Optional[str] = None, node: Optional[ResultNode] = None
+        self, name: Optional[str] = None, node: Optional[RelationConfig] = None
     ) -> Connection:
         """Called by 'set_connection_name' in DatabricksConnectionManager.
         Creates a connection for this thread/node if one doesn't already
@@ -1028,7 +1033,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self,
         conn: DatabricksDBTConnection,
         new_name: str,
-        node: Optional[ResultNode] = None,
+        node: Optional[RelationConfig] = None,
     ) -> DatabricksDBTConnection:
         """Update a connection that is being re-used with a new name, handle, etc."""
         assert USE_LONG_SESSIONS, (
@@ -1058,7 +1063,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return conn
 
     def _create_compute_connection(
-        self, conn_name: str, node: Optional[ResultNode] = None
+        self, conn_name: str, node: Optional[RelationConfig] = None
     ) -> DatabricksDBTConnection:
         """Create anew connection for the combination of current thread and compute associated
         with the given node."""
@@ -1313,7 +1318,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def get_open_for_model(
-        cls, node: Optional[ResultNode] = None
+        cls, node: Optional[RelationConfig] = None
     ) -> Callable[[Connection], Connection]:
         # If there is no node we can simply return the exsting class method open.
         # If there is a node create a closure that will call cls._open with the node.
@@ -1333,7 +1338,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return cls._open(connection)
 
     @classmethod
-    def _open(cls, connection: Connection, node: Optional[ResultNode] = None) -> Connection:
+    def _open(cls, connection: Connection, node: Optional[RelationConfig] = None) -> Connection:
         if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
@@ -1594,7 +1599,7 @@ def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_
     return msg
 
 
-def _get_compute_name(node: Optional[ResultNode]) -> Optional[str]:
+def _get_compute_name(node: Optional[RelationConfig]) -> Optional[str]:
     # Get the name of the specified compute resource from the node's
     # config.
     compute_name = None
@@ -1603,7 +1608,7 @@ def _get_compute_name(node: Optional[ResultNode]) -> Optional[str]:
     return compute_name
 
 
-def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> Optional[str]:
+def _get_http_path(node: Optional[RelationConfig], creds: DatabricksCredentials) -> Optional[str]:
     """Get the http_path for the compute specified for the node.
     If none is specified default will be used."""
 
@@ -1647,7 +1652,7 @@ def _get_http_path(node: Optional[ResultNode], creds: DatabricksCredentials) -> 
     return http_path
 
 
-def _get_max_idle_time(node: Optional[ResultNode], creds: DatabricksCredentials) -> int:
+def _get_max_idle_time(node: Optional[RelationConfig], creds: DatabricksCredentials) -> int:
     """Get the http_path for the compute specified for the node.
     If none is specified default will be used."""
 
