@@ -1,5 +1,5 @@
 from typing import Optional
-from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base import BaseRelation
 
 from dbt.adapters.databricks.relation import DatabricksRelationType
 
@@ -27,16 +27,10 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
             return DatabricksRelationType.View.value
 
 
-streaming_table = """
+materialized_view = """
 {{ config(
-    materialized='streaming_table',
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-complex_streaming_table = """
-{{ config(
-    materialized='streaming_table',
+    materialized='materialized_view',
+    description='this is a materialized view',
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',
@@ -46,5 +40,5 @@ complex_streaming_table = """
         'key': 'value'
     },
 ) }}
-select * from stream {{ ref('my_seed') }}
+select * from {{ ref('my_seed') }}
 """
