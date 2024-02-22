@@ -10,10 +10,8 @@ from dbt.adapters.databricks.relation_configs.comment import (
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
-from dbt.adapters.databricks.relation_configs.query import (
-    QueryProcessor,
-)
 from dbt.adapters.databricks.relation_configs.refresh import (
+    RefreshConfig,
     RefreshProcessor,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import (
@@ -21,18 +19,20 @@ from dbt.adapters.databricks.relation_configs.tblproperties import (
 )
 
 
-class MaterializedViewConfig(DatabricksRelationConfigBase):
+class StreamingTableConfig(DatabricksRelationConfigBase):
     config_components = [
         PartitionedByProcessor,
         CommentProcessor,
         TblPropertiesProcessor,
         RefreshProcessor,
-        QueryProcessor,
     ]
 
     def get_changeset(
-        self, existing: "MaterializedViewConfig"
+        self, existing: "StreamingTableConfig"
     ) -> Optional[DatabricksRelationChangeSet]:
+        """Get the changeset that must be applied to the existing relation to make it match the
+        current state of the dbt project.
+        """
         changes: Dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
 
@@ -40,12 +40,11 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
             key = component.name
             value = self.config[key]
             diff = value.get_diff(existing.config[key])
-            if diff:
-                requires_refresh = requires_refresh or key != "refresh"
+            if key == "partition_by" and diff is not None:
+                requires_refresh = True
+            diff = diff or value
+
+            if diff != RefreshConfig():
                 changes[key] = diff
 
-        if len(changes) > 0:
-            return DatabricksRelationChangeSet(
-                changes=changes, requires_full_refresh=requires_refresh
-            )
-        return None
+        return DatabricksRelationChangeSet(changes=changes, requires_full_refresh=requires_refresh)

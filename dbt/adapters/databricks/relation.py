@@ -10,7 +10,6 @@ from dbt.dataclass_schema import StrEnum
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.utils import filter_null_values, classproperty
 from dbt.exceptions import DbtRuntimeError
-from dbt.adapters.base.relation import RelationType
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -35,7 +34,7 @@ class DatabricksRelationType(StrEnum):
     CTE = "cte"
     MaterializedView = "materialized_view"
     External = "external"
-    StreamingTable = "streamingtable"
+    StreamingTable = "streaming_table"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -68,8 +67,8 @@ class DatabricksRelation(BaseRelation):
 
     renameable_relations = frozenset(
         {
-            RelationType.View,
-            RelationType.Table,
+            DatabricksRelationType.View,
+            DatabricksRelationType.Table,
         }
     )
 
@@ -77,8 +76,8 @@ class DatabricksRelation(BaseRelation):
     # versus `DROP` and `CREATE`)
     replaceable_relations = frozenset(
         {
-            RelationType.View,
-            RelationType.Table,
+            DatabricksRelationType.View,
+            DatabricksRelationType.Table,
         }
     )
 
@@ -152,6 +151,10 @@ class DatabricksRelation(BaseRelation):
         # Instead address this as <database>.information_schema by default
         info_schema = DatabricksInformationSchema.from_relation(self, view_name)
         return info_schema.incorporate(path={"schema": None})
+
+    @classproperty
+    def StreamingTable(cls) -> str:
+        return str(DatabricksRelationType.StreamingTable)
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

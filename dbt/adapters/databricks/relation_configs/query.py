@@ -13,10 +13,6 @@ class QueryConfig(DatabricksComponentConfig):
 
     query: str
 
-    @property
-    def requires_full_refresh(self) -> bool:
-        return True
-
 
 class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     name: ClassVar[str] = "query"

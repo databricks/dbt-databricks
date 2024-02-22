@@ -16,14 +16,15 @@ class TblPropertiesConfig(DatabricksComponentConfig):
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
-    ignore_list: List[str] = ["pipelines.pipelineId"]
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        # TODO: This is only True for MVs since they don't currently allow ALTER VIEW to change the
-        # tblproperties. Should be False for tables and views, if and when they move to this
-        # approach.
-        return True
+    ignore_list: List[str] = [
+        "pipelines.pipelineId",
+        "delta.enableChangeDataFeed",
+        "delta.minReaderVersion",
+        "delta.minWriterVersion",
+        "pipeline_internal.catalogType",
+        "pipelines.metastore.tableName",
+        "pipeline_internal.enzymeMode",
+    ]
 
     def __eq__(self, __value: Any) -> bool:
         """Override equality check to ignore certain tblproperties."""

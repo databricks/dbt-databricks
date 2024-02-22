@@ -14,10 +14,6 @@ class PartitionedByConfig(DatabricksComponentConfig):
 
     partition_by: List[str]
 
-    @property
-    def requires_full_refresh(self) -> bool:
-        return True
-
 
 class PartitionedByProcessor(DatabricksComponentProcessor):
     name: ClassVar[str] = "partition_by"

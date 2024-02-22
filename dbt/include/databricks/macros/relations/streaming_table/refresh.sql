@@ -1,8 +1,8 @@
-{% macro get_refresh_streaming_table_as_sql(relation, sql) -%}
-  {{ adapter.dispatch('get_refresh_streaming_table_as_sql', 'dbt')(relation, sql) }}
+{% macro refresh_streaming_table(relation, sql) -%}
+  {{ adapter.dispatch('refresh_streaming_table', 'dbt')(relation, sql) }}
 {%- endmacro %}
 
-{% macro databricks__get_refresh_streaming_table_as_sql(relation, sql) -%}
+{% macro databricks__refresh_streaming_table(relation, sql) -%}
   create or refresh streaming table {{ relation }}
   as
     {{ sql }}

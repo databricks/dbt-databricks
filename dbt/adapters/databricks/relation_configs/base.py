@@ -7,7 +7,7 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.contracts.graph.nodes import ModelNode
 
 
-class DatabricksComponentConfig(BaseModel, ABC):
+class DatabricksComponentConfig(BaseModel):
     """Class for encapsulating a single component of a Databricks relation config.
 
     Ex: A materialized view has a `query` component, which is a string that if changed, requires a
@@ -15,15 +15,6 @@ class DatabricksComponentConfig(BaseModel, ABC):
     """
 
     model_config = ConfigDict(frozen=True)
-
-    @property
-    @abstractmethod
-    def requires_full_refresh(self) -> bool:
-        """Whether or not the relation that is configured by this component requires a full refresh
-        (i.e. a drop and recreate) if this component has changed.
-        """
-
-        raise NotImplementedError("Must be implemented by subclass")
 
     def get_diff(self, other: Self) -> Optional[Self]:
         """Get the config that must be applied when this component differs from the existing
@@ -54,14 +45,7 @@ class DatabricksRelationChangeSet(BaseModel):
 
     model_config = ConfigDict(frozen=True)
     changes: Dict[str, DatabricksComponentConfig]
-
-    @property
-    def requires_full_refresh(self) -> bool:
-        """Whether or not the relation that is to be configured by this change set requires a full
-        refresh.
-        """
-
-        return any(change.requires_full_refresh for change in self.changes.values())
+    requires_full_refresh: bool = False
 
     @property
     def has_changes(self) -> bool:
@@ -139,18 +123,14 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
         return cls(config=config_dict)
 
+    @abstractmethod
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         """Get the changeset that must be applied to the existing relation to make it match the
-        current state of the dbt project.
+        current state of the dbt project. If no changes are required, this method should return
+        None.
         """
 
-        changes = {}
+        raise NotImplementedError("Must be implemented by subclass")
 
-        for key, value in self.config.items():
-            diff = value.get_diff(existing.config[key])
-            if diff:
-                changes[key] = diff
 
-        if len(changes) > 0:
-            return DatabricksRelationChangeSet(changes=changes)
-        return None
+DatabricksRelationConfig = TypeVar("DatabricksRelationConfig", bound=DatabricksRelationConfigBase)
