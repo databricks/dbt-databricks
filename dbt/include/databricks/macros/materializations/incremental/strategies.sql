@@ -50,9 +50,15 @@
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
 
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
-    insert into table {{ target_relation }}
+    {%- set common_columns = [] -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") -%}
+    {%- for dest_col in adapter.get_columns_in_relation(target_relation) -%}
+      {% if dest_col.name in source_columns %}
+          {%- if common_columns.append(dest_col) -%}{%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {%- set dest_cols_csv = common_columns | map(attribute='quoted') | join(', ') -%}
+    insert into table {{ target_relation }} ({{ dest_cols_csv }})
     select {{dest_cols_csv}} from {{ source_relation }}
 
 {% endmacro %}
@@ -69,13 +75,13 @@
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
               {% set this_key_match %}
-                  DBT_INTERNAL_SOURCE.{{ key }} = DBT_INTERNAL_DEST.{{ key }}
+                  DBT_INTERNAL_SOURCE.{{ key }} <=> DBT_INTERNAL_DEST.{{ key }}
               {% endset %}
               {% do predicates.append(this_key_match) %}
           {% endfor %}
       {% else %}
           {% set unique_key_match %}
-              DBT_INTERNAL_SOURCE.{{ unique_key }} = DBT_INTERNAL_DEST.{{ unique_key }}
+              DBT_INTERNAL_SOURCE.{{ unique_key }} <=> DBT_INTERNAL_DEST.{{ unique_key }}
           {% endset %}
           {% do predicates.append(unique_key_match) %}
       {% endif %}

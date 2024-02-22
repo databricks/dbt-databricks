@@ -1,14 +1,20 @@
-## dbt-databricks 1.7.7 (TBD)
+## dbt-databricks 1.7.8 (TBD)
 
-### Features
+### Fixes
 
-- Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
+- Fixed the behavior of the incremental schema change ignore option to properly handle the scenario when columns are dropped (thanks @case-k-git!) ([580](https://github.com/databricks/dbt-databricks/pull/580))
+- Fixed export of saved queries (thanks @peterallenwebb!) ([588](https://github.com/databricks/dbt-databricks/pull/588))
+- Properly match against null for merging matching rows ([590](https://github.com/databricks/dbt-databricks/pull/590))
 
-## dbt-databricks 1.7.6 (Feb 6, 2024)
+## dbt-databricks 1.7.7 (Feb 6, 2024)
 
 ### Fixes
 
 - Rollback databricks-sql-connector to 2.9.3 to actually fix connection timeout issue ([578](https://github.com/databricks/dbt-databricks/pull/578))
+
+## dbt-databricks 1.7.6 (Feb 6, 2024)
+
+Skipped due to incorrect files in deployed package
 
 ## dbt-databricks 1.7.5 (Jan 30, 2024) (Pulled due to poor SQL Warehouse connection behavior)
 
