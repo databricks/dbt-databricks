@@ -534,7 +534,9 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
-    def get_catalog(self, manifest: Iterable[RelationConfig]) -> Tuple[Table, List[Exception]]:  # type: ignore
+    def get_catalog(
+        self, manifest: Iterable[RelationConfig], used_schemas: FrozenSet[Tuple[str, str]]
+    ) -> Tuple[Table, List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(manifest)
 
         with executor(self.config) as tpe:
@@ -554,19 +556,14 @@ class DatabricksAdapter(SparkAdapter):
                 else:
                     name = ".".join([str(info.database), "information_schema"])
                     fut = tpe.submit_connected(
-                        self,
-                        name,
-                        self._get_one_unity_catalog,
-                        info,
-                        schemas,
-                        manifest,
+                        self, name, self._get_one_unity_catalog, info, used_schemas
                     )
                     futures.append(fut)
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
     def _get_one_unity_catalog(
-        self, info: InformationSchema, schemas: Set[str], manifest: Iterable[RelationConfig]
+        self, info: InformationSchema, schemas: FrozenSet[Tuple[str, str]]
     ) -> Table:
         kwargs = {
             "information_schema": info,
@@ -574,7 +571,7 @@ class DatabricksAdapter(SparkAdapter):
         }
         table = self.execute_macro(GET_CATALOG_MACRO_NAME, kwargs=kwargs)
 
-        results = self._catalog_filter_table(table, manifest)  # type: ignore[arg-type]
+        results = self._catalog_filter_table(table, schemas)
         return results
 
     def get_catalog_by_relations(
