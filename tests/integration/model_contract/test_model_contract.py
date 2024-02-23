@@ -5,7 +5,7 @@ from typing import Dict
 from dbt.contracts.results import RunResult, RunStatus
 from dbt.logger import log_manager
 from dbt.cli.main import dbtRunner
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Databricks")
 

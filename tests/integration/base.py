@@ -19,16 +19,16 @@ from dbt.cli.main import dbtRunner
 import dbt.flags as flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
-from dbt.clients.jinja import template_cache
+from dbt_common.clients.jinja import template_cache
 from dbt.config import RuntimeConfig
 from dbt.context import providers
 from dbt.logger import log_manager
-from dbt.events.functions import (
+from dbt.events.logging import setup_event_logger
+from dbt_common.events.functions import (
     capture_stdout_logs,
-    setup_event_logger,
     stop_capture_stdout_logs,
 )
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
 from tests.profiles import get_databricks_cluster_target
@@ -469,9 +469,9 @@ class DBTIntegrationTest(unittest.TestCase):
         base_kwargs.update({key: value for key, value in kwargs.items() if value is not None})
         if "database_schema" not in base_kwargs:
             if base_kwargs["database"] is not None:
-                base_kwargs[
-                    "database_schema"
-                ] = f"{base_kwargs['database']}.{base_kwargs['schema']}"
+                base_kwargs["database_schema"] = (
+                    f"{base_kwargs['database']}.{base_kwargs['schema']}"
+                )
             else:
                 base_kwargs["database_schema"] = base_kwargs["schema"]
 
