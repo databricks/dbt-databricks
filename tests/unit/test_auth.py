@@ -71,3 +71,31 @@ class TestTokenAuth(unittest.TestCase):
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
         self.assertEqual(headers, headers2)
+
+
+class TestShardedPassword(unittest.TestCase):
+    def test_store_short_password(self):
+        service = "dbt-databricks"
+        host = "my.cloud.databricks.com"
+        long_password = "x" * 10
+
+        creds = DatabricksCredentials(
+            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+        )
+        creds.set_sharded_password(service, host, long_password)
+
+        retrieved_password = creds.get_sharded_password(service, host)
+        self.assertEqual(long_password, retrieved_password)
+
+    def test_store_long_password(self):
+        service = "dbt-databricks"
+        host = "my.cloud.databricks.com"
+        long_password = "x" * 2000
+
+        creds = DatabricksCredentials(
+            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+        )
+        creds.set_sharded_password(service, host, long_password)
+
+        retrieved_password = creds.get_sharded_password(service, host)
+        self.assertEqual(long_password, retrieved_password)
