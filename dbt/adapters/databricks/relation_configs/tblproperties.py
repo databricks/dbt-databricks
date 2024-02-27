@@ -5,7 +5,7 @@ from dbt.adapters.databricks.relation_configs.base import (
 )
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.adapters.contracts.relation import RelationConfig
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtRuntimeError
 
 
 class TblPropertiesConfig(DatabricksComponentConfig):

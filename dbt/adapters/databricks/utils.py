@@ -56,9 +56,7 @@ def undefined_proof(cls: Type[A]) -> Type[A]:
             (
                 staticmethod(wrapped_function)
                 if isstatic
-                else classmethod(wrapped_function)
-                if isclass
-                else wrapped_function
+                else classmethod(wrapped_function) if isclass else wrapped_function
             ),
         )
 

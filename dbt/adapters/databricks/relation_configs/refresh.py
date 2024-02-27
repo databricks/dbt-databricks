@@ -2,7 +2,7 @@ import re
 from typing import ClassVar, Optional
 
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtRuntimeError
 from dbt.adapters.contracts.relation import RelationConfig
 
 from dbt.adapters.databricks.relation_configs.base import (
