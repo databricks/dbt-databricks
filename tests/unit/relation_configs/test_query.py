@@ -22,7 +22,7 @@ class TestQueryProcessor:
     def test_from_model_node__without_query(self):
         model = Mock()
         model.compiled_code = None
-        model.unique_id = "1"
+        model.identifier = "1"
         with pytest.raises(
             DbtRuntimeError,
             match="Cannot compile model 1 with no SQL query",
