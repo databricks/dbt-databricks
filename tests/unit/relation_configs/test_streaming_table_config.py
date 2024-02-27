@@ -51,7 +51,7 @@ class TestStreamingTableConfig:
         }
         model.description = "This is the table comment"
 
-        config = StreamingTableConfig.from_model_node(model)
+        config = StreamingTableConfig.from_relation_config(model)
 
         assert config == StreamingTableConfig(
             config={

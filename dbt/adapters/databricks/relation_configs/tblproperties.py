@@ -1,4 +1,5 @@
 from typing import Any, Dict, ClassVar, List
+from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -43,7 +44,7 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
     name: ClassVar[str] = "tblproperties"
 
     @classmethod
-    def from_results(cls, results: RelationResults) -> TblPropertiesConfig:
+    def from_relation_results(cls, results: RelationResults) -> TblPropertiesConfig:
         table = results.get("show_tblproperties")
         tblproperties = dict()
 
@@ -54,9 +55,8 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
         return TblPropertiesConfig(tblproperties=tblproperties)
 
     @classmethod
-    def from_model_node(cls, model_node: RelationConfig) -> TblPropertiesConfig:
-        if model_node.config:
-            tblproperties = model_node.config.extra.get("tblproperties")
+    def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:
+        tblproperties = base.get_config_value(relation_config, "tblproperties")
         if not tblproperties:
             return TblPropertiesConfig(tblproperties=dict())
         if isinstance(tblproperties, Dict):

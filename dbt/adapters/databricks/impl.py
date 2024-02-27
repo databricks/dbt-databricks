@@ -70,6 +70,7 @@ from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTa
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt_common.exceptions import DbtRuntimeError
 
 
 logger = AdapterLogger("Databricks")
@@ -140,17 +141,17 @@ class DatabricksAdapter(SparkAdapter):
 
     # override/overload
     def acquire_connection(
-        self, name: Optional[str] = None, node: Optional[RelationConfig] = None
+        self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
-        return self.connections.set_connection_name(name, node)
+        return self.connections.set_connection_name(name, query_header_context)
 
     # override
     @contextmanager
-    def connection_named(self, name: str, node: Optional[RelationConfig] = None) -> Iterator[None]:
+    def connection_named(self, name: str, query_header_context: Any = None) -> Iterator[None]:
         try:
             if self.connections.query_header is not None:
-                self.connections.query_header.set(name, node)
-            self.acquire_connection(name, node)
+                self.connections.query_header.set(name, query_header_context)
+            self.acquire_connection(name, query_header_context)
             yield
         finally:
             self.release_connection()
@@ -208,7 +209,7 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"schema_relation": schema_relation}
         try:
             results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
-        except dbt.exceptions.DbtRuntimeError as e:
+        except DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if check_not_found_error(errmsg):
                 return []
@@ -238,7 +239,7 @@ class DatabricksAdapter(SparkAdapter):
             # The catalog for `show table extended` needs to match the current catalog.
             with self._catalog(schema_relation.database):
                 results = list(self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs))
-        except dbt.exceptions.DbtRuntimeError as e:
+        except DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if check_not_found_error(errmsg):
                 results = []
@@ -250,7 +251,7 @@ class DatabricksAdapter(SparkAdapter):
         relations: List[Tuple[DatabricksRelation, str]] = []
         for row in results:
             if len(row) != 4:
-                raise dbt.exceptions.DbtRuntimeError(
+                raise DbtRuntimeError(
                     f'Invalid value from "show table extended ...", '
                     f"got {len(row)} values, expected 4"
                 )
@@ -398,7 +399,7 @@ class DatabricksAdapter(SparkAdapter):
                 else DatabricksRelationType.Table
             )
         else:
-            raise dbt.exceptions.DbtRuntimeError(
+            raise DbtRuntimeError(
                 f"Unexpected relation type discovered: Database:{database}, Relation:{name}"
             )
 
@@ -467,7 +468,7 @@ class DatabricksAdapter(SparkAdapter):
                 )
             )
             metadata, columns = self.parse_describe_extended(relation, rows)
-        except dbt.exceptions.DbtRuntimeError as e:
+        except DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
             errmsg = getattr(e, "msg", "")
@@ -535,9 +536,9 @@ class DatabricksAdapter(SparkAdapter):
         return columns
 
     def get_catalog(
-        self, manifest: Iterable[RelationConfig], used_schemas: FrozenSet[Tuple[str, str]]
+        self, relation_configs: Iterable[RelationConfig], used_schemas: FrozenSet[Tuple[str, str]]
     ) -> Tuple[Table, List[Exception]]:  # type: ignore
-        schema_map = self._get_catalog_schemas(manifest)
+        schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
             futures: List[Future[Table]] = []
@@ -740,9 +741,9 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
         if relation.type == DatabricksRelationType.MaterializedView:
-            return MaterializedViewAPI.get_relation_config(self, relation)
+            return MaterializedViewAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.StreamingTable:
-            return StreamingTableAPI.get_relation_config(self, relation)
+            return StreamingTableAPI.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -750,9 +751,9 @@ class DatabricksAdapter(SparkAdapter):
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
         if model.config.materialized == "materialized_view":
-            return MaterializedViewAPI.get_config_from_model(model)
+            return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":
-            return StreamingTableAPI.get_config_from_model(model)
+            return StreamingTableAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -775,7 +776,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         raise NotImplementedError("Must be implemented by subclass")
 
     @classmethod
-    def get_relation_config(
+    def get_from_relation(
         cls, adapter: DatabricksAdapter, relation: DatabricksRelation
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
@@ -785,10 +786,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         return cls.config_type().from_results(results)
 
     @classmethod
-    def get_config_from_model(cls, model: RelationConfig) -> DatabricksRelationConfig:
+    def get_from_relation_config(cls, relation_config: RelationConfig) -> DatabricksRelationConfig:
         """Get the relation config from the model node."""
 
-        return cls.config_type().from_model_node(model)
+        return cls.config_type().from_relation_config(relation_config)
 
     @classmethod
     @abstractmethod

@@ -4,7 +4,7 @@ from typing import ClassVar, Optional
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
 from dbt.adapters.contracts.relation import RelationConfig
-
+from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -38,7 +38,7 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
     name: ClassVar[str] = "refresh"
 
     @classmethod
-    def from_results(cls, results: RelationResults) -> RefreshConfig:
+    def from_relation_results(cls, results: RelationResults) -> RefreshConfig:
         table = results["describe_extended"]
         for row in table.rows:
             if row[0] == "Refresh Schedule":
@@ -63,9 +63,8 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         )
 
     @classmethod
-    def from_model_node(cls, model_node: RelationConfig) -> RefreshConfig:
-        if model_node.config:
-            schedule = model_node.config.extra.get("schedule")
+    def from_relation_config(cls, relation_config: RelationConfig) -> RefreshConfig:
+        schedule = base.get_config_value(relation_config, "schedule")
         if schedule:
             if "cron" not in schedule:
                 raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}")

@@ -21,7 +21,7 @@ class TestPartitionedByProcessor:
             )
         }
 
-        spec = PartitionedByProcessor.from_results(results)
+        spec = PartitionedByProcessor.from_relation_results(results)
         assert spec == PartitionedByConfig(partition_by=[])
 
     def test_from_results__single(self):
@@ -40,7 +40,7 @@ class TestPartitionedByProcessor:
             )
         }
 
-        spec = PartitionedByProcessor.from_results(results)
+        spec = PartitionedByProcessor.from_relation_results(results)
         assert spec == PartitionedByConfig(partition_by=["col_a"])
 
     def test_from_results__multiple(self):
@@ -59,23 +59,23 @@ class TestPartitionedByProcessor:
                 ]
             )
         }
-        spec = PartitionedByProcessor.from_results(results)
+        spec = PartitionedByProcessor.from_relation_results(results)
         assert spec == PartitionedByConfig(partition_by=["col_a", "col_b"])
 
     def test_from_model_node__without_partition_by(self):
         model = Mock()
         model.config.extra = {}
-        spec = PartitionedByProcessor.from_model_node(model)
+        spec = PartitionedByProcessor.from_relation_config(model)
         assert spec == PartitionedByConfig(partition_by=[])
 
     def test_from_model_node__single_column(self):
         model = Mock()
         model.config.extra = {"partition_by": "col_a"}
-        spec = PartitionedByProcessor.from_model_node(model)
+        spec = PartitionedByProcessor.from_relation_config(model)
         assert spec == PartitionedByConfig(partition_by=["col_a"])
 
     def test_from_model_node__multiple_columns(self):
         model = Mock()
         model.config.extra = {"partition_by": ["col_a", "col_b"]}
-        spec = PartitionedByProcessor.from_model_node(model)
+        spec = PartitionedByProcessor.from_relation_config(model)
         assert spec == PartitionedByConfig(partition_by=["col_a", "col_b"])

@@ -18,15 +18,17 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     name: ClassVar[str] = "query"
 
     @classmethod
-    def from_results(cls, result: RelationResults) -> QueryConfig:
+    def from_relation_results(cls, result: RelationResults) -> QueryConfig:
         row = result["information_schema.views"]
         return QueryConfig(query=row["view_definition"])
 
     @classmethod
-    def from_model_node(cls, model_node: RelationConfig) -> QueryConfig:
-        query = model_node.compiled_code
+    def from_relation_config(cls, relation_config: RelationConfig) -> QueryConfig:
+        query = relation_config.compiled_code
 
         if query:
             return QueryConfig(query=query.strip())
         else:
-            raise DbtRuntimeError(f"Cannot compile model {model_node.identifier} with no SQL query")
+            raise DbtRuntimeError(
+                f"Cannot compile model {relation_config.identifier} with no SQL query"
+            )
