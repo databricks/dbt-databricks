@@ -10,7 +10,7 @@ from dbt_common.dataclass_schema import StrEnum
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt_common.utils import filter_null_values
 from dbt.adapters.utils import classproperty
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 

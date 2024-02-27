@@ -1,11 +1,11 @@
 from typing import ClassVar
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.contracts.graph.nodes import ModelNode
+from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtRuntimeError
 
 
 class QueryConfig(DatabricksComponentConfig):
@@ -23,10 +23,10 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
         return QueryConfig(query=row["view_definition"])
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> QueryConfig:
+    def from_model_node(cls, model_node: RelationConfig) -> QueryConfig:
         query = model_node.compiled_code
 
         if query:
             return QueryConfig(query=query.strip())
         else:
-            raise DbtRuntimeError(f"Cannot compile model {model_node.unique_id} with no SQL query")
+            raise DbtRuntimeError(f"Cannot compile model {model_node.identifier} with no SQL query")

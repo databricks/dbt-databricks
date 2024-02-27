@@ -68,7 +68,7 @@ from dbt.adapters.databricks.relation_configs.base import (
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
-from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.contracts.relation import RelationConfig
 
 
