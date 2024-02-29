@@ -46,7 +46,6 @@ from dbt.adapters.spark.impl import (
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationType
-import dbt.adapters.exceptions
 from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.utils import executor
 

@@ -23,7 +23,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     cast,
     Union,
     Hashable,
@@ -32,7 +31,6 @@ from numbers import Number
 
 from agate import Table
 
-import dbt.adapters.exceptions
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt_common.clients import agate_helper

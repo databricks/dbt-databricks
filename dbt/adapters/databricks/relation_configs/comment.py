@@ -26,4 +26,4 @@ class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> CommentConfig:
-        return CommentConfig(comment=relation_config.description)
+        return CommentConfig(comment=getattr(relation_config, "description"))

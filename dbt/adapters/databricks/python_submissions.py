@@ -13,7 +13,6 @@ import uuid
 from urllib3.util.retry import Retry
 
 from dbt.adapters.events.logging import AdapterLogger
-import dbt.adapters.exceptions
 from dbt.adapters.base import PythonJobHelper
 
 from requests.adapters import HTTPAdapter
