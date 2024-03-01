@@ -387,9 +387,7 @@ class DatabricksAdapter(SparkAdapter):
                 else DatabricksRelationType.Table
             )
         else:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Unexpected relation type discovered: Database:{database}, Relation:{name}"
-            )
+            return DatabricksRelationType.Unknown
 
     def get_relation(
         self,
