@@ -127,6 +127,7 @@ class MockKeyring(keyring.backend.KeyringBackend):
 
     def _generate_test_root_dir(self):
         import tempfile
+
         return tempfile.mkdtemp(prefix="dbt-unit-test-")
 
     def file_path(self, servicename, username):
