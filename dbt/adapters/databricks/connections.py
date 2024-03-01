@@ -445,7 +445,7 @@ class DatabricksCredentials(Credentials):
             keyring.set_password(service_name, username, json.dumps(shard_info))
             # then store all shards with the shard number as postfix
             for i, s in enumerate(password_shards):
-                keyring.set_password(service_name, f"{username}|{i}", s)
+                keyring.set_password(service_name, f"{username}__{i}", s)
 
     def get_sharded_password(self, service_name: str, username: str) -> Optional[str]:
         password = keyring.get_password(service_name, username)
@@ -459,7 +459,7 @@ class DatabricksCredentials(Credentials):
 
                 password = ""
                 for i in range(shard_count):
-                    password += str(keyring.get_password(service_name, f"{username}|{i}"))
+                    password += str(keyring.get_password(service_name, f"{username}__{i}"))
         except ValueError:
             pass
 
@@ -474,7 +474,7 @@ class DatabricksCredentials(Credentials):
             if password_as_dict.get("sharded_password"):
                 shard_count = int(password_as_dict.get("shard_count"))
                 for i in range(shard_count):
-                    keyring.delete_password(service_name, f"{username}|{i}")
+                    keyring.delete_password(service_name, f"{username}__{i}")
         except ValueError:
             pass
 
