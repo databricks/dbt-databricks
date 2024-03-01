@@ -8,6 +8,7 @@
 ### Under the Hood
 
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
+- Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 
 ## dbt-databricks 1.7.9 (Mar 5, 2024)
 

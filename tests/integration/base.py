@@ -1,3 +1,4 @@
+from multiprocessing import get_context
 import os
 import random
 import shutil
@@ -19,19 +20,21 @@ from dbt.cli.main import dbtRunner
 import dbt.flags as flags
 from dbt.deprecations import reset_deprecations
 from dbt.adapters.factory import get_adapter, reset_adapters, register_adapter
-from dbt.clients.jinja import template_cache
+from dbt_common.clients.jinja import template_cache
 from dbt.config import RuntimeConfig
 from dbt.context import providers
+from dbt.context import manifest
 from dbt.logger import log_manager
-from dbt.events.functions import (
+from dbt.events.logging import setup_event_logger
+from dbt_common.events.functions import (
     capture_stdout_logs,
-    setup_event_logger,
     stop_capture_stdout_logs,
 )
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.contracts.graph.manifest import Manifest
 
 from tests.profiles import get_databricks_cluster_target
+from tests.unit.utils import load_internal_manifest_macros
 
 
 logger = AdapterLogger("Databricks")
@@ -332,8 +335,13 @@ class DBTIntegrationTest(unittest.TestCase):
 
         config = RuntimeConfig.from_args(TestArgs(kwargs))
 
-        register_adapter(config)
+        register_adapter(config, get_context("spawn"))
         adapter = get_adapter(config)
+        adapter.set_macro_resolver(load_internal_manifest_macros(config))
+        adapter.set_macro_context_generator(providers.generate_runtime_macro_context)
+        adapter.connections.set_query_header(
+            manifest.generate_query_header_context(config, adapter.get_macro_resolver())
+        )
         adapter.cleanup_connections()
         self.adapter_type = adapter.type()
         self.adapter = adapter
@@ -349,8 +357,13 @@ class DBTIntegrationTest(unittest.TestCase):
         # get any current run adapter and clean up its connections before we
         # reset them. It'll probably be different from ours because
         # handle_and_check() calls reset_adapters().
-        register_adapter(self.config)
+        register_adapter(self.config, get_context("spawn"))
         adapter = get_adapter(self.config)
+        adapter.set_macro_resolver(load_internal_manifest_macros(self.config))
+        adapter.set_macro_context_generator(providers.generate_runtime_macro_context)
+        adapter.connections.set_query_header(
+            manifest.generate_query_header_context(self.config, adapter.get_macro_resolver())
+        )
         if adapter is not self.adapter:
             adapter.cleanup_connections()
         if not hasattr(self, "adapter"):

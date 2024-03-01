@@ -1,8 +1,9 @@
 import itertools
-from typing import ClassVar, List
+from typing import ClassVar, List, Union
 
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.contracts.graph.nodes import ModelNode
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -19,7 +20,7 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
     name: ClassVar[str] = "partition_by"
 
     @classmethod
-    def from_results(cls, results: RelationResults) -> PartitionedByConfig:
+    def from_relation_results(cls, results: RelationResults) -> PartitionedByConfig:
         table = results["describe_extended"]
         cols = []
         rows = itertools.takewhile(
@@ -33,10 +34,12 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
         return PartitionedByConfig(partition_by=cols)
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> PartitionedByConfig:
-        partition_by = model_node.config.extra.get("partition_by")
-        if isinstance(partition_by, str):
-            return PartitionedByConfig(partition_by=[partition_by])
+    def from_relation_config(cls, relation_config: RelationConfig) -> PartitionedByConfig:
+        partition_by: Union[str, List[str], None] = base.get_config_value(
+            relation_config, "partition_by"
+        )
         if not partition_by:
             return PartitionedByConfig(partition_by=[])
+        if isinstance(partition_by, str):
+            return PartitionedByConfig(partition_by=[partition_by])
         return PartitionedByConfig(partition_by=partition_by)

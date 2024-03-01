@@ -1,15 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Optional, Set, Type
-from dbt.contracts.relation import (
+from dbt.adapters.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.base.relation import BaseRelation, Policy, InformationSchema
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt.dataclass_schema import StrEnum
+from dbt_common.dataclass_schema import StrEnum
 
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.utils import filter_null_values, classproperty
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
+from dbt.adapters.utils import classproperty
+from dbt_common.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 

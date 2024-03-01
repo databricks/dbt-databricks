@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ConfigDict
-from typing import ClassVar, Dict, Generic, List, Optional, TypeVar
+from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar
 from typing_extensions import Self, Type
 
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.contracts.graph.nodes import ModelNode
+from dbt.adapters.contracts.relation import RelationConfig
 
 
 class DatabricksComponentConfig(BaseModel):
@@ -68,14 +68,14 @@ class DatabricksComponentProcessor(ABC, Generic[Component]):
 
     @classmethod
     @abstractmethod
-    def from_results(cls, row: RelationResults) -> Component:
+    def from_relation_results(cls, row: RelationResults) -> Component:
         """Extract the component from the results of a query against the existing relation."""
 
         raise NotImplementedError("Must be implemented by subclass")
 
     @classmethod
     @abstractmethod
-    def from_model_node(cls, model_node: ModelNode) -> Component:
+    def from_relation_config(cls, model_node: RelationConfig) -> Component:
         """Extract the component from the model node.
 
         While some components, e.g. query, can be extracted directly from the model node,
@@ -100,14 +100,14 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     config: Dict[str, DatabricksComponentConfig]
 
     @classmethod
-    def from_model_node(cls, model_node: ModelNode) -> Self:
+    def from_relation_config(cls, relation_config: RelationConfig) -> Self:
         """Build the relation config from a model node."""
 
         config_dict: Dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
-            model_component = component.from_model_node(model_node)
-            if model_component:
-                config_dict[component.name] = model_component
+            relation_component = component.from_relation_config(relation_config)
+            if relation_component:
+                config_dict[component.name] = relation_component
 
         return cls(config=config_dict)
 
@@ -117,7 +117,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
         config_dict: Dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
-            result_component = component.from_results(results)
+            result_component = component.from_relation_results(results)
             if result_component:
                 config_dict[component.name] = result_component
 
@@ -134,3 +134,12 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
 
 DatabricksRelationConfig = TypeVar("DatabricksRelationConfig", bound=DatabricksRelationConfigBase)
+
+
+def get_config_value(config: RelationConfig, key: str) -> Any:
+    """Get a value from the config.extra dictionary, or None if it is not present."""
+
+    materialization_config = config.config
+    if materialization_config:
+        return materialization_config.extra.get(key)
+    return None

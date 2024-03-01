@@ -1,13 +1,14 @@
-from agate import Table
+from agate import Table, Row
 from mock import Mock
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
-from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
+from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
 
-class TestStreamingTableConfig:
+class TestMaterializedViewConfig:
     def test_from_results(self):
         results = {
             "describe_extended": Table(
@@ -25,17 +26,21 @@ class TestStreamingTableConfig:
                     ["Refresh Schedule", "MANUAL", None],
                 ]
             ),
+            "information_schema.views": Row(
+                ["select * from foo", "other"], ["view_definition", "comment"]
+            ),
             "show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]]),
         }
 
-        config = StreamingTableConfig.from_results(results)
+        config = MaterializedViewConfig.from_results(results)
 
-        assert config == StreamingTableConfig(
+        assert config == MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -51,58 +56,57 @@ class TestStreamingTableConfig:
         }
         model.description = "This is the table comment"
 
-        config = StreamingTableConfig.from_relation_config(model)
+        config = MaterializedViewConfig.from_relation_config(model)
 
-        assert config == StreamingTableConfig(
+        assert config == MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
     def test_get_changeset__no_changes(self):
-        old = StreamingTableConfig(
+        old = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
-        new = StreamingTableConfig(
+        new = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
-        changeset = new.get_changeset(old)
-        assert not changeset.requires_full_refresh
-        assert changeset.changes == {
-            "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
-            "comment": CommentConfig(comment="This is the table comment"),
-            "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
-        }
+        assert new.get_changeset(old) is None
 
     def test_get_changeset__some_changes(self):
-        old = StreamingTableConfig(
+        old = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
-        new = StreamingTableConfig(
+        new = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a"]),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -111,7 +115,5 @@ class TestStreamingTableConfig:
         assert changeset.requires_full_refresh
         assert changeset.changes == {
             "partition_by": PartitionedByConfig(partition_by=["col_a"]),
-            "comment": CommentConfig(comment="This is the table comment"),
-            "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
         }
