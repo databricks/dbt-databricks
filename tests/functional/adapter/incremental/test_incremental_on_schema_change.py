@@ -20,7 +20,7 @@ class TestIncrementalOnSchemaChange(BaseIncrementalOnSchemaChange):
             "model_a.sql": fixtures._MODELS__A,
             "incremental_append_new_columns_target.sql": fixtures._MODELS__INCREMENTAL_APPEND_NEW_COLUMNS_TARGET,
             "incremental_append_new_columns.sql": fixtures._MODELS__INCREMENTAL_APPEND_NEW_COLUMNS,
-            "incremental_sync_all_columns_target.sql": fixtures._MODELS__INCREMENTAL_SYNC_ALL_COLUMNS_TARGET,
+            "incremental_sync_all_columns_target.sql": fixture_overrides._MODELS__INCREMENTAL_SYNC_ALL_COLUMNS_TARGET,
             "incremental_append_new_columns_remove_one_target.sql": fixtures._MODELS__INCREMENTAL_APPEND_NEW_COLUMNS_REMOVE_ONE_TARGET,
         }
 
