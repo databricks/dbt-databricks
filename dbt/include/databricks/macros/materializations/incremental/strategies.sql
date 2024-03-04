@@ -51,15 +51,21 @@
 {% macro get_insert_into_sql(source_relation, target_relation) %}
 
     {%- set common_columns = [] -%}
-    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") -%}
-    {%- for dest_col in adapter.get_columns_in_relation(target_relation) -%}
-      {% if dest_col.name in source_columns %}
-          {%- if common_columns.append(dest_col) -%}{%- endif -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="quoted") | list -%}
+    {{ log("source_columns: " ~ (source_columns | join(', '))) }}
+    {{ log("dest_columns: " ~ (dest_columns | join(', '))) }}
+    {%- for dest_col in dest_columns -%}
+      {%- if dest_col in source_columns %}
+        {%- do common_columns.append(dest_col) -%}
+      {%- else -%}
+        {%- do common_columns.append('NULL') -%}
       {%- endif -%}
     {%- endfor -%}
-    {%- set dest_cols_csv = common_columns | map(attribute='quoted') | join(', ') -%}
+    {%- set dest_cols_csv = dest_columns | join(', ') -%}
+    {%- set source_cols_csv = common_columns | join(', ') -%}
     insert into table {{ target_relation }} ({{ dest_cols_csv }})
-    select {{dest_cols_csv}} from {{ source_relation }}
+    select {{source_cols_csv}} from {{ source_relation }}
 
 {% endmacro %}
 
@@ -105,8 +111,8 @@
         {%- elif on_schema_change == 'ignore' %}
         *
         {%- else %}
-        {%- for column in source_columns %}
-            {{ column.name }} = DBT_INTERNAL_SOURCE.{{ column.name }}
+        {%- for column in (source_columns | map(attribute='quoted')) %}
+            {{ column }} = DBT_INTERNAL_SOURCE.{{ column }}
             {%- if not loop.last %}, {%- endif %}
         {%- endfor %}
         {% endif %}
@@ -115,7 +121,7 @@
       {%- if on_schema_change == 'ignore' %}
         *
       {%- else %}
-      ({{ source_columns | map(attribute='name') | join(", ") }}) VALUES (
+      ({{ source_columns | map(attribute='quoted') | join(", ") }}) VALUES (
       {%- for column in source_columns %}
           DBT_INTERNAL_SOURCE.{{ column.name }}
           {%- if not loop.last %}, {%- endif %}
