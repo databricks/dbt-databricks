@@ -24,6 +24,6 @@ class TestIncrementalOnSchemaChange(BaseIncrementalOnSchemaChange):
             "incremental_append_new_columns_remove_one_target.sql": fixtures._MODELS__INCREMENTAL_APPEND_NEW_COLUMNS_REMOVE_ONE_TARGET,
         }
 
-    def test_run_incremental_append_new_columns(self, project):
-        self.run_incremental_append_new_columns(project)
-        self.run_incremental_append_new_columns_remove_one(project)
+    def test_run_incremental_sync_all_columns(self, project):
+        # Anything other than additions to the target table will fail for now
+        self.run_incremental_sync_all_columns(project)

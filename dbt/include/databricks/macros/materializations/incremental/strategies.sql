@@ -67,8 +67,10 @@
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {%- set source_columns = adapter.get_columns_in_relation(source) -%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
+  {%- set on_schema_change = config.get('on_schema_change', 'ignore') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
 
   {% if unique_key %}
@@ -100,7 +102,24 @@
             {{ column_name }} = DBT_INTERNAL_SOURCE.{{ column_name }}
             {%- if not loop.last %}, {%- endif %}
         {%- endfor %}
-        {%- else %} * {% endif %}
+        {%- elif on_schema_change == 'ignore' %}
+        *
+        {%- else %}
+        {%- for column in source_columns %}
+            {{ column.name }} = DBT_INTERNAL_SOURCE.{{ column.name }}
+            {%- if not loop.last %}, {%- endif %}
+        {%- endfor %}
+        {% endif %}
 
-      when not matched then insert *
+      when not matched then insert 
+      {%- if on_schema_change == 'ignore' %}
+        *
+      {%- else %}
+      ({{ source_columns | map(attribute='name') | join(", ") }}) VALUES (
+      {%- for column in source_columns %}
+          DBT_INTERNAL_SOURCE.{{ column.name }}
+          {%- if not loop.last %}, {%- endif %}
+      {%- endfor %}
+      )
+      {%- endif %}
 {% endmacro %}
