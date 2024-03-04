@@ -53,8 +53,6 @@
     {%- set common_columns = [] -%}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="quoted") | list -%}
-    {{ log("source_columns: " ~ (source_columns | join(', '))) }}
-    {{ log("dest_columns: " ~ (dest_columns | join(', '))) }}
     {%- for dest_col in dest_columns -%}
       {%- if dest_col in source_columns %}
         {%- do common_columns.append(dest_col) -%}
