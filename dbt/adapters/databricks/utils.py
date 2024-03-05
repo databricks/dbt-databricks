@@ -2,7 +2,7 @@ import functools
 import inspect
 import re
 from typing import Any, Callable, Type, TypeVar
-
+from agate import Table, Row
 from dbt.adapters.base import BaseAdapter
 from jinja2.runtime import Undefined
 
@@ -55,9 +55,7 @@ def undefined_proof(cls: Type[A]) -> Type[A]:
             (
                 staticmethod(wrapped_function)
                 if isstatic
-                else classmethod(wrapped_function)
-                if isclass
-                else wrapped_function
+                else classmethod(wrapped_function) if isclass else wrapped_function
             ),
         )
 
@@ -77,3 +75,9 @@ def _wrap_function(func: Callable) -> Callable:
 def remove_ansi(line: str) -> str:
     ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
     return ansi_escape.sub("", line)
+
+
+def get_first_row(results: Table) -> Row:
+    if len(results.rows) == 0:
+        return Row(values=set())
+    return results.rows[0]

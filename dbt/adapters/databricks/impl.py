@@ -35,6 +35,7 @@ from dbt.adapters.capability import (
 )
 from dbt.adapters.spark.impl import (
     SparkAdapter,
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
     KEY_TABLE_OWNER,
     KEY_TABLE_STATISTICS,
