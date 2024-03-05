@@ -117,6 +117,7 @@ DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 REDIRECT_URL = "http://localhost:8020"
 CLIENT_ID = "dbt-databricks"
 SCOPES = ["all-apis", "offline_access"]
+MAX_NT_PASSWORD_SIZE = 1280
 
 # toggle for session managements that minimizes the number of sessions opened/closed
 USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
@@ -385,7 +386,7 @@ class DatabricksCredentials(Credentials):
             # optional branch. Try and keep going if it does not work
             try:
                 # try to get cached credentials
-                credsdict = keyring.get_password("dbt-databricks", host)
+                credsdict = self.get_sharded_password("dbt-databricks", host)
 
                 if credsdict:
                     provider = SessionCredentials.from_dict(oauth_client, json.loads(credsdict))
@@ -396,7 +397,7 @@ class DatabricksCredentials(Credentials):
                     except Exception as e:
                         logger.debug(e)
                         # whatever it is, get rid of the cache
-                        keyring.delete_password("dbt-databricks", host)
+                        self.delete_sharded_password("dbt-databricks", host)
 
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
@@ -410,7 +411,9 @@ class DatabricksCredentials(Credentials):
             # save for later
             self._credentials_provider = provider.as_dict()
             try:
-                keyring.set_password("dbt-databricks", host, json.dumps(self._credentials_provider))
+                self.set_sharded_password(
+                    "dbt-databricks", host, json.dumps(self._credentials_provider)
+                )
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
                 logger.debug(e)
@@ -420,6 +423,63 @@ class DatabricksCredentials(Credentials):
 
         finally:
             self._lock.release()
+
+    def set_sharded_password(self, service_name: str, username: str, password: str) -> None:
+        max_size = MAX_NT_PASSWORD_SIZE
+
+        # if not Windows or "small" password, stick to the default
+        if os.name != "nt" or len(password) < max_size:
+            keyring.set_password(service_name, username, password)
+        else:
+            logger.debug(f"password is {len(password)} characters, sharding it.")
+
+            password_shards = [
+                password[i : i + max_size] for i in range(0, len(password), max_size)
+            ]
+            shard_info = {
+                "sharded_password": True,
+                "shard_count": len(password_shards),
+            }
+
+            # store the "shard info" as the "base" password
+            keyring.set_password(service_name, username, json.dumps(shard_info))
+            # then store all shards with the shard number as postfix
+            for i, s in enumerate(password_shards):
+                keyring.set_password(service_name, f"{username}__{i}", s)
+
+    def get_sharded_password(self, service_name: str, username: str) -> Optional[str]:
+        password = keyring.get_password(service_name, username)
+
+        # check for "shard info" stored as json
+        try:
+            password_as_dict = json.loads(str(password))
+            if password_as_dict.get("sharded_password"):
+                # if password was stored shared, reconstruct it
+                shard_count = int(password_as_dict.get("shard_count"))
+
+                password = ""
+                for i in range(shard_count):
+                    password += str(keyring.get_password(service_name, f"{username}__{i}"))
+        except ValueError:
+            pass
+
+        return password
+
+    def delete_sharded_password(self, service_name: str, username: str) -> None:
+        password = keyring.get_password(service_name, username)
+
+        # check for "shard info" stored as json. If so delete all shards
+        try:
+            password_as_dict = json.loads(str(password))
+            if password_as_dict.get("sharded_password"):
+                shard_count = int(password_as_dict.get("shard_count"))
+                for i in range(shard_count):
+                    keyring.delete_password(service_name, f"{username}__{i}")
+        except ValueError:
+            pass
+
+        # delete "base" password
+        keyring.delete_password(service_name, username)
 
     def _provider_from_dict(self) -> Optional[TCredentialProvider]:
         if self.token:
