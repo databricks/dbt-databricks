@@ -62,9 +62,9 @@ WITH source_data AS (SELECT * FROM {{ ref('model_a') }} )
 {% if is_incremental() %}
 
 SELECT id,
-       cast(field1 as {{string_type}}) as field1,
-       cast(field2 as {{string_type}}) as field2, -- to validate new fields
-       cast(field4 as {{string_type}}) AS field4 -- to validate new fields
+       cast(field4 as {{string_type}}) AS field4, -- to validate new field and order change
+       cast(field2 as {{string_type}}) as field2,
+       cast(field1 as {{string_type}}) as field1  -- to validate order change
 
 FROM source_data WHERE id NOT IN (SELECT id from {{ this }} )
 
