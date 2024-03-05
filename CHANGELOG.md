@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix for U2M flow on windows (sharding long passwords) (thanks @thijs-nijhuis-shell!) ([597](https://github.com/databricks/dbt-databricks/pull/597))
+- Fix regression in incremental behavior, and align more with dbt-core expectations ([604](https://github.com/databricks/dbt-databricks/pull/604))
 
 ## dbt-databricks 1.7.8 (Feb 22, 2024)
 
