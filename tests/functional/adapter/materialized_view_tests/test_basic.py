@@ -3,6 +3,7 @@ from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 from dbt.adapters.base.relation import BaseRelation
 from dbt.tests import util
 import pytest
+from dbt.adapters.databricks.relation import DatabricksRelationType
 
 from tests.functional.adapter.materialized_view_tests import fixtures
 
