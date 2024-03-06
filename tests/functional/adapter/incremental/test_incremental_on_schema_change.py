@@ -31,6 +31,10 @@ class TestIncrementalOnSchemaChange(BaseIncrementalOnSchemaChange):
 
 class TestIncrementalOnSchemaChangeAppend(BaseIncrementalOnSchemaChange):
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+incremental_strategy": "append"}}
+
+    @pytest.fixture(scope="class")
     def models(self):
         return {
             "incremental_sync_remove_only.sql": fixtures._MODELS__INCREMENTAL_SYNC_REMOVE_ONLY,
