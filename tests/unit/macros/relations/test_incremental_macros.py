@@ -87,7 +87,7 @@ class TestGeInsertIntoSQL(MacroTestBase):
 
     def test_insert_into_sql_impl__target_has_extra_columns(self, template):
         sql = self.render_insert_into(template, dest_columns=["a", "b"], source_columns=["b"])
-        expected = "insert into table target (a, b)\nselect NULL, b from source"
+        expected = "insert into table target (a, b)\nselect DEFAULT, b from source"
         assert sql == expected
 
     def test_insert_into_sql_impl__source_has_extra_columns(self, template):
