@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.10 (TBD)
+
+### Fixes
+
+- Fix a corner case for insert into where NULL should be DEFAULT ([607](https://github.com/databricks/dbt-databricks/pull/607))
+
 ## dbt-databricks 1.7.9 (Mar 5, 2024)
 
 ### Fixes
