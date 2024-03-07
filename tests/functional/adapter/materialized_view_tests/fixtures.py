@@ -6,9 +6,10 @@ from dbt.adapters.databricks.relation import DatabricksRelationType
 
 def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
     table_type = project.run_sql(
-        f"select table_type from {relation.information_schema_only()}."
-        f"`tables` where table_schema = '{relation.schema}'"
-        f" and table_name = '{relation.identifier}'",
+        f"select table_type from system.information_schema.tables "
+        f"where table_catalog = '{relation.database}' "
+        f"and table_schema = '{relation.schema}' "
+        f"and table_name = '{relation.identifier}'",
         fetch="one",
     )[0]
     if table_type == "STREAMING_TABLE":
