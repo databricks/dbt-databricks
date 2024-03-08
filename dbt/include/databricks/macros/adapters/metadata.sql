@@ -73,7 +73,7 @@
 
 {% macro get_view_description(relation) %}
   {% call statement('get_view_description', fetch_result=True) -%}
-    select view_definition 
+    select * 
     from {{ relation.information_schema() }}.`views` 
     where table_schema = '{{ relation.schema }}' 
       and table_name = '{{ relation.identifier }}'
@@ -84,7 +84,7 @@
 
 {% macro get_view_description_alt(relation) %}
   {% call statement('get_view_description_alt', fetch_result=True) -%}
-    select view_definition
+    select *
     from `system`.`information_schema`.`views`
     where table_catalog = '{{ relation.database }}'
       and table_schema = '{{ relation.schema }}'
