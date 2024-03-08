@@ -57,10 +57,11 @@
                table_name as identifier,
                last_altered as last_modified,
                {{ current_timestamp() }} as snapshotted_at
-        from {{ information_schema }}.tables
+        from `system`.`information_schema`.`tables`
         where (
           {%- for relation in relations -%}
-            (table_schema = '{{ relation.schema }}' and
+            (table_catalog = '{{ relation.database }}' and
+             table_schema = '{{ relation.schema }}' and
              table_name = '{{ relation.identifier }}'){%- if not loop.last %} or {% endif -%}
           {%- endfor -%}
         )
@@ -73,6 +74,17 @@
 
 {% macro get_view_description(relation) %}
   {% call statement('get_view_description', fetch_result=True) -%}
+    select view_definition 
+    from {{ relation.information_schema() }}.`views` 
+    where table_schema = '{{ relation.schema }}' 
+      and table_name = '{{ relation.identifier }}'
+  {% endcall %}
+
+  {% do return(load_result('get_view_description').table) %}
+{% endmacro %}
+
+{% macro get_view_description_alt(relation) %}
+  {% call statement('get_view_description_alt', fetch_result=True) -%}
     select view_definition
     from `system`.`information_schema`.`views`
     where table_catalog = '{{ relation.database }}'
@@ -80,5 +92,5 @@
       and table_name = '{{ relation.identifier }}'
   {% endcall %}
 
-  {% do return(load_result('get_view_description').table) %}
+  {% do return(load_result('get_view_description_alt').table) %}
 {% endmacro %}
