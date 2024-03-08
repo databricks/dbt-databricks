@@ -5,10 +5,6 @@
   {%- set comment = materialized_view.config["comment"].comment -%}
   {%- set refresh = materialized_view.config["refresh"] -%}
   create materialized view {{ relation }}
-    {{ get_create_sql_partition_by(partition_by) }}
-    {{ get_create_sql_comment(comment) }}
-    {{ get_create_sql_tblproperties(tblproperties) }}
-    {{ get_create_sql_refresh_schedule(refresh.cron, refresh.time_zone_value) }}
   as
     {{ sql }}
 {% endmacro %}

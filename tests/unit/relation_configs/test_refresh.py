@@ -28,12 +28,12 @@ class TestRefreshProcessor:
                 rows=rows + [["Refresh Schedule", "CRON '*/5 * * * *' AT TIME ZONE 'UTC'"]]
             )
         }
-        spec = RefreshProcessor.from_results(results)
+        spec = RefreshProcessor.from_relation_results(results)
         assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
 
     def test_from_results__manual(self, rows):
         results = {"describe_extended": Table(rows=rows + [["Refresh Schedule", "MANUAL"]])}
-        spec = RefreshProcessor.from_results(results)
+        spec = RefreshProcessor.from_relation_results(results)
         assert spec == RefreshConfig()
 
     def test_from_results__invalid(self, rows):
@@ -44,12 +44,12 @@ class TestRefreshProcessor:
             DbtRuntimeError,
             match="Could not parse schedule from description: invalid description",
         ):
-            RefreshProcessor.from_results(results)
+            RefreshProcessor.from_relation_results(results)
 
     def test_from_model_node__without_schedule(self):
         model = Mock()
         model.config.extra = {}
-        spec = RefreshProcessor.from_model_node(model)
+        spec = RefreshProcessor.from_relation_config(model)
         assert spec == RefreshConfig()
 
     def test_from_model_node__without_cron(self):
@@ -59,18 +59,18 @@ class TestRefreshProcessor:
             DbtRuntimeError,
             match="Schedule config must contain a 'cron' key, got {'time_zone_value': 'UTC'}",
         ):
-            RefreshProcessor.from_model_node(model)
+            RefreshProcessor.from_relation_config(model)
 
     def test_from_model_node__without_timezone(self):
         model = Mock()
         model.config.extra = {"schedule": {"cron": "*/5 * * * *"}}
-        spec = RefreshProcessor.from_model_node(model)
+        spec = RefreshProcessor.from_relation_config(model)
         assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value=None)
 
     def test_process_model_node__both(self):
         model = Mock()
         model.config.extra = {"schedule": {"cron": "*/5 * * * *", "time_zone_value": "UTC"}}
-        spec = RefreshProcessor.from_model_node(model)
+        spec = RefreshProcessor.from_relation_config(model)
         assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
 
 

@@ -1,10 +1,10 @@
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
-
+from multiprocessing import get_context
 from agate import Row
 import dbt.flags as flags
-import dbt.exceptions
+import dbt.adapters.exceptions
 from dbt.config import RuntimeConfig
 
 from dbt.adapters.databricks import __version__
@@ -114,14 +114,14 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             "Invalid invocation environment",
         ):
             config = self._get_config()
-            adapter = DatabricksAdapter(config)
+            adapter = DatabricksAdapter(config, get_context("spawn"))
             with mock.patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
     def test_custom_user_agent(self):
         config = self._get_config()
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -184,7 +184,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         else:
             config = self._get_config()
 
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -201,7 +201,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
     def test_oauth_settings(self):
         config = self._get_config(token=None)
 
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -214,7 +214,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
     def test_client_creds_settings(self):
         config = self._get_config(client_id="foo", client_secret="bar")
 
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
@@ -275,7 +275,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
     def _test_databricks_sql_connector_connection(self, connect):
         config = self._get_config()
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
@@ -302,7 +302,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
     def _test_databricks_sql_connector_catalog_connection(self, connect):
         config = self._get_config()
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
@@ -329,7 +329,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
     def _test_databricks_sql_connector_http_header_connection(self, http_headers, connect):
         config = self._get_config(connection_parameters={"http_headers": http_headers})
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
@@ -392,7 +392,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertDictEqual(
             metadata,
@@ -511,7 +513,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        _, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        _, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertEqual(rows[0].to_column_dict().get("table_owner"), "1234")
 
@@ -548,7 +552,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        metadata, rows = DatabricksAdapter(config).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertEqual(
             metadata,
@@ -601,7 +607,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
     def test_relation_with_database(self):
         config = self._get_config()
-        adapter = DatabricksAdapter(config)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
         r1 = adapter.Relation.create(schema="different", identifier="table")
         assert r1.database is None
         r2 = adapter.Relation.create(database="something", schema="different", identifier="table")
@@ -640,7 +646,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[0].to_column_dict(omit_none=False),
@@ -729,7 +737,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[1].to_column_dict(omit_none=False),
@@ -799,7 +809,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(config).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[2].to_column_dict(omit_none=False),
@@ -942,7 +954,7 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
     @pytest.fixture(scope="class")
     def adapter(self) -> DatabricksAdapter:
         self.setUp()
-        return DatabricksAdapter(self._get_config())
+        return DatabricksAdapter(self._get_config(), get_context("spawn"))
 
     def create_column(self, name, comment) -> DatabricksColumn:
         return DatabricksColumn(

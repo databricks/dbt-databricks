@@ -49,26 +49,34 @@
 {% endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="quoted") | list -%}
+    {{ insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) }}
+{% endmacro %}
 
+{% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
     {%- set common_columns = [] -%}
-    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") -%}
-    {%- for dest_col in adapter.get_columns_in_relation(target_relation) -%}
-      {% if dest_col.name in source_columns %}
-          {%- if common_columns.append(dest_col) -%}{%- endif -%}
+    {%- for dest_col in dest_columns -%}
+      {%- if dest_col in source_columns -%}
+        {%- do common_columns.append(dest_col) -%}
+      {%- else -%}
+        {%- do common_columns.append('NULL') -%}
       {%- endif -%}
     {%- endfor -%}
-    {%- set dest_cols_csv = common_columns | map(attribute='quoted') | join(', ') -%}
-    insert into table {{ target_relation }} ({{ dest_cols_csv }})
-    select {{dest_cols_csv}} from {{ source_relation }}
-
-{% endmacro %}
+    {%- set dest_cols_csv = dest_columns | join(', ') -%}
+    {%- set source_cols_csv = common_columns | join(', ') -%}
+insert into table {{ target_relation }} ({{ dest_cols_csv }})
+select {{source_cols_csv}} from {{ source_relation }}
+{%- endmacro %}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='quoted') | list)-%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
+  {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
 
   {% if unique_key %}
@@ -94,13 +102,31 @@
   merge into {{ target }} as DBT_INTERNAL_DEST
       using {{ source }} as DBT_INTERNAL_SOURCE
       on {{ predicates | join(' and ') }}
+      when matched then update set {{ get_merge_update_set(update_columns, on_schema_change, source_columns) }}
+      when not matched then insert {{ get_merge_insert(on_schema_change, source_columns) }}
+{% endmacro %}
 
-      when matched then update set
-        {% if update_columns -%}{%- for column_name in update_columns %}
-            {{ column_name }} = DBT_INTERNAL_SOURCE.{{ column_name }}
-            {%- if not loop.last %}, {%- endif %}
-        {%- endfor %}
-        {%- else %} * {% endif %}
+{% macro get_merge_update_set(update_columns, on_schema_change, source_columns) %}
+  {%- if update_columns -%}
+    {%- for column_name in update_columns -%}
+      {{ column_name }} = DBT_INTERNAL_SOURCE.{{ column_name }}{%- if not loop.last %}, {% endif -%}
+    {%- endfor %}
+  {%- elif on_schema_change == 'ignore' -%}
+    *
+  {%- else -%}
+    {%- for column in source_columns -%}
+      {{ column }} = DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+    {%- endfor %}
+  {%- endif -%}
+{% endmacro %}
 
-      when not matched then insert *
+{% macro get_merge_insert(on_schema_change, source_columns) %}
+  {%- if on_schema_change == 'ignore' -%}
+    *
+  {%- else -%}
+    ({{ source_columns | join(", ") }}) VALUES (
+    {%- for column in source_columns -%}
+      DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+    {%- endfor %})
+  {%- endif -%}
 {% endmacro %}

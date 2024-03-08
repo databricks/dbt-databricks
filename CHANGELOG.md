@@ -8,6 +8,15 @@
 ### Under the Hood
 
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
+- Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
+
+## dbt-databricks 1.7.9 (Mar 5, 2024)
+
+### Fixes
+
+- Fix for U2M flow on windows (sharding long passwords) (thanks @thijs-nijhuis-shell!) ([597](https://github.com/databricks/dbt-databricks/pull/597))
+- Fix regression in incremental behavior, and align more with dbt-core expectations ([604](https://github.com/databricks/dbt-databricks/pull/604))
+- Don't fail for unknown types when listing schema ([600](https://github.com/databricks/dbt-databricks/pull/600))
 
 ## dbt-databricks 1.7.8 (Feb 22, 2024)
 

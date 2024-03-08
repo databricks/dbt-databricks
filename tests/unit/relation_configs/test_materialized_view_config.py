@@ -56,7 +56,7 @@ class TestMaterializedViewConfig:
         }
         model.description = "This is the table comment"
 
-        config = MaterializedViewConfig.from_model_node(model)
+        config = MaterializedViewConfig.from_relation_config(model)
 
         assert config == MaterializedViewConfig(
             config={

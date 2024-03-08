@@ -2,10 +2,9 @@ import functools
 import inspect
 import re
 from typing import Any, Callable, Type, TypeVar
-
+from agate import Table, Row
 from dbt.adapters.base import BaseAdapter
 from jinja2.runtime import Undefined
-from agate import Table, Row
 
 
 A = TypeVar("A", bound=BaseAdapter)

@@ -12,23 +12,23 @@ from dbt.exceptions import DbtRuntimeError
 class TestTblPropertiesProcessor:
     def test_from_results__none(self):
         results = {"show_tblproperties": None}
-        spec = TblPropertiesProcessor.from_results(results)
+        spec = TblPropertiesProcessor.from_relation_results(results)
         assert spec == TblPropertiesConfig(tblproperties={})
 
     def test_from_results__single(self):
         results = {"show_tblproperties": Table(rows=[["prop", "f1"]])}
-        spec = TblPropertiesProcessor.from_results(results)
+        spec = TblPropertiesProcessor.from_relation_results(results)
         assert spec == TblPropertiesConfig(tblproperties={"prop": "f1"})
 
     def test_from_results__multiple(self):
         results = {"show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]])}
-        spec = TblPropertiesProcessor.from_results(results)
+        spec = TblPropertiesProcessor.from_relation_results(results)
         assert spec == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
 
     def test_from_model_node__without_tblproperties(self):
         model = Mock()
         model.config.extra = {}
-        spec = TblPropertiesProcessor.from_model_node(model)
+        spec = TblPropertiesProcessor.from_relation_config(model)
         assert spec == TblPropertiesConfig(tblproperties={})
 
     def test_from_model_node__with_tblpropoerties(self):
@@ -36,13 +36,13 @@ class TestTblPropertiesProcessor:
         model.config.extra = {
             "tblproperties": {"prop": 1},
         }
-        spec = TblPropertiesProcessor.from_model_node(model)
+        spec = TblPropertiesProcessor.from_relation_config(model)
         assert spec == TblPropertiesConfig(tblproperties={"prop": "1"})
 
     def test_from_model_node__with_empty_tblproperties(self):
         model = Mock()
         model.config.extra = {"tblproperties": {}}
-        spec = TblPropertiesProcessor.from_model_node(model)
+        spec = TblPropertiesProcessor.from_relation_config(model)
         assert spec == TblPropertiesConfig(tblproperties={})
 
     def test_from_model_node__with_incorrect_tblproperties(self):
@@ -52,4 +52,4 @@ class TestTblPropertiesProcessor:
             DbtRuntimeError,
             match="tblproperties must be a dictionary",
         ):
-            _ = TblPropertiesProcessor.from_model_node(model)
+            _ = TblPropertiesProcessor.from_relation_config(model)

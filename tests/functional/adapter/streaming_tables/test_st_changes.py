@@ -3,7 +3,8 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.tests.adapter.materialized_view.files import (
     MY_SEED,
 )
-from dbt.contracts.graph.model_config import OnConfigurationChangeOption
+
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 from dbt.tests import util
 
 import pytest

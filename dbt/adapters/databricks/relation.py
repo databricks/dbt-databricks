@@ -1,15 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Optional, Set, Type
-from dbt.contracts.relation import (
+from dbt.adapters.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.base.relation import BaseRelation, Policy, InformationSchema
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt.dataclass_schema import StrEnum
+from dbt_common.dataclass_schema import StrEnum
 
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.utils import filter_null_values, classproperty
-from dbt.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
+from dbt.adapters.utils import classproperty
+from dbt_common.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -35,6 +36,7 @@ class DatabricksRelationType(StrEnum):
     MaterializedView = "materialized_view"
     External = "external"
     StreamingTable = "streaming_table"
+    Unknown = "unknown"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -64,22 +66,6 @@ class DatabricksRelation(BaseRelation):
         else:
             data["path"]["database"] = remove_undefined(data["path"]["database"])
         return data
-
-    renameable_relations = frozenset(
-        {
-            DatabricksRelationType.View,
-            DatabricksRelationType.Table,
-        }
-    )
-
-    # list relations that can be atomically replaced (e.g. `CREATE OR REPLACE my_relation..`
-    # versus `DROP` and `CREATE`)
-    replaceable_relations = frozenset(
-        {
-            DatabricksRelationType.View,
-            DatabricksRelationType.Table,
-        }
-    )
 
     def has_information(self) -> bool:
         return self.metadata is not None

@@ -18,7 +18,7 @@ class TestCommentProcessor:
                 ]
             )
         }
-        config = CommentProcessor.from_results(results)
+        config = CommentProcessor.from_relation_results(results)
         assert config == CommentConfig()
 
     def test_from_results__with_comment(self):
@@ -36,23 +36,23 @@ class TestCommentProcessor:
                 ]
             )
         }
-        config = CommentProcessor.from_results(results)
+        config = CommentProcessor.from_relation_results(results)
         assert config == CommentConfig(comment="This is the table comment")
 
     def test_from_model_node__no_comment(self):
         model_node = Mock()
         model_node.description = None
-        config = CommentProcessor.from_model_node(model_node)
+        config = CommentProcessor.from_relation_config(model_node)
         assert config == CommentConfig()
 
     def test_from_model_node__empty_comment(self):
         model_node = Mock()
         model_node.description = ""
-        config = CommentProcessor.from_model_node(model_node)
+        config = CommentProcessor.from_relation_config(model_node)
         assert config == CommentConfig(comment="")
 
     def test_from_model_node__comment(self):
         model_node = Mock()
         model_node.description = "a comment"
-        config = CommentProcessor.from_model_node(model_node)
+        config = CommentProcessor.from_relation_config(model_node)
         assert config == CommentConfig(comment="a comment")
