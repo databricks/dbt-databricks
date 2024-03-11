@@ -1,3 +1,9 @@
+## dbt-databricks 1.6.9 (March 11, 2023)
+
+### Fixes
+
+- Pin databricks-sdk to < 0.18.0
+
 ## dbt-databricks 1.6.8 (December 14, 2023)
 
 ### Fixes
