@@ -818,11 +818,16 @@ class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
         )
 
         kwargs = {"relation": relation}
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
+        results["information_schema.views"] = cls._get_information_schema_views(adapter, kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
+
+    @staticmethod
+    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> Row:
+        row = get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
+        if "view_definition" in row.keys() and row["view_definition"] is not None:
+            return row
+        return get_first_row(adapter.execute_macro("get_view_description_alt", kwargs=kwargs))
 
 
 class StreamingTableAPI(RelationAPIBase[StreamingTableConfig]):
