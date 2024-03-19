@@ -123,7 +123,7 @@ class DatabricksAdapter(SparkAdapter):
     _capabilities = CapabilityDict(
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.NotImplemented),
         }
     )
 
