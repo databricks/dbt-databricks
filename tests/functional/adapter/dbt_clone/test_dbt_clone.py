@@ -4,7 +4,7 @@ from dbt.tests import util
 import pytest
 
 
-class TestClonePossible(BaseClonePossible):
+class CleanupMixin:
     @pytest.fixture(autouse=True)
     def clean_up(self, project):
         yield
@@ -20,7 +20,11 @@ class TestClonePossible(BaseClonePossible):
             project.adapter.drop_schema(relation)
 
 
-class TestCloneSameTargetAndState(BaseClone):
+class TestClonePossible(BaseClonePossible, CleanupMixin):
+    pass
+
+
+class TestCloneSameTargetAndState(BaseClone, CleanupMixin):
     def test_clone_same_target_and_state(self, project, other_schema):
         project.create_test_schema(other_schema)
         self.run_and_save_state(project.project_root)

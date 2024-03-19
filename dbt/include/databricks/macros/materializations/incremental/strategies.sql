@@ -60,7 +60,7 @@
       {%- if dest_col in source_columns -%}
         {%- do common_columns.append(dest_col) -%}
       {%- else -%}
-        {%- do common_columns.append('NULL') -%}
+        {%- do common_columns.append('DEFAULT') -%}
       {%- endif -%}
     {%- endfor -%}
     {%- set dest_cols_csv = dest_columns | join(', ') -%}

@@ -1,3 +1,12 @@
+## dbt-databricks 1.7.10 (Mar 19, 2024)
+
+### Fixes
+
+- Fix a corner case for insert into where NULL should be DEFAULT ([607](https://github.com/databricks/dbt-databricks/pull/607))
+- Fixed integration tests that were leaving behind schemas after running ([613](https://github.com/databricks/dbt-databricks/pull/613))
+- Fix performance issue associated with persist docs by turning off incremental catalog generation (thanks @mikealfare!) ([615](https://github.com/databricks/dbt-databricks/pull/615))
+- Pin protobuf to < 5 to stop incompatibility breaks ([616](https://github.com/databricks/dbt-databricks/pull/616))
+
 ## dbt-databricks 1.7.9 (Mar 5, 2024)
 
 ### Fixes
