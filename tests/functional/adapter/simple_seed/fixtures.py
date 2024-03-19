@@ -1,8 +1,3 @@
-from dbt.tests.adapter.simple_seed.test_seed import SeedUniqueDelimiterTestBase, BaseTestEmptySeed
-from dbt.tests.util import run_dbt
-import pytest
-
-
 seeds__expected_table_sql = """
 create table {schema}.seed_expected (
 seed_id INTEGER,
@@ -516,48 +511,3 @@ INSERT INTO {schema}.seed_expected
         (499,NULL,'ethomasdu@hhs.gov','6.241.88.250','2007-09-14 13:03:34'),
         (500,'Paula','pshawdv@networksolutions.com','123.27.47.249','2003-10-30 21:19:20')
 """
-
-
-class DatabricksSeedUniqueDelimiterTestBase(SeedUniqueDelimiterTestBase):
-    @pytest.fixture(scope="class", autouse=True)
-    def setUp(self, project):
-        """Create table for ensuring seeds and models used in tests build correctly"""
-        project.run_sql(seeds__expected_table_sql)
-        project.run_sql(seeds__expected_insert_sql)
-
-
-class TestDatabricksSeedWithUniqueDelimiter(DatabricksSeedUniqueDelimiterTestBase):
-    def test_seed_with_unique_delimiter(self, project):
-        """Testing correct run of seeds with a unique delimiter (pipe in this case)"""
-        self._build_relations_for_test(project)
-        self._check_relation_end_state(run_result=run_dbt(["seed"]), project=project, exists=True)
-
-
-class TestDatabricksSeedWithWrongDelimiter(DatabricksSeedUniqueDelimiterTestBase):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "seeds": {"quote_columns": False, "delimiter": ";"},
-        }
-
-    def test_seed_with_wrong_delimiter(self, project):
-        """Testing failure of running dbt seed with a wrongly configured delimiter"""
-        seed_result = run_dbt(["seed"], expect_pass=False)
-        assert "syntax error" in seed_result.results[0].message.lower()
-
-
-class TestDatabricksSeedWithEmptyDelimiter(DatabricksSeedUniqueDelimiterTestBase):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "seeds": {"quote_columns": False, "delimiter": ""},
-        }
-
-    def test_seed_with_empty_delimiter(self, project):
-        """Testing failure of running dbt seed with an empty configured delimiter value"""
-        seed_result = run_dbt(["seed"], expect_pass=False)
-        assert "compilation error" in seed_result.results[0].message.lower()
-
-
-class TestDatabricksEmptySeed(BaseTestEmptySeed):
-    pass
