@@ -59,6 +59,7 @@ setup(
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
         "pandas<2.2.0",
+        "protobuf<5.0.0",
     ],
     zip_safe=False,
     classifiers=[
