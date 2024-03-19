@@ -58,7 +58,8 @@ setup(
         "databricks-sql-connector>=2.9.3, <3.0.0",
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
-        "pandas<2.2.0",
+        "pandas==2.2.1",
+        "protobuf<5.0.0",
     ],
     zip_safe=False,
     classifiers=[
