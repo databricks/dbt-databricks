@@ -634,13 +634,11 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
-        comments = self._get_column_comments(relation)
         for column in columns:
             # convert DatabricksRelation into catalog dicts
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
-            as_dict["column_comment"] = comments[as_dict["column_name"]]
             yield as_dict
 
     def add_query(
