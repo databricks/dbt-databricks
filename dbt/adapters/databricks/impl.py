@@ -2,7 +2,6 @@ from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-from itertools import chain
 import os
 import re
 from typing import (
@@ -430,7 +429,6 @@ class DatabricksAdapter(SparkAdapter):
                 table_type=relation.type,
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
-                table_comment=metadata.get("Comment"),
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
@@ -442,7 +440,19 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        return self._get_updated_relation(relation)[1]
+        columns = self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+        return [
+            DatabricksColumn(
+                table_database=relation.database,
+                table_schema=relation.schema,
+                table_name=relation.name,
+                table_type=relation.type,
+                column=column["col_name"],
+                dtype=column["data_type"],
+                comment=column["comment"],
+            )
+            for column in columns
+        ]
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
@@ -487,18 +497,11 @@ class DatabricksAdapter(SparkAdapter):
 
         return self._get_updated_relation(relation)[0]
 
-    def _get_column_comments(self, relation: DatabricksRelation) -> Dict[str, str]:
-        """Get the column comments for the relation."""
-        columns = self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
-        return {row[0]: row[2] for row in columns}
-
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
     ) -> List[DatabricksColumn]:
         owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
         owner = owner_match[0] if owner_match else None
-        comment_match = re.findall(self.INFORMATION_COMMENT_REGEX, information)
-        table_comment = comment_match[0] if comment_match else None
         matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
         columns = []
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
@@ -512,7 +515,6 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.table,
                 table_type=relation.type,
-                table_comment=table_comment,
                 column_index=match_num,
                 table_owner=owner,
                 column=column_name,
@@ -524,7 +526,6 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(manifest)
-        hive_column_lookup = self._build_hive_column_lookup(manifest)
 
         with executor(self.config) as tpe:
             futures: List[Future[Table]] = []
@@ -533,12 +534,7 @@ class DatabricksAdapter(SparkAdapter):
                     for schema in schemas:
                         futures.append(
                             tpe.submit_connected(
-                                self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                "*",
-                                hive_column_lookup,
+                                self, "hive_metastore", self._get_hive_catalog, schema, "*"
                             )
                         )
                 else:
@@ -573,20 +569,11 @@ class DatabricksAdapter(SparkAdapter):
         results = self._catalog_filter_table(table, manifest)  # type: ignore[arg-type]
         return results
 
-    def _build_hive_column_lookup(self, manifest: Manifest) -> Dict[str, Dict[str, str]]:
-        lookup = {}
-        for node in chain(manifest.nodes.values(), manifest.sources.values()):
-            if node.database == "hive_metastore":
-                key = f"`{node.database}`.`{node.schema}`.`{node.identifier}`"
-                lookup[key] = {name: details.description for name, details in node.columns.items()}
-        return lookup
-
     def get_catalog_by_relations(
         self, manifest: Manifest, relations: Set[BaseRelation]
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
             relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
-            hive_column_lookup = self._build_hive_column_lookup(manifest)
             futures: List[Future[Table]] = []
 
             for info_schema, catalog_relations in relations_by_catalog.items():
@@ -604,7 +591,6 @@ class DatabricksAdapter(SparkAdapter):
                                 self._get_hive_catalog,
                                 schema,
                                 get_identifier_list_string(table_names),
-                                hive_column_lookup,
                             )
                         )
                 else:
@@ -622,9 +608,7 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_hive_catalog(
-        self, schema: str, identifier: str, hive_column_lookup: Dict[str, Dict[str, str]]
-    ) -> Table:
+    def _get_hive_catalog(self, schema: str, identifier: str) -> Table:
         columns: List[Dict[str, Any]] = []
 
         if identifier:
@@ -636,15 +620,11 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 logger.debug("Getting table schema for relation {}", str(relation))
-                columns.extend(
-                    self._get_columns_for_catalog(
-                        relation, information, hive_column_lookup.get(str(relation), {})
-                    )
-                )
+                columns.extend(self._get_columns_for_catalog(relation, information))
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
     def _get_columns_for_catalog(  # type: ignore[override]
-        self, relation: DatabricksRelation, information: str, column_descriptions: Dict[str, str]
+        self, relation: DatabricksRelation, information: str
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
@@ -653,7 +633,6 @@ class DatabricksAdapter(SparkAdapter):
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
-            as_dict["column_comment"] = column_descriptions.get(column.name, "")
             yield as_dict
 
     def add_query(
