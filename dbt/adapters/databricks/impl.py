@@ -2,6 +2,7 @@ from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import chain
 import os
 import re
 from typing import (
@@ -523,6 +524,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_catalog(self, manifest: Manifest) -> Tuple[Table, List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(manifest)
+        hive_column_lookup = self._build_hive_column_lookup(manifest)
 
         with executor(self.config) as tpe:
             futures: List[Future[Table]] = []
@@ -536,6 +538,7 @@ class DatabricksAdapter(SparkAdapter):
                                 self._get_hive_catalog,
                                 schema,
                                 "*",
+                                hive_column_lookup,
                             )
                         )
                 else:
@@ -570,12 +573,20 @@ class DatabricksAdapter(SparkAdapter):
         results = self._catalog_filter_table(table, manifest)  # type: ignore[arg-type]
         return results
 
+    def _build_hive_column_lookup(self, manifest: Manifest) -> Dict[str, Dict[str, str]]:
+        lookup = {}
+        for node in chain(manifest.nodes.values(), manifest.sources.values()):
+            if node.database == "hive_metastore":
+                key = f"`{node.database}`.`{node.schema}`.`{node.identifier}`"
+                lookup[key] = {name: details.description for name, details in node.columns.items()}
+        return lookup
+
     def get_catalog_by_relations(
         self, manifest: Manifest, relations: Set[BaseRelation]
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
             relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
-
+            hive_column_lookup = self._build_hive_column_lookup(manifest)
             futures: List[Future[Table]] = []
 
             for info_schema, catalog_relations in relations_by_catalog.items():
@@ -593,6 +604,7 @@ class DatabricksAdapter(SparkAdapter):
                                 self._get_hive_catalog,
                                 schema,
                                 get_identifier_list_string(table_names),
+                                hive_column_lookup,
                             )
                         )
                 else:
@@ -611,9 +623,7 @@ class DatabricksAdapter(SparkAdapter):
         return catalogs, exceptions
 
     def _get_hive_catalog(
-        self,
-        schema: str,
-        identifier: str,
+        self, schema: str, identifier: str, hive_column_lookup: Dict[str, Dict[str, str]]
     ) -> Table:
         columns: List[Dict[str, Any]] = []
 
@@ -626,11 +636,15 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 logger.debug("Getting table schema for relation {}", str(relation))
-                columns.extend(self._get_columns_for_catalog(relation, information))
+                columns.extend(
+                    self._get_columns_for_catalog(
+                        relation, information, hive_column_lookup.get(str(relation), {})
+                    )
+                )
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
     def _get_columns_for_catalog(  # type: ignore[override]
-        self, relation: DatabricksRelation, information: str
+        self, relation: DatabricksRelation, information: str, column_descriptions: Dict[str, str]
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
@@ -639,6 +653,7 @@ class DatabricksAdapter(SparkAdapter):
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
+            as_dict["column_comment"] = column_descriptions.get(column.name, "")
             yield as_dict
 
     def add_query(
