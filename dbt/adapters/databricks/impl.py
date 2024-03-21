@@ -2,6 +2,7 @@ from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
+import itertools
 import os
 import re
 from typing import (
@@ -440,7 +441,10 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        columns = self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+        columns = itertools.takewhile(
+            lambda row: row[0] != "# Partition Information",
+            self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}),
+        )
         return [
             DatabricksColumn(
                 table_database=relation.database,
