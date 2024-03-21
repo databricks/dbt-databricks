@@ -430,6 +430,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_type=relation.type,
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
+                table_comment=metadata.get("Comment"),
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
@@ -441,22 +442,7 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        columns = itertools.takewhile(
-            lambda row: row[0] != "# Partition Information",
-            self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}),
-        )
-        return [
-            DatabricksColumn(
-                table_database=relation.database,
-                table_schema=relation.schema,
-                table_name=relation.name,
-                table_type=relation.type,
-                column=column["col_name"],
-                dtype=column["data_type"],
-                comment=column["comment"],
-            )
-            for column in columns
-        ]
+        return self._get_updated_relation(relation)[1]
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
