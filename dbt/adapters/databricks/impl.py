@@ -486,11 +486,6 @@ class DatabricksAdapter(SparkAdapter):
 
         return self._get_updated_relation(relation)[0]
 
-    def _get_column_comments(self, relation: DatabricksRelation) -> Dict[str, str]:
-        """Get the column comments for the relation."""
-        columns = self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
-        return {row[0]: row[2] for row in columns}
-
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
     ) -> List[DatabricksColumn]:
@@ -531,11 +526,7 @@ class DatabricksAdapter(SparkAdapter):
                     for schema in schemas:
                         futures.append(
                             tpe.submit_connected(
-                                self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                "*",
+                                self, "hive_metastore", self._get_hive_catalog, schema, "*"
                             )
                         )
                 else:
@@ -575,7 +566,6 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
             relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
-
             futures: List[Future[Table]] = []
 
             for info_schema, catalog_relations in relations_by_catalog.items():
@@ -610,11 +600,7 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_hive_catalog(
-        self,
-        schema: str,
-        identifier: str,
-    ) -> Table:
+    def _get_hive_catalog(self, schema: str, identifier: str) -> Table:
         columns: List[Dict[str, Any]] = []
 
         if identifier:
@@ -634,13 +620,11 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Iterable[Dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
-        comments = self._get_column_comments(relation)
         for column in columns:
             # convert DatabricksRelation into catalog dicts
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
-            as_dict["column_comment"] = comments[as_dict["column_name"]]
             yield as_dict
 
     def add_query(
