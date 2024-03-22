@@ -10,6 +10,21 @@
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 
+## dbt-databricks 1.7.11 (TBD)
+
+### Fixes
+
+- For HMS, ref all doc comments from dbt project due to poor performance retrieving them from Databricks ([618](https://github.com/databricks/dbt-databricks/pull/618))
+
+## dbt-databricks 1.7.10 (Mar 19, 2024)
+
+### Fixes
+
+- Fix a corner case for insert into where NULL should be DEFAULT ([607](https://github.com/databricks/dbt-databricks/pull/607))
+- Fixed integration tests that were leaving behind schemas after running ([613](https://github.com/databricks/dbt-databricks/pull/613))
+- Fix performance issue associated with persist docs by turning off incremental catalog generation (thanks @mikealfare!) ([615](https://github.com/databricks/dbt-databricks/pull/615))
+- Pin protobuf to < 5 to stop incompatibility breaks ([616](https://github.com/databricks/dbt-databricks/pull/616))
+
 ## dbt-databricks 1.7.9 (Mar 5, 2024)
 
 ### Fixes

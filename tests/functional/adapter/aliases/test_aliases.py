@@ -29,12 +29,45 @@ class TestDatabricksAliasErrors(BaseAliasErrors):
 
 
 class TestDatabricksSameAliasDifferentSchemas(BaseSameAliasDifferentSchemas):
+    @pytest.fixture(autouse=True)
+    def clean_up(self, project):
+        yield
+        with project.adapter.connection_named("__test"):
+            relation = project.adapter.Relation.create(
+                database=project.database, schema=f"{project.test_schema}_schema_a"
+            )
+            project.adapter.drop_schema(relation)
+
+            relation = project.adapter.Relation.create(
+                database=project.database, schema=f"{project.test_schema}_schema_b"
+            )
+            project.adapter.drop_schema(relation)
+
+            relation = project.adapter.Relation.create(
+                database=project.database, schema=project.test_schema
+            )
+            project.adapter.drop_schema(relation)
+
     @pytest.fixture(scope="class")
     def macros(self):
         return macro_override
 
 
 class TestDatabricksSameAliasDifferentDatabases(BaseSameAliasDifferentDatabases):
+    @pytest.fixture(autouse=True)
+    def clean_up(self, project):
+        yield
+        with project.adapter.connection_named("__test"):
+            relation = project.adapter.Relation.create(
+                database=project.database, schema=f"{project.test_schema}_{project.test_schema}_alt"
+            )
+            project.adapter.drop_schema(relation)
+
+            relation = project.adapter.Relation.create(
+                database=project.database, schema=project.test_schema
+            )
+            project.adapter.drop_schema(relation)
+
     @pytest.fixture(scope="class")
     def macros(self):
         return macro_override
