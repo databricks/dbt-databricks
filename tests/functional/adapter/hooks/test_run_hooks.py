@@ -12,6 +12,7 @@ from dbt.tests import util
 class TestPrePostRunHooks(BasePrePostRunHooks):
     @pytest.fixture(scope="function")
     def setUp(self, project):
+        project.run_sql(f"drop table if exists { project.test_schema }.on_run_hook")
         util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_run_statement)
         project.run_sql(f"drop table if exists { project.test_schema }.schemas")
         project.run_sql(f"drop table if exists { project.test_schema }.db_schemas")
@@ -67,8 +68,10 @@ class TestPrePostRunHooks(BasePrePostRunHooks):
             "thread_id",
         ]
         field_list = ", ".join(["{}".format(f) for f in fields])
-        query = f"select {field_list} from {project.test_schema}.on_run_hook where test_state = '{state}'"
-
+        query = (
+            f"select {field_list} from {project.test_schema}.on_run_hook where test_state = "
+            f"'{state}'"
+        )
         vals = project.run_sql(query, fetch="all")
         assert len(vals) != 0, "nothing inserted into on_run_hook table"
         assert len(vals) == 1, "too many rows in hooks table"

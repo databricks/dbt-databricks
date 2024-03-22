@@ -1,3 +1,4 @@
+from typing import Optional
 from dbt.tests.adapter.simple_snapshot.test_snapshot import (
     BaseSimpleSnapshot,
     BaseSnapshotCheck,
@@ -6,7 +7,7 @@ from dbt.tests import util
 
 
 class TestSnapshot(BaseSimpleSnapshot):
-    def add_fact_column(self, column: str = None, definition: str = None):
+    def add_fact_column(self, column: Optional[str] = None, definition: Optional[str] = None):
         """
         Applies updates to a table in a dbt project
 
