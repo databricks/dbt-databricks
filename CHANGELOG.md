@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.11 (TBD)
+
+### Fixes
+
+- For HMS, ref all doc comments from dbt project due to poor performance retrieving them from Databricks ([618](https://github.com/databricks/dbt-databricks/pull/618))
+
 ## dbt-databricks 1.7.10 (Mar 19, 2024)
 
 ### Fixes

@@ -13,21 +13,21 @@
   {% endif %}
 {% endmacro %}
 
-{% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
-  {% if for_columns and config.persist_column_docs() and model.columns %}
-    {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
-    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
-    {% do alter_column_comment(relation, columns_to_persist_docs) %}
-  {% endif %}
-{% endmacro %}
-
-
 {% macro get_columns_comments(relation) -%}
   {% call statement('get_columns_comments', fetch_result=True) -%}
     describe table {{ relation }}
   {% endcall %}
   
   {% do return(load_result('get_columns_comments').table) %}
+{% endmacro %}
+
+
+{% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
+  {% if for_columns and config.persist_column_docs() and model.columns %}
+    {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
+    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
+    {% do alter_column_comment(relation, columns_to_persist_docs) %}
+  {% endif %}
 {% endmacro %}
 
 {% macro get_column_comment_sql(column_name, column_dict) -%}
