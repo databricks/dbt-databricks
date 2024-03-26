@@ -97,8 +97,6 @@ select {{source_cols_csv}} from {{ source_relation }}
       {% do predicates.append('FALSE') %}
   {% endif %}
 
-  {{ sql_header if sql_header is not none }}
-
   merge into {{ target }} as DBT_INTERNAL_DEST
       using {{ source }} as DBT_INTERNAL_SOURCE
       on {{ predicates | join(' and ') }}
