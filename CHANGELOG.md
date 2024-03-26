@@ -1,4 +1,4 @@
-## dbt-databricks 1.7.11 (TBD)
+## dbt-databricks 1.7.11 (Mar 26, 2024)
 
 ### Fixes
 
