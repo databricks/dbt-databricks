@@ -3,7 +3,6 @@ import re
 from dbt.tests.adapter.ephemeral.test_ephemeral import (
     BaseEphemeralMulti,
     BaseEphemeral,
-    BaseEphemeralNested,
 )
 from dbt.tests.adapter.ephemeral import test_ephemeral
 from dbt.tests import util
