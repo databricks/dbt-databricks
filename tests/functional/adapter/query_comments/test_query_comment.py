@@ -9,26 +9,26 @@ from dbt.tests.adapter.query_comment.test_query_comment import (
 import pytest
 
 
-class TestQueryCommentsDatabricks(BaseQueryComments):
+class TestQueryComments(BaseQueryComments):
     pass
 
 
-class TestMacroQueryCommentsDatabricks(BaseMacroQueryComments):
+class TestMacroQueryComments(BaseMacroQueryComments):
     pass
 
 
 @pytest.mark.skip(reason="Test stopped passing while migrating to 1.8.0")
-class TestMacroArgsQueryCommentsDatabricks(BaseMacroArgsQueryComments):
+class TestMacroArgsQueryComments(BaseMacroArgsQueryComments):
     pass
 
 
-class TestMacroInvalidQueryCommentsDatabricks(BaseMacroInvalidQueryComments):
+class TestMacroInvalidQueryComments(BaseMacroInvalidQueryComments):
     pass
 
 
-class TestNullQueryCommentsDatabricks(BaseNullQueryComments):
+class TestNullQueryComments(BaseNullQueryComments):
     pass
 
 
-class TestEmptyQueryCommentsDatabricks(BaseEmptyQueryComments):
+class TestEmptyQueryComments(BaseEmptyQueryComments):
     pass

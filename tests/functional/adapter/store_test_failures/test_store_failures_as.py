@@ -6,6 +6,9 @@ from dbt.tests.adapter.store_test_failures_tests.basic import (
     StoreTestFailuresAsGeneric,
     StoreTestFailuresAsExceptions,
 )
+from dbt.tests.adapter.store_test_failures_tests.test_store_test_failures import (
+    BaseStoreTestFailures,
+)
 
 
 class TestDatabricksStoreTestFailuresAsInteractions(StoreTestFailuresAsInteractions):
@@ -31,4 +34,8 @@ class TestDatabricksStoreTestFailuresAsGeneric(StoreTestFailuresAsGeneric):
 
 
 class TestDatabricksStoreTestFailuresAsExceptions(StoreTestFailuresAsExceptions):
+    pass
+
+
+class TestStoreTestFailures(BaseStoreTestFailures):
     pass
