@@ -4,11 +4,13 @@
 
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
+- Support insert overwrite on SQL Warehouses ([623](https://github.com/databricks/dbt-databricks/pull/623))
 
 ### Under the Hood
 
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
+- Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 
 ## dbt-databricks 1.7.11 (TBD)
 

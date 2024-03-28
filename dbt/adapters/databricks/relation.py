@@ -70,6 +70,9 @@ class DatabricksRelation(BaseRelation):
     def has_information(self) -> bool:
         return self.metadata is not None
 
+    def is_hive_metastore(self) -> bool:
+        return is_hive_metastore(self.database)
+
     @property
     def is_materialized_view(self) -> bool:
         return self.type == DatabricksRelationType.MaterializedView

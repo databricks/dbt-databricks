@@ -44,9 +44,6 @@
     {% if raw_strategy == 'replace_where' and file_format not in ['delta'] %}
       {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
     {% endif %}
-    {% if raw_strategy == 'insert_overwrite' and target.endpoint %}
-      {% do exceptions.raise_compiler_error(invalid_insert_overwrite_endpoint_msg) %}
-    {% endif %}
   {% endif %}
 
   {% do return(raw_strategy) %}
