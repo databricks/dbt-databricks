@@ -1,8 +1,6 @@
 import os
 from dbt.tests.adapter.basic.test_incremental import BaseIncremental, BaseIncrementalNotSchemaChange
-from dbt.tests.adapter.basic import files
 import pytest
-from tests.functional.adapter.basic import fixtures
 
 
 class TestIncrementalDelta(BaseIncremental):
@@ -17,26 +15,25 @@ class TestIncrementalDeltaNotSchemaChange(BaseIncrementalNotSchemaChange):
 class TestIncrementalParquet(BaseIncremental):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"name": "incremental_parquet"}
-
-    @pytest.fixture(scope="class")
-    def models(self):
         location_root = os.environ.get("DBT_DATABRICKS_LOCATION_ROOT")
         return {
-            "incremental.sql": fixtures.incremental_sql.replace(
-                "'delta'", f"'parquet', location_root='{location_root}/parquet'"
-            ),
-            "schema.yml": files.schema_base_yml,
+            "models": {
+                "+file_format": "parquet",
+                "+location_root": f"{location_root}/parquet",
+                "+incremental_strategy": "append",
+            },
         }
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
 class TestIncrementalParquetHive(BaseIncremental):
     @pytest.fixture(scope="class")
-    def models(self):
+    def project_config_update(self):
         return {
-            "incremental.sql": fixtures.incremental_sql.replace("'delta'", "'parquet'"),
-            "schema.yml": files.schema_base_yml,
+            "models": {
+                "+file_format": "parquet",
+                "+incremental_strategy": "append",
+            },
         }
 
 
@@ -44,24 +41,23 @@ class TestIncrementalParquetHive(BaseIncremental):
 class TestIncrementalCSV(BaseIncremental):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"name": "incremental_csv"}
-
-    @pytest.fixture(scope="class")
-    def models(self):
         location_root = os.environ.get("DBT_DATABRICKS_LOCATION_ROOT")
         return {
-            "incremental.sql": fixtures.incremental_sql.replace(
-                "'delta'", f"'csv', location_root='{location_root}/csv'"
-            ),
-            "schema.yml": files.schema_base_yml,
+            "models": {
+                "+file_format": "csv",
+                "+location_root": f"{location_root}/csv",
+                "+incremental_strategy": "append",
+            },
         }
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
 class TestIncrementalCSVHive(BaseIncremental):
     @pytest.fixture(scope="class")
-    def models(self):
+    def project_config_update(self):
         return {
-            "incremental.sql": fixtures.incremental_sql.replace("'delta'", "'csv'"),
-            "schema.yml": files.schema_base_yml,
+            "models": {
+                "+file_format": "csv",
+                "+incremental_strategy": "append",
+            },
         }
