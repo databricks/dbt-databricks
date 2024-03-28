@@ -87,11 +87,6 @@ class DatabricksRelation(BaseRelation):
         return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
 
     @property
-    def is_hudi(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
-
-    @property
     def owner(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_OWNER) if self.metadata is not None else None
 

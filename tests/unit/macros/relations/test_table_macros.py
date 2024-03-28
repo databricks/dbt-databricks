@@ -29,13 +29,12 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
         assert sql == f"create or replace table {template_bundle.relation} using delta as select 1"
 
-    @pytest.mark.parametrize("format", ["parquet", "hudi"])
-    def test_macros_create_table_as_file_format(self, format, config, template_bundle):
-        config["file_format"] = format
+    def test_macros_create_table_as_file_format(self, config, template_bundle):
+        config["file_format"] = "parquet"
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle)
         expected = (
-            f"create table {template_bundle.relation} using {format} location "
+            f"create table {template_bundle.relation} using parquet location "
             f"'/mnt/root/{template_bundle.relation.identifier}' as select 1"
         )
         assert sql == expected
@@ -49,45 +48,6 @@ class TestCreateTableAs(MacroTestBase):
         )
 
         assert sql == expected
-
-    def test_macros_create_table_as_hudi_unique_key(self, config, template_bundle):
-        config["file_format"] = "hudi"
-        config["unique_key"] = "id"
-        config["location_root"] = "/mnt/root"
-        sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
-
-        expected = (
-            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
-            " as select 1 as id"
-        )
-
-        assert sql == expected
-
-    def test_macros_create_table_as_hudi_unique_key_primary_key_match(
-        self, config, template_bundle
-    ):
-        config["file_format"] = "hudi"
-        config["unique_key"] = "id"
-        config["options"] = {"primaryKey": "id"}
-        config["location_root"] = "/mnt/root"
-        sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
-
-        expected = (
-            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
-            " as select 1 as id"
-        )
-        assert sql == expected
-
-    def test_macros_create_table_as_hudi_unique_key_primary_key_mismatch(
-        self, config, template_bundle
-    ):
-        config["file_format"] = "hudi"
-        config["unique_key"] = "uuid"
-        config["options"] = {"primaryKey": "id"}
-        sql = self.render_create_table_as(template_bundle, sql="select 1 as id, 2 as uuid")
-        assert "mock.raise_compiler_error()" in sql
 
     def test_macros_create_table_as_partition(self, config, template_bundle):
         config["partition_by"] = "partition_1"
@@ -196,31 +156,6 @@ class TestCreateTableAs(MacroTestBase):
             "using delta "
             "partitioned by (partition_1,partition_2) "
             "cluster by (cluster_1,cluster_2) "
-            "clustered by (cluster_1,cluster_2) into 1 buckets "
-            "location '/mnt/root/some_table' "
-            "comment 'Description Test' "
-            "tblproperties ('delta.appendOnly' = 'true' ) "
-            "as select 1"
-        )
-
-        assert sql == expected
-
-    def test_macros_create_table_as_all_hudi(self, config, template_bundle):
-        config["location_root"] = "/mnt/root"
-        config["partition_by"] = ["partition_1", "partition_2"]
-        config["clustered_by"] = ["cluster_1", "cluster_2"]
-        config["buckets"] = "1"
-        config["persist_docs"] = {"relation": True}
-        config["tblproperties"] = {"delta.appendOnly": "true"}
-        template_bundle.context["model"].description = "Description Test"
-
-        config["file_format"] = "hudi"
-        sql = self.render_create_table_as(template_bundle)
-
-        expected = (
-            f"create table {template_bundle.relation} "
-            "using hudi "
-            "partitioned by (partition_1,partition_2) "
             "clustered by (cluster_1,cluster_2) into 1 buckets "
             "location '/mnt/root/some_table' "
             "comment 'Description Test' "

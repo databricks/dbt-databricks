@@ -478,9 +478,6 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 raise e
 
-        # strip hudi metadata columns.
-        columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
-
         return (
             self.Relation.create(
                 database=relation.database,

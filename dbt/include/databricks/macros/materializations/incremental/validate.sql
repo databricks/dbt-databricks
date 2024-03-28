@@ -1,7 +1,7 @@
 {% macro dbt_databricks_validate_get_file_format(raw_file_format) %}
   {#-- Validate the file format #}
 
-  {% set accepted_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'libsvm', 'hudi'] %}
+  {% set accepted_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'libsvm'] %}
 
   {% set invalid_file_format_msg -%}
     Invalid file format provided: {{ raw_file_format }}
@@ -38,7 +38,7 @@
   {% if raw_strategy not in ['append', 'merge', 'insert_overwrite', 'replace_where'] %}
     {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
   {%-else %}
-    {% if raw_strategy == 'merge' and file_format not in ['delta', 'hudi'] %}
+    {% if raw_strategy == 'merge' and file_format != 'delta' %}
       {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
     {% endif %}
     {% if raw_strategy == 'replace_where' and file_format not in ['delta'] %}

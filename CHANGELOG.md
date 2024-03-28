@@ -9,8 +9,12 @@
 ### Under the Hood
 
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
-- Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
+
+### Breaking changes
+
+- Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596)). As a result, you should now install dbt-core (>= 1.8.0) alongside this adapter in order to run dbt commands.
+- Drop support for the `Apache Hudi` file format ([624](https://github.com/databricks/dbt-databricks/pull/624)). As the only documented Databricks support for this format is reading via UniForm, we cannot commit to testing/debugging any issues related to its use.
 
 ## dbt-databricks 1.7.11 (Mar 26, 2024)
 

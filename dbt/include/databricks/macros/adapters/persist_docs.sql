@@ -1,5 +1,5 @@
 {% macro databricks__alter_column_comment(relation, column_dict) %}
-  {% if config.get('file_format', default='delta') in ['delta', 'hudi'] %}
+  {% if config.get('file_format', default='delta') == 'delta' %}
     {% for column_name in column_dict %}
       {% set comment = column_dict[column_name]['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}
