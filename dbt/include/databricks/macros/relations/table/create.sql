@@ -6,6 +6,8 @@
       {%- set file_format = config.get('file_format', default='delta') -%}
       {% if file_format == 'delta' %}
         create or replace table {{ relation }}
+      {% elif not relation.is_hive_metastore() %}
+        create external table {{ relation }}
       {% else %}
         create table {{ relation }}
       {% endif %}
