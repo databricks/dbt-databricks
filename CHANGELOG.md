@@ -1,4 +1,4 @@
-## dbt-databricks 1.8.0 (TBD)
+## dbt-databricks 2.0.0 (TBD)
 
 ### Features
 
@@ -12,7 +12,7 @@
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 
-## dbt-databricks 1.7.11 (TBD)
+## dbt-databricks 1.7.11 (Mar 26, 2024)
 
 ### Fixes
 
