@@ -41,7 +41,7 @@
 {% macro databricks__get_relation_last_modified(information_schema, relations) -%}
 
   {%- call statement('last_modified', fetch_result=True) -%}
-    {% if information_schema.is_hive_metastore %}
+    {% if information_schema.is_hive_metastore() %}
         {%- for relation in relations -%}
             select '{{ relation.schema }}' as schema,
                     '{{ relation.identifier }}' as identifier,

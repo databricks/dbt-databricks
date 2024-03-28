@@ -48,6 +48,8 @@
 {% macro databricks__create_csv_table(model, agate_table) %}
   {%- set column_override = model['config'].get('column_types', {}) -%}
   {%- set quote_seed_column = model['config'].get('quote_columns', None) -%}
+  {%- set identifier = model['alias'] -%}
+  {%- set relation = api.Relation.create(database=database, schema=schema, identifier=identifier, type='table') -%}
 
   {% set sql %}
     create table {{ this.render() }} (
@@ -61,7 +63,7 @@
     {{ file_format_clause() }}
     {{ partition_cols(label="partitioned by") }}
     {{ clustered_cols(label="clustered by") }}
-    {{ location_clause() }}
+    {{ location_clause(relation) }}
     {{ comment_clause() }}
     {{ tblproperties_clause() }}
   {% endset %}
