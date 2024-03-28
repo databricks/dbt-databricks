@@ -3,7 +3,7 @@ from dbt.tests import util
 from tests.functional.adapter.zorder import fixtures
 
 
-class TestLiquidClustering:
+class TestZOrder:
     @pytest.fixture(scope="class")
     def models(self):
         return {
