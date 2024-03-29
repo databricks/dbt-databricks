@@ -1,5 +1,6 @@
 import unittest
 
+import dbt.adapters.databricks.credentials
 import dbt.exceptions
 from dbt.adapters.databricks import connections
 from dbt.contracts.graph import model_config
@@ -14,7 +15,7 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
     )
 
     def test_get_max_idle_default(self):
-        creds = connections.DatabricksCredentials()
+        creds = dbt.adapters.databricks.credentials.DatabricksCredentials()
 
         # No node and nothing specified in creds
         time = connections._get_max_idle_time(None, creds)
@@ -74,7 +75,9 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
 
     def test_get_max_idle_creds(self):
         creds_idle_time = 77
-        creds = connections.DatabricksCredentials(connect_max_idle=creds_idle_time)
+        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(
+            connect_max_idle=creds_idle_time
+        )
 
         # No node so value should come from creds
         time = connections._get_max_idle_time(None, creds)
@@ -126,7 +129,9 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
     def test_get_max_idle_compute(self):
         creds_idle_time = 88
         compute_idle_time = 77
-        creds = connections.DatabricksCredentials(connect_max_idle=creds_idle_time)
+        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(
+            connect_max_idle=creds_idle_time
+        )
         creds.compute = {"foo": {"connect_max_idle": compute_idle_time}}
 
         node = nodes.SnapshotNode(
@@ -154,7 +159,9 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
     def test_get_max_idle_invalid(self):
         creds_idle_time = "foo"
         compute_idle_time = "bar"
-        creds = connections.DatabricksCredentials(connect_max_idle=creds_idle_time)
+        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(
+            connect_max_idle=creds_idle_time
+        )
         creds.compute = {"alternate_compute": {"connect_max_idle": compute_idle_time}}
 
         node = nodes.SnapshotNode(
@@ -207,7 +214,9 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
     def test_get_max_idle_simple_string_conversion(self):
         creds_idle_time = "12"
         compute_idle_time = "34"
-        creds = connections.DatabricksCredentials(connect_max_idle=creds_idle_time)
+        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(
+            connect_max_idle=creds_idle_time
+        )
         creds.compute = {"alternate_compute": {"connect_max_idle": compute_idle_time}}
 
         node = nodes.SnapshotNode(

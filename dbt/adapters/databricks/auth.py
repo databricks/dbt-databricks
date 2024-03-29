@@ -9,6 +9,8 @@ from databricks.sdk.core import HeaderFactory
 from databricks.sdk.oauth import ClientCredentials
 from databricks.sdk.oauth import Token
 from databricks.sdk.oauth import TokenSource
+from requests import PreparedRequest
+from requests.auth import AuthBase
 
 
 class token_auth(CredentialsProvider):
@@ -84,3 +86,21 @@ class m2m_auth(CredentialsProvider):
             return {"Authorization": f"{token.token_type} {token.access_token}"}
 
         return inner
+
+
+class BearerAuth(AuthBase):
+    """This mix-in is passed to our requests Session to explicitly
+    use the bearer authentication method.
+
+    Without this, a local .netrc file in the user's home directory
+    will override the auth headers provided by our header_factory.
+
+    More details in issue #337.
+    """
+
+    def __init__(self, headers: HeaderFactory):
+        self.headers = headers()
+
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        r.headers.update(**self.headers)
+        return r
