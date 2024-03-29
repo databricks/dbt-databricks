@@ -1,7 +1,3 @@
-"""Unit test utility functions.
-Note that all imports should be inside the functions to avoid import/mocking
-issues.
-"""
 import os
 import string
 from unittest import mock
