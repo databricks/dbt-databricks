@@ -15,9 +15,9 @@ from urllib3.util.retry import Retry
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.connections import BearerAuth
-from dbt.adapters.databricks.connections import DatabricksCredentials
-from dbt.adapters.databricks.connections import TCredentialProvider
+from dbt.adapters.databricks.auth import BearerAuth
+from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
 
 

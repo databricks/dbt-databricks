@@ -3,7 +3,7 @@ import unittest
 import keyring.backend
 import pytest
 
-from dbt.adapters.databricks.connections import DatabricksCredentials
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")
