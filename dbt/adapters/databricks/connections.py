@@ -26,14 +26,6 @@ from agate import Table
 from databricks.sql.client import Connection as DatabricksSQLConnection
 from databricks.sql.client import Cursor as DatabricksSQLCursor
 from databricks.sql.exc import Error
-from dbt_common.clients import agate_helper
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtInternalError
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import cast_to_str
-from requests import Session
-
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.contracts.connection import AdapterRequiredConfig
 from dbt.adapters.contracts.connection import AdapterResponse
@@ -56,6 +48,13 @@ from dbt.adapters.events.types import NewConnection
 from dbt.adapters.events.types import SQLQuery
 from dbt.adapters.events.types import SQLQueryStatus
 from dbt.adapters.spark.connections import SparkConnectionManager
+from dbt_common.clients import agate_helper
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtInternalError
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import cast_to_str
+from requests import Session
 
 mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
 st_refresh_regex = re.compile(
@@ -72,6 +71,13 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
 DEFAULT_MAX_IDLE_TIME = 600
+
+
+def _log_conn_info(conn: Connection, caller: Optional[str] = None) -> None:
+    if isinstance(conn, DatabricksDBTConnection):
+        logger.debug(f"conn: {id(conn)}: {caller} {conn._get_conn_info_str()}")
+    else:
+        logger.debug(f"conn: {id(conn)}: {caller}")
 
 
 class DatabricksSQLConnectionWrapper:
@@ -417,7 +423,7 @@ class DatabricksDBTConnection(Connection):
         else:
             self.language = None
 
-        self._log_info("_acquire")
+        _log_conn_info(self, "_acquire")
 
     def _release(self) -> None:
         """Indicate that this connection is not in use."""
@@ -431,7 +437,7 @@ class DatabricksDBTConnection(Connection):
         if self.acquire_release_count == 0 and self.language != "python":
             self.last_used_time = time.time()
 
-        self._log_info("_release")
+        _log_conn_info(self, "_release")
 
     def _get_idle_time(self) -> float:
         return 0 if self.last_used_time is None else time.time() - self.last_used_time
@@ -447,9 +453,6 @@ class DatabricksDBTConnection(Connection):
             f"lang: {self.language}, thrd: {self.thread_identifier}, "
             f"cmpt: `{self.compute_name}`, lut: {self.last_used_time}"
         )
-
-    def _log_info(self, caller: Optional[str]) -> None:
-        logger.debug(f"conn: {id(self)}: {caller} {self._get_conn_info_str()}")
 
     def _log_usage(self, query_header_context: Any) -> None:
         if query_header_context:
@@ -470,7 +473,7 @@ class DatabricksDBTConnection(Connection):
             logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
 
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
-        self._log_info("_reset_handle")
+        _log_conn_info(self, "_reset_handle")
         self.handle = LazyHandle(open)
         self.session_id = None
         # Reset last_used_time to None because by refreshing this connection becomes associated
@@ -671,7 +674,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.clear_thread_connection()
             self.set_thread_connection(conn)
 
-        conn._log_info(f"reusing connection {orig_conn_name}")
+        _log_conn_info(conn, f"reusing connection {orig_conn_name}")
 
         return conn
 
@@ -704,7 +707,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         conn.handle = LazyHandle(self._open2)
 
-        conn._log_info("Creating DatabricksDBTConnection")
+        _log_conn_info(conn, "Creating DatabricksDBTConnection")
 
         # Add this connection to the thread/compute connection pool.
         self._add_compute_connection(conn)
@@ -772,7 +775,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # if different models use different compute resources
             thread_conns = self._get_compute_connections()
             for conn in thread_conns.values():
-                conn._log_info("idle check connection:")
+                _log_conn_info(conn, "idle check connection:")
 
                 # Generally speaking we only want to close/refresh the connection if the
                 # acquire_release_count is zero.  i.e. the connection is not currently in use.
@@ -787,14 +790,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if (
                     conn.acquire_release_count == 0 or conn.language == "python"
                 ) and conn._idle_too_long():
-                    conn._log_info("closing idle connection")
+                    _log_conn_info(conn, "closing idle connection")
                     self.close(conn)
                     conn._reset_handle(self._open2)
 
     def get_thread_connection(self) -> Connection:
         conn = super().get_thread_connection()
-        dbr_conn = cast(DatabricksDBTConnection, conn)
-        dbr_conn._log_info("get_thread_connection:")
+        _log_conn_info(conn, "get_thread_connection:")
         if USE_LONG_SESSIONS:
             self._cleanup_idle_connections()
 
@@ -1031,7 +1033,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         databricks_connection = cast(DatabricksDBTConnection, connection)
 
         if connection.state == ConnectionState.OPEN:
-            databricks_connection._log_info("Connection is already open, skipping open.")
+            _log_conn_info(databricks_connection, "Connection is already open, skipping open.")
             return connection
 
         creds: DatabricksCredentials = connection.credentials
@@ -1075,7 +1077,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.get_session_id_hex()
                 databricks_connection.last_used_time = time.time()
-                databricks_connection._log_info("session opened")
+                _log_conn_info(databricks_connection, "session opened")
 
                 return DatabricksSQLConnectionWrapper(
                     conn,
