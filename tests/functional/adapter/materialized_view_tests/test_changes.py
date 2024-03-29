@@ -9,8 +9,12 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.tests import util
 from dbt.tests.adapter.materialized_view.changes import MaterializedViewChanges
-from dbt.tests.adapter.materialized_view.changes import MaterializedViewChangesApplyMixin
-from dbt.tests.adapter.materialized_view.changes import MaterializedViewChangesContinueMixin
+from dbt.tests.adapter.materialized_view.changes import (
+    MaterializedViewChangesApplyMixin,
+)
+from dbt.tests.adapter.materialized_view.changes import (
+    MaterializedViewChangesContinueMixin,
+)
 from dbt.tests.adapter.materialized_view.changes import MaterializedViewChangesFailMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 

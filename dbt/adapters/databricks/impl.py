@@ -45,8 +45,12 @@ from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_submissions import DbtDatabricksAllPurposeClusterPythonJobHelper
-from dbt.adapters.databricks.python_submissions import DbtDatabricksJobClusterPythonJobHelper
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksAllPurposeClusterPythonJobHelper,
+)
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksJobClusterPythonJobHelper,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import extract_identifiers
