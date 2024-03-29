@@ -12,6 +12,12 @@
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 
+## dbt-databricks 1.7.12 (TBD)
+
+### Fixes
+
+- Up default socket timeout to 10 minutes
+
 ## dbt-databricks 1.7.11 (Mar 26, 2024)
 
 ### Fixes

@@ -222,7 +222,7 @@ class DatabricksCredentials(Credentials):
                     f"{http_headers}."
                 )
         if "_socket_timeout" not in connection_parameters:
-            connection_parameters["_socket_timeout"] = 180
+            connection_parameters["_socket_timeout"] = 600
         self.connection_parameters = connection_parameters
 
     def validate_creds(self) -> None:
