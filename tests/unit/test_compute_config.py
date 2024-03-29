@@ -1,8 +1,8 @@
 import unittest
 
-import dbt.adapters.databricks.credentials
 import dbt.exceptions
 from dbt.adapters.databricks import connections
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.contracts.graph import model_config
 from dbt.contracts.graph import nodes
 
@@ -16,7 +16,7 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
 
     def test_get_http_path_model(self):
         default_path = "my_http_path"
-        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(http_path=default_path)
+        creds = DatabricksCredentials(http_path=default_path)
 
         path = connections._get_http_path(None, creds)
         self.assertEqual(default_path, path)
@@ -73,7 +73,7 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
 
     def test_get_http_path_seed(self):
         default_path = "my_http_path"
-        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(http_path=default_path)
+        creds = DatabricksCredentials(http_path=default_path)
 
         path = connections._get_http_path(None, creds)
         self.assertEqual(default_path, path)
@@ -130,7 +130,7 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
 
     def test_get_http_path_snapshot(self):
         default_path = "my_http_path"
-        creds = dbt.adapters.databricks.credentials.DatabricksCredentials(http_path=default_path)
+        creds = DatabricksCredentials(http_path=default_path)
 
         path = connections._get_http_path(None, creds)
         self.assertEqual(default_path, path)
