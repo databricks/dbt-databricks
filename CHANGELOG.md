@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.12 (TBD)
+
+### Fixes
+
+- Up default socket timeout to 10 minutes
+
 ## dbt-databricks 1.7.11 (Mar 26, 2024)
 
 ### Fixes
