@@ -3,8 +3,8 @@
 {% endmacro %}
 
 {%- macro databricks__optimize(relation) -%}
-  {%- if var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and 
-        var('databricks_skip_optimize', 'false')|lower != 'true' and 
+  {%- if var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and
+        var('databricks_skip_optimize', 'false')|lower != 'true' and
         config.get('file_format', 'delta') == 'delta' -%}
     {%- if (config.get('zorder', False) or config.get('liquid_clustered_by', False)) -%}
       {%- call statement('run_optimize_stmt') -%}

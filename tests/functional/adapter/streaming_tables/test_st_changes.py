@@ -1,15 +1,18 @@
 from typing import Optional
+
+import pytest
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
+
 from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation_configs.streaming_table import (
+    StreamingTableConfig,
+)
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.tests import util
 from dbt.tests.adapter.materialized_view.files import (
     MY_SEED,
 )
-from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
-from dbt.tests import util
-
-import pytest
-from dbt.adapters.databricks.relation import DatabricksRelationType
-from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -103,7 +106,13 @@ class StreamingTableChanges:
         StreamingTableChanges.change_config_via_alter(project, my_streaming_table)
         StreamingTableChanges.change_config_via_replace(project, my_streaming_table)
         _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.identifier, "--full-refresh"]
+            [
+                "--debug",
+                "run",
+                "--models",
+                my_streaming_table.identifier,
+                "--full-refresh",
+            ]
         )
         assert (
             StreamingTableChanges.query_relation_type(project, my_streaming_table)

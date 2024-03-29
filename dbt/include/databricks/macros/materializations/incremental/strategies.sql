@@ -45,7 +45,7 @@
       {% endif %}
     {% endif %}
     table {{ temp_relation }}
-        
+
 {% endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}

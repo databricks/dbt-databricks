@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Union
+
 from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Databricks")

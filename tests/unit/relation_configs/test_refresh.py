@@ -1,12 +1,13 @@
-from typing import Any, List
-from mock import Mock
+from typing import Any
+from typing import List
+
 import pytest
-from dbt.adapters.databricks.relation_configs.refresh import (
-    RefreshProcessor,
-    RefreshConfig,
-)
-from dbt.exceptions import DbtRuntimeError
 from agate import Table
+from mock import Mock
+
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
+from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
+from dbt.exceptions import DbtRuntimeError
 
 
 class TestRefreshProcessor:

@@ -1,7 +1,8 @@
-from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClonePossible, BaseClone
-from dbt.tests import util
-
 import pytest
+
+from dbt.tests import util
+from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone
+from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClonePossible
 
 
 class CleanupMixin:

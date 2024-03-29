@@ -1,7 +1,9 @@
 import unittest
-from dbt.adapters.databricks.connections import DatabricksCredentials
+
 import keyring.backend
 import pytest
+
+from dbt.adapters.databricks.connections import DatabricksCredentials
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")
@@ -57,7 +59,11 @@ class TestTokenAuth(unittest.TestCase):
     def test_token(self):
         host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
-            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+            host=host,
+            token="foo",
+            database="andre",
+            http_path="http://foo",
+            schema="dbt",
         )
         provider = creds.authenticate(None)
         self.assertIsNotNone(provider)
@@ -84,7 +90,11 @@ class TestShardedPassword(unittest.TestCase):
         long_password = "x" * 10
 
         creds = DatabricksCredentials(
-            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+            host=host,
+            token="foo",
+            database="andre",
+            http_path="http://foo",
+            schema="dbt",
         )
         creds.set_sharded_password(service, host, long_password)
 
@@ -105,7 +115,11 @@ class TestShardedPassword(unittest.TestCase):
         long_password = "x" * 3000
 
         creds = DatabricksCredentials(
-            host=host, token="foo", database="andre", http_path="http://foo", schema="dbt"
+            host=host,
+            token="foo",
+            database="andre",
+            http_path="http://foo",
+            schema="dbt",
         )
         creds.set_sharded_password(service, host, long_password)
 

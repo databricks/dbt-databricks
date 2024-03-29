@@ -1,9 +1,12 @@
+import pytest
+
+from dbt.tests.adapter.persist_docs.test_persist_docs import BasePersistDocs
 from dbt.tests.adapter.persist_docs.test_persist_docs import (
-    BasePersistDocs,
     BasePersistDocsColumnMissing,
+)
+from dbt.tests.adapter.persist_docs.test_persist_docs import (
     BasePersistDocsCommentOnQuotedColumn,
 )
-import pytest
 
 
 class DatabricksPersistMixin:

@@ -1,8 +1,11 @@
 from typing import Dict
-from dbt.contracts.results import RunResult, RunStatus
+
 import pytest
-from tests.functional.adapter.persist_constraints import fixtures
+
+from dbt.contracts.results import RunResult
+from dbt.contracts.results import RunStatus
 from dbt.tests import util
+from tests.functional.adapter.persist_constraints import fixtures
 
 
 class TestConstraints:

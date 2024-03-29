@@ -1,25 +1,26 @@
-from typing import Any, Dict, Optional
 import unittest
-from unittest import mock
 from multiprocessing import get_context
-from agate import Row
-import dbt.flags as flags
-import dbt.adapters.exceptions
-from dbt.config import RuntimeConfig
-
-from dbt.adapters.databricks import __version__
-from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation
-from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.impl import check_not_found_error
-from dbt.adapters.databricks.impl import get_identifier_list_string
-from dbt.adapters.databricks.connections import (
-    CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_INVOCATION_ENV,
-    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
-)
-from tests.unit.utils import config_from_parts_or_dicts
+from typing import Any
+from typing import Dict
+from typing import Optional
+from unittest import mock
 
 import pytest
+from agate import Row
+
+import dbt.adapters.exceptions
+import dbt.flags as flags
+from dbt.adapters.databricks import __version__
+from dbt.adapters.databricks import DatabricksAdapter
+from dbt.adapters.databricks import DatabricksRelation
+from dbt.adapters.databricks.column import DatabricksColumn
+from dbt.adapters.databricks.connections import CATALOG_KEY_IN_SESSION_PROPERTIES
+from dbt.adapters.databricks.connections import DBT_DATABRICKS_HTTP_SESSION_HEADERS
+from dbt.adapters.databricks.connections import DBT_DATABRICKS_INVOCATION_ENV
+from dbt.adapters.databricks.impl import check_not_found_error
+from dbt.adapters.databricks.impl import get_identifier_list_string
+from dbt.config import RuntimeConfig
+from tests.unit.utils import config_from_parts_or_dicts
 
 
 class DatabricksAdapterBase:
@@ -383,9 +384,17 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             ("Type", "MANAGED", None),
             ("Provider", "delta", None),
             ("Location", "/mnt/vo", None),
-            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", None),
+            (
+                "Serde Library",
+                "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                None,
+            ),
             ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat", None),
-            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat", None),
+            (
+                "OutputFormat",
+                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+                None,
+            ),
             ("Partition Provider", "Catalog", None),
         ]
 
@@ -543,9 +552,17 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             ("Type", "MANAGED", None),
             ("Provider", "delta", None),
             ("Location", "/mnt/vo", None),
-            ("Serde Library", "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", None),
+            (
+                "Serde Library",
+                "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                None,
+            ),
             ("InputFormat", "org.apache.hadoop.mapred.SequenceFileInputFormat", None),
-            ("OutputFormat", "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat", None),
+            (
+                "OutputFormat",
+                "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+                None,
+            ),
             ("Partition Provider", "Catalog", None),
         ]
 
@@ -885,7 +902,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
             # Short list of table names is not capped
             self.assertEqual(
-                get_identifier_list_string(list(table_names)[:5]), "|".join(list(table_names)[:5])
+                get_identifier_list_string(list(table_names)[:5]),
+                "|".join(list(table_names)[:5]),
             )
 
     def test_describe_table_extended_should_not_limit(self):
@@ -924,7 +942,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # But a short list of table names is not capped
             self.assertEqual(
-                get_identifier_list_string(list(table_names)[:5]), "|".join(list(table_names)[:5])
+                get_identifier_list_string(list(table_names)[:5]),
+                "|".join(list(table_names)[:5]),
             )
 
 
@@ -982,7 +1001,10 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
         assert adapter.get_persist_doc_columns(existing, column_dict) == column_dict
 
     def test_get_persist_doc_columns_mixed(self, adapter):
-        existing = [self.create_column("col1", "comment1"), self.create_column("col2", "comment2")]
+        existing = [
+            self.create_column("col1", "comment1"),
+            self.create_column("col2", "comment2"),
+        ]
         column_dict = {
             "col1": {"name": "col1", "description": "comment2"},
             "col2": {"name": "col2", "description": "comment2"},

@@ -1,6 +1,8 @@
-import pytest
 import os
 from unittest import mock
+
+import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
 

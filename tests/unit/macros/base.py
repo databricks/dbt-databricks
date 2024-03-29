@@ -1,8 +1,14 @@
 import re
-from typing import Any, Dict
-from mock import Mock
+from typing import Any
+from typing import Dict
+
 import pytest
-from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
+from jinja2 import PackageLoader
+from jinja2 import Template
+from mock import Mock
+
 from dbt.adapters.databricks.relation import DatabricksRelation
 
 

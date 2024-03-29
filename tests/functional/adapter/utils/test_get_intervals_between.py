@@ -1,8 +1,9 @@
-from dbt.tests.adapter.utils.test_get_intervals_between import BaseGetIntervalsBetween
+import pytest
+
 from dbt.tests.adapter.utils.fixture_get_intervals_between import (
     models__test_get_intervals_between_yml,
 )
-import pytest
+from dbt.tests.adapter.utils.test_get_intervals_between import BaseGetIntervalsBetween
 
 
 class TestDatabricksGetIntervalBetween(BaseGetIntervalsBetween):

@@ -16,7 +16,11 @@ class TestGetMergeSQL(MacroTestBase):
         self, template, update_columns=[], on_schema_change="ignore", source_columns=[]
     ):
         return self.run_macro_raw(
-            template, "get_merge_update_set", update_columns, on_schema_change, source_columns
+            template,
+            "get_merge_update_set",
+            update_columns,
+            on_schema_change,
+            source_columns,
         )
 
     def test_get_merge_update_set__update_columns(self, template):
@@ -77,7 +81,12 @@ class TestGeInsertIntoSQL(MacroTestBase):
 
     def render_insert_into(self, template, dest_columns=["a"], source_columns=["a"]):
         return self.run_macro_raw(
-            template, "insert_into_sql_impl", "target", dest_columns, "source", source_columns
+            template,
+            "insert_into_sql_impl",
+            "target",
+            dest_columns,
+            "source",
+            source_columns,
         )
 
     def test_insert_into_sql_impl__matching_columns(self, template):

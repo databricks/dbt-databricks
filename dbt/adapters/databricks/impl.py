@@ -1,75 +1,80 @@
-from abc import ABC, abstractmethod
+import os
+import re
+from abc import ABC
+from abc import abstractmethod
 from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-import os
-import re
-from typing import (
-    Any,
-    ClassVar,
-    Dict,
-    FrozenSet,
-    Generic,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import FrozenSet
+from typing import Generic
+from typing import Iterable
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Type
+from typing import Union
 
-from agate import Row, Table, Text
-
-from dbt.adapters.base import AdapterConfig, PythonJobHelper
-from dbt.adapters.base.impl import catch_as_completed
-from dbt.adapters.base.meta import available
-from dbt.adapters.base.relation import BaseRelation, InformationSchema
-from dbt.adapters.capability import (
-    CapabilityDict,
-    CapabilitySupport,
-    Support,
-    Capability,
-)
-from dbt.adapters.spark.impl import (
-    SparkAdapter,
-    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-    KEY_TABLE_OWNER,
-    KEY_TABLE_STATISTICS,
-    LIST_RELATIONS_MACRO_NAME,
-    LIST_SCHEMAS_MACRO_NAME,
-    TABLE_OR_VIEW_NOT_FOUND_MESSAGES,
-)
-from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
-from dbt.adapters.contracts.connection import AdapterResponse, Connection
-from dbt.adapters.contracts.relation import RelationType
+from agate import Row
+from agate import Table
+from agate import Text
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+from dbt_common.clients.agate_helper import empty_table
+from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 
+from dbt.adapters.base import AdapterConfig
+from dbt.adapters.base import PythonJobHelper
+from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.meta import available
+from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base.relation import InformationSchema
+from dbt.adapters.capability import Capability
+from dbt.adapters.capability import CapabilityDict
+from dbt.adapters.capability import CapabilitySupport
+from dbt.adapters.capability import Support
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.connection import Connection
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
+)
+from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.relation import is_hive_metastore, extract_identifiers
-from dbt.adapters.databricks.relation import (
-    DatabricksRelation,
-    DatabricksRelationType,
+from dbt.adapters.databricks.relation import DatabricksRelation
+from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation import extract_identifiers
+from dbt.adapters.databricks.relation import is_hive_metastore
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.materialized_view import (
+    MaterializedViewConfig,
 )
-from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksRelationConfig,
-    DatabricksRelationConfigBase,
+from dbt.adapters.databricks.relation_configs.streaming_table import (
+    StreamingTableConfig,
 )
-from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
-from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
-from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, get_first_row
+from dbt.adapters.databricks.utils import get_first_row
+from dbt.adapters.databricks.utils import redact_credentials
+from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.contracts.relation import RelationConfig
-from dbt_common.exceptions import DbtRuntimeError
-from dbt.adapters.databricks.logging import logger
+from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
+from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER
+from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
+from dbt.adapters.spark.impl import LIST_RELATIONS_MACRO_NAME
+from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
+from dbt.adapters.spark.impl import SparkAdapter
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -303,7 +308,9 @@ class DatabricksAdapter(SparkAdapter):
         )
 
     def _get_hive_types(
-        self, relation: DatabricksRelation, new_rows: List[Tuple[Optional[str], str, str, str]]
+        self,
+        relation: DatabricksRelation,
+        new_rows: List[Tuple[Optional[str], str, str, str]],
     ) -> List[Tuple[Optional[str], str, str, str]]:
         kwargs = {"relation": relation}
 
@@ -322,7 +329,9 @@ class DatabricksAdapter(SparkAdapter):
             ]
 
     def _get_uc_types(
-        self, relation: DatabricksRelation, new_rows: List[Tuple[Optional[str], str, str, str]]
+        self,
+        relation: DatabricksRelation,
+        new_rows: List[Tuple[Optional[str], str, str, str]],
     ) -> List[Tuple[Optional[str], str, str, str]]:
         kwargs = {"relation": relation}
 
@@ -527,7 +536,9 @@ class DatabricksAdapter(SparkAdapter):
         return columns
 
     def get_catalog(
-        self, relation_configs: Iterable[RelationConfig], used_schemas: FrozenSet[Tuple[str, str]]
+        self,
+        relation_configs: Iterable[RelationConfig],
+        used_schemas: FrozenSet[Tuple[str, str]],
     ) -> Tuple[Table, List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(relation_configs)
 
@@ -538,7 +549,11 @@ class DatabricksAdapter(SparkAdapter):
                     for schema in schemas:
                         futures.append(
                             tpe.submit_connected(
-                                self, "hive_metastore", self._get_hive_catalog, schema, "*"
+                                self,
+                                "hive_metastore",
+                                self._get_hive_catalog,
+                                schema,
+                                "*",
                             )
                         )
                 else:

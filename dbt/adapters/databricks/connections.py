@@ -1,90 +1,75 @@
-import json
-from multiprocessing.context import SpawnContext
-import uuid
-import warnings
-from contextlib import contextmanager
-from dataclasses import dataclass
 import decimal
 import itertools
+import json
 import os
 import re
 import sys
 import threading
 import time
-from threading import get_ident
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    cast,
-    Union,
-    Hashable,
-)
+import uuid
+import warnings
+from contextlib import contextmanager
+from dataclasses import dataclass
+from multiprocessing.context import SpawnContext
 from numbers import Number
-
-from agate import Table
-
-from dbt.adapters.base.query_headers import MacroQueryStringSetter
-from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.clients import agate_helper
-from dbt.adapters.contracts.connection import (
-    AdapterResponse,
-    AdapterRequiredConfig,
-    Connection,
-    ConnectionState,
-    Credentials,
-    DEFAULT_QUERY_COMMENT,
-    Identifier,
-    LazyHandle,
-)
-from dbt.adapters.events.types import (
-    NewConnection,
-    ConnectionReused,
-    ConnectionUsed,
-    ConnectionLeftOpenInCleanup,
-    ConnectionClosedInCleanup,
-    SQLQuery,
-    SQLQueryStatus,
-)
-
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.utils import cast_to_str
+from threading import get_ident
+from typing import Any
+from typing import Callable
+from typing import cast
+from typing import Dict
+from typing import Hashable
+from typing import Iterable
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
+from typing import Union
 
 import databricks.sql as dbsql
-from databricks.sql.client import (
-    Connection as DatabricksSQLConnection,
-    Cursor as DatabricksSQLCursor,
-)
-from databricks.sql.exc import Error
-
-from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.utils import redact_credentials
-
-from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient, SessionCredentials
-from dbt.adapters.databricks.auth import token_auth, m2m_auth
-
-from requests.auth import AuthBase
-from requests import PreparedRequest
-from databricks.sdk.core import HeaderFactory
-
 import keyring
+from agate import Table
+from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.core import HeaderFactory
+from databricks.sdk.oauth import OAuthClient
+from databricks.sdk.oauth import SessionCredentials
+from databricks.sql.client import Connection as DatabricksSQLConnection
+from databricks.sql.client import Cursor as DatabricksSQLCursor
+from databricks.sql.exc import Error
+from dbt_common.clients import agate_helper
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtConfigError
+from dbt_common.exceptions import DbtInternalError
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtValidationError
+from dbt_common.utils import cast_to_str
+from requests import PreparedRequest
 from requests import Session
-from dbt_common.exceptions import (
-    DbtValidationError,
-    DbtConfigError,
-    DbtRuntimeError,
-    DbtInternalError,
-)
+from requests.auth import AuthBase
 
+from dbt.adapters.base.query_headers import MacroQueryStringSetter
+from dbt.adapters.contracts.connection import AdapterRequiredConfig
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.connection import Connection
+from dbt.adapters.contracts.connection import ConnectionState
+from dbt.adapters.contracts.connection import Credentials
+from dbt.adapters.contracts.connection import DEFAULT_QUERY_COMMENT
+from dbt.adapters.contracts.connection import Identifier
+from dbt.adapters.contracts.connection import LazyHandle
+from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.databricks.auth import m2m_auth
+from dbt.adapters.databricks.auth import token_auth
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.utils import redact_credentials
+from dbt.adapters.events.types import ConnectionClosedInCleanup
+from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
+from dbt.adapters.events.types import ConnectionReused
+from dbt.adapters.events.types import ConnectionUsed
+from dbt.adapters.events.types import NewConnection
+from dbt.adapters.events.types import SQLQuery
+from dbt.adapters.events.types import SQLQueryStatus
+from dbt.adapters.spark.connections import SparkConnectionManager
 
 mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
 st_refresh_regex = re.compile(

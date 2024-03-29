@@ -1,19 +1,17 @@
-from typing import Dict, Optional
-from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksComponentConfig,
-    DatabricksRelationChangeSet,
-    DatabricksRelationConfigBase,
-)
+from typing import Dict
+from typing import Optional
+
+from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationChangeSet
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
-from dbt.adapters.databricks.relation_configs.refresh import (
-    RefreshConfig,
-    RefreshProcessor,
-)
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
+from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )

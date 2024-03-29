@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import ClassVar, Dict, Optional
+from typing import ClassVar
+from typing import Dict
+from typing import Optional
 
 from dbt.adapters.spark.column import SparkColumn
 

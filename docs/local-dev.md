@@ -13,7 +13,7 @@ This page describes how to develop a dbt project on your computer using `dbt-dat
 Before you scaffold a new dbt project, you have to collect some information which dbt will use to connect to Databricks. Where you find this information depends on whether you are using Databricks Clusters or Databricks SQL endpoints. We recommend that you develop dbt models against Databricks SQL endpoints as they provide the latest SQL features and optimizations.
 
 #### Databricks SQL endpoints
-1. Log in to your Databricks workspace 
+1. Log in to your Databricks workspace
 2. Click the _SQL_ persona in the left navigation bar to switch to Databricks SQL
 3. Click _SQL Endpoints_
 4. Choose the SQL endpoint you want to connect to
@@ -24,7 +24,7 @@ Before you scaffold a new dbt project, you have to collect some information whic
 ![image](/docs/img/sql-endpoint-connection-details.png "SQL endpoint connection details")
 
 #### Databricks Clusters
-1. Log in to your Databricks workspace 
+1. Log in to your Databricks workspace
 2. Click the _Data Science & Engineering_ persona in the left navigation bar
 3. Click _Compute_
 4. Click on the cluster you want to connect to

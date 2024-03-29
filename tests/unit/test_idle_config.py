@@ -1,7 +1,9 @@
 import unittest
+
 import dbt.exceptions
-from dbt.contracts.graph import nodes, model_config
 from dbt.adapters.databricks import connections
+from dbt.contracts.graph import model_config
+from dbt.contracts.graph import nodes
 
 
 class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):

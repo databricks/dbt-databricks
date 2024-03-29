@@ -1,10 +1,20 @@
-from abc import ABC, abstractmethod
-from pydantic import BaseModel, ConfigDict
-from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar
-from typing_extensions import Self, Type
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import Generic
+from typing import List
+from typing import Optional
+from typing import TypeVar
 
-from dbt.adapters.relation_configs.config_base import RelationResults
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from typing_extensions import Self
+from typing_extensions import Type
+
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class DatabricksComponentConfig(BaseModel):

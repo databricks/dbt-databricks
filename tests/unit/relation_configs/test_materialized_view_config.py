@@ -1,7 +1,11 @@
-from agate import Table, Row
+from agate import Row
+from agate import Table
 from mock import Mock
+
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
-from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import (
+    MaterializedViewConfig,
+)
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig

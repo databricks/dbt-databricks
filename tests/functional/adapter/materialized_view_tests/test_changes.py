@@ -1,16 +1,21 @@
 from typing import Optional
-from dbt.tests.adapter.materialized_view.changes import (
-    MaterializedViewChanges,
-    MaterializedViewChangesApplyMixin,
-    MaterializedViewChangesContinueMixin,
-    MaterializedViewChangesFailMixin,
-)
-from dbt.adapters.base import BaseRelation
-from dbt.tests import util
-import pytest
-from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
+import pytest
+
+from dbt.adapters.base import BaseRelation
+from dbt.adapters.databricks.relation_configs.materialized_view import (
+    MaterializedViewConfig,
+)
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.changes import MaterializedViewChanges
+from dbt.tests.adapter.materialized_view.changes import (
+    MaterializedViewChangesApplyMixin,
+)
+from dbt.tests.adapter.materialized_view.changes import (
+    MaterializedViewChangesContinueMixin,
+)
+from dbt.tests.adapter.materialized_view.changes import MaterializedViewChangesFailMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
