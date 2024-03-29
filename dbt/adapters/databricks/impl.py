@@ -46,7 +46,6 @@ from dbt.adapters.spark.impl import (
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, empty_table
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationType
-from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.utils import executor
 
 from dbt.adapters.databricks.column import DatabricksColumn
@@ -70,9 +69,7 @@ from dbt.adapters.databricks.utils import redact_credentials, undefined_proof, g
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt_common.exceptions import DbtRuntimeError
-
-
-logger = AdapterLogger("Databricks")
+from dbt.adapters.databricks.logging import logger
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"

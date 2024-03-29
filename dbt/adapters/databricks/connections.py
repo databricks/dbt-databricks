@@ -1,7 +1,6 @@
 import json
 from multiprocessing.context import SpawnContext
 import uuid
-import logging
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -54,7 +53,6 @@ from dbt.adapters.events.types import (
     SQLQueryStatus,
 )
 
-from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.utils import cast_to_str
@@ -86,37 +84,15 @@ from dbt_common.exceptions import (
     DbtInternalError,
 )
 
+from dbt.adapters.databricks.logging import logger
 
 mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
 st_refresh_regex = re.compile(
     r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
 )
-logger = AdapterLogger("Databricks")
 
 
 TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
-
-
-class DbtCoreHandler(logging.Handler):
-    def __init__(self, level: Union[str, int], dbt_logger: AdapterLogger):
-        super().__init__(level=level)
-        self.logger = dbt_logger
-
-    def emit(self, record: logging.LogRecord) -> None:
-        # record.levelname will be debug, info, warning, error, or critical
-        # these map 1-to-1 with methods of the AdapterLogger
-        log_func = getattr(self.logger, record.levelname.lower())
-        log_func(record.msg)
-
-
-dbt_adapter_logger = AdapterLogger("databricks-sql-connector")
-
-pysql_logger = logging.getLogger("databricks.sql")
-pysql_logger_level = os.environ.get("DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN").upper()
-pysql_logger.setLevel(pysql_logger_level)
-
-pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
-pysql_logger.addHandler(pysql_handler)
 
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
