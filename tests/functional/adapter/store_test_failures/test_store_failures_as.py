@@ -23,15 +23,11 @@ class TestDatabricksStoreTestFailuresAsInteractions(StoreTestFailuresAsInteracti
     pass
 
 
-class TestDatabricksStoreTestFailuresAsProjectLevelOff(
-    StoreTestFailuresAsProjectLevelOff
-):
+class TestDatabricksStoreTestFailuresAsProjectLevelOff(StoreTestFailuresAsProjectLevelOff):
     pass
 
 
-class TestDatabricksStoreTestFailuresAsProjectLevelView(
-    StoreTestFailuresAsProjectLevelView
-):
+class TestDatabricksStoreTestFailuresAsProjectLevelView(StoreTestFailuresAsProjectLevelView):
     pass
 
 

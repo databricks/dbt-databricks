@@ -35,9 +35,7 @@ class TestBasicSeedTests(DatabricksSetup, SeedTestBase):
         )
 
 
-class TestDatabricksSeedWithUniqueDelimiter(
-    DatabricksSetup, BaseSeedWithUniqueDelimiter
-):
+class TestDatabricksSeedWithUniqueDelimiter(DatabricksSetup, BaseSeedWithUniqueDelimiter):
     pass
 
 

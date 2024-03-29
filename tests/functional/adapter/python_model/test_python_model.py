@@ -57,9 +57,7 @@ class TestChangingSchemaIncremental:
         util.run_dbt(["run"])
         util.run_dbt(["run"])
 
-        util.check_relations_equal(
-            project.adapter, ["incremental_model", "expected_incremental"]
-        )
+        util.check_relations_equal(project.adapter, ["incremental_model", "expected_incremental"])
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -92,6 +90,4 @@ class TestComplexConfig:
         util.run_dbt(["seed"])
         util.run_dbt(["build", "-s", "complex_config"])
         util.run_dbt(["build", "-s", "complex_config"])
-        util.check_relations_equal(
-            project.adapter, ["complex_config", "expected_complex"]
-        )
+        util.check_relations_equal(project.adapter, ["complex_config", "expected_complex"])

@@ -83,9 +83,7 @@ class TestDatabricksRelation(unittest.TestCase):
         self.assertEqual(
             relation.get_default_quote_policy(), DatabricksQuotePolicy(True, True, True)
         )
-        self.assertEqual(
-            relation.render(), "`some_database`.`some_schema`.`some_table`"
-        )
+        self.assertEqual(relation.render(), "`some_database`.`some_schema`.`some_table`")
 
         data = {
             "path": {

@@ -46,9 +46,7 @@ class TestAclUpdate:
                 {"user_name": "user2", "permission_level": "CAN_VIEW"},
             ]
         }
-        helper = DatabricksTestHelper(
-            {"config": expected_access_control}, DatabricksCredentials()
-        )
+        helper = DatabricksTestHelper({"config": expected_access_control}, DatabricksCredentials())
         assert helper._update_with_acls({}) == expected_access_control
 
     def test_non_empty_acl_non_empty_config(self):
@@ -57,9 +55,7 @@ class TestAclUpdate:
                 {"user_name": "user2", "permission_level": "CAN_VIEW"},
             ]
         }
-        helper = DatabricksTestHelper(
-            {"config": expected_access_control}, DatabricksCredentials()
-        )
+        helper = DatabricksTestHelper({"config": expected_access_control}, DatabricksCredentials())
         assert helper._update_with_acls({"a": "b"}) == {
             "a": "b",
             "access_control_list": expected_access_control["access_control_list"],

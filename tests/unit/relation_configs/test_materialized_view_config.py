@@ -42,9 +42,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
             }
@@ -68,9 +66,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
             }
@@ -81,9 +77,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
             }
@@ -92,9 +86,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
             }
@@ -107,9 +99,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
             }
@@ -118,9 +108,7 @@ class TestMaterializedViewConfig:
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a"]),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(
-                    tblproperties={"prop": "1", "other": "other"}
-                ),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "query": QueryConfig(query="select * from foo"),
             }

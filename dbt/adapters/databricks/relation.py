@@ -107,11 +107,7 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def stats(self) -> Optional[str]:
-        return (
-            self.metadata.get(KEY_TABLE_STATISTICS)
-            if self.metadata is not None
-            else None
-        )
+        return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
 
     def matches(
         self,
@@ -129,16 +125,14 @@ class DatabricksRelation(BaseRelation):
 
         if not search:
             # nothing was passed in
-            raise DbtRuntimeError(
-                "Tried to match relation, but no search path was passed!"
-            )
+            raise DbtRuntimeError("Tried to match relation, but no search path was passed!")
 
         match = True
 
         for k, v in search.items():
-            if str(self.path.get_lowered_part(k)).strip(
+            if str(self.path.get_lowered_part(k)).strip(self.quote_character) != v.lower().strip(
                 self.quote_character
-            ) != v.lower().strip(self.quote_character):
+            ):
                 match = False
 
         return match

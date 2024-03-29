@@ -21,9 +21,7 @@ from tests.functional.adapter.materialized_view_tests import fixtures
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v
-        for k, v in tblproperties.tblproperties.items()
-        if not k.startswith("pipeline")
+        k: v for k, v in tblproperties.tblproperties.items() if not k.startswith("pipeline")
     }
     assert final_tblproperties == expected
 
@@ -47,9 +45,7 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def change_config_via_alter(project, materialized_view):
         initial_model = util.get_model_file(project, materialized_view)
-        new_model = initial_model.replace(
-            "'cron': '0 0 * * * ? *'", "'cron': '0 5 * * * ? *'"
-        )
+        new_model = initial_model.replace("'cron': '0 0 * * * ? *'", "'cron': '0 5 * * * ? *'")
         util.set_model_file(project, materialized_view, new_model)
 
     @staticmethod

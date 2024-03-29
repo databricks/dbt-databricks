@@ -87,9 +87,7 @@ class InsertOverwriteBase(IncrementalBase):
 
     def test_append(self, project):
         self.seed_and_run_twice()
-        util.check_relations_equal(
-            project.adapter, ["overwrite_model", "overwrite_expected"]
-        )
+        util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
 
 class TestInsertOverwriteDelta(InsertOverwriteBase):
@@ -209,6 +207,4 @@ class TestReplaceWhere(IncrementalBase):
 
     def test_replace_where(self, project):
         self.seed_and_run_twice()
-        util.check_relations_equal(
-            project.adapter, ["replace_where", "replace_where_expected"]
-        )
+        util.check_relations_equal(project.adapter, ["replace_where", "replace_where_expected"])

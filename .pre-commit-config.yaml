@@ -9,10 +9,11 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.3.0
+    rev: 22.12.0
     hooks:
       - id: black
         language_version: python3.11
+        args: [--config, black.ini]
   - repo: https://github.com/asottile/reorder-python-imports
     rev: v3.12.0
     hooks:

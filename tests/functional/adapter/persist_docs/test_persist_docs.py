@@ -56,9 +56,7 @@ class TestPersistDocsHMS(BasePersistDocs):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestPersistDocsUCColumnMissing(
-    DatabricksPersistMixin, BasePersistDocsColumnMissing
-):
+class TestPersistDocsUCColumnMissing(DatabricksPersistMixin, BasePersistDocsColumnMissing):
     pass
 
 

@@ -18,9 +18,7 @@ from tests.functional.adapter.streaming_tables import fixtures
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v
-        for k, v in tblproperties.tblproperties.items()
-        if k not in tblproperties.ignore_list
+        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
     }
     assert final_tblproperties == expected
 
@@ -91,9 +89,7 @@ class StreamingTableChanges:
     def setup(self, project, my_streaming_table):
         # make sure the model in the data reflects the files each time
         util.run_dbt(["seed"])
-        util.run_dbt(
-            ["run", "--models", my_streaming_table.identifier, "--full-refresh"]
-        )
+        util.run_dbt(["run", "--models", my_streaming_table.identifier, "--full-refresh"])
 
         # the tests touch these files, store their contents in memory
         initial_model = util.get_model_file(project, my_streaming_table)
@@ -122,9 +118,7 @@ class StreamingTableChanges:
             StreamingTableChanges.query_relation_type(project, my_streaming_table)
             == "streaming_table"
         )
-        util.assert_message_in_logs(
-            f"Applying ALTER to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
@@ -132,35 +126,25 @@ class StreamingTableChanges:
 class TestStreamingTableChangesApply(StreamingTableChanges):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "on_configuration_change": OnConfigurationChangeOption.Apply.value
-            }
-        }
+        return {"models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value}}
 
     def test_change_is_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
         self.change_config_via_alter(project, my_streaming_table)
-        _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.name]
-        )
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
         self.check_state_alter_change_is_applied(project, my_streaming_table)
 
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs)
-        util.assert_message_in_logs(
-            f"Applying REPLACE to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
     def test_change_is_applied_via_replace(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
         self.change_config_via_alter(project, my_streaming_table)
         self.change_config_via_replace(project, my_streaming_table)
-        _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.name]
-        )
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
         self.check_state_alter_change_is_applied(project, my_streaming_table)
         self.check_state_replace_change_is_applied(project, my_streaming_table)
@@ -172,19 +156,13 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
 class TestStreamingTableChangesContinue(StreamingTableChanges):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "on_configuration_change": OnConfigurationChangeOption.Continue.value
-            }
-        }
+        return {"models": {"on_configuration_change": OnConfigurationChangeOption.Continue.value}}
 
     def test_change_is_not_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
         self.change_config_via_alter(project, my_streaming_table)
-        _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.name]
-        )
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
         self.check_start_state(project, my_streaming_table)
 
@@ -193,21 +171,15 @@ class TestStreamingTableChangesContinue(StreamingTableChanges):
             f" to `continue` for `{my_streaming_table}`",
             logs,
         )
-        util.assert_message_in_logs(
-            f"Applying ALTER to: {my_streaming_table}", logs, False
-        )
-        util.assert_message_in_logs(
-            f"Applying REPLACE to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
     def test_change_is_not_applied_via_replace(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
         self.change_config_via_alter(project, my_streaming_table)
         self.change_config_via_replace(project, my_streaming_table)
-        _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.name]
-        )
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
         self.check_start_state(project, my_streaming_table)
 
@@ -216,23 +188,15 @@ class TestStreamingTableChangesContinue(StreamingTableChanges):
             f" to `continue` for `{my_streaming_table}`",
             logs,
         )
-        util.assert_message_in_logs(
-            f"Applying ALTER to: {my_streaming_table}", logs, False
-        )
-        util.assert_message_in_logs(
-            f"Applying REPLACE to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesFail(StreamingTableChanges):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "on_configuration_change": OnConfigurationChangeOption.Fail.value
-            }
-        }
+        return {"models": {"on_configuration_change": OnConfigurationChangeOption.Fail.value}}
 
     def test_change_is_not_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
@@ -249,12 +213,8 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
             f" to `fail` for `{my_streaming_table}`",
             logs,
         )
-        util.assert_message_in_logs(
-            f"Applying ALTER to: {my_streaming_table}", logs, False
-        )
-        util.assert_message_in_logs(
-            f"Applying REPLACE to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
     def test_change_is_not_applied_via_replace(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
@@ -272,9 +232,5 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
             f" to `fail` for `{my_streaming_table}`",
             logs,
         )
-        util.assert_message_in_logs(
-            f"Applying ALTER to: {my_streaming_table}", logs, False
-        )
-        util.assert_message_in_logs(
-            f"Applying REPLACE to: {my_streaming_table}", logs, False
-        )
+        util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
+        util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)

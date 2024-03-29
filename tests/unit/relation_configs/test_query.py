@@ -11,11 +11,7 @@ sql = "select * from foo"
 
 class TestQueryProcessor:
     def test_from_results(self):
-        results = {
-            "information_schema.views": Row(
-                [sql, "other"], ["view_definition", "comment"]
-            )
-        }
+        results = {"information_schema.views": Row([sql, "other"], ["view_definition", "comment"])}
         spec = QueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query=sql)
 

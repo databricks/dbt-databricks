@@ -13,9 +13,7 @@ class TestPrePostModelHooks(BaseTestPrePost):
             project.adapter,
             f"drop table if exists { project.test_schema }.on_model_hook",
         )
-        util.run_sql_with_adapter(
-            project.adapter, override_fixtures.create_table_statement
-        )
+        util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_statement)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):

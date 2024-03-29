@@ -73,9 +73,7 @@ class m2m_auth(CredentialsProvider):
             return {"token": {}}
 
     @staticmethod
-    def from_dict(
-        host: str, client_id: str, client_secret: str, raw: dict
-    ) -> CredentialsProvider:
+    def from_dict(host: str, client_id: str, client_secret: str, raw: dict) -> CredentialsProvider:
         c = m2m_auth(host=host, client_id=client_id, client_secret=client_secret)
         c._token_source._token = Token.from_dict(raw["token"])  # type: ignore
         return c

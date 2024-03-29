@@ -55,17 +55,13 @@ class DatabricksAdapterBase:
     def _get_config(
         self,
         token: Optional[str] = "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_properties: Optional[Dict[str, str]] = {
-            "spark.sql.ansi.enabled": "true"
-        },
+        session_properties: Optional[Dict[str, str]] = {"spark.sql.ansi.enabled": "true"},
         **kwargs: Any,
     ) -> RuntimeConfig:
         if token:
             self.profile_cfg["outputs"]["test"]["token"] = token
         if session_properties:
-            self.profile_cfg["outputs"]["test"][
-                "session_properties"
-            ] = session_properties
+            self.profile_cfg["outputs"]["test"]["session_properties"] = session_properties
 
         for key, val in kwargs.items():
             self.profile_cfg["outputs"]["test"][key] = val
@@ -99,9 +95,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             dbt.exceptions.DbtProfileError,
             "The connection parameter `server_hostname` is reserved.",
         ):
-            self._get_config(
-                connection_parameters={"server_hostname": "theirorg.databricks.com"}
-            )
+            self._get_config(connection_parameters={"server_hostname": "theirorg.databricks.com"})
 
     def test_invalid_http_headers(self):
         def test_http_headers(http_header):
@@ -122,9 +116,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         ):
             config = self._get_config()
             adapter = DatabricksAdapter(config, get_context("spawn"))
-            with mock.patch.dict(
-                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}
-            ):
+            with mock.patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -189,9 +181,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         self, http_headers_str, expected_http_headers, user_http_headers=None
     ):
         if user_http_headers:
-            config = self._get_config(
-                connection_parameters={"http_headers": user_http_headers}
-            )
+            config = self._get_config(connection_parameters={"http_headers": user_http_headers})
         else:
             config = self._get_config()
 
@@ -254,9 +244,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             **kwargs,
         ):
             self.assertEqual(server_hostname, "yourorg.databricks.com")
-            self.assertEqual(
-                http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123"
-            )
+            self.assertEqual(http_path, "sql/protocolv1/o/1234567890123456/1234-567890-test123")
             if not (expected_no_token or expected_client_creds):
                 self.assertEqual(
                     credentials_provider._token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -275,9 +263,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                     f"dbt-databricks/{__version__.version}; {expected_invocation_env}",
                 )
             else:
-                self.assertEqual(
-                    _user_agent_entry, f"dbt-databricks/{__version__.version}"
-                )
+                self.assertEqual(_user_agent_entry, f"dbt-databricks/{__version__.version}")
             if expected_http_headers is None:
                 self.assertIsNone(http_headers)
             else:
@@ -292,9 +278,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect", new=connect
-        ):
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -304,9 +288,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 connection.credentials.http_path,
                 "sql/protocolv1/o/1234567890123456/1234-567890-test123",
             )
-            self.assertEqual(
-                connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(connection.credentials.schema, "analytics")
             self.assertEqual(len(connection.credentials.session_properties), 1)
             self.assertEqual(
@@ -323,9 +305,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect", new=connect
-        ):
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -335,9 +315,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 connection.credentials.http_path,
                 "sql/protocolv1/o/1234567890123456/1234-567890-test123",
             )
-            self.assertEqual(
-                connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(connection.credentials.schema, "analytics")
             self.assertEqual(connection.credentials.database, "main")
 
@@ -350,15 +328,11 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             self._connect_func(expected_http_headers=[("aaa", "xxx"), ("bbb", "yyy")]),
         )
 
-    def _test_databricks_sql_connector_http_header_connection(
-        self, http_headers, connect
-    ):
+    def _test_databricks_sql_connector_http_header_connection(self, http_headers, connect):
         config = self._get_config(connection_parameters={"http_headers": http_headers})
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
-            "dbt.adapters.databricks.connections.dbsql.connect", new=connect
-        ):
+        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -368,9 +342,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
                 connection.credentials.http_path,
                 "sql/protocolv1/o/1234567890123456/1234-567890-test123",
             )
-            self.assertEqual(
-                connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            )
+            self.assertEqual(connection.credentials.token, "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             self.assertEqual(connection.credentials.schema, "analytics")
 
     def test_simple_catalog_relation(self):
@@ -426,14 +398,12 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             ("Partition Provider", "Catalog", None),
         ]
 
-        input_cols = [
-            Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows
-        ]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        metadata, rows = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertDictEqual(
             metadata,
@@ -549,14 +519,12 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             ("Owner", 1234, None),
         ]
 
-        input_cols = [
-            Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows
-        ]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        _, rows = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_describe_extended(relation, input_cols)
+        _, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertEqual(rows[0].to_column_dict().get("table_owner"), "1234")
 
@@ -598,14 +566,12 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
             ("Partition Provider", "Catalog", None),
         ]
 
-        input_cols = [
-            Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows
-        ]
+        input_cols = [Row(keys=["col_name", "data_type", "comment"], values=r) for r in plain_rows]
 
         config = self._get_config()
-        metadata, rows = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_describe_extended(relation, input_cols)
+        metadata, rows = DatabricksAdapter(config, get_context("spawn")).parse_describe_extended(
+            relation, input_cols
+        )
 
         self.assertEqual(
             metadata,
@@ -661,9 +627,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
         r1 = adapter.Relation.create(schema="different", identifier="table")
         assert r1.database is None
-        r2 = adapter.Relation.create(
-            database="something", schema="different", identifier="table"
-        )
+        r2 = adapter.Relation.create(database="something", schema="different", identifier="table")
         assert r2.database == "something"
 
     def test_parse_columns_from_information_with_table_type_and_delta_provider(self):
@@ -699,9 +663,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[0].to_column_dict(omit_none=False),
@@ -790,9 +754,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[1].to_column_dict(omit_none=False),
@@ -862,9 +826,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         )
 
         config = self._get_config()
-        columns = DatabricksAdapter(
-            config, get_context("spawn")
-        ).parse_columns_from_information(relation, information)
+        columns = DatabricksAdapter(config, get_context("spawn")).parse_columns_from_information(
+            relation, information
+        )
         self.assertEqual(len(columns), 4)
         self.assertEqual(
             columns[2].to_column_dict(omit_none=False),
@@ -932,9 +896,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         self.assertEqual(get_identifier_list_string(table_names), "|".join(table_names))
 
         # If environment variable is set, then limit the number of characters
-        with mock.patch.dict(
-            "os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}
-        ):
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # Long list of table names is capped
             self.assertEqual(get_identifier_list_string(table_names), "*")
 
@@ -964,9 +926,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         table_names: set(str) = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then limit the number of characters
-        with mock.patch.dict(
-            "os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}
-        ):
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # Long list of table names is capped
             self.assertEqual(get_identifier_list_string(table_names), "*")
 
@@ -979,9 +939,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
         table_names: set(str) = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then we may limit the number of characters
-        with mock.patch.dict(
-            "os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}
-        ):
+        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # But a short list of table names is not capped
             self.assertEqual(
                 get_identifier_list_string(list(table_names)[:5]),
@@ -991,9 +949,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase, unittest.TestCase):
 
 class TestCheckNotFound(unittest.TestCase):
     def test_prefix(self):
-        self.assertTrue(
-            check_not_found_error("Runtime error \n Database 'dbt' not found")
-        )
+        self.assertTrue(check_not_found_error("Runtime error \n Database 'dbt' not found"))
 
     def test_no_prefix_or_suffix(self):
         self.assertTrue(check_not_found_error("Database not found"))

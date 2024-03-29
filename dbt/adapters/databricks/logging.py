@@ -22,9 +22,7 @@ class DbtCoreHandler(logging.Handler):
 dbt_adapter_logger = AdapterLogger("databricks-sql-connector")
 
 pysql_logger = logging.getLogger("databricks.sql")
-pysql_logger_level = os.environ.get(
-    "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN"
-).upper()
+pysql_logger_level = os.environ.get("DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN").upper()
 pysql_logger.setLevel(pysql_logger_level)
 
 pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)

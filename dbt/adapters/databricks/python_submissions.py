@@ -48,9 +48,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     @property
     def cluster_id(self) -> str:
-        return self.parsed_model["config"].get(
-            "cluster_id", self.credentials.cluster_id
-        )
+        return self.parsed_model["config"].get("cluster_id", self.credentials.cluster_id)
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)
@@ -96,9 +94,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             },
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error creating python notebook.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
 
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
@@ -135,9 +131,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             json=job_spec,
         )
         if submit_response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error creating python run.\n {submit_response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
         response_json = submit_response.json()
         logger.info(f"Job submission response={response_json}")
         return response_json["run_id"]
@@ -159,20 +153,15 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
                 "headers": self.extra_headers,
             },
-            get_state_func=lambda response: response.json()["state"][
-                "life_cycle_state"
-            ],
+            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
             terminal_states=("TERMINATED", "SKIPPED", "INTERNAL_ERROR"),
             expected_end_state="TERMINATED",
-            get_state_msg_func=lambda response: response.json()["state"][
-                "state_message"
-            ],
+            get_state_msg_func=lambda response: response.json()["state"]["state_message"],
         )
 
         # get end state to return to user
         run_output = self.session.get(
-            f"https://{self.credentials.host}"
-            f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
+            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
             headers=self.extra_headers,
         )
         json_run_output = run_output.json()
@@ -224,17 +213,11 @@ class BaseDatabricksHelper(PythonJobHelper):
 class JobClusterPythonJobHelper(BaseDatabricksHelper):
     def check_credentials(self) -> None:
         if not self.parsed_model["config"].get("job_cluster_config", None):
-            raise ValueError(
-                "job_cluster_config is required for commands submission method."
-            )
+            raise ValueError("job_cluster_config is required for commands submission method.")
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = {
-            "new_cluster": self.parsed_model["config"]["job_cluster_config"]
-        }
-        self._submit_through_notebook(
-            compiled_code, self._update_with_acls(cluster_spec)
-        )
+        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
+        self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
 
 
 class DBContext:
@@ -255,9 +238,7 @@ class DBContext:
 
         current_status = self.get_cluster_status().get("state", "").upper()
         if current_status in ["TERMINATED", "TERMINATING"]:
-            logger.debug(
-                f"Cluster {self.cluster_id} is not running. Attempting to restart."
-            )
+            logger.debug(f"Cluster {self.cluster_id} is not running. Attempting to restart.")
             self.start_cluster()
             logger.debug(f"Cluster {self.cluster_id} is now running.")
 
@@ -273,9 +254,7 @@ class DBContext:
             },
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error creating an execution context.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating an execution context.\n {response.content!r}")
         return response.json()["id"]
 
     def destroy(self, context_id: str) -> str:
@@ -289,9 +268,7 @@ class DBContext:
             },
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error deleting an execution context.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
         return response.json()["id"]
 
     def get_cluster_status(self) -> Dict:
@@ -303,9 +280,7 @@ class DBContext:
             json={"cluster_id": self.cluster_id},
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error getting status of cluster.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error getting status of cluster.\n {response.content!r}")
 
         json_response = response.json()
         return json_response
@@ -326,9 +301,7 @@ class DBContext:
             json={"cluster_id": self.cluster_id},
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error starting terminated cluster.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
 
         self._wait_for_cluster_to_start()
 
@@ -396,9 +369,7 @@ class DBCommand:
             },
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error getting status of command.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error getting status of command.\n {response.content!r}")
         return response.json()
 
 
@@ -440,9 +411,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                     get_state_func=lambda response: response["status"],
                     terminal_states=("Cancelled", "Error", "Finished"),
                     expected_end_state="Finished",
-                    get_state_msg_func=lambda response: response.json()["results"][
-                        "data"
-                    ],
+                    get_state_msg_func=lambda response: response.json()["results"]["data"],
                 )
                 if response["results"]["resultType"] == "error":
                     raise DbtRuntimeError(
@@ -475,9 +444,7 @@ class DbtDatabricksBasePythonJobHelper(BaseDatabricksHelper):
         http_headers: Dict[str, str] = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
-        self._credentials_provider = credentials.authenticate(
-            self._credentials_provider
-        )
+        self._credentials_provider = credentials.authenticate(self._credentials_provider)
         header_factory = self._credentials_provider(None)  # type: ignore
         self.session.auth = BearerAuth(header_factory)
 

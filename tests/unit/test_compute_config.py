@@ -10,8 +10,7 @@ class TestDatabricksConnectionHTTPPath(unittest.TestCase):
     """Test the various cases for determining a specified warehouse."""
 
     errMsg = (
-        "Compute resource foo does not exist or does not specify http_path, "
-        "relation: a_relation"
+        "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
     )
 
     def test_get_http_path_model(self):

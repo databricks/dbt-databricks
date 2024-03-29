@@ -45,6 +45,4 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
             if diff != RefreshConfig():
                 changes[key] = diff
 
-        return DatabricksRelationChangeSet(
-            changes=changes, requires_full_refresh=requires_refresh
-        )
+        return DatabricksRelationChangeSet(changes=changes, requires_full_refresh=requires_refresh)

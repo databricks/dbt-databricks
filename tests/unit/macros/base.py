@@ -26,9 +26,7 @@ class MacroTestBase:
         Anything you put in this dict will be returned by config in the rendered template
         """
         local_config: Dict[str, Any] = {}
-        context["config"].get = lambda key, default=None, **kwargs: local_config.get(
-            key, default
-        )
+        context["config"].get = lambda key, default=None, **kwargs: local_config.get(key, default)
         return local_config
 
     @pytest.fixture(autouse=True)
@@ -117,17 +115,13 @@ class MacroTestBase:
         return []
 
     @pytest.fixture(scope="class")
-    def databricks_context(
-        self, spark_context, databricks_env, databricks_template_names
-    ) -> dict:
+    def databricks_context(self, spark_context, databricks_env, databricks_template_names) -> dict:
         """
         Adds all the requested Databricks macros to the context
         """
         if not databricks_template_names:
             return spark_context
-        return self.build_up_context(
-            spark_context, databricks_env, databricks_template_names
-        )
+        return self.build_up_context(spark_context, databricks_env, databricks_template_names)
 
     def build_up_context(self, context, env, template_names):
         """
@@ -222,6 +216,4 @@ class MacroTestBase:
         """
         Convenience method for macros that take a relation as a first argument.
         """
-        return self.run_macro(
-            template_bundle.template, name, template_bundle.relation, *args
-        )
+        return self.run_macro(template_bundle.template, name, template_bundle.relation, *args)

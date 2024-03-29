@@ -51,18 +51,14 @@ class TestTblproperties:
         util.run_dbt(["snapshot"])
 
         util.check_relations_equal(project.adapter, ["set_tblproperties", "expected"])
-        util.check_relations_equal(
-            project.adapter, ["set_tblproperties_to_view", "expected"]
-        )
+        util.check_relations_equal(project.adapter, ["set_tblproperties_to_view", "expected"])
 
         self.check_tblproperties(
             project,
             "set_tblproperties",
             ["delta.autoOptimize.optimizeWrite", "delta.autoOptimize.autoCompact"],
         )
-        self.check_tblproperties(
-            project, "set_tblproperties_to_view", ["tblproperties_to_view"]
-        )
+        self.check_tblproperties(project, "set_tblproperties_to_view", ["tblproperties_to_view"])
 
         self.check_snapshot_results(project.adapter, num_rows=3)
         self.check_tblproperties(project, "my_snapshot", ["tblproperties_to_snapshot"])

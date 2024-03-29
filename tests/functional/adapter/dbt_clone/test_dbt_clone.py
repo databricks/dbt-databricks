@@ -37,6 +37,4 @@ class TestCloneSameTargetAndState(BaseClone, CleanupMixin):
         ]
 
         results, output = util.run_dbt_and_capture(clone_args, expect_pass=False)
-        assert (
-            "Warning: The state and target directories are the same: 'target'" in output
-        )
+        assert "Warning: The state and target directories are the same: 'target'" in output
