@@ -12,15 +12,13 @@ import uuid
 
 from urllib3.util.retry import Retry
 
-from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.base import PythonJobHelper
 
 from requests.adapters import HTTPAdapter
 from dbt.adapters.databricks.connections import BearerAuth
 from dbt_common.exceptions import DbtRuntimeError
 
-
-logger = AdapterLogger("Databricks")
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
