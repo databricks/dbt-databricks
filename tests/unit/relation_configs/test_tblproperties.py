@@ -1,11 +1,9 @@
-from mock import Mock
 import pytest
 from agate import Table
+from mock import Mock
 
-from dbt.adapters.databricks.relation_configs.tblproperties import (
-    TblPropertiesConfig,
-    TblPropertiesProcessor,
-)
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
 from dbt.exceptions import DbtRuntimeError
 
 
@@ -21,9 +19,13 @@ class TestTblPropertiesProcessor:
         assert spec == TblPropertiesConfig(tblproperties={"prop": "f1"})
 
     def test_from_results__multiple(self):
-        results = {"show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]])}
+        results = {
+            "show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]])
+        }
         spec = TblPropertiesProcessor.from_relation_results(results)
-        assert spec == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={"prop": "1", "other": "other"}
+        )
 
     def test_from_model_node__without_tblproperties(self):
         model = Mock()

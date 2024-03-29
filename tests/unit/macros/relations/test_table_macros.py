@@ -27,7 +27,10 @@ class TestCreateTableAs(MacroTestBase):
 
     def test_macros_create_table_as(self, template_bundle):
         sql = self.render_create_table_as(template_bundle)
-        assert sql == f"create or replace table {template_bundle.relation} using delta as select 1"
+        assert (
+            sql
+            == f"create or replace table {template_bundle.relation} using delta as select 1"
+        )
 
     @pytest.mark.parametrize("format", ["parquet", "hudi"])
     def test_macros_create_table_as_file_format(self, format, config, template_bundle):
@@ -86,7 +89,9 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "hudi"
         config["unique_key"] = "uuid"
         config["options"] = {"primaryKey": "id"}
-        sql = self.render_create_table_as(template_bundle, sql="select 1 as id, 2 as uuid")
+        sql = self.render_create_table_as(
+            template_bundle, sql="select 1 as id, 2 as uuid"
+        )
         assert "mock.raise_compiler_error()" in sql
 
     def test_macros_create_table_as_partition(self, config, template_bundle):

@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.zorder import fixtures
 

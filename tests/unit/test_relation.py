@@ -1,10 +1,11 @@
 import unittest
 
-from jinja2.runtime import Undefined
 import pytest
+from jinja2.runtime import Undefined
 
 from dbt.adapters.databricks import relation
-from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksQuotePolicy
+from dbt.adapters.databricks.relation import DatabricksQuotePolicy
+from dbt.adapters.databricks.relation import DatabricksRelation
 
 
 class TestDatabricksRelation(unittest.TestCase):
@@ -82,7 +83,9 @@ class TestDatabricksRelation(unittest.TestCase):
         self.assertEqual(
             relation.get_default_quote_policy(), DatabricksQuotePolicy(True, True, True)
         )
-        self.assertEqual(relation.render(), "`some_database`.`some_schema`.`some_table`")
+        self.assertEqual(
+            relation.render(), "`some_database`.`some_schema`.`some_table`"
+        )
 
         data = {
             "path": {
@@ -183,7 +186,8 @@ class TestDatabricksRelation(unittest.TestCase):
 
 class TestRelationsFunctions:
     @pytest.mark.parametrize(
-        "database, expected", [(None, True), ("hive_metastore", True), ("not_hive", False)]
+        "database, expected",
+        [(None, True), ("hive_metastore", True), ("not_hive", False)],
     )
     def test_is_hive_metastore(self, database, expected):
         assert relation.is_hive_metastore(database) is expected

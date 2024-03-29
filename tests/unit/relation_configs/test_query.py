@@ -1,15 +1,21 @@
+import pytest
 from agate import Row
 from mock import Mock
-import pytest
+
+from dbt.adapters.databricks.relation_configs.query import QueryConfig
+from dbt.adapters.databricks.relation_configs.query import QueryProcessor
 from dbt.exceptions import DbtRuntimeError
-from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
 
 sql = "select * from foo"
 
 
 class TestQueryProcessor:
     def test_from_results(self):
-        results = {"information_schema.views": Row([sql, "other"], ["view_definition", "comment"])}
+        results = {
+            "information_schema.views": Row(
+                [sql, "other"], ["view_definition", "comment"]
+            )
+        }
         spec = QueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query=sql)
 

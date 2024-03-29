@@ -73,9 +73,9 @@
 
 {% macro get_view_description(relation) %}
   {% call statement('get_view_description', fetch_result=True) -%}
-    select * 
-    from {{ relation.information_schema() }}.`views` 
-    where table_schema = '{{ relation.schema }}' 
+    select *
+    from {{ relation.information_schema() }}.`views`
+    where table_schema = '{{ relation.schema }}'
       and table_name = '{{ relation.identifier }}'
   {%- endcall -%}
 

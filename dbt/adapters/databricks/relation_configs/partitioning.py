@@ -1,13 +1,13 @@
 import itertools
-from typing import ClassVar, List, Union
+from typing import ClassVar
+from typing import List
+from typing import Union
 
-from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
-from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksComponentConfig,
-    DatabricksComponentProcessor,
-)
+from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
+from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class PartitionedByConfig(DatabricksComponentConfig):
@@ -25,7 +25,9 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
         cols = []
         rows = itertools.takewhile(
             lambda row: row[0],
-            itertools.dropwhile(lambda row: row[0] != "# Partition Information", table.rows),
+            itertools.dropwhile(
+                lambda row: row[0] != "# Partition Information", table.rows
+            ),
         )
         for row in rows:
             if not row[0].startswith("# "):
@@ -34,7 +36,9 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
         return PartitionedByConfig(partition_by=cols)
 
     @classmethod
-    def from_relation_config(cls, relation_config: RelationConfig) -> PartitionedByConfig:
+    def from_relation_config(
+        cls, relation_config: RelationConfig
+    ) -> PartitionedByConfig:
         partition_by: Union[str, List[str], None] = base.get_config_value(
             relation_config, "partition_by"
         )

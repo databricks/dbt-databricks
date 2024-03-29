@@ -1,6 +1,8 @@
-import pytest
 import os
 from unittest import mock
+
+import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
 
@@ -46,7 +48,9 @@ class TestLongSessionsMultipleThreads(TestLongSessionsBase):
         util.run_dbt_and_capture(["seed"])
 
         for n_threads in [1, 2, 3]:
-            _, log = util.run_dbt_and_capture(["--debug", "run", "--threads", f"{n_threads}"])
+            _, log = util.run_dbt_and_capture(
+                ["--debug", "run", "--threads", f"{n_threads}"]
+            )
             open_count = log.count("request: OpenSession")
             assert open_count == (n_threads + 1)
 
@@ -73,7 +77,9 @@ class TestLongSessionsMultipleCompute:
     def test_long_sessions(self, project):
         util.run_dbt_and_capture(["--debug", "seed", "--target", "alternate_warehouse"])
 
-        _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "alternate_warehouse"])
+        _, log = util.run_dbt_and_capture(
+            ["--debug", "run", "--target", "alternate_warehouse"]
+        )
         open_count = log.count("request: OpenSession")
         assert open_count == 3
 
@@ -95,6 +101,8 @@ class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
     def test_long_sessions(self, project):
         util.run_dbt(["--debug", "seed", "--target", "idle_sessions"])
 
-        _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "idle_sessions"])
+        _, log = util.run_dbt_and_capture(
+            ["--debug", "run", "--target", "idle_sessions"]
+        )
         idle_count = log.count("closing idle connection") / 2
         assert idle_count > 0

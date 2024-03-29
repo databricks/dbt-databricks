@@ -1,19 +1,20 @@
-from dbt.tests.adapter.hooks.test_run_hooks import (
-    BasePrePostRunHooks,
-    BaseAfterRunHooks,
-)
-import pytest
 import os
 
-from tests.functional.adapter.hooks import fixtures as override_fixtures
+import pytest
+
 from dbt.tests import util
+from dbt.tests.adapter.hooks.test_run_hooks import BaseAfterRunHooks
+from dbt.tests.adapter.hooks.test_run_hooks import BasePrePostRunHooks
+from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 
 class TestPrePostRunHooks(BasePrePostRunHooks):
     @pytest.fixture(scope="function")
     def setUp(self, project):
         project.run_sql(f"drop table if exists { project.test_schema }.on_run_hook")
-        util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_run_statement)
+        util.run_sql_with_adapter(
+            project.adapter, override_fixtures.create_table_run_statement
+        )
         project.run_sql(f"drop table if exists { project.test_schema }.schemas")
         project.run_sql(f"drop table if exists { project.test_schema }.db_schemas")
         os.environ["TERM_TEST"] = "TESTING"
@@ -95,7 +96,9 @@ class TestPrePostRunHooks(BasePrePostRunHooks):
         assert (
             ctx["invocation_id"] is not None and len(ctx["invocation_id"]) > 0
         ), "invocation_id was not set"
-        assert ctx["thread_id"].startswith("Thread-") or ctx["thread_id"] == "MainThread"
+        assert (
+            ctx["thread_id"].startswith("Thread-") or ctx["thread_id"] == "MainThread"
+        )
 
     def test_pre_and_post_run_hooks(self, setUp, project, dbt_profile_target):
         util.run_dbt(["run"])

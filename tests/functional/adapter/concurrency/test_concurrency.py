@@ -1,5 +1,6 @@
 from dbt.tests import util
-from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency, seeds__update_csv
+from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency
+from dbt.tests.adapter.concurrency.test_concurrency import seeds__update_csv
 
 
 # Copied from dbt-core

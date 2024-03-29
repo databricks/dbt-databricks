@@ -1,9 +1,11 @@
-from typing import Optional, Tuple
-from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
-from dbt.adapters.base.relation import BaseRelation
-from dbt.tests import util
+from typing import Optional
+from typing import Tuple
+
 import pytest
 
+from dbt.adapters.base.relation import BaseRelation
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -29,7 +31,10 @@ class TestMaterializedViewsMixin:
 class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
     def test_table_replaces_materialized_view(self, project, my_materialized_view):
         util.run_dbt(["run", "--models", my_materialized_view.identifier])
-        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        assert (
+            self.query_relation_type(project, my_materialized_view)
+            == "materialized_view"
+        )
 
         self.swap_materialized_view_to_table(project, my_materialized_view)
 
@@ -40,7 +45,10 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
 
     def test_view_replaces_materialized_view(self, project, my_materialized_view):
         util.run_dbt(["run", "--models", my_materialized_view.identifier])
-        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        assert (
+            self.query_relation_type(project, my_materialized_view)
+            == "materialized_view"
+        )
 
         self.swap_materialized_view_to_view(project, my_materialized_view)
 

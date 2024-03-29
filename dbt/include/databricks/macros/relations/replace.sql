@@ -44,7 +44,7 @@
     {# /* no renaming is allowed, so just drop and create */ #}
     {%- else -%}
         {{ return([
-            get_drop_sql(existing_relation), 
+            get_drop_sql(existing_relation),
             get_create_sql(target_relation, sql)
         ]) }}
     {%- endif -%}

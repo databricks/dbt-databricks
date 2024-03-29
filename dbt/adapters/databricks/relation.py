@@ -1,16 +1,26 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Optional, Set, Type
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import Iterable
+from typing import Optional
+from typing import Set
+from typing import Type
+
+from dbt_common.dataclass_schema import StrEnum
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
+
+from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base.relation import InformationSchema
+from dbt.adapters.base.relation import Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
-from dbt.adapters.base.relation import BaseRelation, Policy, InformationSchema
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt_common.dataclass_schema import StrEnum
-
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt_common.utils import filter_null_values
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER
+from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
-from dbt_common.exceptions import DbtRuntimeError
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -97,7 +107,11 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def stats(self) -> Optional[str]:
-        return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
+        return (
+            self.metadata.get(KEY_TABLE_STATISTICS)
+            if self.metadata is not None
+            else None
+        )
 
     def matches(
         self,
@@ -115,14 +129,16 @@ class DatabricksRelation(BaseRelation):
 
         if not search:
             # nothing was passed in
-            raise DbtRuntimeError("Tried to match relation, but no search path was passed!")
+            raise DbtRuntimeError(
+                "Tried to match relation, but no search path was passed!"
+            )
 
         match = True
 
         for k, v in search.items():
-            if str(self.path.get_lowered_part(k)).strip(self.quote_character) != v.lower().strip(
+            if str(self.path.get_lowered_part(k)).strip(
                 self.quote_character
-            ):
+            ) != v.lower().strip(self.quote_character):
                 match = False
 
         return match

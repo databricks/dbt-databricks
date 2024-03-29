@@ -16,7 +16,11 @@ class TestGetMergeSQL(MacroTestBase):
         self, template, update_columns=[], on_schema_change="ignore", source_columns=[]
     ):
         return self.run_macro_raw(
-            template, "get_merge_update_set", update_columns, on_schema_change, source_columns
+            template,
+            "get_merge_update_set",
+            update_columns,
+            on_schema_change,
+            source_columns,
         )
 
     def test_get_merge_update_set__update_columns(self, template):
@@ -54,14 +58,20 @@ class TestGetMergeSQL(MacroTestBase):
         assert sql == expected
 
     def render_insert(self, template, on_schema_change="ignore", source_columns=[]):
-        return self.run_macro_raw(template, "get_merge_insert", on_schema_change, source_columns)
+        return self.run_macro_raw(
+            template, "get_merge_insert", on_schema_change, source_columns
+        )
 
     def test_get_merge_insert__ignore_takes_priority(self, template):
-        sql = self.render_insert(template, on_schema_change="ignore", source_columns=["a"])
+        sql = self.render_insert(
+            template, on_schema_change="ignore", source_columns=["a"]
+        )
         assert sql == "*"
 
     def test_get_merge_insert__source_columns_and_not_ignore(self, template):
-        sql = self.render_insert(template, on_schema_change="append", source_columns=["a", "b"])
+        sql = self.render_insert(
+            template, on_schema_change="append", source_columns=["a", "b"]
+        )
         expected = "(a, b) VALUES (DBT_INTERNAL_SOURCE.a, DBT_INTERNAL_SOURCE.b)"
         assert sql == expected
 
@@ -77,7 +87,12 @@ class TestGeInsertIntoSQL(MacroTestBase):
 
     def render_insert_into(self, template, dest_columns=["a"], source_columns=["a"]):
         return self.run_macro_raw(
-            template, "insert_into_sql_impl", "target", dest_columns, "source", source_columns
+            template,
+            "insert_into_sql_impl",
+            "target",
+            dest_columns,
+            "source",
+            source_columns,
         )
 
     def test_insert_into_sql_impl__matching_columns(self, template):
@@ -86,7 +101,9 @@ class TestGeInsertIntoSQL(MacroTestBase):
         assert sql == expected
 
     def test_insert_into_sql_impl__target_has_extra_columns(self, template):
-        sql = self.render_insert_into(template, dest_columns=["a", "b"], source_columns=["b"])
+        sql = self.render_insert_into(
+            template, dest_columns=["a", "b"], source_columns=["b"]
+        )
         expected = "insert into table target (a, b)\nselect DEFAULT, b from source"
         assert sql == expected
 
@@ -94,6 +111,8 @@ class TestGeInsertIntoSQL(MacroTestBase):
         # This would only happen if on_schema_change is set to "ignore", as otherwise
         # source columns get added to target before this
 
-        sql = self.render_insert_into(template, dest_columns=["b"], source_columns=["a", "b"])
+        sql = self.render_insert_into(
+            template, dest_columns=["b"], source_columns=["a", "b"]
+        )
         expected = "insert into table target (b)\nselect b from source"
         assert sql == expected

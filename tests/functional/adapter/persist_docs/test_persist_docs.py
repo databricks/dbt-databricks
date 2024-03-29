@@ -1,9 +1,8 @@
-from dbt.tests.adapter.persist_docs.test_persist_docs import (
-    BasePersistDocs,
-    BasePersistDocsColumnMissing,
-    BasePersistDocsCommentOnQuotedColumn,
-)
 import pytest
+
+from dbt.tests.adapter.persist_docs.test_persist_docs import BasePersistDocs
+from dbt.tests.adapter.persist_docs.test_persist_docs import BasePersistDocsColumnMissing
+from dbt.tests.adapter.persist_docs.test_persist_docs import BasePersistDocsCommentOnQuotedColumn
 
 
 class DatabricksPersistMixin:
@@ -53,7 +52,9 @@ class TestPersistDocsHMS(BasePersistDocs):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestPersistDocsUCColumnMissing(DatabricksPersistMixin, BasePersistDocsColumnMissing):
+class TestPersistDocsUCColumnMissing(
+    DatabricksPersistMixin, BasePersistDocsColumnMissing
+):
     pass
 
 

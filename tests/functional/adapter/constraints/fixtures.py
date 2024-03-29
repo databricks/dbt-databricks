@@ -16,7 +16,9 @@ from
     '2019-01-01' as date_day ) as model_subq
 """
 
-constraints_yml = fixtures.model_schema_yml.replace("text", "string").replace("primary key", "")
+constraints_yml = fixtures.model_schema_yml.replace("text", "string").replace(
+    "primary key", ""
+)
 
 incremental_foreign_key_schema_yml = """
 version: 2

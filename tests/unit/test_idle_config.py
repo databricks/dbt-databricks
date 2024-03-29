@@ -1,14 +1,17 @@
 import unittest
+
 import dbt.exceptions
-from dbt.contracts.graph import nodes, model_config
 from dbt.adapters.databricks import connections
+from dbt.contracts.graph import model_config
+from dbt.contracts.graph import nodes
 
 
 class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
     """Test the various cases for determining a specified warehouse."""
 
     errMsg = (
-        "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
+        "Compute resource foo does not exist or does not specify http_path, "
+        "relation: a_relation"
     )
 
     def test_get_max_idle_default(self):
@@ -191,14 +194,16 @@ class TestDatabricksConnectionMaxIdleTime(unittest.TestCase):
         creds.compute["alternate_compute"]["connect_max_idle"] = "1.2.3"
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "1.2.3 is not a valid value for connect_max_idle. " "Must be a number of seconds.",
+            "1.2.3 is not a valid value for connect_max_idle. "
+            "Must be a number of seconds.",
         ):
             connections._get_max_idle_time(node, creds)
 
         creds.compute["alternate_compute"]["connect_max_idle"] = "1,002.3"
         with self.assertRaisesRegex(
             dbt.exceptions.DbtRuntimeError,
-            "1,002.3 is not a valid value for connect_max_idle. " "Must be a number of seconds.",
+            "1,002.3 is not a valid value for connect_max_idle. "
+            "Must be a number of seconds.",
         ):
             connections._get_max_idle_time(node, creds)
 

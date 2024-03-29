@@ -1,8 +1,11 @@
 from typing import Dict
-from dbt.contracts.results import RunResult, RunStatus
+
 import pytest
-from tests.functional.adapter.persist_constraints import fixtures
+
+from dbt.contracts.results import RunResult
+from dbt.contracts.results import RunStatus
 from dbt.tests import util
+from tests.functional.adapter.persist_constraints import fixtures
 
 
 class TestConstraints:
@@ -42,9 +45,13 @@ class TestConstraints:
         }
 
     def check_constraints(self, project, model_name: str, expected: Dict[str, str]):
-        rows = project.run_sql("show tblproperties {database}.{schema}." + model_name, fetch="all")
+        rows = project.run_sql(
+            "show tblproperties {database}.{schema}." + model_name, fetch="all"
+        )
         constraints = {
-            row.key: row.value for row in rows if row.key.startswith("delta.constraints")
+            row.key: row.value
+            for row in rows
+            if row.key.startswith("delta.constraints")
         }
         assert len(constraints) == len(expected)
         assert constraints == expected
@@ -116,7 +123,9 @@ class TestIncrementalConstraints(TestConstraints):
         project.run_sql("delete from {database}.{schema}.seed where id = 3")
 
         # Insert a valid row into the seed model.
-        project.run_sql("insert into {database}.{schema}.seed values (3, 'Cathy', '2022-03-01')")
+        project.run_sql(
+            "insert into {database}.{schema}.seed values (3, 'Cathy', '2022-03-01')"
+        )
         util.run_dbt(["run", "--select", model_name])
         expected_model_name = "expected_incremental_model"
         util.run_dbt(["run", "--select", expected_model_name])
@@ -125,7 +134,9 @@ class TestIncrementalConstraints(TestConstraints):
 
 class TestSnapshotConstraints(TestConstraints):
     def check_snapshot_results(self, project, num_rows: int):
-        results = project.run_sql("select * from {database}.{schema}.my_snapshot", fetch="all")
+        results = project.run_sql(
+            "select * from {database}.{schema}.my_snapshot", fetch="all"
+        )
         assert len(results) == num_rows
 
     def test_snapshot(self, project):
@@ -136,7 +147,10 @@ class TestSnapshotConstraints(TestConstraints):
 
         project.run_sql(fixtures.insert_invalid_name)
         results = util.run_dbt(["snapshot"], expect_pass=False)
-        assert "NOT NULL constraint violated for column: name" in results.results[0].message
+        assert (
+            "NOT NULL constraint violated for column: name"
+            in results.results[0].message
+        )
         self.check_staging_table_cleaned(project)
 
         util.run_dbt(["seed"])
@@ -153,7 +167,9 @@ class TestInvalidCheckConstraints(TestConstraints):
     def test_invalid_check_constraints(self, project):
         model_name = "invalid_check_constraint"
         util.run_dbt(["seed"])
-        self.run_and_check_failure(model_name, err_msg="Invalid check constraint condition")
+        self.run_and_check_failure(
+            model_name, err_msg="Invalid check constraint condition"
+        )
 
 
 class TestInvalidColumnConstraints(TestConstraints):
@@ -180,7 +196,9 @@ class TestTableWithConstraintsDisabled(TestConstraints):
         self.check_constraints(project, model_name, {})
 
         # Insert a row into the seed model with the name being null.
-        project.run_sql("insert into {database}.{schema}.seed values (3, null, '2022-03-01')")
+        project.run_sql(
+            "insert into {database}.{schema}.seed values (3, null, '2022-03-01')"
+        )
 
         # Check the table can be created without failure.
         util.run_dbt(["run", "--select", model_name])

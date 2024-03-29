@@ -1,17 +1,15 @@
 import pytest
-from dbt.tests.adapter.constraints.test_constraints import (
-    BaseTableConstraintsColumnsEqual,
-    BaseViewConstraintsColumnsEqual,
-    BaseIncrementalConstraintsColumnsEqual,
-    BaseConstraintsRuntimeDdlEnforcement,
-    BaseConstraintsRollback,
-    BaseConstraintQuotedColumn,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
-    BaseIncrementalConstraintsRollback,
-)
-from dbt.tests.adapter.constraints import fixtures
-from dbt.tests import util
 
+from dbt.tests import util
+from dbt.tests.adapter.constraints import fixtures
+from dbt.tests.adapter.constraints.test_constraints import BaseConstraintQuotedColumn
+from dbt.tests.adapter.constraints.test_constraints import BaseConstraintsRollback
+from dbt.tests.adapter.constraints.test_constraints import BaseConstraintsRuntimeDdlEnforcement
+from dbt.tests.adapter.constraints.test_constraints import BaseIncrementalConstraintsColumnsEqual
+from dbt.tests.adapter.constraints.test_constraints import BaseIncrementalConstraintsRollback
+from dbt.tests.adapter.constraints.test_constraints import BaseIncrementalConstraintsRuntimeDdlEnforcement
+from dbt.tests.adapter.constraints.test_constraints import BaseTableConstraintsColumnsEqual
+from dbt.tests.adapter.constraints.test_constraints import BaseViewConstraintsColumnsEqual
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 
@@ -48,7 +46,9 @@ class DatabricksConstraintsBase:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestTableConstraintsColumnsEqual(DatabricksConstraintsBase, BaseTableConstraintsColumnsEqual):
+class TestTableConstraintsColumnsEqual(
+    DatabricksConstraintsBase, BaseTableConstraintsColumnsEqual
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -59,7 +59,9 @@ class TestTableConstraintsColumnsEqual(DatabricksConstraintsBase, BaseTableConst
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestViewConstraintsColumnsEqual(DatabricksConstraintsBase, BaseViewConstraintsColumnsEqual):
+class TestViewConstraintsColumnsEqual(
+    DatabricksConstraintsBase, BaseViewConstraintsColumnsEqual
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -148,7 +150,9 @@ class BaseConstraintsRollbackSetup:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestTableConstraintsRollback(BaseConstraintsRollbackSetup, BaseConstraintsRollback):
+class TestTableConstraintsRollback(
+    BaseConstraintsRollbackSetup, BaseConstraintsRollback
+):
     @pytest.fixture(scope="class")
     def models(self):
         return {

@@ -1,8 +1,8 @@
+import pytest
 from jinja2 import Template
 from mock import MagicMock
-from tests.unit.macros.base import MacroTestBase
 
-import pytest
+from tests.unit.macros.base import MacroTestBase
 
 
 class TestPythonMacros(MacroTestBase):
@@ -45,7 +45,9 @@ class TestPythonMacros(MacroTestBase):
         context["is_incremental"].return_value = True
         result = self.run_macro_raw(template, "py_get_writer_options")
 
-        expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
+        expected = (
+            '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
+        )
         assert result == expected
 
     def test_py_get_writer__partition_by_single_column(self, config, template):
@@ -82,7 +84,9 @@ class TestPythonMacros(MacroTestBase):
         assert result == '.format("delta")'
 
     def test_py_try_import__golden_path(self, template):
-        result = self.run_macro_raw(template, "py_try_import", "pandas", "pandas_available")
+        result = self.run_macro_raw(
+            template, "py_try_import", "pandas", "pandas_available"
+        )
 
         expected = (
             "# make sure pandas exists before using it\n"

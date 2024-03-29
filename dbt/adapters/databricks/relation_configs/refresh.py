@@ -1,14 +1,14 @@
 import re
-from typing import ClassVar, Optional
+from typing import ClassVar
+from typing import Optional
 
-from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
+
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
-from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksComponentConfig,
-    DatabricksComponentProcessor,
-)
+from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
+from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
+from dbt.adapters.relation_configs.config_base import RelationResults
 
 SCHEDULE_REGEX = re.compile(r"CRON '(.*)' AT TIME ZONE '(.*)'")
 
@@ -67,7 +67,9 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         schedule = base.get_config_value(relation_config, "schedule")
         if schedule:
             if "cron" not in schedule:
-                raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}")
+                raise DbtRuntimeError(
+                    f"Schedule config must contain a 'cron' key, got {schedule}"
+                )
             return RefreshConfig(
                 cron=schedule["cron"], time_zone_value=schedule.get("time_zone_value")
             )

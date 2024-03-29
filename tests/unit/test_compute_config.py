@@ -1,14 +1,17 @@
 import unittest
+
 import dbt.exceptions
-from dbt.contracts.graph import nodes, model_config
 from dbt.adapters.databricks import connections
+from dbt.contracts.graph import model_config
+from dbt.contracts.graph import nodes
 
 
 class TestDatabricksConnectionHTTPPath(unittest.TestCase):
     """Test the various cases for determining a specified warehouse."""
 
     errMsg = (
-        "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
+        "Compute resource foo does not exist or does not specify http_path, "
+        "relation: a_relation"
     )
 
     def test_get_http_path_model(self):

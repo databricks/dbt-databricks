@@ -2,15 +2,15 @@
 Note that all imports should be inside the functions to avoid import/mocking
 issues.
 """
-
-import string
 import os
+import string
 from unittest import mock
 from unittest import TestCase
 
 import agate
 import pytest
 from dbt_common.dataclass_schema import ValidationError
+
 from dbt.config.project import PartialProject
 
 
@@ -81,7 +81,9 @@ def project_from_dict(project, profile, packages=None, selectors=None, cli_vars=
     return partial.render(renderer)
 
 
-def config_from_parts_or_dicts(project, profile, packages=None, selectors=None, cli_vars="{}"):
+def config_from_parts_or_dicts(
+    project, profile, packages=None, selectors=None, cli_vars="{}"
+):
     from dbt.config import Project, Profile, RuntimeConfig
     from dbt.config.utils import parse_cli_vars
     from copy import deepcopy
@@ -182,8 +184,12 @@ class ContractTestCase(TestCase):
 def compare_dicts(dict1, dict2):
     first_set = set(dict1.keys())
     second_set = set(dict2.keys())
-    print(f"--- Difference between first and second keys: {first_set.difference(second_set)}")
-    print(f"--- Difference between second and first keys: {second_set.difference(first_set)}")
+    print(
+        f"--- Difference between first and second keys: {first_set.difference(second_set)}"
+    )
+    print(
+        f"--- Difference between second and first keys: {second_set.difference(first_set)}"
+    )
     common_keys = set(first_set).intersection(set(second_set))
     found_differences = False
     for key in common_keys:

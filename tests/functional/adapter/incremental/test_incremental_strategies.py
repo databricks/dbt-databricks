@@ -1,5 +1,7 @@
 import os
+
 import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.incremental import fixtures
 
@@ -85,7 +87,9 @@ class InsertOverwriteBase(IncrementalBase):
 
     def test_append(self, project):
         self.seed_and_run_twice()
-        util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
+        util.check_relations_equal(
+            project.adapter, ["overwrite_model", "overwrite_expected"]
+        )
 
 
 class TestInsertOverwriteDelta(InsertOverwriteBase):
@@ -95,7 +99,12 @@ class TestInsertOverwriteDelta(InsertOverwriteBase):
 class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+incremental_strategy": "insert_overwrite", "+partition_by": "id"}}
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+partition_by": "id",
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
@@ -200,4 +209,6 @@ class TestReplaceWhere(IncrementalBase):
 
     def test_replace_where(self, project):
         self.seed_and_run_twice()
-        util.check_relations_equal(project.adapter, ["replace_where", "replace_where_expected"])
+        util.check_relations_equal(
+            project.adapter, ["replace_where", "replace_where_expected"]
+        )

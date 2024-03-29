@@ -1,6 +1,13 @@
-from typing import Any, Dict, Optional
-from databricks.sdk.oauth import ClientCredentials, Token
-from databricks.sdk.core import CredentialsProvider, HeaderFactory, Config, credentials_provider
+from typing import Any
+from typing import Dict
+from typing import Optional
+
+from databricks.sdk.core import Config
+from databricks.sdk.core import credentials_provider
+from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.core import HeaderFactory
+from databricks.sdk.oauth import ClientCredentials
+from databricks.sdk.oauth import Token
 from databricks.sdk.oauth import TokenSource
 
 
@@ -66,7 +73,9 @@ class m2m_auth(CredentialsProvider):
             return {"token": {}}
 
     @staticmethod
-    def from_dict(host: str, client_id: str, client_secret: str, raw: dict) -> CredentialsProvider:
+    def from_dict(
+        host: str, client_id: str, client_secret: str, raw: dict
+    ) -> CredentialsProvider:
         c = m2m_auth(host=host, client_id=client_id, client_secret=client_secret)
         c._token_source._token = Token.from_dict(raw["token"])  # type: ignore
         return c

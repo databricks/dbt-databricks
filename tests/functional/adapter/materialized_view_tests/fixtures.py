@@ -1,6 +1,6 @@
 from typing import Optional
-from dbt.adapters.base import BaseRelation
 
+from dbt.adapters.base import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 
 

@@ -1,8 +1,14 @@
 import re
-from typing import Any, Dict
-from mock import Mock
+from typing import Any
+from typing import Dict
+
 import pytest
-from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
+from jinja2 import PackageLoader
+from jinja2 import Template
+from mock import Mock
+
 from dbt.adapters.databricks.relation import DatabricksRelation
 
 
@@ -20,7 +26,9 @@ class MacroTestBase:
         Anything you put in this dict will be returned by config in the rendered template
         """
         local_config: Dict[str, Any] = {}
-        context["config"].get = lambda key, default=None, **kwargs: local_config.get(key, default)
+        context["config"].get = lambda key, default=None, **kwargs: local_config.get(
+            key, default
+        )
         return local_config
 
     @pytest.fixture(autouse=True)
@@ -109,13 +117,17 @@ class MacroTestBase:
         return []
 
     @pytest.fixture(scope="class")
-    def databricks_context(self, spark_context, databricks_env, databricks_template_names) -> dict:
+    def databricks_context(
+        self, spark_context, databricks_env, databricks_template_names
+    ) -> dict:
         """
         Adds all the requested Databricks macros to the context
         """
         if not databricks_template_names:
             return spark_context
-        return self.build_up_context(spark_context, databricks_env, databricks_template_names)
+        return self.build_up_context(
+            spark_context, databricks_env, databricks_template_names
+        )
 
     def build_up_context(self, context, env, template_names):
         """
@@ -210,4 +222,6 @@ class MacroTestBase:
         """
         Convenience method for macros that take a relation as a first argument.
         """
-        return self.run_macro(template_bundle.template, name, template_bundle.relation, *args)
+        return self.run_macro(
+            template_bundle.template, name, template_bundle.relation, *args
+        )
