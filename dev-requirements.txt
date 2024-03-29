@@ -22,6 +22,7 @@ pytz
 tox>=3.2.0
 types-requests
 types-mock
+pre-commit
 
 git+https://github.com/dbt-labs/dbt-core.git#egg=dbt-core&subdirectory=core
 git+https://github.com/dbt-labs/dbt-common.git
