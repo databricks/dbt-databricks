@@ -23,11 +23,6 @@ from typing import Union
 from agate import Row
 from agate import Table
 from agate import Text
-from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-from dbt_common.clients.agate_helper import empty_table
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import executor
-
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
@@ -44,6 +39,8 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
+from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
@@ -75,6 +72,10 @@ from dbt.adapters.spark.impl import LIST_RELATIONS_MACRO_NAME
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
+from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+from dbt_common.clients.agate_helper import empty_table
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import executor
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -128,7 +129,11 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    ConnectionManager = DatabricksConnectionManager
+    if USE_LONG_SESSIONS:
+        ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
+    else:
+        ConnectionManager = DatabricksConnectionManager
+
     connections: DatabricksConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
