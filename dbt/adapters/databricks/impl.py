@@ -130,7 +130,7 @@ class DatabricksAdapter(SparkAdapter):
     Column = DatabricksColumn
 
     if USE_LONG_SESSIONS:
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
+        ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
 
