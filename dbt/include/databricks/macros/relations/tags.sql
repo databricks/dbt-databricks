@@ -15,7 +15,7 @@
 {%- endmacro -%}
 
 {% macro apply_tags(relation, set_tags, unset_tags=[]) -%}
-  {%- if (set_tags is not none or unset_tags is not none) and relation.is_hive_metastore() -%}
+  {%- if (set_tags or unset_tags) and relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}
   {%- endif -%}
   {%- if set_tags %}

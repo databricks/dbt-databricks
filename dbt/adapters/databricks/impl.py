@@ -871,13 +871,9 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
     def _describe_relation(
         cls, adapter: DatabricksAdapter, relation: DatabricksRelation
     ) -> RelationResults:
-        kwargs = {"table_name": relation}
-        results: RelationResults = dict()
-        results["describe_extended"] = adapter.execute_macro(
-            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
-        )
-
+        results = {}
         kwargs = {"relation": relation}
 
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        if not relation.is_hive_metastore():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         return results
