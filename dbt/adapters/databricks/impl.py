@@ -54,6 +54,7 @@ from dbt.adapters.databricks.relation import extract_identifiers
 from dbt.adapters.databricks.relation import is_hive_metastore
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
@@ -96,6 +97,7 @@ class DatabricksConfig(AdapterConfig):
     buckets: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     merge_update_columns: Optional[str] = None
+    databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
 
@@ -744,6 +746,8 @@ class DatabricksAdapter(SparkAdapter):
             return MaterializedViewAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.StreamingTable:
             return StreamingTableAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.Table:
+            return IncrementalTableAPI.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -754,6 +758,8 @@ class DatabricksAdapter(SparkAdapter):
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":
             return StreamingTableAPI.get_from_relation_config(model)
+        elif model.config.materialized == "incremental":
+            return IncrementalTableAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -851,4 +857,27 @@ class StreamingTableAPI(RelationAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results
+
+
+class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
+    relation_type = DatabricksRelationType.Table
+
+    @classmethod
+    def config_type(cls) -> Type[IncrementalTableConfig]:
+        return IncrementalTableConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        kwargs = {"table_name": relation}
+        results: RelationResults = dict()
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        kwargs = {"relation": relation}
+
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         return results

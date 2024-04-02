@@ -1,12 +1,11 @@
 import pytest
 from agate import Table
-from mock import Mock
-
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )
 from dbt.exceptions import DbtRuntimeError
+from mock import Mock
 
 
 class TestTblPropertiesProcessor:

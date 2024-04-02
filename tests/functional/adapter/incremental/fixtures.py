@@ -45,6 +45,36 @@ models:
         - name: color
 """
 
+tags_a = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        databricks_tags:
+            a: b
+            c: d
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
+tags_b = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        databricks_tags:
+            c: e
+            d: f
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
 _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS = """
 {{
     config(
