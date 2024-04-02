@@ -3,6 +3,7 @@ from dbt.tests import util
 from tests.functional.adapter.tags import fixtures
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestTags:
     @pytest.fixture(scope="class")
     def models(self):
@@ -21,12 +22,14 @@ class TestTags:
         assert len(results) == 2
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestViewTags(TestTags):
     @pytest.fixture(scope="class")
     def models(self):
         return {"tags.sql": fixtures.tags_sql.replace("table", "view")}
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalTags(TestTags):
     @pytest.fixture(scope="class")
     def models(self):

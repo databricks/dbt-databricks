@@ -3,6 +3,7 @@ from dbt.tests import util
 from tests.functional.adapter.incremental import fixtures
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPersistDocs:
     @pytest.fixture(scope="class")
     def models(self):
