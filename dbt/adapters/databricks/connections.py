@@ -114,9 +114,9 @@ DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
-REDIRECT_URL = "http://localhost:8020"
+REDIRECT_URL = "http://localhost:8050"
 CLIENT_ID = "dbt-databricks"
-SCOPES = ["all-apis", "offline_access"]
+SCOPES = ["sql", "offline_access"]
 MAX_NT_PASSWORD_SIZE = 1280
 
 # toggle for session managements that minimizes the number of sessions opened/closed
