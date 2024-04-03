@@ -34,3 +34,13 @@ class TestIncrementalTags(TestTags):
     @pytest.fixture(scope="class")
     def models(self):
         return {"tags.sql": fixtures.tags_sql.replace("table", "incremental")}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPythonTags(TestTags):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "tags.py": fixtures.simple_python_model,
+            "schema.yml": fixtures.python_schema,
+        }

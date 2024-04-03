@@ -253,3 +253,37 @@ select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 
 {% endif %}
 """
+
+
+simple_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+    )
+    data = [[1,2]] * 10
+    return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
+python_schema = """version: 2
+models:
+  - name: tags
+    config:
+      tags: ["python"]
+      databricks_tags:
+        a: b
+        c: d
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_schema2 = """version: 2
+models:
+  - name: tags
+    config:
+      tags: ["python"]
+      databricks_tags:
+        c: e
+        d: f
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
