@@ -1,13 +1,10 @@
 import os
 
 import pytest
-
 from dbt.tests import util
-from dbt.tests.adapter.python_model.test_python_model import (
-    BasePythonIncrementalTests,
-    BasePythonModelTests,
-)
 from dbt.tests.adapter.python_model import test_python_model as fixtures
+from dbt.tests.adapter.python_model.test_python_model import BasePythonIncrementalTests
+from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTests
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 
@@ -93,3 +90,9 @@ class TestComplexConfig:
         util.run_dbt(["build", "-s", "complex_config"])
         util.run_dbt(["build", "-s", "complex_config"])
         util.check_relations_equal(project.adapter, ["complex_config", "expected_complex"])
+        results = project.run_sql(
+            "SHOW TBLPROPERTIES {database}.{schema}.complex_config", fetch="all"
+        )
+        result_dict = {result[0]: result[1] for result in results}
+        assert result_dict["a"] == "b"
+        assert result_dict["c"] == "d"
