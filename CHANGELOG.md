@@ -1,5 +1,9 @@
 ## dbt-databricks 1.7.12 (TBD)
 
+### Features
+
+- Apply tblproperties to python models (using alter table) ([633](https://github.com/databricks/dbt-databricks/pull/633))
+
 ### Fixes
 
 - Up default socket timeout to 10 minutes
