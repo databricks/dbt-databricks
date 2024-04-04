@@ -8,6 +8,7 @@
       identifier=identifier, schema=schema, database=database,
       type='view') -%}
   {% set grant_config = config.get('grants') %}
+  {% set tags = config.get('databricks_tags') %}
 
   {{ run_hooks(pre_hooks) }}
 
@@ -25,6 +26,8 @@
 
   {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
+
+  {%- do apply_tags(target_relation, tags) -%}
 
   {{ run_hooks(post_hooks) }}
 

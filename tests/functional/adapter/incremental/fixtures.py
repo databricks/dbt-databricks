@@ -45,6 +45,36 @@ models:
         - name: color
 """
 
+tags_a = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        databricks_tags:
+            a: b
+            c: d
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
+tags_b = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        databricks_tags:
+            c: e
+            d: f
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
 _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS = """
 {{
     config(
@@ -222,4 +252,38 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 
 {% endif %}
+"""
+
+
+simple_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+    )
+    data = [[1,2]] * 10
+    return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
+python_schema = """version: 2
+models:
+  - name: tags
+    config:
+      tags: ["python"]
+      databricks_tags:
+        a: b
+        c: d
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_schema2 = """version: 2
+models:
+  - name: tags
+    config:
+      tags: ["python"]
+      databricks_tags:
+        c: e
+        d: f
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
