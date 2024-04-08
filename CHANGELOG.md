@@ -2,6 +2,7 @@
 
 ### Features
 
+- Apply tblproperties to python models (using alter table) ([633](https://github.com/databricks/dbt-databricks/pull/633))
 - Make OAuth redirect url configurable (thanks @johnsequeira-paradigm for the inspiration!) ([635]https://github.com/databricks/dbt-databricks/pull/635)
 
 ### Fixes
