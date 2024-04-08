@@ -1,83 +1,73 @@
-import json
-import uuid
-import logging
-import warnings
-from contextlib import contextmanager
-from dataclasses import dataclass
 import itertools
+import json
+import logging
 import os
 import re
 import sys
 import threading
 import time
-from threading import get_ident
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    cast,
-    Union,
-    Hashable,
-)
+import uuid
+import warnings
+from contextlib import contextmanager
+from dataclasses import dataclass
 from numbers import Number
+from threading import get_ident
+from typing import Any
+from typing import Callable
+from typing import cast
+from typing import Dict
+from typing import Hashable
+from typing import Iterable
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
+from typing import Union
 
-from agate import Table
-
+import databricks.sql as dbsql
 import dbt.exceptions
+import keyring
+from agate import Table
+from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.core import HeaderFactory
+from databricks.sdk.oauth import OAuthClient
+from databricks.sdk.oauth import SessionCredentials
+from databricks.sql.client import Connection as DatabricksSQLConnection
+from databricks.sql.client import Cursor as DatabricksSQLCursor
+from databricks.sql.exc import Error
 from dbt.adapters.base import Credentials
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
+from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.databricks.auth import m2m_auth
+from dbt.adapters.databricks.auth import token_auth
+from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt.clients import agate_helper
-from dbt.contracts.connection import (
-    AdapterResponse,
-    AdapterRequiredConfig,
-    Connection,
-    ConnectionState,
-    DEFAULT_QUERY_COMMENT,
-    Identifier,
-    LazyHandle,
-)
-from dbt.events.types import (
-    NewConnection,
-    ConnectionReused,
-    ConnectionLeftOpenInCleanup,
-    ConnectionClosedInCleanup,
-)
-
+from dbt.contracts.connection import AdapterRequiredConfig
+from dbt.contracts.connection import AdapterResponse
+from dbt.contracts.connection import Connection
+from dbt.contracts.connection import ConnectionState
+from dbt.contracts.connection import DEFAULT_QUERY_COMMENT
+from dbt.contracts.connection import Identifier
+from dbt.contracts.connection import LazyHandle
 from dbt.contracts.graph.manifest import Manifest
 from dbt.contracts.graph.nodes import ResultNode
 from dbt.events import AdapterLogger
 from dbt.events.contextvars import get_node_info
 from dbt.events.functions import fire_event
-from dbt.events.types import ConnectionUsed, SQLQuery, SQLQueryStatus
-from dbt.utils import DECIMALS, cast_to_str
-
-import databricks.sql as dbsql
-from databricks.sql.client import (
-    Connection as DatabricksSQLConnection,
-    Cursor as DatabricksSQLCursor,
-)
-from databricks.sql.exc import Error
-
-from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.utils import redact_credentials
-
-from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient, SessionCredentials
-from dbt.adapters.databricks.auth import token_auth, m2m_auth
-
-from requests.auth import AuthBase
+from dbt.events.types import ConnectionClosedInCleanup
+from dbt.events.types import ConnectionLeftOpenInCleanup
+from dbt.events.types import ConnectionReused
+from dbt.events.types import ConnectionUsed
+from dbt.events.types import NewConnection
+from dbt.events.types import SQLQuery
+from dbt.events.types import SQLQueryStatus
+from dbt.utils import cast_to_str
+from dbt.utils import DECIMALS
 from requests import PreparedRequest
-from databricks.sdk.core import HeaderFactory
-
-import keyring
 from requests import Session
+from requests.auth import AuthBase
 
 logger = AdapterLogger("Databricks")
 
@@ -154,6 +144,7 @@ class DatabricksCredentials(Credentials):
     token: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
+    oauth_redirect_url: Optional[str] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
     auth_type: Optional[str] = None
@@ -218,6 +209,7 @@ class DatabricksCredentials(Credentials):
             "access_token",
             "client_id",
             "client_secret",
+            "oauth_redirect_url",
             "session_configuration",
             "catalog",
             "schema",
@@ -378,9 +370,9 @@ class DatabricksCredentials(Credentials):
 
             oauth_client = OAuthClient(
                 host=host,
-                client_id=self.client_id if self.client_id else CLIENT_ID,
+                client_id=self.client_id or CLIENT_ID,
                 client_secret="",
-                redirect_url=REDIRECT_URL,
+                redirect_url=self.oauth_redirect_url or REDIRECT_URL,
                 scopes=SCOPES,
             )
             # optional branch. Try and keep going if it does not work
