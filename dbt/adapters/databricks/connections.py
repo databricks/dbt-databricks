@@ -487,9 +487,9 @@ class DatabricksCredentials(Credentials):
 
         oauth_client = OAuthClient(
             host=self.host or "",
-            client_id=CLIENT_ID,
+            client_id=self.client_id or CLIENT_ID,
             client_secret="",
-            redirect_url=REDIRECT_URL,
+            redirect_url=self.oauth_redirect_url or REDIRECT_URL,
             scopes=SCOPES,
         )
 
