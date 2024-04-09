@@ -19,10 +19,8 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import Union
+from typing import TYPE_CHECKING
 
-from agate import Row
-from agate import Table
-from agate import Text
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
@@ -73,10 +71,12 @@ from dbt.adapters.spark.impl import LIST_RELATIONS_MACRO_NAME
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-from dbt_common.clients.agate_helper import empty_table
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
+
+if TYPE_CHECKING:
+    from agate import Row
+    from agate import Table
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -124,6 +124,13 @@ def get_identifier_list_string(table_names: Set[str]) -> str:
     return _identifier
 
 
+def _parse_callback_empty_table(*args, **kwargs) -> Tuple[str, "Table"]:
+    # Lazy load agate_helper to avoid importing agate when it is not necessary.
+    from dbt.clients.agate_helper import empty_table
+
+    return "", empty_table()
+
+
 @undefined_proof
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
@@ -166,7 +173,7 @@ class DatabricksAdapter(SparkAdapter):
             if self.connections.query_header is not None:
                 self.connections.query_header.reset()
 
-    @available.parse(lambda *a, **k: 0)
+    @available.parse(_parse_callback_empty_table)
     def compare_dbr_version(self, major: int, minor: int) -> int:
         """
         Returns the comparison result between the version of the cluster and the specified version.
@@ -204,7 +211,7 @@ class DatabricksAdapter(SparkAdapter):
         limit: Optional[int] = None,
         *,
         staging_table: Optional[BaseRelation] = None,
-    ) -> Tuple[AdapterResponse, Table]:
+    ) -> Tuple[AdapterResponse, "Table"]:
         try:
             return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
@@ -241,7 +248,7 @@ class DatabricksAdapter(SparkAdapter):
     def _list_relations_with_information(
         self, schema_relation: DatabricksRelation
     ) -> List[Tuple[DatabricksRelation, str]]:
-        results: List[Row]
+        results: List["Row"]
         kwargs = {"schema_relation": schema_relation}
         try:
             # The catalog for `show table extended` needs to match the current catalog.
@@ -277,8 +284,11 @@ class DatabricksAdapter(SparkAdapter):
 
         return relations
 
-    @available.parse(lambda *a, **k: empty_table())
-    def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
+    @available.parse(_parse_callback_empty_table)
+    def get_relations_without_caching(self, relation: DatabricksRelation) -> "Table":
+        from agate import Table
+        from agate import Text
+
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[Optional[str], str, str, str]]
@@ -433,7 +443,7 @@ class DatabricksAdapter(SparkAdapter):
         return self._set_relation_information(cached) if cached else None
 
     def parse_describe_extended(  # type: ignore[override]
-        self, relation: DatabricksRelation, raw_rows: List[Row]
+        self, relation: DatabricksRelation, raw_rows: List["Row"]
     ) -> Tuple[Dict[str, Any], List[DatabricksColumn]]:
         # Convert the Row to a dict
         dict_rows = [dict(zip(row._keys, row._values)) for row in raw_rows]
@@ -473,7 +483,7 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         try:
-            rows: List[Row] = list(
+            rows: List["Row"] = list(
                 self.execute_macro(
                     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
                     kwargs={"relation": relation},
@@ -546,11 +556,11 @@ class DatabricksAdapter(SparkAdapter):
         self,
         relation_configs: Iterable[RelationConfig],
         used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[Table, List[Exception]]:  # type: ignore
+    ) -> Tuple["Table", List[Exception]]:  # type: ignore
         schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
-            futures: List[Future[Table]] = []
+            futures: List[Future["Table"]] = []
             for info, schemas in schema_map.items():
                 if is_hive_metastore(info.database):
                     for schema in schemas:
@@ -574,7 +584,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def _get_one_unity_catalog(
         self, info: InformationSchema, schemas: FrozenSet[Tuple[str, str]]
-    ) -> Table:
+    ) -> "Table":
         kwargs = {
             "information_schema": info,
             "schemas": schemas,
@@ -586,10 +596,10 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_catalog_by_relations(
         self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
-    ) -> Tuple[Table, List[Exception]]:
+    ) -> Tuple["Table", List[Exception]]:
         with executor(self.config) as tpe:
             relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
-            futures: List[Future[Table]] = []
+            futures: List[Future["Table"]] = []
 
             for info_schema, catalog_relations in relations_by_catalog.items():
                 if is_hive_metastore(info_schema.database):
@@ -623,7 +633,10 @@ class DatabricksAdapter(SparkAdapter):
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_hive_catalog(self, schema: str, identifier: str) -> Table:
+    def _get_hive_catalog(self, schema: str, identifier: str) -> "Table":
+        from agate import Table
+        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+
         columns: List[Dict[str, Any]] = []
 
         if identifier:
@@ -830,7 +843,7 @@ class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
         return results
 
     @staticmethod
-    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> Row:
+    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> "Row":
         row = get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
         if "view_definition" in row.keys() and row["view_definition"] is not None:
             return row

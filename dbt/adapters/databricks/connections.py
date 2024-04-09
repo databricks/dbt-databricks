@@ -20,9 +20,9 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from typing import TYPE_CHECKING
 
 import databricks.sql as dbsql
-from agate import Table
 from databricks.sql.client import Connection as DatabricksSQLConnection
 from databricks.sql.client import Cursor as DatabricksSQLCursor
 from databricks.sql.exc import Error
@@ -48,13 +48,15 @@ from dbt.adapters.events.types import NewConnection
 from dbt.adapters.events.types import SQLQuery
 from dbt.adapters.events.types import SQLQueryStatus
 from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.clients import agate_helper
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
 from requests import Session
+
+if TYPE_CHECKING:
+    from agate import Table
 
 mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
 st_refresh_regex = re.compile(
@@ -622,7 +624,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         auto_begin: bool = False,
         fetch: bool = False,
         limit: Optional[int] = None,
-    ) -> Tuple[DatabricksAdapterResponse, Table]:
+    ) -> Tuple[DatabricksAdapterResponse, "Table"]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -630,6 +632,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if fetch:
                 table = self.get_result_from_cursor(cursor, limit)
             else:
+                from dbt_common.clients import agate_helper
+
                 table = agate_helper.empty_table()
             return response, table
         finally:
@@ -637,7 +641,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def _execute_cursor(
         self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
-    ) -> Table:
+    ) -> "Table":
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
@@ -672,7 +676,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if cursor is not None:
                     cursor.close()
 
-    def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":
         database = database.strip("`")
         if schema:
             schema = schema.strip("`").lower()
@@ -681,7 +685,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
-    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> "Table":
         database = database.strip("`")
         schema = schema.strip("`").lower()
         if identifier:
