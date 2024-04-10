@@ -126,7 +126,7 @@ def get_identifier_list_string(table_names: Set[str]) -> str:
 
 def _parse_callback_empty_table(*args, **kwargs) -> Tuple[str, "Table"]:
     # Lazy load agate_helper to avoid importing agate when it is not necessary.
-    from dbt.clients.agate_helper import empty_table
+    from dbt_common.agate_helper import empty_table
 
     return "", empty_table()
 
@@ -173,7 +173,7 @@ class DatabricksAdapter(SparkAdapter):
             if self.connections.query_header is not None:
                 self.connections.query_header.reset()
 
-    @available.parse(_parse_callback_empty_table)
+    @available.parse(lambda *a, **k: 0)
     def compare_dbr_version(self, major: int, minor: int) -> int:
         """
         Returns the comparison result between the version of the cluster and the specified version.
