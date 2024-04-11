@@ -38,9 +38,7 @@ from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
-from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
@@ -130,13 +128,9 @@ class DatabricksAdapter(SparkAdapter):
 
     Relation = DatabricksRelation
     Column = DatabricksColumn
+    ConnectionManager = ExtendedSessionConnectionManager
 
-    if USE_LONG_SESSIONS:
-        ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
-
-    connections: DatabricksConnectionManager
+    connections: ExtendedSessionConnectionManager
 
     AdapterSpecificConfigs = DatabricksConfig
 

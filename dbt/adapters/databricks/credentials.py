@@ -58,7 +58,7 @@ class DatabricksCredentials(Credentials):
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False
-    connect_max_idle: Optional[int] = None
+    connect_max_idle: int = None
 
     _credentials_provider: Optional[Dict[str, Any]] = None
     _lock = threading.Lock()  # to avoid concurrent auth
