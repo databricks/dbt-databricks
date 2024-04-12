@@ -1,6 +1,5 @@
 import pytest
 from attr import dataclass
-from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.connection import connection_utils
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt_common.exceptions import DbtRuntimeError
@@ -18,13 +17,13 @@ class TestGetMaxIdleTime:
 
         # No node and nothing specified in creds
         time = connection_utils.get_max_idle_time(creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+        assert connection_utils.DEFAULT_MAX_IDLE_TIME == time
 
     def test_get_max_idle__no_compute_override(self):
         creds = DatabricksCredentials(compute={"foo": {}})
 
         time = connection_utils.get_max_idle_time(creds, "foo")
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+        assert connection_utils.DEFAULT_MAX_IDLE_TIME == time
 
     def test_get_max_idle__cred_default(self):
         creds_idle_time = 77

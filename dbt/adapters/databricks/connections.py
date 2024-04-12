@@ -33,10 +33,8 @@ from dbt.adapters.contracts.connection import Identifier
 from dbt.adapters.contracts.connection import LazyHandle
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.auth import BearerAuth
-from dbt.adapters.databricks.connection.connection_utils import DEFAULT_MAX_IDLE_TIME
-from dbt.adapters.databricks.connection.connection_utils import get_compute_name
-from dbt.adapters.databricks.connection.connection_utils import get_http_path
-from dbt.adapters.databricks.connection.connection_utils import get_max_idle_time
+from dbt.adapters.databricks.connection import connection_utils
+from dbt.adapters.databricks.connection import dlt
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
@@ -56,12 +54,6 @@ from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
 from requests import Session
-
-mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
-st_refresh_regex = re.compile(
-    r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
-)
-
 
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 
@@ -201,7 +193,7 @@ class DatabricksSQLCursorWrapper:
         self,
         sql: str,
     ) -> None:
-        should_poll, model_name = _should_poll_refresh(sql)
+        should_poll, model_name = dlt.should_poll_refresh(sql)
         if not should_poll:
             return
 
@@ -219,10 +211,10 @@ class DatabricksSQLCursorWrapper:
         session.auth = BearerAuth(headers)
         session.headers = {"User-Agent": self._user_agent}
 
-        pipeline_id = _get_table_view_pipeline_id(session, host, model_name)
-        pipeline = _get_pipeline_state(session, host, pipeline_id)
+        pipeline_id = dlt.get_table_view_pipeline_id(session, host, model_name)
+        pipeline = dlt.get_pipeline_state(session, host, pipeline_id)
         # get the most recently created update for the pipeline
-        latest_update = _find_update(pipeline)
+        latest_update = dlt.find_pipeline_update(pipeline)
         if not latest_update:
             raise DbtRuntimeError(f"No update created for pipeline: {pipeline_id}")
 
@@ -245,9 +237,9 @@ class DatabricksSQLCursorWrapper:
             # should we do exponential backoff?
             time.sleep(polling_interval)
 
-            pipeline = _get_pipeline_state(session, host, pipeline_id)
+            pipeline = dlt.get_pipeline_state(session, host, pipeline_id)
             # get the update we are currently polling
-            update = _find_update(pipeline, update_id)
+            update = dlt.find_pipeline_update(pipeline, update_id)
             if not update:
                 raise DbtRuntimeError(
                     f"Error getting pipeline update info: {pipeline_id}, update: {update_id}"
@@ -262,13 +254,13 @@ class DatabricksSQLCursorWrapper:
 
             if state == "FAILED":
                 logger.error(f"pipeline {pipeline_id} update {update_id} failed")
-                msg = _get_update_error_msg(session, host, pipeline_id, update_id)
+                msg = dlt.get_pipeline_update_error(session, host, pipeline_id, update_id)
                 if msg:
                     logger.error(msg)
 
                 # another update may have been created due to retry_on_fail settings
                 # get the latest update and see if it is a new one
-                latest_update = _find_update(pipeline)
+                latest_update = dlt.find_pipeline_update(pipeline)
                 if not latest_update:
                     raise DbtRuntimeError(f"No update created for pipeline: {pipeline_id}")
 
@@ -281,7 +273,7 @@ class DatabricksSQLCursorWrapper:
             raise DbtRuntimeError("timed out waiting for materialized view refresh")
 
         if state == "FAILED":
-            msg = _get_update_error_msg(session, host, pipeline_id, update_id)
+            msg = dlt.get_pipeline_update_error(session, host, pipeline_id, update_id)
             raise DbtRuntimeError(f"error refreshing model {model_name} {msg}")
 
         if state == "CANCELED":
@@ -392,7 +384,7 @@ class DatabricksDBTConnection(Connection):
     compute_name: str = ""
     http_path: str = ""
     thread_identifier: Tuple[int, int] = (0, 0)
-    max_idle_time: int = DEFAULT_MAX_IDLE_TIME
+    max_idle_time: int = connection_utils.DEFAULT_MAX_IDLE_TIME
 
     # If the connection is being used for a model we want to track the model language.
     # We do this because we need special handling for python models.  Python models will
@@ -532,7 +524,9 @@ class ExtendedSessionConnectionManager(SparkConnectionManager):
         conn_name: str = "master" if name is None else name
 
         # Get a connection for this thread
-        conn = self._get_if_exists_compute_connection(get_compute_name(query_header_context) or "")
+        conn = self._get_if_exists_compute_connection(
+            connection_utils.get_compute_name(query_header_context) or ""
+        )
 
         if conn is None:
             conn = self._create_compute_connection(conn_name, query_header_context)
@@ -800,7 +794,7 @@ class ExtendedSessionConnectionManager(SparkConnectionManager):
         with the given node."""
 
         # Create a new connection
-        compute_name = get_compute_name(query_header_context) or ""
+        compute_name = connection_utils.get_compute_name(query_header_context) or ""
 
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
@@ -812,9 +806,11 @@ class ExtendedSessionConnectionManager(SparkConnectionManager):
         )
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = get_http_path(creds, compute_name, query_header_context) or ""
+        conn.http_path = (
+            connection_utils.get_http_path(creds, compute_name, query_header_context) or ""
+        )
         conn.thread_identifier = cast(Tuple[int, int], self.get_thread_identifier())
-        conn.max_idle_time = get_max_idle_time(creds, compute_name)
+        conn.max_idle_time = connection_utils.get_max_idle_time(creds, compute_name)
 
         conn.handle = LazyHandle(self.open)
 
@@ -935,88 +931,3 @@ def _log_dbsql_errors(exc: Exception) -> None:
         logger.debug(f"{type(exc)}: {exc}")
         for key, value in sorted(exc.context.items()):
             logger.debug(f"{key}: {value}")
-
-
-def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
-    # if the command was to refresh a materialized view we need to poll
-    # the pipeline until the refresh is finished.
-    name = ""
-    refresh_search = mv_refresh_regex.search(sql)
-    if not refresh_search:
-        refresh_search = st_refresh_regex.search(sql)
-
-    if refresh_search:
-        name = refresh_search.group(1).replace("`", "")
-
-    return refresh_search is not None, name
-
-
-def _get_table_view_pipeline_id(session: Session, host: str, name: str) -> str:
-    table_url = f"https://{host}/api/2.1/unity-catalog/tables/{name}"
-    resp1 = session.get(table_url)
-    if resp1.status_code != 200:
-        raise DbtRuntimeError(
-            f"Error getting info for materialized view/streaming table {name}: {resp1.text}"
-        )
-
-    pipeline_id = resp1.json().get("pipeline_id", "")
-    if not pipeline_id:
-        raise DbtRuntimeError(
-            f"Materialized view/streaming table {name} does not have a pipeline id"
-        )
-
-    return pipeline_id
-
-
-def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:
-    pipeline_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}"
-
-    response = session.get(pipeline_url)
-    if response.status_code != 200:
-        raise DbtRuntimeError(f"Error getting pipeline info for {pipeline_id}: {response.text}")
-
-    return response.json()
-
-
-def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
-    updates = pipeline.get("latest_updates", [])
-    if not updates:
-        raise DbtRuntimeError(f"No updates for pipeline: {pipeline.get('pipeline_id', '')}")
-
-    if not id:
-        return updates[0]
-
-    matches = [x for x in updates if x.get("update_id") == id]
-    if matches:
-        return matches[0]
-
-    return None
-
-
-def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_id: str) -> str:
-    events_url = f"https://{host}/api/2.0/pipelines/{pipeline_id}/events"
-    response = session.get(events_url)
-    if response.status_code != 200:
-        raise DbtRuntimeError(
-            f"Error getting pipeline event info for {pipeline_id}: {response.text}"
-        )
-
-    events = response.json().get("events", [])
-    update_events = [
-        e
-        for e in events
-        if e.get("event_type", "") == "update_progress"
-        and e.get("origin", {}).get("update_id") == update_id
-    ]
-
-    error_events = [
-        e
-        for e in update_events
-        if e.get("details", {}).get("update_progress", {}).get("state", "") == "FAILED"
-    ]
-
-    msg = ""
-    if error_events:
-        msg = error_events[0].get("message", "")
-
-    return msg
