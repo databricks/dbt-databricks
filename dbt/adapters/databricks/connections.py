@@ -1,5 +1,4 @@
 import decimal
-import os
 import re
 import sys
 import time
@@ -8,7 +7,6 @@ import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
-from threading import get_ident
 from typing import Any
 from typing import Callable
 from typing import cast
@@ -37,6 +35,7 @@ from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.auth import BearerAuth
 from dbt.adapters.databricks.connection.connection_utils import DEFAULT_MAX_IDLE_TIME
 from dbt.adapters.databricks.connection.connection_utils import get_compute_name
+from dbt.adapters.databricks.connection.connection_utils import get_http_path
 from dbt.adapters.databricks.connection.connection_utils import get_max_idle_time
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
@@ -813,7 +812,7 @@ class ExtendedSessionConnectionManager(SparkConnectionManager):
         )
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = _get_http_path(query_header_context, creds=creds) or ""
+        conn.http_path = get_http_path(creds, compute_name, query_header_context) or ""
         conn.thread_identifier = cast(Tuple[int, int], self.get_thread_identifier())
         conn.max_idle_time = get_max_idle_time(creds, compute_name)
 
@@ -1021,36 +1020,3 @@ def _get_update_error_msg(session: Session, host: str, pipeline_id: str, update_
         msg = error_events[0].get("message", "")
 
     return msg
-
-
-def _get_http_path(query_header_context: Any, creds: DatabricksCredentials) -> Optional[str]:
-    """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
-
-    # ResultNode *should* have relation_name attr, but we work around a core
-    # issue by checking.
-    relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-
-    # If there is no node we return the http_path for the default compute.
-    if not query_header_context:
-        return creds.http_path
-
-    # Get the name of the compute resource specified in the node's config.
-    # If none is specified return the http_path for the default compute.
-    compute_name = get_compute_name(query_header_context)
-    if not compute_name:
-        return creds.http_path
-
-    # Get the http_path for the named compute.
-    http_path = None
-    if creds.compute:
-        http_path = creds.compute.get(compute_name, {}).get("http_path", None)
-
-    # no http_path for the named compute resource is an error condition
-    if not http_path:
-        raise DbtRuntimeError(
-            f"Compute resource {compute_name} does not exist or "
-            f"does not specify http_path, relation: {relation_name}"
-        )
-
-    return http_path

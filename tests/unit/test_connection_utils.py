@@ -103,3 +103,50 @@ class TestGetComputeName:
     )
     def test_get_compute_name(self, context, expected):
         assert connection_utils.get_compute_name(context) is expected
+
+
+class TestDatabricksConnectionHTTPPath:
+    @dataclass
+    class TestHeader:
+        relation_name: str
+
+    @pytest.fixture
+    def query_header(self):
+        return self.TestHeader(relation_name="a_relation")
+
+    @pytest.fixture(scope="class")
+    def errMsg(self):
+        return (
+            "Compute resource foo does not exist or does not specify http_path, "
+            "relation: a_relation"
+        )
+
+    @pytest.fixture
+    def creds(self):
+        return DatabricksCredentials(http_path="my_http_path")
+
+    def test_get_http_path__no_header(self, creds):
+        path = connection_utils.get_http_path(creds, "foo", None)
+        assert creds.http_path == path
+
+    def test_get_http_path__no_compute(self, creds, query_header):
+        path = connection_utils.get_http_path(creds, None, query_header)
+        assert creds.http_path == path
+
+    def test_get_http_path__no_creds_compute(self, creds, query_header, errMsg):
+        with pytest.raises(DbtRuntimeError) as info:
+            connection_utils.get_http_path(creds, "foo", query_header)
+        assert errMsg in str(info.value)
+
+    def test_get_http_path__creds_compute_without_match(self, creds, query_header, errMsg):
+        creds.compute = {"bar": {"http_path": "bar_path"}}
+
+        with pytest.raises(DbtRuntimeError) as info:
+            connection_utils.get_http_path(creds, "foo", query_header)
+        assert errMsg in str(info.value)
+
+    def test_get_http_path__creds_compute_with_match(self, creds, query_header):
+        creds.compute = {"foo": {"http_path": "foo_path"}}
+
+        path = connection_utils.get_http_path(creds, "foo", query_header)
+        assert "foo_path" == path
