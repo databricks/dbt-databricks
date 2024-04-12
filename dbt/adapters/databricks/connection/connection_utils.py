@@ -5,8 +5,7 @@ from typing import Optional
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt_common.exceptions import DbtRuntimeError
 
-# Number of idle seconds before a connection is automatically closed. Only applicable if
-# USE_LONG_SESSIONS is true.
+
 DEFAULT_MAX_IDLE_TIME = 600
 
 
