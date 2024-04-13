@@ -145,6 +145,7 @@ class DatabricksCredentials(Credentials):
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     oauth_redirect_url: Optional[str] = None
+    oauth_scopes: Optional[List[str]] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
     auth_type: Optional[str] = None
@@ -210,6 +211,7 @@ class DatabricksCredentials(Credentials):
             "client_id",
             "client_secret",
             "oauth_redirect_url",
+            "oauth_scopes",
             "session_configuration",
             "catalog",
             "schema",
@@ -373,7 +375,7 @@ class DatabricksCredentials(Credentials):
                 client_id=self.client_id or CLIENT_ID,
                 client_secret="",
                 redirect_url=self.oauth_redirect_url or REDIRECT_URL,
-                scopes=SCOPES,
+                scopes=self.oauth_scopes or SCOPES,
             )
             # optional branch. Try and keep going if it does not work
             try:
@@ -490,7 +492,7 @@ class DatabricksCredentials(Credentials):
             client_id=self.client_id or CLIENT_ID,
             client_secret="",
             redirect_url=self.oauth_redirect_url or REDIRECT_URL,
-            scopes=SCOPES,
+            scopes=self.oauth_scopes or SCOPES,
         )
 
         return SessionCredentials.from_dict(
