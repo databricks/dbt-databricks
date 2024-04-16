@@ -124,9 +124,9 @@ def get_identifier_list_string(table_names: Set[str]) -> str:
     return _identifier
 
 
-def _parse_callback_empty_table(*args, **kwargs) -> Tuple[str, "Table"]:
+def _parse_callback_empty_table(*args: Any, **kwargs: Any) -> Tuple[str, "Table"]:
     # Lazy load agate_helper to avoid importing agate when it is not necessary.
-    from dbt_common.agate_helper import empty_table
+    from dbt.clients.agate_helper import empty_table
 
     return "", empty_table()
 
