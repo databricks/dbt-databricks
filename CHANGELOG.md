@@ -13,7 +13,12 @@
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 
-## dbt-databricks 1.7.12 (TBD)
+## dbt-databricks 1.7.13 (April 8, 2024)
+
+### Features
+
+- Apply tblproperties to python models (using alter table) ([633](https://github.com/databricks/dbt-databricks/pull/633))
+- Make OAuth redirect url configurable (thanks @johnsequeira-paradigm for the inspiration!) ([635]https://github.com/databricks/dbt-databricks/pull/635)
 
 ### Fixes
 
