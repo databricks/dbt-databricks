@@ -14,3 +14,5 @@ tox>=3.2.0
 types-requests
 types-mock
 pre-commit
+
+dbt-tests-adapter~=1.8.0b1
