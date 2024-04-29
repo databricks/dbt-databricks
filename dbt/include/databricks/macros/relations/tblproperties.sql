@@ -12,3 +12,11 @@
     )
   {%- endif %}
 {%- endmacro -%}
+
+{% macro apply_tblproperties_python(relation, tblproperties, language) -%}
+  {%- if tblproperties and language == 'python' -%}
+    {%- call statement('python_tblproperties') -%}
+      alter table {{ relation }} set {{ tblproperties_clause() }}
+    {%- endcall -%}
+  {%- endif -%}
+{%- endmacro -%}

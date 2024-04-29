@@ -140,7 +140,9 @@ class DatabricksSQLConnectionWrapper:
             if self._is_cluster:
                 with self._conn.cursor() as cursor:
                     cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
-                    dbr_version: str = cursor.fetchone()[1]
+                    results = cursor.fetchone()
+                    if results:
+                        dbr_version: str = results[1]
 
                 m = DBR_VERSION_REGEX.search(dbr_version)
                 assert m, f"Unknown DBR version: {dbr_version}"
@@ -220,8 +222,9 @@ class DatabricksSQLCursorWrapper:
 
         stopped_states = ("COMPLETED", "FAILED", "CANCELED")
         host: str = self._creds.host or ""
-        headers = self._cursor.connection.thrift_backend._auth_provider._header_factory
-
+        headers = (
+            self._cursor.connection.thrift_backend._auth_provider._header_factory  # type: ignore
+        )
         session = Session()
         session.auth = BearerAuth(headers)
         session.headers = {"User-Agent": self._user_agent}
@@ -310,10 +313,10 @@ class DatabricksSQLCursorWrapper:
 
         This UUID can be tied back to the Databricks query history API
         """
-
-        _as_hex = uuid.UUID(bytes=self._cursor.active_result_set.command_id.operationId.guid)
-
-        return str(_as_hex)
+        if self._cursor.active_result_set:
+            _as_hex = uuid.UUID(bytes=self._cursor.active_result_set.command_id.operationId.guid)
+            return str(_as_hex)
+        return ""
 
     @classmethod
     def _fix_binding(cls, value: Any) -> Any:
@@ -325,19 +328,7 @@ class DatabricksSQLCursorWrapper:
             return value
 
     @property
-    def description(
-        self,
-    ) -> Sequence[
-        Tuple[
-            str,
-            str,
-            Optional[int],
-            Optional[int],
-            Optional[int],
-            Optional[int],
-            Optional[bool],
-        ]
-    ]:
+    def description(self) -> Optional[List[Tuple]]:
         return self._cursor.description
 
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:

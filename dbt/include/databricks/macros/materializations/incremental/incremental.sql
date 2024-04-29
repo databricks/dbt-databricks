@@ -3,6 +3,7 @@
   {%- set raw_file_format = config.get('file_format', default='delta') -%}
   {%- set raw_strategy = config.get('incremental_strategy') or 'merge' -%}
   {%- set grant_config = config.get('grants') -%}
+  {%- set tblproperties = config.get('tblproperties') -%}
   {%- set tags = config.get('databricks_tags') -%}
 
   {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
@@ -87,7 +88,7 @@
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
-
+  {% do apply_tblproperties_python(target_relation, tblproperties, language) %}
   {% do persist_docs(target_relation, model) %}
   {% do optimize(target_relation) %}
 
