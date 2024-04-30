@@ -10,10 +10,9 @@ from dbt.contracts.graph.nodes import ResultNode
 class ConnectionEvent(ABC):
     def __init__(self, connection: Connection, message: str):
         self.message = message
+        self.session_id = "Unknown"
         if connection:
-            self.session_id = connection.get_session_id_hex()
-        else:
-            self.session_id = "Unknown"
+            self.session_id = connection.get_session_id_hex() or "Unknown"
 
     def __str__(self) -> str:
         return f"Connection(session-id={self.session_id}) - {self.message}"
@@ -76,7 +75,7 @@ class ConnectionAcquire(ConnectionWrapperEvent):
         if model:
             # ResultNode *should* have relation_name attr, but we work around a core
             # issue by checking.
-            relation_name = getattr(model, "relation_name", "[unknown]")
+            relation_name = getattr(model, "relation_name", "[Unknown]")
             message += f" for model '{relation_name}'"
 
         super().__init__(description, message)

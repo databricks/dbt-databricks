@@ -8,11 +8,11 @@ from dbt.adapters.databricks.events.base import SQLErrorEvent
 class CursorEvent(ABC):
     def __init__(self, cursor: Cursor, message: str):
         self.message = message
+        self.session_id = "Unknown"
+        self.command_id = "Unknown"
         if cursor:
             if cursor.connection:
                 self.session_id = cursor.connection.get_session_id_hex()
-            else:
-                self.session_id = "Unknown"
             if (
                 cursor.active_result_set
                 and cursor.active_result_set.command_id
@@ -22,8 +22,6 @@ class CursorEvent(ABC):
                     str(UUID(bytes=cursor.active_result_set.command_id.operationId.guid))
                     or "Unknown"
                 )
-            else:
-                self.command_id = "Unknown"
 
     def __str__(self) -> str:
         return (

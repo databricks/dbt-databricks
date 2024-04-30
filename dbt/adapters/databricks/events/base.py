@@ -21,8 +21,8 @@ class SQLErrorEvent:
         properties = ""
         if isinstance(self.exception, Error):
             properties = "\nError properties: "
-            properties += ",".join(
-                [f"{key}: {value}" for key, value in sorted(self.exception.context.items())]
+            properties += ", ".join(
+                [f"{key}={value}" for key, value in sorted(self.exception.context.items())]
             )
 
         return f"{self.message}: {self.exception}{properties}"
