@@ -1,4 +1,3 @@
-import pytest
 from dbt.adapters.databricks.events.cursor_events import CursorCloseError
 from dbt.adapters.databricks.events.cursor_events import CursorEvent
 from mock import Mock
@@ -27,8 +26,8 @@ class TestCursorEvents:
         mock.active_result_set.command_id.operationId.guid = (1234).to_bytes(16)
         event = CursorTestEvent(mock)
         assert (
-            str(event)
-            == "Cursor(session-id=1234, command-id=00000000-0000-0000-0000-0000000004d2) - This is a test"
+            str(event) == "Cursor(session-id=1234, command-id=00000000-0000-0000-0000-0000000004d2)"
+            " - This is a test"
         )
 
 

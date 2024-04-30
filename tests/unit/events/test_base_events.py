@@ -22,7 +22,7 @@ class TestErrorEvent:
 class TestSQLErrorEvent:
     def test_sql_error_event__with_exception(self):
         e = Exception("This is an exception")
-        event = SQLErrorEvent(e)
+        event = SQLErrorEvent(e, "This is a test")
         assert str(event) == "This is a test: This is an exception"
 
     def test_sql_error_event__with_pysql_error(self):
