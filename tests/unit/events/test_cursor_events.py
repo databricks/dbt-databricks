@@ -23,7 +23,7 @@ class TestCursorEvents:
     def test_cursor_event__with_ids(self):
         mock = Mock()
         mock.connection.get_session_id_hex.return_value = "1234"
-        mock.active_result_set.command_id.operationId.guid = (1234).to_bytes(16)
+        mock.active_result_set.command_id.operationId.guid = (1234).to_bytes(16, "big")
         event = CursorTestEvent(mock)
         assert (
             str(event) == "Cursor(session-id=1234, command-id=00000000-0000-0000-0000-0000000004d2)"
