@@ -41,6 +41,31 @@ from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.auth import m2m_auth
 from dbt.adapters.databricks.auth import token_auth
+from dbt.adapters.databricks.events.connection_events import ConnectionAcquire
+from dbt.adapters.databricks.events.connection_events import ConnectionCancel
+from dbt.adapters.databricks.events.connection_events import ConnectionCancelError
+from dbt.adapters.databricks.events.connection_events import ConnectionClose
+from dbt.adapters.databricks.events.connection_events import ConnectionCloseError
+from dbt.adapters.databricks.events.connection_events import ConnectionCreate
+from dbt.adapters.databricks.events.connection_events import ConnectionCreated
+from dbt.adapters.databricks.events.connection_events import ConnectionCreateError
+from dbt.adapters.databricks.events.connection_events import ConnectionIdleCheck
+from dbt.adapters.databricks.events.connection_events import ConnectionIdleClose
+from dbt.adapters.databricks.events.connection_events import ConnectionRelease
+from dbt.adapters.databricks.events.connection_events import ConnectionReset
+from dbt.adapters.databricks.events.connection_events import ConnectionRetrieve
+from dbt.adapters.databricks.events.connection_events import ConnectionReuse
+from dbt.adapters.databricks.events.credential_events import CredentialLoadError
+from dbt.adapters.databricks.events.credential_events import CredentialSaveError
+from dbt.adapters.databricks.events.credential_events import CredentialShardEvent
+from dbt.adapters.databricks.events.cursor_events import CursorCancel
+from dbt.adapters.databricks.events.cursor_events import CursorCancelError
+from dbt.adapters.databricks.events.cursor_events import CursorClose
+from dbt.adapters.databricks.events.cursor_events import CursorCloseError
+from dbt.adapters.databricks.events.cursor_events import CursorCreate
+from dbt.adapters.databricks.events.other_events import QueryError
+from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
+from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt.clients import agate_helper
@@ -114,7 +139,8 @@ USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() ==
 
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
-DEFAULT_MAX_IDLE_TIME = 600
+# Updated when idle times of 180s were causing errors
+DEFAULT_MAX_IDLE_TIME = 60
 
 
 class BearerAuth(AuthBase):
@@ -127,11 +153,11 @@ class BearerAuth(AuthBase):
     More details in issue #337.
     """
 
-    def __init__(self, headers: HeaderFactory):
-        self.headers = headers()
+    def __init__(self, header_factory: HeaderFactory):
+        self.header_factory = header_factory
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
-        r.headers.update(**self.headers)
+        r.headers.update(**self.header_factory())
         return r
 
 
@@ -389,14 +415,13 @@ class DatabricksCredentials(Credentials):
                         if provider.token().valid:
                             return provider
                     except Exception as e:
-                        logger.debug(e)
+                        logger.warning(CredentialLoadError(e))
                         # whatever it is, get rid of the cache
                         self.delete_sharded_password("dbt-databricks", host)
 
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
-                logger.debug(e)
-                logger.info("could not retrieved saved token")
+                logger.warning(CredentialLoadError(e))
 
             # no token, go fetch one
             consent = oauth_client.initiate_consent()
@@ -410,8 +435,7 @@ class DatabricksCredentials(Credentials):
                 )
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
-                logger.debug(e)
-                logger.info("could not save token")
+                logger.warning(CredentialSaveError(e))
 
             return provider
 
@@ -425,7 +449,7 @@ class DatabricksCredentials(Credentials):
         if os.name != "nt" or len(password) < max_size:
             keyring.set_password(service_name, username, password)
         else:
-            logger.debug(f"password is {len(password)} characters, sharding it.")
+            logger.debug(CredentialShardEvent(len(password)))
 
             password_shards = [
                 password[i : i + max_size] for i in range(0, len(password), max_size)
@@ -525,6 +549,9 @@ class DatabricksSQLConnectionWrapper:
 
     def cursor(self) -> "DatabricksSQLCursorWrapper":
         cursor = self._conn.cursor()
+
+        logger.debug(CursorCreate(cursor))
+
         self._cursors.append(cursor)
         return DatabricksSQLCursorWrapper(
             cursor,
@@ -533,21 +560,23 @@ class DatabricksSQLConnectionWrapper:
         )
 
     def cancel(self) -> None:
+        logger.debug(ConnectionCancel(self._conn))
+
         cursors: List[DatabricksSQLCursor] = self._cursors
 
         for cursor in cursors:
             try:
                 cursor.cancel()
             except Error as exc:
-                logger.debug("Exception while cancelling query: {}".format(exc))
-                _log_dbsql_errors(exc)
+                logger.warning(ConnectionCancelError(self._conn, exc))
 
     def close(self) -> None:
+        logger.debug(ConnectionClose(self._conn))
+
         try:
             self._conn.close()
         except Error as exc:
-            logger.debug("Exception while closing connection: {}".format(exc))
-            _log_dbsql_errors(exc)
+            logger.warning(ConnectionCloseError(self._conn, exc))
 
     def rollback(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("NotImplemented: rollback")
@@ -590,18 +619,20 @@ class DatabricksSQLCursorWrapper:
         self._user_agent = user_agent
 
     def cancel(self) -> None:
+        logger.debug(CursorCancel(self._cursor))
+
         try:
             self._cursor.cancel()
         except Error as exc:
-            logger.debug("Exception while cancelling query: {}".format(exc))
-            _log_dbsql_errors(exc)
+            logger.warning(CursorCancelError(self._cursor, exc))
 
     def close(self) -> None:
+        logger.debug(CursorClose(self._cursor))
+
         try:
             self._cursor.close()
         except Error as exc:
-            logger.debug("Exception while closing cursor: {}".format(exc))
-            _log_dbsql_errors(exc)
+            logger.warning(CursorCloseError(self._cursor, exc))
 
     def fetchall(self) -> Sequence[Tuple]:
         return self._cursor.fetchall()
@@ -658,9 +689,7 @@ class DatabricksSQLCursorWrapper:
         update_id = latest_update.get("update_id", "")
         prev_state = state
 
-        logger.info(
-            f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}"
-        )
+        logger.info(PipelineRefresh(pipeline_id, update_id, model_name, str(state)))
 
         start = time.time()
         exceeded_timeout = False
@@ -682,16 +711,17 @@ class DatabricksSQLCursorWrapper:
 
             state = update.get("state")
             if state != prev_state:
-                logger.info(
-                    f"refreshing {model_name}, pipeline: {pipeline_id}, update: {update_id} {state}"
-                )
+                logger.info(PipelineRefresh(pipeline_id, update_id, model_name, str(state)))
                 prev_state = state
 
             if state == "FAILED":
-                logger.error(f"pipeline {pipeline_id} update {update_id} failed")
-                msg = _get_update_error_msg(session, host, pipeline_id, update_id)
-                if msg:
-                    logger.error(msg)
+                logger.error(
+                    PipelineRefreshError(
+                        pipeline_id,
+                        update_id,
+                        _get_update_error_msg(session, host, pipeline_id, update_id),
+                    )
+                )
 
                 # another update may have been created due to retry_on_fail settings
                 # get the latest update and see if it is a new one
@@ -773,6 +803,8 @@ class DatabricksSQLCursorWrapper:
     def __del__(self) -> None:
         if self._cursor.open:
             # This should not happen. The cursor should explicitly be closed.
+            logger.debug(CursorClose(self._cursor))
+
             self._cursor.close()
             with warnings.catch_warnings():
                 warnings.simplefilter("always")
@@ -836,7 +868,7 @@ class DatabricksDBTConnection(Connection):
 
     def _acquire(self, node: Optional[ResultNode]) -> None:
         """Indicate that this connection is in use."""
-        self._log_usage(node)
+
         self.acquire_release_count += 1
         if self.last_used_time is None:
             self.last_used_time = time.time()
@@ -845,7 +877,7 @@ class DatabricksDBTConnection(Connection):
         else:
             self.language = None
 
-        self._log_info("_acquire")
+        logger.debug(ConnectionAcquire(str(self), node, self.compute_name, self.thread_identifier))
 
     def _release(self) -> None:
         """Indicate that this connection is not in use."""
@@ -859,7 +891,7 @@ class DatabricksDBTConnection(Connection):
         if self.acquire_release_count == 0 and self.language != "python":
             self.last_used_time = time.time()
 
-        self._log_info("_release")
+        logger.debug(ConnectionRelease(str(self)))
 
     def _get_idle_time(self) -> float:
         return 0 if self.last_used_time is None else time.time() - self.last_used_time
@@ -867,43 +899,21 @@ class DatabricksDBTConnection(Connection):
     def _idle_too_long(self) -> bool:
         return self.max_idle_time > 0 and self._get_idle_time() > self.max_idle_time
 
-    def _get_conn_info_str(self) -> str:
-        """Generate a string describing this connection."""
+    def __str__(self) -> str:
         return (
-            f"sess: {self.session_id}, name: {self.name}, "
-            f"idle: {self._get_idle_time()}s, acqrelcnt: {self.acquire_release_count}, "
-            f"lang: {self.language}, thrd: {self.thread_identifier}, "
-            f"cmpt: `{self.compute_name}`, lut: {self.last_used_time}"
+            f"DatabricksDBTConnection(id={id(self)}, session-id={self.session_id}, "
+            f"name={self.name}, idle-time={self._get_idle_time()}s, acquire-count="
+            f"{self.acquire_release_count}, language={self.language}, thread-identifier="
+            f"{self.thread_identifier}, compute-name={self.compute_name})"
         )
 
-    def _log_info(self, caller: Optional[str]) -> None:
-        logger.debug(f"conn: {id(self)}: {caller} {self._get_conn_info_str()}")
-
-    def _log_usage(self, node: Optional[ResultNode]) -> None:
-        if node:
-            # ResultNode *should* have relation_name attr, but we work around a core
-            # issue by checking.
-            relation_name = getattr(node, "relation_name", "[unknown]")
-            if not self.compute_name:
-                logger.debug(
-                    f"On thread {self.thread_identifier}: {relation_name} "
-                    "using default compute resource."
-                )
-            else:
-                logger.debug(
-                    f"On thread {self.thread_identifier}: {relation_name} "
-                    f"using compute resource '{self.compute_name}'."
-                )
-        else:
-            logger.debug(f"Thread {self.thread_identifier} using default compute resource.")
-
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
-        self._log_info("_reset_handle")
         self.handle = LazyHandle(open)
         self.session_id = None
         # Reset last_used_time to None because by refreshing this connection becomes associated
         # with a new session that hasn't been used yet.
         self.last_used_time = None
+        logger.debug(ConnectionReset(str(self)))
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -935,13 +945,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
             yield
 
         except Error as exc:
-            logger.debug(f"Error while running:\n{log_sql}")
-            _log_dbsql_errors(exc)
+            logger.debug(QueryError(log_sql, exc))
             raise dbt.exceptions.DbtRuntimeError(str(exc)) from exc
 
         except Exception as exc:
-            logger.debug(f"Error while running:\n{log_sql}")
-            logger.debug(exc)
+            logger.debug(QueryError(log_sql, exc))
             if len(exc.args) == 0:
                 raise
 
@@ -1102,7 +1110,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.clear_thread_connection()
             self.set_thread_connection(conn)
 
-        conn._log_info(f"reusing connection {orig_conn_name}")
+        logger.debug(ConnectionReuse(str(conn), orig_conn_name))
 
         return conn
 
@@ -1135,7 +1143,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         conn.handle = LazyHandle(self._open2)
 
-        conn._log_info("Creating DatabricksDBTConnection")
+        logger.debug(ConnectionCreate(str(conn)))
 
         # Add this connection to the thread/compute connection pool.
         self._add_compute_connection(conn)
@@ -1203,7 +1211,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # if different models use different compute resources
             thread_conns = self._get_compute_connections()
             for conn in thread_conns.values():
-                conn._log_info("idle check connection:")
+                logger.debug(ConnectionIdleCheck(str(conn)))
 
                 # Generally speaking we only want to close/refresh the connection if the
                 # acquire_release_count is zero.  i.e. the connection is not currently in use.
@@ -1218,17 +1226,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if (
                     conn.acquire_release_count == 0 or conn.language == "python"
                 ) and conn._idle_too_long():
-                    conn._log_info("closing idle connection")
+
+                    logger.debug(ConnectionIdleClose(str(conn)))
                     self.close(conn)
                     conn._reset_handle(self._open2)
 
     def get_thread_connection(self) -> Connection:
         conn = super().get_thread_connection()
         dbr_conn = cast(DatabricksDBTConnection, conn)
-        dbr_conn._log_info("get_thread_connection:")
         if USE_LONG_SESSIONS:
             self._cleanup_idle_connections()
 
+        logger.debug(ConnectionRetrieve(str(dbr_conn)))
         return conn
 
     def add_query(
@@ -1384,7 +1393,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     @classmethod
     def _open(cls, connection: Connection, node: Optional[ResultNode] = None) -> Connection:
         if connection.state == ConnectionState.OPEN:
-            logger.debug("Connection is already open, skipping open.")
             return connection
 
         creds: DatabricksCredentials = connection.credentials
@@ -1424,6 +1432,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     _user_agent_entry=user_agent_entry,
                     **connection_parameters,
                 )
+                logger.debug(ConnectionCreated(str(conn)))
+
                 return DatabricksSQLConnectionWrapper(
                     conn,
                     is_cluster=creds.cluster_id is not None,
@@ -1431,7 +1441,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     user_agent=user_agent_entry,
                 )
             except Error as exc:
-                _log_dbsql_errors(exc)
+                logger.error(ConnectionCreateError(conn, exc))
                 raise
 
         def exponential_backoff(attempt: int) -> int:
@@ -1462,7 +1472,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         databricks_connection = cast(DatabricksDBTConnection, connection)
 
         if connection.state == ConnectionState.OPEN:
-            databricks_connection._log_info("Connection is already open, skipping open.")
             return connection
 
         creds: DatabricksCredentials = connection.credentials
@@ -1506,7 +1515,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.get_session_id_hex()
                 databricks_connection.last_used_time = time.time()
-                databricks_connection._log_info("session opened")
+                logger.debug(ConnectionCreated(str(databricks_connection)))
 
                 return DatabricksSQLConnectionWrapper(
                     conn,
@@ -1515,7 +1524,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     user_agent=user_agent_entry,
                 )
             except Error as exc:
-                _log_dbsql_errors(exc)
+                logger.error(ConnectionCreateError(conn, exc))
                 raise
 
         def exponential_backoff(attempt: int) -> int:
@@ -1545,13 +1554,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             query_id = _query_id
         message = "OK"
         return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
-
-
-def _log_dbsql_errors(exc: Exception) -> None:
-    if isinstance(exc, Error):
-        logger.debug(f"{type(exc)}: {exc}")
-        for key, value in sorted(exc.context.items()):
-            logger.debug(f"{key}: {value}")
 
 
 def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
