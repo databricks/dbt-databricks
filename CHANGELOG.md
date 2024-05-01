@@ -3,6 +3,7 @@
 ### Fixes
 
 - Auth headers should now evaluate at call time ([648](https://github.com/databricks/dbt-databricks/pull/648))
+- User-configurable OAuth Scopes (currently limited to AWS) (thanks @stevenayers!) ([641](https://github.com/databricks/dbt-databricks/pull/641))
 
 ### Under the hood
 
