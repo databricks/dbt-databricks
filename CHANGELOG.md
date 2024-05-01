@@ -1,3 +1,14 @@
+## dbt-databricks 1.7.14 (TBD)
+
+### Fixes
+
+- Auth headers should now evaluate at call time ([648](https://github.com/databricks/dbt-databricks/pull/648))
+- User-configurable OAuth Scopes (currently limited to AWS) (thanks @stevenayers!) ([641](https://github.com/databricks/dbt-databricks/pull/641))
+
+### Under the hood
+
+- Reduce default idle limit for connection reuse to 60s and start organizing event logging ([648](https://github.com/databricks/dbt-databricks/pull/648))
+
 ## dbt-databricks 1.7.13 (April 8, 2024)
 
 ### Features
