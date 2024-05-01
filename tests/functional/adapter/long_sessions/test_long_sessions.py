@@ -2,7 +2,6 @@ import os
 from unittest import mock
 
 import pytest
-
 from dbt.tests import util
 from tests.functional.adapter.long_sessions import fixtures
 
@@ -98,5 +97,5 @@ class TestLongSessionsIdleCleanup(TestLongSessionsMultipleCompute):
         util.run_dbt(["--debug", "seed", "--target", "idle_sessions"])
 
         _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "idle_sessions"])
-        idle_count = log.count("closing idle connection") / 2
+        idle_count = log.count("Closing for idleness") / 2
         assert idle_count > 0

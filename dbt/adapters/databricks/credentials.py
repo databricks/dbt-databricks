@@ -20,6 +20,9 @@ from databricks.sdk.oauth import SessionCredentials
 from dbt.adapters.contracts.connection import Credentials
 from dbt.adapters.databricks.auth import m2m_auth
 from dbt.adapters.databricks.auth import token_auth
+from dbt.adapters.databricks.events.credential_events import CredentialLoadError
+from dbt.adapters.databricks.events.credential_events import CredentialSaveError
+from dbt.adapters.databricks.events.credential_events import CredentialShardEvent
 from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
@@ -284,14 +287,13 @@ class DatabricksCredentials(Credentials):
                         if provider.token().valid:
                             return provider
                     except Exception as e:
-                        logger.debug(e)
+                        logger.warning(CredentialLoadError(e))
                         # whatever it is, get rid of the cache
                         self.delete_sharded_password("dbt-databricks", host)
 
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
-                logger.debug(e)
-                logger.info("could not retrieved saved token")
+                logger.warning(CredentialLoadError(e))
 
             # no token, go fetch one
             consent = oauth_client.initiate_consent()
@@ -305,8 +307,7 @@ class DatabricksCredentials(Credentials):
                 )
             # error with keyring. Maybe machine has no password persistency
             except Exception as e:
-                logger.debug(e)
-                logger.info("could not save token")
+                logger.warning(CredentialSaveError(e))
 
             return provider
 
@@ -320,7 +321,7 @@ class DatabricksCredentials(Credentials):
         if os.name != "nt" or len(password) < max_size:
             keyring.set_password(service_name, username, password)
         else:
-            logger.debug(f"password is {len(password)} characters, sharding it.")
+            logger.debug(CredentialShardEvent(len(password)))
 
             password_shards = [
                 password[i : i + max_size] for i in range(0, len(password), max_size)
