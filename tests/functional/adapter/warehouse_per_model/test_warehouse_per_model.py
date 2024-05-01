@@ -117,7 +117,11 @@ class TestWarehousePerModel(BaseWarehousePerModel):
                 "alternate_warehouse",
             ]
         )
-        assert "`source` using compute resource 'alternate_warehouse2'" in log
+
+        assert (
+            "using compute resource 'alternate_warehouse2' for model "
+            f"'`{project.database}`.`{project.test_schema}`.`source`'" in log
+        )
 
         _, log = util.run_dbt_and_capture(
             [
@@ -132,8 +136,14 @@ class TestWarehousePerModel(BaseWarehousePerModel):
                 "alternate_warehouse",
             ]
         )
-        assert "`target` using compute resource 'alternate_warehouse'" in log
-        assert "`target3` using default compute resource" in log
+        assert (
+            "using compute resource 'alternate_warehouse' for model "
+            f"'`{project.database}`.`{project.test_schema}`.`target`'" in log
+        )
+        assert (
+            f"using default compute resource for model '`{project.database}`."
+            f"`{project.test_schema}`.`target3`'" in log
+        )
 
         _, log = util.run_dbt_and_capture(
             [
@@ -145,6 +155,9 @@ class TestWarehousePerModel(BaseWarehousePerModel):
                 "alternate_warehouse",
             ]
         )
-        assert "`target_snap` using compute resource 'alternate_warehouse3'" in log
+        assert (
+            "using compute resource 'alternate_warehouse3' for model "
+            f"'`{project.database}`.`snapshots`.`target_snap`'" in log
+        )
 
         util.check_relations_equal(project.adapter, ["target", "source"])
