@@ -98,9 +98,9 @@ class BearerAuth(AuthBase):
     More details in issue #337.
     """
 
-    def __init__(self, headers: HeaderFactory):
-        self.headers = headers()
+    def __init__(self, header_factory: HeaderFactory):
+        self.header_factory = header_factory
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
-        r.headers.update(**self.headers)
+        r.headers.update(**self.header_factory())
         return r
