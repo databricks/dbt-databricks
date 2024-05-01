@@ -1082,17 +1082,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
 
-    @classmethod
-    def get_response(cls, cursor: DatabricksSQLCursorWrapper) -> DatabricksAdapterResponse:
-        _query_id = getattr(cursor, "hex_query_id", None)
-        if cursor is None:
-            logger.debug("No cursor was provided. Query ID not available.")
-            query_id = "N/A"
-        else:
-            query_id = _query_id
-        message = "OK"
-        return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
-
 
 def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
     # if the command was to refresh a materialized view we need to poll
