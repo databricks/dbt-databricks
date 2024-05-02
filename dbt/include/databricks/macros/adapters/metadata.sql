@@ -94,8 +94,8 @@
   {% call statement('get_uc_types', fetch_result=True) -%}
     select
       table_catalog,
-      table_name,
       table_schema,
+      table_name,
       if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type
     from `{{ relation.database }}`.`information_schema`.`tables`
     where table_schema = '{{ relation.schema }}'
