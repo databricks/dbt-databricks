@@ -62,6 +62,7 @@ setup(
         "keyring>=23.13.0",
         "pandas<2.2.0",
         "protobuf<5.0.0",
+        "icecream",
     ],
     zip_safe=False,
     classifiers=[

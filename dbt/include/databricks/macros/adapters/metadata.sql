@@ -1,7 +1,3 @@
-{% macro databricks__list_relations_without_caching(schema_relation) %}
-  {{ return(adapter.get_relations_without_caching(schema_relation)) }}
-{% endmacro %}
-
 {% macro show_table_extended(schema_relation) %}
   {{ return(adapter.dispatch('show_table_extended', 'dbt')(schema_relation)) }}
 {% endmacro %}
@@ -92,4 +88,18 @@
   {% endcall %}
 
   {% do return(load_result('get_view_description_alt').table) %}
+{% endmacro %}
+
+{% macro get_uc_types(relation) %}
+  {% call statement('get_uc_types', fetch_result=True) -%}
+    select
+      table_catalog,
+      table_name,
+      table_schema,
+      if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type
+    from `{{ relation.database }}`.`information_schema`.`tables`
+    where table_schema = '{{ relation.schema }}'
+  {% endcall %}
+  
+  {% do return(load_result('get_uc_types').table) %}
 {% endmacro %}
