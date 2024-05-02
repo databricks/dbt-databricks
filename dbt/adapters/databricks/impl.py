@@ -215,6 +215,7 @@ class DatabricksAdapter(SparkAdapter):
         *,
         staging_table: Optional[BaseRelation] = None,
     ) -> Tuple[AdapterResponse, Table]:
+        ic(limit)
         try:
             return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
@@ -286,14 +287,26 @@ class DatabricksAdapter(SparkAdapter):
     def _get_relations_without_caching(self, relation: BaseRelation) -> Table:
         ic()
         new_rows: List[Tuple[Optional[str], str, str, str]] = []
+        kwargs = {"relation": relation}
 
         if is_hive_metastore(relation.database):
-            new_rows = self.connections.list_tables(
+            results = self.connections.list_tables(
                 database=relation.database, schema=relation.schema
             )
+            views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+
+            view_names = set(views.columns["viewName"].values())
+            new_rows = [
+                [
+                    row["TABLE_CAT"],
+                    row["TABLE_SCHEM"],
+                    row["TABLE_NAME"],
+                    "view" if row["TABLE_NAME"] in view_names else "table",
+                ]
+                for row in results
+            ]
 
         else:
-            kwargs = {"relation": relation}
             new_rows = self.execute_macro("get_uc_types", kwargs=kwargs)
 
         return Table(
