@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from abc import ABC
@@ -69,12 +70,10 @@ from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
 from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
-from dbt.adapters.spark.impl import LIST_RELATIONS_MACRO_NAME
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-from dbt_common.clients.agate_helper import empty_table
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 
@@ -214,9 +213,8 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
-        kwargs = {"schema_relation": schema_relation}
         try:
-            results = self.execute_macro(LIST_RELATIONS_MACRO_NAME, kwargs=kwargs)
+            results = self.get_relations_without_caching(schema_relation)
         except DbtRuntimeError as e:
             errmsg = getattr(e, "msg", "")
             if check_not_found_error(errmsg):
@@ -228,15 +226,25 @@ class DatabricksAdapter(SparkAdapter):
 
         return [
             self.Relation.create(
-                database=database,
-                schema=schema,
+                database=schema_relation.database,
+                schema=schema_relation.schema,
                 identifier=name,
                 type=self.Relation.get_relation_type(kind),
+                comment=comment if comment != "" else None,
+                file_format=file_format,
+                owner=owner,
+                columns=self._process_columns(columns),
             )
-            for database, schema, name, kind in results.select(  # type: ignore[attr-defined]
-                ["database_name", "schema_name", "name", "kind"]
+            for name, comment, kind, file_format, owner, columns in results.select(  # type: ignore[attr-defined]
+                ["name", "comment", "kind", "file_format", "owner", "columns"]
             )
         ]
+
+    def _process_columns(self, columns: Optional[str]) -> List[Tuple[str, str, Optional[str]]]:
+        if columns is None:
+            return []
+        pycolumns = json.loads(columns)
+        return [tuple(col) for col in pycolumns if col[0] not in self.HUDI_METADATA_COLUMNS]  # type: ignore
 
     def _list_relations_with_information(
         self, schema_relation: DatabricksRelation
@@ -277,8 +285,21 @@ class DatabricksAdapter(SparkAdapter):
 
         return relations
 
-    @available.parse(lambda *a, **k: empty_table())
     def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
+        if relation.is_hive_metastore():
+            return self._get_hive_relations(relation)
+        return self._get_uc_relations(relation)
+
+    def _get_uc_relations(self, relation: DatabricksRelation) -> Table:
+        kwargs = {"relation": relation}
+        tables = self.execute_macro("get_uc_tables", kwargs=kwargs)
+        return Table(
+            tables,
+            column_names=["name", "comment", "kind", "file_format", "owner", "columns"],
+            column_types=[Text(), Text(), Text(), Text(), Text(), Text()],
+        )
+
+    def _get_hive_relations(self, relation: DatabricksRelation) -> Table:
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[Optional[str], str, str, str]]
@@ -303,10 +324,7 @@ class DatabricksAdapter(SparkAdapter):
 
         # if there are any table types to be resolved
         if any(not row[3] for row in new_rows):
-            if is_hive_metastore(relation.database):
-                new_rows = self._get_hive_types(relation, new_rows)
-            else:
-                new_rows = self._get_uc_types(relation, new_rows)
+            new_rows = self._get_hive_types(relation, new_rows)
 
         return Table(
             new_rows,
@@ -467,50 +485,67 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        return self._get_updated_relation(relation)[1]
+        return [
+            DatabricksColumn(column=column[0], dtype=column[1], comment=column[2])
+            for column in self._set_relation_information(relation).columns
+        ]
 
-    def _get_updated_relation(
-        self, relation: DatabricksRelation
-    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
-        try:
-            rows: List[Row] = list(
-                self.execute_macro(
-                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-                    kwargs={"relation": relation},
-                )
+    def _get_updated_relation(self, relation: DatabricksRelation) -> DatabricksRelation:
+        if not relation.is_hive_metastore():
+            kwargs = {"relation": relation}
+            table = get_first_row(self.execute_macro("get_uc_tables", kwargs=kwargs))
+            relation = self.Relation.create(
+                database=relation.database,
+                schema=relation.schema,
+                identifier=relation.identifier,
+                type=self.Relation.get_relation_type(table["table_type"]),
+                comment=table["comment"] if table["comment"] != "" else None,
+                file_format=table["file_format"],
+                owner=table["table_owner"],
+                columns=self._process_columns(table["columns"]),
             )
-            metadata, columns = self.parse_describe_extended(relation, rows)
-        except DbtRuntimeError as e:
-            # spark would throw error when table doesn't exist, where other
-            # CDW would just return and empty list, normalizing the behavior here
-            errmsg = getattr(e, "msg", "")
-            found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-            if any(found_msgs):
-                metadata = None
-                columns = []
-            else:
-                raise e
+        else:
+            try:
+                rows: List[Row] = list(
+                    self.execute_macro(
+                        GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                        kwargs={"relation": relation},
+                    )
+                )
+                metadata, columns = self.parse_describe_extended(relation, rows)
+            except DbtRuntimeError as e:
+                # spark would throw error when table doesn't exist, where other
+                # CDW would just return and empty list, normalizing the behavior here
+                errmsg = getattr(e, "msg", "")
+                found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
+                if any(found_msgs):
+                    metadata = None
+                    columns = []
+                else:
+                    raise e
 
-        # strip hudi metadata columns.
-        columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
+            # strip hudi metadata columns.
+            columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
-        return (
-            self.Relation.create(
+            relation = self.Relation.create(
                 database=relation.database,
                 schema=relation.schema,
                 identifier=relation.identifier,
                 type=relation.type,  # type: ignore
-                metadata=metadata,
-            ),
-            columns,
-        )
+                owner=metadata.get(KEY_TABLE_OWNER) if metadata else "Unknown",
+                file_format=metadata.get("Provider") if metadata else "Unknown",
+                columns=[tuple([column.name, column.dtype, column.comment]) for column in columns],
+            )
+        self.cache_added(relation)
+
+        return relation
 
     def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
         """Update the information of the relation, or return it if it already exists."""
         if relation.has_information():
             return relation
 
-        return self._get_updated_relation(relation)[0]
+        return self._get_updated_relation(relation)
 
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str

@@ -3,13 +3,11 @@ from dataclasses import field
 from typing import Any
 from typing import Dict
 from typing import Iterable
+from typing import List
 from typing import Optional
 from typing import Set
+from typing import Tuple
 from typing import Type
-
-from dbt_common.dataclass_schema import StrEnum
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import filter_null_values
 
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.base.relation import InformationSchema
@@ -18,9 +16,10 @@ from dbt.adapters.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER
-from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
+from dbt_common.dataclass_schema import StrEnum
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -65,8 +64,10 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-
-    metadata: Optional[Dict[str, Any]] = None
+    file_format: str = "Unknown"
+    owner: str = "Unknown"
+    comment: Optional[str] = None
+    columns: List[Tuple[str, str, Optional[str]]] = field(default_factory=list)
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -78,7 +79,7 @@ class DatabricksRelation(BaseRelation):
         return data
 
     def has_information(self) -> bool:
-        return self.metadata is not None
+        return self.file_format != "Unknown"
 
     def is_hive_metastore(self) -> bool:
         return is_hive_metastore(self.database)
@@ -93,21 +94,11 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def is_delta(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
+        return self.file_format == "delta"
 
     @property
     def is_hudi(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
-
-    @property
-    def owner(self) -> Optional[str]:
-        return self.metadata.get(KEY_TABLE_OWNER) if self.metadata is not None else None
-
-    @property
-    def stats(self) -> Optional[str]:
-        return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
+        return self.file_format == "hudi"
 
     def matches(
         self,

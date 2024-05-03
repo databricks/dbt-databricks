@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Optional
 
 from dbt.adapters.spark.column import SparkColumn
+from mashumaro import DataClassDictMixin
 
 
 @dataclass
