@@ -5,9 +5,10 @@
             identifier=tmp_identifier,
             schema=base_relation.schema,
             database=base_relation.database,
-            type='table') %}
+            type='table',
+            is_temporary=True) %}
     {%- else -%}
-        {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
+        {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view', is_temporary=True) %}
     {%- endif -%}
     {% do return(tmp_relation) %}
 {% endmacro %}

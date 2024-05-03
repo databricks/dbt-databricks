@@ -68,6 +68,7 @@ class DatabricksRelation(BaseRelation):
     owner: str = "Unknown"
     comment: Optional[str] = None
     columns: List[Tuple[str, str, Optional[str]]] = field(default_factory=list)
+    is_temporary: bool = False
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:

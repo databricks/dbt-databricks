@@ -485,6 +485,16 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
+        if relation.is_temporary and not relation.columns:
+            rows: List[Row] = list(
+                self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+            )
+            return [
+                DatabricksColumn(
+                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
+                )
+                for row in rows
+            ]
         return [
             DatabricksColumn(column=column[0], dtype=column[1], comment=column[2])
             for column in self._set_relation_information(relation).columns
