@@ -6,6 +6,7 @@ from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
+from multiprocessing.context import SpawnContext
 from typing import Any
 from typing import ClassVar
 from typing import Dict
@@ -37,6 +38,7 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks.column import ColumnCache
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
@@ -152,6 +154,10 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.NotImplemented),
         }
     )
+
+    def __init__(self, config: DatabricksConfig, mp_context: SpawnContext) -> None:
+        super().__init__(config, mp_context)
+        self.column_cache = ColumnCache()
 
     # override/overload
     def acquire_connection(
@@ -329,7 +335,7 @@ class DatabricksAdapter(SparkAdapter):
         if not needs_information:
             return cached
 
-        return self._set_relation_information(cached) if cached else None
+        return self._set_relation_information(cached)[0] if cached else None
 
     def parse_describe_extended(  # type: ignore[override]
         self, relation: DatabricksRelation, raw_rows: List[Row]
@@ -368,10 +374,11 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
         ic()
-        relation = self._set_relation_information(relation)
-        return relation.columns  # type: ignore
+        return self._set_relation_information(relation)[1]
 
-    def _get_updated_relation(self, relation: DatabricksRelation) -> DatabricksRelation:
+    def _get_updated_relation(
+        self, relation: DatabricksRelation
+    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         ic()
         try:
             rows: List[Row] = list(
@@ -394,21 +401,24 @@ class DatabricksAdapter(SparkAdapter):
 
         # strip hudi metadata columns.
         columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
-
-        return self.Relation.create(
+        relation = self.Relation.create(
             database=relation.database,
             schema=relation.schema,
             identifier=relation.identifier,
             type=relation.type,  # type: ignore
             metadata=metadata,
-            columns=columns,
         )
+        self.column_cache.update(relation, columns)
+        return relation, columns
 
-    def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
+    def _set_relation_information(
+        self, relation: DatabricksRelation
+    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         """Update the information of the relation, or return it if it already exists."""
         ic()
-        if relation.has_information():
-            return relation
+        columns = self.column_cache.get(relation)
+        if relation.has_information() and columns:
+            return relation, columns
 
         return self._get_updated_relation(relation)
 

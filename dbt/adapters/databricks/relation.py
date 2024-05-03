@@ -3,7 +3,6 @@ from dataclasses import field
 from typing import Any
 from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
 from typing import Set
 from typing import Type
@@ -68,7 +67,6 @@ class DatabricksRelation(BaseRelation):
     quote_character: str = "`"
 
     metadata: Optional[Dict[str, Any]] = None
-    columns: Optional[List] = None
 
     @classmethod
     def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
