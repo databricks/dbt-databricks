@@ -69,15 +69,12 @@ from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
 from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
-from dbt.adapters.spark.impl import LIST_RELATIONS_MACRO_NAME
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-from dbt_common.clients.agate_helper import empty_table
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
-
 from icecream import ic
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
@@ -290,24 +287,25 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"relation": relation}
 
         if is_hive_metastore(relation.database):
+            assert relation.database and relation.schema
             results = self.connections.list_tables(
                 database=relation.database, schema=relation.schema
             )
             views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
 
-            view_names = set(views.columns["viewName"].values())
+            view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
             new_rows = [
-                [
+                (
                     row["TABLE_CAT"],
                     row["TABLE_SCHEM"],
                     row["TABLE_NAME"],
                     "view" if row["TABLE_NAME"] in view_names else "table",
-                ]
+                )
                 for row in results
             ]
 
         else:
-            new_rows = self.execute_macro("get_uc_types", kwargs=kwargs)
+            new_rows = self.execute_macro("get_uc_types", kwargs=kwargs)  # type: ignore
 
         return Table(
             new_rows,
@@ -370,11 +368,10 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
         ic()
-        return self._get_updated_relation(relation)[1]
+        relation = self._set_relation_information(relation)
+        return relation.columns  # type: ignore
 
-    def _get_updated_relation(
-        self, relation: DatabricksRelation
-    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
+    def _get_updated_relation(self, relation: DatabricksRelation) -> DatabricksRelation:
         ic()
         try:
             rows: List[Row] = list(
@@ -398,15 +395,13 @@ class DatabricksAdapter(SparkAdapter):
         # strip hudi metadata columns.
         columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
-        return (
-            self.Relation.create(
-                database=relation.database,
-                schema=relation.schema,
-                identifier=relation.identifier,
-                type=relation.type,  # type: ignore
-                metadata=metadata,
-            ),
-            columns,
+        return self.Relation.create(
+            database=relation.database,
+            schema=relation.schema,
+            identifier=relation.identifier,
+            type=relation.type,  # type: ignore
+            metadata=metadata,
+            columns=columns,
         )
 
     def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
@@ -415,7 +410,7 @@ class DatabricksAdapter(SparkAdapter):
         if relation.has_information():
             return relation
 
-        return self._get_updated_relation(relation)[0]
+        return self._get_updated_relation(relation)
 
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
@@ -544,8 +539,8 @@ class DatabricksAdapter(SparkAdapter):
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
-                logger.debug("Getting table schema for relation {}", str(relation))
                 columns.extend(self._get_columns_for_catalog(relation, information))
+
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
     def _get_columns_for_catalog(  # type: ignore[override]
