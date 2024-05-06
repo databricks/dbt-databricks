@@ -75,7 +75,6 @@ from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-from dbt_common.clients.agate_helper import empty_table
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 
@@ -420,7 +419,7 @@ class DatabricksAdapter(SparkAdapter):
         try:
             if not relation.is_hive_metastore():
                 row = get_first_row(
-                    self.execute_macro("get_uc_tables", kwargs={"relation": relation})
+                    self.execute_macro("get_uc_tables_with_columns", kwargs={"relation": relation})
                 )
                 metadata = {
                     KEY_TABLE_PROVIDER: row.get("file_format"),
@@ -589,7 +588,6 @@ class DatabricksAdapter(SparkAdapter):
                 quote_policy=self.config.quoting,
             )
             for relation, information in self._list_relations_with_information(schema_relation):
-                logger.debug("Getting table schema for relation {}", str(relation))
                 columns.extend(self._get_columns_for_catalog(relation, information))
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
