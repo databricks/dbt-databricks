@@ -55,8 +55,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "dbt-spark~=1.8.0b2",
-        "dbt-core~=1.8.0b3",
-        "dbt-adapters~=1.1.0rc1",
+        "dbt-core~=1.8.0rc1",
+        "dbt-adapters~=1.1.0",
         "databricks-sql-connector>=3.1.0, <3.2.0",
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
