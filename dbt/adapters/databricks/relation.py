@@ -1,3 +1,5 @@
+import threading
+from collections import namedtuple
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -56,6 +58,9 @@ class DatabricksInformationSchema(InformationSchema):
 
     def is_hive_metastore(self) -> bool:
         return is_hive_metastore(self.database)
+
+
+ReferenceKey = namedtuple("ReferenceKey", "database schema identifier")
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -146,6 +151,36 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    def get_relation_key(self) -> ReferenceKey:
+        return ReferenceKey(self.database, self.schema, self.identifier)
+
+
+class RelationInfoCache:
+    def __init__(self, data: Dict[ReferenceKey, DatabricksRelation] = {}):
+        self.cache: Dict[ReferenceKey, DatabricksRelation] = {}
+        self.lock = threading.Lock()
+
+    def get(self, key: ReferenceKey) -> Optional[DatabricksRelation]:
+        with self.lock:
+            return self.cache.get(key)
+
+    def set(self, relation: DatabricksRelation) -> None:
+        with self.lock:
+            self.cache[relation.get_relation_key()] = relation
+
+    def set_all(self, relations: List[DatabricksRelation]) -> None:
+        with self.lock:
+            for relation in relations:
+                self.cache[relation.get_relation_key()] = relation
+
+    def delete(self, key: ReferenceKey) -> None:
+        with self.lock:
+            self.cache.pop(key, None)
+
+    def clear(self) -> None:
+        with self.lock:
+            self.cache.clear()
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

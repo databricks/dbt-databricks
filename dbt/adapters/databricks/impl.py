@@ -53,6 +53,7 @@ from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import extract_identifiers
 from dbt.adapters.databricks.relation import is_hive_metastore
+from dbt.adapters.databricks.relation import RelationInfoCache
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -146,6 +147,8 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
+    info_cache = RelationInfoCache()
+
     # override/overload
     def acquire_connection(
         self, name: Optional[str] = None, query_header_context: Any = None
@@ -224,7 +227,7 @@ class DatabricksAdapter(SparkAdapter):
                 logger.debug(f"{description} {schema_relation}: {e.msg}")
                 raise e
 
-        return [
+        relations = [
             self.Relation.create(
                 database=schema_relation.database,
                 schema=schema_relation.schema,
@@ -239,6 +242,10 @@ class DatabricksAdapter(SparkAdapter):
                 ["name", "comment", "kind", "file_format", "owner", "columns"]
             )
         ]
+
+        self.info_cache.set_all(relations)
+
+        return relations
 
     def _process_columns(self, columns: Optional[str]) -> List[Tuple[str, str, Optional[str]]]:
         if columns is None:
@@ -402,14 +409,14 @@ class DatabricksAdapter(SparkAdapter):
         columns = self._set_relation_information(relation).columns
         return [
             DatabricksColumn(column=column[0], dtype=column[1], comment=column[2])
-            for column in self._set_relation_information(relation).columns
+            for column in columns
         ]
 
     def _get_updated_relation(self, relation: DatabricksRelation) -> DatabricksRelation:
         if not relation.is_hive_metastore():
             kwargs = {"relation": relation}
             table = get_first_row(self.execute_macro("get_uc_tables", kwargs=kwargs))
-            return relation.incorporate(
+            relation_info = relation.incorporate(
                 comment=table["comment"] if table["comment"] != "" else None,
                 file_format=table["file_format"],
                 owner=table["table_owner"],
@@ -438,18 +445,24 @@ class DatabricksAdapter(SparkAdapter):
             # strip hudi metadata columns.
             columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
-            return relation.incorporate(
+            relation_info = relation.incorporate(
                 comment=metadata.get("Comment") if metadata else None,
                 owner=metadata.get(KEY_TABLE_OWNER) if metadata else "Unknown",
                 file_format=metadata.get("Provider") if metadata else "Unknown",
                 columns=[tuple([column.name, column.dtype, column.comment]) for column in columns],
             )
 
+        self.info_cache.set(relation_info)
+        return relation_info
+
     def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
         """Update the information of the relation, or return it if it already exists."""
         if relation.has_information():
             return relation
 
+        relation_info = self.info_cache.get(relation.get_relation_key())
+        if relation_info:
+            return relation_info
         return self._get_updated_relation(relation)
 
     def parse_columns_from_information(  # type: ignore[override]

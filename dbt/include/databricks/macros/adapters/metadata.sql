@@ -97,7 +97,7 @@
         table_name,
         comment,
         if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type,
-        if(table_type != 'EXTERNAL' and table_type != 'MANAGED', 'delta', lower(data_source_format)) as file_format,
+        lower(data_source_format) as file_format,
         table_owner
       from `{{ relation.database }}`.`information_schema`.`tables`
       where table_schema = '{{ relation.schema }}'
