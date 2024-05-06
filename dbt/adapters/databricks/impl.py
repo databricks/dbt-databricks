@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from abc import ABC
@@ -52,6 +53,7 @@ from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import extract_identifiers
 from dbt.adapters.databricks.relation import is_hive_metastore
+from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -467,19 +469,55 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        return self._get_updated_relation(relation)[1]
+        try:
+            rows: List[Row] = list(
+                self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+            )
+            columns = [
+                DatabricksColumn(
+                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
+                )
+                for row in rows
+            ]
+        except DbtRuntimeError as e:
+            # spark would throw error when table doesn't exist, where other
+            # CDW would just return and empty list, normalizing the behavior here
+            errmsg = getattr(e, "msg", "")
+            found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
+            if any(found_msgs):
+                columns = []
+            else:
+                raise e
+
+        return columns
+
+    def _process_columns(self, columns: Optional[str]) -> List[DatabricksColumn]:
+        if columns is None:
+            return []
+        pycolumns = json.loads(columns)
+        return [DatabricksColumn(column=col[0], dtype=col[1], comment=col[2]) for col in pycolumns]
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         try:
-            rows: List[Row] = list(
-                self.execute_macro(
-                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-                    kwargs={"relation": relation},
+            if not relation.is_hive_metastore():
+                row = get_first_row(
+                    self.execute_macro("get_uc_tables", kwargs={"relation": relation})
                 )
-            )
-            metadata, columns = self.parse_describe_extended(relation, rows)
+                metadata = {
+                    KEY_TABLE_PROVIDER: row.get("file_format"),
+                    KEY_TABLE_OWNER: row.get("table_owner"),
+                }
+                columns = self._process_columns(row.get("columns"))
+            else:
+                rows: List[Row] = list(
+                    self.execute_macro(
+                        GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                        kwargs={"relation": relation},
+                    )
+                )
+                metadata, columns = self.parse_describe_extended(relation, rows)
         except DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
