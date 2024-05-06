@@ -473,12 +473,15 @@ class DatabricksAdapter(SparkAdapter):
             rows: List[Row] = list(
                 self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
             )
-            columns = [
-                DatabricksColumn(
-                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
+            columns = []
+            for row in rows:
+                if row["col_name"].startswith("#"):
+                    break
+                columns.append(
+                    DatabricksColumn(
+                        column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
+                    )
                 )
-                for row in rows
-            ]
         except DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
