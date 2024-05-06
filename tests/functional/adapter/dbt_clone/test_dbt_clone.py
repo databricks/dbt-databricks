@@ -21,10 +21,12 @@ class CleanupMixin:
             project.adapter.drop_schema(relation)
 
 
+@pytest.mark.skip("Skip until tests fixed upstream in 1.8.0 final")
 class TestClonePossible(BaseClonePossible, CleanupMixin):
     pass
 
 
+@pytest.mark.skip("Skip until tests fixed upstream in 1.8.0 final")
 class TestCloneSameTargetAndState(BaseClone, CleanupMixin):
     def test_clone_same_target_and_state(self, project, other_schema):
         project.create_test_schema(other_schema)
