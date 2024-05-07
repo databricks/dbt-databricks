@@ -406,12 +406,6 @@ class DatabricksAdapter(SparkAdapter):
 
         return columns
 
-    def _process_columns(self, columns: Optional[str]) -> List[DatabricksColumn]:
-        if columns is None:
-            return []
-        pycolumns = json.loads(columns)
-        return [DatabricksColumn(column=col[0], dtype=col[1], comment=col[2]) for col in pycolumns]
-
     def _get_updated_relation(
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
