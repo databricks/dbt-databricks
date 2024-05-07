@@ -12,6 +12,7 @@
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
 - Migrate to decoupled architecture ([596](https://github.com/databricks/dbt-databricks/pull/596))
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
+- Streamline the process of determining materialization types ([655](https://github.com/databricks/dbt-databricks/pull/655))
 
 ## dbt-databricks 1.7.14 (May 1, 2024)
 

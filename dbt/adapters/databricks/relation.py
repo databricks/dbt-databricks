@@ -7,10 +7,6 @@ from typing import Optional
 from typing import Set
 from typing import Type
 
-from dbt_common.dataclass_schema import StrEnum
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import filter_null_values
-
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.base.relation import InformationSchema
 from dbt.adapters.base.relation import Policy
@@ -21,6 +17,9 @@ from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
+from dbt_common.dataclass_schema import StrEnum
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
 
 KEY_TABLE_PROVIDER = "Provider"
 
