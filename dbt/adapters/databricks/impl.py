@@ -417,23 +417,13 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
         try:
-            if not relation.is_hive_metastore():
-                row = get_first_row(
-                    self.execute_macro("get_uc_tables_with_columns", kwargs={"relation": relation})
+            rows: List[Row] = list(
+                self.execute_macro(
+                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                    kwargs={"relation": relation},
                 )
-                metadata = {
-                    KEY_TABLE_PROVIDER: row.get("file_format"),
-                    KEY_TABLE_OWNER: row.get("table_owner"),
-                }
-                columns = self._process_columns(row.get("columns"))
-            else:
-                rows: List[Row] = list(
-                    self.execute_macro(
-                        GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-                        kwargs={"relation": relation},
-                    )
-                )
-                metadata, columns = self.parse_describe_extended(relation, rows)
+            )
+            metadata, columns = self.parse_describe_extended(relation, rows)
         except DbtRuntimeError as e:
             # spark would throw error when table doesn't exist, where other
             # CDW would just return and empty list, normalizing the behavior here
