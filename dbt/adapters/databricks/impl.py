@@ -53,7 +53,6 @@ from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import extract_identifiers
 from dbt.adapters.databricks.relation import is_hive_metastore
-from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -235,7 +234,7 @@ class DatabricksAdapter(SparkAdapter):
                 file_format=file_format,
                 owner=owner,
             )
-            for name, comment, kind, file_format, owner in results.select(  # type: ignore[attr-defined]
+            for name, comment, kind, file_format, owner in results.select(
                 ["name", "comment", "kind", "file_format", "owner"]
             )
         ]
