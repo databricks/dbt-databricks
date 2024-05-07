@@ -15,4 +15,4 @@ types-requests
 types-mock
 pre-commit
 
-dbt-tests-adapter==1.8.0rc2
+dbt-tests-adapter~=1.8.0rc2
