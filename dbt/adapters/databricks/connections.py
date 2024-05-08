@@ -1035,7 +1035,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         http_path = databricks_connection.http_path
 
         def connect() -> DatabricksSQLConnectionWrapper:
-            conn: Optional[DatabricksSQLConnection] = None
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn = dbsql.connect(
@@ -1051,8 +1050,8 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
                     **connection_parameters,
                 )
 
-                assert conn is not None
-                databricks_connection.session_id = conn.get_session_id_hex()
+                if conn:
+                    databricks_connection.session_id = conn.get_session_id_hex()
                 databricks_connection.last_used_time = time.time()
                 logger.debug(ConnectionCreated(str(databricks_connection)))
 
@@ -1063,7 +1062,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
                     user_agent=user_agent_entry,
                 )
             except Error as exc:
-                logger.error(ConnectionCreateError(conn, exc))
+                logger.error(ConnectionCreateError(None, exc))
                 raise
 
         def exponential_backoff(attempt: int) -> int:
