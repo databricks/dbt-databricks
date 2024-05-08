@@ -1038,7 +1038,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             conn: Optional[DatabricksSQLConnection] = None
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
-                conn: DatabricksSQLConnection = dbsql.connect(
+                conn = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=http_path,
                     credentials_provider=cls.credentials_provider,
@@ -1051,8 +1051,8 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
                     **connection_parameters,
                 )
 
-                if conn:
-                    databricks_connection.session_id = conn.get_session_id_hex()
+                assert conn is not None
+                databricks_connection.session_id = conn.get_session_id_hex()
                 databricks_connection.last_used_time = time.time()
                 logger.debug(ConnectionCreated(str(databricks_connection)))
 

@@ -209,7 +209,7 @@ jobs:
           find ./dist/*.whl -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/
       - name: Install dbt-core
         run: |
-          python -m pip install dbt-core==1.8.0rc1
+          python -m pip install dbt-core==1.8.0rc2
       - name: Check wheel distributions
         run: |
           dbt --version
