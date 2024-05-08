@@ -1035,6 +1035,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         http_path = databricks_connection.http_path
 
         def connect() -> DatabricksSQLConnectionWrapper:
+            conn: Optional[DatabricksSQLConnection] = None
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn: DatabricksSQLConnection = dbsql.connect(
