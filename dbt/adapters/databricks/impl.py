@@ -30,7 +30,6 @@ from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.relation import InformationSchema
 from dbt.adapters.capability import Capability
 from dbt.adapters.capability import CapabilityDict
 from dbt.adapters.capability import CapabilitySupport
@@ -43,6 +42,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
 )
@@ -51,8 +51,6 @@ from dbt.adapters.databricks.python_submissions import (
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
-from dbt.adapters.databricks.relation import extract_identifiers
-from dbt.adapters.databricks.relation import is_hive_metastore
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -157,7 +155,7 @@ class DatabricksAdapter(SparkAdapter):
     _capabilities = CapabilityDict(
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.NotImplemented),
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -420,6 +418,7 @@ class DatabricksAdapter(SparkAdapter):
 
         for match_num, match in enumerate(matches):
             column_name, column_type, _ = match.groups()
+            logger.debug(f"Column: {column_name}, Type: {column_type}")
             column = DatabricksColumn(
                 table_database=relation.database,
                 table_schema=relation.schema,
@@ -435,84 +434,52 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
+    def get_catalog_by_relations(
+        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
+    ) -> Tuple[Table, List[Exception]]:
+        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        for relation in relations:
+            if relation.identifier:
+                relation_map[
+                    (relation.database or "hive_metastore", relation.schema or "schema")
+                ].add(relation.identifier)
+
+        return self._get_catalog_for_relation_map(relation_map, used_schemas)
+
     def get_catalog(
         self,
         relation_configs: Iterable[RelationConfig],
         used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[Table, List[Exception]]:  # type: ignore
-        schema_map = self._get_catalog_schemas(relation_configs)
+    ) -> Tuple[Table, List[Exception]]:
+        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        for relation in relation_configs:
+            relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
+                relation.identifier
+            )
 
-        with executor(self.config) as tpe:
-            futures: List[Future[Table]] = []
-            for info, schemas in schema_map.items():
-                if is_hive_metastore(info.database):
-                    for schema in schemas:
-                        futures.append(
-                            tpe.submit_connected(
-                                self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                "*",
-                            )
-                        )
-                else:
-                    name = ".".join([str(info.database), "information_schema"])
-                    fut = tpe.submit_connected(
-                        self, name, self._get_one_unity_catalog, info, used_schemas
-                    )
-                    futures.append(fut)
-            catalogs, exceptions = catch_as_completed(futures)
-        return catalogs, exceptions
+        return self._get_catalog_for_relation_map(relation_map, used_schemas)
 
-    def _get_one_unity_catalog(
-        self, info: InformationSchema, schemas: FrozenSet[Tuple[str, str]]
-    ) -> Table:
-        kwargs = {
-            "information_schema": info,
-            "schemas": schemas,
-        }
-        table = self.execute_macro(GET_CATALOG_MACRO_NAME, kwargs=kwargs)
-
-        results = self._catalog_filter_table(table, schemas)
-        return results
-
-    def get_catalog_by_relations(
-        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
+    def _get_catalog_for_relation_map(
+        self,
+        relation_map: Dict[Tuple[str, str], Set[str]],
+        used_schemas: FrozenSet[Tuple[str, str]],
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
             futures: List[Future[Table]] = []
-
-            for info_schema, catalog_relations in relations_by_catalog.items():
-                if is_hive_metastore(info_schema.database):
-                    schema_map = defaultdict(list)
-                    for relation in catalog_relations:
-                        schema_map[relation.schema].append(relation)
-
-                    for schema, schema_relations in schema_map.items():
-                        table_names = extract_identifiers(schema_relations)
+            for schema, relations in relation_map.items():
+                if schema in used_schemas:
+                    identifier = get_identifier_list_string(relations)
+                    if identifier:
                         futures.append(
                             tpe.submit_connected(
                                 self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                get_identifier_list_string(table_names),
+                                str(schema),
+                                self._get_schema_for_catalog,
+                                schema[0],
+                                schema[1],
+                                identifier,
                             )
                         )
-                else:
-                    name = ".".join([str(info_schema.database), "information_schema"])
-                    fut = tpe.submit_connected(
-                        self,
-                        name,
-                        self._get_one_catalog_by_relations,
-                        info_schema,
-                        catalog_relations,
-                        used_schemas,
-                    )
-                    futures.append(fut)
-
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
@@ -546,12 +513,17 @@ class DatabricksAdapter(SparkAdapter):
             column_names=["schema", "tableName", "isTemporary", "information"],
         )
 
-    def _get_hive_catalog(self, schema: str, identifier: str) -> Table:
+    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> Table:
         columns: List[Dict[str, Any]] = []
 
+        logger.debug(
+            "Getting schema for catalog: {}, schema: {}, identifier: {}".format(
+                catalog, schema, identifier
+            )
+        )
         if identifier:
             schema_relation = self.Relation.create(
-                database="hive_metastore",
+                database=catalog or "hive_metastore",
                 schema=schema,
                 identifier=identifier,
                 quote_policy=self.config.quoting,
@@ -570,6 +542,7 @@ class DatabricksAdapter(SparkAdapter):
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
+            logger.debug
             yield as_dict
 
     def add_query(
