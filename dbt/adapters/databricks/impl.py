@@ -323,7 +323,6 @@ class DatabricksAdapter(SparkAdapter):
         # Find the separator between the rows and the metadata provided
         # by the DESCRIBE TABLE EXTENDED statement
         pos = self.find_table_information_separator(dict_rows)
-
         # Remove rows that start with a hash, they are comments
         rows = [row for row in raw_rows[0:pos] if not row["col_name"].startswith("#")]
         metadata = {col["col_name"]: col["data_type"] for col in raw_rows[pos + 1 :]}
@@ -338,6 +337,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_type=relation.type,
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
+                table_comment=metadata.get("Comment"),
                 column=column["col_name"],
                 column_index=idx,
                 dtype=column["data_type"],
@@ -411,6 +411,8 @@ class DatabricksAdapter(SparkAdapter):
         owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
         owner = owner_match[0] if owner_match else None
         matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
+        comment_match = re.findall(self.INFORMATION_COMMENT_REGEX, information)
+        table_comment = comment_match[0] if comment_match else None
         columns = []
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
         raw_table_stats = stats_match[0] if stats_match else None
@@ -423,6 +425,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.table,
                 table_type=relation.type,
+                table_comment=table_comment,
                 column_index=match_num,
                 table_owner=owner,
                 column=column_name,
