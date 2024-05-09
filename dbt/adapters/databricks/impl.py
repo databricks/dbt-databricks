@@ -42,7 +42,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
 )
@@ -418,7 +417,6 @@ class DatabricksAdapter(SparkAdapter):
 
         for match_num, match in enumerate(matches):
             column_name, column_type, _ = match.groups()
-            logger.debug(f"Column: {column_name}, Type: {column_type}")
             column = DatabricksColumn(
                 table_database=relation.database,
                 table_schema=relation.schema,
@@ -516,11 +514,6 @@ class DatabricksAdapter(SparkAdapter):
     def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> Table:
         columns: List[Dict[str, Any]] = []
 
-        logger.debug(
-            "Getting schema for catalog: {}, schema: {}, identifier: {}".format(
-                catalog, schema, identifier
-            )
-        )
         if identifier:
             schema_relation = self.Relation.create(
                 database=catalog or "hive_metastore",
@@ -542,7 +535,6 @@ class DatabricksAdapter(SparkAdapter):
             as_dict = column.to_column_dict()
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
-            logger.debug
             yield as_dict
 
     def add_query(
