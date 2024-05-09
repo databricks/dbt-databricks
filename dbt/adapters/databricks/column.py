@@ -8,7 +8,6 @@ from dbt.adapters.spark.column import SparkColumn
 
 @dataclass
 class DatabricksColumn(SparkColumn):
-    table_comment: Optional[str] = None
     comment: Optional[str] = None
 
     TYPE_LABELS: ClassVar[Dict[str, str]] = {
