@@ -229,7 +229,7 @@ class DatabricksAdapter(SparkAdapter):
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
         results = handle_missing_objects(
-            self.get_relations_without_caching(schema_relation),
+            lambda: self.get_relations_without_caching(schema_relation),
             Table([], ["name", "kind", "file_format", "owner"]),
         )
 
