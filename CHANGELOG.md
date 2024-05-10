@@ -1,4 +1,4 @@
-## dbt-databricks 2.0.0 (TBD)
+## dbt-databricks 1.8.0 (TBD)
 
 ### Features
 
