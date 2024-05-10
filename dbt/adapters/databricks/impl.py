@@ -7,6 +7,7 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
+from typing import Callable
 from typing import ClassVar
 from typing import Dict
 from typing import FrozenSet
@@ -18,6 +19,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Type
+from typing import TypeVar
 from typing import Union
 
 from agate import Row
@@ -28,7 +30,6 @@ from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.relation import InformationSchema
 from dbt.adapters.capability import Capability
 from dbt.adapters.capability import CapabilityDict
 from dbt.adapters.capability import CapabilitySupport
@@ -41,7 +42,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
 )
@@ -50,8 +50,6 @@ from dbt.adapters.databricks.python_submissions import (
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
-from dbt.adapters.databricks.relation import extract_identifiers
-from dbt.adapters.databricks.relation import is_hive_metastore
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -75,6 +73,7 @@ from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
+from dbt_common.utils.dict import AttrDict
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -103,7 +102,21 @@ class DatabricksConfig(AdapterConfig):
 def check_not_found_error(errmsg: str) -> bool:
     new_error = "[SCHEMA_NOT_FOUND]" in errmsg
     old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
-    return new_error or old_error is not None
+    found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
+    return new_error or old_error is not None or any(found_msgs)
+
+
+T = TypeVar("T")
+
+
+def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
+    try:
+        return exec()
+    except DbtRuntimeError as e:
+        errmsg = getattr(e, "msg", "")
+        if check_not_found_error(errmsg):
+            return default
+        raise e
 
 
 def get_identifier_list_string(table_names: Set[str]) -> str:
@@ -141,7 +154,7 @@ class DatabricksAdapter(SparkAdapter):
     _capabilities = CapabilityDict(
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.NotImplemented),
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -212,16 +225,10 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
-        try:
-            results = self.get_relations_without_caching(schema_relation)
-        except DbtRuntimeError as e:
-            errmsg = getattr(e, "msg", "")
-            if check_not_found_error(errmsg):
-                return []
-            else:
-                description = "Error while retrieving information about"
-                logger.debug(f"{description} {schema_relation}: {e.msg}")
-                raise e
+        results = handle_missing_objects(
+            lambda: self.get_relations_without_caching(schema_relation),
+            Table([], ["name", "kind", "file_format", "owner"]),
+        )
 
         return [
             self.Relation.create(
@@ -229,53 +236,13 @@ class DatabricksAdapter(SparkAdapter):
                 schema=schema_relation.schema,
                 identifier=name,
                 type=self.Relation.get_relation_type(kind),
-                comment=comment if comment != "" else None,
                 file_format=file_format,
                 owner=owner,
             )
-            for name, comment, kind, file_format, owner in results.select(
-                ["name", "comment", "kind", "file_format", "owner"]
+            for name, kind, file_format, owner in results.select(
+                ["name", "kind", "file_format", "owner"]
             )
         ]
-
-    def _list_relations_with_information(
-        self, schema_relation: DatabricksRelation
-    ) -> List[Tuple[DatabricksRelation, str]]:
-        results: List[Row]
-        kwargs = {"schema_relation": schema_relation}
-        try:
-            # The catalog for `show table extended` needs to match the current catalog.
-            with self._catalog(schema_relation.database):
-                results = list(self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs))
-        except DbtRuntimeError as e:
-            errmsg = getattr(e, "msg", "")
-            if check_not_found_error(errmsg):
-                results = []
-            else:
-                description = "Error while retrieving information about"
-                logger.debug(f"{description} {schema_relation.without_identifier()}: {e.msg}")
-                raise e
-
-        relations: List[Tuple[DatabricksRelation, str]] = []
-        for row in results:
-            if len(row) != 4:
-                raise DbtRuntimeError(
-                    f'Invalid value from "show table extended ...", '
-                    f"got {len(row)} values, expected 4"
-                )
-            _schema, name, _, information = row
-            rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-            relation = self.Relation.create(
-                database=schema_relation.database,
-                # Use `_schema` retrieved from the cluster to avoid mismatched case
-                # between the profile and the cluster.
-                schema=_schema,
-                identifier=name,
-                type=rel_type,
-            )
-            relations.append((relation, information))
-
-        return relations
 
     def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
         if relation.is_hive_metastore():
@@ -287,8 +254,8 @@ class DatabricksAdapter(SparkAdapter):
         tables = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return Table(
             tables,
-            column_names=["name", "comment", "kind", "file_format", "owner"],
-            column_types=[Text(), Text(), Text(), Text(), Text()],
+            column_names=["name", "kind", "file_format", "owner"],
+            column_types=[Text(), Text(), Text(), Text()],
         )
 
     def _get_hive_relations(self, relation: DatabricksRelation) -> Table:
@@ -323,9 +290,9 @@ class DatabricksAdapter(SparkAdapter):
                 ]
 
         return Table(
-            [(row[0], None, row[1], None, None) for row in new_rows],
-            column_names=["name", "comment", "kind", "file_format", "owner"],
-            column_types=[Text(), Text(), Text(), Text(), Text()],
+            [(row[0], row[1], None, None) for row in new_rows],
+            column_names=["name", "kind", "file_format", "owner"],
+            column_types=[Text(), Text(), Text(), Text()],
         )
 
     def get_relation(
@@ -353,7 +320,6 @@ class DatabricksAdapter(SparkAdapter):
         # Find the separator between the rows and the metadata provided
         # by the DESCRIBE TABLE EXTENDED statement
         pos = self.find_table_information_separator(dict_rows)
-
         # Remove rows that start with a hash, they are comments
         rows = [row for row in raw_rows[0:pos] if not row["col_name"].startswith("#")]
         metadata = {col["col_name"]: col["data_type"] for col in raw_rows[pos + 1 :]}
@@ -380,52 +346,40 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        try:
-            rows: List[Row] = list(
-                self.execute_macro(GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation})
+        rows = list(
+            handle_missing_objects(
+                lambda: self.execute_macro(
+                    GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}
+                ),
+                AttrDict(),
             )
-            columns = []
-            for row in rows:
-                if row["col_name"].startswith("#"):
-                    break
-                columns.append(
-                    DatabricksColumn(
-                        column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
-                    )
+        )
+
+        columns = []
+        for row in rows:
+            if row["col_name"].startswith("#"):
+                break
+            columns.append(
+                DatabricksColumn(
+                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
                 )
-        except DbtRuntimeError as e:
-            # spark would throw error when table doesn't exist, where other
-            # CDW would just return and empty list, normalizing the behavior here
-            errmsg = getattr(e, "msg", "")
-            found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-            if any(found_msgs):
-                columns = []
-            else:
-                raise e
+            )
 
         return columns
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
     ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
-        try:
-            rows: List[Row] = list(
-                self.execute_macro(
+        rows = list(
+            handle_missing_objects(
+                lambda: self.execute_macro(
                     GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
                     kwargs={"relation": relation},
-                )
+                ),
+                AttrDict(),
             )
-            metadata, columns = self.parse_describe_extended(relation, rows)
-        except DbtRuntimeError as e:
-            # spark would throw error when table doesn't exist, where other
-            # CDW would just return and empty list, normalizing the behavior here
-            errmsg = getattr(e, "msg", "")
-            found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-            if any(found_msgs):
-                metadata = None
-                columns = []
-            else:
-                raise e
+        )
+        metadata, columns = self.parse_describe_extended(relation, rows)
 
         # strip hudi metadata columns.
         columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
@@ -453,16 +407,16 @@ class DatabricksAdapter(SparkAdapter):
     ) -> List[DatabricksColumn]:
         owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
         owner = owner_match[0] if owner_match else None
+        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
         comment_match = re.findall(self.INFORMATION_COMMENT_REGEX, information)
         table_comment = comment_match[0] if comment_match else None
-        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
         columns = []
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
         raw_table_stats = stats_match[0] if stats_match else None
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
 
         for match_num, match in enumerate(matches):
-            column_name, column_type, nullable = match.groups()
+            column_name, column_type, _ = match.groups()
             column = DatabricksColumn(
                 table_database=relation.database,
                 table_schema=relation.schema,
@@ -478,93 +432,91 @@ class DatabricksAdapter(SparkAdapter):
             columns.append(column)
         return columns
 
+    def get_catalog_by_relations(
+        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
+    ) -> Tuple[Table, List[Exception]]:
+        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        for relation in relations:
+            if relation.identifier:
+                relation_map[
+                    (relation.database or "hive_metastore", relation.schema or "schema")
+                ].add(relation.identifier)
+
+        return self._get_catalog_for_relation_map(relation_map, used_schemas)
+
     def get_catalog(
         self,
         relation_configs: Iterable[RelationConfig],
         used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[Table, List[Exception]]:  # type: ignore
-        schema_map = self._get_catalog_schemas(relation_configs)
+    ) -> Tuple[Table, List[Exception]]:
+        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        for relation in relation_configs:
+            relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
+                relation.identifier
+            )
 
-        with executor(self.config) as tpe:
-            futures: List[Future[Table]] = []
-            for info, schemas in schema_map.items():
-                if is_hive_metastore(info.database):
-                    for schema in schemas:
-                        futures.append(
-                            tpe.submit_connected(
-                                self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                "*",
-                            )
-                        )
-                else:
-                    name = ".".join([str(info.database), "information_schema"])
-                    fut = tpe.submit_connected(
-                        self, name, self._get_one_unity_catalog, info, used_schemas
-                    )
-                    futures.append(fut)
-            catalogs, exceptions = catch_as_completed(futures)
-        return catalogs, exceptions
+        return self._get_catalog_for_relation_map(relation_map, used_schemas)
 
-    def _get_one_unity_catalog(
-        self, info: InformationSchema, schemas: FrozenSet[Tuple[str, str]]
-    ) -> Table:
-        kwargs = {
-            "information_schema": info,
-            "schemas": schemas,
-        }
-        table = self.execute_macro(GET_CATALOG_MACRO_NAME, kwargs=kwargs)
-
-        results = self._catalog_filter_table(table, schemas)
-        return results
-
-    def get_catalog_by_relations(
-        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
+    def _get_catalog_for_relation_map(
+        self,
+        relation_map: Dict[Tuple[str, str], Set[str]],
+        used_schemas: FrozenSet[Tuple[str, str]],
     ) -> Tuple[Table, List[Exception]]:
         with executor(self.config) as tpe:
-            relations_by_catalog = self._get_catalog_relations_by_info_schema(relations)
             futures: List[Future[Table]] = []
-
-            for info_schema, catalog_relations in relations_by_catalog.items():
-                if is_hive_metastore(info_schema.database):
-                    schema_map = defaultdict(list)
-                    for relation in catalog_relations:
-                        schema_map[relation.schema].append(relation)
-
-                    for schema, schema_relations in schema_map.items():
-                        table_names = extract_identifiers(schema_relations)
+            for schema, relations in relation_map.items():
+                if schema in used_schemas:
+                    identifier = get_identifier_list_string(relations)
+                    if identifier:
                         futures.append(
                             tpe.submit_connected(
                                 self,
-                                "hive_metastore",
-                                self._get_hive_catalog,
-                                schema,
-                                get_identifier_list_string(table_names),
+                                str(schema),
+                                self._get_schema_for_catalog,
+                                schema[0],
+                                schema[1],
+                                identifier,
                             )
                         )
-                else:
-                    name = ".".join([str(info_schema.database), "information_schema"])
-                    fut = tpe.submit_connected(
-                        self,
-                        name,
-                        self._get_one_catalog_by_relations,
-                        info_schema,
-                        catalog_relations,
-                        used_schemas,
-                    )
-                    futures.append(fut)
-
             catalogs, exceptions = catch_as_completed(futures)
         return catalogs, exceptions
 
-    def _get_hive_catalog(self, schema: str, identifier: str) -> Table:
+    def _list_relations_with_information(
+        self, schema_relation: DatabricksRelation
+    ) -> List[Tuple[DatabricksRelation, str]]:
+        results = self._show_table_extended(schema_relation)
+
+        relations: List[Tuple[DatabricksRelation, str]] = []
+        for name, information in results.select(["tableName", "information"]):
+            rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
+            relation = self.Relation.create(
+                database=schema_relation.database.lower() if schema_relation.database else None,
+                schema=schema_relation.schema.lower() if schema_relation.schema else None,
+                identifier=name,
+                type=rel_type,
+            )
+            relations.append((relation, information))
+
+        return relations
+
+    def _show_table_extended(self, schema_relation: DatabricksRelation) -> Table:
+        kwargs = {"schema_relation": schema_relation}
+
+        def exec() -> AttrDict:
+            with self._catalog(schema_relation.database):
+                return self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
+
+        return Table(
+            handle_missing_objects(exec, AttrDict()),
+            column_names=["schema", "tableName", "isTemporary", "information"],
+        )
+
+    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> Table:
         columns: List[Dict[str, Any]] = []
 
         if identifier:
             schema_relation = self.Relation.create(
-                database="hive_metastore",
+                database=catalog or "hive_metastore",
                 schema=schema,
                 identifier=identifier,
                 quote_policy=self.config.quoting,

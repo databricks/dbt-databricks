@@ -135,7 +135,6 @@
   {% call statement('get_uc_tables', fetch_result=True) -%}
     select
       table_name,
-      comment,
       if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type,
       lower(data_source_format) as file_format,
       table_owner
