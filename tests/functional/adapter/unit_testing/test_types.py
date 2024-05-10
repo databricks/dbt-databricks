@@ -1,5 +1,6 @@
-from dbt.tests.adapter.unit_testing.test_types import BaseUnitTestingTypes
 import pytest
+
+from dbt.tests.adapter.unit_testing.test_types import BaseUnitTestingTypes
 
 
 class TestUnitTestingTypes(BaseUnitTestingTypes):
@@ -20,5 +21,8 @@ class TestUnitTestingTypes(BaseUnitTestingTypes):
                 "map('10', 't', '15', 'f', '20', NULL)",
                 """'map("10", "t", "15", "f", "20", NULL)'""",
             ],
-            ['named_struct("a", 1, "b", 2, "c", 3)', """'named_struct("a", 1, "b", 2, "c", 3)'"""],
+            [
+                'named_struct("a", 1, "b", 2, "c", 3)',
+                """'named_struct("a", 1, "b", 2, "c", 3)'""",
+            ],
         ]

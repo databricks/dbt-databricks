@@ -1,9 +1,12 @@
 from agate import Table
 from mock import Mock
+
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
-from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
+from dbt.adapters.databricks.relation_configs.streaming_table import (
+    StreamingTableConfig,
+)
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
 

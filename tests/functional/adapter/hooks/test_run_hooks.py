@@ -1,12 +1,11 @@
-from dbt.tests.adapter.hooks.test_run_hooks import (
-    BasePrePostRunHooks,
-    BaseAfterRunHooks,
-)
-import pytest
 import os
 
-from tests.functional.adapter.hooks import fixtures as override_fixtures
+import pytest
+
 from dbt.tests import util
+from dbt.tests.adapter.hooks.test_run_hooks import BaseAfterRunHooks
+from dbt.tests.adapter.hooks.test_run_hooks import BasePrePostRunHooks
+from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 
 class TestPrePostRunHooks(BasePrePostRunHooks):

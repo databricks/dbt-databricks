@@ -3,6 +3,8 @@
   {%- set language = model['language'] -%}
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}
+  {%- set tblproperties = config.get('tblproperties') -%}
+  {%- set tags = config.get('databricks_tags') -%}
 
   {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) -%}
   {%- set target_relation = api.Relation.create(identifier=identifier,
@@ -27,7 +29,10 @@
 
   {% set should_revoke = should_revoke(old_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
+  {% do apply_tblproperties_python(target_relation, tblproperties, language) %}
 
+  {%- do apply_tags(target_relation, tags) -%}
+  
   {% do persist_docs(target_relation, model) %}
 
   {% do persist_constraints(target_relation, model) %}

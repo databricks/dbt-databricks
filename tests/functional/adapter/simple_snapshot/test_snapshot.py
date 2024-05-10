@@ -1,9 +1,8 @@
 from typing import Optional
-from dbt.tests.adapter.simple_snapshot.test_snapshot import (
-    BaseSimpleSnapshot,
-    BaseSnapshotCheck,
-)
+
 from dbt.tests import util
+from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSimpleSnapshot
+from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSnapshotCheck
 
 
 class TestSnapshot(BaseSimpleSnapshot):

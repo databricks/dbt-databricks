@@ -14,7 +14,7 @@ import pyspark
 # preferentially convert pandas DataFrames to pandas-on-Spark or Koalas DataFrames first
 # since they know how to convert pandas DataFrames better than `spark.createDataFrame(df)`
 # and converting from pandas-on-Spark to Spark DataFrame has no overhead
-  
+
 if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
     if pyspark_pandas_api_available:
         df = pyspark.pandas.frame.DataFrame(df)

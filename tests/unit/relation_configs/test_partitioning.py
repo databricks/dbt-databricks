@@ -1,10 +1,8 @@
-from mock import Mock
 from agate import Table
+from mock import Mock
 
-from dbt.adapters.databricks.relation_configs.partitioning import (
-    PartitionedByConfig,
-    PartitionedByProcessor,
-)
+from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
+from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByProcessor
 
 
 class TestPartitionedByProcessor:

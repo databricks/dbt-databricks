@@ -1,9 +1,11 @@
-from typing import Optional, Tuple
-from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
-from dbt.adapters.base.relation import BaseRelation
-from dbt.tests import util
+from typing import Optional
+from typing import Tuple
+
 import pytest
 
+from dbt.adapters.base.relation import BaseRelation
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 

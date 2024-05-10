@@ -1,26 +1,25 @@
-from typing import Any, Dict, Tuple, Optional, Callable
-
-from requests import Session
-
-from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.connections import DatabricksCredentials, TCredentialProvider
-from dbt.adapters.databricks import utils
-
 import base64
 import time
 import uuid
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Tuple
 
+from dbt_common.exceptions import DbtRuntimeError
+from requests import Session
+from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.base import PythonJobHelper
+from dbt.adapters.databricks import utils
+from dbt.adapters.databricks.__version__ import version
+from dbt.adapters.databricks.auth import BearerAuth
+from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.credentials import TCredentialProvider
+from dbt.adapters.databricks.logging import logger
 
-from requests.adapters import HTTPAdapter
-from dbt.adapters.databricks.connections import BearerAuth
-from dbt_common.exceptions import DbtRuntimeError
-
-
-logger = AdapterLogger("Databricks")
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"

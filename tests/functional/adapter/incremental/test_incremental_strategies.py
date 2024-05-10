@@ -1,5 +1,7 @@
 import os
+
 import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.incremental import fixtures
 
@@ -95,7 +97,12 @@ class TestInsertOverwriteDelta(InsertOverwriteBase):
 class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+incremental_strategy": "insert_overwrite", "+partition_by": "id"}}
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+partition_by": "id",
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")

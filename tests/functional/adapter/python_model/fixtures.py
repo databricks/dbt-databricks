@@ -93,6 +93,7 @@ def model(dbt, spark):
     dbt.config(materialized="incremental")
     dbt.config(partition_by="date")
     dbt.config(unique_key="name")
+    dbt.config(tblproperties={"a": "b", "c": "d"})
     if dbt.is_incremental:
         data = [[2, "Teo"], [2, "Fang"], [3, "Elbert"]]
     else:

@@ -1,21 +1,20 @@
 from pathlib import Path
-from dbt.tests.adapter.simple_seed.test_seed import (
-    BaseSeedWithUniqueDelimiter,
-    BaseSeedWithWrongDelimiter,
-    BaseSeedWithEmptyDelimiter,
-    BaseTestEmptySeed,
-    BaseSeedConfigFullRefreshOff,
-    BaseSeedCustomSchema,
-    SeedTestBase,
-    BaseSimpleSeedEnabledViaConfig,
-    BaseSeedParsing,
-    BaseSimpleSeedWithBOM,
-    BaseSeedSpecificFormats,
-)
-from dbt.tests.adapter.simple_seed import seeds
-from dbt.tests import util
+
 import pytest
 
+from dbt.tests import util
+from dbt.tests.adapter.simple_seed import seeds
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedConfigFullRefreshOff
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedCustomSchema
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedParsing
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedSpecificFormats
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedWithEmptyDelimiter
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedWithUniqueDelimiter
+from dbt.tests.adapter.simple_seed.test_seed import BaseSeedWithWrongDelimiter
+from dbt.tests.adapter.simple_seed.test_seed import BaseSimpleSeedEnabledViaConfig
+from dbt.tests.adapter.simple_seed.test_seed import BaseSimpleSeedWithBOM
+from dbt.tests.adapter.simple_seed.test_seed import BaseTestEmptySeed
+from dbt.tests.adapter.simple_seed.test_seed import SeedTestBase
 from tests.functional.adapter.simple_seed import fixtures
 
 

@@ -1,4 +1,4 @@
-{# 
+{#
     This is identical to the implementation in dbt-core.
     We need to override because dbt-spark overrides to something we don't like.
 #}

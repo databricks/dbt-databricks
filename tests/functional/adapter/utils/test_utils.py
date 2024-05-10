@@ -1,16 +1,18 @@
+from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
 from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
 from dbt.tests.adapter.utils.test_array_construct import BaseArrayConstruct
-from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_bool_or import BaseBoolOr
 from dbt.tests.adapter.utils.test_cast_bool_to_text import BaseCastBoolToText
 from dbt.tests.adapter.utils.test_concat import BaseConcat
 from dbt.tests.adapter.utils.test_current_timestamp import BaseCurrentTimestampAware
 from dbt.tests.adapter.utils.test_date_spine import BaseDateSpine
-from dbt.tests.adapter.utils.test_datediff import BaseDateDiff
 from dbt.tests.adapter.utils.test_date_trunc import BaseDateTrunc
+from dbt.tests.adapter.utils.test_datediff import BaseDateDiff
 from dbt.tests.adapter.utils.test_equals import BaseEquals
-from dbt.tests.adapter.utils.test_escape_single_quotes import BaseEscapeSingleQuotesBackslash
+from dbt.tests.adapter.utils.test_escape_single_quotes import (
+    BaseEscapeSingleQuotesBackslash,
+)
 from dbt.tests.adapter.utils.test_except import BaseExcept
 from dbt.tests.adapter.utils.test_generate_series import BaseGenerateSeries
 from dbt.tests.adapter.utils.test_get_powers_of_two import BaseGetPowersOfTwo
@@ -18,7 +20,8 @@ from dbt.tests.adapter.utils.test_hash import BaseHash
 from dbt.tests.adapter.utils.test_intersect import BaseIntersect
 from dbt.tests.adapter.utils.test_last_day import BaseLastDay
 from dbt.tests.adapter.utils.test_length import BaseLength
-from dbt.tests.adapter.utils.test_null_compare import BaseMixedNullCompare, BaseNullCompare
+from dbt.tests.adapter.utils.test_null_compare import BaseMixedNullCompare
+from dbt.tests.adapter.utils.test_null_compare import BaseNullCompare
 from dbt.tests.adapter.utils.test_position import BasePosition
 from dbt.tests.adapter.utils.test_replace import BaseReplace
 from dbt.tests.adapter.utils.test_right import BaseRight

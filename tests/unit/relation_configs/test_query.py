@@ -1,8 +1,10 @@
+import pytest
 from agate import Row
 from mock import Mock
-import pytest
+
+from dbt.adapters.databricks.relation_configs.query import QueryConfig
+from dbt.adapters.databricks.relation_configs.query import QueryProcessor
 from dbt.exceptions import DbtRuntimeError
-from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
 
 sql = "select * from foo"
 

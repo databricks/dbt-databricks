@@ -87,7 +87,7 @@
         {% if statement %}
           {% do statements.append(statement) %}
         {% endif %}
-      {% endfor %}  
+      {% endfor %}
     {% endif %}
   {% endfor %}
 
@@ -187,7 +187,7 @@
       {% set joined_names = quoted_names|join(", ") %}
 
       {% set parent = constraint.get("parent") %}
-      {% if not parent %} 
+      {% if not parent %}
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
       {% endif %}
       {% if not "." in parent %}

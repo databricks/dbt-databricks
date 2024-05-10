@@ -1,10 +1,10 @@
 import pytest
 
+from dbt.tests import util
+from dbt.tests.adapter.python_model import test_spark as fixtures
 from dbt.tests.adapter.python_model.test_spark import (
     BasePySparkTests,
 )
-from dbt.tests.adapter.python_model import test_spark as fixtures
-from dbt.tests import util
 
 
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")

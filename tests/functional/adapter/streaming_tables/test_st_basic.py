@@ -1,14 +1,14 @@
-from typing import Optional, Tuple
-from dbt.adapters.base.relation import BaseRelation
-from dbt.tests.adapter.materialized_view.files import (
-    MY_SEED,
-    MY_TABLE,
-    MY_VIEW,
-)
-from dbt.tests import util
+from typing import Optional
+from typing import Tuple
 
 import pytest
+
+from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.files import MY_SEED
+from dbt.tests.adapter.materialized_view.files import MY_TABLE
+from dbt.tests.adapter.materialized_view.files import MY_VIEW
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -136,7 +136,13 @@ class TestStreamingTablesBasic:
 
     def test_streaming_table_full_refresh(self, project, my_streaming_table):
         _, logs = util.run_dbt_and_capture(
-            ["--debug", "run", "--models", my_streaming_table.identifier, "--full-refresh"]
+            [
+                "--debug",
+                "run",
+                "--models",
+                my_streaming_table.identifier,
+                "--full-refresh",
+            ]
         )
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
