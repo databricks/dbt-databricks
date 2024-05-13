@@ -8,6 +8,10 @@
 - Support Databricks tags for tables/views/incrementals ([631](https://github.com/databricks/dbt-databricks/pull/631))
 - Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
 
+### Fixes
+
+- Rerunning seed with external location + persist_doc now more resilient ([662](https://github.com/databricks/dbt-databricks/pull/662))
+
 ### Under the Hood
 
 - Upgrade databricks-sql-connector to 3.1.0 ([593](https://github.com/databricks/dbt-databricks/pull/593))
