@@ -6,6 +6,7 @@
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
 - Support insert overwrite on SQL Warehouses ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Support Databricks tags for tables/views/incrementals ([631](https://github.com/databricks/dbt-databricks/pull/631))
+- Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
 
 ### Under the Hood
 
