@@ -251,11 +251,20 @@ class TestPersistDocsWithSeeds:
         util.run_dbt(["seed"])
 
     @pytest.fixture(scope="class")
-    def seeds(self):
-        return {
-            "seed.csv": fixtures._SEEDS__SEED,
-            "schema.yml": override_fixtures._SEEDS__SCHEMA_YML,
-        }
+    def seeds(self, adapter):
+        if (
+            adapter.config.credentials.database
+            and adapter.config.credentials.database != "hive_metastore"
+        ):
+            return {
+                "seed.csv": fixtures._SEEDS__SEED,
+                "schema.yml": override_fixtures._SEEDS__SCHEMA_YML,
+            }
+        else:
+            return {
+                "seed.csv": fixtures._SEEDS__SEED,
+                "schema.yml": override_fixtures._HIVE__SCHEMA_YML,
+            }
 
     @pytest.fixture(scope="class")
     def table_relation(self, project):
