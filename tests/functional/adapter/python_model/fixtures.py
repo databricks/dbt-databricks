@@ -91,8 +91,8 @@ import pandas as pd  # type: ignore
 
 def model(dbt, spark):
     dbt.config(materialized="incremental")
-    dbt.config(partition_by="date")
     dbt.config(unique_key="name")
+    dbt.config(liquid_clustered_by="date")
     dbt.config(tblproperties={"a": "b", "c": "d"})
     if dbt.is_incremental:
         data = [[2, "Teo"], [2, "Fang"], [3, "Elbert"]]
