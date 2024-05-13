@@ -43,7 +43,7 @@ class DatabricksRelationType(StrEnum):
     View = "view"
     CTE = "cte"
     MaterializedView = "materialized_view"
-    External = "external"
+    Foreign = "foreign"
     StreamingTable = "streaming_table"
     Unknown = "unknown"
 

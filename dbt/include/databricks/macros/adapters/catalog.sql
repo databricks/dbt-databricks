@@ -37,7 +37,7 @@
         table_catalog as table_database,
         table_schema,
         table_name,
-        lower(if(table_type in ('MANAGED', 'EXTERNAL'), 'table', table_type)) as table_type,
+        lower(table_type) as table_type,
         comment as table_comment,
         table_owner,
         'Last Modified' as `stats:last_modified:label`,
