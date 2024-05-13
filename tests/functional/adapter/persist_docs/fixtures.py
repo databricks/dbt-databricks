@@ -12,7 +12,7 @@ seeds:
       - name: id
         description: 'An id column'
       - name: name
-        description: 'A name column'    
+        description: 'A name column'
 """
 
 _HIVE__SCHEMA_YML = """
@@ -29,5 +29,5 @@ seeds:
       - name: id
         description: 'An id column'
       - name: name
-        description: 'A name column'    
+        description: 'A name column'
 """
