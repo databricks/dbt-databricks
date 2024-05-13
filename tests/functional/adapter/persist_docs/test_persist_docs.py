@@ -6,6 +6,7 @@ from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.tests import util
 from dbt.tests.adapter.persist_docs import fixtures
+from tests.functional.adapter.persist_docs import fixtures as override_fixtures
 
 
 class DatabricksPersistDocsMixin:
@@ -242,3 +243,38 @@ class TestPersistDocsCommentOnQuotedColumn:
                 column_comment = column.comment
                 assert column_comment.startswith("XXX")
                 break
+
+
+class TestPersistDocsWithSeeds:
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        util.run_dbt(["seed"])
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "seed.csv": fixtures._SEEDS__SEED,
+            "schema.yml": override_fixtures._SEEDS__SCHEMA_YML,
+        }
+
+    @pytest.fixture(scope="class")
+    def table_relation(self, project):
+        return DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="seed",
+            type="table",
+        )
+
+    def test_reseeding_with_persist_docs(self, table_relation, adapter):
+        util.run_dbt(["seed"])
+        results = util.run_sql_with_adapter(
+            adapter, f"describe extended {table_relation}", fetch="all"
+        )
+        metadata, columns = adapter.parse_describe_extended(
+            table_relation, Table(results, ["col_name", "data_type", "comment"])
+        )
+        table_comment = metadata["Comment"]
+        assert table_comment.startswith("A seed description")
+        assert columns[0].comment.startswith("An id column")
+        assert columns[1].comment.startswith("A name column")

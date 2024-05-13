@@ -48,6 +48,7 @@
 {% macro databricks__create_csv_table(model, agate_table) %}
   {%- set column_override = model['config'].get('column_types', {}) -%}
   {%- set quote_seed_column = model['config'].get('quote_columns', None) -%}
+  {%- set column_comment = config.persist_column_docs() and model.columns %}
   {%- set identifier = model['alias'] -%}
   {%- set relation = api.Relation.create(database=database, schema=schema, identifier=identifier, type='table') -%}
 
@@ -57,7 +58,14 @@
             {%- set inferred_type = adapter.convert_type(agate_table, loop.index0) -%}
             {%- set type = column_override.get(col_name, inferred_type) -%}
             {%- set column_name = (col_name | string) -%}
-            {{ adapter.quote_seed_column(column_name, quote_seed_column) }} {{ type }} {%- if not loop.last -%}, {%- endif -%}
+            {%- set column_comment_clause = "" -%}
+            {%- if column_comment -%}       
+              {%- set comment = model.columns[col_name]['description'] | replace("'", "\\'") -%}
+              {%- if comment and comment != "" -%}
+                {%- set column_comment_clause = "comment '" ~ comment ~ "'" -%}
+              {%- endif -%}
+            {%- endif -%}
+            {{ adapter.quote_seed_column(column_name, quote_seed_column) }} {{ type }} {{ column_comment_clause }}{%- if not loop.last -%}, {%- endif -%}
         {%- endfor -%}
     )
     {{ file_format_clause() }}

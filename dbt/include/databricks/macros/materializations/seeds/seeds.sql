@@ -44,8 +44,7 @@
 
   {% set should_revoke = should_revoke(old_relation, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
-
-  {% do persist_docs(target_relation, model) %}
+  -- No need to persist docs, already handled in seed create
 
   {% if full_refresh_mode or not exists_as_table %}
     {% do create_indexes(target_relation) %}
