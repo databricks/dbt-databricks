@@ -94,48 +94,11 @@
   {% do return(load_result('get_view_description_alt').table) %}
 {% endmacro %}
 
-
-{% macro get_uc_tables_with_columns(relation) %}
-  {% call statement('get_uc_tables_with_columns', fetch_result=True) -%}
-    with tables as (
-      select
-        table_name,
-        comment,
-        if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type,
-        lower(data_source_format) as file_format,
-        table_owner
-      from `{{ relation.database }}`.`information_schema`.`tables`
-      where table_schema = '{{ relation.schema }}'
-      {% if relation.identifier %}
-        and table_name = '{{ relation.identifier }}'
-      {% endif %}
-    ),
-    columns as (
-      select
-        table_name,
-        to_json(collect_list(array(column_name, data_type, comment))) as columns
-      from `{{ relation.database }}`.`information_schema`.`columns`
-      where table_schema = '{{ relation.schema }}'
-      {% if relation.identifier %}
-        and table_name = '{{ relation.identifier }}'
-      {% endif %}
-      group by table_name
-    )
-    select
-      tables.*,
-      columns.columns
-    from tables
-    left join columns using(table_name)
-  {% endcall %}
-
-  {% do return(load_result('get_uc_tables_with_columns').table) %}
-{% endmacro %}
-
 {% macro get_uc_tables(relation) %}
   {% call statement('get_uc_tables', fetch_result=True) -%}
     select
       table_name,
-      if(table_type = 'EXTERNAL' or table_type = 'MANAGED', 'table', lower(table_type)) as table_type,
+      if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
       lower(data_source_format) as file_format,
       table_owner
     from `{{ relation.database }}`.`information_schema`.`tables`
