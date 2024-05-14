@@ -16,9 +16,11 @@ from dbt.adapters.databricks.credentials import DBT_DATABRICKS_HTTP_SESSION_HEAD
 from dbt.adapters.databricks.credentials import DBT_DATABRICKS_INVOCATION_ENV
 from dbt.adapters.databricks.impl import check_not_found_error
 from dbt.adapters.databricks.impl import get_identifier_list_string
+from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.config import RuntimeConfig
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
+from mock import Mock
 from tests.unit.utils import config_from_parts_or_dicts
 
 
@@ -340,6 +342,61 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             )
             assert connection.credentials.token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             assert connection.credentials.schema == "analytics"
+
+    def test_list_relations_without_caching__no_relations(self):
+        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+            mocked.return_value = []
+            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            assert adapter.list_relations("database", "schema") == []
+
+    def test_list_relations_without_caching__some_relations(self):
+        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+            mocked.return_value = [("name", "table", "hudi", "owner")]
+            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            relations = adapter.list_relations("database", "schema")
+            assert len(relations) == 1
+            relation = relations[0]
+            assert relation.identifier == "name"
+            assert relation.database == "database"
+            assert relation.schema == "schema"
+            assert relation.type == DatabricksRelationType.Table
+            assert relation.owner == "owner"
+            assert relation.is_hudi
+
+    def test_list_relations_without_caching__hive_relation(self):
+        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+            mocked.return_value = [("name", "table", None, None)]
+            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            relations = adapter.list_relations("database", "schema")
+            assert len(relations) == 1
+            relation = relations[0]
+            assert relation.identifier == "name"
+            assert relation.database == "database"
+            assert relation.schema == "schema"
+            assert relation.type == DatabricksRelationType.Table
+            assert not relation.has_information()
+
+    def test_get_schema_for_catalog__no_columns(self):
+        with mock.patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with mock.patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = []
+                adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+                table = adapter._get_schema_for_catalog("database", "schema", "name")
+                assert len(table.rows) == 0
+
+    def test_get_schema_for_catalog__some_columns(self):
+        with mock.patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with mock.patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = [
+                    {"name": "col1", "type": "string", "comment": "comment"},
+                    {"name": "col2", "type": "string", "comment": "comment"},
+                ]
+                adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+                table = adapter._get_schema_for_catalog("database", "schema", "name")
+                assert len(table.rows) == 2
+                assert table.column_names == ("name", "type", "comment")
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None

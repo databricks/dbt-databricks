@@ -48,6 +48,7 @@ from dbt.adapters.databricks.python_submissions import (
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -234,14 +235,16 @@ class DatabricksAdapter(SparkAdapter):
         relations = []
         for row in results:
             name, kind, file_format, owner = row
+            metadata = None
+            if file_format:
+                metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
             relations.append(
                 self.Relation.create(
                     database=schema_relation.database,
                     schema=schema_relation.schema,
                     identifier=name,
                     type=self.Relation.get_relation_type(kind),
-                    file_format=file_format,
-                    owner=owner,
+                    metadata=metadata,
                 )
             )
 
