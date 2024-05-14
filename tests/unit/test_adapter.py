@@ -925,8 +925,8 @@ class TestCheckNotFound:
 
 
 class TestGetPersistDocColumns(DatabricksAdapterBase):
-    @pytest.fixture(scope="class")
-    def adapter(self) -> DatabricksAdapter:
+    @pytest.fixture
+    def adapter(self, setUp) -> DatabricksAdapter:
         return DatabricksAdapter(self._get_config(), get_context("spawn"))
 
     def create_column(self, name, comment) -> DatabricksColumn:
