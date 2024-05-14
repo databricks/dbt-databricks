@@ -4,7 +4,7 @@ on:
     paths-ignore:
       - "**.MD"
       - "**.md"
-      - "tests/unit"
+      - "tests/unit/**"
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest
