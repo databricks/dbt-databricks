@@ -55,6 +55,7 @@ writer.saveAsTable("{{ target_relation }}")
 {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
 {%- set file_format = config.get('file_format', validator=validation.any[basestring])|default('delta', true) -%}
 {%- set partition_by = config.get('partition_by', validator=validation.any[list, basestring]) -%}
+{%- set liquid_clustered_by = config.get('liquid_clustered_by', validator=validation.any[list, basestring]) -%}
 {%- set clustered_by = config.get('clustered_by', validator=validation.any[list, basestring]) -%}
 {%- set buckets = config.get('buckets', validator=validation.any[int]) -%}
 .format("{{ file_format }}")
@@ -70,6 +71,12 @@ writer.saveAsTable("{{ target_relation }}")
         {%- set partition_by = [partition_by] -%}
     {%- endif %}
 .partitionBy({{ partition_by }})
+{%- endif -%}
+{%- if liquid_clustered_by -%}
+    {%- if liquid_clustered_by is string -%}
+        {%- set liquid_clustered_by = [liquid_clustered_by] -%}
+    {%- endif %}
+.clusterBy({{ liquid_clustered_by }})
 {%- endif -%}
 {%- if (clustered_by is not none) and (buckets is not none) -%}
     {%- if clustered_by is string -%}
