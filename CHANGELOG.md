@@ -1,4 +1,8 @@
-## dbt-databricks 1.7.15 (TBD)
+## dbt-databricks 1.7.15 (May 16, 2024)
+
+### Fixes
+
+- Give sensible logs when connection errors ([666](https://github.com/databricks/dbt-databricks/pull/666))
 
 ## dbt-databricks 1.7.14 (May 1, 2024)
 
