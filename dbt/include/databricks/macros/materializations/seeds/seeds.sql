@@ -3,7 +3,7 @@
   {%- set identifier = model['alias'] -%}
   {%- set full_refresh_mode = (should_full_refresh()) -%}
 
-  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) -%}
 
   {%- set exists_as_table = (old_relation is not none and old_relation.is_table) -%}
   {%- set exists_as_view = (old_relation is not none and (old_relation.is_view or old_relation.is_materialized_view)) -%}
@@ -44,8 +44,7 @@
 
   {% set should_revoke = should_revoke(old_relation, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
-
-  {% do persist_docs(target_relation, model) %}
+  -- No need to persist docs, already handled in seed create
 
   {% if full_refresh_mode or not exists_as_table %}
     {% do create_indexes(target_relation) %}
