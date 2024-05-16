@@ -1,14 +1,14 @@
 from abc import ABC
+from typing import Any
 from typing import Optional
 from typing import Tuple
 
 from databricks.sql.client import Connection
 from dbt.adapters.databricks.events.base import SQLErrorEvent
-from dbt.contracts.graph.nodes import ResultNode
 
 
 class ConnectionEvent(ABC):
-    def __init__(self, connection: Connection, message: str):
+    def __init__(self, connection: Optional[Connection], message: str):
         self.message = message
         self.session_id = "Unknown"
         if connection:
@@ -19,31 +19,31 @@ class ConnectionEvent(ABC):
 
 
 class ConnectionCancel(ConnectionEvent):
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: Optional[Connection]):
         super().__init__(connection, "Cancelling connection")
 
 
 class ConnectionClose(ConnectionEvent):
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: Optional[Connection]):
         super().__init__(connection, "Closing connection")
 
 
 class ConnectionCancelError(ConnectionEvent):
-    def __init__(self, connection: Connection, exception: Exception):
+    def __init__(self, connection: Optional[Connection], exception: Exception):
         super().__init__(
             connection, str(SQLErrorEvent(exception, "Exception while trying to cancel connection"))
         )
 
 
 class ConnectionCloseError(ConnectionEvent):
-    def __init__(self, connection: Connection, exception: Exception):
+    def __init__(self, connection: Optional[Connection], exception: Exception):
         super().__init__(
             connection, str(SQLErrorEvent(exception, "Exception while trying to close connection"))
         )
 
 
 class ConnectionCreateError(ConnectionEvent):
-    def __init__(self, connection: Connection, exception: Exception):
+    def __init__(self, connection: Optional[Connection], exception: Exception):
         super().__init__(
             connection, str(SQLErrorEvent(exception, "Exception while trying to create connection"))
         )
@@ -62,7 +62,7 @@ class ConnectionAcquire(ConnectionWrapperEvent):
     def __init__(
         self,
         description: str,
-        model: Optional[ResultNode],
+        model: Optional[Any],
         compute_name: Optional[str],
         thread_identifier: Tuple[int, int],
     ):
