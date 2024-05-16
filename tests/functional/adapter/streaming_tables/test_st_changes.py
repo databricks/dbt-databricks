@@ -1,8 +1,6 @@
 from typing import Optional
 
 import pytest
-from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
-
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import (
@@ -13,6 +11,7 @@ from dbt.tests import util
 from dbt.tests.adapter.materialized_view.files import (
     MY_SEED,
 )
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -33,6 +32,7 @@ class StreamingTableChanges:
         _check_tblproperties(results.config["tblproperties"], {"key": "value"})
         assert results.config["refresh"].cron == "0 0 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
+        assert results.config["comment"].comment == None
 
     @staticmethod
     def change_config_via_alter(project, streaming_table):
@@ -49,6 +49,7 @@ class StreamingTableChanges:
         assert isinstance(results, StreamingTableConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
+        assert results.config["comment"].comment == None
         _check_tblproperties(results.config["tblproperties"], {"pipeline": "altered"})
 
     @staticmethod
