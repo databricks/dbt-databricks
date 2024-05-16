@@ -19,12 +19,10 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Type
+from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
 
-from agate import Row
-from agate import Table
-from agate import Text
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
@@ -50,6 +48,7 @@ from dbt.adapters.databricks.python_submissions import (
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -70,10 +69,13 @@ from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+
+if TYPE_CHECKING:
+    from agate import Row
+    from agate import Table
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -215,7 +217,7 @@ class DatabricksAdapter(SparkAdapter):
         limit: Optional[int] = None,
         *,
         staging_table: Optional[BaseRelation] = None,
-    ) -> Tuple[AdapterResponse, Table]:
+    ) -> Tuple[AdapterResponse, "Table"]:
         try:
             return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
@@ -225,40 +227,49 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
+        empty: List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
         results = handle_missing_objects(
-            lambda: self.get_relations_without_caching(schema_relation),
-            Table([], ["name", "kind", "file_format", "owner"]),
+            lambda: self.get_relations_without_caching(schema_relation), empty
         )
 
-        return [
-            self.Relation.create(
-                database=schema_relation.database,
-                schema=schema_relation.schema,
-                identifier=name,
-                type=self.Relation.get_relation_type(kind),
-                file_format=file_format,
-                owner=owner,
+        relations = []
+        for row in results:
+            name, kind, file_format, owner = row
+            metadata = None
+            if file_format:
+                metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
+            relations.append(
+                self.Relation.create(
+                    database=schema_relation.database,
+                    schema=schema_relation.schema,
+                    identifier=name,
+                    type=self.Relation.get_relation_type(kind),
+                    metadata=metadata,
+                )
             )
-            for name, kind, file_format, owner in results.select(
-                ["name", "kind", "file_format", "owner"]
-            )
-        ]
 
-    def get_relations_without_caching(self, relation: DatabricksRelation) -> Table:
+        return relations
+
+    def get_relations_without_caching(
+        self, relation: DatabricksRelation
+    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         if relation.is_hive_metastore():
             return self._get_hive_relations(relation)
         return self._get_uc_relations(relation)
 
-    def _get_uc_relations(self, relation: DatabricksRelation) -> Table:
+    def _get_uc_relations(
+        self, relation: DatabricksRelation
+    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
-        tables = self.execute_macro("get_uc_tables", kwargs=kwargs)
-        return Table(
-            tables,
-            column_names=["name", "kind", "file_format", "owner"],
-            column_types=[Text(), Text(), Text(), Text()],
-        )
+        results = self.execute_macro("get_uc_tables", kwargs=kwargs)
+        return [
+            (row["table_name"], row["table_type"], row["file_format"], row["table_owner"])
+            for row in results
+        ]
 
-    def _get_hive_relations(self, relation: DatabricksRelation) -> Table:
+    def _get_hive_relations(
+        self, relation: DatabricksRelation
+    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[str, Optional[str]]]
@@ -271,7 +282,7 @@ class DatabricksAdapter(SparkAdapter):
             for row in tables:
                 # list_tables returns TABLE_TYPE as view for both materialized views and for
                 # streaming tables.  Set type to "" in this case and it will be resolved below.
-                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"].lower() != "view" else None
+                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"] else None
                 row = (row["TABLE_NAME"], type)
                 new_rows.append(row)
 
@@ -289,11 +300,7 @@ class DatabricksAdapter(SparkAdapter):
                     for row in new_rows
                 ]
 
-        return Table(
-            [(row[0], row[1], None, None) for row in new_rows],
-            column_names=["name", "kind", "file_format", "owner"],
-            column_types=[Text(), Text(), Text(), Text()],
-        )
+        return [(row[0], row[1], None, None) for row in new_rows]
 
     def get_relation(
         self,
@@ -313,7 +320,7 @@ class DatabricksAdapter(SparkAdapter):
         return self._set_relation_information(cached) if cached else None
 
     def parse_describe_extended(  # type: ignore[override]
-        self, relation: DatabricksRelation, raw_rows: List[Row]
+        self, relation: DatabricksRelation, raw_rows: List["Row"]
     ) -> Tuple[Dict[str, Any], List[DatabricksColumn]]:
         # Convert the Row to a dict
         dict_rows = [dict(zip(row._keys, row._values)) for row in raw_rows]
@@ -434,7 +441,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_catalog_by_relations(
         self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
-    ) -> Tuple[Table, List[Exception]]:
+    ) -> Tuple["Table", List[Exception]]:
         relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
         for relation in relations:
             if relation.identifier:
@@ -448,7 +455,7 @@ class DatabricksAdapter(SparkAdapter):
         self,
         relation_configs: Iterable[RelationConfig],
         used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[Table, List[Exception]]:
+    ) -> Tuple["Table", List[Exception]]:
         relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
         for relation in relation_configs:
             relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
@@ -461,9 +468,9 @@ class DatabricksAdapter(SparkAdapter):
         self,
         relation_map: Dict[Tuple[str, str], Set[str]],
         used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[Table, List[Exception]]:
+    ) -> Tuple["Table", List[Exception]]:
         with executor(self.config) as tpe:
-            futures: List[Future[Table]] = []
+            futures: List[Future["Table"]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -487,31 +494,33 @@ class DatabricksAdapter(SparkAdapter):
         results = self._show_table_extended(schema_relation)
 
         relations: List[Tuple[DatabricksRelation, str]] = []
-        for name, information in results.select(["tableName", "information"]):
-            rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-            relation = self.Relation.create(
-                database=schema_relation.database.lower() if schema_relation.database else None,
-                schema=schema_relation.schema.lower() if schema_relation.schema else None,
-                identifier=name,
-                type=rel_type,
-            )
-            relations.append((relation, information))
+        if results:
+            for name, information in results.select(["tableName", "information"]):
+                rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
+                relation = self.Relation.create(
+                    database=schema_relation.database.lower() if schema_relation.database else None,
+                    schema=schema_relation.schema.lower() if schema_relation.schema else None,
+                    identifier=name,
+                    type=rel_type,
+                )
+                relations.append((relation, information))
 
         return relations
 
-    def _show_table_extended(self, schema_relation: DatabricksRelation) -> Table:
+    def _show_table_extended(self, schema_relation: DatabricksRelation) -> Optional["Table"]:
         kwargs = {"schema_relation": schema_relation}
 
         def exec() -> AttrDict:
             with self._catalog(schema_relation.database):
                 return self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
 
-        return Table(
-            handle_missing_objects(exec, AttrDict()),
-            column_names=["schema", "tableName", "isTemporary", "information"],
-        )
+        return handle_missing_objects(exec, None)
 
-    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> Table:
+    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
+        # Lazy load to improve startup time
+        from agate import Table
+        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+
         columns: List[Dict[str, Any]] = []
 
         if identifier:
@@ -717,7 +726,7 @@ class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
         return results
 
     @staticmethod
-    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> Row:
+    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> "Row":
         row = get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
         if "view_definition" in row.keys() and row["view_definition"] is not None:
             return row

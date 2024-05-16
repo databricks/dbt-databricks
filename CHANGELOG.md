@@ -15,6 +15,7 @@
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Streamline the process of determining materialization types ([655](https://github.com/databricks/dbt-databricks/pull/655))
 - Improve catalog performance by getting column description from project for UC ([658](https://github.com/databricks/dbt-databricks/pull/658))
+- Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
 
 ## dbt-databricks 1.7.14 (May 1, 2024)
 
