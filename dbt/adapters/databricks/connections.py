@@ -633,8 +633,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 table = agate_helper.empty_table()
             return response, table
-        except Error:
-            if 
         finally:
             cursor.close()
 
