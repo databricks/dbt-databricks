@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
+from typing import cast
 from typing import ClassVar
 from typing import Dict
 from typing import FrozenSet
@@ -38,6 +39,8 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import DatabricksDBTConnection
+from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
 from dbt.adapters.databricks.python_submissions import (
@@ -703,7 +706,23 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         raise NotImplementedError("Must be implemented by subclass")
 
 
-class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
+class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
+    @classmethod
+    def get_from_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> DatabricksRelationConfig:
+        """Get the relation config from the relation."""
+
+        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
+        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
+        wrapper: DatabricksSQLConnectionWrapper = connection.handle
+        wrapper.cursor().pollRefreshPipeline(
+            f"{relation.database}.{relation.schema}.{relation.name}"
+        )
+        return relation_config
+
+
+class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
     relation_type = DatabricksRelationType.MaterializedView
 
     @classmethod
@@ -733,7 +752,7 @@ class MaterializedViewAPI(RelationAPIBase[MaterializedViewConfig]):
         return get_first_row(adapter.execute_macro("get_view_description_alt", kwargs=kwargs))
 
 
-class StreamingTableAPI(RelationAPIBase[StreamingTableConfig]):
+class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
     relation_type = DatabricksRelationType.StreamingTable
 
     @classmethod

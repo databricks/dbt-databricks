@@ -1,21 +1,24 @@
+from os import pipe
 from typing import Any
 from typing import ClassVar
 from typing import Dict
 from typing import List
+from typing import Optional
 
-from dbt_common.exceptions import DbtRuntimeError
-
+import pip
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
 from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt_common.exceptions import DbtRuntimeError
 
 
 class TblPropertiesConfig(DatabricksComponentConfig):
     """Component encapsulating the tblproperties of a relation."""
 
     tblproperties: Dict[str, str]
+    pipelineId: Optional[str] = None
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
@@ -50,12 +53,15 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
     def from_relation_results(cls, results: RelationResults) -> TblPropertiesConfig:
         table = results.get("show_tblproperties")
         tblproperties = dict()
+        pipelineId = None
 
         if table:
             for row in table.rows:
+                if str(row[0]) == "pipelines.pipelineId":
+                    pipelineId = str(row[1])
                 tblproperties[str(row[0])] = str(row[1])
 
-        return TblPropertiesConfig(tblproperties=tblproperties)
+        return TblPropertiesConfig(tblproperties=tblproperties, pipelineId=pipelineId)
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:

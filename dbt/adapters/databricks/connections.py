@@ -232,10 +232,7 @@ class DatabricksSQLCursorWrapper:
         # the pipeline until the refresh is finished.
         self.pollRefreshPipeline(sql)
 
-    def pollRefreshPipeline(
-        self,
-        sql: str,
-    ) -> None:
+    def pollRefreshPipeline(self, sql: str) -> None:
         should_poll, model_name = _should_poll_refresh(sql)
         if not should_poll:
             return
@@ -636,6 +633,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 table = agate_helper.empty_table()
             return response, table
+        except Error:
+            if 
         finally:
             cursor.close()
 
