@@ -32,7 +32,7 @@ class StreamingTableChanges:
         _check_tblproperties(results.config["tblproperties"], {"key": "value"})
         assert results.config["refresh"].cron == "0 0 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
-        assert results.config["comment"].comment == None
+        assert results.config["comment"].comment is None
 
     @staticmethod
     def change_config_via_alter(project, streaming_table):
@@ -49,7 +49,7 @@ class StreamingTableChanges:
         assert isinstance(results, StreamingTableConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
-        assert results.config["comment"].comment == None
+        assert results.config["comment"].comment is None
         _check_tblproperties(results.config["tblproperties"], {"pipeline": "altered"})
 
     @staticmethod
