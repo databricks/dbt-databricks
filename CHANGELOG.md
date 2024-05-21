@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.16 (May 21, 2024)
+
+### Fixes
+
+- Fix the issue that 1.7.15 was intended to fix (conn not initialized exception) ([671](https://github.com/databricks/dbt-databricks/pull/671))
+
 ## dbt-databricks 1.7.15 (May 16, 2024)
 
 ### Fixes
