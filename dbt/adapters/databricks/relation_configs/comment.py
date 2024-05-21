@@ -21,9 +21,15 @@ class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
         table = results["describe_extended"]
         for row in table.rows:
             if row[0] == "Comment":
-                return CommentConfig(comment=row[1])
+                if row[1]:
+                    return CommentConfig(comment=row[1])
+                else:
+                    return CommentConfig()
         return CommentConfig()
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> CommentConfig:
-        return CommentConfig(comment=getattr(relation_config, "description"))
+        comment = getattr(relation_config, "description", None)
+        if comment:
+            return CommentConfig(comment=comment)
+        return CommentConfig()
