@@ -228,7 +228,7 @@ class DatabricksSQLCursorWrapper:
             bindings = [self._fix_binding(binding) for binding in bindings]
         self._cursor.execute(sql, bindings)
 
-    def pollRefreshPipeline(self, pipeline_id: str) -> None:
+    def poll_refresh_pipeline(self, pipeline_id: str) -> None:
         # interval in seconds
         polling_interval = 10
 

@@ -1,11 +1,9 @@
-from os import pipe
 from typing import Any
 from typing import ClassVar
 from typing import Dict
 from typing import List
 from typing import Optional
 
-import pip
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig

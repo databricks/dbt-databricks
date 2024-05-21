@@ -61,6 +61,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.utils import get_first_row
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
@@ -716,7 +717,11 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
         connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
         wrapper: DatabricksSQLConnectionWrapper = connection.handle
-        wrapper.cursor().pollRefreshPipeline(relation_config.config["tblproperties"].pipeline_id)
+
+        # Ensure any current refreshes are completed before returning the relation config
+        tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
+        if tblproperties.pipeline_id:
+            wrapper.cursor().poll_refresh_pipeline(tblproperties.pipeline_id)
         return relation_config
 
 
