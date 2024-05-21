@@ -1,15 +1,18 @@
-from dbt.tests.adapter.hooks.test_model_hooks import BaseTestPrePost
-from dbt.tests import util
-from dbt.tests.adapter.hooks import fixtures
-
 import pytest
 
+from dbt.tests import util
+from dbt.tests.adapter.hooks import fixtures
+from dbt.tests.adapter.hooks.test_model_hooks import BaseTestPrePost
 from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 
 class TestPrePostModelHooks(BaseTestPrePost):
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
+        util.run_sql_with_adapter(
+            project.adapter,
+            f"drop table if exists { project.test_schema }.on_model_hook",
+        )
         util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_statement)
 
     @pytest.fixture(scope="class")

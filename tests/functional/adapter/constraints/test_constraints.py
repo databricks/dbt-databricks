@@ -1,16 +1,27 @@
 import pytest
+
+from dbt.tests import util
+from dbt.tests.adapter.constraints import fixtures
+from dbt.tests.adapter.constraints.test_constraints import BaseConstraintQuotedColumn
+from dbt.tests.adapter.constraints.test_constraints import BaseConstraintsRollback
 from dbt.tests.adapter.constraints.test_constraints import (
-    BaseTableConstraintsColumnsEqual,
-    BaseViewConstraintsColumnsEqual,
-    BaseIncrementalConstraintsColumnsEqual,
     BaseConstraintsRuntimeDdlEnforcement,
-    BaseConstraintsRollback,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
+)
+from dbt.tests.adapter.constraints.test_constraints import (
+    BaseIncrementalConstraintsColumnsEqual,
+)
+from dbt.tests.adapter.constraints.test_constraints import (
     BaseIncrementalConstraintsRollback,
 )
-from dbt.tests.adapter.constraints import fixtures
-from dbt.tests import util
-
+from dbt.tests.adapter.constraints.test_constraints import (
+    BaseIncrementalConstraintsRuntimeDdlEnforcement,
+)
+from dbt.tests.adapter.constraints.test_constraints import (
+    BaseTableConstraintsColumnsEqual,
+)
+from dbt.tests.adapter.constraints.test_constraints import (
+    BaseViewConstraintsColumnsEqual,
+)
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 
@@ -198,3 +209,33 @@ class TestIncrementalForeignKeyConstraint:
         util.run_dbt(["run", "--select", "raw_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
+
+
+class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_model.sql": fixtures.my_model_with_quoted_column_name_sql,
+            "constraints_schema.yml": fixtures.model_quoted_column_schema_yml.replace(
+                "text", "string"
+            ).replace('"from"', "`from`"),
+        }
+
+    @pytest.fixture(scope="class")
+    def expected_sql(self):
+        return """
+create or replace table <model_identifier>
+    using delta
+    as
+select
+  id,
+  `from`,
+  date_day
+from
+
+(
+    select
+    'blue' as `from`,
+    1 as id,
+    '2019-01-01' as date_day ) as model_subq
+"""

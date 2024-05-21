@@ -34,11 +34,11 @@ class TestLongSessionsBase:
 
     def test_long_sessions(self, project):
         _, log = util.run_dbt_and_capture(["--debug", "seed"])
-        open_count = log.count("request: OpenSession") / 2
+        open_count = log.count("request: OpenSession")
         assert open_count == 2
 
         _, log = util.run_dbt_and_capture(["--debug", "run"])
-        open_count = log.count("request: OpenSession") / 2
+        open_count = log.count("request: OpenSession")
         assert open_count == 2
 
 
@@ -48,7 +48,7 @@ class TestLongSessionsMultipleThreads(TestLongSessionsBase):
 
         for n_threads in [1, 2, 3]:
             _, log = util.run_dbt_and_capture(["--debug", "run", "--threads", f"{n_threads}"])
-            open_count = log.count("request: OpenSession") / 2
+            open_count = log.count("request: OpenSession")
             assert open_count == (n_threads + 1)
 
 
@@ -75,7 +75,7 @@ class TestLongSessionsMultipleCompute:
         util.run_dbt_and_capture(["--debug", "seed", "--target", "alternate_warehouse"])
 
         _, log = util.run_dbt_and_capture(["--debug", "run", "--target", "alternate_warehouse"])
-        open_count = log.count("request: OpenSession") / 2
+        open_count = log.count("request: OpenSession")
         assert open_count == 3
 
 

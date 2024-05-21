@@ -1,26 +1,25 @@
-from typing import Any, Dict, Tuple, Optional, Callable
-
-from requests import Session
-
-from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.connections import DatabricksCredentials, TCredentialProvider
-from dbt.adapters.databricks import utils
-
 import base64
 import time
 import uuid
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Tuple
 
+from dbt_common.exceptions import DbtRuntimeError
+from requests import Session
+from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from dbt.events import AdapterLogger
-import dbt.exceptions
 from dbt.adapters.base import PythonJobHelper
+from dbt.adapters.databricks import utils
+from dbt.adapters.databricks.__version__ import version
+from dbt.adapters.databricks.auth import BearerAuth
+from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.credentials import TCredentialProvider
+from dbt.adapters.databricks.logging import logger
 
-from requests.adapters import HTTPAdapter
-from dbt.adapters.databricks.connections import BearerAuth
-
-
-logger = AdapterLogger("Databricks")
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
@@ -71,7 +70,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             },
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
+            raise DbtRuntimeError(
                 f"Error creating work_dir for python notebooks\n {response.content!r}"
             )
 
@@ -95,9 +94,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             },
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error creating python notebook.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
 
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
@@ -134,9 +131,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             json=job_spec,
         )
         if submit_response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error creating python run.\n {submit_response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
         response_json = submit_response.json()
         logger.info(f"Job submission response={response_json}")
         return response_json["run_id"]
@@ -172,7 +167,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         json_run_output = run_output.json()
         result_state = json_run_output["metadata"]["state"]["result_state"]
         if result_state != "SUCCESS":
-            raise dbt.exceptions.DbtRuntimeError(
+            raise DbtRuntimeError(
                 "Python model failed with traceback as:\n"
                 "(Note that the line number here does not "
                 "match the line number in your code due to dbt templating)\n"
@@ -206,9 +201,9 @@ class BaseDatabricksHelper(PythonJobHelper):
             response = status_func(**status_func_kwargs)
             state = get_state_func(response)
         if exceeded_timeout:
-            raise dbt.exceptions.DbtRuntimeError("python model run timed out")
+            raise DbtRuntimeError("python model run timed out")
         if state != expected_end_state:
-            raise dbt.exceptions.DbtRuntimeError(
+            raise DbtRuntimeError(
                 "python model run ended in state"
                 f"{state} with state_message\n{get_state_msg_func(response)}"
             )
@@ -259,9 +254,7 @@ class DBContext:
             },
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error creating an execution context.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating an execution context.\n {response.content!r}")
         return response.json()["id"]
 
     def destroy(self, context_id: str) -> str:
@@ -275,9 +268,7 @@ class DBContext:
             },
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error deleting an execution context.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
         return response.json()["id"]
 
     def get_cluster_status(self) -> Dict:
@@ -289,9 +280,7 @@ class DBContext:
             json={"cluster_id": self.cluster_id},
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error getting status of cluster.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error getting status of cluster.\n {response.content!r}")
 
         json_response = response.json()
         return json_response
@@ -312,9 +301,7 @@ class DBContext:
             json={"cluster_id": self.cluster_id},
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error starting terminated cluster.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
 
         self._wait_for_cluster_to_start()
 
@@ -335,7 +322,7 @@ class DBContext:
             else:
                 time.sleep(5)
 
-        raise dbt.exceptions.DbtRuntimeError(
+        raise DbtRuntimeError(
             f"Cluster {self.cluster_id} restart timed out after {MAX_CLUSTER_START_TIME} seconds"
         )
 
@@ -367,9 +354,7 @@ class DBCommand:
         )
         logger.info(f"Job submission response={response.json()}")
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error creating a command.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error creating a command.\n {response.content!r}")
         return response.json()["id"]
 
     def status(self, context_id: str, command_id: str) -> Dict[str, Any]:
@@ -384,9 +369,7 @@ class DBCommand:
             },
         )
         if response.status_code != 200:
-            raise dbt.exceptions.DbtRuntimeError(
-                f"Error getting status of command.\n {response.content!r}"
-            )
+            raise DbtRuntimeError(f"Error getting status of command.\n {response.content!r}")
         return response.json()
 
 
@@ -431,7 +414,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                     get_state_msg_func=lambda response: response.json()["results"]["data"],
                 )
                 if response["results"]["resultType"] == "error":
-                    raise dbt.exceptions.DbtRuntimeError(
+                    raise DbtRuntimeError(
                         f"Python model failed with traceback as:\n"
                         f"{utils.remove_ansi(response['results']['cause'])}"
                     )

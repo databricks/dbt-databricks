@@ -1,15 +1,12 @@
-"""Unit test utility functions.
-Note that all imports should be inside the functions to avoid import/mocking
-issues.
-"""
-import string
 import os
+import string
 from unittest import mock
 from unittest import TestCase
 
 import agate
 import pytest
-from dbt.dataclass_schema import ValidationError
+from dbt_common.dataclass_schema import ValidationError
+
 from dbt.config.project import PartialProject
 
 

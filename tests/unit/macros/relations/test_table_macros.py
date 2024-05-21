@@ -14,7 +14,7 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["file_format.sql", "tblproperties.sql"]
+        return ["file_format.sql", "tblproperties.sql", "location.sql"]
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         return self.run_macro(
@@ -32,8 +32,13 @@ class TestCreateTableAs(MacroTestBase):
     @pytest.mark.parametrize("format", ["parquet", "hudi"])
     def test_macros_create_table_as_file_format(self, format, config, template_bundle):
         config["file_format"] = format
+        config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle)
-        assert sql == f"create table {template_bundle.relation} using {format} as select 1"
+        expected = (
+            f"create table {template_bundle.relation} using {format} location "
+            f"'/mnt/root/{template_bundle.relation.identifier}' as select 1"
+        )
+        assert sql == expected
 
     def test_macros_create_table_as_options(self, config, template_bundle):
         config["options"] = {"compression": "gzip"}
@@ -48,11 +53,13 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_hudi_unique_key(self, config, template_bundle):
         config["file_format"] = "hudi"
         config["unique_key"] = "id"
+        config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = (
-            f"create table {template_bundle.relation} using hudi options (primaryKey"
-            ' "id" ) as select 1 as id'
+            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
+            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+            " as select 1 as id"
         )
 
         assert sql == expected
@@ -63,11 +70,13 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "hudi"
         config["unique_key"] = "id"
         config["options"] = {"primaryKey": "id"}
+        config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = (
-            f"create table {template_bundle.relation} using hudi options (primaryKey"
-            ' "id" ) as select 1 as id'
+            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
+            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+            " as select 1 as id"
         )
         assert sql == expected
 

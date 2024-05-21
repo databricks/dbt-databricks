@@ -4,6 +4,7 @@
   {%- set raw_strategy = config.get('incremental_strategy') or 'merge' -%}
   {%- set grant_config = config.get('grants') -%}
   {%- set tblproperties = config.get('tblproperties') -%}
+  {%- set tags = config.get('databricks_tags') -%}
 
   {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
   {%- set incremental_strategy = dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) -%}
@@ -15,15 +16,8 @@
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set language = model['language'] -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
-  {%- set target_relation = this -%}
+  {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
-
-  {#-- Set Overwrite Mode - does not work for warehouses --#}
-  {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-    {%- call statement() -%}
-      set spark.sql.sources.partitionOverwriteMode = DYNAMIC
-    {%- endcall -%}
-  {%- endif -%}
 
   {#-- Run pre-hooks --#}
   {{ run_hooks(pre_hooks) }}
@@ -35,6 +29,7 @@
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
     {% do persist_constraints(target_relation, model) %}
+    {% do apply_tags(target_relation, tags) %}
   {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
     {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
@@ -48,8 +43,12 @@
     {% if not existing_relation.is_view %}
       {% do persist_constraints(target_relation, model) %}
     {% endif %}
+    {% do apply_tags(target_relation, tags) %}
   {%- else -%}
     {#-- Relation must be merged --#}
+    {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
+    {%- set model_config = adapter.get_config_from_model(config.model) -%}
+    {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
     {%- set temp_relation = databricks__make_temp_relation(target_relation, as_table=language != 'sql') -%}
     {%- call statement('create_temp_relation', language=language) -%}
       {{ create_table_as(True, temp_relation, compiled_code, language) }}
@@ -78,6 +77,12 @@
 
       Also, why does not either drop_relation or adapter.drop_relation work here?!
       --#}
+    {%- endif -%}
+    {% if _configuration_changes is not none %}
+      {% set tags = _configuration_changes.changes["tags"] %}
+      {% if tags is not none %}
+        {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
+      {%- endif -%}
     {%- endif -%}
   {%- endif -%}
 

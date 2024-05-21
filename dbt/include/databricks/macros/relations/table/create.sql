@@ -3,7 +3,8 @@
     {%- if temporary -%}
       {{ create_temporary_view(relation, compiled_code) }}
     {%- else -%}
-      {% if config.get('file_format', default='delta') == 'delta' %}
+      {%- set file_format = config.get('file_format', default='delta') -%}
+      {% if file_format == 'delta' %}
         create or replace table {{ relation }}
       {% else %}
         create table {{ relation }}
@@ -18,7 +19,7 @@
       {{ partition_cols(label="partitioned by") }}
       {{ liquid_clustered_cols(label="cluster by") }}
       {{ clustered_cols(label="clustered by") }}
-      {{ location_clause() }}
+      {{ location_clause(relation) }}
       {{ comment_clause() }}
       {{ tblproperties_clause() }}
       as

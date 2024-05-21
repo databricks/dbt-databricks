@@ -45,7 +45,7 @@
       {% endif %}
     {% endif %}
     table {{ temp_relation }}
-        
+
 {% endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
@@ -96,8 +96,6 @@ select {{source_cols_csv}} from {{ source_relation }}
   {% else %}
       {% do predicates.append('FALSE') %}
   {% endif %}
-
-  {{ sql_header if sql_header is not none }}
 
   merge into {{ target }} as DBT_INTERNAL_DEST
       using {{ source }} as DBT_INTERNAL_SOURCE

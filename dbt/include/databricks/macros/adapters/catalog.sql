@@ -67,8 +67,8 @@
 {%- endmacro %}
 
 {% macro databricks__get_catalog_schemas_where_clause_sql(schemas) -%}
-    where ({%- for schema in schemas -%}
-        table_schema = lower('{{ schema }}'){%- if not loop.last %} or {% endif -%}
+    where ({%- for relation in schemas -%}
+        table_schema = lower('{{ relation[1] }}'){%- if not loop.last %} or {% endif -%}
     {%- endfor -%})
 {%- endmacro %}
 
