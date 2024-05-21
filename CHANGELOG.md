@@ -15,6 +15,18 @@
 - Streamline the process of determining materialization types ([655](https://github.com/databricks/dbt-databricks/pull/655))
 - Improve catalog performance by getting column description from project for UC ([658](https://github.com/databricks/dbt-databricks/pull/658))
 
+## dbt-databricks 1.7.16 (May 21, 2024)
+
+### Fixes
+
+- Fix the issue that 1.7.15 was intended to fix (conn not initialized exception) ([671](https://github.com/databricks/dbt-databricks/pull/671))
+
+## dbt-databricks 1.7.15 (May 16, 2024)
+
+### Fixes
+
+- Give sensible logs when connection errors ([666](https://github.com/databricks/dbt-databricks/pull/666))
+
 ## dbt-databricks 1.7.14 (May 1, 2024)
 
 ### Fixes
