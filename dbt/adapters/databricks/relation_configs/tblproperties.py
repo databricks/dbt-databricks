@@ -18,7 +18,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
     """Component encapsulating the tblproperties of a relation."""
 
     tblproperties: Dict[str, str]
-    pipelineId: Optional[str] = None
+    pipeline_id: Optional[str] = None
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
@@ -53,15 +53,15 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
     def from_relation_results(cls, results: RelationResults) -> TblPropertiesConfig:
         table = results.get("show_tblproperties")
         tblproperties = dict()
-        pipelineId = None
+        pipeline_id = None
 
         if table:
             for row in table.rows:
                 if str(row[0]) == "pipelines.pipelineId":
-                    pipelineId = str(row[1])
+                    pipeline_id = str(row[1])
                 tblproperties[str(row[0])] = str(row[1])
 
-        return TblPropertiesConfig(tblproperties=tblproperties, pipelineId=pipelineId)
+        return TblPropertiesConfig(tblproperties=tblproperties, pipeline_id=pipeline_id)
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:

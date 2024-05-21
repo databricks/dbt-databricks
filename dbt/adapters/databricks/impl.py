@@ -716,9 +716,7 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
         connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
         wrapper: DatabricksSQLConnectionWrapper = connection.handle
-        wrapper.cursor().pollRefreshPipeline(
-            f"{relation.database}.{relation.schema}.{relation.name}"
-        )
+        wrapper.cursor().pollRefreshPipeline(relation_config.config["tblproperties"].pipeline_id)
         return relation_config
 
 
