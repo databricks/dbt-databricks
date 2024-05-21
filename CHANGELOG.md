@@ -1,3 +1,19 @@
+## dbt-databricks 1.8.1 (TBD)
+
+### Features
+
+- Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
+
+### Fixes
+
+- Rerunning seed with external location + persist_doc now more resilient ([662](https://github.com/databricks/dbt-databricks/pull/662))
+- Fix issue with running while a refresh is in progress with MV/ST ([674](https://github.com/databricks/dbt-databricks/pull/674))
+- Fix issue with running a refresh with MV/ST that need names to be escaped ([674](https://github.com/databricks/dbt-databricks/pull/674))
+
+### Under the Hood
+
+- Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
+
 ## dbt-databricks 1.8.0 (TBD)
 
 ### Features
@@ -6,11 +22,6 @@
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
 - Support insert overwrite on SQL Warehouses ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Support Databricks tags for tables/views/incrementals ([631](https://github.com/databricks/dbt-databricks/pull/631))
-- Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
-
-### Fixes
-
-- Rerunning seed with external location + persist_doc now more resilient ([662](https://github.com/databricks/dbt-databricks/pull/662))
 
 ### Under the Hood
 
@@ -19,7 +30,18 @@
 - Finish migrating integration tests ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Streamline the process of determining materialization types ([655](https://github.com/databricks/dbt-databricks/pull/655))
 - Improve catalog performance by getting column description from project for UC ([658](https://github.com/databricks/dbt-databricks/pull/658))
-- Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
+
+## dbt-databricks 1.7.16 (May 21, 2024)
+
+### Fixes
+
+- Fix the issue that 1.7.15 was intended to fix (conn not initialized exception) ([671](https://github.com/databricks/dbt-databricks/pull/671))
+
+## dbt-databricks 1.7.15 (May 16, 2024)
+
+### Fixes
+
+- Give sensible logs when connection errors ([666](https://github.com/databricks/dbt-databricks/pull/666))
 
 ## dbt-databricks 1.7.14 (May 1, 2024)
 
