@@ -43,9 +43,9 @@ class ConnectionCloseError(ConnectionEvent):
 
 
 class ConnectionCreateError(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection], exception: Exception):
+    def __init__(self, exception: Exception):
         super().__init__(
-            connection, str(SQLErrorEvent(exception, "Exception while trying to create connection"))
+            None, str(SQLErrorEvent(exception, "Exception while trying to create connection"))
         )
 
 
