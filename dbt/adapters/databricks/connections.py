@@ -769,7 +769,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     user_agent=user_agent_entry,
                 )
             except Error as exc:
-                logger.error(ConnectionCreateError(conn, exc))
+                logger.error(ConnectionCreateError(exc))
                 raise
 
         def exponential_backoff(attempt: int) -> int:
@@ -1067,7 +1067,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
                     user_agent=user_agent_entry,
                 )
             except Error as exc:
-                logger.error(ConnectionCreateError(None, exc))
+                logger.error(ConnectionCreateError(exc))
                 raise
 
         def exponential_backoff(attempt: int) -> int:
