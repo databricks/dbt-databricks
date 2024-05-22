@@ -1,4 +1,18 @@
-## dbt-databricks 1.8.0 (TBD)
+## dbt-databricks 1.8.1 (TBD)
+
+### Features
+
+- Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
+
+### Fixes
+
+- Rerunning seed with external location + persist_doc now more resilient ([662](https://github.com/databricks/dbt-databricks/pull/662))
+
+### Under the Hood
+
+- Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
+
+## dbt-databricks 1.8.0 (May 22, 2024)
 
 ### Features
 
