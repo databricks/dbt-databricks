@@ -30,7 +30,6 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
 materialized_view = """
 {{ config(
     materialized='materialized_view',
-    description='this is a materialized view',
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',

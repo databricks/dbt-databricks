@@ -7,12 +7,14 @@
 ### Fixes
 
 - Rerunning seed with external location + persist_doc now more resilient ([662](https://github.com/databricks/dbt-databricks/pull/662))
+- Fix issue with running while a refresh is in progress with MV/ST ([674](https://github.com/databricks/dbt-databricks/pull/674))
+- Fix issue with running a refresh with MV/ST that need names to be escaped ([674](https://github.com/databricks/dbt-databricks/pull/674))
 
 ### Under the Hood
 
 - Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
 
-## dbt-databricks 1.8.0 (May 22, 2024)
+## dbt-databricks 1.8.0 (May 23, 2024)
 
 ### Features
 

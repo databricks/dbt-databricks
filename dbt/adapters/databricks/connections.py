@@ -20,9 +20,9 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from typing import TYPE_CHECKING
 
 import databricks.sql as dbsql
-from agate import Table
 from databricks.sql.client import Connection as DatabricksSQLConnection
 from databricks.sql.client import Cursor as DatabricksSQLCursor
 from databricks.sql.exc import Error
@@ -70,13 +70,15 @@ from dbt.adapters.events.types import NewConnection
 from dbt.adapters.events.types import SQLQuery
 from dbt.adapters.events.types import SQLQueryStatus
 from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.clients import agate_helper
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
 from requests import Session
+
+if TYPE_CHECKING:
+    from agate import Table
 
 
 mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
@@ -226,18 +228,7 @@ class DatabricksSQLCursorWrapper:
             bindings = [self._fix_binding(binding) for binding in bindings]
         self._cursor.execute(sql, bindings)
 
-        # if the command was to refresh a materialized view we need to poll
-        # the pipeline until the refresh is finished.
-        self.pollRefreshPipeline(sql)
-
-    def pollRefreshPipeline(
-        self,
-        sql: str,
-    ) -> None:
-        should_poll, model_name = _should_poll_refresh(sql)
-        if not should_poll:
-            return
-
+    def poll_refresh_pipeline(self, pipeline_id: str) -> None:
         # interval in seconds
         polling_interval = 10
 
@@ -252,8 +243,6 @@ class DatabricksSQLCursorWrapper:
         session = Session()
         session.auth = BearerAuth(headers)
         session.headers = {"User-Agent": self._user_agent}
-
-        pipeline_id = _get_table_view_pipeline_id(session, host, model_name)
         pipeline = _get_pipeline_state(session, host, pipeline_id)
         # get the most recently created update for the pipeline
         latest_update = _find_update(pipeline)
@@ -265,7 +254,7 @@ class DatabricksSQLCursorWrapper:
         update_id = latest_update.get("update_id", "")
         prev_state = state
 
-        logger.info(PipelineRefresh(pipeline_id, update_id, model_name, str(state)))
+        logger.info(PipelineRefresh(pipeline_id, update_id, str(state)))
 
         start = time.time()
         exceeded_timeout = False
@@ -287,7 +276,7 @@ class DatabricksSQLCursorWrapper:
 
             state = update.get("state")
             if state != prev_state:
-                logger.info(PipelineRefresh(pipeline_id, update_id, model_name, str(state)))
+                logger.info(PipelineRefresh(pipeline_id, update_id, str(state)))
                 prev_state = state
 
             if state == "FAILED":
@@ -315,10 +304,10 @@ class DatabricksSQLCursorWrapper:
 
         if state == "FAILED":
             msg = _get_update_error_msg(session, host, pipeline_id, update_id)
-            raise DbtRuntimeError(f"error refreshing model {model_name} {msg}")
+            raise DbtRuntimeError(f"Error refreshing pipeline {pipeline_id} {msg}")
 
         if state == "CANCELED":
-            raise DbtRuntimeError(f"refreshing model {model_name} cancelled")
+            raise DbtRuntimeError(f"Refreshing pipeline {pipeline_id} cancelled")
 
         return
 
@@ -621,7 +610,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         auto_begin: bool = False,
         fetch: bool = False,
         limit: Optional[int] = None,
-    ) -> Tuple[DatabricksAdapterResponse, Table]:
+    ) -> Tuple[DatabricksAdapterResponse, "Table"]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -629,6 +618,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if fetch:
                 table = self.get_result_from_cursor(cursor, limit)
             else:
+                # Lazy import agate to improve CLI startup time
+                from dbt_common.clients import agate_helper
+
                 table = agate_helper.empty_table()
             return response, table
         finally:
@@ -636,7 +628,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def _execute_cursor(
         self, log_sql: str, f: Callable[[DatabricksSQLCursorWrapper], None]
-    ) -> Table:
+    ) -> "Table":
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
@@ -671,7 +663,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if cursor is not None:
                     cursor.close()
 
-    def list_schemas(self, database: str, schema: Optional[str] = None) -> Table:
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":
         database = database.strip("`")
         if schema:
             schema = schema.strip("`").lower()
@@ -680,7 +672,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema),
         )
 
-    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> Table:
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> "Table":
         database = database.strip("`")
         schema = schema.strip("`").lower()
         if identifier:
@@ -1081,37 +1073,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
-
-
-def _should_poll_refresh(sql: str) -> Tuple[bool, str]:
-    # if the command was to refresh a materialized view we need to poll
-    # the pipeline until the refresh is finished.
-    name = ""
-    refresh_search = mv_refresh_regex.search(sql)
-    if not refresh_search:
-        refresh_search = st_refresh_regex.search(sql)
-
-    if refresh_search:
-        name = refresh_search.group(1).replace("`", "")
-
-    return refresh_search is not None, name
-
-
-def _get_table_view_pipeline_id(session: Session, host: str, name: str) -> str:
-    table_url = f"https://{host}/api/2.1/unity-catalog/tables/{name}"
-    resp1 = session.get(table_url)
-    if resp1.status_code != 200:
-        raise DbtRuntimeError(
-            f"Error getting info for materialized view/streaming table {name}: {resp1.text}"
-        )
-
-    pipeline_id = resp1.json().get("pipeline_id", "")
-    if not pipeline_id:
-        raise DbtRuntimeError(
-            f"Materialized view/streaming table {name} does not have a pipeline id"
-        )
-
-    return pipeline_id
 
 
 def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:

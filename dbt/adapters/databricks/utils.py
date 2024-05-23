@@ -4,13 +4,15 @@ import re
 from typing import Any
 from typing import Callable
 from typing import Type
+from typing import TYPE_CHECKING
 from typing import TypeVar
 
-from agate import Row
-from agate import Table
-from jinja2.runtime import Undefined
-
 from dbt.adapters.base import BaseAdapter
+from jinja2 import Undefined
+
+if TYPE_CHECKING:
+    from agate import Row
+    from agate import Table
 
 
 A = TypeVar("A", bound=BaseAdapter)
@@ -85,7 +87,10 @@ def remove_ansi(line: str) -> str:
     return ansi_escape.sub("", line)
 
 
-def get_first_row(results: Table) -> Row:
+def get_first_row(results: "Table") -> "Row":
     if len(results.rows) == 0:
+        # Lazy load to improve CLI startup time
+        from agate import Row
+
         return Row(values=set())
     return results.rows[0]

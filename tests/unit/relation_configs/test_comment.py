@@ -1,8 +1,7 @@
 from agate import Table
-from mock import Mock
-
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
+from mock import Mock
 
 
 class TestCommentProcessor:
@@ -51,7 +50,7 @@ class TestCommentProcessor:
         model_node = Mock()
         model_node.description = ""
         config = CommentProcessor.from_relation_config(model_node)
-        assert config == CommentConfig(comment="")
+        assert config == CommentConfig(comment=None)
 
     def test_from_model_node__comment(self):
         model_node = Mock()
