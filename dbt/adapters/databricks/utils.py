@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from typing import TypeVar
 
 from dbt.adapters.base import BaseAdapter
-from jinja2.runtime import Undefined
+from jinja2 import Undefined
 
 if TYPE_CHECKING:
     from agate import Row
