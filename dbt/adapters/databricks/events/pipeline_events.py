@@ -14,10 +14,8 @@ class PipelineEvent(ABC):
 
 
 class PipelineRefresh(PipelineEvent):
-    def __init__(self, pipeline_id: str, update_id: str, model_name: str, state: str):
-        super().__init__(
-            pipeline_id, update_id, f"Refreshing model {model_name} with state {state}"
-        )
+    def __init__(self, pipeline_id: str, update_id: str, state: str):
+        super().__init__(pipeline_id, update_id, f"Refreshing - got state {state}")
 
 
 class PipelineRefreshError(PipelineEvent):
