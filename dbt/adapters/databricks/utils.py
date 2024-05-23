@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from typing import TypeVar
 
 from dbt.adapters.base import BaseAdapter
-from jinja2.runtime import Undefined
+from jinja2 import Undefined
 
 if TYPE_CHECKING:
     from agate import Row
@@ -63,9 +63,7 @@ def undefined_proof(cls: Type[A]) -> Type[A]:
             (
                 staticmethod(wrapped_function)
                 if isstatic
-                else classmethod(wrapped_function)
-                if isclass
-                else wrapped_function
+                else classmethod(wrapped_function) if isclass else wrapped_function
             ),
         )
 
