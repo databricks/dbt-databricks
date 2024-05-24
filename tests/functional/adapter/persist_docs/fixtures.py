@@ -1,7 +1,7 @@
 _SEEDS__SCHEMA_YML = """
 version: 2
 seeds:
-  - name: seed
+  - name: persist_seed
     description: 'A seed description'
     config:
       location_root: '{{ env_var("DBT_DATABRICKS_LOCATION_ROOT") }}'
@@ -18,7 +18,7 @@ seeds:
 _HIVE__SCHEMA_YML = """
 version: 2
 seeds:
-  - name: seed
+  - name: persist_seed
     description: 'A seed description'
     config:
       location_root: '/mnt/dbt_databricks/seeds'

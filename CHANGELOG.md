@@ -13,6 +13,7 @@
 ### Under the Hood
 
 - Delay loading of agate library to improve startup (thanks @dwreeves for getting this started!) ([661](https://github.com/databricks/dbt-databricks/pull/661))
+- Updating to dbt-adapters~=1.2.0 ([683](https://github.com/databricks/dbt-databricks/pull/683))
 
 ## dbt-databricks 1.8.0 (May 23, 2024)
 

@@ -259,12 +259,12 @@ class TestPersistDocsWithSeeds:
             and adapter.config.credentials.database != "hive_metastore"
         ):
             return {
-                "seed.csv": fixtures._SEEDS__SEED,
+                "persist_seed.csv": fixtures._SEEDS__SEED,
                 "schema.yml": override_fixtures._SEEDS__SCHEMA_YML,
             }
         else:
             return {
-                "seed.csv": fixtures._SEEDS__SEED,
+                "persist_seed.csv": fixtures._SEEDS__SEED,
                 "schema.yml": override_fixtures._HIVE__SCHEMA_YML,
             }
 
@@ -273,7 +273,7 @@ class TestPersistDocsWithSeeds:
         return DatabricksRelation.create(
             database=project.database,
             schema=project.test_schema,
-            identifier="seed",
+            identifier="persist_seed",
             type="table",
         )
 
