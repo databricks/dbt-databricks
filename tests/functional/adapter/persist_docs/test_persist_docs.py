@@ -264,7 +264,7 @@ class TestPersistDocsWithSeeds:
             }
         else:
             return {
-                "seed.csv": fixtures._SEEDS__SEED,
+                "persist_seed.csv": fixtures._SEEDS__SEED,
                 "schema.yml": override_fixtures._HIVE__SCHEMA_YML,
             }
 
