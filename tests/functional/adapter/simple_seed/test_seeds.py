@@ -48,7 +48,13 @@ class TestSeedConfigFullRefreshOff(DatabricksSetup, BaseSeedConfigFullRefreshOff
 
 
 class TestSeedCustomSchema(DatabricksSetup, BaseSeedCustomSchema):
-    pass
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        """Create table for ensuring seeds and models used in tests build correctly"""
+        project.run_sql(fixtures.seeds__expected_table_sql)
+        project.run_sql(fixtures.seeds__expected_insert_sql)
+        yield
+        project.run_sql(f"drop schema if exists {project.test_schema}_custom_schema cascade")
 
 
 class TestDatabricksSeedWithEmptyDelimiter(DatabricksSetup, BaseSeedWithEmptyDelimiter):
