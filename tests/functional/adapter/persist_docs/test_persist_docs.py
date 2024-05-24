@@ -245,6 +245,8 @@ class TestPersistDocsCommentOnQuotedColumn:
                 break
 
 
+# Skipping UC Cluster to ensure these tests don't fail due to overlapping resources
+@pytest.mark.skip_profile("databricks_uc_cluster")
 class TestPersistDocsWithSeeds:
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
