@@ -36,7 +36,14 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
         if table:
             for row in table.rows:
                 if str(row[0]) == "clusteringColumns":
-                    cluster_by = json.loads(str(row[1])).flatten()
+                    cluster_by = (
+                        row[1]
+                        .replace("]", "")
+                        .replace("[", "")
+                        .replace("'", "")
+                        .replace('"', "")
+                        .split(", ")
+                    )
                     break
 
         return LiquidClusteringConfig(cluster_by=cluster_by)

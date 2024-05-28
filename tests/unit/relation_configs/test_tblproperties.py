@@ -30,7 +30,7 @@ class TestTblPropertiesProcessor:
         spec = TblPropertiesProcessor.from_relation_config(model)
         assert spec == TblPropertiesConfig(tblproperties={})
 
-    def test_from_model_node__with_tblpropoerties(self):
+    def test_from_model_node__with_tblproperties(self):
         model = Mock()
         model.config.extra = {
             "tblproperties": {"prop": 1},

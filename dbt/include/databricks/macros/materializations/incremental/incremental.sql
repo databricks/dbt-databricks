@@ -80,8 +80,12 @@
     {%- endif -%}
     {% if _configuration_changes is not none %}
       {% set tags = _configuration_changes.changes["tags"] %}
+      {% set cluster_by = _configuration_changes.changes["liquid_clustered_by"] %}
       {% if tags is not none %}
         {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
+      {%- endif -%}
+      {% if cluster_by is not none %}
+        {% do apply_liquid_clustered_cols(target_relation, cluster_by.cluster_by) %}
       {%- endif -%}
     {%- endif -%}
   {%- endif -%}
