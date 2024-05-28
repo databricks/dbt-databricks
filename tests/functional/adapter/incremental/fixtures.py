@@ -93,6 +93,13 @@ models:
         liquid_clustered_by: ["msg", "color"]
 """
 
+liquid_clustering_c = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+"""
+
 _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS = """
 {{
     config(

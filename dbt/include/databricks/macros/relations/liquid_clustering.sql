@@ -27,5 +27,9 @@
         {%- endfor -%}
         )
     {%- endcall -%}
+  {%- else -%}
+    {%- call statement('unset_cluster_by_columns') -%}
+        ALTER {{ target_relation.type }} {{ target_relation }} CLUSTER BY NONE
+    {%- endcall -%}
   {%- endif %}
 {%- endmacro -%}

@@ -24,6 +24,17 @@ class TestIncrementalLiquidClustering:
             if row[0] == "clusteringColumns":
                 assert row[1] == [["msg"], ["color"]]
 
+        util.write_file(fixtures.liquid_clustering_c, "models", "schema.yml")
+        util.run_dbt(["run"])
+        results = project.run_sql(
+            "describe extended {database}.{schema}.merge_update_columns_sql",
+            fetch="all",
+        )
+        # Unset the clustering columns
+        for row in results:
+            if row[0] == "clusteringColumns":
+                assert False
+
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonLiquidClustering:
