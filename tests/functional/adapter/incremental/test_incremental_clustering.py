@@ -12,7 +12,7 @@ class TestIncrementalLiquidClustering:
             "schema.yml": fixtures.liquid_clustering_a,
         }
 
-    def test_changing_tags(self, project):
+    def test_changing_cluster_by(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.liquid_clustering_b, "models", "schema.yml")
         util.run_dbt(["run"])
@@ -34,7 +34,7 @@ class TestIncrementalPythonLiquidClustering:
             "schema.yml": fixtures.lc_python_schema,
         }
 
-    def test_changing_tags(self, project):
+    def test_changing_cluster_by(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.lc_python_schema2, "models", "schema.yml")
         util.run_dbt(["run"])
