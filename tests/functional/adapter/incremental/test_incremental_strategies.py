@@ -33,7 +33,7 @@ class AppendBase(IncrementalBase):
             "append_model.sql": fixtures.base_model,
         }
 
-    def test_append(self, project):
+    def test_incremental(self, project):
         self.seed_and_run_twice()
         util.check_relations_equal(project.adapter, ["append_model", "append_expected"])
 
@@ -86,7 +86,7 @@ class InsertOverwriteBase(IncrementalBase):
             "overwrite_model.sql": fixtures.base_model,
         }
 
-    def test_append(self, project):
+    def test_incremental(self, project):
         self.seed_and_run_twice()
         util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
@@ -106,6 +106,16 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
                 "+partition_by": "id",
             }
         }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "upsert_expected.csv": fixtures.upsert_expected,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
 @pytest.mark.skip("This test is not repeatable due to external location")
