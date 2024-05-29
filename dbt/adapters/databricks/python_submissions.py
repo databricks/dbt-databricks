@@ -96,6 +96,35 @@ class BaseDatabricksHelper(PythonJobHelper):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
 
+    def _upload_file(self, path: str, compiled_code: str) -> None:
+        b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
+        print(self.credentials.host)
+        response = self.session.post(
+            f"https://{self.credentials.host}/api/2.0/workspace/import",
+            headers=self.extra_headers,
+            json={
+                "path": path,
+                "content": b64_encoded_content,
+                "overwrite": True,
+                "format": "AUTO",
+            },
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error creating file.\n {response.content!r}")
+
+
+    def _delete_file(self, path: str) -> None:
+        response = self.session.post(
+            f"https://{self.credentials.host}/api/2.0/workspace/delete",
+            headers=self.extra_headers,
+            json={
+                "path": path
+            },
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error deleting file.\n {response.content!r}")
+
+
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
             "run_name": f"{self.schema}-{self.identifier}-{uuid.uuid4()}",
@@ -144,8 +173,13 @@ class BaseDatabricksHelper(PythonJobHelper):
         whole_file_path = f"{work_dir}{self.identifier}"
         self._upload_notebook(whole_file_path, compiled_code)
 
+        run_id_dir = f"/Shared/dbt_python_model/{self.credentials.database}/{self.credentials.schema}/run_ids/"
+        self._create_work_dir(run_id_dir)
+
         # submit job
         run_id = self._submit_job(whole_file_path, cluster_spec)
+        run_id_path = f"{run_id_dir}{run_id}"
+        self._upload_file(run_id_path, '')
 
         self.polling(
             status_func=self.session.get,
@@ -173,6 +207,8 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "match the line number in your code due to dbt templating)\n"
                 f"{utils.remove_ansi(json_run_output['error_trace'])}"
             )
+        self._delete_file(run_id_path)
+
 
     def submit(self, compiled_code: str) -> None:
         raise NotImplementedError(

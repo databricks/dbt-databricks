@@ -1,4 +1,5 @@
 import decimal
+import json
 import os
 import re
 import sys
@@ -76,6 +77,10 @@ from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
 from requests import Session
+
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+from dbt.adapters.databricks.__version__ import version
 
 if TYPE_CHECKING:
     from agate import Table
@@ -474,6 +479,84 @@ class DatabricksDBTConnection(Connection):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: Optional[TCredentialProvider] = None
+
+    def cancel_open(self) -> List[str]:
+        run_id_dir = f"/Shared/dbt_python_model/{self.profile.credentials.database}/{self.profile.credentials.schema}/run_ids/"
+        run_ids = self._list_files(run_id_dir)
+        print(run_ids)
+        for run_id in run_ids:
+            self._cancel_run_id(run_id_dir, run_id)
+
+        return super().cancel_open()
+
+    def _cancel_run_id(self, run_id_dir: str, run_id: str) -> None:
+        retry_strategy = Retry(total=4, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = Session()
+        session.mount("https://", adapter)
+        extra_headers = {
+            "User-Agent": f"dbt-databricks/{version}",
+            "Authorization": f"Bearer {self.credentials_provider.as_dict()['token']}"
+        }
+
+        response = session.post(
+            f"https://{}/api/2.0/jobs/runs/cancel",
+            headers=extra_headers,
+            json={
+                "run_id": run_id
+            },
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Cancel run id failed.\n {response.content!r}")
+
+        self._delete_file(f'{run_id_dir}{run_id}')
+
+    def _delete_file(self, path: str) -> None:
+        retry_strategy = Retry(total=4, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = Session()
+        session.mount("https://", adapter)
+        extra_headers = {
+            "User-Agent": f"dbt-databricks/{version}",
+            "Authorization": f"Bearer {self.credentials_provider.as_dict()['token']}"
+        }
+        response = session.post(
+            f"https://{host}/api/2.0/workspace/delete",
+            headers=extra_headers,
+            json={
+                "path": path
+            },
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error deleting file.\n {response.content!r}")
+
+
+    def _list_files(self, path: str) -> List[str]:
+        retry_strategy = Retry(total=4, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = Session()
+        session.mount("https://", adapter)
+        extra_headers = {
+            "User-Agent": f"dbt-databricks/{version}",
+            "Authorization": f"Bearer {self.credentials_provider.as_dict()['token']}"
+        }
+
+        response = session.get(
+            f"https://{host}/api/2.0/workspace/list",
+            headers=extra_headers,
+            json={
+                "path": path
+            },
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error list workspace.\n {response.content!r}")
+
+        return_list = list()
+        for item in response.json()["objects"]:
+            path = str(item["path"])
+            run_id = path.split('/')[-1]
+            return_list.append(run_id)
+        return return_list
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
