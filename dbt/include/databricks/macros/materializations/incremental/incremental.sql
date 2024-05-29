@@ -19,6 +19,14 @@
   {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
+
+  {#-- Set Overwrite Mode - does not yet work for warehouses --#}
+  {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+    {%- call statement() -%}
+      set spark.sql.sources.partitionOverwriteMode = DYNAMIC
+    {%- endcall -%}
+  {%- endif -%}
+
   {#-- Run pre-hooks --#}
   {{ run_hooks(pre_hooks) }}
 

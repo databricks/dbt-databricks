@@ -68,6 +68,7 @@ class TestAppendParquetHive(AppendBase):
         }
 
 
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class InsertOverwriteBase(IncrementalBase):
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -90,10 +91,12 @@ class InsertOverwriteBase(IncrementalBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
 
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteDelta(InsertOverwriteBase):
     pass
 
 
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -105,7 +108,7 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint", "databricks_cluster")
 class TestInsertOverwriteParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -119,7 +122,7 @@ class TestInsertOverwriteParquet(InsertOverwriteBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint", "databricks_cluster")
 class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
