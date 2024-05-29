@@ -1,3 +1,9 @@
+## dbt-databricks 1.8.2 (TBD)
+
+### Fixes
+
+- Undo the removal of spark.sql.sources.partitionOverwriteMode = DYNAMIC ([688](https://github.com/databricks/dbt-databricks/pull/688))
+
 ## dbt-databricks 1.8.1 (May 29, 2024)
 
 ### Features
@@ -21,7 +27,6 @@
 
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
-- Support insert overwrite on SQL Warehouses ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Support Databricks tags for tables/views/incrementals ([631](https://github.com/databricks/dbt-databricks/pull/631))
 
 ### Under the Hood
