@@ -163,6 +163,7 @@ append_expected = """id,msg
 """
 
 overwrite_expected = """id,msg
+1,hello
 2,yo
 3,anyway
 """

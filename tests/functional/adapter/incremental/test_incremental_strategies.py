@@ -108,7 +108,7 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -122,7 +122,7 @@ class TestInsertOverwriteParquet(InsertOverwriteBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint", "databricks_cluster")
+@pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
