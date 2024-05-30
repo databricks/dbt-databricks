@@ -28,6 +28,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "pipeline_internal.catalogType",
         "pipelines.metastore.tableName",
         "pipeline_internal.enzymeMode",
+        "clusteringColumns",
     ]
 
     def __eq__(self, __value: Any) -> bool:

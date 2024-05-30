@@ -9,6 +9,7 @@
 ### Features
 
 - Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
+- Update Liquid Clustering columns on is_incremental runs ([686](https://github.com/databricks/dbt-databricks/pull/686))
 
 ### Fixes
 

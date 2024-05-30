@@ -86,6 +86,7 @@
       Also, why does not either drop_relation or adapter.drop_relation work here?!
       --#}
     {%- endif -%}
+    {% do apply_liquid_clustered_cols(target_relation) %}
     {% if _configuration_changes is not none %}
       {% set tags = _configuration_changes.changes["tags"] %}
       {% if tags is not none %}
