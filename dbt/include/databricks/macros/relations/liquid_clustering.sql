@@ -4,12 +4,7 @@
     {%- if cols is string -%}
       {%- set cols = [cols] -%}
     {%- endif -%}
-    CLUSTER BY (
-    {%- for item in cols -%}
-      {{ item }}
-      {%- if not loop.last -%},{%- endif -%}
-    {%- endfor -%}
-    )
+    CLUSTER BY ({{ cols | join(', ') }})
   {%- endif %}
 {%- endmacro -%}
 
@@ -22,12 +17,7 @@
       {%- set cols = [cols] -%}
     {%- endif -%}      
     {%- call statement('set_cluster_by_columns') -%}
-        ALTER {{ target_relation.type }} {{ target_relation }} CLUSTER BY (
-        {%- for item in cols -%}
-            {{ item }}
-            {%- if not loop.last -%},{%- endif -%}
-        {%- endfor -%}
-        )
+        ALTER {{ target_relation.type }} {{ target_relation }} CLUSTER BY ({{ cols | join(', ') }})
     {%- endcall -%}
   {%- elif not target_relation.is_hive_metastore() and file_format == "delta" and not partition_by -%}
     {%- call statement('unset_cluster_by_columns') -%}

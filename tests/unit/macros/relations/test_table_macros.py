@@ -149,7 +149,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
         expected = (
             f"create or replace table {template_bundle.relation} "
-            "using delta CLUSTER BY (cluster_1,cluster_2) as select 1"
+            "using delta CLUSTER BY (cluster_1, cluster_2) as select 1"
         )
 
         assert sql == expected
@@ -195,7 +195,7 @@ class TestCreateTableAs(MacroTestBase):
             f"create or replace table {template_bundle.relation} "
             "using delta "
             "partitioned by (partition_1,partition_2) "
-            "CLUSTER BY (cluster_1,cluster_2) "
+            "CLUSTER BY (cluster_1, cluster_2) "
             "clustered by (cluster_1,cluster_2) into 1 buckets "
             "location '/mnt/root/some_table' "
             "comment 'Description Test' "
