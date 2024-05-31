@@ -16,8 +16,7 @@ class TestTags:
         _ = util.run_dbt(["run"])
         results = project.run_sql(
             "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
-            " where catalog_name = '{database}' and"
-            " schema_name = '{schema}' and table_name='tags'",
+            " where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
         assert len(results) == 2
