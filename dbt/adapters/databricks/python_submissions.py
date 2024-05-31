@@ -20,6 +20,8 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
 
+import threading
+
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
@@ -27,6 +29,10 @@ DEFAULT_TIMEOUT = 60 * 60 * 24
 
 
 class BaseDatabricksHelper(PythonJobHelper):
+
+    run_ids = list()
+    _lock = threading.Lock()  # to avoid concurrent issue
+
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.identifier = parsed_model["alias"]
@@ -45,6 +51,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.extra_headers = {
             "User-Agent": f"dbt-databricks/{version}",
         }
+        host = credentials.host
 
     @property
     def cluster_id(self) -> str:
@@ -96,34 +103,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
 
-    def _upload_file(self, path: str, compiled_code: str) -> None:
-        b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
-        print(self.credentials.host)
-        response = self.session.post(
-            f"https://{self.credentials.host}/api/2.0/workspace/import",
-            headers=self.extra_headers,
-            json={
-                "path": path,
-                "content": b64_encoded_content,
-                "overwrite": True,
-                "format": "AUTO",
-            },
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating file.\n {response.content!r}")
-
-
-    def _delete_file(self, path: str) -> None:
-        response = self.session.post(
-            f"https://{self.credentials.host}/api/2.0/workspace/delete",
-            headers=self.extra_headers,
-            json={
-                "path": path
-            },
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error deleting file.\n {response.content!r}")
-
 
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
@@ -173,13 +152,9 @@ class BaseDatabricksHelper(PythonJobHelper):
         whole_file_path = f"{work_dir}{self.identifier}"
         self._upload_notebook(whole_file_path, compiled_code)
 
-        run_id_dir = f"/Shared/dbt_python_model/{self.credentials.database}/{self.credentials.schema}/run_ids/"
-        self._create_work_dir(run_id_dir)
-
         # submit job
         run_id = self._submit_job(whole_file_path, cluster_spec)
-        run_id_path = f"{run_id_dir}{run_id}"
-        self._upload_file(run_id_path, '')
+        self._insert_run_ids(run_id)
 
         self.polling(
             status_func=self.session.get,
@@ -207,7 +182,50 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "match the line number in your code due to dbt templating)\n"
                 f"{utils.remove_ansi(json_run_output['error_trace'])}"
             )
-        self._delete_file(run_id_path)
+        self._remove_run_ids(run_id)
+
+
+    def _remove_run_ids(self, run_id: str):
+        self._lock.acquire()
+        try:
+            self.run_ids.remove(run_id)
+        except Exception as e:
+            logger.warning(e)
+        finally:
+            self._lock.release()
+
+
+    def _insert_run_ids(self, run_id: str):
+        self._lock.acquire()
+        try:
+            self.run_ids.append(run_id)
+        except Exception as e:
+            logger.warning(e)
+        finally:
+            self._lock.release()
+
+    @staticmethod
+    def cancel_run_id(run_id: str, token: str, host: str) -> None:
+        retry_strategy = Retry(total=4, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = Session()
+        session.mount("https://", adapter)
+        extra_headers = {
+            "User-Agent": f"dbt-databricks/{version}",
+            "Authorization": f"Bearer {token}"
+        }
+
+        response = session.post(
+            f"https://{host}/api/2.0/jobs/runs/cancel",
+            headers=extra_headers,
+            json={
+                "run_id": run_id
+            },
+        )
+
+        print(response.status_code)
+        if response.status_code != 200:
+            logger.warning(f"Cancel run id failed.\n {response.content!r}")
 
 
     def submit(self, compiled_code: str) -> None:

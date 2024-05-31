@@ -15,9 +15,11 @@ from requests.auth import AuthBase
 
 class token_auth(CredentialsProvider):
     _token: str
+    _host: str
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, host: str) -> None:
         self._token = token
+        self._host = host
 
     def auth_type(self) -> str:
         return "token"
@@ -29,7 +31,7 @@ class token_auth(CredentialsProvider):
     def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
         if not raw:
             return None
-        return token_auth(raw["token"])
+        return token_auth(raw["token"], raw["host"])
 
     def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
