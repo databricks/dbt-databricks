@@ -44,7 +44,8 @@
         last_altered as `stats:last_modified:value`,
         'The timestamp for last update/change' as `stats:last_modified:description`,
         (last_altered is not null and table_type not ilike '%VIEW%') as `stats:last_modified:include`
-    from {{ information_schema }}.tables
+    from `system`.`information_schema`.`tables`
+    where table_catalog = '{{ information_schema.database }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_columns_sql(information_schema) -%}
@@ -56,7 +57,8 @@
         ordinal_position as column_index,
         lower(data_type) as column_type,
         comment as column_comment
-    from {{ information_schema }}.columns
+    from `system`.`information_schema`.`columns`
+    where table_catalog = '{{ information_schema.database }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_results_sql() -%}

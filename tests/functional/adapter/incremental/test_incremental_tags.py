@@ -17,8 +17,9 @@ class TestIncrementalTags:
         util.write_file(fixtures.tags_b, "models", "schema.yml")
         util.run_dbt(["run"])
         results = project.run_sql(
-            "select tag_name, tag_value from {database}.information_schema.table_tags "
-            "where schema_name = '{schema}' and table_name='merge_update_columns_sql'",
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags` "
+            "where catalog_name = '{database}' and schema_name = '{schema}' and "
+            "table_name='merge_update_columns_sql'",
             fetch="all",
         )
         assert len(results) == 2
@@ -42,8 +43,9 @@ class TestIncrementalPythonTags:
         util.write_file(fixtures.python_schema2, "models", "schema.yml")
         util.run_dbt(["run"])
         results = project.run_sql(
-            "select tag_name, tag_value from {database}.information_schema.table_tags "
-            "where schema_name = '{schema}' and table_name='tags'",
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags` "
+            "where catalog_name = '{database}' and schema_name = '{schema}' and "
+            "table_name='tags'",
             fetch="all",
         )
         assert len(results) == 2

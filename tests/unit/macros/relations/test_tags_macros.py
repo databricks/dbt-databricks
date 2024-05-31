@@ -15,8 +15,9 @@ class TestTagsMacros(MacroTestBase):
         sql = self.render_bundle(template_bundle, "fetch_tags_sql")
         expected = (
             "SELECT tag_name, tag_value "
-            "FROM `some_database`.`information_schema`.`table_tags` "
-            "WHERE schema_name = 'some_schema' AND table_name = 'some_table'"
+            "FROM `system`.`information_schema`.`table_tags` "
+            "WHERE catalog_name = 'some_database'"
+            " AND schema_name = 'some_schema' AND table_name = 'some_table'"
         )
         assert sql == expected
 
