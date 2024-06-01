@@ -1,5 +1,4 @@
 import decimal
-import json
 import os
 import re
 import sys
@@ -77,6 +76,8 @@ from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
 from requests import Session
+
+from dbt.adapters.databricks.python_submissions import BaseDatabricksHelper
 
 if TYPE_CHECKING:
     from agate import Table
@@ -477,12 +478,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
     credentials_provider: Optional[TCredentialProvider] = None
 
     def cancel_open(self) -> List[str]:
-        from dbt.adapters.databricks.python_submissions import BaseDatabricksHelper
-
         for run_id in BaseDatabricksHelper.run_ids:
-            logger.info(f"cancel run id {run_id}")
+            logger.debug(f"Cancel python model job: {run_id}")
             BaseDatabricksHelper.cancel_run_id(run_id, self.credentials_provider.as_dict()['token'], self.credentials_provider.as_dict()['host'])
-
         BaseDatabricksHelper.run_ids.clear()
         return super().cancel_open()
 

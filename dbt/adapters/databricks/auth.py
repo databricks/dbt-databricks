@@ -25,7 +25,7 @@ class token_auth(CredentialsProvider):
         return "token"
 
     def as_dict(self) -> dict:
-        return {"token": self._token}
+        return {"token": self._token, "host": self._host}
 
     @staticmethod
     def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
