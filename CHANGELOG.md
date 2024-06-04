@@ -3,6 +3,7 @@
 ### Fixes
 
 - Undo the removal of spark.sql.sources.partitionOverwriteMode = DYNAMIC ([688](https://github.com/databricks/dbt-databricks/pull/688))
+- Cancel python jobs when dbt operation is canceled (thanks @gaoshihang for kicking this off!) ([693](https://github.com/databricks/dbt-databricks/pull/693))
 
 ## dbt-databricks 1.8.1 (May 29, 2024)
 
