@@ -255,7 +255,7 @@ class DatabricksCredentials(Credentials):
         self._lock.acquire()
         try:
             if self.token:
-                provider = token_auth(self.token, self.host)
+                provider = token_auth(self.token)
                 self._credentials_provider = provider.as_dict()
                 return provider
 

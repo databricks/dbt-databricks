@@ -1,16 +1,13 @@
 import base64
+import threading
 import time
 import uuid
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Optional
+from typing import Set
 from typing import Tuple
-
-from dbt_common.exceptions import DbtRuntimeError
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks import utils
@@ -19,8 +16,13 @@ from dbt.adapters.databricks.auth import BearerAuth
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
-
-import threading
+from dbt_common.exceptions import DbtRuntimeError
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 DEFAULT_POLLING_INTERVAL = 10
@@ -28,10 +30,89 @@ SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
 
-class BaseDatabricksHelper(PythonJobHelper):
+class CommandExecution(BaseModel):
+    command_id: str = Field(serialization_alias="commandId")
+    context_id: str = Field(serialization_alias="contextId")
+    cluster_id: str = Field(serialization_alias="clusterId")
 
-    run_ids = list()
-    _lock = threading.Lock()  # to avoid concurrent issue
+    model_config = ConfigDict(frozen=True)
+
+
+class PythonRunTracker(object):
+    _run_ids: Set[str] = set()
+    _commands: Set[CommandExecution] = set()
+    _lock = threading.Lock()
+    _host: Optional[str] = None
+
+    @classmethod
+    def set_host(cls, host: Optional[str]) -> None:
+        cls._host = host
+
+    @classmethod
+    def remove_run_id(cls, run_id: str) -> None:
+        cls._lock.acquire()
+        try:
+            cls._run_ids.discard(run_id)
+        finally:
+            cls._lock.release()
+
+    @classmethod
+    def insert_run_id(cls, run_id: str) -> None:
+        cls._lock.acquire()
+        try:
+            cls._run_ids.add(run_id)
+        finally:
+            cls._lock.release()
+
+    @classmethod
+    def remove_command(cls, command: CommandExecution) -> None:
+        cls._lock.acquire()
+        try:
+            cls._commands.discard(command)
+        finally:
+            cls._lock.release()
+
+    @classmethod
+    def insert_command(cls, command: CommandExecution) -> None:
+        cls._lock.acquire()
+        try:
+            cls._commands.add(command)
+        finally:
+            cls._lock.release()
+
+    @classmethod
+    def cancel_runs(cls, session: Session) -> None:
+        cls._lock.acquire()
+        try:
+            logger.debug(f"Run_ids to cancel: {cls._run_ids}")
+            for run_id in cls._run_ids:
+                logger.debug(f"Cancelling run id {run_id}")
+                response = session.post(
+                    f"https://{cls._host}/api/2.1/jobs/runs/cancel",
+                    json={"run_id": run_id},
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"Cancel run {run_id} failed.\n {response.content!r}")
+
+            logger.debug(f"Commands to cancel: {cls._commands}")
+            for command in cls._commands:
+                logger.debug(f"Cancelling command {command}")
+                response = session.post(
+                    f"https://{cls._host}/api/1.2/commands/cancel",
+                    json=command.model_dump(by_alias=True),
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"Cancel command {command} failed.\n {response.content!r}")
+        finally:
+            cls._run_ids.clear()
+            cls._commands.clear()
+            cls._lock.release()
+
+
+class BaseDatabricksHelper(PythonJobHelper):
+    tracker = PythonRunTracker()
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
@@ -51,7 +132,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.extra_headers = {
             "User-Agent": f"dbt-databricks/{version}",
         }
-        host = credentials.host
+        self.tracker.set_host(credentials.host)
 
     @property
     def cluster_id(self) -> str:
@@ -103,7 +184,6 @@ class BaseDatabricksHelper(PythonJobHelper):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
 
-
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
             "run_name": f"{self.schema}-{self.identifier}-{uuid.uuid4()}",
@@ -154,7 +234,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
         # submit job
         run_id = self._submit_job(whole_file_path, cluster_spec)
-        self._insert_run_ids(run_id)
+        self.tracker.insert_run_id(run_id)
 
         self.polling(
             status_func=self.session.get,
@@ -182,51 +262,7 @@ class BaseDatabricksHelper(PythonJobHelper):
                 "match the line number in your code due to dbt templating)\n"
                 f"{utils.remove_ansi(json_run_output['error_trace'])}"
             )
-        self._remove_run_ids(run_id)
-
-
-    def _remove_run_ids(self, run_id: str):
-        self._lock.acquire()
-        try:
-            self.run_ids.remove(run_id)
-        except Exception as e:
-            logger.warning(e)
-        finally:
-            self._lock.release()
-
-
-    def _insert_run_ids(self, run_id: str):
-        self._lock.acquire()
-        try:
-            self.run_ids.append(run_id)
-        except Exception as e:
-            logger.warning(e)
-        finally:
-            self._lock.release()
-
-    @staticmethod
-    def cancel_run_id(run_id: str, token: str, host: str) -> None:
-        retry_strategy = Retry(total=4, backoff_factor=0.5)
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session = Session()
-        session.mount("https://", adapter)
-        extra_headers = {
-            "User-Agent": f"dbt-databricks/{version}",
-            "Authorization": f"Bearer {token}"
-        }
-
-        response = session.post(
-            f"https://{host}/api/2.0/jobs/runs/cancel",
-            headers=extra_headers,
-            json={
-                "run_id": run_id
-            },
-        )
-
-        print(response.status_code)
-        if response.status_code != 200:
-            logger.warning(f"Cancel run id failed.\n {response.content!r}")
-
+        self.tracker.remove_run_id(run_id)
 
     def submit(self, compiled_code: str) -> None:
         raise NotImplementedError(
@@ -453,8 +489,13 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 self.session,
             )
             context_id = context.create()
+            command_exec: Optional[CommandExecution] = None
             try:
                 command_id = command.execute(context_id, compiled_code)
+                command_exec = CommandExecution(
+                    command_id=command_id, context_id=context_id, cluster_id=self.cluster_id
+                )
+                self.tracker.insert_command(command_exec)
                 # poll until job finish
                 response = self.polling(
                     status_func=command.status,
@@ -467,12 +508,15 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                     expected_end_state="Finished",
                     get_state_msg_func=lambda response: response.json()["results"]["data"],
                 )
+
                 if response["results"]["resultType"] == "error":
                     raise DbtRuntimeError(
                         f"Python model failed with traceback as:\n"
                         f"{utils.remove_ansi(response['results']['cause'])}"
                     )
             finally:
+                if command_exec:
+                    self.tracker.remove_command(command_exec)
                 context.destroy(context_id)
 
 

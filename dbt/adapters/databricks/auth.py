@@ -17,21 +17,20 @@ class token_auth(CredentialsProvider):
     _token: str
     _host: str
 
-    def __init__(self, token: str, host: str) -> None:
+    def __init__(self, token: str) -> None:
         self._token = token
-        self._host = host
 
     def auth_type(self) -> str:
         return "token"
 
     def as_dict(self) -> dict:
-        return {"token": self._token, "host": self._host}
+        return {"token": self._token}
 
     @staticmethod
     def from_dict(raw: Optional[dict]) -> Optional[CredentialsProvider]:
         if not raw:
             return None
-        return token_auth(raw["token"], raw["host"])
+        return token_auth(raw["token"])
 
     def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
