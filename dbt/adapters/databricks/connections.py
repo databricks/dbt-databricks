@@ -61,7 +61,6 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_submissions import BaseDatabricksHelper
 from dbt.adapters.databricks.python_submissions import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import ConnectionClosedInCleanup
@@ -484,7 +483,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             logger.info("Cancelling open python jobs")
             tracker = PythonRunTracker()
             session = Session()
-            creds = self.credentials_provider(None)
+            creds = self.credentials_provider(None)  # type: ignore
             session.auth = BearerAuth(creds)
             session.headers = {"User-Agent": self._user_agent}
             tracker.cancel_runs(session)

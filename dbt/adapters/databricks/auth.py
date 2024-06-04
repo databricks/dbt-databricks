@@ -15,7 +15,6 @@ from requests.auth import AuthBase
 
 class token_auth(CredentialsProvider):
     _token: str
-    _host: str
 
     def __init__(self, token: str) -> None:
         self._token = token
