@@ -61,6 +61,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.python_submissions import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import ConnectionClosedInCleanup
 from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
@@ -474,6 +475,19 @@ class DatabricksDBTConnection(Connection):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: Optional[TCredentialProvider] = None
+    _user_agent = f"dbt-databricks/{__version__}"
+
+    def cancel_open(self) -> List[str]:
+        cancelled = super().cancel_open()
+        if self.credentials_provider:
+            logger.info("Cancelling open python jobs")
+            tracker = PythonRunTracker()
+            session = Session()
+            creds = self.credentials_provider(None)  # type: ignore
+            session.auth = BearerAuth(creds)
+            session.headers = {"User-Agent": self._user_agent}
+            tracker.cancel_runs(session)
+        return cancelled
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
@@ -716,11 +730,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         # gotta keep this so we don't prompt users many times
         cls.credentials_provider = creds.authenticate(cls.credentials_provider)
 
-        user_agent_entry = f"dbt-databricks/{__version__}"
-
         invocation_env = creds.get_invocation_env()
+        user_agent_entry = cls._user_agent
         if invocation_env:
-            user_agent_entry = f"{user_agent_entry}; {invocation_env}"
+            user_agent_entry = f"{cls._user_agent}; {invocation_env}"
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
@@ -1010,11 +1023,10 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         # gotta keep this so we don't prompt users many times
         cls.credentials_provider = creds.authenticate(cls.credentials_provider)
 
-        user_agent_entry = f"dbt-databricks/{__version__}"
-
         invocation_env = creds.get_invocation_env()
+        user_agent_entry = cls._user_agent
         if invocation_env:
-            user_agent_entry = f"{user_agent_entry}; {invocation_env}"
+            user_agent_entry = f"{cls._user_agent}; {invocation_env}"
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
