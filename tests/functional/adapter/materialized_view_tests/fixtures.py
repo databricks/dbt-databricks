@@ -6,8 +6,9 @@ from dbt.adapters.databricks.relation import DatabricksRelationType
 
 def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
     table_type = project.run_sql(
-        f"select table_type from {relation.information_schema_only()}."
-        f"`tables` where table_schema = '{relation.schema}'"
+        "select table_type from `system`.`information_schema`.`tables`"
+        f" where table_catalog = '{relation.database}'"
+        f" and table_schema = '{relation.schema}'"
         f" and table_name = '{relation.identifier}'",
         fetch="one",
     )[0]
@@ -17,8 +18,10 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
         return DatabricksRelationType.Table.value
     else:
         is_materialized = project.run_sql(
-            f"select is_materialized from {relation.information_schema_only()}."
-            f"`views` where table_name = '{relation.identifier}'",
+            "select is_materialized from `system`.`information_schema`.`views`"
+            f" where table_catalog = '{relation.database}'"
+            f" and table_schema = '{relation.schema}'"
+            f" and table_name = '{relation.identifier}'",
             fetch="one",
         )[0]
         if is_materialized == "TRUE":

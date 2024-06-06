@@ -14,7 +14,7 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["file_format.sql", "tblproperties.sql", "location.sql"]
+        return ["file_format.sql", "tblproperties.sql", "location.sql", "liquid_clustering.sql"]
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         return self.run_macro(
@@ -138,7 +138,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
         expected = (
             f"create or replace table {template_bundle.relation} using"
-            " delta cluster by (cluster_1) as select 1"
+            " delta CLUSTER BY (cluster_1) as select 1"
         )
 
         assert sql == expected
@@ -149,7 +149,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
         expected = (
             f"create or replace table {template_bundle.relation} "
-            "using delta cluster by (cluster_1,cluster_2) as select 1"
+            "using delta CLUSTER BY (cluster_1, cluster_2) as select 1"
         )
 
         assert sql == expected
@@ -195,7 +195,7 @@ class TestCreateTableAs(MacroTestBase):
             f"create or replace table {template_bundle.relation} "
             "using delta "
             "partitioned by (partition_1,partition_2) "
-            "cluster by (cluster_1,cluster_2) "
+            "CLUSTER BY (cluster_1, cluster_2) "
             "clustered by (cluster_1,cluster_2) into 1 buckets "
             "location '/mnt/root/some_table' "
             "comment 'Description Test' "

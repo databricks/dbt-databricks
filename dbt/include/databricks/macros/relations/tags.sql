@@ -10,8 +10,10 @@
 
 {% macro fetch_tags_sql(relation) -%}
   SELECT tag_name, tag_value
-  FROM `{{ relation.database }}`.`information_schema`.`table_tags`
-  WHERE schema_name = '{{ relation.schema }}' AND table_name = '{{ relation.identifier }}'
+  FROM `system`.`information_schema`.`table_tags`
+  WHERE catalog_name = '{{ relation.database }}' 
+    AND schema_name = '{{ relation.schema }}'
+    AND table_name = '{{ relation.identifier }}'
 {%- endmacro -%}
 
 {% macro apply_tags(relation, set_tags, unset_tags=[]) -%}

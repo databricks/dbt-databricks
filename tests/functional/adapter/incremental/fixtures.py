@@ -75,6 +75,31 @@ models:
         - name: color
 """
 
+liquid_clustering_a = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        liquid_clustered_by: id
+"""
+
+liquid_clustering_b = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        liquid_clustered_by: ["msg", "color"]
+"""
+
+liquid_clustering_c = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+"""
+
 _MODELS__INCREMENTAL_SYNC_ALL_COLUMNS = """
 {{
     config(
@@ -285,5 +310,21 @@ models:
       databricks_tags:
         c: e
         d: f
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+lc_python_schema = """version: 2
+models:
+  - name: simple_python_model
+    config:
+      liquid_clustered_by: test
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+lc_python_schema2 = """version: 2
+models:
+  - name: simple_python_model
+    config:
+      liquid_clustered_by: test2
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """

@@ -1,8 +1,17 @@
+## dbt-databricks 1.8.2 (TBD)
+
+### Fixes
+
+- Undo the removal of spark.sql.sources.partitionOverwriteMode = DYNAMIC ([688](https://github.com/databricks/dbt-databricks/pull/688))
+- Migrate to using system.information_schema to fix issue with catalog renames ([692](https://github.com/databricks/dbt-databricks/pull/692))
+- Cancel python jobs when dbt operation is canceled (thanks @gaoshihang for kicking this off!) ([693](https://github.com/databricks/dbt-databricks/pull/693))
+
 ## dbt-databricks 1.8.1 (May 29, 2024)
 
 ### Features
 
 - Support Liquid Clustering for python models ([663](https://github.com/databricks/dbt-databricks/pull/663))
+- Update Liquid Clustering columns on is_incremental runs ([686](https://github.com/databricks/dbt-databricks/pull/686))
 
 ### Fixes
 
@@ -21,7 +30,6 @@
 
 - Support `on_config_change` for materialized views, expand the supported config options ([536](https://github.com/databricks/dbt-databricks/pull/536)))
 - Support `on_config_change` for streaming tables, expand the supported config options ([569](https://github.com/databricks/dbt-databricks/pull/569)))
-- Support insert overwrite on SQL Warehouses ([623](https://github.com/databricks/dbt-databricks/pull/623))
 - Support Databricks tags for tables/views/incrementals ([631](https://github.com/databricks/dbt-databricks/pull/631))
 
 ### Under the Hood

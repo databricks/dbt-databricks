@@ -72,7 +72,7 @@ writer.saveAsTable("{{ target_relation }}")
     {%- endif %}
 .partitionBy({{ partition_by }})
 {%- endif -%}
-{%- if liquid_clustered_by -%}
+{%- if liquid_clustered_by and not is_incremental() -%}
     {%- if liquid_clustered_by is string -%}
         {%- set liquid_clustered_by = [liquid_clustered_by] -%}
     {%- endif %}

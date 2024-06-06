@@ -19,6 +19,14 @@
   {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
+
+  {#-- Set Overwrite Mode - does not yet work for warehouses --#}
+  {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+    {%- call statement() -%}
+      set spark.sql.sources.partitionOverwriteMode = DYNAMIC
+    {%- endcall -%}
+  {%- endif -%}
+
   {#-- Run pre-hooks --#}
   {{ run_hooks(pre_hooks) }}
 
@@ -78,6 +86,7 @@
       Also, why does not either drop_relation or adapter.drop_relation work here?!
       --#}
     {%- endif -%}
+    {% do apply_liquid_clustered_cols(target_relation) %}
     {% if _configuration_changes is not none %}
       {% set tags = _configuration_changes.changes["tags"] %}
       {% if tags is not none %}
