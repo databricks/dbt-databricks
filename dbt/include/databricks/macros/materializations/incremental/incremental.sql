@@ -20,10 +20,10 @@
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
 
 
-  {#-- Set Overwrite Mode - does not yet work for warehouses --#}
-  {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+  {#-- Set Overwrite Mode to STATIC for initial replace --#}
+  {%- if incremental_strategy == 'insert_overwrite' and should_full_refresh() -%}
     {%- call statement() -%}
-      set spark.sql.sources.partitionOverwriteMode = DYNAMIC
+      set spark.sql.sources.partitionOverwriteMode = STATIC
     {%- endcall -%}
   {%- endif -%}
 
@@ -53,6 +53,12 @@
     {% endif %}
     {% do apply_tags(target_relation, tags) %}
   {%- else -%}
+    {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
+    {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+      {%- call statement() -%}
+        set spark.sql.sources.partitionOverwriteMode = DYNAMIC
+      {%- endcall -%}
+    {%- endif -%}
     {#-- Relation must be merged --#}
     {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
     {%- set model_config = adapter.get_config_from_model(config.model) -%}

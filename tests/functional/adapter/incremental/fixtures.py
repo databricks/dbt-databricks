@@ -328,3 +328,30 @@ models:
       liquid_clustered_by: test2
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
+
+replace_table = """
+{{ config(
+    materialized = 'table'
+) }}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+"""
+
+replace_incremental = """
+{{ config(
+    materialized = 'incremental',
+    incremental_strategy = 'insert_overwrite',
+    partition_by = 'id'
+) }}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+"""
+
+replace_expected = """id,msg,color
+1,hello,blue
+2,goodbye,red
+"""
