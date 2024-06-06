@@ -57,8 +57,9 @@
                table_name as identifier,
                last_altered as last_modified,
                {{ current_timestamp() }} as snapshotted_at
-        from {{ information_schema }}.tables
-        where (
+        from `system`.`information_schema`.`tables`
+        where table_catalog = '{{ information_schema.database }}' and
+        (
           {%- for relation in relations -%}
             (table_schema = '{{ relation.schema }}' and
              table_name = '{{ relation.identifier }}'){%- if not loop.last %} or {% endif -%}
@@ -74,22 +75,14 @@
 {% macro get_view_description(relation) %}
   {% call statement('get_view_description', fetch_result=True) -%}
     select *
-    from {{ relation.information_schema() }}.`views`
-    where table_schema = '{{ relation.schema }}'
+    from `system`.`information_schema`.`views`
+    where table_catalog = '{{ relation.database }}'
+      and table_schema = '{{ relation.schema }}'
       and table_name = '{{ relation.identifier }}'
   {%- endcall -%}
 
   {% do return(load_result('get_view_description').table) %}
 {% endmacro %}
-
-{% macro get_view_description_alt(relation) %}
-  {% call statement('get_view_description_alt', fetch_result=True) -%}
-    select *
-    from `system`.`information_schema`.`views`
-    where table_catalog = '{{ relation.database }}'
-      and table_schema = '{{ relation.schema }}'
-      and table_name = '{{ relation.identifier }}'
-  {% endcall %}
 
   {% do return(load_result('get_view_description_alt').table) %}
 {% endmacro %}
@@ -101,7 +94,7 @@
       if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
       lower(data_source_format) as file_format,
       table_owner
-    from `{{ relation.database }}`.`information_schema`.`tables`
+    from `system`.`information_schema`.`tables`
     where table_schema = '{{ relation.schema }}'
     {% if relation.identifier %}
       and table_name = '{{ relation.identifier }}'

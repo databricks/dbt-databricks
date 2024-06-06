@@ -749,10 +749,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
 
     @staticmethod
     def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> "Row":
-        row = get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
-        if "view_definition" in row.keys() and row["view_definition"] is not None:
-            return row
-        return get_first_row(adapter.execute_macro("get_view_description_alt", kwargs=kwargs))
+        return get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
 
 
 class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):

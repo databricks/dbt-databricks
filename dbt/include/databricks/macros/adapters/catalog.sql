@@ -3,11 +3,11 @@
     {% set query %}
         with tables as (
             {{ databricks__get_catalog_tables_sql(information_schema) }}
-            {{ databricks__get_catalog_schemas_where_clause_sql(schemas) }}
+            {{ databricks__get_catalog_schemas_where_clause_sql(information_schema.database, schemas) }}
         ),
         columns as (
             {{ databricks__get_catalog_columns_sql(information_schema) }}
-            {{ databricks__get_catalog_schemas_where_clause_sql(schemas) }}
+            {{ databricks__get_catalog_schemas_where_clause_sql(information_schema.database, schemas) }}
         )
         {{ databricks__get_catalog_results_sql() }}
     {%- endset -%}
@@ -44,7 +44,8 @@
         last_altered as `stats:last_modified:value`,
         'The timestamp for last update/change' as `stats:last_modified:description`,
         (last_altered is not null and table_type not ilike '%VIEW%') as `stats:last_modified:include`
-    from {{ information_schema }}.tables
+    from `system`.`information_schema`.`tables`
+    where table_catalog = '{{ information_schema.database }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_columns_sql(information_schema) -%}
@@ -56,7 +57,8 @@
         ordinal_position as column_index,
         lower(data_type) as column_type,
         comment as column_comment
-    from {{ information_schema }}.columns
+    from `system`.`information_schema`.`columns`
+    where table_catalog = '{{ information_schema.database }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_results_sql() -%}
@@ -66,15 +68,15 @@
     order by column_index
 {%- endmacro %}
 
-{% macro databricks__get_catalog_schemas_where_clause_sql(schemas) -%}
-    where ({%- for relation in schemas -%}
+{% macro databricks__get_catalog_schemas_where_clause_sql(catalog, schemas) -%}
+    where table_catalog = '{{ catalog }}' and ({%- for relation in schemas -%}
         table_schema = lower('{{ relation[1] }}'){%- if not loop.last %} or {% endif -%}
     {%- endfor -%})
 {%- endmacro %}
 
 
-{% macro databricks__get_catalog_relations_where_clause_sql(relations) -%}
-    where (
+{% macro databricks__get_catalog_relations_where_clause_sql(catalog, relations) -%}
+    where table_catalog = '{{ catalog }}' and (
         {%- for relation in relations -%}
             {% if relation.schema and relation.identifier %}
                 (
