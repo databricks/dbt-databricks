@@ -17,6 +17,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import HeaderFactory
 from dbt.adapters.contracts.connection import Credentials
+from dbt.adapters.databricks import auth
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
 from mashumaro import DataClassDictMixin
@@ -268,27 +269,24 @@ PySQLCredentialProvider = Callable[[], Callable[[], Dict[str, str]]]
 
 @dataclass
 class DatabricksCredentialManager(DataClassDictMixin):
-    host: Optional[str] = None
+    host: str
+    client_id: str
+    client_secret: str
     token: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
 
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
-            host=credentials.host,
+            host=credentials.host or "",
             token=credentials.token,
-            client_id=credentials.client_id,
-            client_secret=credentials.client_secret,
+            client_id=credentials.client_id or "",
+            client_secret=credentials.client_secret or "",
         )
 
     def __post_init__(self) -> None:
         if Config(host=self.host).is_azure:
             self._config = Config(
-                host=self.host,
-                azure_client_id=self.client_id,
-                azure_client_secret=self.client_secret,
-                token=self.token,
+                credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
             )
         else:
             self._config = Config(
