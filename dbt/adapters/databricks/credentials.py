@@ -284,17 +284,9 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def __post_init__(self) -> None:
-        if Config(host=self.host).is_azure:
-            self._config = Config(
-                credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
-            )
-        else:
-            self._config = Config(
-                host=self.host,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-                token=self.token,
-            )
+        self._config = Config(
+            credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
+        )
 
     @property
     def api_client(self) -> WorkspaceClient:
