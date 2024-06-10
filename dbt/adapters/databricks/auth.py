@@ -51,7 +51,10 @@ class m2m_auth(CredentialsProvider):
         config = Config(host=host, credentials_provider=noop_credentials)
         if config.is_azure:
             config = Config(
-                host=host, credentials_provider=noop_credentials, azure_client_id=client_id
+                host=host,
+                credentials_provider=noop_credentials,
+                azure_client_id=client_id,
+                azure_client_secret=client_secret,
             )
         oidc = config.oidc_endpoints
         scopes = ["all-apis"]
