@@ -4,6 +4,7 @@ import os
 import re
 import threading
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import Callable
 from typing import cast
@@ -16,6 +17,7 @@ from typing import Tuple
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import HeaderFactory
+from databricks.sdk.credentials_provider import pat_auth
 from dbt.adapters.contracts.connection import Credentials
 from dbt.adapters.databricks import auth
 from dbt_common.exceptions import DbtConfigError
@@ -272,6 +274,8 @@ class DatabricksCredentialManager(DataClassDictMixin):
     host: str
     client_id: str
     client_secret: str
+    oauth_redirect_url: str = REDIRECT_URL
+    oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
 
     @classmethod
@@ -281,12 +285,24 @@ class DatabricksCredentialManager(DataClassDictMixin):
             token=credentials.token,
             client_id=credentials.client_id or "",
             client_secret=credentials.client_secret or "",
+            oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
+            oauth_scopes=credentials.oauth_scopes or SCOPES,
         )
 
     def __post_init__(self) -> None:
-        self._config = Config(
-            credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
-        )
+        if self.token:
+            self._config = Config(host=self.host, token=self.token, credentials_provider=pat_auth)
+        elif self.client_id and self.client_secret:
+            self._config = Config(
+                credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
+            )
+        else:
+            self._config = Config(
+                host=self.host,
+                client_id=self.client_id,
+                oauth_redirect_url=self.oauth_redirect_url,
+                oauth_scopes=self.oauth_scopes,
+            )
 
     @property
     def api_client(self) -> WorkspaceClient:
