@@ -6,6 +6,10 @@
 - Migrate to using system.information_schema to fix issue with catalog renames ([692](https://github.com/databricks/dbt-databricks/pull/692))
 - Cancel python jobs when dbt operation is canceled (thanks @gaoshihang for kicking this off!) ([693](https://github.com/databricks/dbt-databricks/pull/693))
 
+### Under the Hood
+
+- Reduce severity of logging when expected 24 hour token expiration for Azure SPA (thanks @thijs-nijhuis!) ([699](https://github.com/databricks/dbt-databricks/pull/699))
+
 ## dbt-databricks 1.8.1 (May 29, 2024)
 
 ### Features
