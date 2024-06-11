@@ -477,7 +477,9 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
     def submit(self, compiled_code: str) -> None:
         if self.parsed_model["config"].get("create_notebook", False):
-            config = {"existing_cluster_id": self.cluster_id}
+            config = {}
+            if self.cluster_id:
+                config["existing_cluster_id"] = self.cluster_id
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
             context = DBContext(
@@ -593,8 +595,8 @@ class DbtDatabricksAllPurposeClusterPythonJobHelper(
 ):
     def check_credentials(self) -> None:
         self.credentials.validate_creds()
-        if not self.cluster_id:
-            raise ValueError(
-                "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
-                "for the `all_purpose_cluster` submission method."
-            )
+        # if not self.cluster_id:
+        #     raise ValueError(
+        #         "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
+        #         "for the `all_purpose_cluster` submission method."
+        #     )
