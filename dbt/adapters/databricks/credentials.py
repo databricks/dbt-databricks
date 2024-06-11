@@ -289,10 +289,10 @@ class DatabricksCredentials(Credentials):
                     # if refresh token is expired, this will throw
                     try:
                         if provider.token().valid:
+                            self._credentials_provider = provider.as_dict()
                             if json.loads(credsdict) != provider.as_dict():
                                 # if the provider dict has changed, most likely because of a token
                                 # refresh, save it for further use
-                                self._credentials_provider = provider.as_dict()
                                 self.set_sharded_password(
                                     "dbt-databricks", host, json.dumps(self._credentials_provider)
                                 )
