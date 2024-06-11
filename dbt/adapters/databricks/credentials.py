@@ -298,7 +298,7 @@ class DatabricksCredentials(Credentials):
                                 )
                             return provider
                     except Exception as e:
-                        # SPA token are suppose to expire after 24h, no need to warn
+                        # SPA token are supposed to expire after 24h, no need to warn
                         if SPA_CLIENT_FIXED_TIME_LIMIT_ERROR in str(e):
                             logger.debug(CredentialLoadError(e))
                         else:
