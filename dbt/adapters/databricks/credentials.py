@@ -40,7 +40,7 @@ MAX_NT_PASSWORD_SIZE = 1280
 
 # When using an Azure App Registration with the SPA platform, the refresh token will
 # also expire after 24h. Silently accept this in this case.
-SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = 'AADSTS700084'
+SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = "AADSTS700084"
 
 TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
@@ -289,12 +289,13 @@ class DatabricksCredentials(Credentials):
                     # if refresh token is expired, this will throw
                     try:
                         if provider.token().valid:
-                            # if the token was expired, it is now refreshed. Save it to prevent 
-                            # further refresh calls during before it expires.
-                            self._credentials_provider = provider.as_dict()
-                            self.set_sharded_password(
-                                "dbt-databricks", host, json.dumps(self._credentials_provider)
-                            )                            
+                            if json.loads(credsdict) != provider.as_dict():
+                                # if the provider dict has changed, most likely because of a token
+                                # refresh, save it for further use
+                                self._credentials_provider = provider.as_dict()
+                                self.set_sharded_password(
+                                    "dbt-databricks", host, json.dumps(self._credentials_provider)
+                                )
                             return provider
                     except Exception as e:
                         # SPA token are suppose to expire after 24h, no need to warn
