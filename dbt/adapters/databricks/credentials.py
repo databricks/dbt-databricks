@@ -17,9 +17,7 @@ from typing import Tuple
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import HeaderFactory
-from databricks.sdk.credentials_provider import pat_auth
 from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks import auth
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
 from mashumaro import DataClassDictMixin
@@ -291,17 +289,15 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     def __post_init__(self) -> None:
         if self.token:
-            self._config = Config(host=self.host, token=self.token, credentials_provider=pat_auth)
-        elif self.client_id and self.client_secret:
             self._config = Config(
-                credentials_provider=auth.m2m_auth(self.host, self.client_id, self.client_secret)
+                host=self.host,
+                token=self.token,
             )
         else:
             self._config = Config(
                 host=self.host,
                 client_id=self.client_id,
-                oauth_redirect_url=self.oauth_redirect_url,
-                oauth_scopes=self.oauth_scopes,
+                client_secret=self.client_secret,
             )
 
     @property
