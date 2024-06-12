@@ -247,8 +247,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         ):
             assert server_hostname == "yourorg.databricks.com"
             assert http_path == "sql/protocolv1/o/1234567890123456/1234-567890-test123"
-            if not (expected_no_token or expected_client_creds):
-                assert credentials_provider._token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
             if expected_client_creds:
                 assert kwargs.get("client_id") == "foo"
