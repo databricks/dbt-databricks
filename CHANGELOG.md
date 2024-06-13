@@ -10,6 +10,7 @@
 ### Under the Hood
 
 - Reduce severity of logging when expected 24 hour token expiration for Azure SPA (thanks @thijs-nijhuis!) ([699](https://github.com/databricks/dbt-databricks/pull/699))
+- Migrate remaining unit tests off of unittest.TestCase ([701](https://github.com/databricks/dbt-databricks/pull/701))
 
 ## dbt-databricks 1.8.1 (May 29, 2024)
 
