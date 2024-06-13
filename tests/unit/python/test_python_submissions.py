@@ -1,4 +1,3 @@
-import unittest
 from unittest.mock import Mock
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
@@ -6,7 +5,7 @@ from dbt.adapters.databricks.python_submissions import BaseDatabricksHelper
 from dbt.adapters.databricks.python_submissions import DBContext
 
 
-class TestDatabricksPythonSubmissions(unittest.TestCase):
+class TestDatabricksPythonSubmissions:
     def test_start_cluster_returns_on_receiving_running_state(self):
         session_mock = Mock()
         # Mock the start command
