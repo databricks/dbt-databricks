@@ -6,7 +6,6 @@ def model(dbt, spark):
         materialized='table',
     )
     data = [[1,2]] * 10
-    raise Exception("This is a test")
     return spark.createDataFrame(data, schema=['test', 'test2'])
 """
 
