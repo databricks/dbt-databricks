@@ -8,7 +8,6 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Set
-from typing import Tuple
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks import utils
@@ -18,6 +17,7 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtRuntimeError
+from requests import Response
 from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -190,7 +190,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec = {
-            "run_name": f"{self.schema}-{self.identifier}-{uuid.uuid4()}",
+            "task_key": "inner_notebook",
             "notebook_task": {
                 "notebook_path": path,
             },
@@ -220,7 +220,10 @@ class BaseDatabricksHelper(PythonJobHelper):
         submit_response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/runs/submit",
             headers=self.extra_headers,
-            json=job_spec,
+            json={
+                "run_name": f"{self.schema}-{self.identifier}-{uuid.uuid4()}",
+                "tasks": [job_spec],
+            },
         )
         if submit_response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
@@ -240,31 +243,33 @@ class BaseDatabricksHelper(PythonJobHelper):
         run_id = self._submit_job(whole_file_path, cluster_spec)
         self.tracker.insert_run_id(run_id)
 
-        self.polling(
+        response = self.polling(
             status_func=self.session.get,
             status_func_kwargs={
                 "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
                 "headers": self.extra_headers,
             },
             get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
-            terminal_states=("TERMINATED", "SKIPPED", "INTERNAL_ERROR"),
-            expected_end_state="TERMINATED",
+            terminal_states={"TERMINATED", "SKIPPED", "INTERNAL_ERROR"},
+            expected_end_states={"TERMINATED", "INTERNAL_ERROR"},
             get_state_msg_func=lambda response: response.json()["state"]["state_message"],
         )
 
-        # get end state to return to user
-        run_output = self.session.get(
-            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
-            headers=self.extra_headers,
-        )
-        json_run_output = run_output.json()
-        result_state = json_run_output["metadata"]["state"]["result_state"]
+        result_state = response.json()["state"]["result_state"]
         if result_state != "SUCCESS":
+            task_id = response.json()["tasks"][0]["run_id"]
+            # get end state to return to user
+            run_output = self.session.get(
+                f"https://{self.credentials.host}"
+                f"/api/2.1/jobs/runs/get-output?run_id={task_id}",
+                headers=self.extra_headers,
+            )
+            json_run_output = run_output.json()
             raise DbtRuntimeError(
                 "Python model failed with traceback as:\n"
                 "(Note that the line number here does not "
                 "match the line number in your code due to dbt templating)\n"
-                f"{utils.remove_ansi(json_run_output['error_trace'])}"
+                f"{utils.remove_ansi(json_run_output['error'])}"
             )
         self.tracker.remove_run_id(run_id)
 
@@ -277,15 +282,14 @@ class BaseDatabricksHelper(PythonJobHelper):
         self,
         status_func: Callable,
         status_func_kwargs: Dict,
-        get_state_func: Callable,
-        terminal_states: Tuple[str, ...],
-        expected_end_state: str,
+        get_state_func: Callable[[Any], Response],
+        terminal_states: Set[str],
+        expected_end_states: Set[str],
         get_state_msg_func: Callable,
-    ) -> Dict:
+    ) -> Response:
         state = None
         start = time.time()
         exceeded_timeout = False
-        response = {}
         while state not in terminal_states:
             if time.time() - start > self.timeout:
                 exceeded_timeout = True
@@ -296,11 +300,12 @@ class BaseDatabricksHelper(PythonJobHelper):
             state = get_state_func(response)
         if exceeded_timeout:
             raise DbtRuntimeError("python model run timed out")
-        if state != expected_end_state:
+        if state not in expected_end_states:
             raise DbtRuntimeError(
-                "python model run ended in state"
+                "python model run ended in state "
                 f"{state} with state_message\n{get_state_msg_func(response)}"
             )
+
         return response
 
 
@@ -510,10 +515,10 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                         "command_id": command_id,
                     },
                     get_state_func=lambda response: response["status"],
-                    terminal_states=("Cancelled", "Error", "Finished"),
-                    expected_end_state="Finished",
+                    terminal_states={"Cancelled", "Error", "Finished"},
+                    expected_end_states={"Finished", "Error"},
                     get_state_msg_func=lambda response: response.json()["results"]["data"],
-                )
+                ).json()
 
                 if response["results"]["resultType"] == "error":
                     raise DbtRuntimeError(
