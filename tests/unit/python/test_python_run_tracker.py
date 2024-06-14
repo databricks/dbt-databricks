@@ -1,4 +1,4 @@
-from dbt.adapters.databricks.python_submissions import PythonRunTracker
+from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from mock import Mock
 
 

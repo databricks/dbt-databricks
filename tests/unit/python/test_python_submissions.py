@@ -1,8 +1,8 @@
 from unittest.mock import Mock
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.adapters.databricks.python_submissions import BaseDatabricksHelper
-from dbt.adapters.databricks.python_submissions import DBContext
+from dbt.adapters.databricks.python_models.python_submissions import BaseDatabricksHelper
+from dbt.adapters.databricks.python_models.python_submissions import DBContext
 
 
 class TestDatabricksPythonSubmissions:

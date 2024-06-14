@@ -61,7 +61,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_submissions import PythonRunTracker
+from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import ConnectionClosedInCleanup
 from dbt.adapters.events.types import ConnectionLeftOpenInCleanup

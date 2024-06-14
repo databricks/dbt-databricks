@@ -43,11 +43,12 @@ from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksAllPurposeClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import (
+    AllPurposeClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksJobClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import (
+    ServerlessClusterPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
@@ -589,8 +590,9 @@ class DatabricksAdapter(SparkAdapter):
     @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
         return {
-            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
-            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+            "job_cluster": JobClusterPythonJobHelper,
+            "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
+            "serverless_cluster": ServerlessClusterPythonJobHelper,
         }
 
     @available

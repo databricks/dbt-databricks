@@ -17,6 +17,7 @@ models:
       - v: 1
   - name: my_python_model
     config:
+      submission_method: serverless_cluster
       create_notebook: true
 
 sources:
