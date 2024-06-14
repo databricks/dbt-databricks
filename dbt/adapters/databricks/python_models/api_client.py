@@ -1,14 +1,10 @@
 import base64
 import time
-from calendar import c
-from math import log
-from nis import cat
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Set
 
-from click import Command
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.auth import BearerAuth
 from dbt.adapters.databricks.credentials import DatabricksCredentials
