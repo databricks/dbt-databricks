@@ -1,5 +1,3 @@
-import unittest
-
 import keyring.backend
 import pytest
 
@@ -7,7 +5,7 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")
-class TestM2MAuth(unittest.TestCase):
+class TestM2MAuth:
     def test_m2m(self):
         host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
@@ -19,43 +17,45 @@ class TestM2MAuth(unittest.TestCase):
             schema="dbt",
         )
         provider = creds.authenticate(None)
-        self.assertIsNotNone(provider)
+        assert provider is not None
+
         headers_fn = provider()
         headers = headers_fn()
-        self.assertIsNotNone(headers)
+        assert headers is not None
 
         raw = provider.as_dict()
-        self.assertIsNotNone(raw)
+        assert raw is not None
 
         provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
-        self.assertEqual(headers, headers2)
+        assert headers == headers2
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC and mock opening browser")
-class TestU2MAuth(unittest.TestCase):
+class TestU2MAuth:
     def test_u2m(self):
         host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
             host=host, database="andre", http_path="http://foo", schema="dbt"
         )
         provider = creds.authenticate(None)
-        self.assertIsNotNone(provider)
+        assert provider is not None
+
         headers_fn = provider()
         headers = headers_fn()
-        self.assertIsNotNone(headers)
+        assert headers is not None
 
         raw = provider.as_dict()
-        self.assertIsNotNone(raw)
+        assert raw is not None
 
         provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
-        self.assertEqual(headers, headers2)
+        assert headers == headers2
 
 
-class TestTokenAuth(unittest.TestCase):
+class TestTokenAuth:
     def test_token(self):
         host = "my.cloud.databricks.com"
         creds = DatabricksCredentials(
@@ -66,21 +66,22 @@ class TestTokenAuth(unittest.TestCase):
             schema="dbt",
         )
         provider = creds.authenticate(None)
-        self.assertIsNotNone(provider)
+        assert provider is not None
+
         headers_fn = provider()
         headers = headers_fn()
-        self.assertIsNotNone(headers)
+        assert headers is not None
 
         raw = provider.as_dict()
-        self.assertIsNotNone(raw)
+        assert raw is not None
 
         provider_b = creds._provider_from_dict()
         headers_fn2 = provider_b()
         headers2 = headers_fn2()
-        self.assertEqual(headers, headers2)
+        assert headers == headers2
 
 
-class TestShardedPassword(unittest.TestCase):
+class TestShardedPassword:
     def test_store_and_delete_short_password(self):
         # set the keyring to mock class
         keyring.set_keyring(MockKeyring())
@@ -99,12 +100,12 @@ class TestShardedPassword(unittest.TestCase):
         creds.set_sharded_password(service, host, long_password)
 
         retrieved_password = creds.get_sharded_password(service, host)
-        self.assertEqual(long_password, retrieved_password)
+        assert long_password == retrieved_password
 
         # delete password
         creds.delete_sharded_password(service, host)
         retrieved_password = creds.get_sharded_password(service, host)
-        self.assertIsNone(retrieved_password)
+        assert retrieved_password is None
 
     def test_store_and_delete_long_password(self):
         # set the keyring to mock class
@@ -124,12 +125,12 @@ class TestShardedPassword(unittest.TestCase):
         creds.set_sharded_password(service, host, long_password)
 
         retrieved_password = creds.get_sharded_password(service, host)
-        self.assertEqual(long_password, retrieved_password)
+        assert long_password == retrieved_password
 
         # delete password
         creds.delete_sharded_password(service, host)
         retrieved_password = creds.get_sharded_password(service, host)
-        self.assertIsNone(retrieved_password)
+        assert retrieved_password is None
 
 
 class MockKeyring(keyring.backend.KeyringBackend):
