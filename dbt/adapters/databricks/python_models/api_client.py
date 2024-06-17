@@ -68,7 +68,7 @@ class PythonApiClient:
     def _get_user_folder(self) -> str:
         if not self.user_folder:
             try:
-                response = self.session.post(f"https://{self.host}/api/2.0/preview/scim/v2/Me")
+                response = self.session.get(f"https://{self.host}/api/2.0/preview/scim/v2/Me")
 
                 if response.status_code != 200:
                     raise DbtRuntimeError(
@@ -76,8 +76,10 @@ class PythonApiClient:
                     )
                 user = response.json()["userName"]
                 self.user_folder = f"/Users/{user}"
-            except Exception:
-                logger.warning("Error getting user folder for python notebooks, using /Shared")
+            except Exception as e:
+                logger.warning(
+                    f"Error getting user folder for python notebooks, using /Shared: {e}"
+                )
                 self.user_folder = "/Shared"
         return self.user_folder
 
