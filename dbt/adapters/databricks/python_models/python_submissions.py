@@ -4,10 +4,9 @@ from typing import Dict
 from typing import Optional
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.adapters.databricks.python_models.api_client import PythonApiClient
-from dbt.adapters.databricks.python_models.run_tracking import CommandExecution
+from dbt.adapters.databricks.api_client import DatabricksApiClient
+from dbt.adapters.databricks.api_client import CommandExecution
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
 
@@ -26,8 +25,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
         self.check_credentials()
 
-        self.api_client = PythonApiClient(credentials, version, self.get_timeout())
-        self.tracker.set_host(credentials.host)
+        self.api_client = DatabricksApiClient.create(credentials, self.get_timeout())
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)
@@ -75,20 +73,22 @@ class BaseDatabricksHelper(PythonJobHelper):
         job_spec.update({"libraries": libraries})
         run_name = f"{self.database}-{self.schema}-{self.identifier}-{uuid.uuid4()}"
 
-        run_id = self.api_client.submit_job(run_name, job_spec)
+        run_id = self.api_client.job_runs.submit(run_name, job_spec)
         self.tracker.insert_run_id(run_id)
         return run_id
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
-        workdir = self.api_client.create_workdir(self.database or "hive_metastore", self.schema)
+        workdir = self.api_client.workspace.create_dir(
+            self.database or "hive_metastore", self.schema
+        )
         file_path = f"{workdir}{self.identifier}"
 
-        self.api_client.upload_notebook(file_path, compiled_code)
+        self.api_client.workspace.upload_notebook(file_path, compiled_code)
 
         # submit job
         run_id = self._submit_job(file_path, cluster_spec)
         try:
-            self.api_client.poll_for_job_completion(run_id)
+            self.api_client.job_runs.poll_for_completion(run_id)
         finally:
             self.tracker.remove_run_id(run_id)
 
@@ -139,21 +139,21 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 config["existing_cluster_id"] = self.cluster_id
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
-            context_id = self.api_client.create_command_context(self.cluster_id)
+            context_id = self.api_client.command_contexts.create(self.cluster_id)
             command_exec: Optional[CommandExecution] = None
             try:
-                command_exec = self.api_client.execute_command(
+                command_exec = self.api_client.commands.execute(
                     self.cluster_id, context_id, compiled_code
                 )
 
                 self.tracker.insert_command(command_exec)
                 # poll until job finish
-                self.api_client.poll_for_command_completion(command_exec)
+                self.api_client.commands.poll_for_completion(command_exec)
 
             finally:
                 if command_exec:
                     self.tracker.remove_command(command_exec)
-                self.api_client.destroy_command_context(self.cluster_id, context_id)
+                self.api_client.command_contexts.destroy(self.cluster_id, context_id)
 
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
