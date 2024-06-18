@@ -7,7 +7,6 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Set
-from urllib.parse import urljoin
 
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
@@ -28,18 +27,18 @@ USER_AGENT = f"dbt-databricks/{version}"
 
 class PrefixSession:
     def __init__(self, session: Session, host: str, api: str):
-        self.prefix = urljoin(f"https://{host}", api)
+        self.prefix = f"https://{host}{api}"
         self.session = session
 
     def get(
         self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
     ) -> Response:
-        return self.session.get(urljoin(self.prefix, suffix), json=json, params=params)
+        return self.session.get(f"{self.prefix}{suffix}", json=json, params=params)
 
     def post(
         self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
     ) -> Response:
-        return self.session.post(urljoin(self.prefix, suffix), json=json, params=params)
+        return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
 
 
 class DatabricksApi(ABC):
@@ -48,8 +47,9 @@ class DatabricksApi(ABC):
 
 
 class ClusterApi(DatabricksApi):
-    def __init__(self, session: Session, host: str):
+    def __init__(self, session: Session, host: str, max_cluster_start_time: int = 900):
         super().__init__(session, host, "/api/2.0/clusters")
+        self.max_cluster_start_time = max_cluster_start_time
 
     def status(self, cluster_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
@@ -63,10 +63,9 @@ class ClusterApi(DatabricksApi):
         return json_response.get("state", "").upper()
 
     def wait_for_cluster(self, cluster_id: str) -> None:
-        max_cluster_start_time = 900
         start_time = time.time()
 
-        while time.time() - start_time < max_cluster_start_time:
+        while time.time() - start_time < self.max_cluster_start_time:
             status_response = self.status(cluster_id)
             if status_response == "RUNNING":
                 return
@@ -74,7 +73,7 @@ class ClusterApi(DatabricksApi):
                 time.sleep(5)
 
         raise DbtRuntimeError(
-            f"Cluster {cluster_id} restart timed out after {max_cluster_start_time} seconds"
+            f"Cluster {cluster_id} restart timed out after {self.max_cluster_start_time} seconds"
         )
 
     def start(self, cluster_id: str) -> None:
