@@ -6,6 +6,7 @@
 - Set spark.sql.sources.partitionOverwriteMode = STATIC on --full-refresh to ensure existing rows are removed ([697](https://github.com/databricks/dbt-databricks/pull/697))
 - Migrate to using system.information_schema to fix issue with catalog renames ([692](https://github.com/databricks/dbt-databricks/pull/692))
 - Cancel python jobs when dbt operation is canceled (thanks @gaoshihang for kicking this off!) ([693](https://github.com/databricks/dbt-databricks/pull/693))
+- Fix the default redirect_url and scopes of the client `dbt-databricks` ([704](https://github.com/databricks/dbt-databricks/pull/704))
 
 ### Under the Hood
 
