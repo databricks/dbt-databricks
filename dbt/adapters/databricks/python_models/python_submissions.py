@@ -78,7 +78,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         return run_id
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
-        workdir = self.api_client.workspace.create_dir(
+        workdir = self.api_client.workspace.create_python_model_dir(
             self.database or "hive_metastore", self.schema
         )
         file_path = f"{workdir}{self.identifier}"

@@ -2,27 +2,17 @@ import freezegun
 import pytest
 from dbt.adapters.databricks.api_client import ClusterApi
 from dbt_common.exceptions import DbtRuntimeError
-from mock import Mock
 from mock import patch
+from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestClusterApi:
-    @pytest.fixture
-    def session(self):
-        return Mock()
-
-    @pytest.fixture
-    def host(self):
-        return "host"
-
+class TestClusterApi(ApiTestBase):
     @pytest.fixture
     def api(self, session, host):
         return ClusterApi(session, host)
 
     def test_status__non_200(self, api, session):
-        session.get.return_value.status_code = 500
-        with pytest.raises(DbtRuntimeError):
-            api.status("cluster_id")
+        self.assert_non_200_raises_error(lambda: api.status("cluster_id"), session)
 
     def test_status__200(self, api, session, host):
         session.get.return_value.status_code = 200
@@ -48,12 +38,12 @@ class TestClusterApi:
             api.wait_for_cluster("cluster_id")
 
     def test_start__non_200(self, api, session):
-        session.get.return_value.status_code = 500
-        with pytest.raises(DbtRuntimeError):
-            api.start("cluster_id")
+        self.assert_non_200_raises_error(lambda: api.start("cluster_id"), session)
 
     def test_start__200(self, api, session, host):
         session.post.return_value.status_code = 200
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {"state": "running"}
         api.start("cluster_id")
         session.post.assert_called_once_with(
             f"https://{host}/api/2.0/clusters/start", json={"cluster_id": "cluster_id"}, params=None

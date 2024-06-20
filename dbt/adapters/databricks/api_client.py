@@ -85,9 +85,11 @@ class ClusterApi(DatabricksApi):
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#start
 
         response = self.session.post("/start", json={"cluster_id": cluster_id})
-        logger.debug(f"Cluster start response={response}")
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+        logger.debug(f"Cluster start response={response}")
+
+        self.wait_for_cluster(cluster_id)
 
 
 class CommandContextApi(DatabricksApi):
@@ -114,34 +116,28 @@ class CommandContextApi(DatabricksApi):
             raise DbtRuntimeError(f"Error creating an execution context.\n {response.content!r}")
         return response.json()["id"]
 
-    def destroy(self, cluster_id: str, context_id: str) -> str:
+    def destroy(self, cluster_id: str, context_id: str) -> None:
         response = self.session.post(
             "/destroy", json={"clusterId": cluster_id, "contextId": context_id}
         )
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
-        return response.json()["id"]
 
 
 class UserApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
-        super().__init__(session, host, "/api/2.0/preview/scim/v2/Me")
-        self.user_folder = ""
+        super().__init__(session, host, "/api/2.0/preview/scim/v2")
+        self._user_folder = ""
 
     def get_folder(self) -> str:
-        if not self.user_folder:
-            response = self.session.get()
+        if not self._user_folder:
+            response = self.session.get("/Me")
 
-            if response.status_code == 200:
-                user = response.json()["userName"]
-                self.user_folder = f"/Users/{user}"
-            else:
-                logger.warning(
-                    "Error getting user folder for python notebooks, "
-                    f"using /Shared: {response.content!r}"
-                )
-                self.user_folder = "/Shared"
-        return self.user_folder
+            if response.status_code != 200:
+                raise DbtRuntimeError(f"Error getting user folder.\n {response.content!r}")
+            user = response.json()["userName"]
+            self._user_folder = f"/Users/{user}"
+        return self._user_folder
 
 
 class WorkspaceApi(DatabricksApi):
@@ -149,7 +145,7 @@ class WorkspaceApi(DatabricksApi):
         super().__init__(session, host, "/api/2.0/workspace")
         self.user_api = user_api
 
-    def create_dir(self, catalog: str, schema: str) -> str:
+    def create_python_model_dir(self, catalog: str, schema: str) -> str:
         user_folder = self.user_api.get_folder()
 
         path = f"{user_folder}/dbt_python_models/{catalog}/{schema}/"
@@ -202,6 +198,8 @@ class PollableApi(DatabricksApi, ABC):
             # should we do exponential backoff?
             time.sleep(self.polling_interval)
             response = self.session.get(url, params=params)
+            if response.status_code != 200:
+                raise DbtRuntimeError(f"Error polling for completion.\n {response.content!r}")
             state = get_state_func(response)
         if exceeded_timeout:
             raise DbtRuntimeError("Python model run timed out")
@@ -240,10 +238,11 @@ class CommandApi(PollableApi):
                 "command": command,
             },
         )
-        response_json = response.json()
-        logger.debug(f"Command execution response={response_json}")
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating a command.\n {response.content!r}")
+
+        response_json = response.json()
+        logger.debug(f"Command execution response={response_json}")
         return CommandExecution(
             command_id=response_json["id"], cluster_id=cluster_id, context_id=context_id
         )
@@ -253,7 +252,7 @@ class CommandApi(PollableApi):
         response = self.session.post("/cancel", json=command.model_dump())
 
         if response.status_code != 200:
-            logger.warning(f"Cancel command {command} failed.\n {response.content!r}")
+            raise DbtRuntimeError(f"Cancel command {command} failed.\n {response.content!r}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
         self._poll_api(
@@ -303,10 +302,11 @@ class JobRunsApi(PollableApi):
         )
 
     def _get_exception(self, response: Response) -> None:
-        result_state = response.json()["state"]["result_state"]
+        response_json = response.json()
+        result_state = response_json["state"]["life_cycle_state"]
         if result_state != "SUCCESS":
             try:
-                task_id = response.json()["tasks"][0]["run_id"]
+                task_id = response_json["tasks"][0]["run_id"]
                 # get end state to return to user
                 run_output = self.session.get("/get-output", params={"run_id": task_id})
                 json_run_output = run_output.json()
@@ -333,7 +333,7 @@ class JobRunsApi(PollableApi):
         response = self.session.post("/cancel", json={"run_id": run_id})
 
         if response.status_code != 200:
-            logger.warning(f"Cancel run {run_id} failed.\n {response.content!r}")
+            raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {response.content!r}")
 
 
 class DatabricksApiClient:
