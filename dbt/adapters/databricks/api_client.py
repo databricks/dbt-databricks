@@ -370,4 +370,5 @@ class DatabricksApiClient:
         session.headers.update({"User-Agent": user_agent, **http_headers})
         host = credentials.host
 
+        assert host is not None, "host should not be None"
         return DatabricksApiClient(session, host, polling_interval, timeout)
