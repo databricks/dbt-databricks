@@ -37,9 +37,6 @@ class CommandExecution(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    def __hash__(self) -> int:
-        return hash((type(self),) + tuple(self.model_dump().items()))
-
 
 class PythonRunTracker(object):
     _run_ids: Set[str] = set()
