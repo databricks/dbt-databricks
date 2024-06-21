@@ -56,7 +56,7 @@ class ClusterApi(DatabricksApi):
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
 
         response = self.session.get("/get", json={"cluster_id": cluster_id})
-        logger.debug(f"Cluster status response={response}")
+        logger.debug(f"Cluster status response={response.content!r}")
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error getting status of cluster.\n {response.content!r}")
 
@@ -127,31 +127,38 @@ class CommandContextApi(DatabricksApi):
 
 class FolderApi(ABC):
     @abstractmethod
-    def get_folder(self) -> str:
+    def get_folder(self, catalog: str, schema: str) -> str:
         pass
 
 
 # Use this for now to not break users
 class SharedFolderApi(FolderApi):
-    def get_folder(self) -> str:
-        return "/Shared"
+    def get_folder(self, _: str, schema: str) -> str:
+        logger.warning(
+            f"Uploading notebook to '/Shared/dbt_python_models/{schema}/'.  "
+            "Writing to '/Shared' is deprecated and will be removed in a future release.  "
+            "Write to the current user's home directory by setting `user_folder_for_python: true`"
+        )
+        return f"/Shared/dbt_python_models/{schema}/"
 
 
 # Switch to this as part of 2.0.0 release
 class UserFolderApi(DatabricksApi, FolderApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
-        self._user_folder = ""
+        self._user = ""
 
-    def get_folder(self) -> str:
-        if not self._user_folder:
+    def get_folder(self, catalog: str, schema: str) -> str:
+        if not self._user:
             response = self.session.get("/Me")
 
             if response.status_code != 200:
                 raise DbtRuntimeError(f"Error getting user folder.\n {response.content!r}")
-            user = response.json()["userName"]
-            self._user_folder = f"/Users/{user}"
-        return self._user_folder
+            self._user = response.json()["userName"]
+        folder = f"/Users/{self._user}/dbt_python_models/{catalog}/{schema}/"
+        logger.debug(f"Using python model folder '{folder}'")
+
+        return folder
 
 
 class WorkspaceApi(DatabricksApi):
@@ -160,16 +167,16 @@ class WorkspaceApi(DatabricksApi):
         self.user_api = folder_api
 
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
-        user_folder = self.user_api.get_folder()
+        folder = self.user_api.get_folder(catalog, schema)
 
-        path = f"{user_folder}/dbt_python_models/{catalog}/{schema}/"
-        response = self.session.post("/mkdirs", json={"path": path})
+        # Add
+        response = self.session.post("/mkdirs", json={"path": folder})
         if response.status_code != 200:
             raise DbtRuntimeError(
                 f"Error creating work_dir for python notebooks\n {response.content!r}"
             )
 
-        return path
+        return folder
 
     def upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
@@ -302,7 +309,7 @@ class JobRunsApi(PollableApi):
         if submit_response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
 
-        logger.info(f"Job submission response={submit_response}")
+        logger.info(f"Job submission response={submit_response.content!r}")
         return submit_response.json()["run_id"]
 
     def poll_for_completion(self, run_id: str) -> None:
@@ -351,16 +358,28 @@ class JobRunsApi(PollableApi):
 
 
 class DatabricksApiClient:
-    def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
+    def __init__(
+        self,
+        session: Session,
+        host: str,
+        polling_interval: int,
+        timeout: int,
+        use_user_folder: bool,
+    ):
         self.clusters = ClusterApi(session, host)
         self.command_contexts = CommandContextApi(session, host, self.clusters)
-        self.folders = SharedFolderApi()
+        if use_user_folder:
+            self.folders: FolderApi = UserFolderApi(session, host)
+        else:
+            self.folders = SharedFolderApi()
         self.workspace = WorkspaceApi(session, host, self.folders)
         self.commands = CommandApi(session, host, polling_interval, timeout)
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
 
     @staticmethod
-    def create(credentials: DatabricksCredentials, timeout: int) -> "DatabricksApiClient":
+    def create(
+        credentials: DatabricksCredentials, timeout: int, use_user_folder: bool = False
+    ) -> "DatabricksApiClient":
         polling_interval = DEFAULT_POLLING_INTERVAL
         retry_strategy = Retry(total=4, backoff_factor=0.5)
         adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -385,4 +404,4 @@ class DatabricksApiClient:
         host = credentials.host
 
         assert host is not None, "Host must be set in the credentials"
-        return DatabricksApiClient(session, host, polling_interval, timeout)
+        return DatabricksApiClient(session, host, polling_interval, timeout, use_user_folder)

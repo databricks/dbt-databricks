@@ -22,10 +22,13 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.schema = parsed_model["schema"]
         self.database = parsed_model.get("database")
         self.parsed_model = parsed_model
+        use_user_folder = parsed_model["config"].get("user_folder_for_python", False)
 
         self.check_credentials()
 
-        self.api_client = DatabricksApiClient.create(credentials, self.get_timeout())
+        self.api_client = DatabricksApiClient.create(
+            credentials, self.get_timeout(), use_user_folder
+        )
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)

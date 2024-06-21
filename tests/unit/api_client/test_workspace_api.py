@@ -25,7 +25,7 @@ class TestWorkspaceApi(ApiTestBase):
     def test_create_python_model_dir__200(self, api, session, host):
         session.post.return_value.status_code = 200
         folder = api.create_python_model_dir("catalog", "schema")
-        assert folder == "/user/dbt_python_models/catalog/schema/"
+        assert folder == "/user"
         session.post.assert_called_once_with(
             f"https://{host}/api/2.0/workspace/mkdirs", json={"path": folder}, params=None
         )

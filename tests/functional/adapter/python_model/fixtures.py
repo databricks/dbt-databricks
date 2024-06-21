@@ -78,6 +78,8 @@ models:
   - name: my_python_model
     config:
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+      create_notebook: true
+      user_folder_for_python: true
 
 sources:
   - name: test_source
