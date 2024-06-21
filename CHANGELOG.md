@@ -1,4 +1,6 @@
-## dbt-databricks Next (TBD)
+## dbt-databricks 1.9.0 (TBD)
+
+- Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 
 ## dbt-databricks 1.8.2 (June 24, 2024)
 

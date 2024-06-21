@@ -4,9 +4,9 @@ from typing import Dict
 from typing import Optional
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.api_client import CommandExecution
+from dbt.adapters.databricks.api_client import DatabricksApiClient
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
 

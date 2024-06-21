@@ -478,9 +478,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     credentials_provider: Optional[TCredentialProvider] = None
     _user_agent = f"dbt-databricks/{__version__}"
 
-    def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext) -> None:
-        super().__init__(profile, mp_context)
-
     def cancel_open(self) -> List[str]:
         cancelled = super().cancel_open()
         creds = cast(DatabricksCredentials, self.profile.credentials)
