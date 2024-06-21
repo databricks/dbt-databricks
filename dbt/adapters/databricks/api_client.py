@@ -1,6 +1,7 @@
 import base64
 import time
 from abc import ABC
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
@@ -124,7 +125,20 @@ class CommandContextApi(DatabricksApi):
             raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
 
 
-class UserApi(DatabricksApi):
+class FolderApi(ABC):
+    @abstractmethod
+    def get_folder(self) -> str:
+        pass
+
+
+# Use this for now to not break users
+class SharedFolderApi(FolderApi):
+    def get_folder(self) -> str:
+        return "/Shared"
+
+
+# Switch to this as part of 2.0.0 release
+class UserFolderApi(DatabricksApi, FolderApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
         self._user_folder = ""
@@ -141,9 +155,9 @@ class UserApi(DatabricksApi):
 
 
 class WorkspaceApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, user_api: UserApi):
+    def __init__(self, session: Session, host: str, folder_api: FolderApi):
         super().__init__(session, host, "/api/2.0/workspace")
-        self.user_api = user_api
+        self.user_api = folder_api
 
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
         user_folder = self.user_api.get_folder()
@@ -340,8 +354,8 @@ class DatabricksApiClient:
     def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
         self.clusters = ClusterApi(session, host)
         self.command_contexts = CommandContextApi(session, host, self.clusters)
-        self.user = UserApi(session, host)
-        self.workspace = WorkspaceApi(session, host, self.user)
+        self.folders = SharedFolderApi()
+        self.workspace = WorkspaceApi(session, host, self.folders)
         self.commands = CommandApi(session, host, polling_interval, timeout)
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
 
@@ -370,5 +384,5 @@ class DatabricksApiClient:
         session.headers.update({"User-Agent": user_agent, **http_headers})
         host = credentials.host
 
-        assert host is not None, "host should not be None"
+        assert host is not None, "Host must be set in the credentials"
         return DatabricksApiClient(session, host, polling_interval, timeout)

@@ -1,12 +1,12 @@
 import pytest
-from dbt.adapters.databricks.api_client import UserApi
+from dbt.adapters.databricks.api_client import UserFolderApi
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestUserApi(ApiTestBase):
+class TestUserFolderApi(ApiTestBase):
     @pytest.fixture
     def api(self, session, host):
-        return UserApi(session, host)
+        return UserFolderApi(session, host)
 
     def test_get_folder__already_set(self, api):
         api._user_folder = "folder"
