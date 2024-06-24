@@ -19,6 +19,11 @@ class DatabricksColumn(SparkColumn):
     def translate_type(cls, dtype: str) -> str:
         return super(SparkColumn, cls).translate_type(dtype).lower()
 
+    @classmethod
+    def create(cls, name: str, label_or_dtype: str) -> "DatabricksColumn":
+        column_type = cls.translate_type(label_or_dtype)
+        return cls(name, column_type)
+
     @property
     def data_type(self) -> str:
         return self.translate_type(self.dtype)

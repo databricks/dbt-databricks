@@ -2,6 +2,7 @@ import os
 import re
 from abc import ABC
 from abc import abstractmethod
+from calendar import c
 from collections import defaultdict
 from concurrent.futures import Future
 from contextlib import contextmanager
@@ -21,6 +22,7 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
+from typing import TypeAlias
 from typing import TypeVar
 from typing import Union
 
@@ -147,7 +149,7 @@ class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
     Relation = DatabricksRelation
-    Column = DatabricksColumn
+    Column: TypeAlias = DatabricksColumn
 
     if USE_LONG_SESSIONS:
         ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
@@ -306,6 +308,20 @@ class DatabricksAdapter(SparkAdapter):
                 ]
 
         return [(row[0], row[1], None, None) for row in new_rows]
+
+    @available.parse(lambda *a, **k: [])
+    def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
+        """Get a list of the Columns with names and data types from the given sql."""
+        _, cursor = self.connections.add_select_query(sql)
+        columns: List[DatabricksColumn] = [
+            self.Column.create(
+                column_name, self.connections.data_type_code_to_name(column_type_code)
+            )
+            # https://peps.python.org/pep-0249/#description
+            for column_name, column_type_code, *_ in cursor.description
+        ]
+        cursor.close()
+        return columns
 
     def get_relation(
         self,
@@ -723,7 +739,11 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            wrapper.cursor().poll_refresh_pipeline(tblproperties.pipeline_id)
+            # TODO fix this path so that it doesn't need a cursor
+            # It just calls APIs to poll the pipeline status
+            cursor = wrapper.cursor()
+            cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
+            cursor.close()
         return relation_config
 
 
