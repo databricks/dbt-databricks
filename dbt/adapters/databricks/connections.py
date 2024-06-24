@@ -35,6 +35,7 @@ from dbt.adapters.contracts.connection import DEFAULT_QUERY_COMMENT
 from dbt.adapters.contracts.connection import Identifier
 from dbt.adapters.contracts.connection import LazyHandle
 from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.auth import BearerAuth
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
@@ -61,7 +62,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
 from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_submissions import PythonRunTracker
+from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import ConnectionClosedInCleanup
 from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
@@ -479,14 +480,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def cancel_open(self) -> List[str]:
         cancelled = super().cancel_open()
-        if self.credentials_provider:
-            logger.info("Cancelling open python jobs")
-            tracker = PythonRunTracker()
-            session = Session()
-            creds = self.credentials_provider(None)  # type: ignore
-            session.auth = BearerAuth(creds)
-            session.headers = {"User-Agent": self._user_agent}
-            tracker.cancel_runs(session)
+        creds = cast(DatabricksCredentials, self.profile.credentials)
+        api_client = DatabricksApiClient.create(creds, 15 * 60)
+        logger.info("Cancelling open python jobs")
+        PythonRunTracker.cancel_runs(api_client)
         return cancelled
 
     def compare_dbr_version(self, major: int, minor: int) -> int:

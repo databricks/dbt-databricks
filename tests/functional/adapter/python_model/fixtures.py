@@ -9,6 +9,30 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['test', 'test2'])
 """
 
+serverless_schema = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_python_model
+    config:
+      submission_method: serverless_cluster
+      create_notebook: true
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
+"""
+
 simple_python_model_v2 = """
 import pandas
 
@@ -54,6 +78,8 @@ models:
   - name: my_python_model
     config:
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+      create_notebook: true
+      user_folder_for_python: true
 
 sources:
   - name: test_source
