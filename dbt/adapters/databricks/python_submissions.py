@@ -2,6 +2,7 @@ import base64
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -17,9 +18,6 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.credentials import TCredentialProvider
 from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtRuntimeError
-from pydantic import BaseModel
-from pydantic import ConfigDict
-from pydantic import Field
 from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -30,12 +28,18 @@ SUBMISSION_LANGUAGE = "python"
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
 
-class CommandExecution(BaseModel):
-    command_id: str = Field(serialization_alias="commandId")
-    context_id: str = Field(serialization_alias="contextId")
-    cluster_id: str = Field(serialization_alias="clusterId")
+@dataclass(frozen=True, eq=True, unsafe_hash=True)
+class CommandExecution(object):
+    command_id: str
+    context_id: str
+    cluster_id: str
 
-    model_config = ConfigDict(frozen=True)
+    def model_dump(self) -> Dict[str, Any]:
+        return {
+            "commandId": self.command_id,
+            "contextId": self.context_id,
+            "clusterId": self.cluster_id,
+        }
 
 
 class PythonRunTracker(object):
@@ -100,7 +104,7 @@ class PythonRunTracker(object):
                 logger.debug(f"Cancelling command {command}")
                 response = session.post(
                     f"https://{cls._host}/api/1.2/commands/cancel",
-                    json=command.model_dump(by_alias=True),
+                    json=command.model_dump(),
                 )
 
                 if response.status_code != 200:
