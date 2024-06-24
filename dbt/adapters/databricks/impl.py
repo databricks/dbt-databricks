@@ -716,12 +716,12 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
 
         relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
         connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
-
-        # Ensure any current refreshes are completed before returning the relation config
-        tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
-        if tblproperties.pipeline_id:
-            wrapper.cursor().poll_refresh_pipeline(tblproperties.pipeline_id)
+        if relation.type != DatabricksRelationType.StreamingTable:
+            # Ensure any current refreshes are completed before returning the relation config
+            wrapper: DatabricksSQLConnectionWrapper = connection.handle
+            tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
+            if tblproperties.pipeline_id:
+                wrapper.cursor().poll_refresh_pipeline(tblproperties.pipeline_id)
         return relation_config
 
 
