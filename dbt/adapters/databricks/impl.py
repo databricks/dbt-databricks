@@ -307,6 +307,20 @@ class DatabricksAdapter(SparkAdapter):
 
         return [(row[0], row[1], None, None) for row in new_rows]
 
+    @available.parse(lambda *a, **k: [])
+    def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
+        """Get a list of the Columns with names and data types from the given sql."""
+        _, cursor = self.connections.add_select_query(sql)
+        columns: List[DatabricksColumn] = [
+            self.Column.create(
+                column_name, self.connections.data_type_code_to_name(column_type_code)
+            )
+            # https://peps.python.org/pep-0249/#description
+            for column_name, column_type_code, *_ in cursor.description
+        ]
+        cursor.close()
+        return columns
+
     def get_relation(
         self,
         database: Optional[str],
@@ -723,7 +737,11 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            wrapper.cursor().poll_refresh_pipeline(tblproperties.pipeline_id)
+            # TODO fix this path so that it doesn't need a cursor
+            # It just calls APIs to poll the pipeline status
+            cursor = wrapper.cursor()
+            cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
+            cursor.close()
         return relation_config
 
 
