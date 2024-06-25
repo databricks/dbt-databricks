@@ -21,7 +21,6 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
-from typing import TypeAlias
 from typing import TypeVar
 from typing import Union
 
@@ -148,7 +147,7 @@ class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
     Relation = DatabricksRelation
-    Column: TypeAlias = DatabricksColumn
+    Column = DatabricksColumn
 
     if USE_LONG_SESSIONS:
         ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
