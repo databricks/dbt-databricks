@@ -3,6 +3,12 @@
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
 
+## dbt-databricks 1.8.3 (June 25, 2024)
+
+### Fixes
+
+- Fix missing catalog name in one of the metadata gathering calls ([714](https://github.com/databricks/dbt-databricks/pull/714))
+
 ## dbt-databricks 1.8.2 (June 24, 2024)
 
 ### Fixes
