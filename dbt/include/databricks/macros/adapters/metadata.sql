@@ -95,7 +95,8 @@
       lower(data_source_format) as file_format,
       table_owner
     from `system`.`information_schema`.`tables`
-    where table_schema = '{{ relation.schema }}'
+    where table_catalog = '{{ relation.database }}'
+      and table_schema = '{{ relation.schema }}'
     {% if relation.identifier %}
       and table_name = '{{ relation.identifier }}'
     {% endif %}
