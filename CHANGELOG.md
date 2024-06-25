@@ -1,7 +1,13 @@
 ## dbt-databricks 1.9.0 (TBD)
 
+### Features
+
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
+
+### Under the Hood
+
+- Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
 
 ## dbt-databricks 1.8.3 (June 25, 2024)
 
