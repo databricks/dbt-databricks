@@ -1,4 +1,8 @@
-## dbt-databricks Next (TBD)
+## dbt-databricks 1.8.3 (June 25, 2024)
+
+### Fixes
+
+- Fix missing catalog name in one of the metadata gathering calls ([714](https://github.com/databricks/dbt-databricks/pull/714))
 
 ## dbt-databricks 1.8.2 (June 24, 2024)
 
