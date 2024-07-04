@@ -1,6 +1,6 @@
 ## dbt-databricks next
 
-- Fix issue that caused `dbt seed` command to fail when seed file columns were partially defined in the properties file.
+- Fix `dbt seed` command failing for a seed file when the columns for that seed file were partially defined in the properties file. ([724](https://github.com/databricks/dbt-databricks/pull/724))
 
 ## dbt-databricks 1.8.3 (June 25, 2024)
 
