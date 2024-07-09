@@ -11,8 +11,7 @@ from typing import Set
 
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.auth import BearerAuth
-from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.credentials import BearerAuth, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtRuntimeError
 from requests import Response
@@ -396,7 +395,7 @@ class DatabricksApiClient:
         http_headers = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
-        credentials_provider = credentials.authenticate(None)
+        credentials_provider = credentials.authenticate()
         header_factory = credentials_provider(None)  # type: ignore
         session.auth = BearerAuth(header_factory)
 
