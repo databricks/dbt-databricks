@@ -58,7 +58,7 @@ setup(
         "dbt-core>=1.8.0, <2.0",
         "dbt-adapters>=1.3.0, <2.0",
         "databricks-sql-connector>=3.2.0, <3.3.0",
-        "databricks-sdk==0.28.0",
+        "databricks-sdk==0.29.0",
         "keyring>=23.13.0",
         "pandas<2.2.0",
         "protobuf<5.0.0",

@@ -1,5 +1,4 @@
 import base64
-from datetime import timedelta
 import time
 from abc import ABC
 from abc import abstractmethod
@@ -20,7 +19,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.compute import Language as ComputeLanguage
-from databricks.sdk.service.compute import State
 from databricks.sdk.service.workspace import ImportFormat
 from databricks.sdk.service.workspace import Language as NotebookLanguage
 
@@ -29,33 +27,12 @@ SUBMISSION_LANGUAGE = "python"
 USER_AGENT = f"dbt-databricks/{version}"
 
 
-class ClusterApi:
-    def __init__(self, client: WorkspaceClient, max_cluster_start_time: int = 900):
-        self.client = client
-        self.max_cluster_start_time = max_cluster_start_time
-
-    def start(self, cluster_id: str) -> str:
-        details = self.client.clusters.get(cluster_id=cluster_id)
-        if details.state != State.RUNNING:
-            cluster = self.client.clusters.start_and_wait(
-                cluster_id, timedelta(seconds=self.max_cluster_start_time)
-            )
-            logger.debug(f"Cluster start response={cluster.as_dict()}")
-
-            if cluster and cluster.state:
-                return cluster.state.name
-            else:
-                raise DbtRuntimeError(f"Error retrieving Cluster {cluster_id}")
-        return details.state.name
-
-
 class CommandContextApi:
-    def __init__(self, client: WorkspaceClient, cluster_api: ClusterApi):
+    def __init__(self, client: WorkspaceClient):
         self.client = client
-        self.cluster_api = cluster_api
 
     def create(self, cluster_id: str) -> str:
-        self.cluster_api.start(cluster_id)
+        self.client.clusters.ensure_cluster_is_running(cluster_id)
         response = self.client.command_execution.create_and_wait(
             cluster_id=cluster_id, language=ComputeLanguage.PYTHON
         )
@@ -318,8 +295,7 @@ class DatabricksApiClient:
         timeout: int,
         use_user_folder: bool,
     ):
-        self.clusters = ClusterApi(workspace_client)
-        self.command_contexts = CommandContextApi(workspace_client, self.clusters)
+        self.command_contexts = CommandContextApi(workspace_client)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(workspace_client)
         else:
