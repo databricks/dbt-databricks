@@ -16,7 +16,7 @@ from typing import Tuple
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
-from databricks.sdk.credentials_provider import HeaderFactory
+from databricks.sdk.credentials_provider import CredentialsProvider
 from dbt.adapters.contracts.connection import Credentials
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
@@ -256,7 +256,7 @@ class BearerAuth(AuthBase):
     More details in issue #337.
     """
 
-    def __init__(self, header_factory: HeaderFactory):
+    def __init__(self, header_factory: CredentialsProvider):
         self.header_factory = header_factory
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
@@ -312,7 +312,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
         return inner
 
     @property
-    def header_factory(self) -> HeaderFactory:
+    def header_factory(self) -> CredentialsProvider:
         header_factory = self._config._header_factory
         assert header_factory is not None, "Header factory is not set."
         return header_factory
