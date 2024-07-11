@@ -14,7 +14,7 @@ expected_csv = """title,count
 """
 
 dlt_notebook = """
-CREATE MATERIALIZED VIEW title_count(
+CREATE OR REFRESH MATERIALIZED VIEW title_count(
     CONSTRAINT valid_title_count EXPECT count > 0
 )
 AS (

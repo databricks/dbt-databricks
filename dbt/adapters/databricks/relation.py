@@ -47,6 +47,7 @@ class DatabricksRelationType(StrEnum):
     StreamingTable = "streaming_table"
     External = "external"
     Unknown = "unknown"
+    DltNotebook = "dlt_notebook"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -154,6 +155,10 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    @classproperty
+    def DltNotebook(cls) -> str:
+        return str(DatabricksRelationType.DltNotebook)
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:
