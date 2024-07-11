@@ -26,8 +26,8 @@ class BaseDatabricksHelper(PythonJobHelper):
 
         self.check_credentials()
 
-        self.api_client = DatabricksApiClient.create(
-            credentials, self.get_timeout(), use_user_folder
+        self.api_client = DatabricksApiClient(
+            credentials.authenticate().api_client, self.get_timeout(), use_user_folder
         )
 
     def get_timeout(self) -> int:
@@ -142,12 +142,9 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 config["existing_cluster_id"] = self.cluster_id
             self._submit_through_notebook(compiled_code, self._update_with_acls(config))
         else:
-            context_id = self.api_client.command_contexts.create(self.cluster_id)
             command_exec: Optional[CommandExecution] = None
             try:
-                command_exec = self.api_client.commands.execute(
-                    self.cluster_id, context_id, compiled_code
-                )
+                command_exec = self.api_client.commands.execute(self.cluster_id, compiled_code)
 
                 self.tracker.insert_command(command_exec)
                 # poll until job finish
@@ -156,7 +153,6 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             finally:
                 if command_exec:
                     self.tracker.remove_command(command_exec)
-                self.api_client.command_contexts.destroy(self.cluster_id, context_id)
 
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):

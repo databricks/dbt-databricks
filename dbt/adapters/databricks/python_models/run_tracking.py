@@ -8,12 +8,12 @@ from dbt_common.exceptions import DbtRuntimeError
 
 
 class PythonRunTracker(object):
-    _run_ids: Set[str] = set()
+    _run_ids: Set[int] = set()
     _commands: Set[CommandExecution] = set()
     _lock = threading.Lock()
 
     @classmethod
-    def remove_run_id(cls, run_id: str) -> None:
+    def remove_run_id(cls, run_id: int) -> None:
         cls._lock.acquire()
         try:
             cls._run_ids.discard(run_id)
@@ -21,7 +21,7 @@ class PythonRunTracker(object):
             cls._lock.release()
 
     @classmethod
-    def insert_run_id(cls, run_id: str) -> None:
+    def insert_run_id(cls, run_id: int) -> None:
         cls._lock.acquire()
         try:
             cls._run_ids.add(run_id)
