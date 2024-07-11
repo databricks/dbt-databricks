@@ -797,6 +797,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         message = "OK"
         return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
 
+    def execute_dlt_model(self) -> None:
+        pass
+
 
 class ExtendedSessionConnectionManager(DatabricksConnectionManager):
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext) -> None:

@@ -685,6 +685,7 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def execute_dlt_model(self, relation: DatabricksRelation, model: RelationConfig) -> None:
         logger.debug(f"Executing DLT model {relation.identifier}")
+        self.connections.execute_dlt_model()
 
 
 @dataclass(frozen=True)
