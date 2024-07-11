@@ -7,7 +7,7 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 
 
 def pytest_addoption(parser):
-    parser.addoption("--profile", action="store", default="databricks_uc_cluster", type=str)
+    parser.addoption("--profile", action="store", default="databricks_uc_sql_endpoint", type=str)
 
 
 # Using @pytest.mark.skip_profile('databricks_cluster') uses the 'skip_by_adapter_type'
