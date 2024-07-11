@@ -1,6 +1,7 @@
 {% materialization dlt_notebook, adapter='databricks' %}
     {% do log("Building dlt pipeline") %}
     {% set target_relation = this.incorporate(type=this.DltNotebook) %}
+    {{ adapter.execute_dlt_model(target_relation, config) }}
     {{ dlt_notebook_execute_no_op(target_relation) }}
     {{ return({'relations': [target_relation]}) }}
 {% endmaterialization %}

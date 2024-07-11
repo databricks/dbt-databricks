@@ -77,6 +77,7 @@ from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
     from agate import Row
@@ -680,6 +681,10 @@ class DatabricksAdapter(SparkAdapter):
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
             )
+
+    @available.parse(lambda *a, **k: {})
+    def execute_dlt_model(self, relation: DatabricksRelation, model: RelationConfig) -> None:
+        logger.debug(f"Executing DLT model {relation.identifier}")
 
 
 @dataclass(frozen=True)
