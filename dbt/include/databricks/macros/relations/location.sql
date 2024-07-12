@@ -1,4 +1,4 @@
-{% macro location_clause(relation) %}
+{% macro databricks__location_clause(relation) %}
   {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
   {%- set file_format = config.get('file_format', default='delta') -%}
   {%- set identifier = model['alias'] -%}
