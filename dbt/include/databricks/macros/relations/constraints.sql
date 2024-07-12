@@ -19,8 +19,8 @@
       {# Constraints are not applied for incremental updates. This point in the code should not have been reached #}
       {{ exceptions.raise_compiler_error("Constraints are not applied for incremental updates. Full refresh is required to update constraints.") }}
     {% else %}
-      {% do alter_table_add_constraints(relation, model) %}
       {% do alter_column_set_constraints(relation, model) %}
+      {% do alter_table_add_constraints(relation, model) %}
     {% endif %}
   {% endif %}
 {% endmacro %}
