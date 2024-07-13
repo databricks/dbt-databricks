@@ -336,7 +336,10 @@ class DatabricksAdapter(SparkAdapter):
         metadata = {col["col_name"]: col["data_type"] for col in raw_rows[pos + 1 :]}
 
         raw_table_stats = metadata.get(KEY_TABLE_STATISTICS)
-        table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
+        try:
+            table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
+        except Exception:
+            table_stats = None
         return metadata, [
             DatabricksColumn(
                 table_database=relation.database,
@@ -424,7 +427,10 @@ class DatabricksAdapter(SparkAdapter):
         columns = []
         stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
         raw_table_stats = stats_match[0] if stats_match else None
-        table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
+        try:
+            table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
+        except Exception:
+            table_stats = None
 
         for match_num, match in enumerate(matches):
             column_name, column_type, _ = match.groups()
