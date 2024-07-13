@@ -1,3 +1,9 @@
+## dbt-databricks 1.8.4 (July 12, 2024)
+
+### Fixes
+
+- Don't fail dbt if stats gathering fails ([735](https://github.com/databricks/dbt-databricks/pull/735))
+
 ## dbt-databricks 1.8.3 (June 25, 2024)
 
 ### Fixes
