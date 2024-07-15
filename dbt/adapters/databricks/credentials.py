@@ -23,6 +23,7 @@ from dbt_common.exceptions import DbtValidationError
 from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
+from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
@@ -275,6 +276,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     oauth_redirect_url: str = REDIRECT_URL
     oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
+    auth_type: Optional[str] = None
 
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
@@ -285,20 +287,33 @@ class DatabricksCredentialManager(DataClassDictMixin):
             client_secret=credentials.client_secret or "",
             oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
             oauth_scopes=credentials.oauth_scopes or SCOPES,
+            auth_type=credentials.auth_type,
         )
 
     def __post_init__(self) -> None:
-        if self.token:
+        if self.auth_type == "token" and self.token:
             self._config = Config(
                 host=self.host,
                 token=self.token,
             )
         else:
-            self._config = Config(
-                host=self.host,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-            )
+            try:
+                self._config = Config(
+                    host=self.host,
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                )
+                self.config.authenticate()
+            except Exception:
+                logger.warning(
+                    "Failed to auth with client id and secret, trying azure_client_id, azure_client_secret"
+                )
+                self._config = Config(
+                    host=self.host,
+                    azure_client_id=self.client_id,
+                    azure_client_secret=self.client_secret,
+                )
+                self.config.authenticate()
 
     @property
     def api_client(self) -> WorkspaceClient:
