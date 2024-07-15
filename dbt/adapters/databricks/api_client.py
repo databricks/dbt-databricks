@@ -6,15 +6,9 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Dict
 
-from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.credentials import BearerAuth, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtRuntimeError
-from requests import Response
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.compute import Language as ComputeLanguage
 from databricks.sdk.service.workspace import ImportFormat
