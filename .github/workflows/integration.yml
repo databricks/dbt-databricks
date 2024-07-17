@@ -4,6 +4,7 @@ on:
     paths-ignore:
       - "**.MD"
       - "**.md"
+      - "adapters/databricks/__version__.py"
       - "tests/unit/**"
 jobs:
   run-tox-tests-uc-cluster:
