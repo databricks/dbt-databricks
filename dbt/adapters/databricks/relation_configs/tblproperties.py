@@ -29,6 +29,16 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "pipelines.metastore.tableName",
         "pipeline_internal.enzymeMode",
         "clusteringColumns",
+        "delta.enableRowTracking",
+        "delta.feature.appendOnly",
+        "delta.feature.changeDataFeed",
+        "delta.feature.checkConstraints",
+        "delta.feature.domainMetadata",
+        "delta.feature.generatedColumns",
+        "delta.feature.invariants",
+        "delta.feature.rowTracking",
+        "delta.rowTracking.materializedRowCommitVersionColumnName",
+        "delta.rowTracking.materializedRowIdColumnName",
     ]
 
     def __eq__(self, __value: Any) -> bool:
