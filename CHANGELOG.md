@@ -1,6 +1,12 @@
-## dbt-databricks next
+## dbt-databricks 1.8.4 (TBD)
+
+### Fixes
 
 - Fix `dbt seed` command failing for a seed file when the columns for that seed file were partially defined in the properties file. (thanks @kass-artur!) ([724](https://github.com/databricks/dbt-databricks/pull/724))
+- Add more tblproperties to be ignored with MV/ST ([736](https://github.com/databricks/dbt-databricks/pull/736))
+
+### Under the Hood
+
 - Readd the External relation type for compliance with adapter expectations ([728](https://github.com/databricks/dbt-databricks/pull/728))
 
 ## dbt-databricks 1.8.3 (June 25, 2024)
