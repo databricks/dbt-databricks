@@ -79,7 +79,8 @@
 
 {% macro get_constraints_sql(relation, constraints, model, column={}) %}
   {% set statements = [] %}
-  {% for constraint in constraints %}
+  -- Hack so that not null constraints will be applied before primary key constraints
+  {% for constraint in constraints|sort(attribute='type') %}
     {% if constraint %}
       {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
       {% for statement in constraint_statements %}
