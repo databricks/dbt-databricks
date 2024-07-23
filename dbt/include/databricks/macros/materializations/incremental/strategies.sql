@@ -76,8 +76,11 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='quoted') | list)-%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
+  {%- set merge_with_schema_evolution = config.get('merge_with_schema_evolution') == 'true' -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set skip_matched_step = config.get('skip_matched_step') == 'true' -%}
+  {%- set skip_not_matched_step = config.get('skip_not_matched_step') == 'true' -%}
 
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
@@ -97,11 +100,26 @@ select {{source_cols_csv}} from {{ source_relation }}
       {% do predicates.append('FALSE') %}
   {% endif %}
 
-  merge into {{ target }} as DBT_INTERNAL_DEST
-      using {{ source }} as DBT_INTERNAL_SOURCE
-      on {{ predicates | join(' and ') }}
-      when matched then update set {{ get_merge_update_set(update_columns, on_schema_change, source_columns) }}
-      when not matched then insert {{ get_merge_insert(on_schema_change, source_columns) }}
+    merge
+        {%- if merge_with_schema_evolution %}
+        with schema evolution
+        {%- endif %}
+    into
+        {{ target }} as DBT_INTERNAL_DEST
+    using
+        {{ source }} as DBT_INTERNAL_SOURCE
+    on
+        {{ predicates | join('\n    and ') }}
+    {%- if not skip_matched_step %}
+    when matched
+        then update set
+            {{ get_merge_update_set(update_columns, on_schema_change, source_columns) }}
+    {%- endif %}
+    {%- if not skip_not_matched_step %}
+    when not matched
+        then insert
+            {{ get_merge_insert(on_schema_change, source_columns) }}
+    {%- endif %}
 {% endmacro %}
 
 {% macro get_merge_update_set(update_columns, on_schema_change, source_columns) %}

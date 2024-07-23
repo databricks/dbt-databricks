@@ -101,9 +101,13 @@ class DatabricksConfig(AdapterConfig):
     buckets: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     merge_update_columns: Optional[str] = None
+    merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
+    skip_matched_step: Optional[bool] = None
+    skip_non_matched_step: Optional[bool] = None
+    merge_with_schema_evolution: Optional[bool] = None
 
 
 def check_not_found_error(errmsg: str) -> bool:
