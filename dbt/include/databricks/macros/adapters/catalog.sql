@@ -45,7 +45,7 @@
         'The timestamp for last update/change' as `stats:last_modified:description`,
         (last_altered is not null and table_type not ilike '%VIEW%') as `stats:last_modified:include`
     from `system`.`information_schema`.`tables`
-    where table_catalog = '{{ information_schema.database }}'
+    where table_catalog = '{{ information_schema.database|lower }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_columns_sql(information_schema) -%}
@@ -58,7 +58,7 @@
         lower(data_type) as column_type,
         comment as column_comment
     from `system`.`information_schema`.`columns`
-    where table_catalog = '{{ information_schema.database }}'
+    where table_catalog = '{{ information_schema.database|lower }}'
 {%- endmacro %}
 
 {% macro databricks__get_catalog_results_sql() -%}
@@ -69,23 +69,23 @@
 {%- endmacro %}
 
 {% macro databricks__get_catalog_schemas_where_clause_sql(catalog, schemas) -%}
-    where table_catalog = '{{ catalog }}' and ({%- for relation in schemas -%}
-        table_schema = lower('{{ relation[1] }}'){%- if not loop.last %} or {% endif -%}
+    where table_catalog = '{{ catalog|lower }}' and ({%- for relation in schemas -%}
+        table_schema = '{{ relation[1]|lower }}'{%- if not loop.last %} or {% endif -%}
     {%- endfor -%})
 {%- endmacro %}
 
 
 {% macro databricks__get_catalog_relations_where_clause_sql(catalog, relations) -%}
-    where table_catalog = '{{ catalog }}' and (
+    where table_catalog = '{{ catalog|lower }}' and (
         {%- for relation in relations -%}
             {% if relation.schema and relation.identifier %}
                 (
-                    table_schema = lower('{{ relation.schema }}')
-                    and table_name = lower('{{ relation.identifier }}')
+                    table_schema = '{{ relation.schema|lower }}'
+                    and table_name = '{{ relation.identifier|lower }}'
                 )
             {% elif relation.schema %}
                 (
-                    table_schema = lower('{{ relation.schema }}')
+                    table_schema = '{{ relation.schema|lower }}'
                 )
             {% else %}
                 {% do exceptions.raise_compiler_error(

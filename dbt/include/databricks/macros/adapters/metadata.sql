@@ -8,7 +8,7 @@
 
 {% macro databricks__show_table_extended(schema_relation) %}
   {% call statement('show_table_extended', fetch_result=True) -%}
-    show table extended in {{ schema_relation.without_identifier() }} like '{{ schema_relation.identifier }}'
+    show table extended in {{ schema_relation.without_identifier() }} like '{{ schema_relation.identifier|lower }}'
   {% endcall %}
 
   {% do return(load_result('show_table_extended').table) %}
@@ -58,11 +58,11 @@
                last_altered as last_modified,
                {{ current_timestamp() }} as snapshotted_at
         from `system`.`information_schema`.`tables`
-        where table_catalog = '{{ information_schema.database }}' and
+        where table_catalog = '{{ information_schema.database|lower }}' and
         (
           {%- for relation in relations -%}
-            (table_schema = '{{ relation.schema }}' and
-             table_name = '{{ relation.identifier }}'){%- if not loop.last %} or {% endif -%}
+            (table_schema = '{{ relation.schema|lower }}' and
+             table_name = '{{ relation.identifier|lower }}'){%- if not loop.last %} or {% endif -%}
           {%- endfor -%}
         )
     {% endif %}
@@ -76,9 +76,9 @@
   {% call statement('get_view_description', fetch_result=True) -%}
     select *
     from `system`.`information_schema`.`views`
-    where table_catalog = '{{ relation.database }}'
-      and table_schema = '{{ relation.schema }}'
-      and table_name = '{{ relation.identifier }}'
+    where table_catalog = '{{ relation.database|lower }}'
+      and table_schema = '{{ relation.schema|lower }}'
+      and table_name = '{{ relation.identifier|lower }}'
   {%- endcall -%}
 
   {% do return(load_result('get_view_description').table) %}
@@ -95,10 +95,10 @@
       lower(data_source_format) as file_format,
       table_owner
     from `system`.`information_schema`.`tables`
-    where table_catalog = '{{ relation.database }}'
-      and table_schema = '{{ relation.schema }}'
+    where table_catalog = '{{ relation.database|lower }}'
+      and table_schema = '{{ relation.schema|lower }}'
     {% if relation.identifier %}
-      and table_name = '{{ relation.identifier }}'
+      and table_name = '{{ relation.identifier|lower }}'
     {% endif %}
   {% endcall %}
 
