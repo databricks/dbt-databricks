@@ -15,7 +15,7 @@
 
 {% macro get_columns_comments(relation) -%}
   {% call statement('get_columns_comments', fetch_result=True) -%}
-    describe table {{ relation }}
+    describe table {{ relation|lower }}
   {% endcall %}
 
   {% do return(load_result('get_columns_comments').table) %}

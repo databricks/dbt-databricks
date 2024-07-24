@@ -8,7 +8,7 @@
 
 {% macro databricks__show_table_extended(schema_relation) %}
   {% call statement('show_table_extended', fetch_result=True) -%}
-    show table extended in {{ schema_relation.without_identifier() }} like '{{ schema_relation.identifier|lower }}'
+    show table extended in {{ schema_relation.without_identifier()|lower }} like '{{ schema_relation.identifier|lower }}'
   {% endcall %}
 
   {% do return(load_result('show_table_extended').table) %}
@@ -20,7 +20,7 @@
 
 {% macro databricks__show_tables(relation) %}
   {% call statement('show_tables', fetch_result=True) -%}
-    show tables in {{ relation }}
+    show tables in {{ relation|lower }}
   {% endcall %}
 
   {% do return(load_result('show_tables').table) %}
@@ -32,7 +32,7 @@
 
 {% macro databricks__show_views(relation) %}
   {% call statement('show_views', fetch_result=True) -%}
-    show views in {{ relation }}
+    show views in {{ relation|lower }}
   {% endcall %}
 
   {% do return(load_result('show_views').table) %}
@@ -47,7 +47,7 @@
                     '{{ relation.identifier }}' as identifier,
                     max(timestamp) as last_modified,
                     {{ current_timestamp() }} as snapshotted_at
-            from (describe history {{ relation.schema }}.{{ relation.identifier }})
+            from (describe history {{ relation.schema|lower }}.{{ relation.identifier|lower }})
             {% if not loop.last %}
             union all
             {% endif %}
