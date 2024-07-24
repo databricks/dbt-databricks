@@ -1,6 +1,7 @@
 ## dbt-databricks next
 
-- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([676](https://github.com/databricks/dbt-databricks/issues/676))
+- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([731](https://github.com/databricks/dbt-databricks/pull/731))
+- Always use lower case when gathering metadata (since objects are stored internally as lower case regardless of how we create them) ([742](https://github.com/databricks/dbt-databricks/pull/742))
 
 ## dbt-databricks 1.8.4 (July 17, 2024)
 
