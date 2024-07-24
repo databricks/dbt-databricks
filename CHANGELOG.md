@@ -1,8 +1,11 @@
 ## dbt-databricks next
 
+- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([676](https://github.com/databricks/dbt-databricks/issues/676))
+
+## dbt-databricks 1.8.4 (July 17, 2024)
+
 - Fix `dbt seed` command failing for a seed file when the columns for that seed file were partially defined in the properties file. (thanks @kass-artur!) ([724](https://github.com/databricks/dbt-databricks/pull/724))
 - Readd the External relation type for compliance with adapter expectations ([728](https://github.com/databricks/dbt-databricks/pull/728))
-- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([676](https://github.com/databricks/dbt-databricks/issues/676))
 
 ## dbt-databricks 1.8.3 (June 25, 2024)
 
