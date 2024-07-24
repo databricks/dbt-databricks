@@ -10,6 +10,16 @@ class TestIncrementalDelta(BaseIncremental):
     pass
 
 
+class TestIncrementalDeltaCapitalization(BaseIncremental):
+    # Every test has a unique schema
+    @pytest.fixture(scope="class")
+    def unique_schema(request, prefix) -> str:
+        test_file = request.__module__
+        # We only want the last part of the name
+        unique_schema = f"{prefix}_{test_file}".capitalize()
+        return unique_schema
+
+
 class TestIncrementalDeltaNotSchemaChange(BaseIncrementalNotSchemaChange):
     pass
 
