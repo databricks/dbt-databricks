@@ -1,5 +1,7 @@
 ## dbt-databricks next
 
+- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([676](https://github.com/databricks/dbt-databricks/issues/676))
+
 ## dbt-databricks 1.8.4 (July 17, 2024)
 
 ### Fixes
