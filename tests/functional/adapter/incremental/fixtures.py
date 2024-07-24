@@ -215,6 +215,12 @@ replace_where_expected = """id,msg,color
 3,anyway,purple
 """
 
+skip_matched_expected = """id,msg,color
+1,hello,blue
+2,goodbye,red
+3,anyway,purple
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -275,6 +281,35 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+skip_matched_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    skip_matched_step = true,
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'hello' as msg, 'blue' as color
+union all
+select 2 as id, 'goodbye' as msg, 'red' as color
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'hey' as msg, 'cyan' as color
+union all
+select 2 as id, 'yo' as msg, 'green' as color
+union all
+select 3 as id, 'anyway' as msg, 'purple' as color
 
 {% endif %}
 """
