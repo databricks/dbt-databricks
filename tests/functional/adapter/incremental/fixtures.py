@@ -221,6 +221,11 @@ skip_matched_expected = """id,msg,color
 3,anyway,purple
 """
 
+skip_not_matched_expected = """id,msg,color
+1,hey,cyan
+2,yo,green
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -314,6 +319,9 @@ select 3 as id, 'anyway' as msg, 'purple' as color
 {% endif %}
 """
 
+skip_not_matched_model = skip_matched_model.replace(
+    "skip_matched_step = true", "skip_not_matched_step = true"
+)
 
 simple_python_model = """
 import pandas
