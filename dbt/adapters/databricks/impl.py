@@ -389,6 +389,22 @@ class DatabricksAdapter(SparkAdapter):
         else:
             return DatabricksRelationType.Unknown
 
+    @available.parse(lambda *a, **k: [])
+    def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
+        """Get a list of the Columns with names and data types from the given sql."""
+        _, cursor = self.connections.add_select_query(sql)
+        try:
+            columns: List[DatabricksColumn] = [
+                self.Column.create(
+                    column_name, self.connections.data_type_code_to_name(column_type_code)
+                )
+                # https://peps.python.org/pep-0249/#description
+                for column_name, column_type_code, *_ in cursor.description
+            ]
+        finally:
+            cursor.close()
+        return columns
+
     def get_relation(
         self,
         database: Optional[str],
