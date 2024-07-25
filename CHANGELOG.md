@@ -1,3 +1,9 @@
+## dbt-databricks 1.7.17 (July 25, 2024)
+
+### Fixes
+
+- Backport warning prevention from 1.9
+
 ## dbt-databricks 1.7.16 (May 21, 2024)
 
 ### Fixes
