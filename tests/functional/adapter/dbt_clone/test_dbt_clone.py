@@ -3,6 +3,8 @@ import pytest
 from dbt.tests import util
 from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone
 from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClonePossible
+from dbt.tests.util import run_dbt
+from tests.functional.adapter.dbt_clone import fixtures
 
 
 class CleanupMixin:
@@ -40,3 +42,58 @@ class TestCloneSameTargetAndState(BaseClone, CleanupMixin):
 
         results, output = util.run_dbt_and_capture(clone_args, expect_pass=False)
         assert "Warning: The state and target directories are the same: 'target'" in output
+
+
+class TestClonePersistDocs(BaseClone):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "table_model.sql": fixtures.table_model_sql,
+            "view_model.sql": fixtures.view_model_sql,
+            "schema.yml": fixtures.comment_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "test": {
+                    "+persist_docs": {
+                        "relation": True,
+                        "columns": True,
+                    },
+                }
+            }
+        }
+
+    def test_persist_docs(self, project, unique_schema, other_schema):
+        project.create_test_schema(other_schema)
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        self.copy_state(project.project_root)
+
+        clone_args = [
+            "clone",
+            "--state",
+            "state",
+            "--target",
+            "otherschema",
+        ]
+
+        results = run_dbt(clone_args)
+        results = project.run_sql(
+            f"select comment from {project.database}.information_schema.tables "
+            f"where table_schema = '{other_schema}' "
+            f"order by table_name",
+            fetch="all",
+        )
+        assert results[0][0] == "This is a table model"
+        assert results[1][0] == "This is a view model"
