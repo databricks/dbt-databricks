@@ -738,8 +738,10 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
             # TODO fix this path so that it doesn't need a cursor
             # It just calls APIs to poll the pipeline status
             cursor = wrapper.cursor()
-            cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            cursor.close()
+            try:
+                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
+            finally:
+                cursor.close()
         return relation_config
 
 
