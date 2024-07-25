@@ -13,6 +13,13 @@
   {% endif %}
 {% endmacro %}
 
+{% macro alter_table_comment(relation, model) %}
+  {% set comment_query %}
+    comment on table {{ relation|lower }} is '{{ model.description | replace("'", "\\'") }}'
+  {% endset %}
+  {% do run_query(comment_query) %}
+{% endmacro %}
+
 {% macro get_columns_comments(relation) -%}
   {% call statement('get_columns_comments', fetch_result=True) -%}
     describe table {{ relation|lower }}
@@ -23,6 +30,9 @@
 
 
 {% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
+  {%- if for_relation and model.description and model['language'] == 'python' %}
+    {% do alter_table_comment(relation, model) %}
+  {% endif %}
   {% if for_columns and config.persist_column_docs() and model.columns %}
     {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
     {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
