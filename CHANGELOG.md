@@ -1,13 +1,22 @@
-## dbt-databricks 1.9.0 (TBD)
+## dbt-databricks next
 
-### Features
+### Fixes
 
-- Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
-- Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
+- Alter column statements are now done before the alter table statement (thanks @frankivo!). ([731](https://github.com/databricks/dbt-databricks/pull/731))
+- Always use lower case when gathering metadata (since objects are stored internally as lower case regardless of how we create them) ([742](https://github.com/databricks/dbt-databricks/pull/742))
+- Persist table comments for python models ([743](https://github.com/databricks/dbt-databricks/pull/743))
+- Stop cursor destructor warnings ([744](https://github.com/databricks/dbt-databricks/pull/744))
+
+## dbt-databricks 1.8.4 (July 17, 2024)
+
+### Fixes
+
+- Fix `dbt seed` command failing for a seed file when the columns for that seed file were partially defined in the properties file. (thanks @kass-artur!) ([724](https://github.com/databricks/dbt-databricks/pull/724))
+- Add more tblproperties to be ignored with MV/ST ([736](https://github.com/databricks/dbt-databricks/pull/736))
 
 ### Under the Hood
 
-- Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
+- Readd the External relation type for compliance with adapter expectations ([728](https://github.com/databricks/dbt-databricks/pull/728))
 
 ## dbt-databricks 1.8.3 (June 25, 2024)
 
