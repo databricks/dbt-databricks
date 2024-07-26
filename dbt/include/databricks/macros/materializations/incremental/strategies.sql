@@ -71,6 +71,10 @@ select {{source_cols_csv}} from {{ source_relation }}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
+
+  {%- set target_alias = config.get('target_alias', 'tgt') -%}
+  {%- set source_alias = config.get('source_alias', 'src') -%}
+
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
   {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='quoted') | list)-%}
@@ -82,17 +86,21 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- set skip_matched_step = (config.get('skip_matched_step') | lower == 'true') -%}
   {%- set skip_not_matched_step = (config.get('skip_not_matched_step') | lower == 'true') -%}
 
+  {%- set matched_conditions = config.get('matched_conditions') -%}
+  {%- set not_matched_conditions = config.get('not_matched_conditions') -%}
+  
+
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
               {% set this_key_match %}
-                  DBT_INTERNAL_SOURCE.{{ key }} <=> DBT_INTERNAL_DEST.{{ key }}
+                  {{ source_alias }}.{{ key }} <=> {{ target_alias }}.{{ key }}
               {% endset %}
               {% do predicates.append(this_key_match) %}
           {% endfor %}
       {% else %}
           {% set unique_key_match %}
-              DBT_INTERNAL_SOURCE.{{ unique_key }} <=> DBT_INTERNAL_DEST.{{ unique_key }}
+              {{ source_alias }}.{{ unique_key }} <=> {{ target_alias }}.{{ unique_key }}
           {% endset %}
           {% do predicates.append(unique_key_match) %}
       {% endif %}
@@ -105,44 +113,50 @@ select {{source_cols_csv}} from {{ source_relation }}
         with schema evolution
         {%- endif %}
     into
-        {{ target }} as DBT_INTERNAL_DEST
+        {{ target }} as {{ target_alias }}
     using
-        {{ source }} as DBT_INTERNAL_SOURCE
+        {{ source }} as {{ source_alias }}
     on
         {{ predicates | join('\n    and ') }}
     {%- if not skip_matched_step %}
     when matched
+        {%- if matched_conditions %}
+        and ({{ matched_conditions }})
+        {%- endif %}
         then update set
-            {{ get_merge_update_set(update_columns, on_schema_change, source_columns) }}
+            {{ get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) }}
     {%- endif %}
     {%- if not skip_not_matched_step %}
     when not matched
+        {%- if not_matched_conditions %}
+        and ({{ not_matched_conditions }})
+        {%- endif %}
         then insert
-            {{ get_merge_insert(on_schema_change, source_columns) }}
+            {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
     {%- endif %}
 {% endmacro %}
 
-{% macro get_merge_update_set(update_columns, on_schema_change, source_columns) %}
+{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) %}
   {%- if update_columns -%}
     {%- for column_name in update_columns -%}
-      {{ column_name }} = DBT_INTERNAL_SOURCE.{{ column_name }}{%- if not loop.last %}, {% endif -%}
+      {{ column_name }} = {{ source_alias }}.{{ column_name }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- elif on_schema_change == 'ignore' -%}
     *
   {%- else -%}
     {%- for column in source_columns -%}
-      {{ column }} = DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ column }} = {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- endif -%}
 {% endmacro %}
 
-{% macro get_merge_insert(on_schema_change, source_columns) %}
+{% macro get_merge_insert(on_schema_change, source_columns, source_alias) %}
   {%- if on_schema_change == 'ignore' -%}
     *
   {%- else -%}
     ({{ source_columns | join(", ") }}) VALUES (
     {%- for column in source_columns -%}
-      DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %})
   {%- endif -%}
 {% endmacro %}

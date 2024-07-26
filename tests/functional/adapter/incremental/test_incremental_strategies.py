@@ -259,3 +259,24 @@ class TestSkipNotMatched(IncrementalBase):
         util.check_relations_equal(
             project.adapter, ["skip_not_matched", "skip_not_matched_expected"]
         )
+
+
+class TestMatchedAndNotMatchedConditions(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "matching_conditions_expected.csv": fixtures.matching_conditions_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "matching_conditions.sql": fixtures.matching_conditions_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["matching_conditions", "matching_conditions_expected"],
+        )

@@ -226,6 +226,13 @@ skip_not_matched_expected = """id,msg,color
 2,yo,green
 """
 
+matching_conditions_expected = """id,first,second,V
+1,Jessica,Atreides,2
+2,Paul,Atreides,1
+3,Dunkan,Aidaho,1
+4,Baron,Harkonnen,1
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -322,6 +329,43 @@ select 3 as id, 'anyway' as msg, 'purple' as color
 skip_not_matched_model = skip_matched_model.replace(
     "skip_matched_step = true", "skip_not_matched_step = true"
 )
+
+matching_conditions_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    matched_conditions='src.V > t.V and hash(src.first, src.second) <> hash(t.first, t.second)',
+    not_matched_conditions='src.V > 0',
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as V
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 1 as V
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'Jessica' as first, 'Atreides' as second, 2 as V -- should merge
+union all
+select 2 as id, 'Paul' as first, 'Whiskas' as second, 1 as V -- V is same, no merge
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- Hash is same, no merge
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
+union all
+select 5 as id, 'Raban' as first, '' as second, 0 as V -- no append
+
+{% endif %}
+"""
 
 simple_python_model = """
 import pandas
