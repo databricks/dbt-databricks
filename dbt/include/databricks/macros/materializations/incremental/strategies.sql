@@ -86,8 +86,11 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- set skip_matched_step = (config.get('skip_matched_step') | lower == 'true') -%}
   {%- set skip_not_matched_step = (config.get('skip_not_matched_step') | lower == 'true') -%}
 
-  {%- set matched_conditions = config.get('matched_conditions') -%}
-  {%- set not_matched_conditions = config.get('not_matched_conditions') -%}
+  {%- set matched_condition = config.get('matched_condition') -%}
+  {%- set not_matched_condition = config.get('not_matched_condition') -%}
+
+  {%- set not_matched_by_source_action = config.get('not_matched_by_source_action') -%}
+  {%- set not_matched_by_source_condition = config.get('not_matchednot_matched_by_source_condition_condition') -%}
   
 
   {% if unique_key %}
@@ -120,19 +123,26 @@ select {{source_cols_csv}} from {{ source_relation }}
         {{ predicates | join('\n    and ') }}
     {%- if not skip_matched_step %}
     when matched
-        {%- if matched_conditions %}
-        and ({{ matched_conditions }})
+        {%- if matched_condition %}
+        and ({{ matched_condition }})
         {%- endif %}
         then update set
             {{ get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) }}
     {%- endif %}
     {%- if not skip_not_matched_step %}
     when not matched
-        {%- if not_matched_conditions %}
-        and ({{ not_matched_conditions }})
+        {%- if not_matched_condition %}
+        and ({{ not_matched_condition }})
         {%- endif %}
         then insert
             {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
+    {%- endif %}
+    {%- if not_matched_by_source_action == 'delete' %}
+    when not matched by source
+        {%- if not_matched_by_source_condition %}
+        and ({{ not_matched_by_source_condition }})
+        {%- endif %}
+        then delete
     {%- endif %}
 {% endmacro %}
 

@@ -226,7 +226,7 @@ skip_not_matched_expected = """id,msg,color
 2,yo,green
 """
 
-matching_conditions_expected = """id,first,second,V
+matching_condition_expected = """id,first,second,V
 1,Jessica,Atreides,2
 2,Paul,Atreides,1
 3,Dunkan,Aidaho,1
@@ -330,14 +330,14 @@ skip_not_matched_model = skip_matched_model.replace(
     "skip_matched_step = true", "skip_not_matched_step = true"
 )
 
-matching_conditions_model = """
+matching_condition_model = """
 {{ config(
     materialized = 'incremental',
     unique_key = 'id',
     incremental_strategy='merge',
     target_alias='t',
-    matched_conditions='src.V > t.V and hash(src.first, src.second) <> hash(t.first, t.second)',
-    not_matched_conditions='src.V > 0',
+    matched_condition='src.V > t.V and hash(src.first, src.second) <> hash(t.first, t.second)',
+    not_matched_condition='src.V > 0',
 ) }}
 
 {% if not is_incremental() %}
