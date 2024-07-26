@@ -109,3 +109,9 @@ class TestComplexConfig:
         result_dict = {result[0]: result[1] for result in results}
         assert result_dict["a"] == "b"
         assert result_dict["c"] == "d"
+        results = project.run_sql(
+            "select comment from {database}.information_schema"
+            ".tables where table_name = 'complex_config'",
+            fetch="all",
+        )
+        assert results[0][0] == "This is a python table"

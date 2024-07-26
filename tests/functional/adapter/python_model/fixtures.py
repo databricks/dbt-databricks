@@ -97,6 +97,7 @@ sources:
 complex_schema = """version: 2
 models:
   - name: complex_config
+    description: This is a python table
     config:
       marterialized: table
       tags: ["python"]
