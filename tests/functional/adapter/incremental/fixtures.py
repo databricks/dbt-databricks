@@ -233,6 +233,18 @@ matching_condition_expected = """id,first,second,V
 4,Baron,Harkonnen,1
 """
 
+not_matched_by_source_expected = """id,first,second,V
+2,Paul,Atreides,0
+3,Dunkan,Aidaho,1
+4,Baron,Harkonnen,1
+"""
+
+merge_schema_evolution_expected = """id,first,second,V
+1,Jessica,Atreides,1
+2,Paul,Atreides,
+3,Dunkan,Aidaho,2
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -363,6 +375,71 @@ union all
 select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
 union all
 select 5 as id, 'Raban' as first, '' as second, 0 as V -- no append
+
+{% endif %}
+"""
+
+not_matched_by_source_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    source_alias='s',
+    skip_matched_step=true,
+    not_matched_by_source_condition='t.V > 0',
+    not_matched_by_source_action='delete',
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as V
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 0 as V
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
+
+{% else %}
+
+-- data for subsequent incremental update
+
+-- id = 1 should be deleted
+-- id = 2 should be kept as condition doesn't hold (t.V = 0)
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- No update, skipped
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
+
+{% endif %}
+"""
+
+merge_schema_evolution_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    merge_with_schema_evolution=true,
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'Jessica' as first, 'Atreides' as second, 1 as V
+-- id = 2 should have NULL in V.
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V
 
 {% endif %}
 """

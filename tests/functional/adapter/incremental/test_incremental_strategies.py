@@ -280,3 +280,45 @@ class TestMatchedAndNotMatchedCondition(IncrementalBase):
             project.adapter,
             ["matching_condition", "matching_condition_expected"],
         )
+
+
+class TestNotMatchedBySourceAndCondition(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "not_matched_by_source.sql": fixtures.not_matched_by_source_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["not_matched_by_source", "not_matched_by_source_expected"],
+        )
+
+
+class TestMergeSchemaEvolution(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_schema_evolution_expected.csv": fixtures.merge_schema_evolution_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_schema_evolution.sql": fixtures.merge_schema_evolution_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["merge_schema_evolution", "merge_schema_evolution_expected"],
+        )
