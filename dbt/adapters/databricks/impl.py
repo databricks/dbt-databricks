@@ -172,14 +172,16 @@ class DatabricksAdapter(SparkAdapter):
 
     # override
     @contextmanager
-    def connection_named(self, name: str, query_header_context: Any = None) -> Iterator[None]:
+    def connection_named(self, name: str, query_header_context: Any = None, should_release_connection=True) -> Iterator[None]:
         try:
             if self.connections.query_header is not None:
                 self.connections.query_header.set(name, query_header_context)
             self.acquire_connection(name, query_header_context)
             yield
         finally:
-            self.release_connection()
+            if should_release_connection:
+                self.release_connection()
+                
             if self.connections.query_header is not None:
                 self.connections.query_header.reset()
 
