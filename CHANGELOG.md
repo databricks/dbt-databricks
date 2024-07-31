@@ -6,8 +6,8 @@
 - Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the follwing features:
   - `with schema evolution` clause (requires Databricks Runtime 15.2 or above);
-  - `when not matched on source` clause, only for `delete` action
-  - `matched`, `not matched` and `not matched on source` condition clauses;
+  - `when not matched by source` clause, only for `delete` action
+  - `matched`, `not matched` and `not matched by source` condition clauses;
   - custom aliases for source and target tables can be specified and used in condition clauses;
   - `matched` and `not matched` steps can now be skipped;
 

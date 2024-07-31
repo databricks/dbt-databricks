@@ -17,7 +17,7 @@ From v.1.9 onwards `merge` behavior can be tuned by setting the additional param
 - Merge steps control parameters that tweak the default behaviour:
   - `skip_matched_step`: if set to `true`, dbt will completely skip the `matched` clause of the merge statement.
   - `skip_not_matched_step`: similarly if `true` the `not matched` clause will be skipped.
-  - `not_matched_on_source_action`: if set to `delete` the corresponding `when not matched on source ... then delete` clause will be added to the merge statement.
+  - `not_matched_by_source_action`: if set to `delete` the corresponding `when not matched by source ... then delete` clause will be added to the merge statement.
   - `merge_with_schema_evolution`: when set to `true` dbt generates the merge statement with `WITH SCHEMA EVOLUTION` clause. 
 
 - Step conditions that are expressed with an explicit SQL predicates allow to execute corresponding action only in case the conditions are met in addition to matching by the `unique_key`. 
