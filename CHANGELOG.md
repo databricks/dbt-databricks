@@ -6,7 +6,7 @@
 - Always use lower case when gathering metadata (since objects are stored internally as lower case regardless of how we create them) ([742](https://github.com/databricks/dbt-databricks/pull/742))
 - Persist table comments for python models ([743](https://github.com/databricks/dbt-databricks/pull/743))
 - Stop cursor destructor warnings ([744](https://github.com/databricks/dbt-databricks/pull/744))
-- Race condition on cluster creation([751](https://github.com/databricks/dbt-databricks/pull/751))
+- Race condition on cluster creation. (thanks @jurasan!) ([751](https://github.com/databricks/dbt-databricks/pull/751))
 
 ## dbt-databricks 1.8.4 (July 17, 2024)
 
