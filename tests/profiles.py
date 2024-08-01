@@ -39,6 +39,8 @@ def _build_databricks_cluster_target(
         profile["schema"] = schema
     if session_properties is not None:
         profile["session_properties"] = session_properties
+    if os.getenv("DBT_DATABRICKS_PORT"):
+        profile["connection_parameters"] = {"_port": os.getenv("DBT_DATABRICKS_PORT")}
     return profile
 
 
