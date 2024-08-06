@@ -395,7 +395,9 @@ class DBContext:
             json={"cluster_id": self.cluster_id},
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+            current_status = self.get_cluster_status().get("state", "").upper()
+            if current_status not in ["RUNNING", "PENDING"]:
+                raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
 
         self._wait_for_cluster_to_start()
 
