@@ -41,6 +41,7 @@ def _build_databricks_cluster_target(
         profile["session_properties"] = session_properties
     if os.getenv("DBT_DATABRICKS_PORT"):
         profile["connection_parameters"] = {"_port": os.getenv("DBT_DATABRICKS_PORT")}
+    profile["connection_parameters"]["_tls_no_verify"] = True
     return profile
 
 
