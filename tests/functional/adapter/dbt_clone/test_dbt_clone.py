@@ -89,11 +89,19 @@ class TestClonePersistDocs(BaseClone):
         ]
 
         results = run_dbt(clone_args)
+
         results = project.run_sql(
-            f"select comment from {project.database}.information_schema.tables "
-            f"where table_schema = '{other_schema}' "
-            f"order by table_name",
+            f"describe extended {project.database}.{other_schema}.table_model",
             fetch="all",
         )
-        assert results[0][0] == "This is a table model"
-        assert results[1][0] == "This is a view model"
+        for row in results:
+            if row[0] == "comment":
+                assert row[1] == "This is a table model"
+
+        results = project.run_sql(
+            f"describe extended {project.database}.{other_schema}.view_model",
+            fetch="all",
+        )
+        for row in results:
+            if row[0] == "comment":
+                assert row[1] == "This is a view model"

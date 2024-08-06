@@ -57,16 +57,11 @@ class TestSnapshotPersistDocs:
 
     def test_persist_docs(self, project):
         results = run_dbt(["snapshot"])
-        comment_query = (
-            f"select comment from {project.database}.information_schema.tables "
-            f"where "
-            f"  table_schema = '{project.test_schema}' and "
-            f"  table_name = 'snapshot'"
-        )
+        comment_query = f"describe detail {project.database}.{project.test_schema}.snapshot"
         results = project.run_sql(comment_query, fetch="all")
-        assert results[0][0] == "This is a snapshot description"
+        assert results[0][3] == "This is a snapshot description"
 
         util.write_file(fixtures.new_comment_schema_yml, "models", "schema.yml")
         results = run_dbt(["snapshot"])
         results = project.run_sql(comment_query, fetch="all")
-        assert results[0][0] == "This is a new snapshot description"
+        assert results[0][3] == "This is a new snapshot description"
