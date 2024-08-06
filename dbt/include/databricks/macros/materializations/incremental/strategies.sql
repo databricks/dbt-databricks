@@ -146,7 +146,7 @@ select {{source_cols_csv}} from {{ source_relation }}
     {%- endif %}
 {% endmacro %}
 
-{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) %}
+{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias='src') %}
   {%- if update_columns -%}
     {%- for column_name in update_columns -%}
       {{ column_name }} = {{ source_alias }}.{{ column_name }}{%- if not loop.last %}, {% endif -%}
@@ -160,7 +160,7 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- endif -%}
 {% endmacro %}
 
-{% macro get_merge_insert(on_schema_change, source_columns, source_alias) %}
+{% macro get_merge_insert(on_schema_change, source_columns, source_alias='src') %}
   {%- if on_schema_change == 'ignore' -%}
     *
   {%- else -%}
