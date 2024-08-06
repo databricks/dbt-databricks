@@ -9,7 +9,12 @@ from tests.functional.adapter.incremental import fixtures
 class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+incremental_predicates": ["dbt_internal_dest.id != 2"]}}
+        return {
+            "models": {
+                "+incremental_predicates": ["dbt_internal_dest.id != 2"],
+                "+target_alias": "dbt_internal_dest",
+            }
+        }
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -23,7 +28,12 @@ class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
 class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+predicates": ["dbt_internal_dest.id != 2"]}}
+        return {
+            "models": {
+                "+predicates": ["dbt_internal_dest.id != 2"],
+                "+target_alias": "dbt_internal_dest",
+            }
+        }
 
     @pytest.fixture(scope="class")
     def models(self):
