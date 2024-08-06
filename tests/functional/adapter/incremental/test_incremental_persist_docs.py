@@ -31,20 +31,13 @@ class TestIncrementalPersistDocs:
         util.run_dbt(["run"])
 
         results = project.run_sql(
-            f"select comment from {project.database}.information_schema.tables "
-            f"where"
-            f"  table_schema = '{project.test_schema}' and"
-            f"  table_name = 'merge_update_columns_sql'",
+            f"describe detail {project.database}.{project.test_schema}.merge_update_columns_sql",
             fetch="all",
         )
-        assert results[0][0] == "This is a model description"
+        assert results[0][3] == "This is a model description"
         results = project.run_sql(
-            f"select comment from {project.database}.information_schema.columns "
-            f"where"
-            f"  table_schema = '{project.test_schema}' and"
-            f"  table_name = 'merge_update_columns_sql'"
-            f"order by ordinal_position",
+            f"describe table {project.database}.{project.test_schema}.merge_update_columns_sql",
             fetch="all",
         )
-        assert results[0][0] == "This is the id column"
-        assert results[1][0] == "This is the msg column"
+        assert results[0][2] == "This is the id column"
+        assert results[1][2] == "This is the msg column"
