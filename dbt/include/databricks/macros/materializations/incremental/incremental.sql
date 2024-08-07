@@ -38,6 +38,7 @@
     {%- endcall -%}
     {% do persist_constraints(target_relation, model) %}
     {% do apply_tags(target_relation, tags) %}
+    {% do persist_docs(target_relation, model, for_relation=language=='python') %}
   {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
     {#-- Relation must be dropped & recreated --#}
     {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
@@ -52,6 +53,7 @@
       {% do persist_constraints(target_relation, model) %}
     {% endif %}
     {% do apply_tags(target_relation, tags) %}
+    {% do persist_docs(target_relation, model, for_relation=language=='python') %}
   {%- else -%}
     {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
     {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
@@ -99,12 +101,12 @@
         {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
       {%- endif -%}
     {%- endif -%}
+    {% do persist_docs(target_relation, model, for_relation=True) %}
   {%- endif -%}
 
   {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
   {% do apply_tblproperties_python(target_relation, tblproperties, language) %}
-  {% do persist_docs(target_relation, model) %}
   {% do optimize(target_relation) %}
 
   {{ run_hooks(post_hooks) }}

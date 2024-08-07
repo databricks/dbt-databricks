@@ -28,7 +28,16 @@ class TestIncrementalPersistDocs:
     def test_adding_comments(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.comment_schema, "models", "schema.yml")
-        _, out = util.run_dbt_and_capture(["--debug", "run"])
-        assert "comment 'This is the id column'" in out
-        assert "comment 'This is the msg column'" in out
-        assert "comment ''" not in out
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            f"describe detail {project.database}.{project.test_schema}.merge_update_columns_sql",
+            fetch="all",
+        )
+        assert results[0][3] == "This is a model description"
+        results = project.run_sql(
+            f"describe table {project.database}.{project.test_schema}.merge_update_columns_sql",
+            fetch="all",
+        )
+        assert results[0][2] == "This is the id column"
+        assert results[1][2] == "This is the msg column"

@@ -32,8 +32,8 @@
   {% do apply_tblproperties_python(target_relation, tblproperties, language) %}
 
   {%- do apply_tags(target_relation, tags) -%}
-  
-  {% do persist_docs(target_relation, model) %}
+
+  {% do persist_docs(target_relation, model, for_relation=language=='python') %}
 
   {% do persist_constraints(target_relation, model) %}
 

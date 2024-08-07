@@ -28,9 +28,8 @@
   {% do return(load_result('get_columns_comments').table) %}
 {% endmacro %}
 
-
 {% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
-  {%- if for_relation and model.description and model['language'] == 'python' %}
+  {%- if for_relation and config.persist_relation_docs() and model.description %}
     {% do alter_table_comment(relation, model) %}
   {% endif %}
   {% if for_columns and config.persist_column_docs() and model.columns %}
