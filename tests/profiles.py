@@ -44,7 +44,10 @@ def _build_databricks_cluster_target(
             "_port": os.getenv("DBT_DATABRICKS_PORT"),
             "_tls_no_verify": True,
         }
-        print(profile["connection_parameters"])
+        if os.getenv("DBT_DATABRICKS_CA_PATH"):
+            profile["connection_parameters"]["_tls_trusted_ca_file"] = os.getenv(
+                "DBT_DATABRICKS_CA_PATH"
+            )
     return profile
 
 
