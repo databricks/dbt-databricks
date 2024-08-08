@@ -63,6 +63,7 @@ from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
+from dbt.adapters.events.types import AdapterEventDebug
 from dbt.adapters.events.types import ConnectionClosedInCleanup
 from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
 from dbt.adapters.events.types import ConnectionReused
@@ -555,6 +556,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.set_thread_connection(conn)
             fire_event(
                 NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
+            )
+            fire_event(
+                AdapterEventDebug(
+                    f"Special connection parameters: {self.profile.credentials.connection_parameters}"
+                )
             )
         else:  # existing connection either wasn't open or didn't have the right name
             if conn.state != ConnectionState.OPEN:
