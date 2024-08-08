@@ -86,6 +86,9 @@ class PythonRunTracker(object):
 
     @classmethod
     def cancel_runs(cls, session: Session) -> None:
+        # TODO: let Databricks Workflows handle timeouts if a timeout is defined
+        #       in the workflow job
+
         cls._lock.acquire()
         try:
             logger.debug(f"Run_ids to cancel: {cls._run_ids}")
@@ -600,3 +603,137 @@ class DbtDatabricksAllPurposeClusterPythonJobHelper(
                 "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
                 "for the `all_purpose_cluster` submission method."
             )
+
+
+class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
+
+    @property
+    def job_name(self) -> str:
+        return f'{self.schema}-{self.identifier}__dbt'
+
+    def check_credentials(self) -> None:
+        if not self.parsed_model["config"].get("workflow_job_config", None):
+            raise ValueError(
+                "workflow_job_config is required for the `workflow_job_config` submission method.")
+        if not self.parsed_model["config"].get("job_cluster_config", None):
+            raise ValueError(
+                "job_cluster_config is required for the `workflow_job_config` submission method.")
+
+    def submit(self, compiled_code: str) -> None:
+        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
+        workflow_spec = {"new_workflow": self.parsed_model["config"]["workflow_job_config"]}
+
+
+        self._submit_through_workflow(compiled_code, self._update_with_acls(cluster_spec))
+
+    def _submit_through_workflow(self, compiled_code: str, cluster_spec: dict) -> None:
+        # it is safe to call mkdirs even if dir already exists and have content inside
+        work_dir = f"/Shared/dbt_python_model/{self.schema}/"
+        self._create_work_dir(work_dir)
+        whole_file_path = f"{work_dir}{self.identifier}"
+        self._upload_notebook(whole_file_path, compiled_code)
+
+        job_id = self._get_or_create_job(whole_file_path, workflow_spec, cluster_spec)
+        run_id = self._trigger_job(job_id)
+        # run_id = self._submit_job(whole_file_path, cluster_spec)
+        self.tracker.insert_run_id(run_id)
+
+        self.polling(
+            status_func=self.session.get,
+            status_func_kwargs={
+                "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
+                "headers": self.extra_headers,
+            },
+            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
+            terminal_states=("TERMINATED", "SKIPPED", "INTERNAL_ERROR"),
+            expected_end_state="TERMINATED",
+            get_state_msg_func=lambda response: response.json()["state"]["state_message"],
+        )
+
+        # get end state to return to user
+        run_output = self.session.get(
+            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
+            headers=self.extra_headers,
+        )
+        json_run_output = run_output.json()
+        result_state = json_run_output["metadata"]["state"]["result_state"]
+        if result_state != "SUCCESS":
+            raise DbtRuntimeError(
+                "Python model failed with traceback as:\n"
+                "(Note that the line number here does not "
+                "match the line number in your code due to dbt templating)\n"
+                f"{utils.remove_ansi(json_run_output['error_trace'])}"
+            )
+        self.tracker.remove_run_id(run_id)
+
+    def _get_or_create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
+        response = self.session.get(
+            f"https://{self.credentials.host}/api/2.1/jobs/list",
+            headers=self.extra_headers,
+            json={
+                'name': self.job_name,
+            }
+        )
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting job.\n {response.content!r}")
+        response_json = response.json()
+        logger.info(f"Job list response={response_json}")
+
+        if len(response_json['jobs']) > 1:
+            raise DbtRuntimeError(f"Multiple jobs found with name {self.job_name}")
+
+        if len(response_json['jobs']) == 1:
+            return response_json['jobs'][0]['job_id']
+        else:
+            return self._create_job(whole_file_path, workflow_spec, cluster_spec)
+
+    def _create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
+        """
+        :param whole_file_path: path of the model notebook
+        :param workflow_spec: job definition - matches up with the Databricks API
+        :param cluster_spec: job cluster definition - matches up with the Databricks API
+        :return: the job id
+        """
+        job_cluster_key = 'a'
+        workflow_spec['job_clusters'] = [{
+            'job_cluster_key': job_cluster_key,
+            'new_cluster': cluster_spec,
+        }]
+        workflow_spec['tasks'] = [{
+            'job_cluster_id': job_cluster_key,
+            'task_key': f'dbt_task__{self.identifier}',
+            'notebook_task': {
+                'notebook_path': whole_file_path,
+                'source': 'WORKSPACE',
+            }
+        }]
+
+        response = self.session.post(
+            f"https://{self.credentials.host}/api/2.1/jobs/create",
+            headers=self.extra_headers,
+            json=workflow_spec,
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
+        response_json = response.json()
+        logger.info(f"Workflow create response={response_json}")
+        return response_json["run_id"]
+
+    def _trigger_job(self, job_id: dict):
+        """
+        :return: the run id
+        """
+        request_body = {
+            "job_id": job_id,
+        }
+        response = self.session.post(
+            f"https://{self.credentials.host}/api/2.1/jobs/run-now",
+            headers=self.extra_headers,
+            json=request_body,
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
+        response_json = response.json()
+
+        return response_json["run_id"]

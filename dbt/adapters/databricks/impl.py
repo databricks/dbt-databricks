@@ -49,6 +49,9 @@ from dbt.adapters.databricks.python_submissions import (
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
 )
+from dbt.adapters.databricks.python_submissions import (
+    DbtDatabricksWorkflowPythonJobHelper,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
@@ -611,6 +614,7 @@ class DatabricksAdapter(SparkAdapter):
         return {
             "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
             "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+            "workflow_job": DbtDatabricksWorkflowPythonJobHelper,
         }
 
     @available
