@@ -44,6 +44,7 @@ def _build_databricks_cluster_target(
             "_port": os.getenv("DBT_DATABRICKS_PORT"),
             "_tls_no_verify": True,
         }
+        print(profile["connection_parameters"])
     return profile
 
 
