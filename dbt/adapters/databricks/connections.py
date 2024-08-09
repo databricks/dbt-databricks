@@ -557,11 +557,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             fire_event(
                 NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
             )
-            fire_event(
-                AdapterEventDebug(
-                    f"Special connection parameters: {self.profile.credentials.connection_parameters}"
-                )
-            )
         else:  # existing connection either wasn't open or didn't have the right name
             if conn.state != ConnectionState.OPEN:
                 conn.handle = LazyHandle(self.get_open_for_context(query_header_context))
@@ -824,7 +819,11 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         'connection_named', called by 'connection_for(node)'.
         Creates a connection for this thread if one doesn't already
         exist, and will rename an existing connection."""
-
+        fire_event(
+            AdapterEventDebug(
+                f"Special connection parameters: {self.profile.credentials.connection_parameters}"
+            )
+        )
         self._cleanup_idle_connections()
 
         conn_name: str = "master" if name is None else name
