@@ -821,7 +821,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         exist, and will rename an existing connection."""
         fire_event(
             AdapterEventDebug(
-                f"Special connection parameters: {self.profile.credentials.connection_parameters}"
+                base_msg=f"Special connection parameters: {self.profile.credentials.connection_parameters}"
             )
         )
         self._cleanup_idle_connections()
