@@ -680,7 +680,6 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             get_state_msg_func=lambda response: response.json()["state"]["state_message"],
         )
 
-        # get end state to return to user
         run_output = self.session.get(
             f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
             headers=self.extra_headers,
@@ -724,9 +723,6 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     def _create_job(self, workflow_spec:dict):
         """
-        :param whole_file_path: path of the model notebook
-        :param workflow_spec: job definition - matches up with the Databricks API
-        :param cluster_spec: job cluster definition - matches up with the Databricks API
         :return: the job id
         """
         response = self.session.post(
