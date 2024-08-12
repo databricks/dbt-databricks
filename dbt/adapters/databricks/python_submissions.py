@@ -670,11 +670,9 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             )
         self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
+    def _get_or_create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict) \
+            -> tuple[int, bool]:
         """
-        :param whole_file_path:
-        :param workflow_spec:
-        :param cluster_spec:
         :return: tuple of job_id and whether the job is new
         """
         response = self.session.get(
