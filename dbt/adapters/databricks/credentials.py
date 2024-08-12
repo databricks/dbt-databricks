@@ -291,7 +291,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def __post_init__(self) -> None:
-        if self.auth_type == "token" and self.token:
+        if self.token:
             self._config = Config(
                 host=self.host,
                 token=self.token,
