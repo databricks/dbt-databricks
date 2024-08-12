@@ -1,4 +1,5 @@
 import base64
+import os
 import threading
 import time
 import uuid
@@ -609,39 +610,66 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     @property
     def job_name(self) -> str:
-        return f'{self.schema}-{self.identifier}__dbt'
+        return f'{self.database}-{self.schema}-{self.identifier}__dbt'
+
+    @property
+    def notebook_path(self) -> str:
+        work_dir = f"/Shared/dbt_python_model/{self.database}/{self.schema}/{self.identifier}"
+        return work_dir
+
+    @property
+    def notebook_dir(self) -> str:
+        return os.path.dirname(self.notebook_path)
+
+    def _work_dir(self, path):
+        # TODO: Why does the super() method check for database - can it actually be null?
+        return path
 
     def check_credentials(self) -> None:
-        if not self.parsed_model["config"].get("workflow_job_config", None):
+        workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
+        if not workflow_config:
             raise ValueError(
                 "workflow_job_config is required for the `workflow_job_config` submission method.")
-        if not self.parsed_model["config"].get("job_cluster_config", None):
+
+        job_cluster_config = self.parsed_model["config"].get("job_cluster_config", None)
+
+        if job_cluster_config is None and workflow_config.get('existing_cluster_id', None) is None:
             raise ValueError(
-                "job_cluster_config is required for the `workflow_job_config` submission method.")
+                """job_cluster_config or an existing_cluster_id is required for the "
+                `workflow_job_config` submission method.""")
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = self.parsed_model["config"]["job_cluster_config"]
         workflow_spec = self.parsed_model["config"]["workflow_job_config"]
+        cluster_spec = self.parsed_model["config"].get("job_cluster_config", None)
 
-        self._submit_through_workflow(compiled_code, workflow_spec, self._update_with_acls(cluster_spec))
+        workflow_spec = self._build_job_spec(workflow_spec, cluster_spec)
 
-    def _submit_through_workflow(self, compiled_code: str, workflow_spec, cluster_spec: dict) -> None:
+        self._submit_through_workflow(compiled_code, workflow_spec)
+
+    def _build_job_spec(self, workflow_spec, cluster_spec):
+        if cluster_spec is not None:
+            workflow_spec['new_cluster'] = cluster_spec
+
+        workflow_spec['name'] = self.job_name
+        workflow_spec['notebook_task'] = {
+            'notebook_path': self.notebook_path,
+            'source': 'WORKSPACE',
+        }
+        return workflow_spec
+
+    def _submit_through_workflow(self, compiled_code: str, workflow_spec) -> None:
         # it is safe to call mkdirs even if dir already exists and have content inside
-        work_dir = f"/Shared/dbt_python_model/{self.schema}/"
-        self._create_work_dir(work_dir)
-        whole_file_path = f"{work_dir}{self.identifier}"
-        self._upload_notebook(whole_file_path, compiled_code)
+        self._create_work_dir(self.notebook_dir)
+        self._upload_notebook(self.notebook_path, compiled_code)
 
-        actual_path = self._work_dir(whole_file_path)
-        job_id, is_new = self._get_or_create_job(actual_path, workflow_spec, cluster_spec)
+        job_id, is_new = self._get_or_create_job(workflow_spec)
 
         if not is_new:
-            self._update_job(job_id, actual_path, workflow_spec, cluster_spec)
+            self._update_job(job_id, workflow_spec)
 
         run_id = self._trigger_job(job_id)
-        # run_id = self._submit_job(whole_file_path, cluster_spec)
-        self.tracker.insert_run_id(run_id)
 
+        self.tracker.insert_run_id(run_id)
         self.polling(
             status_func=self.session.get,
             status_func_kwargs={
@@ -670,8 +698,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             )
         self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict) \
-            -> tuple[int, bool]:
+    def _get_or_create_job(self, workflow_spec:dict) -> tuple[int, bool]:
         """
         :return: tuple of job_id and whether the job is new
         """
@@ -695,17 +722,15 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         if len(response_jobs) == 1:
             return response_json['jobs'][0]['job_id'], False
         else:
-            return self._create_job(whole_file_path, workflow_spec, cluster_spec), True
+            return self._create_job(workflow_spec), True
 
-    def _create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
+    def _create_job(self, workflow_spec:dict):
         """
         :param whole_file_path: path of the model notebook
         :param workflow_spec: job definition - matches up with the Databricks API
         :param cluster_spec: job cluster definition - matches up with the Databricks API
         :return: the job id
         """
-        workflow_spec = self._convert_to_job_spec(whole_file_path, workflow_spec, cluster_spec)
-
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/create",
             headers=self.extra_headers,
@@ -717,17 +742,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         logger.info(f"Workflow create response={response_json}")
         return response_json["job_id"]
 
-    def _convert_to_job_spec(self, whole_file_path, workflow_spec, cluster_spec):
-        workflow_spec['new_cluster'] = cluster_spec
-        workflow_spec['name'] = self.job_name
-        workflow_spec['notebook_task'] = {
-            'notebook_path': whole_file_path,
-            'source': 'WORKSPACE',
-        }
-        return workflow_spec
-
-    def _update_job(self, job_id, whole_file_path, workflow_spec, cluster_spec):
-        workflow_spec = self._convert_to_job_spec(whole_file_path, workflow_spec, cluster_spec)
+    def _update_job(self, job_id, workflow_spec):
         request_body = {
             'job_id': job_id,
             'new_settings': workflow_spec,
