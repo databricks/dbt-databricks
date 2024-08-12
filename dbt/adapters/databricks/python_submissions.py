@@ -609,11 +609,11 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     @property
     def job_name(self) -> str:
-        return f'{self.database}-{self.schema}-{self.identifier}__dbt'
+        return f"{self.database}-{self.schema}-{self.identifier}__dbt"
 
     @property
     def notebook_path(self) -> str:
-        return f'{self.notebook_dir}/{self.identifier}'
+        return f"{self.notebook_dir}/{self.identifier}"
 
     @property
     def notebook_dir(self) -> str:
@@ -627,14 +627,16 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
         if not workflow_config:
             raise ValueError(
-                "workflow_job_config is required for the `workflow_job_config` submission method.")
+                "workflow_job_config is required for the `workflow_job_config` submission method."
+            )
 
         job_cluster_config = self.parsed_model["config"].get("job_cluster_config", None)
 
-        if job_cluster_config is None and workflow_config.get('existing_cluster_id', None) is None:
+        if job_cluster_config is None and workflow_config.get("existing_cluster_id", None) is None:
             raise ValueError(
                 """job_cluster_config or an existing_cluster_id is required for the "
-                `workflow_job_config` submission method.""")
+                `workflow_job_config` submission method."""
+            )
 
     def submit(self, compiled_code: str) -> None:
         workflow_spec = self.parsed_model["config"]["workflow_job_config"]
@@ -646,12 +648,12 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     def _build_job_spec(self, workflow_spec, cluster_spec):
         if cluster_spec is not None:
-            workflow_spec['new_cluster'] = cluster_spec
+            workflow_spec["new_cluster"] = cluster_spec
 
-        workflow_spec['name'] = self.job_name
-        workflow_spec['notebook_task'] = {
-            'notebook_path': self.notebook_path,
-            'source': 'WORKSPACE',
+        workflow_spec["name"] = self.job_name
+        workflow_spec["notebook_task"] = {
+            "notebook_path": self.notebook_path,
+            "source": "WORKSPACE",
         }
         return workflow_spec
 
@@ -695,7 +697,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             )
         self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, workflow_spec:dict) -> tuple[int, bool]:
+    def _get_or_create_job(self, workflow_spec: dict) -> tuple[int, bool]:
         """
         :return: tuple of job_id and whether the job is new
         """
@@ -703,8 +705,8 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             f"https://{self.credentials.host}/api/2.1/jobs/list",
             headers=self.extra_headers,
             json={
-                'name': self.job_name,
-            }
+                "name": self.job_name,
+            },
         )
 
         if response.status_code != 200:
@@ -712,16 +714,16 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         response_json = response.json()
         logger.info(f"Job list response={response_json}")
 
-        response_jobs = response_json.get('jobs', [])
+        response_jobs = response_json.get("jobs", [])
         if len(response_jobs) > 1:
             raise DbtRuntimeError(f"Multiple jobs found with name {self.job_name}")
 
         if len(response_jobs) == 1:
-            return response_json['jobs'][0]['job_id'], False
+            return response_json["jobs"][0]["job_id"], False
         else:
             return self._create_job(workflow_spec), True
 
-    def _create_job(self, workflow_spec:dict):
+    def _create_job(self, workflow_spec: dict):
         """
         :return: the job id
         """
@@ -738,8 +740,8 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     def _update_job(self, job_id, workflow_spec):
         request_body = {
-            'job_id': job_id,
-            'new_settings': workflow_spec,
+            "job_id": job_id,
+            "new_settings": workflow_spec,
         }
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/reset",
