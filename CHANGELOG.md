@@ -10,7 +10,7 @@
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
 - Upgrade databricks-sql-connector dependency to 3.2.0 ([729](https://github.com/databricks/dbt-databricks/pull/729))
 
-## dbt-databricks 1.8.5 (TBD)
+## dbt-databricks 1.8.5 (August 6, 2024)
 
 ### Fixes
 
@@ -18,6 +18,7 @@
 - Always use lower case when gathering metadata (since objects are stored internally as lower case regardless of how we create them) ([742](https://github.com/databricks/dbt-databricks/pull/742))
 - Persist table comments for python models ([743](https://github.com/databricks/dbt-databricks/pull/743))
 - Stop cursor destructor warnings ([744](https://github.com/databricks/dbt-databricks/pull/744))
+- Race condition on cluster creation. (thanks @jurasan!) ([751](https://github.com/databricks/dbt-databricks/pull/751))
 
 ## dbt-databricks 1.8.4 (July 17, 2024)
 
