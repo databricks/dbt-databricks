@@ -1,5 +1,4 @@
 import base64
-import os
 import threading
 import time
 import uuid
@@ -614,12 +613,11 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     @property
     def notebook_path(self) -> str:
-        work_dir = f"/Shared/dbt_python_model/{self.database}/{self.schema}/{self.identifier}"
-        return work_dir
+        return f'{self.notebook_dir}/{self.identifier}'
 
     @property
     def notebook_dir(self) -> str:
-        return os.path.dirname(self.notebook_path)
+        return f"/Shared/dbt_python_model/{self.database}/{self.schema}"
 
     def _work_dir(self, path):
         # TODO: Why does the super() method check for database - can it actually be null?
