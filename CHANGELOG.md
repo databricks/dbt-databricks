@@ -1,3 +1,9 @@
+## dbt-databricks 1.8.6 (TBD)
+
+### Fixes
+
+- Persist table comments for incremental models, snapshots and dbt clone (thanks @henlue!) ([750](https://github.com/databricks/dbt-databricks/pull/750))
+
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
 ### Fixes

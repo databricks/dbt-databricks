@@ -37,6 +37,7 @@ version: 2
 
 models:
   - name: merge_update_columns_sql
+    description: This is a model description
     columns:
         - name: id
           description: This is the id column
