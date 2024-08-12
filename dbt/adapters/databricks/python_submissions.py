@@ -620,20 +620,20 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
                 "job_cluster_config is required for the `workflow_job_config` submission method.")
 
     def submit(self, compiled_code: str) -> None:
-        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
-        workflow_spec = {"new_workflow": self.parsed_model["config"]["workflow_job_config"]}
+        cluster_spec = self.parsed_model["config"]["job_cluster_config"]
+        workflow_spec = self.parsed_model["config"]["workflow_job_config"]
 
+        self._submit_through_workflow(compiled_code, workflow_spec, self._update_with_acls(cluster_spec))
 
-        self._submit_through_workflow(compiled_code, self._update_with_acls(cluster_spec))
-
-    def _submit_through_workflow(self, compiled_code: str, cluster_spec: dict) -> None:
+    def _submit_through_workflow(self, compiled_code: str, workflow_spec, cluster_spec: dict) -> None:
         # it is safe to call mkdirs even if dir already exists and have content inside
         work_dir = f"/Shared/dbt_python_model/{self.schema}/"
         self._create_work_dir(work_dir)
         whole_file_path = f"{work_dir}{self.identifier}"
         self._upload_notebook(whole_file_path, compiled_code)
 
-        job_id = self._get_or_create_job(whole_file_path, workflow_spec, cluster_spec)
+        actual_path = self._work_dir(whole_file_path)
+        job_id = self._get_or_create_job(actual_path, workflow_spec, cluster_spec)
         run_id = self._trigger_job(job_id)
         # run_id = self._submit_job(whole_file_path, cluster_spec)
         self.tracker.insert_run_id(run_id)
@@ -680,10 +680,11 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         response_json = response.json()
         logger.info(f"Job list response={response_json}")
 
-        if len(response_json['jobs']) > 1:
+        response_jobs = response_json.get('jobs', [])
+        if len(response_jobs) > 1:
             raise DbtRuntimeError(f"Multiple jobs found with name {self.job_name}")
 
-        if len(response_json['jobs']) == 1:
+        if len(response_jobs) == 1:
             return response_json['jobs'][0]['job_id']
         else:
             return self._create_job(whole_file_path, workflow_spec, cluster_spec)
@@ -695,19 +696,12 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         :param cluster_spec: job cluster definition - matches up with the Databricks API
         :return: the job id
         """
-        job_cluster_key = 'a'
-        workflow_spec['job_clusters'] = [{
-            'job_cluster_key': job_cluster_key,
-            'new_cluster': cluster_spec,
-        }]
-        workflow_spec['tasks'] = [{
-            'job_cluster_id': job_cluster_key,
-            'task_key': f'dbt_task__{self.identifier}',
-            'notebook_task': {
-                'notebook_path': whole_file_path,
-                'source': 'WORKSPACE',
-            }
-        }]
+        workflow_spec['new_cluster'] = cluster_spec
+        workflow_spec['name'] = self.job_name
+        workflow_spec['notebook_task'] = {
+            'notebook_path': whole_file_path,
+            'source': 'WORKSPACE',
+        }
 
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/create",
@@ -718,7 +712,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
         response_json = response.json()
         logger.info(f"Workflow create response={response_json}")
-        return response_json["run_id"]
+        return response_json["job_id"]
 
     def _trigger_job(self, job_id: dict):
         """
