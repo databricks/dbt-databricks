@@ -13,10 +13,14 @@
   {%- endif %}
 {%- endmacro -%}
 
-{% macro apply_tblproperties_python(relation, tblproperties, language) -%}
-  {%- if tblproperties and language == 'python' -%}
-    {%- call statement('python_tblproperties') -%}
-      alter table {{ relation }} set {{ tblproperties_clause() }}
+{% macro apply_tblproperties(relation, tblproperties) -%}
+  {% if tblproperties %}
+    {%- call statement('apply_tblproperties') -%}
+      ALTER {{ relation.type }} {{ relation }} SET TBLPROPERTIES (
+      {% for tblproperty in tblproperties -%}
+        '{{ tblproperty }}' = '{{ tblproperties[tblproperty] }}' {%- if not loop.last %}, {% endif -%}
+      {%- endfor %}
+      )
     {%- endcall -%}
-  {%- endif -%}
+  {% endif %}
 {%- endmacro -%}
