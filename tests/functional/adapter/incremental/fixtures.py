@@ -1,6 +1,3 @@
-from dbt.adapters.databricks.relation_configs import tblproperties
-
-
 merge_update_columns_sql = """
 {{ config(
     materialized = 'incremental',
