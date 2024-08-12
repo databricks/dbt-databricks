@@ -633,7 +633,11 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         self._upload_notebook(whole_file_path, compiled_code)
 
         actual_path = self._work_dir(whole_file_path)
-        job_id = self._get_or_create_job(actual_path, workflow_spec, cluster_spec)
+        job_id, is_new = self._get_or_create_job(actual_path, workflow_spec, cluster_spec)
+
+        if not is_new:
+            self._update_job(job_id, actual_path, workflow_spec, cluster_spec)
+
         run_id = self._trigger_job(job_id)
         # run_id = self._submit_job(whole_file_path, cluster_spec)
         self.tracker.insert_run_id(run_id)
@@ -667,6 +671,12 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         self.tracker.remove_run_id(run_id)
 
     def _get_or_create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
+        """
+        :param whole_file_path:
+        :param workflow_spec:
+        :param cluster_spec:
+        :return: tuple of job_id and whether the job is new
+        """
         response = self.session.get(
             f"https://{self.credentials.host}/api/2.1/jobs/list",
             headers=self.extra_headers,
@@ -685,9 +695,9 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             raise DbtRuntimeError(f"Multiple jobs found with name {self.job_name}")
 
         if len(response_jobs) == 1:
-            return response_json['jobs'][0]['job_id']
+            return response_json['jobs'][0]['job_id'], False
         else:
-            return self._create_job(whole_file_path, workflow_spec, cluster_spec)
+            return self._create_job(whole_file_path, workflow_spec, cluster_spec), True
 
     def _create_job(self, whole_file_path, workflow_spec:dict, cluster_spec:dict):
         """
@@ -696,12 +706,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         :param cluster_spec: job cluster definition - matches up with the Databricks API
         :return: the job id
         """
-        workflow_spec['new_cluster'] = cluster_spec
-        workflow_spec['name'] = self.job_name
-        workflow_spec['notebook_task'] = {
-            'notebook_path': whole_file_path,
-            'source': 'WORKSPACE',
-        }
+        workflow_spec = self._convert_to_job_spec(whole_file_path, workflow_spec, cluster_spec)
 
         response = self.session.post(
             f"https://{self.credentials.host}/api/2.1/jobs/create",
@@ -713,6 +718,29 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         response_json = response.json()
         logger.info(f"Workflow create response={response_json}")
         return response_json["job_id"]
+
+    def _convert_to_job_spec(self, whole_file_path, workflow_spec, cluster_spec):
+        workflow_spec['new_cluster'] = cluster_spec
+        workflow_spec['name'] = self.job_name
+        workflow_spec['notebook_task'] = {
+            'notebook_path': whole_file_path,
+            'source': 'WORKSPACE',
+        }
+        return workflow_spec
+
+    def _update_job(self, job_id, whole_file_path, workflow_spec, cluster_spec):
+        workflow_spec = self._convert_to_job_spec(whole_file_path, workflow_spec, cluster_spec)
+        request_body = {
+            'job_id': job_id,
+            'new_settings': workflow_spec,
+        }
+        response = self.session.post(
+            f"https://{self.credentials.host}/api/2.1/jobs/reset",
+            headers=self.extra_headers,
+            json=request_body,
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
 
     def _trigger_job(self, job_id: dict):
         """
