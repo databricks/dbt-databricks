@@ -608,7 +608,7 @@ class DbtDatabricksAllPurposeClusterPythonJobHelper(
 class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
     @property
-    def job_name(self) -> str:
+    def default_job_name(self) -> str:
         return f"{self.database}-{self.schema}-{self.identifier}__dbt"
 
     @property
@@ -650,7 +650,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         if cluster_spec is not None:
             workflow_spec["new_cluster"] = cluster_spec
 
-        workflow_spec["name"] = self.job_name
+        workflow_spec["name"] = workflow_spec.get('name', self.default_job_name)
         workflow_spec["notebook_task"] = {
             "notebook_path": self.notebook_path,
             "source": "WORKSPACE",
@@ -709,7 +709,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             f"https://{self.credentials.host}/api/2.1/jobs/list",
             headers=self.extra_headers,
             json={
-                "name": self.job_name,
+                "name": workflow_spec['name'],
             },
         )
 
@@ -720,7 +720,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
         response_jobs = response_json.get("jobs", [])
         if len(response_jobs) > 1:
-            raise DbtRuntimeError(f"Multiple jobs found with name {self.job_name}")
+            raise DbtRuntimeError(f"Multiple jobs found with name {workflow_spec['name']}")
 
         if len(response_jobs) == 1:
             return response_json["jobs"][0]["job_id"], False
