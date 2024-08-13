@@ -701,6 +701,10 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         """
         :return: tuple of job_id and whether the job is new
         """
+        existing_job_id = workflow_spec.get('existing_job_id', '')
+        if existing_job_id:
+            return existing_job_id, False
+
         response = self.session.get(
             f"https://{self.credentials.host}/api/2.1/jobs/list",
             headers=self.extra_headers,
