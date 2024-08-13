@@ -647,14 +647,29 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         self._submit_through_workflow(compiled_code, workflow_spec)
 
     def _build_job_spec(self, workflow_spec, cluster_spec):
-        if cluster_spec is not None:
-            workflow_spec["new_cluster"] = cluster_spec
-
         workflow_spec["name"] = workflow_spec.get('name', self.default_job_name)
-        workflow_spec["notebook_task"] = {
-            "notebook_path": self.notebook_path,
-            "source": "WORKSPACE",
+
+        cluster_settings = {}
+        if cluster_spec is not None:
+            cluster_settings["new_cluster"] = cluster_spec
+        else:
+            cluster_settings['existing_cluster_id'] = workflow_spec['existing_cluster_id']
+
+        notebook_task = {
+            'task_key': 'task_a',
+            'notebook_task': {
+                "notebook_path": self.notebook_path,
+                "source": "WORKSPACE",
+            },
         }
+        notebook_task.update(cluster_settings)
+
+        post_hook_tasks = workflow_spec.get("post_hook_tasks", [])
+        for task in post_hook_tasks:
+            if not 'existing_cluster_id' in task and not 'new_cluster' in task:
+                task.update(cluster_settings)
+
+        workflow_spec["tasks"] = [notebook_task] + post_hook_tasks
         return workflow_spec
 
     def _submit_through_workflow(self, compiled_code: str, workflow_spec) -> None:
@@ -770,5 +785,6 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
         response_json = response.json()
+        logger.info(f"Workflow trigger response={response_json}")
 
         return response_json["run_id"]
