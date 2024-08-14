@@ -684,8 +684,9 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
         if not is_new:
             self._update_job(job_id, workflow_spec)
-            grants = workflow_spec.pop("grants", {})
-            self._update_job_permissions(job_id, grants)
+
+        grants = workflow_spec.pop("grants", {})
+        self._update_job_permissions(job_id, grants)
 
         run_id = self._trigger_job(job_id)
 
