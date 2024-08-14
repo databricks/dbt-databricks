@@ -2,7 +2,7 @@ import pytest
 from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt_common.exceptions import DbtRuntimeError
-from mock import Mock
+from mock import Mock, patch
 
 
 class TestDatabricksConnectionHTTPPath:
@@ -21,7 +21,8 @@ class TestDatabricksConnectionHTTPPath:
 
     @pytest.fixture
     def creds(self, path):
-        return DatabricksCredentials(http_path=path)
+          with patch("dbt.adapters.databricks.credentials.Config"):
+            return DatabricksCredentials(http_path=path)
 
     @pytest.fixture
     def node(self):

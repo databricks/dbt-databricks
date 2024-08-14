@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import pytest
 from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.credentials import DatabricksCredentials
@@ -6,6 +7,7 @@ from dbt.contracts.graph import nodes
 from dbt_common.exceptions import DbtRuntimeError
 
 
+@patch("dbt.adapters.databricks.credentials.Config")
 class TestDatabricksConnectionMaxIdleTime:
     """Test the various cases for determining a specified warehouse."""
 
@@ -13,7 +15,7 @@ class TestDatabricksConnectionMaxIdleTime:
         "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
     )
 
-    def test_get_max_idle_default(self):
+    def test_get_max_idle_default(self, _):
         creds = DatabricksCredentials()
 
         # No node and nothing specified in creds
@@ -72,7 +74,7 @@ class TestDatabricksConnectionMaxIdleTime:
         # path = connections._get_http_path(node, creds)
         # self.assertEqual("alternate_path", path)
 
-    def test_get_max_idle_creds(self):
+    def test_get_max_idle_creds(self, _):
         creds_idle_time = 77
         creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
 
@@ -123,7 +125,7 @@ class TestDatabricksConnectionMaxIdleTime:
         time = connections._get_max_idle_time(node, creds)
         assert creds_idle_time == time
 
-    def test_get_max_idle_compute(self):
+    def test_get_max_idle_compute(self, _):
         creds_idle_time = 88
         compute_idle_time = 77
         creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
@@ -151,7 +153,7 @@ class TestDatabricksConnectionMaxIdleTime:
         time = connections._get_max_idle_time(node, creds)
         assert compute_idle_time == time
 
-    def test_get_max_idle_invalid(self):
+    def test_get_max_idle_invalid(self, _):
         creds_idle_time = "foo"
         compute_idle_time = "bar"
         creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
@@ -204,7 +206,7 @@ class TestDatabricksConnectionMaxIdleTime:
             "1,002.3 is not a valid value for connect_max_idle. " "Must be a number of seconds."
         ) in str(info.value)
 
-    def test_get_max_idle_simple_string_conversion(self):
+    def test_get_max_idle_simple_string_conversion(self, _):
         creds_idle_time = "12"
         compute_idle_time = "34"
         creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
