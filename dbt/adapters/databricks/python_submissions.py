@@ -642,6 +642,8 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         workflow_spec = self.parsed_model["config"]["workflow_job_config"]
         cluster_spec = self.parsed_model["config"].get("job_cluster_config", None)
 
+        # This dict gets modified throughout. Settings added through dbt are popped off
+        # before the spec is sent to the Databricks API
         workflow_spec = self._build_job_spec(workflow_spec, cluster_spec)
 
         self._submit_through_workflow(compiled_code, workflow_spec)
@@ -663,8 +665,9 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             },
         }
         notebook_task.update(cluster_settings)
+        notebook_task.update(workflow_spec.pop("additional_task_settings", {}))
 
-        post_hook_tasks = workflow_spec.get("post_hook_tasks", [])
+        post_hook_tasks = workflow_spec.pop("post_hook_tasks", [])
         for task in post_hook_tasks:
             if not 'existing_cluster_id' in task and not 'new_cluster' in task:
                 task.update(cluster_settings)
@@ -681,6 +684,8 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
 
         if not is_new:
             self._update_job(job_id, workflow_spec)
+            grants = workflow_spec.pop("grants", {})
+            self._update_job_permissions(job_id, grants)
 
         run_id = self._trigger_job(job_id)
 
@@ -716,7 +721,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         """
         :return: tuple of job_id and whether the job is new
         """
-        existing_job_id = workflow_spec.get('existing_job_id', '')
+        existing_job_id = workflow_spec.pop('existing_job_id', '')
         if existing_job_id:
             return existing_job_id, False
 
@@ -767,8 +772,84 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             headers=self.extra_headers,
             json=request_body,
         )
+
+        logger.info(f"Workflow update response={response.json()}")
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+
+    def _update_job_permissions(self, job_id, job_grants):
+        if not job_grants:
+            return
+
+        access_control_list = self._build_job_permissions(job_id, job_grants)
+
+        request_body = {
+            "access_control_list": access_control_list
+        }
+
+        response = self.session.put(
+            f"https://{self.credentials.host}/api/2.0/permissions/jobs/{job_id}",
+            headers=self.extra_headers,
+            json=request_body,
+        )
+
+        logger.info(f"Workflow permissions update response={response.json()}")
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+
+    def _build_job_permissions(self, job_id, job_grants) -> list:
+        access_control_list = []
+        current_owner, permissions_attribute = self._get_current_job_owner(job_id)
+        access_control_list.append({
+            permissions_attribute: current_owner,
+            'permission_level': 'IS_OWNER',
+        })
+
+        for grant in job_grants.get('view', []):
+            acl_grant = grant.copy()
+            acl_grant.update({
+                'permission_level': 'CAN_VIEW',
+            })
+            access_control_list.append(acl_grant)
+        for grant in job_grants.get('run', []):
+            acl_grant = grant.copy()
+            acl_grant.update({
+                'permission_level': 'CAN_MANAGE_RUN',
+            })
+            access_control_list.append(acl_grant)
+        for grant in job_grants.get('manage', []):
+            acl_grant = grant.copy()
+            acl_grant.update({
+                'permission_level': 'CAN_MANAGE',
+            })
+            access_control_list.append(acl_grant)
+
+        return access_control_list
+
+    def _get_current_job_owner(self, job_id) -> tuple[str, str]:
+        """
+        :return: a tuple of the user id and the ACL attribute it came from ie:
+            [user_name|group_name|service_principal_name]
+            For example: `("mateizaharia@databricks.com", "user_name")`
+        """
+        response = self.session.get(
+            f"https://{self.credentials.host}/api/2.0/permissions/jobs/{job_id}",
+            headers=self.extra_headers
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting Databricks workflow permissions.\n {response.content!r}")
+
+        for principal in response.json().get("access_control_list", []):
+            for permission in principal['all_permissions']:
+                if permission['permission_level'] == 'IS_OWNER' and permission['inherited'] is False:
+                    if principal.get('user_name'):
+                        return principal['user_name'], 'user_name'
+                    elif principal.get('group_name'):
+                        return principal['group_name'], 'group_name'
+                    else:
+                        return principal['service_principal_name'], 'service_principal_name'
+
+        raise DbtRuntimeError(f"Error getting current owner for Databricks workflow.\n {response.content!r}")
 
     def _trigger_job(self, job_id: dict):
         """
