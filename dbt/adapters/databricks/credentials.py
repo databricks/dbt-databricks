@@ -142,7 +142,7 @@ class DatabricksCredentials(Credentials):
                 raise DbtConfigError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
-        if not self.token and self.auth_type != "oauth":
+        if not self.token and self.auth_type != "external-browser":
             raise DbtConfigError(
                 ("The config `auth_type: oauth` is required when not using access token")
             )
@@ -281,9 +281,9 @@ class DatabricksCredentialManager(DataClassDictMixin):
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
-            host=credentials.host or "",
+            host=credentials.host,
             token=credentials.token,
-            client_id=credentials.client_id or "",
+            client_id=credentials.client_id or CLIENT_ID,
             client_secret=credentials.client_secret or "",
             oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
             oauth_scopes=credentials.oauth_scopes or SCOPES,
@@ -302,18 +302,19 @@ class DatabricksCredentialManager(DataClassDictMixin):
                     host=self.host,
                     client_id=self.client_id,
                     client_secret=self.client_secret,
+                    auth_type = self.auth_type
                 )
                 self.config.authenticate()
             except Exception:
                 logger.warning(
                     "Failed to auth with client id and secret, trying azure_client_id, azure_client_secret"
                 )
-                self._config = Config(
-                    host=self.host,
-                    azure_client_id=self.client_id,
-                    azure_client_secret=self.client_secret,
-                )
-                self.config.authenticate()
+                # self._config = Config(
+                #     host=self.host,
+                #     azure_client_id=self.client_id,
+                #     azure_client_secret=self.client_secret,
+                # )
+                # self.config.authenticate()
 
     @property
     def api_client(self) -> WorkspaceClient:

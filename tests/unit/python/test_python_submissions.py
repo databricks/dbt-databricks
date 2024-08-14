@@ -28,9 +28,9 @@ class DatabricksTestHelper(BaseDatabricksHelper):
         self.credentials = credentials
 
 
-#@patch("dbt.adapters.databricks.credentials.Config")
+@patch("dbt.adapters.databricks.credentials.Config")
 class TestAclUpdate:
-    def test_empty_acl_empty_config(self):
+    def test_empty_acl_empty_config(self, _):
         helper = DatabricksTestHelper({"config": {}}, DatabricksCredentials())
         assert helper._update_with_acls({}) == {}
 
