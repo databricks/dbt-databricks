@@ -779,9 +779,6 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
 
     def _update_job_permissions(self, job_id, job_grants):
-        if not job_grants:
-            return
-
         access_control_list = self._build_job_permissions(job_id, job_grants)
 
         request_body = {
