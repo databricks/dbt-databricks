@@ -9,16 +9,19 @@ from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTest
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonModel(BasePythonModelTests):
     pass
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
     pass
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchema:
     @pytest.fixture(scope="class")
@@ -42,6 +45,7 @@ class TestChangingSchema:
             assert "Execution status: OK in" in log
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchemaIncremental:
     @pytest.fixture(scope="class")
@@ -60,6 +64,7 @@ class TestChangingSchemaIncremental:
         util.check_relations_equal(project.adapter, ["incremental_model", "expected_incremental"])
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestSpecifyingHttpPath(BasePythonModelTests):
     @pytest.fixture(scope="class")
@@ -73,6 +78,8 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
         }
 
 
+@pytest.mark.python
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestComplexConfig:
     @pytest.fixture(scope="class")

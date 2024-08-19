@@ -28,6 +28,7 @@ class TestIncrementalTags:
         assert results_dict == {"c": "e", "d": "f"}
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonTags:
     @pytest.fixture(scope="class")
