@@ -5,6 +5,10 @@
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
 
+### Fixes
+
+- Fix the default scope for `dbt-databricks` to `all-apis` so it can run python models
+
 ### Under the Hood
 
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
