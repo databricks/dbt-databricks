@@ -4,28 +4,26 @@ import os
 import re
 import threading
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
+from typing import Callable
 from typing import cast
 from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import Union
 
-import keyring
-from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient
-from databricks.sdk.oauth import SessionCredentials
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config
+from databricks.sdk.credentials_provider import CredentialsProvider
 from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks.auth import m2m_auth
-from dbt.adapters.databricks.auth import token_auth
-from dbt.adapters.databricks.events.credential_events import CredentialLoadError
-from dbt.adapters.databricks.events.credential_events import CredentialSaveError
-from dbt.adapters.databricks.events.credential_events import CredentialShardEvent
-from dbt.adapters.databricks.logging import logger
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtValidationError
+from mashumaro import DataClassDictMixin
+from requests import PreparedRequest
+from requests.auth import AuthBase
+from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
@@ -41,8 +39,6 @@ MAX_NT_PASSWORD_SIZE = 1280
 # When using an Azure App Registration with the SPA platform, the refresh token will
 # also expire after 24h. Silently accept this in this case.
 SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = "AADSTS700084"
-
-TCredentialProvider = Union[CredentialsProvider, SessionCredentials]
 
 
 @dataclass
@@ -69,7 +65,7 @@ class DatabricksCredentials(Credentials):
     retry_all: bool = False
     connect_max_idle: Optional[int] = None
 
-    _credentials_provider: Optional[Dict[str, Any]] = None
+    _credentials_manager: Optional["DatabricksCredentialManager"] = None
     _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
@@ -138,6 +134,7 @@ class DatabricksCredentials(Credentials):
         if "_socket_timeout" not in connection_parameters:
             connection_parameters["_socket_timeout"] = 600
         self.connection_parameters = connection_parameters
+        self._credentials_manager = DatabricksCredentialManager.create_from(self)
 
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
@@ -244,181 +241,97 @@ class DatabricksCredentials(Credentials):
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
-    def authenticate(self, in_provider: Optional[TCredentialProvider]) -> TCredentialProvider:
+    def authenticate(self) -> "DatabricksCredentialManager":
         self.validate_creds()
-        host: str = self.host or ""
-        if self._credentials_provider:
-            return self._provider_from_dict()  # type: ignore
-        if in_provider:
-            if isinstance(in_provider, m2m_auth) or isinstance(in_provider, token_auth):
-                self._credentials_provider = in_provider.as_dict()
-            return in_provider
+        assert self._credentials_manager is not None, "Credentials manager is not set."
+        return self._credentials_manager
 
-        provider: TCredentialProvider
-        # dbt will spin up multiple threads. This has to be sync. So lock here
-        self._lock.acquire()
-        try:
-            if self.token:
-                provider = token_auth(self.token)
-                self._credentials_provider = provider.as_dict()
-                return provider
 
-            if self.client_id and self.client_secret:
-                provider = m2m_auth(
-                    host=host,
-                    client_id=self.client_id or "",
-                    client_secret=self.client_secret or "",
-                )
-                self._credentials_provider = provider.as_dict()
-                return provider
+class BearerAuth(AuthBase):
+    """This mix-in is passed to our requests Session to explicitly
+    use the bearer authentication method.
 
-            client_id = self.client_id or CLIENT_ID
+    Without this, a local .netrc file in the user's home directory
+    will override the auth headers provided by our header_factory.
 
-            if client_id == "dbt-databricks":
-                # This is the temp code to make client id dbt-databricks work with server,
-                # currently the redirect url and scope for client dbt-databricks are fixed
-                # values as below. It can be removed after Databricks extends dbt-databricks
-                # scope to all-apis
-                redirect_url = "http://localhost:8050"
-                scopes = ["sql", "offline_access"]
-            else:
-                redirect_url = self.oauth_redirect_url or REDIRECT_URL
-                scopes = self.oauth_scopes or SCOPES
+    More details in issue #337.
+    """
 
-            oauth_client = OAuthClient(
-                host=host,
-                client_id=client_id,
-                client_secret="",
-                redirect_url=redirect_url,
-                scopes=scopes,
-            )
-            # optional branch. Try and keep going if it does not work
-            try:
-                # try to get cached credentials
-                credsdict = self.get_sharded_password("dbt-databricks", host)
+    def __init__(self, header_factory: CredentialsProvider):
+        self.header_factory = header_factory
 
-                if credsdict:
-                    provider = SessionCredentials.from_dict(oauth_client, json.loads(credsdict))
-                    # if refresh token is expired, this will throw
-                    try:
-                        if provider.token().valid:
-                            self._credentials_provider = provider.as_dict()
-                            if json.loads(credsdict) != provider.as_dict():
-                                # if the provider dict has changed, most likely because of a token
-                                # refresh, save it for further use
-                                self.set_sharded_password(
-                                    "dbt-databricks", host, json.dumps(self._credentials_provider)
-                                )
-                            return provider
-                    except Exception as e:
-                        # SPA token are supposed to expire after 24h, no need to warn
-                        if SPA_CLIENT_FIXED_TIME_LIMIT_ERROR in str(e):
-                            logger.debug(CredentialLoadError(e))
-                        else:
-                            logger.warning(CredentialLoadError(e))
-                        # whatever it is, get rid of the cache
-                        self.delete_sharded_password("dbt-databricks", host)
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        r.headers.update(**self.header_factory())
+        return r
 
-            # error with keyring. Maybe machine has no password persistency
-            except Exception as e:
-                logger.warning(CredentialLoadError(e))
 
-            # no token, go fetch one
-            consent = oauth_client.initiate_consent()
+PySQLCredentialProvider = Callable[[], Callable[[], Dict[str, str]]]
 
-            provider = consent.launch_external_browser()
-            # save for later
-            self._credentials_provider = provider.as_dict()
-            try:
-                self.set_sharded_password(
-                    "dbt-databricks", host, json.dumps(self._credentials_provider)
-                )
-            # error with keyring. Maybe machine has no password persistency
-            except Exception as e:
-                logger.warning(CredentialSaveError(e))
 
-            return provider
+@dataclass
+class DatabricksCredentialManager(DataClassDictMixin):
+    host: str
+    client_id: str
+    client_secret: str
+    oauth_redirect_url: str = REDIRECT_URL
+    oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
+    token: Optional[str] = None
+    auth_type: Optional[str] = None
 
-        finally:
-            self._lock.release()
+    @classmethod
+    def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
+        return DatabricksCredentialManager(
+            host=credentials.host or "",
+            token=credentials.token,
+            client_id=credentials.client_id or "",
+            client_secret=credentials.client_secret or "",
+            oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
+            oauth_scopes=credentials.oauth_scopes or SCOPES,
+            auth_type=credentials.auth_type,
+        )
 
-    def set_sharded_password(self, service_name: str, username: str, password: str) -> None:
-        max_size = MAX_NT_PASSWORD_SIZE
-
-        # if not Windows or "small" password, stick to the default
-        if os.name != "nt" or len(password) < max_size:
-            keyring.set_password(service_name, username, password)
-        else:
-            logger.debug(CredentialShardEvent(len(password)))
-
-            password_shards = [
-                password[i : i + max_size] for i in range(0, len(password), max_size)
-            ]
-            shard_info = {
-                "sharded_password": True,
-                "shard_count": len(password_shards),
-            }
-
-            # store the "shard info" as the "base" password
-            keyring.set_password(service_name, username, json.dumps(shard_info))
-            # then store all shards with the shard number as postfix
-            for i, s in enumerate(password_shards):
-                keyring.set_password(service_name, f"{username}__{i}", s)
-
-    def get_sharded_password(self, service_name: str, username: str) -> Optional[str]:
-        password = keyring.get_password(service_name, username)
-
-        # check for "shard info" stored as json
-        try:
-            password_as_dict = json.loads(str(password))
-            if password_as_dict.get("sharded_password"):
-                # if password was stored shared, reconstruct it
-                shard_count = int(password_as_dict.get("shard_count"))
-
-                password = ""
-                for i in range(shard_count):
-                    password += str(keyring.get_password(service_name, f"{username}__{i}"))
-        except ValueError:
-            pass
-
-        return password
-
-    def delete_sharded_password(self, service_name: str, username: str) -> None:
-        password = keyring.get_password(service_name, username)
-
-        # check for "shard info" stored as json. If so delete all shards
-        try:
-            password_as_dict = json.loads(str(password))
-            if password_as_dict.get("sharded_password"):
-                shard_count = int(password_as_dict.get("shard_count"))
-                for i in range(shard_count):
-                    keyring.delete_password(service_name, f"{username}__{i}")
-        except ValueError:
-            pass
-
-        # delete "base" password
-        keyring.delete_password(service_name, username)
-
-    def _provider_from_dict(self) -> Optional[TCredentialProvider]:
+    def __post_init__(self) -> None:
         if self.token:
-            return token_auth.from_dict(self._credentials_provider)
-
-        if self.client_id and self.client_secret:
-            return m2m_auth.from_dict(
-                host=self.host or "",
-                client_id=self.client_id or "",
-                client_secret=self.client_secret or "",
-                raw=self._credentials_provider or {"token": {}},
+            self._config = Config(
+                host=self.host,
+                token=self.token,
             )
+        else:
+            try:
+                self._config = Config(
+                    host=self.host,
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                )
+                self.config.authenticate()
+            except Exception:
+                logger.warning(
+                    "Failed to auth with client id and secret, trying azure_client_id, azure_client_secret"
+                )
+                self._config = Config(
+                    host=self.host,
+                    azure_client_id=self.client_id,
+                    azure_client_secret=self.client_secret,
+                )
+                self.config.authenticate()
 
-        oauth_client = OAuthClient(
-            host=self.host or "",
-            client_id=self.client_id or CLIENT_ID,
-            client_secret="",
-            redirect_url=self.oauth_redirect_url or REDIRECT_URL,
-            scopes=self.oauth_scopes or SCOPES,
-        )
+    @property
+    def api_client(self) -> WorkspaceClient:
+        return WorkspaceClient(config=self._config)
 
-        return SessionCredentials.from_dict(
-            client=oauth_client, raw=self._credentials_provider or {"token": {}}
-        )
+    @property
+    def credentials_provider(self) -> PySQLCredentialProvider:
+        def inner() -> Callable[[], Dict[str, str]]:
+            return self.header_factory
+
+        return inner
+
+    @property
+    def header_factory(self) -> CredentialsProvider:
+        header_factory = self._config._header_factory
+        assert header_factory is not None, "Header factory is not set."
+        return header_factory
+
+    @property
+    def config(self) -> Config:
+        return self._config
