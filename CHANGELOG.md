@@ -7,7 +7,7 @@
 
 ### Fixes
 
-- Fix the default scope for `dbt-databricks` to `all-apis` so it can run python models
+- Fix the default scope for `dbt-databricks` to `all-apis` so it can run python models([772](https://github.com/databricks/dbt-databricks/pull/772))
 
 ### Under the Hood
 
