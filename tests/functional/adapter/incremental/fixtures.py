@@ -76,6 +76,36 @@ models:
         - name: color
 """
 
+tblproperties_a = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        tblproperties:
+            a: b
+            c: d
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
+tblproperties_b = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        tblproperties:
+            c: e
+            d: f
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
 liquid_clustering_a = """
 version: 2
 
@@ -309,6 +339,28 @@ models:
     config:
       tags: ["python"]
       databricks_tags:
+        c: e
+        d: f
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_tblproperties_schema = """version: 2
+models:
+  - name: tblproperties
+    config:
+      tags: ["python"]
+      tblproperties:
+        a: b
+        c: d
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_tblproperties_schema2 = """version: 2
+models:
+  - name: tblproperties
+    config:
+      tags: ["python"]
+      tblproperties:
         c: e
         d: f
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
