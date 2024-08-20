@@ -1,7 +1,6 @@
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
-from dbt import utils
 
 
 class TestConstraintMacros(MacroTestBase):
