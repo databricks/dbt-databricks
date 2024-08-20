@@ -254,7 +254,7 @@ class TestConstraintMacros(MacroTestBase):
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` add constraint hash(;id != name;) "
+            "['alter table `some_database`.`some_schema`.`some_table` add constraint hash(some_table;;id != name;) "
             "check (id != name);']"
         )  # noqa: E501
         assert expected in r
@@ -313,7 +313,7 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_primary_key_without_name(self, template_bundle, model):
+    def test_macros_get_constraint_sql_primary_key_noname(self, template_bundle, model):
         constraint = {
             "type": "primary_key"
         }
@@ -323,7 +323,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add constraint '
-            'hash(primary_key;[\'id\'];) '
+            'hash(primary_key;some_table;[\'id\'];) '
             'primary key(id);"]'
         )
         assert expected in r
@@ -341,6 +341,21 @@ class TestConstraintMacros(MacroTestBase):
             "['alter table `some_database`.`some_schema`.`some_table` add "
             "constraint myconstraint foreign key(name) references "
             "some_schema.parent_table;']"
+        )
+        assert expected in r
+
+    def test_macros_get_constraint_sql_foreign_key_noname(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["name"],
+            "parent": "parent_table",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            '["alter table `some_database`.`some_schema`.`some_table` add '
+            'constraint hash(foreign_key;some_table;[\'name\'];some_schema.parent_table;) foreign key(name) references '
+            'some_schema.parent_table;"]'
         )
         assert expected in r
 
