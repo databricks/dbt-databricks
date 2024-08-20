@@ -4,6 +4,7 @@
 
 - Persist table comments for incremental models, snapshots and dbt clone (thanks @henlue!) ([750](https://github.com/databricks/dbt-databricks/pull/750))
 - Add relation identifier (i.e. table name) in auto generated constraint names, also adding the statement of table list for foreign keys  ([774](https://github.com/databricks/dbt-databricks/pull/774))
+- Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
