@@ -253,7 +253,8 @@ class TestConstraintMacros(MacroTestBase):
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` add constraint hash(some_table;;id != name;) "
+            "['alter table `some_database`.`some_schema`.`some_table` "
+            "add constraint hash(some_table;;id != name;) "
             "check (id != name);']"
         )  # noqa: E501
         assert expected in r
@@ -351,8 +352,8 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add '
-            "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) foreign key(name) references "
-            'some_schema.parent_table;"]'
+            "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) "
+            'foreign key(name) references some_schema.parent_table;"]'
         )
         assert expected in r
 
