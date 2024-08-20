@@ -148,9 +148,13 @@
     {% set joined_names = quoted_names|join(", ") %}
 
     {% set name = constraint.get("name") %}
-    {% if not name and local_md5 %}
-      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
-      {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
+    {% if not name %}
+      {% if local_md5 %}
+        {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
+        {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
+      {% else %}
+        {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+      {% endif %}
     {% endif %}
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
     {% do statements.append(stmt) %}
