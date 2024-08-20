@@ -460,6 +460,7 @@ Throw an error if a model has an enforced contract. ([#322](https://github.com/d
 - Implement testing for a test for various Python models ([#189](https://github.com/databricks/dbt-databricks/pull/189))
 - Implement testing for `type_boolean` in Databricks ([dbt-labs/dbt-spark#471](https://github.com/dbt-labs/dbt-spark/pull/471), [#188](https://github.com/databricks/dbt-databricks/pull/188))
 - Add a macro to support [COPY INTO](https://docs.databricks.com/spark/latest/spark-sql/language-manual/delta-copy-into.html) ([#190](https://github.com/databricks/dbt-databricks/pull/190))
+- Add relation identifier (i.e. table name) in auto generated constraint names, also adding the statement of table list for foreign keys
 
 ### Under the hood
 
