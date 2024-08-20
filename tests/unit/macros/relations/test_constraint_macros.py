@@ -14,8 +14,8 @@ class TestConstraintMacros(MacroTestBase):
 
     @pytest.fixture(scope="class", autouse=True)
     def modify_context(self, default_context) -> None:
-         # Mock local_md5
-         default_context["local_md5"] = lambda s: f"hash({s})"
+        # Mock local_md5
+        default_context["local_md5"] = lambda s: f"hash({s})"
 
     def render_constraints(self, template, *args):
         return self.run_macro(template, "databricks_constraints_to_dbt", *args)
@@ -313,16 +313,14 @@ class TestConstraintMacros(MacroTestBase):
         assert expected in r
 
     def test_macros_get_constraint_sql_primary_key_noname(self, template_bundle, model):
-        constraint = {
-            "type": "primary_key"
-        }
+        constraint = {"type": "primary_key"}
         column = {"name": "id"}
 
         r = self.render_constraint_sql(template_bundle, constraint, model, column)
 
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add constraint '
-            'hash(primary_key;some_table;[\'id\'];) '
+            "hash(primary_key;some_table;['id'];) "
             'primary key(id);"]'
         )
         assert expected in r
@@ -353,7 +351,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add '
-            'constraint hash(foreign_key;some_table;[\'name\'];some_schema.parent_table;) foreign key(name) references '
+            "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) foreign key(name) references "
             'some_schema.parent_table;"]'
         )
         assert expected in r
