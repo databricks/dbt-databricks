@@ -4,6 +4,7 @@
 
 - Persist table comments for incremental models, snapshots and dbt clone (thanks @henlue!) ([750](https://github.com/databricks/dbt-databricks/pull/750))
 - Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
+- Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
