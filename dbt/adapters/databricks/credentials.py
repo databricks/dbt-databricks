@@ -273,17 +273,8 @@ class DatabricksCredentials(Credentials):
                 return provider
 
             client_id = self.client_id or CLIENT_ID
-
-            if client_id == "dbt-databricks":
-                # This is the temp code to make client id dbt-databricks work with server,
-                # currently the redirect url and scope for client dbt-databricks are fixed
-                # values as below. It can be removed after Databricks extends dbt-databricks
-                # scope to all-apis
-                redirect_url = "http://localhost:8050"
-                scopes = ["sql", "offline_access"]
-            else:
-                redirect_url = self.oauth_redirect_url or REDIRECT_URL
-                scopes = self.oauth_scopes or SCOPES
+            redirect_url = self.oauth_redirect_url or REDIRECT_URL
+            scopes = self.oauth_scopes or SCOPES
 
             oauth_client = OAuthClient(
                 host=host,

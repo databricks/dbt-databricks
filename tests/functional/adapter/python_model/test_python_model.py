@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
 from dbt.tests.adapter.python_model.test_python_model import BasePythonIncrementalTests
@@ -96,6 +97,17 @@ class TestComplexConfig:
         return {
             "schema.yml": override_fixtures.complex_schema,
             "complex_config.py": override_fixtures.complex_py,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            }
         }
 
     def test_expected_handling_of_complex_config(self, project):
