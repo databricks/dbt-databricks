@@ -63,7 +63,6 @@ from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_submissions import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
-from dbt.adapters.events.types import AdapterEventDebug
 from dbt.adapters.events.types import ConnectionClosedInCleanup
 from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
 from dbt.adapters.events.types import ConnectionReused
@@ -819,11 +818,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         'connection_named', called by 'connection_for(node)'.
         Creates a connection for this thread if one doesn't already
         exist, and will rename an existing connection."""
-        fire_event(
-            AdapterEventDebug(
-                base_msg=f"Special connection parameters: {self.profile.credentials.connection_parameters}"
-            )
-        )
         self._cleanup_idle_connections()
 
         conn_name: str = "master" if name is None else name
