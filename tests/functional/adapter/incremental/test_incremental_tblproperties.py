@@ -27,6 +27,7 @@ class TestIncrementalTblproperties:
         assert results_dict["d"] == "f"
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonTblproperties:
     @pytest.fixture(scope="class")

@@ -24,6 +24,7 @@ class TestIncrementalDeltaNotSchemaChange(BaseIncrementalNotSchemaChange):
     pass
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestIncrementalParquet(BaseIncremental):
     @pytest.fixture(scope="class")
@@ -50,6 +51,7 @@ class TestIncrementalParquetHive(BaseIncremental):
         }
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestIncrementalCSV(BaseIncremental):
     @pytest.fixture(scope="class")

@@ -42,6 +42,7 @@ class TestAppendDelta(AppendBase):
     pass
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestAppendParquet(AppendBase):
     @pytest.fixture(scope="class")
@@ -118,6 +119,7 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
+@pytest.mark.external
 @pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
@@ -132,6 +134,7 @@ class TestInsertOverwriteParquet(InsertOverwriteBase):
         }
 
 
+@pytest.mark.external
 @pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
