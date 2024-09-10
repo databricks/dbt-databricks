@@ -433,7 +433,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` "
-            "add constraint hash(PRIMARY KEY(valid_at, TIMESERIES);) "
+            "add constraint hash(some_table;PRIMARY KEY(valid_at, TIMESERIES);) "
             "PRIMARY KEY(valid_at, TIMESERIES);']"
         )  # noqa: E501
         assert expected in r
