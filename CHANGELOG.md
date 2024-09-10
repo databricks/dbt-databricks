@@ -7,6 +7,10 @@
 - Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
 - Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
 
+### Features
+
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression`. ([785](https://github.com/databricks/dbt-databricks/pull/785))
+
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
 ### Fixes
