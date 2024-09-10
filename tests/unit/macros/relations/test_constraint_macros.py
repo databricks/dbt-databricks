@@ -409,3 +409,40 @@ class TestConstraintMacros(MacroTestBase):
             "some_schema.parent_table(parent_name);']"
         )
         assert expected in r
+
+    def test_macros_get_constraint_sql_custom(self, template_bundle, model):
+        constraint = {
+            "type": "custom",
+            "name": "myconstraint",
+            "expression": "PRIMARY KEY(valid_at, TIMESERIES)",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            "['alter table `some_database`.`some_schema`.`some_table` add constraint "
+            "myconstraint PRIMARY KEY(valid_at, TIMESERIES);']"
+        )
+        assert expected in r
+
+    def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
+        constraint = {
+            "type": "custom",
+            "expression": "PRIMARY KEY(valid_at, TIMESERIES)",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            "['alter table `some_database`.`some_schema`.`some_table` "
+            "add constraint hash(PRIMARY KEY(valid_at, TIMESERIES);) "
+            "PRIMARY KEY(valid_at, TIMESERIES);']"
+        )  # noqa: E501
+        assert expected in r
+
+    def test_macros_get_constraint_sql_custom_missing_expression(self, template_bundle, model):
+        constraint = {
+            "type": "check",
+            "expression": "",
+            "name": "myconstraint",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+        assert "raise_compiler_error" in r
