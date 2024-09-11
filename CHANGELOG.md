@@ -9,7 +9,7 @@
 
 ### Features
 
-- Allow for the use of custom constraints, using the `custom` constraint type with an `expression`. ([785](https://github.com/databricks/dbt-databricks/pull/785))
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression`. ([786](https://github.com/databricks/dbt-databricks/pull/786))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
