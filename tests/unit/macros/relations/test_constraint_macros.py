@@ -414,27 +414,27 @@ class TestConstraintMacros(MacroTestBase):
         constraint = {
             "type": "custom",
             "name": "myconstraint",
-            "expression": "PRIMARY KEY(valid_at, TIMESERIES)",
+            "expression": "PRIMARY KEY(valid_at TIMESERIES)",
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint PRIMARY KEY(valid_at, TIMESERIES);']"
+            "myconstraint PRIMARY KEY(valid_at TIMESERIES);']"
         )
         assert expected in r
 
     def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
         constraint = {
             "type": "custom",
-            "expression": "PRIMARY KEY(valid_at, TIMESERIES)",
+            "expression": "PRIMARY KEY(valid_at TIMESERIES)",
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` "
-            "add constraint hash(some_table;PRIMARY KEY(valid_at, TIMESERIES);) "
-            "PRIMARY KEY(valid_at, TIMESERIES);']"
+            "add constraint hash(some_table;PRIMARY KEY(valid_at TIMESERIES);) "
+            "PRIMARY KEY(valid_at TIMESERIES);']"
         )  # noqa: E501
         assert expected in r
 
