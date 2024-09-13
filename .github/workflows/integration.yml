@@ -6,6 +6,8 @@ on:
       - "**.md"
       - "adapters/databricks/__version__.py"
       - "tests/unit/**"
+      - ".github/workflows/main.yml"
+      - ".github/workflows/stale.yml"
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest
