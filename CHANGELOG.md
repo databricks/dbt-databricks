@@ -14,7 +14,7 @@
 ### Under the Hood
 
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
-- Upgrade databricks-sql-connector dependency to 3.2.0 ([729](https://github.com/databricks/dbt-databricks/pull/729))
+- Upgrade databricks-sql-connector dependency to 3.4.0 ([790](https://github.com/databricks/dbt-databricks/pull/790))
 
 ## dbt-databricks 1.8.6 (TBD)
 
