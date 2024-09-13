@@ -27,6 +27,7 @@ class TestMaterializedViewsMixin:
         return fixtures.query_relation_type(project, relation)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
     def test_table_replaces_materialized_view(self, project, my_materialized_view):

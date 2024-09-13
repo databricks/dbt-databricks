@@ -12,6 +12,7 @@ from dbt.tests.adapter.materialized_view.files import MY_VIEW
 from tests.functional.adapter.streaming_tables import fixtures
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTablesBasic:
     @staticmethod

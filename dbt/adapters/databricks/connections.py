@@ -815,7 +815,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         'connection_named', called by 'connection_for(node)'.
         Creates a connection for this thread if one doesn't already
         exist, and will rename an existing connection."""
-
         self._cleanup_idle_connections()
 
         conn_name: str = "master" if name is None else name

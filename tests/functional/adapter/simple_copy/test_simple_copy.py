@@ -5,6 +5,7 @@ from dbt.tests.adapter.simple_copy.test_simple_copy import SimpleCopyBase
 
 
 # Tests with materialized_views, which only works for SQL Warehouse
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestSimpleCopyBase(SimpleCopyBase):
     pass
