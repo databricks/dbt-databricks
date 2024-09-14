@@ -10,6 +10,7 @@
   - `matched`, `not matched` and `not matched by source` condition clauses;
   - custom aliases for source and target tables can be specified and used in condition clauses;
   - `matched` and `not matched` steps can now be skipped;
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint. (786)
 
 ### Under the Hood
 
