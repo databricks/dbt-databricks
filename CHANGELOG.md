@@ -10,6 +10,8 @@
   - `matched`, `not matched` and `not matched by source` condition clauses;
   - custom aliases for source and target tables can be specified and used in condition clauses;
   - `matched` and `not matched` steps can now be skipped;
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint. ([792](https://github.com/databricks/dbt-databricks/pull/792))
+
 
 ### Under the Hood
 
@@ -24,10 +26,6 @@
 - Add relation identifier (i.e. table name) in auto generated constraint names, also adding the statement of table list for foreign keys (thanks @elca-anh!) ([774](https://github.com/databricks/dbt-databricks/pull/774))
 - Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
 - Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
-
-### Features
-
-- Allow for the use of custom constraints, using the `custom` constraint type with an `expression`. ([786](https://github.com/databricks/dbt-databricks/pull/786))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
