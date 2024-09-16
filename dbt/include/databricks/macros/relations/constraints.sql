@@ -238,7 +238,7 @@
   {% elif type == 'custom' %}
     {% set expression = constraint.get("expression", "") %}
     {% if not expression %}
-      {{ exceptions.raise_compiler_error('Invalid check constraint expression') }}
+      {{ exceptions.raise_compiler_error('Missing custom constraint expression') }}
     {% endif %}
 
     {% set name = constraint.get("name") %}
