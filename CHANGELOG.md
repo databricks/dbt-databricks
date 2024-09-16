@@ -10,7 +10,7 @@
   - `matched`, `not matched` and `not matched by source` condition clauses;
   - custom aliases for source and target tables can be specified and used in condition clauses;
   - `matched` and `not matched` steps can now be skipped;
-- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint. ([792](https://github.com/databricks/dbt-databricks/pull/792))
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint (thanks @roydobbe). ([792](https://github.com/databricks/dbt-databricks/pull/792))
 
 
 ### Under the Hood
