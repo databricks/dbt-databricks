@@ -200,7 +200,7 @@
 
       {% set joined_names = quoted_names|join(", ") %}
 
-      {% set parent = constraint.get("parent") %}
+      {% set parent = constraint.get("to") %}
       {% if not parent %}
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
       {% endif %}
@@ -218,7 +218,7 @@
       {% endif %}
 
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
-      {% set parent_columns = constraint.get("parent_columns") %}
+      {% set parent_columns = constraint.get("to_columns") %}
       {% if parent_columns %}
         {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
       {% endif %}
