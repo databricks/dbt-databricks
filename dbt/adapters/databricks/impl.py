@@ -49,7 +49,7 @@ from dbt.adapters.databricks.python_submissions import (
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.relation import DatabricksRelation
+from dbt.adapters.databricks.relation import DatabricksRelation, is_hive_metastore
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
@@ -73,6 +73,7 @@ from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
+from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -88,6 +89,7 @@ SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+GET_COLUMNS_BY_INFO_MACRO_NAME = "get_columns_comments_via_information_schema"
 
 
 @dataclass
@@ -163,6 +165,10 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    @property
+    def _behavior_flags(self) -> List[BehaviorFlag]:
+        return [{"name": "column_types_from_information_schema", "default": False}]
 
     # override/overload
     def acquire_connection(
@@ -375,6 +381,39 @@ class DatabricksAdapter(SparkAdapter):
         ]
 
     def get_columns_in_relation(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        if (
+            self.behavior.column_types_from_information_schema  # type: ignore
+            and not relation.is_hive_metastore()
+        ):
+            return self._get_columns_in_relation_by_information_schema(relation)
+        else:
+            return self._get_columns_in_relation_by_describe(relation)
+
+    def _get_columns_in_relation_by_information_schema(
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        rows = list(
+            handle_missing_objects(
+                lambda: self.execute_macro(
+                    GET_COLUMNS_BY_INFO_MACRO_NAME, kwargs={"relation": relation}
+                ),
+                AttrDict(),
+            )
+        )
+
+        columns = []
+        for row in rows:
+            columns.append(
+                DatabricksColumn(
+                    column=row["columm_name"], dtype=row["full_data_type"], comment=row["comment"]
+                )
+            )
+
+        return columns
+
+    def _get_columns_in_relation_by_describe(
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
         rows = list(
