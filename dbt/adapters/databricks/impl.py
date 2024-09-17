@@ -73,6 +73,7 @@ from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
+from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -88,6 +89,7 @@ SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+GET_COLUMNS_BY_INFO_MACRO_NAME = "get_columns_comments_via_information_schema"
 
 
 @dataclass
@@ -163,6 +165,12 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    # This will begin working once we have 1.9 of dbt-core.
+    # For now does nothing
+    @property
+    def _behavior_flags(self) -> List[BehaviorFlag]:
+        return [{"name": "column_types_from_information_schema", "default": False}]  # type: ignore
 
     # override/overload
     def acquire_connection(
@@ -375,6 +383,36 @@ class DatabricksAdapter(SparkAdapter):
         ]
 
     def get_columns_in_relation(  # type: ignore[override]
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        if (
+            # We can uncomment this once behavior flags are available to adapters
+            # self.behavior.column_types_from_information_schema and # type: ignore
+            not relation.is_hive_metastore()
+        ):
+            return self._get_columns_in_relation_by_information_schema(relation)
+        else:
+            return self._get_columns_in_relation_by_describe(relation)
+
+    def _get_columns_in_relation_by_information_schema(
+        self, relation: DatabricksRelation
+    ) -> List[DatabricksColumn]:
+        rows = list(
+            handle_missing_objects(
+                lambda: self.execute_macro(
+                    GET_COLUMNS_BY_INFO_MACRO_NAME, kwargs={"relation": relation}
+                ),
+                AttrDict(),
+            )
+        )
+
+        columns = []
+        for row in rows:
+            columns.append(DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]))
+
+        return columns
+
+    def _get_columns_in_relation_by_describe(
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
         rows = list(
@@ -817,4 +855,5 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results

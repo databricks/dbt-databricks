@@ -71,6 +71,8 @@
           {{ final_sql }}
       {% endcall %}
 
+      {% do persist_docs(target_relation, model, for_relation=False) %}
+
   {% else %}
 
       {{ adapter.valid_snapshot_target(target_relation) }}
@@ -117,12 +119,12 @@
           {{ final_sql }}
       {% endcall %}
 
+      {% do persist_docs(target_relation, model, for_relation=True) %}
+
   {% endif %}
 
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
-
-  {% do persist_docs(target_relation, model) %}
 
   {% do persist_constraints(target_relation, model) %}
 

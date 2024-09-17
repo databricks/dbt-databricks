@@ -29,11 +29,12 @@
 
   {% set should_revoke = should_revoke(old_relation, full_refresh_mode=True) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
-  {% do apply_tblproperties_python(target_relation, tblproperties, language) %}
-
+  {% if language=="python" %}
+    {% do apply_tblproperties(target_relation, tblproperties) %}
+  {% endif %}
   {%- do apply_tags(target_relation, tags) -%}
-  
-  {% do persist_docs(target_relation, model) %}
+
+  {% do persist_docs(target_relation, model, for_relation=language=='python') %}
 
   {% do persist_constraints(target_relation, model) %}
 

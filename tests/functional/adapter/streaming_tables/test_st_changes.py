@@ -123,6 +123,7 @@ class StreamingTableChanges:
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesApply(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -153,6 +154,7 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesContinue(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -193,6 +195,7 @@ class TestStreamingTableChangesContinue(StreamingTableChanges):
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesFail(StreamingTableChanges):
     @pytest.fixture(scope="class")
