@@ -170,7 +170,7 @@ class DatabricksAdapter(SparkAdapter):
     # For now does nothing
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [{"name": "column_types_from_information_schema", "default": False}]
+        return [{"name": "column_types_from_information_schema", "default": False}]  # type: ignore
 
     # override/overload
     def acquire_connection(
