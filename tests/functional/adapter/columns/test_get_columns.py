@@ -18,9 +18,16 @@ class ColumnsInRelation:
 
     @pytest.fixture(scope="class")
     def expected_columns(self):
+
         return [
-            DatabricksColumn(column="struct_col", dtype="struct", comment="A struct column"),
-            DatabricksColumn(column="str_col", dtype="string", comment="A string column"),
+            DatabricksColumn(
+                column="struct_col",
+                dtype=(
+                    "struct<col1:string,col2:int,col3:string,"
+                    "col4:string,col5:string,col6:array<int>>"
+                ),
+            ),
+            DatabricksColumn(column="str_col", dtype="string"),
         ]
 
     def test_columns_in_relation(self, project, expected_columns):

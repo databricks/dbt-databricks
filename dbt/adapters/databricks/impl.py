@@ -166,6 +166,8 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
+    # This will begin working once we have 1.9 of dbt-core.
+    # For now does nothing
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
         return [{"name": "column_types_from_information_schema", "default": False}]
@@ -384,8 +386,9 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
         if (
-            self.behavior.column_types_from_information_schema  # type: ignore
-            and not relation.is_hive_metastore()
+            # We can uncomment this once behavior flags are available to adapters
+            # self.behavior.column_types_from_information_schema and # type: ignore
+            not relation.is_hive_metastore()
         ):
             return self._get_columns_in_relation_by_information_schema(relation)
         else:
@@ -405,11 +408,7 @@ class DatabricksAdapter(SparkAdapter):
 
         columns = []
         for row in rows:
-            columns.append(
-                DatabricksColumn(
-                    column=row["columm_name"], dtype=row["full_data_type"], comment=row["comment"]
-                )
-            )
+            columns.append(DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]))
 
         return columns
 

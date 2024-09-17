@@ -9,7 +9,5 @@ models:
   - name: base_model
     columns:
       - name: struct_col
-        description: 'A struct column'
       - name: str_col
-        description: 'A string column'
 """

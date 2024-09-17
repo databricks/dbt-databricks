@@ -29,7 +29,7 @@
 {% endmacro %}
 
 {% macro get_columns_comments_via_information_schema(relation) -%}
-  {% call statement('get_columns_comments', fetch_result=True) -%}
+  {% call statement('get_columns_comments_via_information_schema', fetch_result=True) -%}
     select
       column_name,
       full_data_type,
