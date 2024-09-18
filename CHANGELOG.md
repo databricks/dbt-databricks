@@ -8,7 +8,6 @@
 - Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
 - Fix foreign key constraints by switching from `parent` to `to` and `parent_columns` to `to_columns` ([789](https://github.com/databricks/dbt-databricks/pull/789))
 - Now handles external shallow clones without blowing up ([795](https://github.com/databricks/dbt-databricks/pull/795))
-- Use information_schema to get column types when possible, since describe extended truncates complex types ([796](https://github.com/databricks/dbt-databricks/pull/796))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 
