@@ -73,10 +73,12 @@ from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.behavior_flags import BehaviorFlag
+
+# from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+
 
 if TYPE_CHECKING:
     from agate import Row
@@ -167,10 +169,9 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     # This will begin working once we have 1.9 of dbt-core.
-    # For now does nothing
-    @property
-    def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [{"name": "column_types_from_information_schema", "default": False}]  # type: ignore
+    # @property
+    # def _behavior_flags(self) -> List[BehaviorFlag]:
+    #     return [{"name": "column_types_from_information_schema", "default": False}]
 
     # override/overload
     def acquire_connection(
