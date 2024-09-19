@@ -189,7 +189,7 @@ class TestIncrementalConstraintsRollback(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalForeignKeyConstraint:
+class TestIncrementalForeignKeyExpressionConstraint:
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -209,6 +209,20 @@ class TestIncrementalForeignKeyConstraint:
         util.run_dbt(["run", "--select", "raw_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestForeignKeyParentConstraint:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.parent_foreign_key,
+            "parent_table.sql": override_fixtures.parent_sql,
+            "child_table.sql": override_fixtures.child_sql,
+        }
+
+    def test_foreign_key_constraint(self, project):
+        util.run_dbt(["build"])
 
 
 class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
