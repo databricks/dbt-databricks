@@ -331,7 +331,7 @@ class TestConstraintMacros(MacroTestBase):
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name"],
-            "parent": "parent_table",
+            "to": "parent_table",
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -346,7 +346,7 @@ class TestConstraintMacros(MacroTestBase):
         constraint = {
             "type": "foreign_key",
             "columns": ["name"],
-            "parent": "parent_table",
+            "to": "parent_table",
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -362,8 +362,8 @@ class TestConstraintMacros(MacroTestBase):
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name"],
-            "parent": "parent_table",
-            "parent_columns": ["parent_name"],
+            "to": "parent_table",
+            "to_columns": ["parent_name"],
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -379,8 +379,8 @@ class TestConstraintMacros(MacroTestBase):
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name", "id"],
-            "parent": "parent_table",
-            "parent_columns": ["parent_name", "parent_id"],
+            "to": "parent_table",
+            "to_columns": ["parent_name", "parent_id"],
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -397,8 +397,8 @@ class TestConstraintMacros(MacroTestBase):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
-            "parent": "parent_table",
-            "parent_columns": ["parent_name"],
+            "to": "parent_table",
+            "to_columns": ["parent_name"],
         }
         column = {"name": "id"}
         r = self.render_constraint_sql(template_bundle, constraint, model, column)
