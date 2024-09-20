@@ -86,9 +86,6 @@ class PythonRunTracker(object):
 
     @classmethod
     def cancel_runs(cls, session: Session) -> None:
-        # TODO: let Databricks Workflows handle timeouts if a timeout is defined
-        #       in the workflow job
-
         cls._lock.acquire()
         try:
             logger.debug(f"Run_ids to cancel: {cls._run_ids}")
@@ -704,11 +701,12 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
         )
 
         run_output = self.session.get(
-            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get-output?run_id={run_id}",
+            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get?run_id={run_id}",
             headers=self.extra_headers,
         )
         json_run_output = run_output.json()
-        result_state = json_run_output["metadata"]["state"]["result_state"]
+
+        result_state = json_run_output["state"]["result_state"]
         if result_state != "SUCCESS":
             raise DbtRuntimeError(
                 "Python model failed with traceback as:\n"
@@ -862,7 +860,7 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
             json=request_body,
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
+            raise DbtRuntimeError(f"Error triggering a run for Databricks workflow.\n {response.content!r}")
         response_json = response.json()
         logger.info(f"Workflow trigger response={response_json}")
 
