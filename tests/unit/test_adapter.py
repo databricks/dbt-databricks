@@ -14,7 +14,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import CATALOG_KEY_IN_SESSION_PROPERTIES
 from dbt.adapters.databricks.credentials import DBT_DATABRICKS_HTTP_SESSION_HEADERS
 from dbt.adapters.databricks.credentials import DBT_DATABRICKS_INVOCATION_ENV
-from dbt.adapters.databricks.impl import check_not_found_error
+from dbt.adapters.databricks.utils import check_not_found_error
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.config import RuntimeConfig

@@ -1,3 +1,4 @@
+from multiprocessing.context import SpawnContext
 import os
 import re
 from abc import ABC
@@ -7,7 +8,6 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
-from typing import Callable
 from typing import cast
 from typing import ClassVar
 from typing import Dict
@@ -21,7 +21,6 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
-from typing import TypeVar
 from typing import Union
 
 from dbt.adapters.base import AdapterConfig
@@ -37,6 +36,11 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks.behaviors.columns import (
+    GetColumnsBehavior,
+    GetColumnsByDescribe,
+    GetColumnsByInformationSchema,
+)
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
@@ -63,7 +67,7 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.utils import get_first_row
+from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
@@ -73,8 +77,7 @@ from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 
@@ -116,26 +119,6 @@ class DatabricksConfig(AdapterConfig):
     merge_with_schema_evolution: Optional[bool] = None
 
 
-def check_not_found_error(errmsg: str) -> bool:
-    new_error = "[SCHEMA_NOT_FOUND]" in errmsg
-    old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
-    found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-    return new_error or old_error is not None or any(found_msgs)
-
-
-T = TypeVar("T")
-
-
-def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
-    try:
-        return exec()
-    except DbtRuntimeError as e:
-        errmsg = getattr(e, "msg", "")
-        if check_not_found_error(errmsg):
-            return default
-        raise e
-
-
 def get_identifier_list_string(table_names: Set[str]) -> str:
     """Returns `"|".join(table_names)` by default.
 
@@ -174,6 +157,19 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    get_column_behavior: GetColumnsBehavior
+
+    def __init__(self, config: Any, mp_context: SpawnContext) -> None:
+        super().__init__(config, mp_context)
+        if self.behavior.use_info_schema_for_columns:  # type: ignore[attr-defined]
+            self.get_column_behavior = GetColumnsByInformationSchema()
+        else:
+            self.get_column_behavior = GetColumnsByDescribe()
+
+    @property
+    def _behavior_flags(self) -> List[BehaviorFlag]:
+        return [BehaviorFlag(name="use_info_schema_for_columns", default=False)]
 
     # override/overload
     def acquire_connection(
@@ -388,26 +384,7 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        rows = list(
-            handle_missing_objects(
-                lambda: self.execute_macro(
-                    GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}
-                ),
-                AttrDict(),
-            )
-        )
-
-        columns = []
-        for row in rows:
-            if row["col_name"].startswith("#"):
-                break
-            columns.append(
-                DatabricksColumn(
-                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
-                )
-            )
-
-        return columns
+        return self.get_column_behavior.get_columns_in_relation(self, relation)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
