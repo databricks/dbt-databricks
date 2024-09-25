@@ -17,6 +17,12 @@
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
 - Upgrade databricks-sql-connector dependency to 3.4.0 ([790](https://github.com/databricks/dbt-databricks/pull/790))
 
+## dbt-databricks 1.8.7 (TBD)
+
+### Fixes
+
+- Stop setting cluster by to None. If you want to drop liquid clustering, you will need to full-refresh ([806]https://github.com/databricks/dbt-databricks/pull/806)
+
 ## dbt-databricks 1.8.6 (September 18, 2024)
 
 ### Fixes
