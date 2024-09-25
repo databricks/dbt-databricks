@@ -14,7 +14,8 @@ class GetColumnsBehavior(ABC):
     @abstractmethod
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
-    ) -> List[DatabricksColumn]: ...
+    ) -> List[DatabricksColumn]:
+        pass
 
     @staticmethod
     def _get_columns_with_comments(

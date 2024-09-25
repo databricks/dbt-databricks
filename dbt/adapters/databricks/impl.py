@@ -93,6 +93,15 @@ SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 
+USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
+    name="use_info_schema_for_columns",
+    default=False,
+    description=(
+        "Use info schema to gather column information to ensure complex types are not truncated."
+        "  Incurs some overhead, so disabled by default."
+    ),
+)
+
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
@@ -169,7 +178,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [BehaviorFlag(name="use_info_schema_for_columns", default=False)]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS]
 
     # override/overload
     def acquire_connection(
