@@ -100,7 +100,7 @@ USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
         "Use info schema to gather column information to ensure complex types are not truncated."
         "  Incurs some overhead, so disabled by default."
     ),
-)
+)  # type: ignore[typeddict-item]
 
 
 @dataclass
