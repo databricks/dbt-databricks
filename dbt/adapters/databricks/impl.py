@@ -23,6 +23,7 @@ from typing import Type
 from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
+from uuid import uuid4
 
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
@@ -103,6 +104,7 @@ class DatabricksConfig(AdapterConfig):
     databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
+    unique_tmp_table_suffix: bool = False
 
 
 def check_not_found_error(errmsg: str) -> bool:
@@ -685,6 +687,9 @@ class DatabricksAdapter(SparkAdapter):
                 f"Materialization {model.config.materialized} is not supported."
             )
 
+    @available
+    def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
+        return f"{suffix_initial}_{str(uuid4())}"
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
