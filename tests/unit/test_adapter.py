@@ -346,13 +346,13 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     def test_list_relations_without_caching__no_relations(self):
         with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = []
-            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             assert adapter.list_relations("database", "schema") == []
 
     def test_list_relations_without_caching__some_relations(self):
         with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", "hudi", "owner")]
-            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
             relation = relations[0]
@@ -366,7 +366,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     def test_list_relations_without_caching__hive_relation(self):
         with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", None, None)]
-            adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+            adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
             relation = relations[0]
@@ -381,7 +381,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             list_info.return_value = [(Mock(), "info")]
             with mock.patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
                 get_columns.return_value = []
-                adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 0
 
@@ -393,7 +393,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                     {"name": "col1", "type": "string", "comment": "comment"},
                     {"name": "col2", "type": "string", "comment": "comment"},
                 ]
-                adapter = DatabricksAdapter(Mock(), get_context("spawn"))
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 2
                 assert table.column_names == ("name", "type", "comment")
