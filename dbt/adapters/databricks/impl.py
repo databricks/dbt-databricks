@@ -171,7 +171,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
-        if self.behavior.use_info_schema_for_columns:  # type: ignore[attr-defined]
+        if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
             self.get_column_behavior = GetColumnsByInformationSchema()
         else:
             self.get_column_behavior = GetColumnsByDescribe()
