@@ -627,14 +627,6 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
                 "workflow_job_config is required for the `workflow_job_config` submission method."
             )
 
-        job_cluster_config = self.parsed_model["config"].get("job_cluster_config", None)
-
-        if job_cluster_config is None and workflow_config.get("existing_cluster_id", None) is None:
-            raise ValueError(
-                """job_cluster_config or an existing_cluster_id is required for the "
-                `workflow_job_config` submission method."""
-            )
-
     def submit(self, compiled_code: str) -> None:
         workflow_spec = self.parsed_model["config"]["workflow_job_config"]
         cluster_spec = self.parsed_model["config"].get("job_cluster_config", None)
@@ -648,10 +640,10 @@ class DbtDatabricksWorkflowPythonJobHelper(DbtDatabricksBasePythonJobHelper):
     def _build_job_spec(self, workflow_spec, cluster_spec):
         workflow_spec["name"] = workflow_spec.get('name', self.default_job_name)
 
-        cluster_settings = {}
+        cluster_settings = {}  # Undefined cluster settings defaults to serverless in the Databricks API
         if cluster_spec is not None:
             cluster_settings["new_cluster"] = cluster_spec
-        else:
+        elif 'existing_cluster_id' in workflow_spec:
             cluster_settings['existing_cluster_id'] = workflow_spec['existing_cluster_id']
 
         notebook_task = {
