@@ -80,6 +80,7 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
         return fixtures.query_relation_type(project, relation)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewApplyChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesApplyMixin
@@ -87,6 +88,7 @@ class TestMaterializedViewApplyChanges(
     pass
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewContinueOnChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesContinueMixin
@@ -94,6 +96,7 @@ class TestMaterializedViewContinueOnChanges(
     pass
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewFailOnChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesFailMixin

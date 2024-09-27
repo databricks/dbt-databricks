@@ -36,6 +36,7 @@ class TestIncrementalLiquidClustering:
                 assert False
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonLiquidClustering:
     @pytest.fixture(scope="class")

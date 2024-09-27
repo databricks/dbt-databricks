@@ -37,6 +37,7 @@ version: 2
 
 models:
   - name: merge_update_columns_sql
+    description: This is a model description
     columns:
         - name: id
           description: This is the id column
@@ -67,6 +68,36 @@ models:
   - name: merge_update_columns_sql
     config:
         databricks_tags:
+            c: e
+            d: f
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
+tblproperties_a = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        tblproperties:
+            a: b
+            c: d
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
+tblproperties_b = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        tblproperties:
             c: e
             d: f
     columns:
@@ -215,6 +246,36 @@ replace_where_expected = """id,msg,color
 3,anyway,purple
 """
 
+skip_matched_expected = """id,msg,color
+1,hello,blue
+2,goodbye,red
+3,anyway,purple
+"""
+
+skip_not_matched_expected = """id,msg,color
+1,hey,cyan
+2,yo,green
+"""
+
+matching_condition_expected = """id,first,second,V
+1,Jessica,Atreides,2
+2,Paul,Atreides,1
+3,Dunkan,Aidaho,1
+4,Baron,Harkonnen,1
+"""
+
+not_matched_by_source_expected = """id,first,second,V
+2,Paul,Atreides,0
+3,Dunkan,Aidaho,1
+4,Baron,Harkonnen,1
+"""
+
+merge_schema_evolution_expected = """id,first,second,V
+1,Jessica,Atreides,1
+2,Paul,Atreides,
+3,Dunkan,Aidaho,2
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -279,6 +340,140 @@ select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 {% endif %}
 """
 
+skip_matched_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    skip_matched_step = true,
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'hello' as msg, 'blue' as color
+union all
+select 2 as id, 'goodbye' as msg, 'red' as color
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'hey' as msg, 'cyan' as color
+union all
+select 2 as id, 'yo' as msg, 'green' as color
+union all
+select 3 as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+skip_not_matched_model = skip_matched_model.replace(
+    "skip_matched_step = true", "skip_not_matched_step = true"
+)
+
+matching_condition_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    matched_condition='src.V > t.V and hash(src.first, src.second) <> hash(t.first, t.second)',
+    not_matched_condition='src.V > 0',
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as V
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 1 as V
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'Jessica' as first, 'Atreides' as second, 2 as V -- should merge
+union all
+select 2 as id, 'Paul' as first, 'Whiskas' as second, 1 as V -- V is same, no merge
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- Hash is same, no merge
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
+union all
+select 5 as id, 'Raban' as first, '' as second, 0 as V -- no append
+
+{% endif %}
+"""
+
+not_matched_by_source_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    source_alias='s',
+    skip_matched_step=true,
+    not_matched_by_source_condition='t.V > 0',
+    not_matched_by_source_action='delete',
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as V
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 0 as V
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
+
+{% else %}
+
+-- data for subsequent incremental update
+
+-- id = 1 should be deleted
+-- id = 2 should be kept as condition doesn't hold (t.V = 0)
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- No update, skipped
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
+
+{% endif %}
+"""
+
+merge_schema_evolution_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    merge_with_schema_evolution=true,
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second
+
+{% else %}
+
+-- data for subsequent incremental update
+
+select 1 as id, 'Jessica' as first, 'Atreides' as second, 1 as V
+-- id = 2 should have NULL in V.
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V
+
+{% endif %}
+"""
 
 simple_python_model = """
 import pandas
@@ -308,6 +503,28 @@ models:
     config:
       tags: ["python"]
       databricks_tags:
+        c: e
+        d: f
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_tblproperties_schema = """version: 2
+models:
+  - name: tblproperties
+    config:
+      tags: ["python"]
+      tblproperties:
+        a: b
+        c: d
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+python_tblproperties_schema2 = """version: 2
+models:
+  - name: tblproperties
+    config:
+      tags: ["python"]
+      tblproperties:
         c: e
         d: f
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"

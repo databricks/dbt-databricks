@@ -7,6 +7,7 @@ from dbt.tests.adapter.python_model.test_spark import (
 )
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPySpark(BasePySparkTests):
     @pytest.fixture(scope="class")

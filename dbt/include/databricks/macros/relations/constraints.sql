@@ -79,8 +79,18 @@
 
 {% macro get_constraints_sql(relation, constraints, model, column={}) %}
   {% set statements = [] %}
-  -- Hack so that not null constraints will be applied before primary key constraints
-  {% for constraint in constraints|sort(attribute='type') %}
+  -- Hack so that not null constraints will be applied before other constraints
+  {% for constraint in constraints|selectattr('type', 'eq', 'not_null') %}
+    {% if constraint %}
+      {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
+      {% for statement in constraint_statements %}
+        {% if statement %}
+          {% do statements.append(statement) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  {% for constraint in constraints|rejectattr('type', 'eq', 'not_null') %}
     {% if constraint %}
       {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
       {% for statement in constraint_statements %}
@@ -105,9 +115,13 @@
     {% endif %}
 
     {% set name = constraint.get("name") %}
-    {% if not name and local_md5 %}
-      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
-      {%- set name = local_md5 (column.get("name", "") ~ ";" ~ expression ~ ";") -%}
+    {% if not name %}
+      {% if local_md5 %}
+        {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+        {%- set name = local_md5 (relation.identifier ~ ";" ~ column.get("name", "") ~ ";" ~ expression ~ ";") -%}
+      {% else %}
+        {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+      {% endif %}
     {% endif %}
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
     {% do statements.append(stmt) %}
@@ -148,9 +162,13 @@
     {% set joined_names = quoted_names|join(", ") %}
 
     {% set name = constraint.get("name") %}
-    {% if not name and local_md5 %}
-      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
-      {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
+    {% if not name %}
+      {% if local_md5 %}
+        {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+        {%- set name = local_md5("primary_key;" ~ relation.identifier ~ ";" ~ column_names ~ ";") -%}
+      {% else %}
+        {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+      {% endif %}
     {% endif %}
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
     {% do statements.append(stmt) %}
@@ -161,12 +179,18 @@
     {% endif %}
 
     {% set name = constraint.get("name") %}
-    {% if not name and local_md5 %}
-      {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead.") }}
-      {%- set name = local_md5("primary_key;" ~ column_names ~ ";") -%}
-    {% endif %}
-
+    
     {% if constraint.get('expression') %}
+
+      {% if not name %}
+        {% if local_md5 %}
+          {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+          {%- set name = local_md5("foreign_key;" ~ relation.identifier ~ ";" ~ constraint.get('expression') ~ ";") -%}
+        {% else %}
+          {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+        {% endif %}    
+      {% endif %}
+
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key" ~ constraint.get('expression') %}
     {% else %}
       {% set column_names = constraint.get("columns", []) %}
@@ -186,20 +210,48 @@
 
       {% set joined_names = quoted_names|join(", ") %}
 
-      {% set parent = constraint.get("parent") %}
+      {% set parent = constraint.get("to") %}
       {% if not parent %}
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
       {% endif %}
       {% if not "." in parent %}
         {% set parent = relation.schema ~ "." ~ parent%}
       {% endif %}
+
+      {% if not name %}
+        {% if local_md5 %}
+          {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+          {%- set name = local_md5("foreign_key;" ~ relation.identifier ~ ";" ~ column_names ~ ";" ~ parent ~ ";") -%}
+        {% else %}
+          {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+        {% endif %}    
+      {% endif %}
+
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
-      {% set parent_columns = constraint.get("parent_columns") %}
+      {% set parent_columns = constraint.get("to_columns") %}
       {% if parent_columns %}
         {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
       {% endif %}
     {% endif %}
     {% set stmt = stmt ~ ";" %}
+    {% do statements.append(stmt) %}
+  {% elif type == 'custom' %}
+    {% set expression = constraint.get("expression", "") %}
+    {% if not expression %}
+      {{ exceptions.raise_compiler_error('Missing custom constraint expression') }}
+    {% endif %}
+
+    {% set name = constraint.get("name") %}
+    {% set expression = constraint.get("expression") %}
+    {% if not name %}
+      {% if local_md5 %}
+        {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+        {%- set name = local_md5 (relation.identifier ~ ";" ~ expression ~ ";") -%}
+      {% else %}
+        {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+      {% endif %}
+    {% endif %}
+    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " " ~ expression ~ ";" %}
     {% do statements.append(stmt) %}
   {% elif constraint.get('warn_unsupported') %}
     {{ exceptions.warn("unsupported constraint type: " ~ constraint.type)}}

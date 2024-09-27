@@ -43,14 +43,15 @@ from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksAllPurposeClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import (
+    AllPurposeClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksJobClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import (
+    ServerlessClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksWorkflowPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import (
+    WorkflowPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
@@ -103,9 +104,19 @@ class DatabricksConfig(AdapterConfig):
     buckets: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     merge_update_columns: Optional[str] = None
+    merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
+    skip_non_matched_step: Optional[bool] = None
+    skip_matched_step: Optional[bool] = None
+    matched_condition: Optional[str] = None
+    not_matched_condition: Optional[str] = None
+    not_matched_by_source_action: Optional[str] = None
+    not_matched_by_source_condition: Optional[str] = None
+    target_alias: Optional[str] = None
+    source_alias: Optional[str] = None
+    merge_with_schema_evolution: Optional[bool] = None
 
 
 def check_not_found_error(errmsg: str) -> bool:
@@ -612,9 +623,10 @@ class DatabricksAdapter(SparkAdapter):
     @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
         return {
-            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
-            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
-            "workflow_job": DbtDatabricksWorkflowPythonJobHelper,
+            "job_cluster": JobClusterPythonJobHelper,
+            "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
+            "serverless_cluster": ServerlessClusterPythonJobHelper,
+            "workflow_job": WorkflowPythonJobHelper,
         }
 
     @available
@@ -821,4 +833,5 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
