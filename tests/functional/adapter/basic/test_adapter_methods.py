@@ -1,4 +1,5 @@
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
+import pytest
 
 
 class TestAdapterMethod(BaseAdapterMethod):
@@ -10,3 +11,9 @@ class TestAdapterMethod(BaseAdapterMethod):
     """
 
     pass
+
+
+class TestAdapterMethodWithJITMetadata(BaseAdapterMethod):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"just_in_time_metadata": True}}

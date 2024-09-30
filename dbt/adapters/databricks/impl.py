@@ -36,10 +36,16 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
+)
+from dbt.adapters.databricks.behaviors.gather_metadata import (
+    DefaultGatherBehavior,
+    DelayMetadataGatherBehavior,
+    GatherMetadataBehavior,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -56,7 +62,6 @@ from dbt.adapters.databricks.python_models.python_submissions import (
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
-from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
@@ -87,20 +92,26 @@ if TYPE_CHECKING:
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
-GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
-SHOW_TABLES_MACRO_NAME = "show_tables"
-SHOW_VIEWS_MACRO_NAME = "show_views"
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
     default=False,
     description=(
-        "Use info schema to gather column information to ensure complex types are not truncated."
-        "  Incurs some overhead, so disabled by default."
+        "Use info schema to gather column information to ensure complex types are not truncated.  "
+        "Incurs some overhead, so disabled by default."
     ),
 )  # type: ignore[typeddict-item]
+
+JIT_METADATA_GATHERING = BehaviorFlag(
+    name="just_in_time_metadata",
+    default=False,
+    description=(
+        "Gather metadata, including table type just in time when the relation is accessed, "
+        "rather than all at once.  "
+        "This will reduce metadata gathered, but may increase the number of queries made."
+    ),
+)
 
 
 @dataclass
@@ -168,6 +179,7 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     get_column_behavior: GetColumnsBehavior
+    get_metadata_behavior: GatherMetadataBehavior
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
@@ -175,10 +187,14 @@ class DatabricksAdapter(SparkAdapter):
             self.get_column_behavior = GetColumnsByInformationSchema()
         else:
             self.get_column_behavior = GetColumnsByDescribe()
+        if self.behavior.just_in_time_metadata.no_warn:  # type: ignore[attr-defined]
+            self.get_metadata_behavior = DelayMetadataGatherBehavior()
+        else:
+            self.get_metadata_behavior = DefaultGatherBehavior()
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, JIT_METADATA_GATHERING]
 
     # override/overload
     def acquire_connection(
@@ -251,80 +267,7 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
-        empty: List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
-        results = handle_missing_objects(
-            lambda: self.get_relations_without_caching(schema_relation), empty
-        )
-
-        relations = []
-        for row in results:
-            name, kind, file_format, owner = row
-            metadata = None
-            if file_format:
-                metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
-            relations.append(
-                self.Relation.create(
-                    database=schema_relation.database,
-                    schema=schema_relation.schema,
-                    identifier=name,
-                    type=self.Relation.get_relation_type(kind),
-                    metadata=metadata,
-                )
-            )
-
-        return relations
-
-    def get_relations_without_caching(
-        self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        if relation.is_hive_metastore():
-            return self._get_hive_relations(relation)
-        return self._get_uc_relations(relation)
-
-    def _get_uc_relations(
-        self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        kwargs = {"relation": relation}
-        results = self.execute_macro("get_uc_tables", kwargs=kwargs)
-        return [
-            (row["table_name"], row["table_type"], row["file_format"], row["table_owner"])
-            for row in results
-        ]
-
-    def _get_hive_relations(
-        self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        kwargs = {"relation": relation}
-
-        new_rows: List[Tuple[str, Optional[str]]]
-        if all([relation.database, relation.schema]):
-            tables = self.connections.list_tables(
-                database=relation.database, schema=relation.schema  # type: ignore[arg-type]
-            )
-
-            new_rows = []
-            for row in tables:
-                # list_tables returns TABLE_TYPE as view for both materialized views and for
-                # streaming tables.  Set type to "" in this case and it will be resolved below.
-                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"] else None
-                row = (row["TABLE_NAME"], type)
-                new_rows.append(row)
-
-        else:
-            tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
-            new_rows = [(row["tableName"], None) for row in tables]
-
-        # if there are any table types to be resolved
-        if any(not row[1] for row in new_rows):
-            with self._catalog(relation.database):
-                views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
-                view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
-                new_rows = [
-                    (row[0], str(RelationType.View if row[0] in view_names else RelationType.Table))
-                    for row in new_rows
-                ]
-
-        return [(row[0], row[1], None, None) for row in new_rows]
+        return self.get_metadata_behavior.list_relations_without_caching(self, schema_relation)
 
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
@@ -354,10 +297,9 @@ class DatabricksAdapter(SparkAdapter):
             database=database, schema=schema, identifier=identifier
         )
 
-        if not needs_information:
-            return cached
-
-        return self._set_relation_information(cached) if cached else None
+        if not cached:
+            return None
+        return self.get_metadata_behavior.get_relation(self, cached, needs_information)
 
     def parse_describe_extended(  # type: ignore[override]
         self, relation: DatabricksRelation, raw_rows: List["Row"]
@@ -366,7 +308,7 @@ class DatabricksAdapter(SparkAdapter):
         dict_rows = [dict(zip(row._keys, row._values)) for row in raw_rows]
         # Find the separator between the rows and the metadata provided
         # by the DESCRIBE TABLE EXTENDED statement
-        pos = self.find_table_information_separator(dict_rows)
+        pos = utils.find_table_information_separator(dict_rows)
         # Remove rows that start with a hash, they are comments
         rows = [row for row in raw_rows[0:pos] if not row["col_name"].startswith("#")]
         metadata = {col["col_name"]: col["data_type"] for col in raw_rows[pos + 1 :]}
@@ -378,7 +320,8 @@ class DatabricksAdapter(SparkAdapter):
                 table_database=relation.database,
                 table_schema=relation.schema,
                 table_name=relation.name,
-                table_type=relation.type,
+                table_type=relation.type
+                or DatabricksRelation.translate_type(str(metadata.get("Type"))),
                 table_owner=str(metadata.get(KEY_TABLE_OWNER)),
                 table_stats=table_stats,
                 table_comment=metadata.get("Comment"),

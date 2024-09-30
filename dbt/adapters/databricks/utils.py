@@ -1,7 +1,7 @@
 import functools
 import inspect
 import re
-from typing import Any
+from typing import Any, List
 from typing import Callable
 from typing import Type
 from typing import TYPE_CHECKING
@@ -114,3 +114,12 @@ def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
         if check_not_found_error(errmsg):
             return default
         raise e
+
+
+def find_table_information_separator(rows: List[dict]) -> int:
+    pos = 0
+    for row in rows:
+        if not row["col_name"] or row["col_name"].startswith("#"):
+            break
+        pos += 1
+    return pos

@@ -78,7 +78,7 @@ class DatabricksRelation(BaseRelation):
         return data
 
     def has_information(self) -> bool:
-        return self.metadata is not None
+        return self.type is not None and self.metadata is not None
 
     def is_hive_metastore(self) -> bool:
         return is_hive_metastore(self.database)
@@ -154,6 +154,26 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    @staticmethod
+    def translate_type(databricks_type: str) -> DatabricksRelationType:
+        if databricks_type in (
+            "EXTERNAL",
+            "MANAGED",
+            "MANAGED_SHALLOW_CLONE",
+            "EXTERNAL_SHALLOW_CLONE",
+        ):
+            return DatabricksRelationType.Table
+        elif databricks_type == "VIEW":
+            return DatabricksRelationType.View
+        elif databricks_type == "MATERIALIZED_VIEW":
+            return DatabricksRelationType.MaterializedView
+        elif databricks_type == "STREAMING_TABLE":
+            return DatabricksRelationType.StreamingTable
+        elif databricks_type == "FOREIGN":
+            return DatabricksRelationType.Foreign
+        else:
+            return DatabricksRelationType.Unknown
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:
