@@ -1,7 +1,9 @@
 import uuid
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution
@@ -247,7 +249,7 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         finally:
             self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, workflow_spec: Dict[str, Any]) -> tuple[str, bool]:
+    def _get_or_create_job(self, workflow_spec: Dict[str, Any]) -> Tuple[str, bool]:
         """
         :return: tuple of job_id and whether the job is new
         """
@@ -269,8 +271,8 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
             return self.api_client.workflows.create(workflow_spec), True
 
     def _build_job_permissions(
-        self, job_id: str, job_grants: Dict[str, list[Dict[str, Any]]]
-    ) -> list:
+        self, job_id: str, job_grants: Dict[str, List[Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
         access_control_list = []
         current_owner, permissions_attribute = self._get_current_job_owner(job_id)
         access_control_list.append(

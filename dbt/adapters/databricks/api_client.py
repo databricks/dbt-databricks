@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 
@@ -361,7 +362,7 @@ class JobRunsApi(PollableApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {response.content!r}")
 
-    def list_active_runs_for_job(self, job_id: str) -> list[Dict[str, Any]]:
+    def list_active_runs_for_job(self, job_id: str) -> List[Dict[str, Any]]:
         request_body = {
             "job_id": job_id,
             "active_only": True,
@@ -377,7 +378,7 @@ class JobPermissionsApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/permissions/jobs")
 
-    def put(self, job_id: str, access_control_list: list[Dict[str, Any]]) -> None:
+    def put(self, job_id: str, access_control_list: List[Dict[str, Any]]) -> None:
         request_body = {"access_control_list": access_control_list}
 
         response = self.session.put(f"/{job_id}", json=request_body)
@@ -402,7 +403,7 @@ class WorkflowJobApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.1/jobs")
 
-    def search_by_name(self, job_name: str) -> list[Dict[str, Any]]:
+    def search_by_name(self, job_name: str) -> List[Dict[str, Any]]:
         response = self.session.get("/list", json={"name": job_name})
 
         if response.status_code != 200:
