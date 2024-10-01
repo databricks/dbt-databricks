@@ -171,7 +171,7 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
     @property
     def default_job_name(self) -> str:
-        return f"{self.database}-{self.schema}-{self.identifier}__dbt"
+        return f"dbt__{self.database}-{self.schema}-{self.identifier}"
 
     @property
     def notebook_path(self) -> str:
@@ -179,7 +179,14 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
     @property
     def notebook_dir(self) -> str:
-        return f"/Shared/dbt_python_model/{self.database}/{self.schema}"
+        return self.api_client.workspace.user_api.get_folder(self.catalog, self.schema)
+
+    @property
+    def catalog(self) -> str:
+        return self.database or "hive_metastore"
+
+    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
+        super().__init__(parsed_model, credentials)
 
     def check_credentials(self) -> None:
         workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
@@ -230,12 +237,13 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         return workflow_spec
 
     def _submit_through_workflow(self, compiled_code: str, workflow_spec: Dict[str, Any]) -> None:
+        self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         self.api_client.workspace.upload_notebook(self.notebook_path, compiled_code)
 
         job_id, is_new = self._get_or_create_job(workflow_spec)
 
         if not is_new:
-            self.api_client.workflows.update_by_reset(job_id, workflow_spec)
+            self.api_client.workflows.update_job_settings(job_id, workflow_spec)
 
         grants = workflow_spec.pop("grants", {})
         access_control_list = self._build_job_permissions(job_id, grants)

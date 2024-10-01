@@ -424,7 +424,7 @@ class WorkflowJobApi(DatabricksApi):
         logger.info(f"Workflow creation response={response.json()}")
         return response.json()["job_id"]
 
-    def update_by_reset(self, job_id: str, job_spec: Dict[str, Any]) -> None:
+    def update_job_settings(self, job_id: str, job_spec: Dict[str, Any]) -> None:
         request_body = {
             "job_id": job_id,
             "new_settings": job_spec,
