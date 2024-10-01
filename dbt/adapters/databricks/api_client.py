@@ -362,17 +362,6 @@ class JobRunsApi(PollableApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {response.content!r}")
 
-    def list_active_runs_for_job(self, job_id: str) -> List[Dict[str, Any]]:
-        request_body = {
-            "job_id": job_id,
-            "active_only": True,
-        }
-        active_runs_response = self.session.get("/list", json=request_body)
-        if active_runs_response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting active runs.\n {active_runs_response.content!r}")
-
-        return active_runs_response.json().get("runs", [])
-
 
 class JobPermissionsApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
@@ -436,9 +425,12 @@ class WorkflowJobApi(DatabricksApi):
 
         logger.info(f"Workflow update response={response.json()}")
 
-    def run(self, job_id: str) -> str:
+    def run(self, job_id: str, enable_queueing=True) -> str:
         request_body = {
             "job_id": job_id,
+            "queue": {
+                "enabled": enable_queueing,
+            }
         }
         response = self.session.post("/run-now", json=request_body)
 

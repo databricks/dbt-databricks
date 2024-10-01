@@ -249,7 +249,7 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         access_control_list = self._build_job_permissions(job_id, grants)
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
-        run_id = self._get_or_trigger_job_run(job_id)
+        run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
         self.tracker.insert_run_id(run_id)
 
         try:
@@ -340,13 +340,3 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         raise DbtRuntimeError(
             f"Error getting current owner for Databricks workflow.\n {permissions!r}"
         )
-
-    def _get_or_trigger_job_run(self, job_id: str) -> str:
-        """
-        :return: the run id
-        """
-        active_runs = self.api_client.job_runs.list_active_runs_for_job(job_id)
-        if len(active_runs) > 0:
-            return active_runs[0]["run_id"]
-
-        return self.api_client.workflows.run(job_id)
