@@ -8,6 +8,7 @@ from dbt.adapters.databricks.api_client import CommandExecution
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
+from dbt_common.exceptions import DbtRuntimeError
 
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
@@ -195,18 +196,22 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
         self._submit_through_workflow(compiled_code, workflow_spec)
 
-    def _build_job_spec(self, workflow_spec, cluster_spec):
-        workflow_spec["name"] = workflow_spec.get('name', self.default_job_name)
+    def _build_job_spec(
+        self, workflow_spec: Dict[str, Any], cluster_spec: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        workflow_spec["name"] = workflow_spec.get("name", self.default_job_name)
 
-        cluster_settings = {}  # Undefined cluster settings defaults to serverless in the Databricks API
+        cluster_settings = (
+            {}
+        )  # Undefined cluster settings defaults to serverless in the Databricks API
         if cluster_spec is not None:
             cluster_settings["new_cluster"] = cluster_spec
-        elif 'existing_cluster_id' in workflow_spec:
-            cluster_settings['existing_cluster_id'] = workflow_spec['existing_cluster_id']
+        elif "existing_cluster_id" in workflow_spec:
+            cluster_settings["existing_cluster_id"] = workflow_spec["existing_cluster_id"]
 
         notebook_task = {
-            'task_key': 'task_a',
-            'notebook_task': {
+            "task_key": "task_a",
+            "notebook_task": {
                 "notebook_path": self.notebook_path,
                 "source": "WORKSPACE",
             },
@@ -216,13 +221,13 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
         post_hook_tasks = workflow_spec.pop("post_hook_tasks", [])
         for task in post_hook_tasks:
-            if not 'existing_cluster_id' in task and not 'new_cluster' in task:
+            if "existing_cluster_id" not in task and "new_cluster" not in task:
                 task.update(cluster_settings)
 
         workflow_spec["tasks"] = [notebook_task] + post_hook_tasks
         return workflow_spec
 
-    def _submit_through_workflow(self, compiled_code: str, workflow_spec) -> None:
+    def _submit_through_workflow(self, compiled_code: str, workflow_spec: Dict[str, Any]) -> None:
         self.api_client.workspace.upload_notebook(self.notebook_path, compiled_code)
 
         job_id, is_new = self._get_or_create_job(workflow_spec)
@@ -242,56 +247,67 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         finally:
             self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, workflow_spec: dict) -> tuple[int, bool]:
+    def _get_or_create_job(self, workflow_spec: Dict[str, Any]) -> tuple[str, bool]:
         """
         :return: tuple of job_id and whether the job is new
         """
-        existing_job_id = workflow_spec.pop('existing_job_id', '')
+        existing_job_id = workflow_spec.pop("existing_job_id", "")
         if existing_job_id:
             return existing_job_id, False
 
-        response_jobs = self.api_client.workflows.search_by_name(workflow_spec['name'])
+        response_jobs = self.api_client.workflows.search_by_name(workflow_spec["name"])
 
         if len(response_jobs) > 1:
             raise DbtRuntimeError(
                 f"""Multiple jobs found with name {workflow_spec['name']}. Use a unique job
-                name or specify the `existing_job_id` in the workflow_job_config.""")
+                name or specify the `existing_job_id` in the workflow_job_config."""
+            )
 
         if len(response_jobs) == 1:
             return response_jobs[0]["job_id"], False
         else:
             return self.api_client.workflows.create(workflow_spec), True
 
-    def _build_job_permissions(self, job_id, job_grants) -> list:
+    def _build_job_permissions(
+        self, job_id: str, job_grants: Dict[str, list[Dict[str, Any]]]
+    ) -> list:
         access_control_list = []
         current_owner, permissions_attribute = self._get_current_job_owner(job_id)
-        access_control_list.append({
-            permissions_attribute: current_owner,
-            'permission_level': 'IS_OWNER',
-        })
+        access_control_list.append(
+            {
+                permissions_attribute: current_owner,
+                "permission_level": "IS_OWNER",
+            }
+        )
 
-        for grant in job_grants.get('view', []):
+        for grant in job_grants.get("view", []):
             acl_grant = grant.copy()
-            acl_grant.update({
-                'permission_level': 'CAN_VIEW',
-            })
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_VIEW",
+                }
+            )
             access_control_list.append(acl_grant)
-        for grant in job_grants.get('run', []):
+        for grant in job_grants.get("run", []):
             acl_grant = grant.copy()
-            acl_grant.update({
-                'permission_level': 'CAN_MANAGE_RUN',
-            })
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE_RUN",
+                }
+            )
             access_control_list.append(acl_grant)
-        for grant in job_grants.get('manage', []):
+        for grant in job_grants.get("manage", []):
             acl_grant = grant.copy()
-            acl_grant.update({
-                'permission_level': 'CAN_MANAGE',
-            })
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE",
+                }
+            )
             access_control_list.append(acl_grant)
 
         return access_control_list
 
-    def _get_current_job_owner(self, job_id) -> tuple[str, str]:
+    def _get_current_job_owner(self, job_id: str) -> tuple[str, str]:
         """
         :return: a tuple of the user id and the ACL attribute it came from ie:
             [user_name|group_name|service_principal_name]
@@ -299,24 +315,28 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         """
         permissions = self.api_client.workflow_permissions.get(job_id)
         for principal in permissions.get("access_control_list", []):
-            for permission in principal['all_permissions']:
-                if permission['permission_level'] == 'IS_OWNER' and permission['inherited'] is False:
-                    if principal.get('user_name'):
-                        return principal['user_name'], 'user_name'
-                    elif principal.get('group_name'):
-                        return principal['group_name'], 'group_name'
+            for permission in principal["all_permissions"]:
+                if (
+                    permission["permission_level"] == "IS_OWNER"
+                    and permission["inherited"] is False
+                ):
+                    if principal.get("user_name"):
+                        return principal["user_name"], "user_name"
+                    elif principal.get("group_name"):
+                        return principal["group_name"], "group_name"
                     else:
-                        return principal['service_principal_name'], 'service_principal_name'
+                        return principal["service_principal_name"], "service_principal_name"
 
-        raise DbtRuntimeError(f"Error getting current owner for Databricks workflow.\n {response.content!r}")
+        raise DbtRuntimeError(
+            f"Error getting current owner for Databricks workflow.\n {permissions!r}"
+        )
 
-    def _get_or_trigger_job_run(self, job_id: str):
+    def _get_or_trigger_job_run(self, job_id: str) -> str:
         """
         :return: the run id
         """
         active_runs = self.api_client.job_runs.list_active_runs_for_job(job_id)
         if len(active_runs) > 0:
-            logger.info("Workflow already running, tracking active run instead of creating a new one")
-            return active_runs[0]['run_id']
+            return active_runs[0]["run_id"]
 
         return self.api_client.workflows.run(job_id)
