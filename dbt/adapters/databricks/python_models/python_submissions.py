@@ -309,7 +309,7 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
         return access_control_list
 
-    def _get_current_job_owner(self, job_id: str) -> tuple[str, str]:
+    def _get_current_job_owner(self, job_id: str) -> Tuple[str, str]:
         """
         :return: a tuple of the user id and the ACL attribute it came from ie:
             [user_name|group_name|service_principal_name]
