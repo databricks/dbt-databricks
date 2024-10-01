@@ -16,6 +16,17 @@ class TestCreateTableAs(MacroTestBase):
     def databricks_template_names(self) -> list:
         return ["file_format.sql", "tblproperties.sql", "location.sql", "liquid_clustering.sql"]
 
+    @pytest.fixture
+    def context(self, template) -> dict:
+        """
+        Access to the context used to render the template.
+        Modification of the context will work for mocking adapter calls, but may not work for
+        mocking macros.
+        If you need to mock a macro, see the use of is_incremental in default_context.
+        """
+        template.globals["adapter"].check_iceberg.return_value = False
+        return template.globals
+
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         return self.run_macro(
             template_bundle.template,
@@ -28,6 +39,15 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as(self, template_bundle):
         sql = self.render_create_table_as(template_bundle)
         assert sql == f"create or replace table {template_bundle.relation} using delta as select 1"
+
+    def test_macros_create_table_as_with_iceberg(self, template_bundle):
+        template_bundle.context["adapter"].check_iceberg.return_value = True
+        sql = self.render_create_table_as(template_bundle)
+        assert sql == (
+            f"create or replace table {template_bundle.relation} using delta"
+            " tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
+            "'delta.universalFormat.enabledFormats' = 'iceberg' ) as select 1"
+        )
 
     @pytest.mark.parametrize("format", ["parquet", "hudi"])
     def test_macros_create_table_as_file_format(self, format, config, template_bundle):
@@ -174,6 +194,20 @@ class TestCreateTableAs(MacroTestBase):
         expected = (
             f"create or replace table {template_bundle.relation} "
             "using delta tblproperties ('delta.appendOnly' = 'true' ) as select 1"
+        )
+
+        assert sql == expected
+
+    def test_macros_create_table_as_tblproperties_with_iceberg(self, config, template_bundle):
+        config["tblproperties"] = {"delta.appendOnly": "true"}
+        template_bundle.context["adapter"].check_iceberg.return_value = True
+        sql = self.render_create_table_as(template_bundle)
+
+        expected = (
+            f"create or replace table {template_bundle.relation} "
+            "using delta tblproperties ('delta.appendOnly' = 'true' , "
+            "'delta.enableIcebergCompatV2' = 'true' , "
+            "'delta.universalFormat.enabledFormats' = 'iceberg' ) as select 1"
         )
 
         assert sql == expected
