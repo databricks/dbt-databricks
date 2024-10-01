@@ -45,6 +45,7 @@ from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
+    SessionHelper
 )
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksJobClusterPythonJobHelper,
@@ -611,6 +612,7 @@ class DatabricksAdapter(SparkAdapter):
         return {
             "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
             "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+            "session": SessionHelper,
         }
 
     @available

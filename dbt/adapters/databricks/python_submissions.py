@@ -600,3 +600,16 @@ class DbtDatabricksAllPurposeClusterPythonJobHelper(
                 "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
                 "for the `all_purpose_cluster` submission method."
             )
+
+
+class SessionHelper(PythonJobHelper):
+    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
+        pass
+
+    def submit(self, compiled_code: str) -> Any:
+        try:
+            from pyspark.sql import SparkSession
+            spark = SparkSession.getActiveSession()
+            exec(compiled_code, {"spark": spark})
+        except Exception as e:
+            raise DbtRuntimeError(f"Python model failed with traceback as:\n{e}")
