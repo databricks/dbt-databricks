@@ -41,6 +41,11 @@ class PrefixSession:
     ) -> Response:
         return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
 
+    def put(
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
+    ) -> Response:
+        return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
+
 
 class DatabricksApi(ABC):
     def __init__(self, session: Session, host: str, api: str):
@@ -356,6 +361,93 @@ class JobRunsApi(PollableApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {response.content!r}")
 
+    def list_active_runs_for_job(self, job_id):
+        request_body = {
+            'job_id': job_id,
+            'active_only': True,
+        }
+        active_runs_response = self.session.get("/list", json=request_body)
+        if active_runs_response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting active runs.\n {active_runs_response.content!r}")
+
+        return active_runs_response.json().get("runs", [])
+
+class JobPermissionsApi(DatabricksApi):
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.0/permissions/jobs")
+
+    def put(self, job_id, access_control_list):
+        request_body = {
+            "access_control_list": access_control_list
+        }
+
+        response = self.session.put(f"/{job_id}", json=request_body)
+        logger.info(f"Workflow permissions update response={response.json()}")
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+
+    def get(self, job_id):
+        response = self.session.get(f"/{job_id}")
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error fetching Databricks workflow permissions.\n {response.content!r}")
+
+        return response.json()
+
+
+class WorkflowJobApi(DatabricksApi):
+
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.1/jobs")
+
+    def search_by_name(self, job_name: str) -> [Dict[str, Any]]:
+        response = self.session.get("/list", json={"name": job_name})
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error fetching job by name.\n {response.content!r}")
+
+        logger.info(f"Job list response={response.json()}")
+        return response.json().get("jobs", [])
+
+    def create(self, job_spec: Dict[str, Any]) -> str:
+        """
+        :return: the job_id
+        """
+        response = self.session.post("/create", json=job_spec)
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error creating Workflow.\n {response.content!r}")
+
+        logger.info(f"Workflow creation response={response.json()}")
+        return response.json()["job_id"]
+
+    def update_by_reset(self, job_id, job_spec):
+        request_body = {
+            "job_id": job_id,
+            "new_settings": job_spec,
+        }
+        response = self.session.post(f"/reset", json=request_body)
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Workflow.\n {response.content!r}")
+
+        logger.info(f"Workflow update response={response.json()}")
+
+    def run(self, job_id):
+        request_body = {
+            "job_id": job_id,
+        }
+        response = self.session.post("/run-now", json=request_body)
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error triggering run for workflow.\n {response.content!r}")
+
+        response_json = response.json()
+        logger.info(f"Workflow trigger response={response_json}")
+
+        return response_json["run_id"]
+
 
 class DatabricksApiClient:
     def __init__(
@@ -375,6 +467,8 @@ class DatabricksApiClient:
         self.workspace = WorkspaceApi(session, host, self.folders)
         self.commands = CommandApi(session, host, polling_interval, timeout)
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
+        self.workflows = WorkflowJobApi(session, host)
+        self.workflow_permissions = JobPermissionsApi(session, host)
 
     @staticmethod
     def create(

@@ -228,40 +228,19 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         job_id, is_new = self._get_or_create_job(workflow_spec)
 
         if not is_new:
-            self._update_job(job_id, workflow_spec)
+            self.api_client.workflows.update_by_reset(job_id, workflow_spec)
 
         grants = workflow_spec.pop("grants", {})
-        self._update_job_permissions(job_id, grants)
+        access_control_list = self._build_job_permissions(job_id, grants)
+        self.api_client.workflow_permissions.put(job_id, access_control_list)
 
         run_id = self._get_or_trigger_job_run(job_id)
-
         self.tracker.insert_run_id(run_id)
-        self.polling(
-            status_func=self.session.get,
-            status_func_kwargs={
-                "url": f"https://{self.credentials.host}/api/2.1/jobs/runs/get?run_id={run_id}",
-                "headers": self.extra_headers,
-            },
-            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
-            terminal_states=("TERMINATED", "SKIPPED", "INTERNAL_ERROR"),
-            expected_end_state="TERMINATED",
-            get_state_msg_func=lambda response: response.json()["state"]["state_message"],
-        )
 
-        run_output = self.api_client.session.get(
-            f"https://{self.credentials.host}" f"/api/2.1/jobs/runs/get?run_id={run_id}"
-        )
-        json_run_output = run_output.json()
-
-        result_state = json_run_output["state"]["result_state"]
-        if result_state != "SUCCESS":
-            raise DbtRuntimeError(
-                "Python model failed with traceback as:\n"
-                "(Note that the line number here does not "
-                "match the line number in your code due to dbt templating)\n"
-                f"{utils.remove_ansi(json_run_output['error_trace'])}"
-            )
-        self.tracker.remove_run_id(run_id)
+        try:
+            self.api_client.job_runs.poll_for_completion(run_id)
+        finally:
+            self.tracker.remove_run_id(run_id)
 
     def _get_or_create_job(self, workflow_spec: dict) -> tuple[int, bool]:
         """
@@ -271,73 +250,17 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         if existing_job_id:
             return existing_job_id, False
 
-        response = self.api_client.session.get(
-            f"https://{self.credentials.host}/api/2.1/jobs/list",
-            json={
-                "name": workflow_spec['name'],
-            }
-        )
+        response_jobs = self.api_client.workflows.search_by_name(workflow_spec['name'])
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting job.\n {response.content!r}")
-        response_json = response.json()
-        logger.info(f"Job list response={response_json}")
-
-        response_jobs = response_json.get("jobs", [])
         if len(response_jobs) > 1:
-            raise DbtRuntimeError(f"Multiple jobs found with name {workflow_spec['name']}")
+            raise DbtRuntimeError(
+                f"""Multiple jobs found with name {workflow_spec['name']}. Use a unique job
+                name or specify the `existing_job_id` in the workflow_job_config.""")
 
         if len(response_jobs) == 1:
-            return response_json["jobs"][0]["job_id"], False
+            return response_jobs[0]["job_id"], False
         else:
-            return self._create_job(workflow_spec), True
-
-    def _create_job(self, workflow_spec: dict):
-        """
-        :return: the job id
-        """
-        response = self.api_client.session.post(
-            f"https://{self.credentials.host}/api/2.1/jobs/create",
-            headers=self.extra_headers,
-            json=workflow_spec,
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating Databricks workflow.\n {response.content!r}")
-        response_json = response.json()
-        logger.info(f"Workflow create response={response_json}")
-        return response_json["job_id"]
-
-    def _update_job(self, job_id, workflow_spec):
-        request_body = {
-            "job_id": job_id,
-            "new_settings": workflow_spec,
-        }
-        response = self.api_client.session.post(
-            f"https://{self.credentials.host}/api/2.1/jobs/reset",
-            headers=self.extra_headers,
-            json=request_body,
-        )
-
-        logger.info(f"Workflow update response={response.json()}")
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
-
-    def _update_job_permissions(self, job_id, job_grants):
-        access_control_list = self._build_job_permissions(job_id, job_grants)
-
-        request_body = {
-            "access_control_list": access_control_list
-        }
-
-        response = self.api_client.session.put(
-            f"https://{self.credentials.host}/api/2.0/permissions/jobs/{job_id}",
-            headers=self.extra_headers,
-            json=request_body,
-        )
-
-        logger.info(f"Workflow permissions update response={response.json()}")
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+            return self.api_client.workflows.create(workflow_spec), True
 
     def _build_job_permissions(self, job_id, job_grants) -> list:
         access_control_list = []
@@ -374,13 +297,8 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
             [user_name|group_name|service_principal_name]
             For example: `("mateizaharia@databricks.com", "user_name")`
         """
-        response = self.api_client.session.get(
-            f"https://{self.credentials.host}/api/2.0/permissions/jobs/{job_id}"
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting Databricks workflow permissions.\n {response.content!r}")
-
-        for principal in response.json().get("access_control_list", []):
+        permissions = self.api_client.workflow_permissions.get(job_id)
+        for principal in permissions.get("access_control_list", []):
             for permission in principal['all_permissions']:
                 if permission['permission_level'] == 'IS_OWNER' and permission['inherited'] is False:
                     if principal.get('user_name'):
@@ -392,35 +310,13 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
         raise DbtRuntimeError(f"Error getting current owner for Databricks workflow.\n {response.content!r}")
 
-    def _get_or_trigger_job_run(self, job_id: dict):
+    def _get_or_trigger_job_run(self, job_id: str):
         """
         :return: the run id
         """
-        active_runs_response = self.api_client.session.get(
-            f"https://{self.credentials.host}/api/2.1/jobs/runs/list",
-            json={
-                'job_id': job_id,
-                'active_only': True,
-            }
-        )
-        if active_runs_response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting active runs.\n {active_runs_response.content!r}")
-
-        active_runs = active_runs_response.json().get('runs', [])
+        active_runs = self.api_client.job_runs.list_active_runs_for_job(job_id)
         if len(active_runs) > 0:
             logger.info("Workflow already running, tracking active run instead of creating a new one")
             return active_runs[0]['run_id']
 
-        request_body = {
-            "job_id": job_id,
-        }
-        response = self.api_client.session.post(
-            f"https://{self.credentials.host}/api/2.1/jobs/run-now",
-            json=request_body
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error triggering a run for Databricks workflow.\n {response.content!r}")
-        response_json = response.json()
-        logger.info(f"Workflow trigger response={response_json}")
-
-        return response_json["run_id"]
+        return self.api_client.workflows.run(job_id)
