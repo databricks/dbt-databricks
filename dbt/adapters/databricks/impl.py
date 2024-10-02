@@ -650,7 +650,7 @@ class DatabricksAdapter(SparkAdapter):
             conn.transaction_open = False
 
     def valid_incremental_strategies(self) -> List[str]:
-        return ["append", "merge", "insert_overwrite", "replace_where"]
+        return ["append", "merge", "insert_overwrite", "replace_where", "microbatch"]
 
     @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:

@@ -170,3 +170,18 @@ select {{source_cols_csv}} from {{ source_relation }}
     {%- endfor %})
   {%- endif -%}
 {% endmacro %}
+
+{% macro databricks__get_incremental_microbatch_sql(arg_dict) %}
+  {%- set incremental_predicates = [] if arg_dict.get('incremental_predicates') is none else arg_dict.get('incremental_predicates') -%}
+  {%- set event_time = model.config.event_time -%}
+  {%- set start_time = config.get("__dbt_internal_microbatch_event_time_start") -%}
+  {%- set end_time = config.get("__dbt_internal_microbatch_event_time_end") -%}
+  {%- if start_time -%}
+    {%- do incremental_predicates.append(event_time ~ " >= '" ~ start_time ~ "'") -%}
+  {%- endif -%}
+  {%- if end_time -%}
+    {%- do incremental_predicates.append(event_time ~ " < '" ~ end_time ~ "'") -%}
+  {%- endif -%}
+  {%- do arg_dict.update({'incremental_predicates': incremental_predicates}) -%}
+  {{ return(get_replace_where_sql(arg_dict)) }}
+{% endmacro %}
