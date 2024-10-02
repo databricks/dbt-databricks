@@ -48,3 +48,24 @@ basic_incremental_swap = """
 }}
 select 1 as id
 """
+
+invalid_iceberg_view = """
+{{
+  config(
+    materialized = "view",
+    table_format = "iceberg",
+  )
+}}
+select 1 as id
+"""
+
+invalid_iceberg_format = """
+{{
+  config(
+    materialized = "table",
+    table_format = "iceberg",
+    file_format = "parquet",
+  )
+}}
+select 1 as id
+"""

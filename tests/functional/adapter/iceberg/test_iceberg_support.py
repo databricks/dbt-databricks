@@ -2,6 +2,7 @@ import pytest
 
 from tests.functional.adapter.iceberg import fixtures
 from dbt.tests import util
+from dbt.artifacts.schemas.results import RunStatus
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -33,3 +34,23 @@ class TestIcebergSwap:
         util.write_file(fixtures.basic_incremental_swap, "models", "first_model.sql")
         run_results = util.run_dbt()
         assert len(run_results) == 1
+
+
+class InvalidIcebergConfig:
+    def test_iceberg_failures(self, project):
+        results = util.run_dbt(expect_pass=False)
+        assert results.results[0].status == RunStatus.Error
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIcebergView(InvalidIcebergConfig):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"first_model.sql": fixtures.invalid_iceberg_view}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIcebergWithParquet(InvalidIcebergConfig):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"first_model.sql": fixtures.invalid_iceberg_format}

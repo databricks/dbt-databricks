@@ -82,6 +82,7 @@ from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from dbt_common.exceptions import DbtConfigError
+from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
     from agate import Row
@@ -184,18 +185,24 @@ class DatabricksAdapter(SparkAdapter):
         return [USE_INFO_SCHEMA_FOR_COLUMNS]
 
     @available.parse(lambda *a, **k: 0)
-    def check_iceberg(self, table_format: TableFormat, file_format: str, materialized: str) -> bool:
-        if table_format == TableFormat.ICEBERG:
+    def update_tblproperties_for_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        if config.get("table_format") == TableFormat.ICEBERG:
             if self.compare_dbr_version(14, 3) < 0:
                 raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
-            if file_format and file_format != "delta":
-                raise DbtConfigError("When table_format is 'iceberg', cannot set file_format.")
-            if materialized not in ("incremental", "table"):
+            if config.get("file_format", "delta") != "delta":
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', cannot set file_format to other than delta."
+                )
+            if config.get("materialized") not in ("incremental", "table"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
                 )
-            return True
-        return False
+            result["delta.enableIcebergCompatV2"] = "true"
+            result["delta.universalFormat.enabledFormats"] = "iceberg"
+        return result
 
     # override/overload
     def acquire_connection(

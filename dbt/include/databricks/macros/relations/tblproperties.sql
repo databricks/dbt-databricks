@@ -2,12 +2,8 @@
   {{ return(adapter.dispatch('tblproperties_clause', 'dbt')()) }}
 {%- endmacro -%}
 
-{% macro databricks__tblproperties_clause() -%}
-  {%- set tblproperties = config.get('tblproperties', {}) -%}
-  {%- set is_iceberg = adapter.check_iceberg(config.get('table_format'), config.get('file_format'), model.config.materialized) -%}
-  {%- if is_iceberg -%}
-    {%- set _ = tblproperties.update({'delta.enableIcebergCompatV2': 'true', 'delta.universalFormat.enabledFormats': 'iceberg'}) -%}
-  {%- endif -%}
+{% macro databricks__tblproperties_clause(tblproperties=None) -%}
+  {%- set tblproperties = adapter.update_tblproperties_for_iceberg(config, tblproperties) -%}
   {%- if tblproperties != {} %}
     tblproperties (
       {%- for prop in tblproperties -%}
@@ -18,17 +14,10 @@
 {%- endmacro -%}
 
 {% macro apply_tblproperties(relation, tblproperties) -%}
-  {% if tblproperties %}
-    {%- set is_iceberg = adapter.check_iceberg(config.get('table_format'), config.get('file_format'), model.config.materialized) -%}
-    {%- if is_iceberg -%}
-      {%- set _ = tblproperties.update({'delta.enableIcebergCompatV2': 'true', 'delta.universalFormat.enabledFormats': 'iceberg'}) -%}
-    {%- endif -%}
+  {% set tblproperty_statment = databricks__tblproperties_clause(tblproperties) %}
+  {% if tblproperty_statment %}
     {%- call statement('apply_tblproperties') -%}
-      ALTER {{ relation.type }} {{ relation }} SET TBLPROPERTIES (
-      {% for tblproperty in tblproperties -%}
-        '{{ tblproperty }}' = '{{ tblproperties[tblproperty] }}' {%- if not loop.last %}, {% endif -%}
-      {%- endfor %}
-      )
+      ALTER {{ relation.type }} {{ relation }} SET {{ tblproperty_statment}}
     {%- endcall -%}
   {% endif %}
 {%- endmacro -%}

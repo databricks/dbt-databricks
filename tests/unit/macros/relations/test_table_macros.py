@@ -24,7 +24,7 @@ class TestCreateTableAs(MacroTestBase):
         mocking macros.
         If you need to mock a macro, see the use of is_incremental in default_context.
         """
-        template.globals["adapter"].check_iceberg.return_value = False
+        template.globals["adapter"].update_tblproperties_for_iceberg.return_value = {}
         return template.globals
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
@@ -41,7 +41,10 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == f"create or replace table {template_bundle.relation} using delta as select 1"
 
     def test_macros_create_table_as_with_iceberg(self, template_bundle):
-        template_bundle.context["adapter"].check_iceberg.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+            "delta.enableIcebergCompatV2": "true",
+            "delta.universalFormat.enabledFormats": "iceberg",
+        }
         sql = self.render_create_table_as(template_bundle)
         assert sql == (
             f"create or replace table {template_bundle.relation} using delta"
@@ -187,31 +190,6 @@ class TestCreateTableAs(MacroTestBase):
 
         assert sql == expected
 
-    def test_macros_create_table_as_tblproperties(self, config, template_bundle):
-        config["tblproperties"] = {"delta.appendOnly": "true"}
-        sql = self.render_create_table_as(template_bundle)
-
-        expected = (
-            f"create or replace table {template_bundle.relation} "
-            "using delta tblproperties ('delta.appendOnly' = 'true' ) as select 1"
-        )
-
-        assert sql == expected
-
-    def test_macros_create_table_as_tblproperties_with_iceberg(self, config, template_bundle):
-        config["tblproperties"] = {"delta.appendOnly": "true"}
-        template_bundle.context["adapter"].check_iceberg.return_value = True
-        sql = self.render_create_table_as(template_bundle)
-
-        expected = (
-            f"create or replace table {template_bundle.relation} "
-            "using delta tblproperties ('delta.appendOnly' = 'true' , "
-            "'delta.enableIcebergCompatV2' = 'true' , "
-            "'delta.universalFormat.enabledFormats' = 'iceberg' ) as select 1"
-        )
-
-        assert sql == expected
-
     def test_macros_create_table_as_all_delta(self, config, template_bundle):
         config["location_root"] = "/mnt/root"
         config["partition_by"] = ["partition_1", "partition_2"]
@@ -219,7 +197,9 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        config["tblproperties"] = {"delta.appendOnly": "true"}
+        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+            "delta.appendOnly": "true"
+        }
         template_bundle.context["model"].description = "Description Test"
 
         config["file_format"] = "delta"
@@ -245,7 +225,9 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        config["tblproperties"] = {"delta.appendOnly": "true"}
+        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+            "delta.appendOnly": "true"
+        }
         template_bundle.context["model"].description = "Description Test"
 
         config["file_format"] = "hudi"
