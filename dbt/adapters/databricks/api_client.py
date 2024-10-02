@@ -148,20 +148,35 @@ class SharedFolderApi(FolderApi):
         return f"/Shared/dbt_python_models/{schema}/"
 
 
-# Switch to this as part of 2.0.0 release
-class UserFolderApi(DatabricksApi, FolderApi):
+class CurrUserApi(DatabricksApi):
+    
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
         self._user = ""
 
-    def get_folder(self, catalog: str, schema: str) -> str:
-        if not self._user:
-            response = self.session.get("/Me")
+    def get_username(self) -> str:
+        if self._user:
+            return self._user
 
-            if response.status_code != 200:
-                raise DbtRuntimeError(f"Error getting user folder.\n {response.content!r}")
-            self._user = response.json()["userName"]
-        folder = f"/Users/{self._user}/dbt_python_models/{catalog}/{schema}/"
+        response = self.session.get("/Me")
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting current user.\n {response.content!r}")
+
+        logger.info(f"Current user response={response.json()}")
+        username = response.json()["userName"]
+        self._user = username
+        return username
+
+
+# Switch to this as part of 2.0.0 release
+class UserFolderApi(DatabricksApi, FolderApi):
+    def __init__(self, session: Session, host: str, user_api: CurrUserApi):
+        super().__init__(session, host, "/api/2.0/preview/scim/v2")
+        self.user_api = user_api
+
+    def get_folder(self, catalog: str, schema: str) -> str:
+        username = self.user_api.get_username()
+        folder = f"/Users/{username}/dbt_python_models/{catalog}/{schema}/"
         logger.debug(f"Using python model folder '{folder}'")
 
         return folder
@@ -454,8 +469,9 @@ class DatabricksApiClient:
     ):
         self.clusters = ClusterApi(session, host)
         self.command_contexts = CommandContextApi(session, host, self.clusters)
+        self.curr_user = CurrUserApi(session, host)
         if use_user_folder:
-            self.folders: FolderApi = UserFolderApi(session, host)
+            self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)
         else:
             self.folders = SharedFolderApi()
         self.workspace = WorkspaceApi(session, host, self.folders)
