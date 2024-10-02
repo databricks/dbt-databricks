@@ -19,6 +19,18 @@ DEFAULT_TIMEOUT = 60 * 60 * 24
 class BaseDatabricksHelper(PythonJobHelper):
     tracker = PythonRunTracker()
 
+    @property
+    def workflow_spec(self) -> Dict[str, Any]:
+        """
+        The workflow gets modified throughout. Settings added through dbt are popped off
+        before the spec is sent to the Databricks API
+        """
+        return self.parsed_model["config"].get("workflow_job_config", {})
+
+    @property
+    def cluster_spec(self) -> Dict[str, Any]:
+        return self.parsed_model["config"].get("job_cluster_config", None)
+
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.identifier = parsed_model["alias"]
@@ -32,6 +44,8 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.api_client = DatabricksApiClient.create(
             credentials, self.get_timeout(), use_user_folder
         )
+
+        self.job_grants: Dict[str, List[Dict[str, Any]]] = self.workflow_spec.pop("grants", {})
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)
@@ -47,6 +61,57 @@ class BaseDatabricksHelper(PythonJobHelper):
         if acl:
             cluster_dict.update({"access_control_list": acl})
         return cluster_dict
+
+    def _build_job_permissions(self) -> List[Dict[str, Any]]:
+        access_control_list = []
+        owner, permissions_attribute = self._build_job_owner()
+        access_control_list.append(
+            {
+                permissions_attribute: owner,
+                "permission_level": "IS_OWNER",
+            }
+        )
+
+        for grant in self.job_grants.get("view", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_VIEW",
+                }
+            )
+            access_control_list.append(acl_grant)
+        for grant in self.job_grants.get("run", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE_RUN",
+                }
+            )
+            access_control_list.append(acl_grant)
+        for grant in self.job_grants.get("manage", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE",
+                }
+            )
+            access_control_list.append(acl_grant)
+
+        return access_control_list
+
+    def _build_job_owner(self) -> Tuple[str, str]:
+        """
+        :return: a tuple of the user id and the ACL attribute it came from ie:
+            [user_name|group_name|service_principal_name]
+            For example: `("mateizaharia@databricks.com", "user_name")`
+        """
+        curr_user = self.api_client.curr_user.get_username()
+        is_service_principal = self.api_client.curr_user.is_service_principal(curr_user)
+
+        if is_service_principal:
+            return curr_user, "service_principal_name"
+        else:
+            return curr_user, "user_name"
 
     def _submit_job(self, path: str, cluster_spec: dict) -> str:
         job_spec: Dict[str, Any] = {
@@ -79,7 +144,14 @@ class BaseDatabricksHelper(PythonJobHelper):
         job_spec.update({"libraries": libraries})
         run_name = f"{self.database}-{self.schema}-{self.identifier}-{uuid.uuid4()}"
 
-        run_id = self.api_client.job_runs.submit(run_name, job_spec)
+        access_control_list = self._build_job_permissions()
+        additional_job_config = {
+            "email_notifications": self.workflow_spec.get("email_notifications", {}),
+            "webhook_notifications": self.workflow_spec.get("webhook_notifications", {}),
+            "notification_settings": self.workflow_spec.get("notification_settings", {}),
+            "access_control_list": access_control_list,
+        }
+        run_id = self.api_client.job_runs.submit(run_name, job_spec, additional_job_config)
         self.tracker.insert_run_id(run_id)
         return run_id
 
@@ -188,6 +260,9 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         super().__init__(parsed_model, credentials)
 
+        self.post_hook_tasks = self.workflow_spec.pop("post_hook_tasks", [])
+        self.additional_task_settings = self.workflow_spec.pop("additional_task_settings", {})
+
     def check_credentials(self) -> None:
         workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
         if not workflow_config:
@@ -196,45 +271,43 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
             )
 
     def submit(self, compiled_code: str) -> None:
-        workflow_spec = self.parsed_model["config"]["workflow_job_config"]
-        cluster_spec = self.parsed_model["config"].get("job_cluster_config", None)
-
-        # This dict gets modified throughout. Settings added through dbt are popped off
-        # before the spec is sent to the Databricks API
-        workflow_spec = self._build_job_spec(workflow_spec, cluster_spec)
-
+        workflow_spec = self._build_job_spec()
         self._submit_through_workflow(compiled_code, workflow_spec)
 
-    def _build_job_spec(
-        self, workflow_spec: Dict[str, Any], cluster_spec: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        workflow_spec["name"] = workflow_spec.get("name", self.default_job_name)
+    def _build_job_spec(self) -> Dict[str, Any]:
+        workflow_spec = dict(self.workflow_spec)
+        workflow_spec["name"] = self.workflow_spec.get("name", self.default_job_name)
 
-        cluster_settings = (
-            {}
-        )  # Undefined cluster settings defaults to serverless in the Databricks API
-        if cluster_spec is not None:
-            cluster_settings["new_cluster"] = cluster_spec
-        elif "existing_cluster_id" in workflow_spec:
-            cluster_settings["existing_cluster_id"] = workflow_spec["existing_cluster_id"]
+        # Undefined cluster settings defaults to serverless in the Databricks API
+        cluster_settings = {}
+        if self.cluster_spec:
+            cluster_settings["new_cluster"] = self.cluster_spec
+        elif "existing_cluster_id" in self.workflow_spec:
+            cluster_settings["existing_cluster_id"] = self.workflow_spec["existing_cluster_id"]
 
         notebook_task = {
-            "task_key": "task_a",
+            "task_key": "inner_notebook",
             "notebook_task": {
                 "notebook_path": self.notebook_path,
                 "source": "WORKSPACE",
             },
         }
         notebook_task.update(cluster_settings)
-        notebook_task.update(workflow_spec.pop("additional_task_settings", {}))
+        notebook_task.update(self.additional_task_settings)
 
-        post_hook_tasks = workflow_spec.pop("post_hook_tasks", [])
-        for task in post_hook_tasks:
-            if "existing_cluster_id" not in task and "new_cluster" not in task:
-                task.update(cluster_settings)
-
+        post_hook_tasks = self.build_post_hook_tasks()
         workflow_spec["tasks"] = [notebook_task] + post_hook_tasks
         return workflow_spec
+
+    def build_post_hook_tasks(self) -> List[Dict[str, Any]]:
+        post_hook_tasks: List[Dict[str, Any]] = []
+        for original_task in post_hook_tasks:
+            task = dict(original_task)
+            if "existing_cluster_id" not in task and "new_cluster" not in task:
+                task.update(self.cluster_spec)
+            post_hook_tasks.append(task)
+
+        return post_hook_tasks
 
     def _submit_through_workflow(self, compiled_code: str, workflow_spec: Dict[str, Any]) -> None:
         self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
@@ -245,8 +318,7 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         if not is_new:
             self.api_client.workflows.update_job_settings(job_id, workflow_spec)
 
-        grants = workflow_spec.pop("grants", {})
-        access_control_list = self._build_job_permissions(job_id, grants)
+        access_control_list = self._build_job_permissions()
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
@@ -277,66 +349,3 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
             return response_jobs[0]["job_id"], False
         else:
             return self.api_client.workflows.create(workflow_spec), True
-
-    def _build_job_permissions(
-        self, job_id: str, job_grants: Dict[str, List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
-        access_control_list = []
-        current_owner, permissions_attribute = self._get_current_job_owner(job_id)
-        access_control_list.append(
-            {
-                permissions_attribute: current_owner,
-                "permission_level": "IS_OWNER",
-            }
-        )
-
-        for grant in job_grants.get("view", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_VIEW",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in job_grants.get("run", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE_RUN",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in job_grants.get("manage", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE",
-                }
-            )
-            access_control_list.append(acl_grant)
-
-        return access_control_list
-
-    def _get_current_job_owner(self, job_id: str) -> Tuple[str, str]:
-        """
-        :return: a tuple of the user id and the ACL attribute it came from ie:
-            [user_name|group_name|service_principal_name]
-            For example: `("mateizaharia@databricks.com", "user_name")`
-        """
-        permissions = self.api_client.workflow_permissions.get(job_id)
-        for principal in permissions.get("access_control_list", []):
-            for permission in principal["all_permissions"]:
-                if (
-                    permission["permission_level"] == "IS_OWNER"
-                    and permission["inherited"] is False
-                ):
-                    if principal.get("user_name"):
-                        return principal["user_name"], "user_name"
-                    elif principal.get("group_name"):
-                        return principal["group_name"], "group_name"
-                    else:
-                        return principal["service_principal_name"], "service_principal_name"
-
-        raise DbtRuntimeError(
-            f"Error getting current owner for Databricks workflow.\n {permissions!r}"
-        )

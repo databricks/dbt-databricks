@@ -3,6 +3,7 @@ import time
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
+import re
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -149,7 +150,7 @@ class SharedFolderApi(FolderApi):
 
 
 class CurrUserApi(DatabricksApi):
-    
+
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
         self._user = ""
@@ -162,10 +163,13 @@ class CurrUserApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error getting current user.\n {response.content!r}")
 
-        logger.info(f"Current user response={response.json()}")
         username = response.json()["userName"]
         self._user = username
         return username
+
+    def is_service_principal(self, username: str) -> bool:
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        return bool(re.match(uuid_pattern, username, re.IGNORECASE))
 
 
 # Switch to this as part of 2.0.0 release
@@ -323,9 +327,11 @@ class JobRunsApi(PollableApi):
     def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
         super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
 
-    def submit(self, run_name: str, job_spec: Dict[str, Any]) -> str:
+    def submit(
+        self, run_name: str, job_spec: Dict[str, Any], additional_job_settings: Dict[str, Any]
+    ) -> str:
         submit_response = self.session.post(
-            "/submit", json={"run_name": run_name, "tasks": [job_spec]}
+            "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
         )
         if submit_response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
@@ -440,12 +446,12 @@ class WorkflowJobApi(DatabricksApi):
 
         logger.info(f"Workflow update response={response.json()}")
 
-    def run(self, job_id: str, enable_queueing=True) -> str:
+    def run(self, job_id: str, enable_queueing: bool = True) -> str:
         request_body = {
             "job_id": job_id,
             "queue": {
                 "enabled": enable_queueing,
-            }
+            },
         }
         response = self.session.post("/run-now", json=request_body)
 
