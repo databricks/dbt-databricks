@@ -29,7 +29,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     @property
     def cluster_spec(self) -> Dict[str, Any]:
-        return self.parsed_model["config"].get("job_cluster_config", None)
+        return self.parsed_model["config"].get("job_cluster_config", {})
 
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
