@@ -81,7 +81,7 @@ models:
       - type: foreign_key
         name: fk_example__child_table_1
         columns: ["parent_id"]
-        to: parent_table
+        to: ref('parent_table')
         to_columns: ["id"]
     columns:
       - name: id
