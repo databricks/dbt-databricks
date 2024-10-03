@@ -701,8 +701,8 @@ class DatabricksAdapter(SparkAdapter):
             name = column.column
             if (
                 name in columns
-                and "description" in columns[name]
-                and columns[name]["description"] != (column.comment or "")
+                and columns[name].description
+                and columns[name].description != (column.comment or "")
             ):
                 return_columns[name] = columns[name]
 
