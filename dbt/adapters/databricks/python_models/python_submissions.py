@@ -144,16 +144,29 @@ class BaseDatabricksHelper(PythonJobHelper):
         job_spec.update({"libraries": libraries})
         run_name = f"{self.database}-{self.schema}-{self.identifier}-{uuid.uuid4()}"
 
+        additional_job_config = self._build_additional_job_settings()
         access_control_list = self._build_job_permissions()
-        additional_job_config = {
-            "email_notifications": self.workflow_spec.get("email_notifications", {}),
-            "webhook_notifications": self.workflow_spec.get("webhook_notifications", {}),
-            "notification_settings": self.workflow_spec.get("notification_settings", {}),
-            "access_control_list": access_control_list,
-        }
+        additional_job_config["access_control_list"] = access_control_list
+
         run_id = self.api_client.job_runs.submit(run_name, job_spec, **additional_job_config)
         self.tracker.insert_run_id(run_id)
         return run_id
+
+    def _build_additional_job_settings(self) -> Dict[str, Any]:
+        additional_configs = {}
+        attrs_to_add = [
+            "email_notifications",
+            "webhook_notifications",
+            "notification_settings",
+            "timeout_seconds",
+            "health",
+            "environments",
+        ]
+        for attr in attrs_to_add:
+            if attr in self.workflow_spec:
+                additional_configs[attr] = self.workflow_spec[attr]
+
+        return additional_configs
 
     def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
         workdir = self.api_client.workspace.create_python_model_dir(
