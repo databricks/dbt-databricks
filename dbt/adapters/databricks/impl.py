@@ -1,3 +1,4 @@
+from multiprocessing.context import SpawnContext
 import os
 import re
 from abc import ABC
@@ -7,7 +8,6 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
-from typing import Callable
 from typing import cast
 from typing import ClassVar
 from typing import Dict
@@ -21,7 +21,6 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
-from typing import TypeVar
 from typing import Union
 
 from dbt.adapters.base import AdapterConfig
@@ -37,6 +36,11 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks.behaviors.columns import (
+    GetColumnsBehavior,
+    GetColumnsByDescribe,
+    GetColumnsByInformationSchema,
+)
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
@@ -65,8 +69,9 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.utils import get_first_row
+from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
@@ -76,10 +81,11 @@ from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+from dbt_common.exceptions import DbtConfigError
+from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
     from agate import Row
@@ -93,10 +99,20 @@ SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 
+USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
+    name="use_info_schema_for_columns",
+    default=False,
+    description=(
+        "Use info schema to gather column information to ensure complex types are not truncated."
+        "  Incurs some overhead, so disabled by default."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
+    table_format: TableFormat = TableFormat.DEFAULT
     location_root: Optional[str] = None
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None
@@ -117,26 +133,6 @@ class DatabricksConfig(AdapterConfig):
     target_alias: Optional[str] = None
     source_alias: Optional[str] = None
     merge_with_schema_evolution: Optional[bool] = None
-
-
-def check_not_found_error(errmsg: str) -> bool:
-    new_error = "[SCHEMA_NOT_FOUND]" in errmsg
-    old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
-    found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-    return new_error or old_error is not None or any(found_msgs)
-
-
-T = TypeVar("T")
-
-
-def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
-    try:
-        return exec()
-    except DbtRuntimeError as e:
-        errmsg = getattr(e, "msg", "")
-        if check_not_found_error(errmsg):
-            return default
-        raise e
 
 
 def get_identifier_list_string(table_names: Set[str]) -> str:
@@ -177,6 +173,39 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    get_column_behavior: GetColumnsBehavior
+
+    def __init__(self, config: Any, mp_context: SpawnContext) -> None:
+        super().__init__(config, mp_context)
+        if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
+            self.get_column_behavior = GetColumnsByInformationSchema()
+        else:
+            self.get_column_behavior = GetColumnsByDescribe()
+
+    @property
+    def _behavior_flags(self) -> List[BehaviorFlag]:
+        return [USE_INFO_SCHEMA_FOR_COLUMNS]
+
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        if config.get("table_format") == TableFormat.ICEBERG:
+            if self.compare_dbr_version(14, 3) < 0:
+                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
+            if config.get("file_format", "delta") != "delta":
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', cannot set file_format to other than delta."
+                )
+            if config.get("materialized") not in ("incremental", "table"):
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                )
+            result["delta.enableIcebergCompatV2"] = "true"
+            result["delta.universalFormat.enabledFormats"] = "iceberg"
+        return result
 
     # override/overload
     def acquire_connection(
@@ -391,26 +420,7 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        rows = list(
-            handle_missing_objects(
-                lambda: self.execute_macro(
-                    GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}
-                ),
-                AttrDict(),
-            )
-        )
-
-        columns = []
-        for row in rows:
-            if row["col_name"].startswith("#"):
-                break
-            columns.append(
-                DatabricksColumn(
-                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
-                )
-            )
-
-        return columns
+        return self.get_column_behavior.get_columns_in_relation(self, relation)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation

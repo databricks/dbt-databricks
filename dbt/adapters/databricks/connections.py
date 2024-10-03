@@ -74,6 +74,7 @@ from dbt.adapters.events.types import SQLQueryStatus
 from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtDatabaseError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import cast_to_str
@@ -505,7 +506,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         except Error as exc:
             logger.debug(QueryError(log_sql, exc))
-            raise DbtRuntimeError(str(exc)) from exc
+            raise DbtDatabaseError(str(exc)) from exc
 
         except Exception as exc:
             logger.debug(QueryError(log_sql, exc))
@@ -515,9 +516,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             thrift_resp = exc.args[0]
             if hasattr(thrift_resp, "status"):
                 msg = thrift_resp.status.errorMessage
-                raise DbtRuntimeError(msg) from exc
+                raise DbtDatabaseError(msg) from exc
             else:
-                raise DbtRuntimeError(str(exc)) from exc
+                raise DbtDatabaseError(str(exc)) from exc
 
     # override/overload
     def set_connection_name(
