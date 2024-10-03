@@ -328,7 +328,7 @@ class JobRunsApi(PollableApi):
         super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
 
     def submit(
-        self, run_name: str, job_spec: Dict[str, Any], **additional_job_settings
+        self, run_name: str, job_spec: Dict[str, Any], **additional_job_settings: Any
     ) -> str:
         submit_response = self.session.post(
             "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}

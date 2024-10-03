@@ -151,7 +151,7 @@ class BaseDatabricksHelper(PythonJobHelper):
             "notification_settings": self.workflow_spec.get("notification_settings", {}),
             "access_control_list": access_control_list,
         }
-        run_id = self.api_client.job_runs.submit(run_name, job_spec, additional_job_config)
+        run_id = self.api_client.job_runs.submit(run_name, job_spec, **additional_job_config)
         self.tracker.insert_run_id(run_id)
         return run_id
 
