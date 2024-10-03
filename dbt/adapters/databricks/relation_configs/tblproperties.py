@@ -74,11 +74,19 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:
-        tblproperties = base.get_config_value(relation_config, "tblproperties")
-        if not tblproperties:
-            return TblPropertiesConfig(tblproperties=dict())
-        if isinstance(tblproperties, Dict):
-            tblproperties = {str(k): str(v) for k, v in tblproperties.items()}
-            return TblPropertiesConfig(tblproperties=tblproperties)
-        else:
+        tblproperties = base.get_config_value(relation_config, "tblproperties") or {}
+        is_iceberg = base.get_config_value(relation_config, "table_format") == "iceberg"
+
+        if not isinstance(tblproperties, Dict):
             raise DbtRuntimeError("tblproperties must be a dictionary")
+
+        # If the table format is Iceberg, we need to set the iceberg-specific tblproperties
+        if is_iceberg:
+            tblproperties.update(
+                {
+                    "delta.enableIcebergCompatV2": "true",
+                    "delta.universalFormat.enabledFormats": "iceberg",
+                }
+            )
+        tblproperties = {str(k): str(v) for k, v in tblproperties.items()}
+        return TblPropertiesConfig(tblproperties=tblproperties)

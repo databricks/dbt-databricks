@@ -66,6 +66,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
@@ -80,6 +81,8 @@ from dbt.adapters.spark.impl import SparkAdapter
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+from dbt_common.exceptions import DbtConfigError
+from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
     from agate import Row
@@ -106,6 +109,7 @@ USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
+    table_format: TableFormat = TableFormat.DEFAULT
     location_root: Optional[str] = None
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None
@@ -179,6 +183,26 @@ class DatabricksAdapter(SparkAdapter):
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS]
+
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        if config.get("table_format") == TableFormat.ICEBERG:
+            if self.compare_dbr_version(14, 3) < 0:
+                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
+            if config.get("file_format", "delta") != "delta":
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', cannot set file_format to other than delta."
+                )
+            if config.get("materialized") not in ("incremental", "table"):
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                )
+            result["delta.enableIcebergCompatV2"] = "true"
+            result["delta.universalFormat.enabledFormats"] = "iceberg"
+        return result
 
     # override/overload
     def acquire_connection(
