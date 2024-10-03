@@ -169,16 +169,16 @@ class TestWorkflowJob:
         user3 = os.environ["DBT_TEST_USER_3"]
 
         sql_grants = project.run_sql(
-            f"SHOW GRANTS {user1} ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
+            f"SHOW GRANTS `{user1}` ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
         )
         assert len(sql_grants) == 1
 
         sql_grants = project.run_sql(
-            f"SHOW GRANTS {user2} ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
+            f"SHOW GRANTS `{user2}` ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
         )
         assert len(sql_grants) == 1
 
         sql_grants = project.run_sql(
-            f"SHOW GRANTS {user3} ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
+            f"SHOW GRANTS `{user3}` ON TABLE {{database}}.{{schema}}.my_workflow_model", fetch="all"
         )
         assert len(sql_grants) == 1

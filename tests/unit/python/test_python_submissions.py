@@ -199,6 +199,18 @@ class TestWorkflowConfig:
         assert "new_cluster" not in task
 
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
+    def test_build_job_spec_serverless(self, mock_api_client):
+        config = self.default_config()
+        del config["config"]["job_cluster_config"]
+
+        job = WorkflowPythonJobHelper(config, Mock())
+        result = job._build_job_spec()
+
+        task = result["tasks"][0]
+        assert "existing_cluster_id" not in task
+        assert "new_cluster" not in task
+
+    @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_with_additional_task_settings(self, mock_api_client):
         config = self.default_config()
         config["config"]["workflow_job_config"]["additional_task_settings"] = {
