@@ -77,7 +77,6 @@ from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtDatabaseError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.exceptions import DbtDatabaseError
 from dbt_common.utils import cast_to_str
 from requests import Session
 
