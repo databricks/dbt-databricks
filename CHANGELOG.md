@@ -1,4 +1,4 @@
-## dbt-databricks 1.8.7 (October 3, 2024)
+## dbt-databricks 1.8.7 (October 4, 2024)
 
 ### Features
 
