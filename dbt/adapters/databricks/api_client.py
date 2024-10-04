@@ -330,13 +330,8 @@ class JobRunsApi(PollableApi):
     def submit(
         self, run_name: str, job_spec: Dict[str, Any], **additional_job_settings: Dict[str, Any]
     ) -> str:
-        request_body = {
-            "run_name": run_name,
-            "tasks": [job_spec],
-            **additional_job_settings
-        }
         submit_response = self.session.post(
-            "/submit", json=request_body
+            "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
         )
         if submit_response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
