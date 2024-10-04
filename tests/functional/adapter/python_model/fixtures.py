@@ -48,13 +48,7 @@ models:
         }
         grants:
           view: [
-            {"user_name": "{{ env_var('DBT_TEST_USER_1') }}"},
-          ]
-          run: [
-            {"user_name": "{{ env_var('DBT_TEST_USER_2') }}"}
-          ]
-          manage: [
-            {"user_name": "{{ env_var('DBT_TEST_USER_3') }}"}
+            {"user_name": "account users"},
           ]
 """
 
