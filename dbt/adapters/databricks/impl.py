@@ -691,6 +691,7 @@ class DatabricksAdapter(SparkAdapter):
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
 
+
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     """Base class for the relation API, so as to provide some encapsulation from the adapter.
