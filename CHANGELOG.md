@@ -3,6 +3,7 @@
 ### Fixes
 
 - Stop setting cluster by to None. If you want to drop liquid clustering, you will need to full-refresh ([806]https://github.com/databricks/dbt-databricks/pull/806)
+- Don't define table properties on snapshot staging views
 
 ## dbt-databricks 1.8.6 (September 18, 2024)
 

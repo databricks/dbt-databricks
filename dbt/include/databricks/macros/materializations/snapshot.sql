@@ -10,7 +10,9 @@
 
     {# needs to be a non-temp view so that its columns can be ascertained via `describe` #}
     {% call statement('build_snapshot_staging_relation') %}
-        {{ create_view_as(tmp_relation, select) }}
+        create or replace view {{ tmp_relation }}
+        as
+            {{ select }}
     {% endcall %}
 
     {% do return(tmp_relation) %}
