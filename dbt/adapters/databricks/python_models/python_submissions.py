@@ -316,9 +316,11 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         post_hook_tasks: List[Dict[str, Any]] = []
         for original_task in self.post_hook_tasks:
             task = dict(original_task)
-            if "existing_cluster_id" not in task\
-                    and "new_cluster" not in task\
-                    and "job_cluster_key" not in task:
+            if (
+                "existing_cluster_id" not in task
+                and "new_cluster" not in task
+                and "job_cluster_key" not in task
+            ):
                 task["new_cluster"] = self.cluster_spec
             post_hook_tasks.append(task)
 
