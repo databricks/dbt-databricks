@@ -46,10 +46,6 @@ models:
         additional_task_settings: {
           "task_key": "my_dbt_task"
         }
-        grants:
-          view: [
-            {"user_name": "account users"},
-          ]
 """
 
 simple_python_model_v2 = """
