@@ -233,6 +233,11 @@ class TestWorkflowConfig:
                     "notebook_path": "/Workspace/Shared/test_notebook",
                     "source": "WORKSPACE",
                 },
+                "new_cluster": {
+                    "spark_version": "14.3.x-scala2.12",
+                    "node_type_id": "rd-fleet.2xlarge",
+                    "autoscale": {"min_workers": 1, "max_workers": 2},
+                },
             }
         ]
 
@@ -241,7 +246,7 @@ class TestWorkflowConfig:
 
         assert len(result["tasks"]) == 2
         assert result["tasks"][1]["task_key"] == "task_b"
-        assert result["tasks"][1]["new_cluster"] == result["tasks"][0]["new_cluster"]
+        assert result["tasks"][1]["new_cluster"]["spark_version"] == "14.3.x-scala2.12"
 
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_with_post_hooks_serverless_job_cluster(self, mock_api_client):
@@ -265,7 +270,6 @@ class TestWorkflowConfig:
         assert len(result["tasks"]) == 2
         post_hook_task = result["tasks"][1]
         assert result["tasks"][1]["task_key"] == "task_b"
-        assert post_hook_task["new_cluster"] == {}
         assert "job_cluster_key" not in post_hook_task
         assert "existing_cluster_id" not in post_hook_task
 

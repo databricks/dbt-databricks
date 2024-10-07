@@ -308,23 +308,8 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         notebook_task.update(cluster_settings)
         notebook_task.update(self.additional_task_settings)
 
-        post_hook_tasks = self.build_post_hook_tasks()
-        workflow_spec["tasks"] = [notebook_task] + post_hook_tasks
+        workflow_spec["tasks"] = [notebook_task] + self.post_hook_tasks
         return workflow_spec
-
-    def build_post_hook_tasks(self) -> List[Dict[str, Any]]:
-        post_hook_tasks: List[Dict[str, Any]] = []
-        for original_task in self.post_hook_tasks:
-            task = dict(original_task)
-            if (
-                "existing_cluster_id" not in task
-                and "new_cluster" not in task
-                and "job_cluster_key" not in task
-            ):
-                task["new_cluster"] = self.cluster_spec
-            post_hook_tasks.append(task)
-
-        return post_hook_tasks
 
     def _submit_through_workflow(self, compiled_code: str, workflow_spec: Dict[str, Any]) -> None:
         self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
