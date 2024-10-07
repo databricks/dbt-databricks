@@ -50,8 +50,7 @@ models:
           "task_key": "my_dbt_task"
         }
         
-        # Define tasks to run before/after the model. By default, they will use
-        # the same cluster 
+        # Define tasks to run before/after the model
         post_hook_tasks: [{
           "depends_on": [{ "task_key": "my_dbt_task" }],
           "task_key": 'OPTIMIZE_AND_VACUUM',
@@ -117,33 +116,41 @@ dbt will generate a name based on the catalog, schema, and model identifier.
 ```yaml
 # Reusable job cluster config example
 
-config:
-  workflow_job_config:
-    additional_task_settings: {
-      task_key: 'task_a',
-      job_cluster_key: 'cluster_a',
-    }
-    post_hook_tasks: [{
-      "depends_on": [{ "task_key": "task_a" }],
-      "task_key": 'OPTIMIZE_AND_VACUUM',
-      job_cluster_key: 'cluster_a',
-      "notebook_task": {
-        "notebook_path": "/OPTIMIZE_AND_VACUUM",
-        "source": "WORKSPACE",
-      },
-    }]
-    job_clusters: [{
-      job_cluster_key: 'cluster_a',
-      new_cluster: {
-        spark_version: "{{ var('dbr_versions')['lts_v14'] }}",
-        node_type_id: "{{ var('cluster_node_types')['large_job'] }}",
-        runtime_engine: "{{ var('job_cluster_defaults.runtime_engine') }}",
-        autoscale: {
-          "min_workers": 1,
-          "max_workers": 2
-        },
-      }
-    }]
+models:
+  - name: my_model
+    
+    config:
+      workflow_job_config:
+        additional_task_settings: {
+          task_key: 'task_a',
+          job_cluster_key: 'cluster_a',
+        }
+        post_hook_tasks: [{
+          depends_on: [{ "task_key": "task_a" }],
+          task_key: 'OPTIMIZE_AND_VACUUM',
+          job_cluster_key: 'cluster_a',
+          notebook_task: {
+            notebook_path: "/OPTIMIZE_AND_VACUUM",
+            source: "WORKSPACE",
+            base_parameters: {
+              database: "{{ target.database }}",
+              schema: "{{ target.schema }}",
+              table_name: "my_model"
+            }
+          },
+        }]
+        job_clusters: [{
+          job_cluster_key: 'cluster_a',
+          new_cluster: {
+            spark_version: "{{ var('dbr_versions')['lts_v14'] }}",
+            node_type_id: "{{ var('cluster_node_types')['large_job'] }}",
+            runtime_engine: "{{ var('job_cluster_defaults.runtime_engine') }}",
+            autoscale: {
+              "min_workers": 1,
+              "max_workers": 2
+            },
+          }
+        }]
 ```
 
 #### Grants
@@ -175,6 +182,5 @@ grants:
 #### Post hooks
 
 It is possible to add in python hooks by using the `config.workflow_job_config.post_hook_tasks` 
-attribute. If there is a cluster defined in `config.job_cluster_config`, that will get pulled 
-into the hook as a new cluster. For reusable job clusters or an existing job cluster, you will 
-have to define that in the post hook task definition manually.
+attribute. You will need to define the cluster for each task, or use a reusable one from
+`config.workflow_job_config.job_clusters`.
