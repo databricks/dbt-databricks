@@ -158,7 +158,7 @@ class TestWorkflowConfig:
                 },
                 "job_cluster_config": {
                     "spark_version": "15.3.x-scala2.12",
-                    "node_type_id": "rd-fleet.8xlarge",
+                    "node_type_id": "rd-fleet.2xlarge",
                     "autoscale": {"min_workers": 1, "max_workers": 2},
                 },
             },
@@ -241,3 +241,99 @@ class TestWorkflowConfig:
 
         assert len(result["tasks"]) == 2
         assert result["tasks"][1]["task_key"] == "task_b"
+        assert result["tasks"][1]["new_cluster"] == result["tasks"][0]["new_cluster"]
+
+    @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
+    def test_build_job_spec_with_post_hooks_serverless_job_cluster(self, mock_api_client):
+        config = self.default_config()
+        del config["config"]["job_cluster_config"]
+
+        config["config"]["workflow_job_config"]["post_hook_tasks"] = [
+            {
+                "depends_on": [{"task_key": "inner_notebook"}],
+                "task_key": "task_b",
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Shared/test_notebook",
+                    "source": "WORKSPACE",
+                },
+            }
+        ]
+
+        job = WorkflowPythonJobHelper(config, Mock())
+        result = job._build_job_spec()
+
+        assert len(result["tasks"]) == 2
+        post_hook_task = result["tasks"][1]
+        assert result["tasks"][1]["task_key"] == "task_b"
+        assert post_hook_task["new_cluster"] == {}
+        assert "job_cluster_key" not in post_hook_task
+        assert "existing_cluster_id" not in post_hook_task
+
+    @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
+    def test_build_job_spec_with_post_hooks_reusable_job_cluster(self, mock_api_client):
+        config = self.default_config()
+        del config["config"]["job_cluster_config"]
+
+        config["config"]["workflow_job_config"]["job_clusters"] = [
+            {
+                "job_cluster_key": "cluster-123",
+                "new_cluster": {
+                    "spark_version": "15.3.x-scala2.12",
+                    "node_type_id": "rd-fleet.2xlarge",
+                    "autoscale": {"min_workers": 1, "max_workers": 2},
+                },
+            }
+        ]
+
+        config["config"]["workflow_job_config"]["post_hook_tasks"] = [
+            {
+                "depends_on": [{"task_key": "inner_notebook"}],
+                "task_key": "task_b",
+                "job_cluster_key": "cluster-123",
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Shared/test_notebook",
+                    "source": "WORKSPACE",
+                },
+            }
+        ]
+
+        job = WorkflowPythonJobHelper(config, Mock())
+        result = job._build_job_spec()
+
+        assert len(result["tasks"]) == 2
+
+        post_hook_task = result["tasks"][1]
+        assert post_hook_task["task_key"] == "task_b"
+        assert post_hook_task["job_cluster_key"] == "cluster-123"
+        assert "new_cluster" not in post_hook_task
+        assert "existing_cluster_id" not in post_hook_task
+
+    @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
+    def test_build_job_spec_with_post_hooks_existing_cluster(self, mock_api_client):
+        config = self.default_config()
+        del config["config"]["job_cluster_config"]
+
+        config["config"]["existing_cluster_id"] = "other-cluster-existing-123"
+        config["config"]["workflow_job_config"]["post_hook_tasks"] = [
+            {
+                "depends_on": [{"task_key": "inner_notebook"}],
+                "task_key": "task_b",
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Shared/test_notebook",
+                    "source": "WORKSPACE",
+                },
+                "existing_cluster_id": "cluster-existing-123",
+            }
+        ]
+
+        job = WorkflowPythonJobHelper(config, Mock())
+        result = job._build_job_spec()
+
+        assert len(result["tasks"]) == 2
+        post_hook_task = result["tasks"][1]
+
+        assert post_hook_task["task_key"] == "task_b"
+        assert post_hook_task["existing_cluster_id"] == "cluster-existing-123"
+
+        assert "job_cluster_key" not in post_hook_task
+        assert "new_cluster" not in post_hook_task

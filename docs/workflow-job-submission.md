@@ -71,7 +71,7 @@ models:
           ]
           manage: []
           
-      # Reused for the job cluster definition
+      # Reused for the workflow job cluster definition
       job_cluster_config:
         spark_version: "15.3.x-scala2.12"
         node_type_id: "rd-fleet.2xlarge"
@@ -85,8 +85,8 @@ models:
 
 ### Configuration
 
-All config values are optional. See the Databricks Jobs API to see which other attributes
-can be set.
+All config values are optional. See the Databricks Jobs API for the full list of attributes
+that can be set.
 
 #### Reuse in job_cluster submission method
 
@@ -107,7 +107,7 @@ to send an email notification on failure.
 The name of the workflow must be unique unless you also define an existing job id. By default,
 dbt will generate a name based on the catalog, schema, and model identifier.
 
-#### Clusters:
+#### Clusters
 
 - If defined, dbt will re-use the `config.job_cluster_config` to define a job cluster for the workflow tasks.
 - If `config.workflow_job_config.existing_cluster_id` is defined, dbt will use that cluster
@@ -171,3 +171,10 @@ grants:
   ]
   manage: []
 ```
+
+#### Post hooks
+
+It is possible to add in python hooks by using the `config.workflow_job_config.post_hook_tasks` 
+attribute. If there is a cluster defined in `config.job_cluster_config`, that will get pulled 
+into the hook as a new cluster. For reusable job clusters or an existing job cluster, you will 
+have to define that in the post hook task definition manually.
