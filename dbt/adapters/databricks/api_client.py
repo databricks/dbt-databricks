@@ -392,7 +392,7 @@ class JobPermissionsApi(DatabricksApi):
         request_body = {"access_control_list": access_control_list}
 
         response = self.session.put(f"/{job_id}", json=request_body)
-        logger.info(f"Workflow permissions update response={response.json()}")
+        logger.debug(f"Workflow permissions update response={response.json()}")
 
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
@@ -419,7 +419,6 @@ class WorkflowJobApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error fetching job by name.\n {response.content!r}")
 
-        logger.info(f"Job list response={response.json()}")
         return response.json().get("jobs", [])
 
     def create(self, job_spec: Dict[str, Any]) -> str:
@@ -431,20 +430,22 @@ class WorkflowJobApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating Workflow.\n {response.content!r}")
 
-        logger.info(f"Workflow creation response={response.json()}")
-        return response.json()["job_id"]
+        job_id = response.json()["job_id"]
+        logger.info(f"New workflow created with job id {job_id}")
+        return job_id
 
     def update_job_settings(self, job_id: str, job_spec: Dict[str, Any]) -> None:
         request_body = {
             "job_id": job_id,
             "new_settings": job_spec,
         }
+        logger.debug(f"Job settings: {request_body}")
         response = self.session.post("/reset", json=request_body)
 
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Workflow.\n {response.content!r}")
 
-        logger.info(f"Workflow update response={response.json()}")
+        logger.debug(f"Workflow update response={response.json()}")
 
     def run(self, job_id: str, enable_queueing: bool = True) -> str:
         request_body = {
