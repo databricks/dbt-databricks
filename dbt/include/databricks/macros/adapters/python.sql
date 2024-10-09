@@ -53,6 +53,7 @@ writer.saveAsTable("{{ target_relation }}")
 
 {%- macro py_get_writer_options() -%}
 {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
+{%- set include_catalog_schema = config.get('include_full_name_in_path', False) -%}
 {%- set file_format = config.get('file_format', validator=validation.any[basestring])|default('delta', true) -%}
 {%- set partition_by = config.get('partition_by', validator=validation.any[list, basestring]) -%}
 {%- set liquid_clustered_by = config.get('liquid_clustered_by', validator=validation.any[list, basestring]) -%}
@@ -60,11 +61,8 @@ writer.saveAsTable("{{ target_relation }}")
 {%- set buckets = config.get('buckets', validator=validation.any[int]) -%}
 .format("{{ file_format }}")
 {%- if location_root is not none %}
-{%- set identifier = model['alias'] %}
-{%- if is_incremental() %}
-{%- set identifier = identifier + '__dbt_tmp' %}
-{%- endif %}
-.option("path", "{{ location_root }}/{{ identifier }}")
+{%- set model_path = adapter.compute_external_path(config, model, is_incremental()) %}
+.option("path", "{{ model_path }}")
 {%- endif -%}
 {%- if partition_by is not none -%}
     {%- if partition_by is string -%}

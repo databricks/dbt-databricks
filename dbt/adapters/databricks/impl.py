@@ -112,6 +112,7 @@ class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
     table_format: TableFormat = TableFormat.DEFAULT
     location_root: Optional[str] = None
+    include_full_name_in_path: bool = False
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None
     liquid_clustered_by: Optional[Union[List[str], str]] = None
@@ -205,6 +206,25 @@ class DatabricksAdapter(SparkAdapter):
             result["delta.enableIcebergCompatV2"] = "true"
             result["delta.universalFormat.enabledFormats"] = "iceberg"
         return result
+
+    @available.parse(lambda *a, **k: 0)
+    def compute_external_path(
+        self, config: BaseConfig, model: BaseConfig, is_incremental: bool = False
+    ) -> str:
+        location_root = config.get("location_root")
+        database = model.get("database", "hive_metastore")
+        schema = model.get("schema", "default")
+        identifier = model.get("alias")
+        if location_root is None:
+            raise DbtConfigError("location_root is required for external tables.")
+        include_full_name_in_path = config.get("include_full_name_in_path", False)
+        if include_full_name_in_path:
+            path = os.path.join(location_root, database, schema, identifier)
+        else:
+            path = os.path.join(location_root, identifier)
+        if is_incremental:
+            path = path + "_tmp"
+        return path
 
     # override/overload
     def acquire_connection(
