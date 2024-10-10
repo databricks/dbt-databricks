@@ -21,11 +21,16 @@
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
 - Upgrade databricks-sql-connector dependency to 3.4.0 ([790](https://github.com/databricks/dbt-databricks/pull/790))
 
-## dbt-databricks 1.8.7 (TBD)
+## dbt-databricks 1.8.7 (October 10, 2024)
+
+### Features
+
+- Add config for generating unique tmp table names for enabling parralel replace-where (thanks @huangxingyi-git!) ([811](https://github.com/databricks/dbt-databricks/pull/811))
 
 ### Fixes
 
 - Stop setting cluster by to None. If you want to drop liquid clustering, you will need to full-refresh ([806]https://github.com/databricks/dbt-databricks/pull/806)
+- Don't define table properties on snapshot staging views (thanks @jelmerk!) ([820](https://github.com/databricks/dbt-databricks/pull/820))
 
 ## dbt-databricks 1.8.6 (September 18, 2024)
 
