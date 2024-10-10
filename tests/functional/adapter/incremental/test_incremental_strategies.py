@@ -52,6 +52,7 @@ class TestAppendParquet(AppendBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_append",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }
@@ -129,6 +130,7 @@ class TestInsertOverwriteParquet(InsertOverwriteBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_insert_overwrite",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "insert_overwrite",
             },
         }
@@ -144,6 +146,7 @@ class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_insert_overwrite_partitions",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "insert_overwrite",
                 "+partition_by": "id",
             },
