@@ -430,7 +430,7 @@ class DBContext:
             status_response = self.get_cluster_status()
             if str(status_response.get("state")).lower() == "running":
                 libraries_status_response = self.get_cluster_libraries_status()
-                if all(library["status"] in valid_statuses for library in response["library_statuses"]):
+                if all(library["status"] in LIBRARY_VALID_STATUSES for library in libraries_status_response["library_statuses"]):
                     return
             
             time.sleep(5)
