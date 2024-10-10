@@ -55,6 +55,9 @@ from dbt.adapters.databricks.python_models.python_submissions import JobClusterP
 from dbt.adapters.databricks.python_models.python_submissions import (
     ServerlessClusterPythonJobHelper,
 )
+from dbt.adapters.databricks.python_models.python_submissions import (
+    WorkflowPythonJobHelper,
+)
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
@@ -635,6 +638,7 @@ class DatabricksAdapter(SparkAdapter):
             "job_cluster": JobClusterPythonJobHelper,
             "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
             "serverless_cluster": ServerlessClusterPythonJobHelper,
+            "workflow_job": WorkflowPythonJobHelper,
         }
 
     @available
