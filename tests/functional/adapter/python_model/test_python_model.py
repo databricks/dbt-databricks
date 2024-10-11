@@ -135,3 +135,22 @@ class TestComplexConfig:
             fetch="all",
         )
         assert results[0][0] == "This is a python table"
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+class TestWorkflowJob:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.workflow_schema,
+            "my_workflow_model.py": override_fixtures.simple_python_model,
+        }
+
+    def test_workflow_run(self, project):
+        util.run_dbt(["run", "-s", "my_workflow_model"])
+
+        sql_results = project.run_sql(
+            "SELECT * FROM {database}.{schema}.my_workflow_model", fetch="all"
+        )
+        assert len(sql_results) == 10

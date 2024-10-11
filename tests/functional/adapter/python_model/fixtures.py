@@ -33,6 +33,21 @@ sources:
         identifier: source
 """
 
+workflow_schema = """version: 2
+
+models:
+  - name: my_workflow_model
+    config:
+      submission_method: workflow_job
+      user_folder_for_python: true
+      workflow_job_config:
+        max_retries: 2
+        timeout_seconds: 500
+        additional_task_settings: {
+          "task_key": "my_dbt_task"
+        }
+"""
+
 simple_python_model_v2 = """
 import pandas
 
