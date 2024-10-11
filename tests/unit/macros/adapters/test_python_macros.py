@@ -1,5 +1,4 @@
 import pytest
-from jinja2 import Template
 from mock import MagicMock
 
 from tests.unit.macros.base import MacroTestBase
