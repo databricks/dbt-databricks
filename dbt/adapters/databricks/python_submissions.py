@@ -379,6 +379,20 @@ class DBContext:
         json_response = response.json()
         return json_response
 
+    def get_cluster_libraries_status(self) -> Dict:
+        # https://docs.databricks.com/api/workspace/libraries/clusterstatus
+
+        response = self.session.get(
+            f"https://{self.host}/api/2.0/libraries/cluster-status",
+            headers=self.extra_headers,
+            json={"cluster_id": self.cluster_id},
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting status of libraries of a cluster.\n {response.content!r}")
+
+        json_response = response.json()
+        return json_response
+
     def start_cluster(self) -> None:
         """Send the start command and poll for the cluster status until it shows "Running"
 
@@ -406,6 +420,7 @@ class DBContext:
         logger.info("Waiting for cluster to be ready")
 
         MAX_CLUSTER_START_TIME = 900
+        LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
         start_time = time.time()
 
         def get_elapsed() -> float:
@@ -414,9 +429,11 @@ class DBContext:
         while get_elapsed() < MAX_CLUSTER_START_TIME:
             status_response = self.get_cluster_status()
             if str(status_response.get("state")).lower() == "running":
-                return
-            else:
-                time.sleep(5)
+                libraries_status_response = self.get_cluster_libraries_status()
+                if all(library["status"] in LIBRARY_VALID_STATUSES for library in libraries_status_response["library_statuses"]):
+                    return
+            
+            time.sleep(5)
 
         raise DbtRuntimeError(
             f"Cluster {self.cluster_id} restart timed out after {MAX_CLUSTER_START_TIME} seconds"
