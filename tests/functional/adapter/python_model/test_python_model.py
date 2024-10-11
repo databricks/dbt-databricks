@@ -119,15 +119,6 @@ class TestComplexConfig:
         }
 
     def test_expected_handling_of_complex_config(self, project):
-        unformatted_schema_yml = util.read_file("models", "schema.yml")
-        util.write_file(
-            unformatted_schema_yml.replace(
-                "root", os.environ["DBT_DATABRICKS_LOCATION_ROOT"]
-            ).replace("{schema}", project.test_schema),
-            "models",
-            "schema.yml",
-        )
-
         util.run_dbt(["seed"])
         util.run_dbt(["build", "-s", "complex_config"])
         util.run_dbt(["build", "-s", "complex_config"])

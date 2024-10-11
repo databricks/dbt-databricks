@@ -34,6 +34,7 @@ class TestIncrementalParquet(BaseIncremental):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }
@@ -61,6 +62,7 @@ class TestIncrementalCSV(BaseIncremental):
             "models": {
                 "+file_format": "csv",
                 "+location_root": f"{location_root}/csv",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }

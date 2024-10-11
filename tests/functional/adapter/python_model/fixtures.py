@@ -117,7 +117,8 @@ models:
       marterialized: table
       tags: ["python"]
       create_notebook: true
-      location_root: "{root}/{schema}"
+      include_full_name_in_path: true
+      location_root: "{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}"
     columns:
       - name: date
         tests:
