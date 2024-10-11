@@ -22,6 +22,7 @@ from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
 from typing import Union
+from uuid import uuid4
 
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
@@ -53,6 +54,9 @@ from dbt.adapters.databricks.python_models.python_submissions import (
 from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
 from dbt.adapters.databricks.python_models.python_submissions import (
     ServerlessClusterPythonJobHelper,
+)
+from dbt.adapters.databricks.python_models.python_submissions import (
+    WorkflowPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
@@ -122,6 +126,7 @@ class DatabricksConfig(AdapterConfig):
     databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
+    unique_tmp_table_suffix: bool = False
     skip_non_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
     matched_condition: Optional[str] = None
@@ -653,6 +658,7 @@ class DatabricksAdapter(SparkAdapter):
             "job_cluster": JobClusterPythonJobHelper,
             "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
             "serverless_cluster": ServerlessClusterPythonJobHelper,
+            "workflow_job": WorkflowPythonJobHelper,
         }
 
     @available
@@ -728,6 +734,10 @@ class DatabricksAdapter(SparkAdapter):
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
             )
+
+    @available
+    def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
+        return f"{suffix_initial}_{str(uuid4())}"
 
 
 @dataclass(frozen=True)
