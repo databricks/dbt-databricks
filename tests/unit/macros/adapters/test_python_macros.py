@@ -1,5 +1,4 @@
 import pytest
-from jinja2 import Template
 from mock import MagicMock
 
 from tests.unit.macros.base import MacroTestBase
@@ -33,19 +32,10 @@ class TestPythonMacros(MacroTestBase):
 
     def test_py_get_writer__specified_location_root(self, config, template, context):
         config["location_root"] = "s3://fake_location"
+        template.globals["adapter"].compute_external_path.return_value = "s3://fake_location/schema"
         result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
-        assert result == expected
-
-    def test_py_get_writer__specified_location_root_on_incremental(
-        self, config, template: Template, context
-    ):
-        config["location_root"] = "s3://fake_location"
-        context["is_incremental"].return_value = True
-        result = self.run_macro_raw(template, "py_get_writer_options")
-
-        expected = '.format("delta")\n.option("path", "s3://fake_location/schema__dbt_tmp")'
         assert result == expected
 
     def test_py_get_writer__partition_by_single_column(self, config, template):

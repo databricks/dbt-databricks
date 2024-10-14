@@ -4,11 +4,45 @@
 
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
+- Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the following features (thanks @mi-volodin):
+  - `with schema evolution` clause (requires Databricks Runtime 15.2 or above);
+  - `when not matched by source` clause, only for `delete` action
+  - `matched`, `not matched` and `not matched by source` condition clauses;
+  - custom aliases for source and target tables can be specified and used in condition clauses;
+  - `matched` and `not matched` steps can now be skipped;
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint (thanks @roydobbe). ([792](https://github.com/databricks/dbt-databricks/pull/792))
+- Add "use_info_schema_for_columns" behavior flag to turn on use of information_schema to get column info where possible. This may have more latency but will not truncate complex data types the way that 'describe' can. ([808](https://github.com/databricks/dbt-databricks/pull/808))
+- Add support for table_format: iceberg. This uses UniForm under the hood to provide iceberg compatibility for tables or incrementals. ([815](https://github.com/databricks/dbt-databricks/pull/815))
+- Add `include_full_name_in_path` config boolean for external locations. This writes tables to {location_root}/{catalog}/{schema}/{table} ([823](https://github.com/databricks/dbt-databricks/pull/823))
+- Add a new `workflow_job` submission method for python, which creates a long-lived Databricks Workflow instead of a one-time run (thanks @kdazzle!) ([762](https://github.com/databricks/dbt-databricks/pull/762))
+- Allow for additional options to be passed to the Databricks Job API when using other python submission methods. For example, enable email_notifications (thanks @kdazzle!) ([762](https://github.com/databricks/dbt-databricks/pull/762))
 
 ### Under the Hood
 
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
-- Upgrade databricks-sql-connector dependency to 3.2.0 ([729](https://github.com/databricks/dbt-databricks/pull/729))
+- Upgrade databricks-sql-connector dependency to 3.4.0 ([790](https://github.com/databricks/dbt-databricks/pull/790))
+
+## dbt-databricks 1.8.7 (October 10, 2024)
+
+### Features
+
+- Add config for generating unique tmp table names for enabling parralel replace-where (thanks @huangxingyi-git!) ([811](https://github.com/databricks/dbt-databricks/pull/811))
+
+### Fixes
+
+- Stop setting cluster by to None. If you want to drop liquid clustering, you will need to full-refresh ([806]https://github.com/databricks/dbt-databricks/pull/806)
+- Don't define table properties on snapshot staging views (thanks @jelmerk!) ([820](https://github.com/databricks/dbt-databricks/pull/820))
+
+## dbt-databricks 1.8.6 (September 18, 2024)
+
+### Fixes
+
+- Persist table comments for incremental models, snapshots and dbt clone (thanks @henlue!) ([750](https://github.com/databricks/dbt-databricks/pull/750))
+- Add relation identifier (i.e. table name) in auto generated constraint names, also adding the statement of table list for foreign keys (thanks @elca-anh!) ([774](https://github.com/databricks/dbt-databricks/pull/774))
+- Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
+- Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
+- Fix foreign key constraints by switching from `parent` to `to` and `parent_columns` to `to_columns` ([789](https://github.com/databricks/dbt-databricks/pull/789))
+- Now handles external shallow clones without blowing up ([795](https://github.com/databricks/dbt-databricks/pull/795))
 
 ## dbt-databricks 1.8.5 (August 6, 2024)
 

@@ -33,6 +33,21 @@ sources:
         identifier: source
 """
 
+workflow_schema = """version: 2
+
+models:
+  - name: my_workflow_model
+    config:
+      submission_method: workflow_job
+      user_folder_for_python: true
+      workflow_job_config:
+        max_retries: 2
+        timeout_seconds: 500
+        additional_task_settings: {
+          "task_key": "my_dbt_task"
+        }
+"""
+
 simple_python_model_v2 = """
 import pandas
 
@@ -101,7 +116,9 @@ models:
     config:
       marterialized: table
       tags: ["python"]
-      location_root: '{{ env_var("DBT_DATABRICKS_LOCATION_ROOT") }}'
+      create_notebook: true
+      include_full_name_in_path: true
+      location_root: "{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}"
     columns:
       - name: date
         tests:

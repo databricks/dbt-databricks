@@ -2,9 +2,9 @@
   {{ return(adapter.dispatch('tblproperties_clause', 'dbt')()) }}
 {%- endmacro -%}
 
-{% macro databricks__tblproperties_clause() -%}
-  {%- set tblproperties = config.get('tblproperties') -%}
-  {%- if tblproperties is not none %}
+{% macro databricks__tblproperties_clause(tblproperties=None) -%}
+  {%- set tblproperties = adapter.update_tblproperties_for_iceberg(config, tblproperties) -%}
+  {%- if tblproperties != {} %}
     tblproperties (
       {%- for prop in tblproperties -%}
       '{{ prop }}' = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
@@ -13,10 +13,11 @@
   {%- endif %}
 {%- endmacro -%}
 
-{% macro apply_tblproperties_python(relation, tblproperties, language) -%}
-  {%- if tblproperties and language == 'python' -%}
-    {%- call statement('python_tblproperties') -%}
-      alter table {{ relation }} set {{ tblproperties_clause() }}
+{% macro apply_tblproperties(relation, tblproperties) -%}
+  {% set tblproperty_statment = databricks__tblproperties_clause(tblproperties) %}
+  {% if tblproperty_statment %}
+    {%- call statement('apply_tblproperties') -%}
+      ALTER {{ relation.type }} {{ relation }} SET {{ tblproperty_statment}}
     {%- endcall -%}
-  {%- endif -%}
+  {% endif %}
 {%- endmacro -%}

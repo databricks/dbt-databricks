@@ -6,6 +6,13 @@ on:
       - "**.md"
       - "adapters/databricks/__version__.py"
       - "tests/unit/**"
+      - ".github/workflows/main.yml"
+      - ".github/workflows/stale.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-tox-tests-uc-cluster:
     runs-on: ubuntu-latest

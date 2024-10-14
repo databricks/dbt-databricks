@@ -38,11 +38,6 @@ class DatabricksComponentConfig(BaseModel):
         the complete config specified in the dbt project, so as to support rendering the `create`
         as well as the `alter` statements, for the case where a different component requires full
         refresh.
-
-        Consider updating tblproperties: we can apply only the differences to an existing relation,
-        but if some other modified component requires us to completely replace the relation, we
-        should still be able to construct appropriate create clause from the object returned by
-        this method.
         """
 
         if self != other:

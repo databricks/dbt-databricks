@@ -10,7 +10,9 @@
 
     {# needs to be a non-temp view so that its columns can be ascertained via `describe` #}
     {% call statement('build_snapshot_staging_relation') %}
-        {{ create_view_as(tmp_relation, select) }}
+        create or replace view {{ tmp_relation }}
+        as
+            {{ select }}
     {% endcall %}
 
     {% do return(tmp_relation) %}
@@ -71,6 +73,8 @@
           {{ final_sql }}
       {% endcall %}
 
+      {% do persist_docs(target_relation, model, for_relation=False) %}
+
   {% else %}
 
       {{ adapter.valid_snapshot_target(target_relation) }}
@@ -117,12 +121,12 @@
           {{ final_sql }}
       {% endcall %}
 
+      {% do persist_docs(target_relation, model, for_relation=True) %}
+
   {% endif %}
 
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
-
-  {% do persist_docs(target_relation, model) %}
 
   {% do persist_constraints(target_relation, model) %}
 

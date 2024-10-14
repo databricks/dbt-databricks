@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
 from dbt.tests.adapter.python_model.test_python_model import BasePythonIncrementalTests
@@ -8,16 +9,19 @@ from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTest
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonModel(BasePythonModelTests):
     pass
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
     pass
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchema:
     @pytest.fixture(scope="class")
@@ -41,6 +45,7 @@ class TestChangingSchema:
             assert "Execution status: OK in" in log
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchemaIncremental:
     @pytest.fixture(scope="class")
@@ -59,6 +64,7 @@ class TestChangingSchemaIncremental:
         util.check_relations_equal(project.adapter, ["incremental_model", "expected_incremental"])
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestSpecifyingHttpPath(BasePythonModelTests):
     @pytest.fixture(scope="class")
@@ -72,6 +78,7 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
         }
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestServerlessCluster(BasePythonModelTests):
     @pytest.fixture(scope="class")
@@ -85,6 +92,8 @@ class TestServerlessCluster(BasePythonModelTests):
         }
 
 
+@pytest.mark.python
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestComplexConfig:
     @pytest.fixture(scope="class")
@@ -96,6 +105,17 @@ class TestComplexConfig:
         return {
             "schema.yml": override_fixtures.complex_schema,
             "complex_config.py": override_fixtures.complex_py,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            }
         }
 
     def test_expected_handling_of_complex_config(self, project):
@@ -115,3 +135,22 @@ class TestComplexConfig:
             fetch="all",
         )
         assert results[0][0] == "This is a python table"
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+class TestWorkflowJob:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.workflow_schema,
+            "my_workflow_model.py": override_fixtures.simple_python_model,
+        }
+
+    def test_workflow_run(self, project):
+        util.run_dbt(["run", "-s", "my_workflow_model"])
+
+        sql_results = project.run_sql(
+            "SELECT * FROM {database}.{schema}.my_workflow_model", fetch="all"
+        )
+        assert len(sql_results) == 10
