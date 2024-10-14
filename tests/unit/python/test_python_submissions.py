@@ -32,16 +32,17 @@ class DatabricksTestHelper(BaseDatabricksHelper):
         self.job_grants = self.workflow_spec.get("grants", {})
 
 
+@patch("dbt.adapters.databricks.credentials.Config")
 class TestAclUpdate:
-    def test_empty_acl_empty_config(self):
+    def test_empty_acl_empty_config(self, _):
         helper = DatabricksTestHelper({"config": {}}, DatabricksCredentials())
         assert helper._update_with_acls({}) == {}
 
-    def test_empty_acl_non_empty_config(self):
+    def test_empty_acl_non_empty_config(self, _):
         helper = DatabricksTestHelper({"config": {}}, DatabricksCredentials())
         assert helper._update_with_acls({"a": "b"}) == {"a": "b"}
 
-    def test_non_empty_acl_empty_config(self):
+    def test_non_empty_acl_empty_config(self, _):
         expected_access_control = {
             "access_control_list": [
                 {"user_name": "user2", "permission_level": "CAN_VIEW"},
@@ -50,7 +51,7 @@ class TestAclUpdate:
         helper = DatabricksTestHelper({"config": expected_access_control}, DatabricksCredentials())
         assert helper._update_with_acls({}) == expected_access_control
 
-    def test_non_empty_acl_non_empty_config(self):
+    def test_non_empty_acl_non_empty_config(self, _):
         expected_access_control = {
             "access_control_list": [
                 {"user_name": "user2", "permission_level": "CAN_VIEW"},
