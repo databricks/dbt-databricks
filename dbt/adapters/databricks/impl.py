@@ -86,6 +86,7 @@ from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from dbt_common.exceptions import DbtConfigError
+from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
@@ -650,7 +651,7 @@ class DatabricksAdapter(SparkAdapter):
             conn.transaction_open = False
 
     def valid_incremental_strategies(self) -> List[str]:
-        return ["append", "merge", "insert_overwrite", "replace_where"]
+        return ["append", "merge", "insert_overwrite", "replace_where", "microbatch"]
 
     @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
@@ -699,12 +700,18 @@ class DatabricksAdapter(SparkAdapter):
         # an error when we tried to alter the table.
         for column in existing_columns:
             name = column.column
-            if (
-                name in columns
-                and "description" in columns[name]
-                and columns[name]["description"] != (column.comment or "")
-            ):
-                return_columns[name] = columns[name]
+            if name in columns:
+                config_column = columns[name]
+                if isinstance(config_column, dict):
+                    comment = columns[name].get("description", "")
+                elif hasattr(config_column, "description"):
+                    comment = config_column.description
+                else:
+                    raise DbtInternalError(
+                        f"Column {name} in model config is not a dictionary or ColumnInfo object."
+                    )
+                if comment != (column.comment or ""):
+                    return_columns[name] = columns[name]
 
         return return_columns
 
