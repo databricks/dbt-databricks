@@ -86,6 +86,7 @@ from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from dbt_common.exceptions import DbtConfigError
+from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
@@ -703,8 +704,12 @@ class DatabricksAdapter(SparkAdapter):
                 config_column = columns[name]
                 if isinstance(config_column, dict):
                     comment = columns[name].get("description", "")
-                else:
+                elif hasattr(config_column, "description"):
                     comment = config_column.description
+                else:
+                    raise DbtInternalError(
+                        f"Column {name} in model config is not a dictionary or ColumnInfo object."
+                    )
                 if comment != (column.comment or ""):
                     return_columns[name] = columns[name]
 
