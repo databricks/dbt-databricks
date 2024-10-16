@@ -1,5 +1,6 @@
+from abc import ABC, abstractmethod
 import uuid
-from typing import Any
+from typing import Any, override
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -202,15 +203,87 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
         self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
 
 
+class PythonSubmitter(ABC):
+    @abstractmethod
+    def submit(self, compiled_code: str) -> None:
+        pass
+
+
+class PythonCommandSubmitter(PythonSubmitter):
+    def __init__(
+        self, api_client: DatabricksApiClient, tracker: PythonRunTracker, cluster_id: str
+    ) -> None:
+        self.api_client = api_client
+        self.tracker = tracker
+        self.cluster_id = cluster_id
+
+    @override
+    def submit(self, compiled_code: str) -> None:
+        context_id = self.api_client.command_contexts.create(self.cluster_id)
+        command_exec: Optional[CommandExecution] = None
+        try:
+            command_exec = self.api_client.commands.execute(
+                self.cluster_id, context_id, compiled_code
+            )
+
+            self.tracker.insert_command(command_exec)
+            # poll until job finish
+            self.api_client.commands.poll_for_completion(command_exec)
+
+        finally:
+            if command_exec:
+                self.tracker.remove_command(command_exec)
+            self.api_client.command_contexts.destroy(self.cluster_id, context_id)
+
+
+class PythonNotebookSubmitter(PythonSubmitter):
+    def __init__(
+        self,
+        api_client: DatabricksApiClient,
+        tracker: PythonRunTracker,
+        database: str,
+        schema: str,
+        identifier: str,
+        job_spec: Dict[str, Any],
+    ) -> None:
+        self.api_client = api_client
+        self.tracker = tracker
+        self.database = database
+        self.schema = schema
+        self.identifier = identifier
+        self.job_spec = job_spec
+
+    @override
+    def submit(self, compiled_code: str) -> None:
+        workdir = self.api_client.workspace.create_python_model_dir(
+            self.database or "hive_metastore", self.schema
+        )
+        file_path = f"{workdir}{self.identifier}"
+
+        self.api_client.workspace.upload_notebook(file_path, compiled_code)
+
+        # submit job
+        run_id = self._submit_job(file_path, cluster_spec)
+        try:
+            self.api_client.job_runs.poll_for_completion(run_id)
+        finally:
+            self.tracker.remove_run_id(run_id)
+
+
 class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
-    @property
-    def cluster_id(self) -> Optional[str]:
-        return self.parsed_model["config"].get(
+    def set_config(self, config: Dict[str, Any]) -> None:
+        self.cluster_id = self.parsed_model["config"].get(
             "cluster_id",
             self.credentials.extract_cluster_id(
                 self.parsed_model["config"].get("http_path", self.credentials.http_path)
             ),
         )
+        if self.parsed_model["config"].get("create_notebook", False):
+            self.command_submitter: PythonSubmitter = PythonNotebookSubmitter()
+        else:
+            self.command_submitter = PythonCommandSubmitter(
+                self.api_client, self.tracker, self.cluster_id
+            )
 
     def check_credentials(self) -> None:
         super().check_credentials()
@@ -221,30 +294,12 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             )
 
     def submit(self, compiled_code: str) -> None:
-        assert (
-            self.cluster_id is not None
-        ), "cluster_id is required for all_purpose_cluster submission method."
-        if self.parsed_model["config"].get("create_notebook", False):
-            config = {}
-            if self.cluster_id:
-                config["existing_cluster_id"] = self.cluster_id
-            self._submit_through_notebook(compiled_code, self._update_with_acls(config))
-        else:
-            context_id = self.api_client.command_contexts.create(self.cluster_id)
-            command_exec: Optional[CommandExecution] = None
-            try:
-                command_exec = self.api_client.commands.execute(
-                    self.cluster_id, context_id, compiled_code
-                )
-
-                self.tracker.insert_command(command_exec)
-                # poll until job finish
-                self.api_client.commands.poll_for_completion(command_exec)
-
-            finally:
-                if command_exec:
-                    self.tracker.remove_command(command_exec)
-                self.api_client.command_contexts.destroy(self.cluster_id, context_id)
+        # if self.parsed_model["config"].get("create_notebook", False):
+        # config = {}
+        # if self.cluster_id:
+        #     config["existing_cluster_id"] = self.cluster_id
+        # self._submit_through_notebook(compiled_code, self._update_with_acls(config))
+        self.command_submitter.submit(compiled_code)
 
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
