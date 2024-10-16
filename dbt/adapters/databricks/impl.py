@@ -1,3 +1,4 @@
+from multiprocessing.context import SpawnContext
 import os
 import re
 from abc import ABC
@@ -7,7 +8,6 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
-from typing import Callable
 from typing import cast
 from typing import ClassVar
 from typing import Dict
@@ -21,7 +21,6 @@ from typing import Set
 from typing import Tuple
 from typing import Type
 from typing import TYPE_CHECKING
-from typing import TypeVar
 from typing import Union
 from uuid import uuid4
 
@@ -38,17 +37,26 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks.behaviors.columns import (
+    GetColumnsBehavior,
+    GetColumnsByDescribe,
+    GetColumnsByInformationSchema,
+)
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksAllPurposeClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import (
+    AllPurposeClusterPythonJobHelper,
 )
-from dbt.adapters.databricks.python_submissions import (
-    DbtDatabricksJobClusterPythonJobHelper,
+from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import (
+    ServerlessClusterPythonJobHelper,
+)
+from dbt.adapters.databricks.python_models.python_submissions import (
+    WorkflowPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
@@ -62,8 +70,9 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.utils import get_first_row
+from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
@@ -73,10 +82,12 @@ from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
 from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
 from dbt.adapters.spark.impl import SparkAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+from dbt_common.exceptions import DbtConfigError
+from dbt_common.exceptions import DbtInternalError
+from dbt_common.contracts.config.base import BaseConfig
 
 if TYPE_CHECKING:
     from agate import Row
@@ -90,41 +101,42 @@ SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 
+USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
+    name="use_info_schema_for_columns",
+    default=False,
+    description=(
+        "Use info schema to gather column information to ensure complex types are not truncated."
+        "  Incurs some overhead, so disabled by default."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
+    table_format: TableFormat = TableFormat.DEFAULT
     location_root: Optional[str] = None
+    include_full_name_in_path: bool = False
     partition_by: Optional[Union[List[str], str]] = None
     clustered_by: Optional[Union[List[str], str]] = None
     liquid_clustered_by: Optional[Union[List[str], str]] = None
     buckets: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     merge_update_columns: Optional[str] = None
+    merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[Dict[str, str]] = None
     tblproperties: Optional[Dict[str, str]] = None
     zorder: Optional[Union[List[str], str]] = None
     unique_tmp_table_suffix: bool = False
-
-
-def check_not_found_error(errmsg: str) -> bool:
-    new_error = "[SCHEMA_NOT_FOUND]" in errmsg
-    old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
-    found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
-    return new_error or old_error is not None or any(found_msgs)
-
-
-T = TypeVar("T")
-
-
-def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
-    try:
-        return exec()
-    except DbtRuntimeError as e:
-        errmsg = getattr(e, "msg", "")
-        if check_not_found_error(errmsg):
-            return default
-        raise e
+    skip_non_matched_step: Optional[bool] = None
+    skip_matched_step: Optional[bool] = None
+    matched_condition: Optional[str] = None
+    not_matched_condition: Optional[str] = None
+    not_matched_by_source_action: Optional[str] = None
+    not_matched_by_source_condition: Optional[str] = None
+    target_alias: Optional[str] = None
+    source_alias: Optional[str] = None
+    merge_with_schema_evolution: Optional[bool] = None
 
 
 def get_identifier_list_string(table_names: Set[str]) -> str:
@@ -165,6 +177,58 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    get_column_behavior: GetColumnsBehavior
+
+    def __init__(self, config: Any, mp_context: SpawnContext) -> None:
+        super().__init__(config, mp_context)
+        if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
+            self.get_column_behavior = GetColumnsByInformationSchema()
+        else:
+            self.get_column_behavior = GetColumnsByDescribe()
+
+    @property
+    def _behavior_flags(self) -> List[BehaviorFlag]:
+        return [USE_INFO_SCHEMA_FOR_COLUMNS]
+
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        if config.get("table_format") == TableFormat.ICEBERG:
+            if self.compare_dbr_version(14, 3) < 0:
+                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
+            if config.get("file_format", "delta") != "delta":
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', cannot set file_format to other than delta."
+                )
+            if config.get("materialized") not in ("incremental", "table"):
+                raise DbtConfigError(
+                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                )
+            result["delta.enableIcebergCompatV2"] = "true"
+            result["delta.universalFormat.enabledFormats"] = "iceberg"
+        return result
+
+    @available.parse(lambda *a, **k: 0)
+    def compute_external_path(
+        self, config: BaseConfig, model: BaseConfig, is_incremental: bool = False
+    ) -> str:
+        location_root = config.get("location_root")
+        database = model.get("database", "hive_metastore")
+        schema = model.get("schema", "default")
+        identifier = model.get("alias")
+        if location_root is None:
+            raise DbtConfigError("location_root is required for external tables.")
+        include_full_name_in_path = config.get("include_full_name_in_path", False)
+        if include_full_name_in_path:
+            path = os.path.join(location_root, database, schema, identifier)
+        else:
+            path = os.path.join(location_root, identifier)
+        if is_incremental:
+            path = path + "_tmp"
+        return path
 
     # override/overload
     def acquire_connection(
@@ -379,26 +443,7 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> List[DatabricksColumn]:
-        rows = list(
-            handle_missing_objects(
-                lambda: self.execute_macro(
-                    GET_COLUMNS_COMMENTS_MACRO_NAME, kwargs={"relation": relation}
-                ),
-                AttrDict(),
-            )
-        )
-
-        columns = []
-        for row in rows:
-            if row["col_name"].startswith("#"):
-                break
-            columns.append(
-                DatabricksColumn(
-                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
-                )
-            )
-
-        return columns
+        return self.get_column_behavior.get_columns_in_relation(self, relation)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
@@ -606,13 +651,15 @@ class DatabricksAdapter(SparkAdapter):
             conn.transaction_open = False
 
     def valid_incremental_strategies(self) -> List[str]:
-        return ["append", "merge", "insert_overwrite", "replace_where"]
+        return ["append", "merge", "insert_overwrite", "replace_where", "microbatch"]
 
     @property
     def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
         return {
-            "job_cluster": DbtDatabricksJobClusterPythonJobHelper,
-            "all_purpose_cluster": DbtDatabricksAllPurposeClusterPythonJobHelper,
+            "job_cluster": JobClusterPythonJobHelper,
+            "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
+            "serverless_cluster": ServerlessClusterPythonJobHelper,
+            "workflow_job": WorkflowPythonJobHelper,
         }
 
     @available
@@ -653,12 +700,18 @@ class DatabricksAdapter(SparkAdapter):
         # an error when we tried to alter the table.
         for column in existing_columns:
             name = column.column
-            if (
-                name in columns
-                and "description" in columns[name]
-                and columns[name]["description"] != (column.comment or "")
-            ):
-                return_columns[name] = columns[name]
+            if name in columns:
+                config_column = columns[name]
+                if isinstance(config_column, dict):
+                    comment = columns[name].get("description", "")
+                elif hasattr(config_column, "description"):
+                    comment = config_column.description
+                else:
+                    raise DbtInternalError(
+                        f"Column {name} in model config is not a dictionary or ColumnInfo object."
+                    )
+                if comment != (column.comment or ""):
+                    return_columns[name] = columns[name]
 
         return return_columns
 

@@ -55,13 +55,15 @@ setup(
     include_package_data=True,
     install_requires=[
         "dbt-spark>=1.8.0, <2.0",
-        "dbt-core>=1.8.0, <2.0",
-        "dbt-adapters>=1.3.0, <2.0",
-        "databricks-sql-connector>=3.1.0, <3.2.0",
+        "dbt-core>=1.9.0b1, <2.0",
+        "dbt-adapters>=1.7.0, <2.0",
+        "dbt-common>=1.10.0, <2.0",
+        "databricks-sql-connector>=3.4.0, <3.5.0",
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
         "pandas<2.2.0",
         "protobuf<5.0.0",
+        "pydantic~=2.7.0",
     ],
     zip_safe=False,
     classifiers=[

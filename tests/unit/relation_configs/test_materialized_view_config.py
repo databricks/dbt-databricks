@@ -27,12 +27,15 @@ class TestMaterializedViewConfig:
                     ["Catalog:", "default", None],
                     ["Comment", "This is the table comment", None],
                     ["Refresh Schedule", "MANUAL", None],
-                ]
+                ],
+                column_names=["col_name", "data_type", "comment"],
             ),
             "information_schema.views": Row(
                 ["select * from foo", "other"], ["view_definition", "comment"]
             ),
-            "show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]]),
+            "show_tblproperties": Table(
+                rows=[["prop", "1"], ["other", "other"]], column_names=["key", "value"]
+            ),
         }
 
         config = MaterializedViewConfig.from_results(results)

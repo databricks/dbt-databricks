@@ -79,6 +79,20 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
 
 
 @pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestServerlessCluster(BasePythonModelTests):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.serverless_schema,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
+
+
+@pytest.mark.python
 @pytest.mark.external
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestComplexConfig:
@@ -121,3 +135,22 @@ class TestComplexConfig:
             fetch="all",
         )
         assert results[0][0] == "This is a python table"
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+class TestWorkflowJob:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.workflow_schema,
+            "my_workflow_model.py": override_fixtures.simple_python_model,
+        }
+
+    def test_workflow_run(self, project):
+        util.run_dbt(["run", "-s", "my_workflow_model"])
+
+        sql_results = project.run_sql(
+            "SELECT * FROM {database}.{schema}.my_workflow_model", fetch="all"
+        )
+        assert len(sql_results) == 10

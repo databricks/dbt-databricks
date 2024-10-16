@@ -79,8 +79,18 @@
 
 {% macro get_constraints_sql(relation, constraints, model, column={}) %}
   {% set statements = [] %}
-  -- Hack so that not null constraints will be applied before primary key constraints
-  {% for constraint in constraints|sort(attribute='type') %}
+  -- Hack so that not null constraints will be applied before other constraints
+  {% for constraint in constraints|selectattr('type', 'eq', 'not_null') %}
+    {% if constraint %}
+      {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
+      {% for statement in constraint_statements %}
+        {% if statement %}
+          {% do statements.append(statement) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  {% for constraint in constraints|rejectattr('type', 'eq', 'not_null') %}
     {% if constraint %}
       {% set constraint_statements = get_constraint_sql(relation, constraint, model, column) %}
       {% for statement in constraint_statements %}
@@ -224,6 +234,24 @@
       {% endif %}
     {% endif %}
     {% set stmt = stmt ~ ";" %}
+    {% do statements.append(stmt) %}
+  {% elif type == 'custom' %}
+    {% set expression = constraint.get("expression", "") %}
+    {% if not expression %}
+      {{ exceptions.raise_compiler_error('Missing custom constraint expression') }}
+    {% endif %}
+
+    {% set name = constraint.get("name") %}
+    {% set expression = constraint.get("expression") %}
+    {% if not name %}
+      {% if local_md5 %}
+        {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
+        {%- set name = local_md5 (relation.identifier ~ ";" ~ expression ~ ";") -%}
+      {% else %}
+        {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
+      {% endif %}
+    {% endif %}
+    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " " ~ expression ~ ";" %}
     {% do statements.append(stmt) %}
   {% elif constraint.get('warn_unsupported') %}
     {{ exceptions.warn("unsupported constraint type: " ~ constraint.type)}}

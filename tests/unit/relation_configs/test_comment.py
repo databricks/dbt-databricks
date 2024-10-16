@@ -16,7 +16,8 @@ class TestCommentProcessor:
                     ["Catalog:", "default", None],
                     ["Schema:", "default", None],
                     ["Table:", "table_abc", None],
-                ]
+                ],
+                column_names=["col_name", "data_type", "comment"],
             )
         }
         config = CommentProcessor.from_relation_results(results)
@@ -34,7 +35,8 @@ class TestCommentProcessor:
                     ["Schema:", "default", None],
                     ["Table:", "table_abc", None],
                     ["Comment", "This is the table comment", None],
-                ]
+                ],
+                column_names=["col_name", "data_type", "comment"],
             )
         }
         config = CommentProcessor.from_relation_results(results)

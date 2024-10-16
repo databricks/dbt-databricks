@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from typing import TypeVar
 
 from dbt.adapters.base import BaseAdapter
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
+from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
 
 if TYPE_CHECKING:
@@ -92,3 +94,23 @@ def get_first_row(results: "Table") -> "Row":
 
         return Row(values=set())
     return results.rows[0]
+
+
+def check_not_found_error(errmsg: str) -> bool:
+    new_error = "[SCHEMA_NOT_FOUND]" in errmsg
+    old_error = re.match(r".*(Database).*(not found).*", errmsg, re.DOTALL)
+    found_msgs = (msg in errmsg for msg in TABLE_OR_VIEW_NOT_FOUND_MESSAGES)
+    return new_error or old_error is not None or any(found_msgs)
+
+
+T = TypeVar("T")
+
+
+def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
+    try:
+        return exec()
+    except DbtRuntimeError as e:
+        errmsg = getattr(e, "msg", "")
+        if check_not_found_error(errmsg):
+            return default
+        raise e
