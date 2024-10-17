@@ -129,7 +129,7 @@ class PythonJobConfigExtractor:
         self.config = parsed_model.get("config", {})
         self.cluster_spec = self.config.get("job_cluster_config")
         self.acls = self.config.get("access_control_list")
-        self.job_config = self.config.get("workflow_job_config", {})
+        self.job_config = self.config.get("python_job_config", {})
         self.job_grants = self.job_config.pop("grants", {})
         self.packages = self.config.get("packages", [])
         self.index_url = self.config.get("index_url")
@@ -454,10 +454,10 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
 
 class WorkflowPythonJobHelper(BaseDatabricksHelper):
     def check_credentials(self) -> None:
-        workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
+        workflow_config = self.parsed_model["config"].get("python_job_config", None)
         if not workflow_config:
             raise ValueError(
-                "workflow_job_config is required for the `workflow_job_config` submission method."
+                "python_job_config is required for the `python_job_config` submission method."
             )
 
     def build_submitter(self) -> PythonSubmitter:

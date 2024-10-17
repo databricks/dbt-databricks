@@ -105,7 +105,7 @@ class TestJobGrants:
         helper = DatabricksTestHelper(
             {
                 "config": {
-                    "workflow_job_config": {
+                    "python_job_config": {
                         "grants": {
                             "view": [
                                 {"user_name": "reynoldxin@databricks.com"},
@@ -151,7 +151,7 @@ class TestWorkflowConfig:
             "database": "test_database",
             "schema": "test_schema",
             "config": {
-                "workflow_job_config": {
+                "python_job_config": {
                     "email_notifications": "test@example.com",
                     "max_retries": 2,
                     "timeout_seconds": 500,
@@ -179,7 +179,7 @@ class TestWorkflowConfig:
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_custom_name(self, mock_api_client):
         config = self.default_config()
-        config["config"]["workflow_job_config"]["name"] = "custom_job_name"
+        config["config"]["python_job_config"]["name"] = "custom_job_name"
         job = WorkflowPythonJobHelper(config, Mock())
         result = job._build_job_spec()
 
@@ -188,7 +188,7 @@ class TestWorkflowConfig:
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_existing_cluster(self, mock_api_client):
         config = self.default_config()
-        config["config"]["workflow_job_config"]["existing_cluster_id"] = "cluster-123"
+        config["config"]["python_job_config"]["existing_cluster_id"] = "cluster-123"
         del config["config"]["job_cluster_config"]
 
         job = WorkflowPythonJobHelper(config, Mock())
@@ -213,7 +213,7 @@ class TestWorkflowConfig:
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_with_additional_task_settings(self, mock_api_client):
         config = self.default_config()
-        config["config"]["workflow_job_config"]["additional_task_settings"] = {
+        config["config"]["python_job_config"]["additional_task_settings"] = {
             "task_key": "my_dbt_task"
         }
         job = WorkflowPythonJobHelper(config, Mock())
@@ -225,7 +225,7 @@ class TestWorkflowConfig:
     @patch("dbt.adapters.databricks.python_models.python_submissions.DatabricksApiClient")
     def test_build_job_spec_with_post_hooks(self, mock_api_client):
         config = self.default_config()
-        config["config"]["workflow_job_config"]["post_hook_tasks"] = [
+        config["config"]["python_job_config"]["post_hook_tasks"] = [
             {
                 "depends_on": [{"task_key": "inner_notebook"}],
                 "task_key": "task_b",
