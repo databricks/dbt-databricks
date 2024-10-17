@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-from fractions import Fraction
-from multiprocessing.dummy import DummyProcess
 import uuid
 from typing import Any
 from typing import Dict
@@ -11,7 +9,7 @@ from attr import dataclass
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.api_client import CommandExecution
+from dbt.adapters.databricks.api_client import CommandExecution, WorkflowJobApi
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
@@ -21,36 +19,34 @@ from dbt_common.exceptions import DbtRuntimeError
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
 
+class PythonSubmitter(ABC):
+    @abstractmethod
+    def submit(self, compiled_code: str) -> None:
+        pass
+
+
 class BaseDatabricksHelper(PythonJobHelper):
     tracker = PythonRunTracker()
 
-    @property
-    def workflow_spec(self) -> Dict[str, Any]:
-        """
-        The workflow gets modified throughout. Settings added through dbt are popped off
-        before the spec is sent to the Databricks API
-        """
-        return self.parsed_model["config"].get("workflow_job_config", {})
-
-    @property
-    def cluster_spec(self) -> Dict[str, Any]:
-        return self.parsed_model["config"].get("job_cluster_config", {})
-
     def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
+        self.credentials.validate_creds()
         self.identifier = parsed_model["alias"]
-        self.schema = parsed_model["schema"]
-        self.database = parsed_model.get("database")
+        self.schema = parsed_model.get("schema", "default")
+        self.database = parsed_model.get("database", "hive_metastore")
         self.parsed_model = parsed_model
         use_user_folder = parsed_model["config"].get("user_folder_for_python", False)
-
-        self.check_credentials()
 
         self.api_client = DatabricksApiClient.create(
             credentials, self.get_timeout(), use_user_folder
         )
 
-        self.job_grants: Dict[str, List[Dict[str, Any]]] = self.workflow_spec.pop("grants", {})
+        self.command_submitter = self.build_submitter(parsed_model)
+        self.validate_config()
+
+    @abstractmethod
+    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+        pass
 
     def get_timeout(self) -> int:
         timeout = self.parsed_model["config"].get("timeout", DEFAULT_TIMEOUT)
@@ -58,159 +54,11 @@ class BaseDatabricksHelper(PythonJobHelper):
             raise ValueError("Timeout must be a positive integer")
         return timeout
 
-    def check_credentials(self) -> None:
-        self.credentials.validate_creds()
-
-    def _update_with_acls(self, cluster_dict: dict) -> dict:
-        acl = self.parsed_model["config"].get("access_control_list", None)
-        if acl:
-            cluster_dict.update({"access_control_list": acl})
-        return cluster_dict
-
-    def _build_job_permissions(self) -> List[Dict[str, Any]]:
-        access_control_list = []
-        owner, permissions_attribute = self._build_job_owner()
-        access_control_list.append(
-            {
-                permissions_attribute: owner,
-                "permission_level": "IS_OWNER",
-            }
-        )
-
-        for grant in self.job_grants.get("view", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_VIEW",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in self.job_grants.get("run", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE_RUN",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in self.job_grants.get("manage", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE",
-                }
-            )
-            access_control_list.append(acl_grant)
-
-        return access_control_list
-
-    def _build_job_owner(self) -> Tuple[str, str]:
-        """
-        :return: a tuple of the user id and the ACL attribute it came from ie:
-            [user_name|group_name|service_principal_name]
-            For example: `("mateizaharia@databricks.com", "user_name")`
-        """
-        curr_user = self.api_client.curr_user.get_username()
-        is_service_principal = self.api_client.curr_user.is_service_principal(curr_user)
-
-        if is_service_principal:
-            return curr_user, "service_principal_name"
-        else:
-            return curr_user, "user_name"
-
-    def _submit_job(self, path: str, cluster_spec: dict) -> str:
-        job_spec: Dict[str, Any] = {
-            "task_key": "inner_notebook",
-            "notebook_task": {
-                "notebook_path": path,
-            },
-        }
-        job_spec.update(cluster_spec)  # updates 'new_cluster' config
-
-        # PYPI packages
-        packages = self.parsed_model["config"].get("packages", [])
-
-        # custom index URL or default
-        index_url = self.parsed_model["config"].get("index_url", None)
-
-        # additional format of packages
-        additional_libs = self.parsed_model["config"].get("additional_libs", [])
-        libraries = []
-
-        for package in packages:
-            if index_url:
-                libraries.append({"pypi": {"package": package, "repo": index_url}})
-            else:
-                libraries.append({"pypi": {"package": package}})
-
-        for lib in additional_libs:
-            libraries.append(lib)
-
-        job_spec.update({"libraries": libraries})
-        run_name = f"{self.database}-{self.schema}-{self.identifier}-{uuid.uuid4()}"
-
-        additional_job_config = self._build_additional_job_settings()
-        access_control_list = self._build_job_permissions()
-        additional_job_config["access_control_list"] = access_control_list
-
-        run_id = self.api_client.job_runs.submit(run_name, job_spec, **additional_job_config)
-        self.tracker.insert_run_id(run_id)
-        return run_id
-
-    def _build_additional_job_settings(self) -> Dict[str, Any]:
-        additional_configs = {}
-        attrs_to_add = [
-            "email_notifications",
-            "webhook_notifications",
-            "notification_settings",
-            "timeout_seconds",
-            "health",
-            "environments",
-        ]
-        for attr in attrs_to_add:
-            if attr in self.workflow_spec:
-                additional_configs[attr] = self.workflow_spec[attr]
-
-        return additional_configs
-
-    def _submit_through_notebook(self, compiled_code: str, cluster_spec: dict) -> None:
-        workdir = self.api_client.workspace.create_python_model_dir(
-            self.database or "hive_metastore", self.schema
-        )
-        file_path = f"{workdir}{self.identifier}"
-
-        self.api_client.workspace.upload_notebook(file_path, compiled_code)
-
-        # submit job
-        run_id = self._submit_job(file_path, cluster_spec)
-        try:
-            self.api_client.job_runs.poll_for_completion(run_id)
-        finally:
-            self.tracker.remove_run_id(run_id)
-
-    def submit(self, compiled_code: str) -> None:
-        raise NotImplementedError(
-            "BasePythonJobHelper is an abstract class and you should implement submit method."
-        )
-
-
-class JobClusterPythonJobHelper(BaseDatabricksHelper):
-    def check_credentials(self) -> None:
-        super().check_credentials()
-        if not self.parsed_model["config"].get("job_cluster_config", None):
-            raise ValueError(
-                "`job_cluster_config` is required for the `job_cluster` submission method."
-            )
-
-    def submit(self, compiled_code: str) -> None:
-        cluster_spec = {"new_cluster": self.parsed_model["config"]["job_cluster_config"]}
-        self._submit_through_notebook(compiled_code, self._update_with_acls(cluster_spec))
-
-
-class PythonSubmitter(ABC):
-    @abstractmethod
-    def submit(self, compiled_code: str) -> None:
+    def validate_config(self) -> None:
         pass
+
+    def submit(self, compiled_code: str) -> None:
+        self.command_submitter.submit(compiled_code)
 
 
 class PythonCommandSubmitter(PythonSubmitter):
@@ -279,16 +127,88 @@ class PythonJobConfigExtractor:
         self.schema = parsed_model.get("schema", "default")
         self.database = parsed_model.get("database", "hive_metastore")
         self.config = parsed_model.get("config", {})
+        self.cluster_spec = self.config.get("job_cluster_config")
         self.acls = self.config.get("access_control_list")
         self.job_config = self.config.get("workflow_job_config", {})
-        self.job_grants = self.job_config.get("grants", {})
+        self.job_grants = self.job_config.pop("grants", {})
         self.packages = self.config.get("packages", [])
         self.index_url = self.config.get("index_url")
-        self.additional_libs = self.config.get("additional_libs", [])
+        self.additional_libraries = self.config.get("additional_libs", [])
 
     @property
     def additional_job_settings(self) -> Dict[str, Any]:
         return {k: self.config[k] for k in self.additional_settings_keys if k in self.config}
+
+    @property
+    def run_name(self) -> str:
+        return f"{self.database}-{self.schema}-" f"{self.identifier}-{uuid.uuid4()}"
+
+    def update_with_acls(self, cluster_dict: Dict[str, Any]) -> Dict[str, Any]:
+        local = cluster_dict.copy()
+
+        if self.acls:
+            local.update({"access_control_list": self.acls})
+        return local
+
+    def update_with_libraries(self, job_spec: Dict[str, Any]) -> Dict[str, Any]:
+        local = job_spec.copy()
+        libraries = []
+
+        for package in self.packages:
+            if self.index_url:
+                libraries.append({"pypi": {"package": package, "repo": self.index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
+
+        for library in self.additional_libraries:
+            libraries.append(library)
+
+        local.update({"libraries": libraries})
+        return local
+
+    def get_job_owner_for_config(self, api_client: DatabricksApiClient) -> Tuple[str, str]:
+        curr_user = api_client.curr_user.get_username()
+        is_service_principal = api_client.curr_user.is_service_principal(curr_user)
+
+        source = "service_principal_name" if is_service_principal else "user_name"
+        return curr_user, source
+
+    def build_job_permissions(self, api_client: DatabricksApiClient) -> List[Dict[str, Any]]:
+        access_control_list = []
+        owner, permissions_attribute = self.get_job_owner_for_config(api_client)
+        access_control_list.append(
+            {
+                permissions_attribute: owner,
+                "permission_level": "IS_OWNER",
+            }
+        )
+
+        for grant in self.job_grants.get("view", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_VIEW",
+                }
+            )
+            access_control_list.append(acl_grant)
+        for grant in self.job_grants.get("run", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE_RUN",
+                }
+            )
+            access_control_list.append(acl_grant)
+        for grant in self.job_grants.get("manage", []):
+            acl_grant = grant.copy()
+            acl_grant.update(
+                {
+                    "permission_level": "CAN_MANAGE",
+                }
+            )
+            access_control_list.append(acl_grant)
+
+        return access_control_list
 
 
 class PythonJobConfigCompiler:
@@ -309,96 +229,16 @@ class PythonJobConfigCompiler:
                 "notebook_path": path,
             },
         }
-        cluster_spec = self._update_with_acls(self.cluster_spec)
+        cluster_spec = self.config_extractor.update_with_acls(self.cluster_spec)
         job_spec.update(cluster_spec)  # updates 'new_cluster' config
 
-        # PYPI packages
-        packages = self.config_extractor.packages
+        job_spec = self.config_extractor.update_with_libraries(job_spec)
 
-        # custom index URL or default
-        index_url = self.config_extractor.index_url
-
-        # additional format of packages
-        additional_libs = self.config_extractor.additional_libs
-        libraries = []
-
-        for package in packages:
-            if index_url:
-                libraries.append({"pypi": {"package": package, "repo": index_url}})
-            else:
-                libraries.append({"pypi": {"package": package}})
-
-        for lib in additional_libs:
-            libraries.append(lib)
-
-        job_spec.update({"libraries": libraries})
-        run_name = (
-            f"{self.config_extractor.database}-{self.config_extractor.schema}-"
-            f"{self.config_extractor.identifier}-{uuid.uuid4()}"
-        )
         additional_job_config = self.config_extractor.additional_job_settings
-        access_control_list = self._build_job_permissions()
+        access_control_list = self.config_extractor.build_job_permissions(self.api_client)
         additional_job_config["access_control_list"] = access_control_list
 
-        return PythonJobConfig(run_name, job_spec, additional_job_config)
-
-    def _update_with_acls(self, cluster_dict: Dict[str, Any]) -> Dict[str, Any]:
-        acl = self.config_extractor.acls
-        if acl:
-            cluster_dict.update({"access_control_list": acl})
-        return cluster_dict
-
-    def _build_job_permissions(self) -> List[Dict[str, Any]]:
-        access_control_list = []
-        job_grants = self.config_extractor.job_grants
-        owner, permissions_attribute = self._build_job_owner()
-        access_control_list.append(
-            {
-                permissions_attribute: owner,
-                "permission_level": "IS_OWNER",
-            }
-        )
-
-        for grant in job_grants.get("view", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_VIEW",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in job_grants.get("run", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE_RUN",
-                }
-            )
-            access_control_list.append(acl_grant)
-        for grant in job_grants.get("manage", []):
-            acl_grant = grant.copy()
-            acl_grant.update(
-                {
-                    "permission_level": "CAN_MANAGE",
-                }
-            )
-            access_control_list.append(acl_grant)
-
-        return access_control_list
-
-    def _build_job_owner(self) -> Tuple[str, str]:
-        """
-        :return: a tuple of the user id and the ACL attribute it came from ie:
-            [user_name|group_name|service_principal_name]
-            For example: `("mateizaharia@databricks.com", "user_name")`
-        """
-        curr_user = self.api_client.curr_user.get_username()
-        is_service_principal = self.api_client.curr_user.is_service_principal(curr_user)
-
-        if is_service_principal:
-            return curr_user, "service_principal_name"
-        else:
-            return curr_user, "user_name"
+        return PythonJobConfig(self.config_extractor.run_name, job_spec, additional_job_config)
 
 
 class PythonNotebookSubmitter(PythonSubmitter):
@@ -430,8 +270,32 @@ class PythonNotebookSubmitter(PythonSubmitter):
             self.tracker.remove_run_id(run_id)
 
 
+class JobClusterPythonJobHelper(BaseDatabricksHelper):
+    @override
+    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+        notebook_uploader = PythonNotebookUploader(
+            self.api_client, self.database, self.schema, self.identifier
+        )
+        config_extractor = PythonJobConfigExtractor(self.parsed_model)
+        config_compiler = PythonJobConfigCompiler(
+            self.api_client,
+            config_extractor,
+            {"new_cluster": config_extractor.cluster_spec},
+        )
+        return PythonNotebookSubmitter(
+            self.api_client, self.tracker, notebook_uploader, config_compiler
+        )
+
+    @override
+    def validate_config(self) -> None:
+        if not self.parsed_model["config"].get("job_cluster_config", None):
+            raise ValueError(
+                "`job_cluster_config` is required for the `job_cluster` submission method."
+            )
+
+
 class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
-    def set_config(self, config: Dict[str, Any]) -> None:
+    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
         self.cluster_id = config.get(
             "cluster_id",
             self.credentials.extract_cluster_id(
@@ -446,100 +310,135 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             config_compiler = PythonJobConfigCompiler(
                 self.api_client, config_extractor, {"existing_cluster_id": self.cluster_id}
             )
-            self.command_submitter: PythonSubmitter = PythonNotebookSubmitter(
+            return PythonNotebookSubmitter(
                 self.api_client, self.tracker, notebook_uploader, config_compiler
             )
         else:
-            self.command_submitter = PythonCommandSubmitter(
-                self.api_client, self.tracker, self.cluster_id
-            )
+            return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id)
 
-    def check_credentials(self) -> None:
-        super().check_credentials()
+    def validate_config(self) -> None:
         if not self.cluster_id:
             raise ValueError(
                 "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
                 "for the `all_purpose_cluster` submission method."
             )
 
-    def submit(self, compiled_code: str) -> None:
-        self.command_submitter.submit(compiled_code)
-
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
-    def submit(self, compiled_code: str) -> None:
-        self._submit_through_notebook(compiled_code, {})
+    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+        notebook_uploader = PythonNotebookUploader(
+            self.api_client, self.database or "hive_metastore", self.schema, self.identifier
+        )
+        config_extractor = PythonJobConfigExtractor(self.parsed_model)
+        config_compiler = PythonJobConfigCompiler(
+            self.api_client,
+            config_extractor,
+            {},
+        )
+        return PythonNotebookSubmitter(
+            self.api_client, self.tracker, notebook_uploader, config_compiler
+        )
 
 
-class WorkflowPythonJobHelper(BaseDatabricksHelper):
+class PythonWorkflowConfigExtractor(PythonJobConfigExtractor):
+    def __init__(self, parsed_model: Dict[str, Any]) -> None:
+        super().__init__(parsed_model)
+        self.existing_job_id = self.job_config.pop("existing_job_id")
+        self.workflow_name = self.job_config.get(
+            "name", f"dbt__{self.database}-{self.schema}-{self.identifier}"
+        )
+        self.job_config["name"] = self.workflow_name
+        self.post_hook_tasks = self.job_config.pop("post_hook_tasks", [])
+        self.additional_task_settings = self.job_config.pop("additional_task_settings", {})
 
-    @property
-    def default_job_name(self) -> str:
-        return f"dbt__{self.database}-{self.schema}-{self.identifier}"
 
-    @property
-    def notebook_path(self) -> str:
-        return f"{self.notebook_dir}/{self.identifier}"
+class PythonWorkflowConfigCompiler:
+    def __init__(self, config_extractor: PythonWorkflowConfigExtractor):
+        self.config_extractor = config_extractor
 
-    @property
-    def notebook_dir(self) -> str:
-        return self.api_client.workspace.user_api.get_folder(self.catalog, self.schema)
-
-    @property
-    def catalog(self) -> str:
-        return self.database or "hive_metastore"
-
-    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
-        super().__init__(parsed_model, credentials)
-
-        self.post_hook_tasks = self.workflow_spec.pop("post_hook_tasks", [])
-        self.additional_task_settings = self.workflow_spec.pop("additional_task_settings", {})
-
-    def check_credentials(self) -> None:
-        workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
-        if not workflow_config:
-            raise ValueError(
-                "workflow_job_config is required for the `workflow_job_config` submission method."
-            )
-
-    def submit(self, compiled_code: str) -> None:
-        workflow_spec = self._build_job_spec()
-        self._submit_through_workflow(compiled_code, workflow_spec)
-
-    def _build_job_spec(self) -> Dict[str, Any]:
-        workflow_spec = dict(self.workflow_spec)
-        workflow_spec["name"] = self.workflow_spec.get("name", self.default_job_name)
-
+    def compile(self, path: str) -> Dict[str, Any]:
         # Undefined cluster settings defaults to serverless in the Databricks API
         cluster_settings = {}
-        if self.cluster_spec:
-            cluster_settings["new_cluster"] = self.cluster_spec
-        elif "existing_cluster_id" in self.workflow_spec:
-            cluster_settings["existing_cluster_id"] = self.workflow_spec["existing_cluster_id"]
+        if self.config_extractor.cluster_spec:
+            cluster_settings["new_cluster"] = self.config_extractor.cluster_spec
+        elif "existing_cluster_id" in self.config_extractor.job_config:
+            cluster_settings["existing_cluster_id"] = self.config_extractor.job_config[
+                "existing_cluster_id"
+            ]
 
         notebook_task = {
             "task_key": "inner_notebook",
             "notebook_task": {
-                "notebook_path": self.notebook_path,
+                "notebook_path": path,
                 "source": "WORKSPACE",
             },
         }
         notebook_task.update(cluster_settings)
-        notebook_task.update(self.additional_task_settings)
+        notebook_task.update(self.config_extractor.additional_task_settings)
 
+        workflow_spec = self.config_extractor.job_config
         workflow_spec["tasks"] = [notebook_task] + self.post_hook_tasks
         return workflow_spec
 
-    def _submit_through_workflow(self, compiled_code: str, workflow_spec: Dict[str, Any]) -> None:
-        self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
-        self.api_client.workspace.upload_notebook(self.notebook_path, compiled_code)
 
-        job_id, is_new = self._get_or_create_job(workflow_spec)
+class PythonWorkflowCreater:
+    def __init__(self, workflows: WorkflowJobApi) -> None:
+        self.workflows = workflows
 
-        if not is_new:
-            self.api_client.workflows.update_job_settings(job_id, workflow_spec)
+    def create_or_update(
+        self,
+        workflow_spec: Dict[str, Any],
+        existing_job_id: Optional[str],
+    ) -> str:
+        """
+        :return: tuple of job_id and whether the job is new
+        """
+        if not existing_job_id:
+            workflow_name = workflow_spec["name"]
+            response_jobs = self.workflows.search_by_name(workflow_name)
 
-        access_control_list = self._build_job_permissions()
+            if len(response_jobs) > 1:
+                raise DbtRuntimeError(
+                    f"Multiple jobs found with name {workflow_name}. Use a"
+                    " unique job name or specify the `existing_job_id` in the python_job_config."
+                )
+
+            if len(response_jobs) == 1:
+                existing_job_id = response_jobs[0]["job_id"]
+            else:
+                return self.workflows.create(workflow_spec)
+
+        assert existing_job_id is not None
+        self.workflows.update_job_settings(existing_job_id, workflow_spec)
+        return existing_job_id
+
+
+class PythonNotebookWorkflowSubmitter(PythonSubmitter):
+    def __init__(
+        self,
+        api_client: DatabricksApiClient,
+        tracker: PythonRunTracker,
+        uploader: PythonNotebookUploader,
+        config_extractor: PythonWorkflowConfigExtractor,
+        config_compiler: PythonWorkflowConfigCompiler,
+        workflow_creater: PythonWorkflowCreater,
+    ) -> None:
+        self.api_client = api_client
+        self.tracker = tracker
+        self.uploader = uploader
+        self.config_extractor = config_extractor
+        self.config_compiler = config_compiler
+        self.workflow_creater = workflow_creater
+
+    @override
+    def submit(self, compiled_code: str) -> None:
+        file_path = self.uploader.upload(compiled_code)
+
+        workflow_config = self.config_compiler.compile(file_path)
+        existing_job_id = self.config_extractor.existing_job_id
+        job_id = self.workflow_creater.create_or_update(workflow_config, existing_job_id)
+
+        access_control_list = self.config_extractor.build_job_permissions(self.api_client)
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
@@ -550,23 +449,11 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         finally:
             self.tracker.remove_run_id(run_id)
 
-    def _get_or_create_job(self, workflow_spec: Dict[str, Any]) -> Tuple[str, bool]:
-        """
-        :return: tuple of job_id and whether the job is new
-        """
-        existing_job_id = workflow_spec.pop("existing_job_id", "")
-        if existing_job_id:
-            return existing_job_id, False
 
-        response_jobs = self.api_client.workflows.search_by_name(workflow_spec["name"])
-
-        if len(response_jobs) > 1:
-            raise DbtRuntimeError(
-                f"""Multiple jobs found with name {workflow_spec['name']}. Use a unique job
-                name or specify the `existing_job_id` in the workflow_job_config."""
+class WorkflowPythonJobHelper(BaseDatabricksHelper):
+    def check_credentials(self) -> None:
+        workflow_config = self.parsed_model["config"].get("workflow_job_config", None)
+        if not workflow_config:
+            raise ValueError(
+                "workflow_job_config is required for the `workflow_job_config` submission method."
             )
-
-        if len(response_jobs) == 1:
-            return response_jobs[0]["job_id"], False
-        else:
-            return self.api_client.workflows.create(workflow_spec), True
