@@ -276,7 +276,7 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
         notebook_uploader = PythonNotebookUploader(
             self.api_client, self.database, self.schema, self.identifier
         )
-        config_extractor = PythonJobConfigExtractor(self.parsed_model)
+        config_extractor = PythonJobConfigExtractor(config)
         config_compiler = PythonJobConfigCompiler(
             self.api_client,
             config_extractor,
@@ -329,7 +329,7 @@ class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
         notebook_uploader = PythonNotebookUploader(
             self.api_client, self.database or "hive_metastore", self.schema, self.identifier
         )
-        config_extractor = PythonJobConfigExtractor(self.parsed_model)
+        config_extractor = PythonJobConfigExtractor(config)
         config_compiler = PythonJobConfigCompiler(
             self.api_client,
             config_extractor,
@@ -377,7 +377,7 @@ class PythonWorkflowConfigCompiler:
         notebook_task.update(self.config_extractor.additional_task_settings)
 
         workflow_spec = self.config_extractor.job_config
-        workflow_spec["tasks"] = [notebook_task] + self.post_hook_tasks
+        workflow_spec["tasks"] = [notebook_task] + self.config_extractor.post_hook_tasks
         return workflow_spec
 
 
@@ -457,3 +457,19 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
             raise ValueError(
                 "workflow_job_config is required for the `workflow_job_config` submission method."
             )
+
+    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+        notebook_uploader = PythonNotebookUploader(
+            self.api_client, self.database, self.schema, self.identifier
+        )
+        config_extractor = PythonWorkflowConfigExtractor(config)
+        config_compiler = PythonWorkflowConfigCompiler(config_extractor)
+        workflow_creater = PythonWorkflowCreater(self.api_client.workflows)
+        return PythonNotebookWorkflowSubmitter(
+            self.api_client,
+            self.tracker,
+            notebook_uploader,
+            config_extractor,
+            config_compiler,
+            workflow_creater,
+        )
