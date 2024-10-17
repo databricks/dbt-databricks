@@ -345,7 +345,7 @@ class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
 class PythonWorkflowConfigExtractor(PythonJobConfigExtractor):
     def __init__(self, parsed_model: Dict[str, Any]) -> None:
         super().__init__(parsed_model)
-        self.existing_job_id = self.job_config.pop("existing_job_id")
+        self.existing_job_id = self.job_config.pop("existing_job_id", "")
         self.workflow_name = self.job_config.get(
             "name", f"dbt__{self.database}-{self.schema}-{self.identifier}"
         )
