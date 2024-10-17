@@ -41,11 +41,11 @@ class BaseDatabricksHelper(PythonJobHelper):
             credentials, self.get_timeout(), use_user_folder
         )
 
-        self.command_submitter = self.build_submitter(parsed_model)
+        self.command_submitter = self.build_submitter()
         self.validate_config()
 
     @abstractmethod
-    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+    def build_submitter(self) -> PythonSubmitter:
         pass
 
     def get_timeout(self) -> int:
@@ -272,11 +272,11 @@ class PythonNotebookSubmitter(PythonSubmitter):
 
 class JobClusterPythonJobHelper(BaseDatabricksHelper):
     @override
-    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+    def build_submitter(self) -> PythonSubmitter:
         notebook_uploader = PythonNotebookUploader(
             self.api_client, self.database, self.schema, self.identifier
         )
-        config_extractor = PythonJobConfigExtractor(config)
+        config_extractor = PythonJobConfigExtractor(self.parsed_model)
         config_compiler = PythonJobConfigCompiler(
             self.api_client,
             config_extractor,
@@ -295,7 +295,8 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 
 
 class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
-    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+    def build_submitter(self) -> PythonSubmitter:
+        config = self.parsed_model["config"]
         self.cluster_id = config.get(
             "cluster_id",
             self.credentials.extract_cluster_id(
@@ -316,6 +317,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
         else:
             return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id)
 
+    @override
     def validate_config(self) -> None:
         if not self.cluster_id:
             raise ValueError(
@@ -325,11 +327,11 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
-    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+    def build_submitter(self) -> PythonSubmitter:
         notebook_uploader = PythonNotebookUploader(
-            self.api_client, self.database or "hive_metastore", self.schema, self.identifier
+            self.api_client, self.database, self.schema, self.identifier
         )
-        config_extractor = PythonJobConfigExtractor(config)
+        config_extractor = PythonJobConfigExtractor(self.parsed_model)
         config_compiler = PythonJobConfigCompiler(
             self.api_client,
             config_extractor,
@@ -458,11 +460,11 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
                 "workflow_job_config is required for the `workflow_job_config` submission method."
             )
 
-    def build_submitter(self, config: Dict[str, Any]) -> PythonSubmitter:
+    def build_submitter(self) -> PythonSubmitter:
         notebook_uploader = PythonNotebookUploader(
             self.api_client, self.database, self.schema, self.identifier
         )
-        config_extractor = PythonWorkflowConfigExtractor(config)
+        config_extractor = PythonWorkflowConfigExtractor(self.parsed_model)
         config_compiler = PythonWorkflowConfigCompiler(config_extractor)
         workflow_creater = PythonWorkflowCreater(self.api_client.workflows)
         return PythonNotebookWorkflowSubmitter(
