@@ -277,9 +277,6 @@ class JobClusterPythonJobHelper(BaseDatabricksHelper):
 class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
     def build_submitter(self) -> PythonSubmitter:
         config = self.parsed_model.config
-        self.cluster_id = config.cluster_id or self.credentials.extract_cluster_id(
-            config.http_path or self.credentials.http_path or ""
-        )
         if config.create_notebook:
             notebook_uploader = PythonNotebookUploader(
                 self.api_client,
@@ -301,6 +298,10 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
 
     @override
     def validate_config(self) -> None:
+        config = self.parsed_model.config
+        self.cluster_id = config.cluster_id or self.credentials.extract_cluster_id(
+            config.http_path or self.credentials.http_path or ""
+        )
         if not self.cluster_id:
             raise ValueError(
                 "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
