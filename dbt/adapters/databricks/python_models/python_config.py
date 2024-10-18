@@ -7,6 +7,8 @@ DEFAULT_TIMEOUT = 60 * 60 * 24
 
 
 class PythonJobConfig(BaseModel):
+    """Pydantic model for config found in python_job_config."""
+
     name: Optional[str] = None
     email_notifications: Optional[Dict[str, Any]] = None
     webhook_notifications: Optional[Dict[str, Any]] = None
@@ -21,6 +23,11 @@ class PythonJobConfig(BaseModel):
 
 
 class PythonModelConfig(BaseModel):
+    """
+    Pydantic model for a Python model configuration.
+    Includes some job-specific settings that are not yet part of PythonJobConfig.
+    """
+
     user_folder_for_python: bool = False
     timeout: int = Field(DEFAULT_TIMEOUT, gt=0)
     job_cluster_config: Dict[str, Any] = Field(default_factory=dict)
@@ -35,9 +42,11 @@ class PythonModelConfig(BaseModel):
 
 
 class ParsedPythonModel(BaseModel):
+    """Pydantic model for a Python model parsed from a dbt manifest"""
+
     catalog: str = Field("hive_metastore", alias="database")
 
-    # Reserved name in Pydantic
+    # Schema is a reserved name in Pydantic
     schema_: str = Field("default", alias="schema")
 
     identifier: str = Field(alias="alias")
