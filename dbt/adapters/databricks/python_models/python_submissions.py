@@ -38,9 +38,9 @@ class BaseDatabricksHelper(PythonJobHelper):
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,
         )
+        self.validate_config()
 
         self.command_submitter = self.build_submitter()
-        self.validate_config()
 
     @abstractmethod
     def build_submitter(self) -> PythonSubmitter:
@@ -166,9 +166,12 @@ class PythonJobConfigCompiler:
         self.packages = model.config.packages
         self.index_url = model.config.index_url
         self.additional_libraries = model.config.additional_libs
-        assert model.config.python_job_config is not None
-        self.job_grants = model.config.python_job_config.grants
-        self.additional_job_settings = model.config.python_job_config.dict()
+        if model.config.python_job_config:
+            self.job_grants = model.config.python_job_config.grants
+            self.additional_job_settings = model.config.python_job_config.dict()
+        else:
+            self.job_grants = {}
+            self.additional_job_settings = {}
         self.cluster_spec = cluster_spec
 
     def update_with_acls(self, cluster_dict: Dict[str, Any]) -> Dict[str, Any]:
