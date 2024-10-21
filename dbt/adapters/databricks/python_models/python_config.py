@@ -10,16 +10,13 @@ class PythonJobConfig(BaseModel):
     """Pydantic model for config found in python_job_config."""
 
     name: Optional[str] = None
-    email_notifications: Optional[Dict[str, Any]] = None
-    webhook_notifications: Optional[Dict[str, Any]] = None
-    notification_settings: Optional[Dict[str, Any]] = None
-    timeout_seconds: Optional[int] = Field(None, gt=0)
-    health: Optional[Dict[str, Any]] = None
-    environments: Optional[List[Dict[str, Any]]] = None
     grants: Dict[str, List[Dict[str, str]]] = Field(exclude=True, default_factory=dict)
     existing_job_id: str = Field("", exclude=True)
     post_hook_tasks: List[Dict[str, Any]] = Field(exclude=True, default_factory=list)
     additional_task_settings: Dict[str, Any] = Field(exclude=True, default_factory=dict)
+
+    class Config:
+        extra = "allow"
 
 
 class PythonModelConfig(BaseModel):
@@ -54,7 +51,7 @@ class ParsedPythonModel(BaseModel):
 
     @property
     def run_name(self) -> str:
-        return f"{self.catalog}-{self.schema_}-" f"{self.identifier}-{uuid.uuid4()}"
+        return f"{self.catalog}-{self.schema_}-{self.identifier}-{uuid.uuid4()}"
 
     class Config:
         allow_population_by_field_name = True

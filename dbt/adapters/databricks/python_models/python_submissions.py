@@ -96,10 +96,10 @@ class PythonNotebookUploader:
     """Uploads a compiled Python model as a notebook to the Databricks workspace."""
 
     def __init__(
-        self, api_client: DatabricksApiClient, database: str, schema: str, identifier: str
+        self, api_client: DatabricksApiClient, catalog: str, schema: str, identifier: str
     ) -> None:
         self.api_client = api_client
-        self.database = database
+        self.catalog = catalog
         self.schema = schema
         self.identifier = identifier
 
@@ -116,7 +116,7 @@ class PythonNotebookUploader:
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
-        workdir = self.api_client.workspace.create_python_model_dir(self.database, self.schema)
+        workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
         return file_path
@@ -202,7 +202,32 @@ class PythonPermissionBuilder:
             )
             access_control_list.append(acl_grant)
 
-        return access_control_list + (self.acls or [])
+        return access_control_list + self.acls
+
+
+class PythonLibraryConfigurer:
+    """Configures the libraries component for a Python job."""
+
+    @staticmethod
+    def get_library_config(
+        packages: List[str],
+        index_url: Optional[str],
+        additional_libraries: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Update the job configuration with the required libraries."""
+
+        libraries = []
+
+        for package in packages:
+            if index_url:
+                libraries.append({"pypi": {"package": package, "repo": index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
+
+        for library in additional_libraries:
+            libraries.append(library)
+
+        return {"libraries": libraries}
 
 
 class PythonJobConfigCompiler:
@@ -212,38 +237,42 @@ class PythonJobConfigCompiler:
         self,
         api_client: DatabricksApiClient,
         permission_builder: PythonPermissionBuilder,
-        model: ParsedPythonModel,
+        run_name: str,
         cluster_spec: Dict[str, Any],
+        additional_job_settings: Dict[str, Any],
     ) -> None:
         self.api_client = api_client
         self.permission_builder = permission_builder
-        self.run_name = model.run_name
-        self.packages = model.config.packages
-        self.index_url = model.config.index_url
-        self.additional_libraries = model.config.additional_libs
-        if model.config.python_job_config:
-            self.additional_job_settings = model.config.python_job_config.dict()
-        else:
-            self.additional_job_settings = {}
+        self.run_name = run_name
         self.cluster_spec = cluster_spec
+        self.additional_job_settings = additional_job_settings
 
-    def _update_with_libraries(self, job_spec: Dict[str, Any]) -> Dict[str, Any]:
-        """Update the job configuration with the required libraries."""
+    @staticmethod
+    def create(
+        api_client: DatabricksApiClient,
+        parsed_model: ParsedPythonModel,
+        cluster_spec: Dict[str, Any],
+    ) -> "PythonJobConfigCompiler":
+        permission_builder = PythonPermissionBuilder.create(api_client, parsed_model)
+        packages = parsed_model.config.packages
+        index_url = parsed_model.config.index_url
+        additional_libraries = parsed_model.config.additional_libs
+        library_config = PythonLibraryConfigurer.get_library_config(
+            packages, index_url, additional_libraries
+        )
+        cluster_spec.update(library_config)
+        if parsed_model.config.python_job_config:
+            additional_job_settings = parsed_model.config.python_job_config.dict()
+        else:
+            additional_job_settings = {}
 
-        local = job_spec.copy()
-        libraries = []
-
-        for package in self.packages:
-            if self.index_url:
-                libraries.append({"pypi": {"package": package, "repo": self.index_url}})
-            else:
-                libraries.append({"pypi": {"package": package}})
-
-        for library in self.additional_libraries:
-            libraries.append(library)
-
-        local.update({"libraries": libraries})
-        return local
+        return PythonJobConfigCompiler(
+            api_client,
+            permission_builder,
+            parsed_model.run_name,
+            cluster_spec,
+            additional_job_settings,
+        )
 
     def compile(self, path: str) -> PythonJobDetails:
 
@@ -254,8 +283,6 @@ class PythonJobConfigCompiler:
             },
         }
         job_spec.update(self.cluster_spec)  # updates 'new_cluster' config
-
-        job_spec = self._update_with_libraries(job_spec)
 
         additional_job_config = self.additional_job_settings
         access_control_list = self.permission_builder.build_job_permissions()
@@ -288,9 +315,8 @@ class PythonNotebookSubmitter(PythonSubmitter):
         cluster_spec: Dict[str, Any],
     ) -> "PythonNotebookSubmitter":
         notebook_uploader = PythonNotebookUploader.create(api_client, parsed_model)
-        config_compiler = PythonJobConfigCompiler(
+        config_compiler = PythonJobConfigCompiler.create(
             api_client,
-            PythonPermissionBuilder.create(api_client, parsed_model),
             parsed_model,
             cluster_spec,
         )
@@ -375,12 +401,12 @@ class PythonWorkflowConfigCompiler:
 
     def __init__(
         self,
-        workflow_settings: Dict[str, Any],
+        task_settings: Dict[str, Any],
         workflow_spec: Dict[str, Any],
         existing_job_id: str,
         post_hook_tasks: List[Dict[str, Any]],
     ) -> None:
-        self.workflow_settings = workflow_settings
+        self.task_settings = task_settings
         self.existing_job_id = existing_job_id
         self.workflow_spec = workflow_spec
         self.post_hook_tasks = post_hook_tasks
@@ -431,7 +457,7 @@ class PythonWorkflowConfigCompiler:
                 "source": "WORKSPACE",
             },
         }
-        notebook_task.update(self.workflow_settings)
+        notebook_task.update(self.task_settings)
 
         self.workflow_spec["tasks"] = [notebook_task] + self.post_hook_tasks
         return self.workflow_spec, self.existing_job_id
@@ -523,13 +549,6 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
 
 class WorkflowPythonJobHelper(BaseDatabricksHelper):
     """Top level helper for Python models using workflow jobs on Databricks."""
-
-    @override
-    def validate_config(self) -> None:
-        if not self.parsed_model.config.python_job_config:
-            raise ValueError(
-                "python_job_config is required for the `python_job_config` submission method."
-            )
 
     @override
     def build_submitter(self) -> PythonSubmitter:
