@@ -21,6 +21,7 @@
 ### Under the Hood
 
 - Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
+- Drop support for Python 3.8 ([713](https://github.com/databricks/dbt-databricks/pull/713))
 - Upgrade databricks-sql-connector dependency to 3.5.0 ([833](https://github.com/databricks/dbt-databricks/pull/833))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)
