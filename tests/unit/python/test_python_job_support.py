@@ -1,9 +1,9 @@
 from unittest.mock import Mock
 import pytest
 
+from dbt.adapters.databricks.python_models import python_submissions
 from dbt.adapters.databricks.python_models.python_submissions import (
     PythonJobConfigCompiler,
-    PythonLibraryConfigurer,
     PythonNotebookUploader,
     PythonPermissionBuilder,
 )
@@ -30,12 +30,13 @@ class TestPythonNotebookUploader:
         return "workdir"
 
     @pytest.fixture
-    def identifier(self):
+    def identifier(self, parsed_model):
         return "identifier"
 
     @pytest.fixture
-    def uploader(self, client, identifier):
-        return PythonNotebookUploader(client, "", "", identifier)
+    def uploader(self, client, parsed_model, identifier):
+        parsed_model.identifier = identifier
+        return PythonNotebookUploader(client, parsed_model)
 
     def test_upload__golden_path(self, uploader, client, compiled_code, workdir, identifier):
         client.workspace.create_python_model_dir.return_value = workdir
@@ -44,40 +45,30 @@ class TestPythonNotebookUploader:
         assert file_path == f"{workdir}{identifier}"
         client.workspace.upload_notebook.assert_called_once_with(file_path, compiled_code)
 
-    def test_create__golden_path(self, client, parsed_model):
-        parsed_model.catalog = "catalog"
-        parsed_model.schema_ = "schema"
-        parsed_model.identifier = "identifier"
-
-        uploader = PythonNotebookUploader.create(client, parsed_model)
-        assert uploader.catalog == "catalog"
-        assert uploader.schema == "schema"
-        assert uploader.identifier == "identifier"
-        assert uploader.api_client == client
-
 
 class TestPythonPermissionBuilder:
-    def test_build_permission__no_grants_no_acls_user_owner(self, client):
-        builder = PythonPermissionBuilder(client, {}, [])
+    @pytest.fixture
+    def builder(self, client):
+        return PythonPermissionBuilder(client)
+
+    def test_build_permission__no_grants_no_acls_user_owner(self, builder, client):
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = False
-        acls = builder.build_job_permissions()
+        acls = builder.build_job_permissions({}, [])
         assert acls == [{"user_name": "user", "permission_level": "IS_OWNER"}]
 
-    def test_build_permission__no_grants_no_acls_sp_owner(self, client):
-        builder = PythonPermissionBuilder(client, {}, [])
+    def test_build_permission__no_grants_no_acls_sp_owner(self, builder, client):
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = True
-        acls = builder.build_job_permissions()
+        acls = builder.build_job_permissions({}, [])
         assert acls == [{"service_principal_name": "user", "permission_level": "IS_OWNER"}]
 
-    def test_build_permission__grants_no_acls(self, client):
+    def test_build_permission__grants_no_acls(self, builder, client):
         grants = {
             "view": [{"user_name": "user1"}],
             "run": [{"user_name": "user2"}],
             "manage": [{"user_name": "user3"}],
         }
-        builder = PythonPermissionBuilder(client, grants, [])
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = False
 
@@ -88,14 +79,13 @@ class TestPythonPermissionBuilder:
             {"user_name": "user3", "permission_level": "CAN_MANAGE"},
         ]
 
-        assert builder.build_job_permissions() == expected
+        assert builder.build_job_permissions(grants, []) == expected
 
-    def test_build_permission__grants_and_acls(self, client):
+    def test_build_permission__grants_and_acls(self, builder, client):
         grants = {
             "view": [{"user_name": "user1"}],
         }
         acls = [{"user_name": "user2", "permission_level": "CAN_MANAGE_RUN"}]
-        builder = PythonPermissionBuilder(client, grants, acls)
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = False
 
@@ -105,37 +95,23 @@ class TestPythonPermissionBuilder:
             {"user_name": "user2", "permission_level": "CAN_MANAGE_RUN"},
         ]
 
-        assert builder.build_job_permissions() == expected
-
-    def test_create__with_python_job_config(self, client, parsed_model):
-        parsed_model.config.python_job_config.grants = {"view": [{"user_name": "user"}]}
-        builder = PythonPermissionBuilder.create(client, parsed_model)
-
-        assert builder.job_grants == {"view": [{"user_name": "user"}]}
-        assert builder.acls == parsed_model.config.access_control_list
-
-    def test_create__without_python_job_config(self, client, parsed_model):
-        parsed_model.config.python_job_config = None
-        builder = PythonPermissionBuilder.create(client, parsed_model)
-
-        assert builder.job_grants == {}
-        assert builder.acls == parsed_model.config.access_control_list
+        assert builder.build_job_permissions(grants, acls) == expected
 
 
-class TestPythonLibraryConfigurer:
+class TestGetLibraryConfig:
     def test_get_library_config__no_packages_no_libraries(self):
-        config = PythonLibraryConfigurer.get_library_config([], None, [])
+        config = python_submissions.get_library_config([], None, [])
         assert config == {"libraries": []}
 
     def test_get_library_config__packages_no_index_no_libraries(self):
-        config = PythonLibraryConfigurer.get_library_config(["package1", "package2"], None, [])
+        config = python_submissions.get_library_config(["package1", "package2"], None, [])
         assert config == {
             "libraries": [{"pypi": {"package": "package1"}}, {"pypi": {"package": "package2"}}]
         }
 
     def test_get_library_config__packages_index_url_no_libraries(self):
         index_url = "http://example.com"
-        config = PythonLibraryConfigurer.get_library_config(["package1", "package2"], index_url, [])
+        config = python_submissions.get_library_config(["package1", "package2"], index_url, [])
         assert config == {
             "libraries": [
                 {"pypi": {"package": "package1", "repo": index_url}},
@@ -144,7 +120,7 @@ class TestPythonLibraryConfigurer:
         }
 
     def test_get_library_config__packages_libraries(self):
-        config = PythonLibraryConfigurer.get_library_config(
+        config = python_submissions.get_library_config(
             ["package1", "package2"], None, [{"pypi": {"package": "package3"}}]
         )
         assert config == {
@@ -162,24 +138,16 @@ class TestPythonJobConfigCompiler:
         return Mock()
 
     @pytest.fixture
-    def cluster_spec(self):
-        return {}
+    def run_name(self, parsed_model):
+        run_name = "run_name"
+        parsed_model.run_name = run_name
+        parsed_model.config.packages = []
+        parsed_model.config.additional_libs = []
+        return run_name
 
-    @pytest.fixture
-    def run_name(self):
-        return "run_name"
-
-    @pytest.fixture
-    def additional_job_settings(self):
-        return {}
-
-    @pytest.fixture
-    def compiler(self, client, permission_builder, run_name, cluster_spec, additional_job_settings):
-        return PythonJobConfigCompiler(
-            client, permission_builder, run_name, cluster_spec, additional_job_settings
-        )
-
-    def test_compile__empty_configs(self, compiler, run_name, permission_builder):
+    def test_compile__empty_configs(self, client, permission_builder, parsed_model, run_name):
+        parsed_model.config.python_job_config.dict.return_value = {}
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
         permission_builder.build_job_permissions.return_value = []
         details = compiler.compile("path")
         assert details.run_name == run_name
@@ -188,17 +156,21 @@ class TestPythonJobConfigCompiler:
             "notebook_task": {
                 "notebook_path": "path",
             },
+            "libraries": [],
         }
         assert details.additional_job_config == {}
 
-    def test_compile__nonempty_configs(
-        self, compiler, run_name, permission_builder, cluster_spec, additional_job_settings
-    ):
+    def test_compile__nonempty_configs(self, client, permission_builder, parsed_model, run_name):
+        parsed_model.config.packages = ["foo"]
+        parsed_model.config.index_url = None
+        parsed_model.config.python_job_config.dict.return_value = {"foo": "bar"}
+
         permission_builder.build_job_permissions.return_value = [
             {"user_name": "user", "permission_level": "IS_OWNER"}
         ]
-        cluster_spec["libraries"] = [{"pypi": {"package": "package"}}]
-        additional_job_settings["foo"] = "bar"
+        compiler = PythonJobConfigCompiler(
+            client, permission_builder, parsed_model, {"cluster_id": "id"}
+        )
         details = compiler.compile("path")
         assert details.run_name == run_name
         assert details.job_spec == {
@@ -206,34 +178,8 @@ class TestPythonJobConfigCompiler:
             "notebook_task": {
                 "notebook_path": "path",
             },
-            "libraries": [{"pypi": {"package": "package"}}],
+            "cluster_id": "id",
+            "libraries": [{"pypi": {"package": "foo"}}],
             "access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}],
         }
         assert details.additional_job_config == {"foo": "bar"}
-
-    def test_create__empty_configs(self, client, parsed_model, cluster_spec):
-        parsed_model.config.packages = []
-        parsed_model.config.additional_libs = []
-        parsed_model.config.python_job_config = None
-        compiler = PythonJobConfigCompiler.create(client, parsed_model, cluster_spec)
-        assert compiler.api_client == client
-        assert isinstance(compiler.permission_builder, PythonPermissionBuilder)
-        assert compiler.run_name == parsed_model.run_name
-        assert compiler.cluster_spec == cluster_spec
-        assert compiler.additional_job_settings == {}
-
-    def test_create__full_configs(self, client, parsed_model):
-        cluster_spec = {"existing_cluster_id": "cluster_id"}
-        parsed_model.config.packages = ["foo"]
-        parsed_model.config.index_url = None
-        parsed_model.config.additional_libs = [{"pypi": {"package": "bar"}}]
-        parsed_model.config.python_job_config.dict.return_value = {"baz": "qux"}
-        compiler = PythonJobConfigCompiler.create(client, parsed_model, cluster_spec)
-        assert compiler.api_client == client
-        assert isinstance(compiler.permission_builder, PythonPermissionBuilder)
-        assert compiler.run_name == parsed_model.run_name
-        assert compiler.cluster_spec == {
-            "existing_cluster_id": "cluster_id",
-            "libraries": [{"pypi": {"package": "foo"}}, {"pypi": {"package": "bar"}}],
-        }
-        assert compiler.additional_job_settings == {"baz": "qux"}

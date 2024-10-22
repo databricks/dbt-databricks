@@ -39,7 +39,11 @@ class TestParsedPythonModel:
         assert config.packages == []
         assert config.index_url is None
         assert config.additional_libs == []
-        assert config.python_job_config is None
+        assert config.python_job_config.name is None
+        assert config.python_job_config.grants == {}
+        assert config.python_job_config.existing_job_id == ""
+        assert config.python_job_config.post_hook_tasks == []
+        assert config.python_job_config.additional_task_settings == {}
         assert config.cluster_id is None
         assert config.http_path is None
         assert config.create_notebook is False

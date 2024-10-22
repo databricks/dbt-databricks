@@ -132,7 +132,7 @@ class TestPythonNotebookWorkflowSubmitter:
         self, client, tracker, uploader, config_compiler, permission_builder, workflow_creater
     ):
         return PythonNotebookWorkflowSubmitter(
-            client, tracker, uploader, config_compiler, permission_builder, workflow_creater
+            client, tracker, uploader, config_compiler, permission_builder, workflow_creater, {}, []
         )
 
     def test_submit__golden_path(self, submitter):
@@ -159,7 +159,10 @@ class TestPythonNotebookWorkflowSubmitter:
 
     def test_create__golden_path(self, client, tracker):
         parsed_model = Mock()
-        parsed_model.config.python_job_config = None
+        parsed_model.config.python_job_config.grants = {}
+        parsed_model.config.python_job_config.additional_task_settings = {}
+        parsed_model.config.python_job_config.dict.return_value = {}
+        parsed_model.config.access_control_list = []
         submitter = PythonNotebookWorkflowSubmitter.create(client, tracker, parsed_model)
         assert submitter.api_client == client
         assert submitter.tracker == tracker

@@ -32,7 +32,7 @@ class PythonModelConfig(BaseModel):
     packages: List[str] = Field(default_factory=list)
     index_url: Optional[str] = None
     additional_libs: List[Dict[str, Any]] = Field(default_factory=list)
-    python_job_config: Optional[PythonJobConfig] = None
+    python_job_config: PythonJobConfig = Field(default_factory=lambda: PythonJobConfig(**{}))
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None
     create_notebook: bool = False
