@@ -421,7 +421,7 @@ class PythonWorkflowConfigCompiler:
         return self.workflow_spec, self.existing_job_id
 
 
-class PythonWorkflowCreater:
+class PythonWorkflowCreator:
     """Manages the creation or updating of a workflow job on Databricks."""
 
     def __init__(self, workflows: WorkflowJobApi) -> None:
@@ -444,8 +444,7 @@ class PythonWorkflowCreater:
                     f"Multiple jobs found with name {workflow_name}. Use a"
                     " unique job name or specify the `existing_job_id` in the python_job_config."
                 )
-
-            if len(response_jobs) == 1:
+            elif len(response_jobs) == 1:
                 existing_job_id = response_jobs[0]["job_id"]
             else:
                 return self.workflows.create(workflow_spec)
@@ -465,7 +464,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         uploader: PythonNotebookUploader,
         config_compiler: PythonWorkflowConfigCompiler,
         permission_builder: PythonPermissionBuilder,
-        workflow_creater: PythonWorkflowCreater,
+        workflow_creater: PythonWorkflowCreator,
         job_grants: Dict[str, List[Dict[str, str]]],
         acls: List[Dict[str, str]],
     ) -> None:
@@ -485,7 +484,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         uploader = PythonNotebookUploader(api_client, parsed_model)
         config_compiler = PythonWorkflowConfigCompiler.create(parsed_model)
         permission_builder = PythonPermissionBuilder(api_client)
-        workflow_creater = PythonWorkflowCreater(api_client.workflows)
+        workflow_creater = PythonWorkflowCreator(api_client.workflows)
         return PythonNotebookWorkflowSubmitter(
             api_client,
             tracker,

@@ -3,7 +3,7 @@ import pytest
 
 from dbt.adapters.databricks.python_models.python_submissions import (
     PythonWorkflowConfigCompiler,
-    PythonWorkflowCreater,
+    PythonWorkflowCreator,
 )
 
 
@@ -115,7 +115,7 @@ class TestPythonWorkflowCreator:
 
     @pytest.fixture
     def creator(self, workflows):
-        return PythonWorkflowCreater(workflows)
+        return PythonWorkflowCreator(workflows)
 
     def test_create_or_update__existing_job_id(
         self, creator, workflows, workflow_spec, existing_job_id

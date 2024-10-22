@@ -10,7 +10,7 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     PythonNotebookWorkflowSubmitter,
     PythonPermissionBuilder,
     PythonWorkflowConfigCompiler,
-    PythonWorkflowCreater,
+    PythonWorkflowCreator,
 )
 
 
@@ -169,4 +169,4 @@ class TestPythonNotebookWorkflowSubmitter:
         assert isinstance(submitter.uploader, PythonNotebookUploader)
         assert isinstance(submitter.config_compiler, PythonWorkflowConfigCompiler)
         assert isinstance(submitter.permission_builder, PythonPermissionBuilder)
-        assert isinstance(submitter.workflow_creater, PythonWorkflowCreater)
+        assert isinstance(submitter.workflow_creater, PythonWorkflowCreator)
