@@ -40,7 +40,7 @@ models:
     config:
       submission_method: workflow_job
       user_folder_for_python: true
-      workflow_job_config:
+      python_job_config:
         max_retries: 2
         timeout_seconds: 500
         additional_task_settings: {
