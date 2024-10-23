@@ -199,7 +199,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
