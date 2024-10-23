@@ -141,11 +141,6 @@ class FolderApi(ABC):
 # Use this for now to not break users
 class SharedFolderApi(FolderApi):
     def get_folder(self, _: str, schema: str) -> str:
-        logger.warning(
-            f"Uploading notebook to '/Shared/dbt_python_models/{schema}/'.  "
-            "Writing to '/Shared' is deprecated and will be removed in a future release.  "
-            "Write to the current user's home directory by setting `user_folder_for_python: true`"
-        )
         return f"/Shared/dbt_python_models/{schema}/"
 
 
