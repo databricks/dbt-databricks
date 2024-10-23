@@ -25,9 +25,9 @@ from typing import Union
 from uuid import uuid4
 
 from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base import log_code_execution
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.impl import log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability
