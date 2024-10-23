@@ -676,7 +676,7 @@ class DatabricksAdapter(SparkAdapter):
     def submit_python_job(self, parsed_model: dict, compiled_code: str) -> AdapterResponse:
         parsed_model["config"]["user_folder_for_python"] = parsed_model["config"].get(
             "user_folder_for_python",
-            self.behavior.use_user_folder_for_python,  # type: ignore[attr-defined]
+            self.behavior.use_user_folder_for_python.setting,  # type: ignore[attr-defined]
         )
         return super().submit_python_job(parsed_model, compiled_code)
 
