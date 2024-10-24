@@ -25,6 +25,7 @@
 - Drop support for Python 3.8 ([713](https://github.com/databricks/dbt-databricks/pull/713))
 - Upgrade databricks-sql-connector dependency to 3.5.0 ([833](https://github.com/databricks/dbt-databricks/pull/833))
 - Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
+- Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)
 
