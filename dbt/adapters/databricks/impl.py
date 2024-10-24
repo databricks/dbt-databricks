@@ -182,10 +182,15 @@ class DatabricksAdapter(SparkAdapter):
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
-        if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
-            self.get_column_behavior = GetColumnsByInformationSchema()
-        else:
-            self.get_column_behavior = GetColumnsByDescribe()
+
+        # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
+        # an additional guard
+        self.get_column_behavior = GetColumnsByDescribe()
+        try:
+            if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
+                self.get_column_behavior = GetColumnsByInformationSchema()
+        except CompilationError:
+            pass
 
     @property
     def _behavior_flags(self) -> List[BehaviorFlag]:

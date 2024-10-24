@@ -13,6 +13,9 @@ class ColumnsInRelation:
 
     @pytest.fixture(scope="class", autouse=True)
     def setup(self, project):
+        # debug uses different rules for managing project flags than run
+        util.run_dbt(["debug"])
+
         util.run_dbt(["run"])
 
     @pytest.fixture(scope="class")
