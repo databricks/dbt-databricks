@@ -1,7 +1,5 @@
 from typing import Any
 from typing import ClassVar
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
@@ -15,12 +13,12 @@ from dbt_common.exceptions import DbtRuntimeError
 class TblPropertiesConfig(DatabricksComponentConfig):
     """Component encapsulating the tblproperties of a relation."""
 
-    tblproperties: Dict[str, str]
+    tblproperties: dict[str, str]
     pipeline_id: Optional[str] = None
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
-    ignore_list: List[str] = [
+    ignore_list: list[str] = [
         "pipelines.pipelineId",
         "delta.enableChangeDataFeed",
         "delta.minReaderVersion",
@@ -47,7 +45,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         if not isinstance(__value, TblPropertiesConfig):
             return False
 
-        def _without_ignore_list(d: Dict[str, str]) -> Dict[str, str]:
+        def _without_ignore_list(d: dict[str, str]) -> dict[str, str]:
             return {k: v for k, v in d.items() if k not in self.ignore_list}
 
         return _without_ignore_list(self.tblproperties) == _without_ignore_list(
@@ -77,7 +75,7 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
         tblproperties = base.get_config_value(relation_config, "tblproperties") or {}
         is_iceberg = base.get_config_value(relation_config, "table_format") == "iceberg"
 
-        if not isinstance(tblproperties, Dict):
+        if not isinstance(tblproperties, dict):
             raise DbtRuntimeError("tblproperties must be a dictionary")
 
         # If the table format is Iceberg, we need to set the iceberg-specific tblproperties

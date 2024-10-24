@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 from databricks.sdk.core import Config
@@ -34,7 +33,7 @@ class token_auth(CredentialsProvider):
     def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
         static_credentials = {"Authorization": f"Bearer {self._token}"}
 
-        def inner() -> Dict[str, str]:
+        def inner() -> dict[str, str]:
             return static_credentials
 
         return inner
@@ -81,7 +80,7 @@ class m2m_auth(CredentialsProvider):
         return c
 
     def __call__(self, _: Optional[Config] = None) -> HeaderFactory:
-        def inner() -> Dict[str, str]:
+        def inner() -> dict[str, str]:
             token = self._token_source.token()  # type: ignore
             return {"Authorization": f"{token.token_type} {token.access_token}"}
 
