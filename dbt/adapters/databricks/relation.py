@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
+from typing import Any, Type
 from typing import Optional
 
 from dbt.adapters.base.relation import BaseRelation
@@ -135,7 +135,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> type[DatabricksRelationType]:  # type: ignore
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
