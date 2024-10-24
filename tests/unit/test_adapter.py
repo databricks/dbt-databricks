@@ -1,6 +1,5 @@
 from multiprocessing import get_context
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 import dbt.flags as flags
@@ -57,7 +56,7 @@ class DatabricksAdapterBase:
     def _get_config(
         self,
         token: Optional[str] = "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_properties: Optional[Dict[str, str]] = {"spark.sql.ansi.enabled": "true"},
+        session_properties: Optional[dict[str, str]] = {"spark.sql.ansi.enabled": "true"},
         **kwargs: Any,
     ) -> RuntimeConfig:
         if token:

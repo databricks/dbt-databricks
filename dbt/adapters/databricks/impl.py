@@ -1,3 +1,4 @@
+from collections.abc import Iterable, Iterator
 from multiprocessing.context import SpawnContext
 import os
 import re
@@ -10,16 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 from typing import cast
 from typing import ClassVar
-from typing import Dict
-from typing import FrozenSet
 from typing import Generic
-from typing import Iterable
-from typing import Iterator
-from typing import List
 from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
 from typing import TYPE_CHECKING
 from typing import Union
 from uuid import uuid4
@@ -117,16 +110,16 @@ class DatabricksConfig(AdapterConfig):
     table_format: TableFormat = TableFormat.DEFAULT
     location_root: Optional[str] = None
     include_full_name_in_path: bool = False
-    partition_by: Optional[Union[List[str], str]] = None
-    clustered_by: Optional[Union[List[str], str]] = None
-    liquid_clustered_by: Optional[Union[List[str], str]] = None
+    partition_by: Optional[Union[list[str], str]] = None
+    clustered_by: Optional[Union[list[str], str]] = None
+    liquid_clustered_by: Optional[Union[list[str], str]] = None
     buckets: Optional[int] = None
-    options: Optional[Dict[str, str]] = None
+    options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
-    databricks_tags: Optional[Dict[str, str]] = None
-    tblproperties: Optional[Dict[str, str]] = None
-    zorder: Optional[Union[List[str], str]] = None
+    databricks_tags: Optional[dict[str, str]] = None
+    tblproperties: Optional[dict[str, str]] = None
+    zorder: Optional[Union[list[str], str]] = None
     unique_tmp_table_suffix: bool = False
     skip_non_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
@@ -139,7 +132,7 @@ class DatabricksConfig(AdapterConfig):
     merge_with_schema_evolution: Optional[bool] = None
 
 
-def get_identifier_list_string(table_names: Set[str]) -> str:
+def get_identifier_list_string(table_names: set[str]) -> str:
     """Returns `"|".join(table_names)` by default.
 
     Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
@@ -163,7 +156,7 @@ class DatabricksAdapter(SparkAdapter):
     Column = DatabricksColumn
 
     if USE_LONG_SESSIONS:
-        ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
+        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
 
@@ -188,13 +181,13 @@ class DatabricksAdapter(SparkAdapter):
             self.get_column_behavior = GetColumnsByDescribe()
 
     @property
-    def _behavior_flags(self) -> List[BehaviorFlag]:
+    def _behavior_flags(self) -> list[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
-        self, config: BaseConfig, tblproperties: Optional[Dict[str, str]] = None
-    ) -> Dict[str, str]:
+        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
         result = tblproperties or config.get("tblproperties", {})
         if config.get("table_format") == TableFormat.ICEBERG:
             if self.compare_dbr_version(14, 3) < 0:
@@ -266,7 +259,7 @@ class DatabricksAdapter(SparkAdapter):
         """
         return self.connections.compare_dbr_version(major, minor)
 
-    def list_schemas(self, database: Optional[str]) -> List[str]:
+    def list_schemas(self, database: Optional[str]) -> list[str]:
         """
         Get a list of existing schemas in database.
 
@@ -291,7 +284,7 @@ class DatabricksAdapter(SparkAdapter):
         limit: Optional[int] = None,
         *,
         staging_table: Optional[BaseRelation] = None,
-    ) -> Tuple[AdapterResponse, "Table"]:
+    ) -> tuple[AdapterResponse, "Table"]:
         try:
             return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
@@ -300,8 +293,8 @@ class DatabricksAdapter(SparkAdapter):
 
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
-    ) -> List[DatabricksRelation]:
-        empty: List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
+    ) -> list[DatabricksRelation]:
+        empty: list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
         results = handle_missing_objects(
             lambda: self.get_relations_without_caching(schema_relation), empty
         )
@@ -326,14 +319,14 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_relations_without_caching(
         self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         if relation.is_hive_metastore():
             return self._get_hive_relations(relation)
         return self._get_uc_relations(relation)
 
     def _get_uc_relations(
         self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
@@ -343,10 +336,10 @@ class DatabricksAdapter(SparkAdapter):
 
     def _get_hive_relations(
         self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
 
-        new_rows: List[Tuple[str, Optional[str]]]
+        new_rows: list[tuple[str, Optional[str]]]
         if all([relation.database, relation.schema]):
             tables = self.connections.list_tables(
                 database=relation.database, schema=relation.schema  # type: ignore[arg-type]
@@ -377,11 +370,11 @@ class DatabricksAdapter(SparkAdapter):
         return [(row[0], row[1], None, None) for row in new_rows]
 
     @available.parse(lambda *a, **k: [])
-    def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
+    def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
         """Get a list of the Columns with names and data types from the given sql."""
         _, cursor = self.connections.add_select_query(sql)
         try:
-            columns: List[DatabricksColumn] = [
+            columns: list[DatabricksColumn] = [
                 self.Column.create(
                     column_name, self.connections.data_type_code_to_name(column_type_code)
                 )
@@ -410,8 +403,8 @@ class DatabricksAdapter(SparkAdapter):
         return self._set_relation_information(cached) if cached else None
 
     def parse_describe_extended(  # type: ignore[override]
-        self, relation: DatabricksRelation, raw_rows: List["Row"]
-    ) -> Tuple[Dict[str, Any], List[DatabricksColumn]]:
+        self, relation: DatabricksRelation, raw_rows: list["Row"]
+    ) -> tuple[dict[str, Any], list[DatabricksColumn]]:
         # Convert the Row to a dict
         dict_rows = [dict(zip(row._keys, row._values)) for row in raw_rows]
         # Find the separator between the rows and the metadata provided
@@ -442,12 +435,12 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
-    ) -> List[DatabricksColumn]:
+    ) -> list[DatabricksColumn]:
         return self.get_column_behavior.get_columns_in_relation(self, relation)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
-    ) -> Tuple[DatabricksRelation, List[DatabricksColumn]]:
+    ) -> tuple[DatabricksRelation, list[DatabricksColumn]]:
         rows = list(
             handle_missing_objects(
                 lambda: self.execute_macro(
@@ -482,7 +475,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def parse_columns_from_information(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
-    ) -> List[DatabricksColumn]:
+    ) -> list[DatabricksColumn]:
         owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
         owner = owner_match[0] if owner_match else None
         matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
@@ -511,9 +504,9 @@ class DatabricksAdapter(SparkAdapter):
         return columns
 
     def get_catalog_by_relations(
-        self, used_schemas: FrozenSet[Tuple[str, str]], relations: Set[BaseRelation]
-    ) -> Tuple["Table", List[Exception]]:
-        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        self, used_schemas: frozenset[tuple[str, str]], relations: set[BaseRelation]
+    ) -> tuple["Table", list[Exception]]:
+        relation_map: dict[tuple[str, str], set[str]] = defaultdict(set)
         for relation in relations:
             if relation.identifier:
                 relation_map[
@@ -525,9 +518,9 @@ class DatabricksAdapter(SparkAdapter):
     def get_catalog(
         self,
         relation_configs: Iterable[RelationConfig],
-        used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple["Table", List[Exception]]:
-        relation_map: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+        used_schemas: frozenset[tuple[str, str]],
+    ) -> tuple["Table", list[Exception]]:
+        relation_map: dict[tuple[str, str], set[str]] = defaultdict(set)
         for relation in relation_configs:
             relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
                 relation.identifier
@@ -537,11 +530,11 @@ class DatabricksAdapter(SparkAdapter):
 
     def _get_catalog_for_relation_map(
         self,
-        relation_map: Dict[Tuple[str, str], Set[str]],
-        used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple["Table", List[Exception]]:
+        relation_map: dict[tuple[str, str], set[str]],
+        used_schemas: frozenset[tuple[str, str]],
+    ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: List[Future["Table"]] = []
+            futures: list[Future["Table"]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -561,10 +554,10 @@ class DatabricksAdapter(SparkAdapter):
 
     def _list_relations_with_information(
         self, schema_relation: DatabricksRelation
-    ) -> List[Tuple[DatabricksRelation, str]]:
+    ) -> list[tuple[DatabricksRelation, str]]:
         results = self._show_table_extended(schema_relation)
 
-        relations: List[Tuple[DatabricksRelation, str]] = []
+        relations: list[tuple[DatabricksRelation, str]] = []
         if results:
             for name, information in results.select(["tableName", "information"]):
                 rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
@@ -592,7 +585,7 @@ class DatabricksAdapter(SparkAdapter):
         from agate import Table
         from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
 
-        columns: List[Dict[str, Any]] = []
+        columns: list[dict[str, Any]] = []
 
         if identifier:
             schema_relation = self.Relation.create(
@@ -607,7 +600,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def _get_columns_for_catalog(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
-    ) -> Iterable[Dict[str, Any]]:
+    ) -> Iterable[dict[str, Any]]:
         columns = self.parse_columns_from_information(relation, information)
 
         for column in columns:
@@ -625,14 +618,14 @@ class DatabricksAdapter(SparkAdapter):
         abridge_sql_log: bool = False,
         *,
         close_cursor: bool = False,
-    ) -> Tuple[Connection, Any]:
+    ) -> tuple[Connection, Any]:
         return self.connections.add_query(
             sql, auto_begin, bindings, abridge_sql_log, close_cursor=close_cursor
         )
 
     def run_sql_for_tests(
         self, sql: str, fetch: str, conn: Connection
-    ) -> Optional[Union[Optional[Tuple], List[Tuple]]]:
+    ) -> Optional[Union[Optional[tuple], list[tuple]]]:
         cursor = conn.handle.cursor()
         try:
             cursor.execute(sql)
@@ -650,11 +643,11 @@ class DatabricksAdapter(SparkAdapter):
             cursor.close()
             conn.transaction_open = False
 
-    def valid_incremental_strategies(self) -> List[str]:
+    def valid_incremental_strategies(self) -> list[str]:
         return ["append", "merge", "insert_overwrite", "replace_where", "microbatch"]
 
     @property
-    def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
+    def python_submission_helpers(self) -> dict[str, type[PythonJobHelper]]:
         return {
             "job_cluster": JobClusterPythonJobHelper,
             "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
@@ -690,8 +683,8 @@ class DatabricksAdapter(SparkAdapter):
 
     @available.parse(lambda *a, **k: {})
     def get_persist_doc_columns(
-        self, existing_columns: List[DatabricksColumn], columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, existing_columns: list[DatabricksColumn], columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """Returns a dictionary of columns that have updated comments."""
         return_columns = {}
 
@@ -755,7 +748,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 
     @classmethod
     @abstractmethod
-    def config_type(cls) -> Type[DatabricksRelationConfig]:
+    def config_type(cls) -> type[DatabricksRelationConfig]:
         """Get the config class for delegating calls."""
 
         raise NotImplementedError("Must be implemented by subclass")
@@ -814,7 +807,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
     relation_type = DatabricksRelationType.MaterializedView
 
     @classmethod
-    def config_type(cls) -> Type[MaterializedViewConfig]:
+    def config_type(cls) -> type[MaterializedViewConfig]:
         return MaterializedViewConfig
 
     @classmethod
@@ -833,7 +826,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         return results
 
     @staticmethod
-    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: Dict[str, Any]) -> "Row":
+    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: dict[str, Any]) -> "Row":
         return get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
 
 
@@ -841,7 +834,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
     relation_type = DatabricksRelationType.StreamingTable
 
     @classmethod
-    def config_type(cls) -> Type[StreamingTableConfig]:
+    def config_type(cls) -> type[StreamingTableConfig]:
         return StreamingTableConfig
 
     @classmethod
@@ -864,7 +857,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
     relation_type = DatabricksRelationType.Table
 
     @classmethod
-    def config_type(cls) -> Type[IncrementalTableConfig]:
+    def config_type(cls) -> type[IncrementalTableConfig]:
         return IncrementalTableConfig
 
     @classmethod

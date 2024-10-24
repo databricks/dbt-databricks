@@ -1,3 +1,4 @@
+from collections.abc import Callable, Iterator, Sequence
 import decimal
 import os
 import re
@@ -11,15 +12,9 @@ from multiprocessing.context import SpawnContext
 from numbers import Number
 from threading import get_ident
 from typing import Any
-from typing import Callable
 from typing import cast
-from typing import Dict
 from typing import Hashable
-from typing import Iterator
-from typing import List
 from typing import Optional
-from typing import Sequence
-from typing import Tuple
 from typing import TYPE_CHECKING
 
 import databricks.sql as dbsql
@@ -107,7 +102,7 @@ class DatabricksSQLConnectionWrapper:
 
     _conn: DatabricksSQLConnection
     _is_cluster: bool
-    _cursors: List[DatabricksSQLCursor]
+    _cursors: list[DatabricksSQLCursor]
     _creds: DatabricksCredentials
     _user_agent: str
 
@@ -140,7 +135,7 @@ class DatabricksSQLConnectionWrapper:
     def cancel(self) -> None:
         logger.debug(ConnectionCancel(self._conn))
 
-        cursors: List[DatabricksSQLCursor] = self._cursors
+        cursors: list[DatabricksSQLCursor] = self._cursors
 
         for cursor in cursors:
             try:
@@ -159,10 +154,10 @@ class DatabricksSQLConnectionWrapper:
     def rollback(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("NotImplemented: rollback")
 
-    _dbr_version: Tuple[int, int]
+    _dbr_version: tuple[int, int]
 
     @property
-    def dbr_version(self) -> Tuple[int, int]:
+    def dbr_version(self) -> tuple[int, int]:
         if not hasattr(self, "_dbr_version"):
             if self._is_cluster:
                 with self._conn.cursor() as cursor:
@@ -214,13 +209,13 @@ class DatabricksSQLCursorWrapper:
         except Error as exc:
             logger.warning(CursorCloseError(self._cursor, exc))
 
-    def fetchall(self) -> Sequence[Tuple]:
+    def fetchall(self) -> Sequence[tuple]:
         return self._cursor.fetchall()
 
-    def fetchone(self) -> Optional[Tuple]:
+    def fetchone(self) -> Optional[tuple]:
         return self._cursor.fetchone()
 
-    def fetchmany(self, size: int) -> Sequence[Tuple]:
+    def fetchmany(self, size: int) -> Sequence[tuple]:
         return self._cursor.fetchmany(size)
 
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> None:
@@ -315,7 +310,7 @@ class DatabricksSQLCursorWrapper:
         return
 
     @classmethod
-    def findUpdate(cls, updates: List, id: str) -> Optional[Dict]:
+    def findUpdate(cls, updates: list, id: str) -> Optional[dict]:
         matches = [x for x in updates if x.get("update_id") == id]
         if matches:
             return matches[0]
@@ -343,7 +338,7 @@ class DatabricksSQLCursorWrapper:
             return value
 
     @property
-    def description(self) -> Optional[List[Tuple]]:
+    def description(self) -> Optional[list[tuple]]:
         return self._cursor.description
 
     def schemas(self, catalog_name: str, schema_name: Optional[str] = None) -> None:
@@ -406,7 +401,7 @@ class DatabricksDBTConnection(Connection):
     acquire_release_count: int = 0
     compute_name: str = ""
     http_path: str = ""
-    thread_identifier: Tuple[int, int] = (0, 0)
+    thread_identifier: tuple[int, int] = (0, 0)
     max_idle_time: int = DEFAULT_MAX_IDLE_TIME
 
     # If the connection is being used for a model we want to track the model language.
@@ -479,7 +474,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     credentials_provider: Optional[TCredentialProvider] = None
     _user_agent = f"dbt-databricks/{__version__}"
 
-    def cancel_open(self) -> List[str]:
+    def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
         creds = cast(DatabricksCredentials, self.profile.credentials)
         api_client = DatabricksApiClient.create(creds, 15 * 60)
@@ -494,7 +489,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         dbr_version = connection.dbr_version
         return (dbr_version > version) - (dbr_version < version)
 
-    def set_query_header(self, query_header_context: Dict[str, Any]) -> None:
+    def set_query_header(self, query_header_context: dict[str, Any]) -> None:
         self.query_header = DatabricksMacroQueryStringSetter(self.profile, query_header_context)
 
     @contextmanager
@@ -572,7 +567,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         abridge_sql_log: bool = False,
         *,
         close_cursor: bool = False,
-    ) -> Tuple[Connection, Any]:
+    ) -> tuple[Connection, Any]:
         connection = self.get_thread_connection()
         if auto_begin and connection.transaction_open is False:
             self.begin()
@@ -622,7 +617,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         auto_begin: bool = False,
         fetch: bool = False,
         limit: Optional[int] = None,
-    ) -> Tuple[DatabricksAdapterResponse, "Table"]:
+    ) -> tuple[DatabricksAdapterResponse, "Table"]:
         sql = self._add_query_comment(sql)
         _, cursor = self.add_query(sql, auto_begin)
         try:
@@ -735,7 +730,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
-        http_headers: List[Tuple[str, str]] = list(
+        http_headers: list[tuple[str, str]] = list(
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
@@ -805,8 +800,8 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             USE_LONG_SESSIONS
         ), "This connection manager should only be used when USE_LONG_SESSIONS is enabled"
         super().__init__(profile, mp_context)
-        self.threads_compute_connections: Dict[
-            Hashable, Dict[Hashable, DatabricksDBTConnection]
+        self.threads_compute_connections: dict[
+            Hashable, dict[Hashable, DatabricksDBTConnection]
         ] = {}
 
     def set_connection_name(
@@ -908,7 +903,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
 
     def _get_compute_connections(
         self,
-    ) -> Dict[Hashable, DatabricksDBTConnection]:
+    ) -> dict[Hashable, DatabricksDBTConnection]:
         """Retrieve a map of compute name to connection for the current thread."""
 
         thread_id = self.get_thread_identifier()
@@ -973,7 +968,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = _get_http_path(query_header_context, creds=creds) or ""
-        conn.thread_identifier = cast(Tuple[int, int], self.get_thread_identifier())
+        conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
         conn.max_idle_time = _get_max_idle_time(query_header_context, creds=creds)
 
         conn.handle = LazyHandle(self.open)
@@ -1027,7 +1022,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
-        http_headers: List[Tuple[str, str]] = list(
+        http_headers: list[tuple[str, str]] = list(
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
@@ -1094,7 +1089,7 @@ def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:
     return response.json()
 
 
-def _find_update(pipeline: dict, id: str = "") -> Optional[Dict]:
+def _find_update(pipeline: dict, id: str = "") -> Optional[dict]:
     updates = pipeline.get("latest_updates", [])
     if not updates:
         raise DbtRuntimeError(f"No updates for pipeline: {pipeline.get('pipeline_id', '')}")

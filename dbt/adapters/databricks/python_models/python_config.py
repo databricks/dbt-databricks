@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Optional
 import uuid
 from pydantic import BaseModel, Field
 
@@ -10,10 +11,10 @@ class PythonJobConfig(BaseModel):
     """Pydantic model for config found in python_job_config."""
 
     name: Optional[str] = None
-    grants: Dict[str, List[Dict[str, str]]] = Field(exclude=True, default_factory=dict)
+    grants: dict[str, list[dict[str, str]]] = Field(exclude=True, default_factory=dict)
     existing_job_id: str = Field("", exclude=True)
-    post_hook_tasks: List[Dict[str, Any]] = Field(exclude=True, default_factory=list)
-    additional_task_settings: Dict[str, Any] = Field(exclude=True, default_factory=dict)
+    post_hook_tasks: list[dict[str, Any]] = Field(exclude=True, default_factory=list)
+    additional_task_settings: dict[str, Any] = Field(exclude=True, default_factory=dict)
 
     class Config:
         extra = "allow"
@@ -27,11 +28,11 @@ class PythonModelConfig(BaseModel):
 
     user_folder_for_python: bool = False
     timeout: int = Field(DEFAULT_TIMEOUT, gt=0)
-    job_cluster_config: Dict[str, Any] = Field(default_factory=dict)
-    access_control_list: List[Dict[str, str]] = Field(default_factory=list)
-    packages: List[str] = Field(default_factory=list)
+    job_cluster_config: dict[str, Any] = Field(default_factory=dict)
+    access_control_list: list[dict[str, str]] = Field(default_factory=list)
+    packages: list[str] = Field(default_factory=list)
     index_url: Optional[str] = None
-    additional_libs: List[Dict[str, Any]] = Field(default_factory=list)
+    additional_libs: list[dict[str, Any]] = Field(default_factory=list)
     python_job_config: PythonJobConfig = Field(default_factory=lambda: PythonJobConfig(**{}))
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None

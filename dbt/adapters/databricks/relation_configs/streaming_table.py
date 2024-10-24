@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Optional
 
 from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
@@ -31,7 +30,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         """Get the changeset that must be applied to the existing relation to make it match the
         current state of the dbt project.
         """
-        changes: Dict[str, DatabricksComponentConfig] = {}
+        changes: dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
 
         for component in self.config_components:
