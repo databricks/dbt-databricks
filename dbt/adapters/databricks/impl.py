@@ -20,6 +20,7 @@ from uuid import uuid4
 from dbt.adapters.base import AdapterConfig
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed
+from dbt.adapters.base.impl import log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability
@@ -101,6 +102,15 @@ USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     description=(
         "Use info schema to gather column information to ensure complex types are not truncated."
         "  Incurs some overhead, so disabled by default."
+    ),
+)  # type: ignore[typeddict-item]
+
+USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
+    name="use_user_folder_for_python",
+    default=False,
+    description=(
+        "Use the user's home folder for uploading python notebooks."
+        "  Shared folder use is deprecated due to governance concerns."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -188,7 +198,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -660,6 +670,14 @@ class DatabricksAdapter(SparkAdapter):
             "serverless_cluster": ServerlessClusterPythonJobHelper,
             "workflow_job": WorkflowPythonJobHelper,
         }
+
+    @log_code_execution
+    def submit_python_job(self, parsed_model: dict, compiled_code: str) -> AdapterResponse:
+        parsed_model["config"]["user_folder_for_python"] = parsed_model["config"].get(
+            "user_folder_for_python",
+            self.behavior.use_user_folder_for_python.setting,  # type: ignore[attr-defined]
+        )
+        return super().submit_python_job(parsed_model, compiled_code)
 
     @available
     def redact_credentials(self, sql: str) -> str:
