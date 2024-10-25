@@ -197,7 +197,7 @@ class DatabricksAdapter(SparkAdapter):
             pass
 
     @property
-    def _behavior_flags(self) -> List[BehaviorFlag]:
+    def _behavior_flags(self) -> list[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON]
 
     @available.parse(lambda *a, **k: 0)

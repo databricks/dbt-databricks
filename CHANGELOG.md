@@ -3,7 +3,7 @@
 ### Features
 
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
-- Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
+- Add 'user_folder_for_python' behavior to switch writing python model notebooks to the user's folder ([835](https://github.com/databricks/dbt-databricks/pull/835))
 - Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the following features (thanks @mi-volodin):
   - `with schema evolution` clause (requires Databricks Runtime 15.2 or above);
   - `when not matched by source` clause, only for `delete` action
