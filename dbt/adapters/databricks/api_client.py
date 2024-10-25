@@ -1,15 +1,12 @@
 import base64
+from collections.abc import Callable
 import time
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 import re
 from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Set
 
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
@@ -34,17 +31,17 @@ class PrefixSession:
         self.session = session
 
     def get(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.get(f"{self.prefix}{suffix}", json=json, params=params)
 
     def post(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
 
     def put(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[Dict[str, Any]] = None
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
 
@@ -141,11 +138,6 @@ class FolderApi(ABC):
 # Use this for now to not break users
 class SharedFolderApi(FolderApi):
     def get_folder(self, _: str, schema: str) -> str:
-        logger.warning(
-            f"Uploading notebook to '/Shared/dbt_python_models/{schema}/'.  "
-            "Writing to '/Shared' is deprecated and will be removed in a future release.  "
-            "Write to the current user's home directory by setting `user_folder_for_python: true`"
-        )
         return f"/Shared/dbt_python_models/{schema}/"
 
 
@@ -230,7 +222,7 @@ class PollableApi(DatabricksApi, ABC):
         url: str,
         params: dict,
         get_state_func: Callable[[Response], str],
-        terminal_states: Set[str],
+        terminal_states: set[str],
         expected_end_state: str,
         unexpected_end_state_func: Callable[[Response], None],
     ) -> Response:
@@ -261,7 +253,7 @@ class CommandExecution(object):
     context_id: str
     cluster_id: str
 
-    def model_dump(self) -> Dict[str, Any]:
+    def model_dump(self) -> dict[str, Any]:
         return {
             "commandId": self.command_id,
             "contextId": self.context_id,
@@ -328,7 +320,7 @@ class JobRunsApi(PollableApi):
         super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
 
     def submit(
-        self, run_name: str, job_spec: Dict[str, Any], **additional_job_settings: Dict[str, Any]
+        self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
     ) -> str:
         submit_response = self.session.post(
             "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
@@ -388,7 +380,7 @@ class JobPermissionsApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/permissions/jobs")
 
-    def put(self, job_id: str, access_control_list: List[Dict[str, Any]]) -> None:
+    def put(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
         request_body = {"access_control_list": access_control_list}
 
         response = self.session.put(f"/{job_id}", json=request_body)
@@ -397,7 +389,7 @@ class JobPermissionsApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
 
-    def get(self, job_id: str) -> Dict[str, Any]:
+    def get(self, job_id: str) -> dict[str, Any]:
         response = self.session.get(f"/{job_id}")
 
         if response.status_code != 200:
@@ -413,7 +405,7 @@ class WorkflowJobApi(DatabricksApi):
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.1/jobs")
 
-    def search_by_name(self, job_name: str) -> List[Dict[str, Any]]:
+    def search_by_name(self, job_name: str) -> list[dict[str, Any]]:
         response = self.session.get("/list", json={"name": job_name})
 
         if response.status_code != 200:
@@ -421,7 +413,7 @@ class WorkflowJobApi(DatabricksApi):
 
         return response.json().get("jobs", [])
 
-    def create(self, job_spec: Dict[str, Any]) -> str:
+    def create(self, job_spec: dict[str, Any]) -> str:
         """
         :return: the job_id
         """
@@ -434,7 +426,7 @@ class WorkflowJobApi(DatabricksApi):
         logger.info(f"New workflow created with job id {job_id}")
         return job_id
 
-    def update_job_settings(self, job_id: str, job_spec: Dict[str, Any]) -> None:
+    def update_job_settings(self, job_id: str, job_spec: dict[str, Any]) -> None:
         request_body = {
             "job_id": job_id,
             "new_settings": job_spec,

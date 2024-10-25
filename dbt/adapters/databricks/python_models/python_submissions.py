@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from attr import dataclass
 from typing_extensions import override
 
@@ -33,7 +30,7 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     tracker = PythonRunTracker()
 
-    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
+    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
@@ -114,8 +111,8 @@ class PythonJobDetails:
     """Details required to submit a Python job run to Databricks."""
 
     run_name: str
-    job_spec: Dict[str, Any]
-    additional_job_config: Dict[str, Any]
+    job_spec: dict[str, Any]
+    additional_job_config: dict[str, Any]
 
 
 class PythonPermissionBuilder:
@@ -127,7 +124,7 @@ class PythonPermissionBuilder:
     ) -> None:
         self.api_client = api_client
 
-    def _get_job_owner_for_config(self) -> Tuple[str, str]:
+    def _get_job_owner_for_config(self) -> tuple[str, str]:
         """Get the owner of the job (and type) for the access control list."""
         curr_user = self.api_client.curr_user.get_username()
         is_service_principal = self.api_client.curr_user.is_service_principal(curr_user)
@@ -137,15 +134,15 @@ class PythonPermissionBuilder:
 
     @staticmethod
     def _build_job_permission(
-        job_grants: List[Dict[str, Any]], permission: str
-    ) -> List[Dict[str, Any]]:
+        job_grants: list[dict[str, Any]], permission: str
+    ) -> list[dict[str, Any]]:
         return [{**grant, **{"permission_level": permission}} for grant in job_grants]
 
     def build_job_permissions(
         self,
-        job_grants: Dict[str, List[Dict[str, Any]]],
-        acls: List[Dict[str, str]],
-    ) -> List[Dict[str, Any]]:
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
         """Build the access control list for the job."""
 
         access_control_list = []
@@ -171,10 +168,10 @@ class PythonPermissionBuilder:
 
 
 def get_library_config(
-    packages: List[str],
+    packages: list[str],
     index_url: Optional[str],
-    additional_libraries: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    additional_libraries: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Update the job configuration with the required libraries."""
 
     libraries = []
@@ -199,7 +196,7 @@ class PythonJobConfigCompiler:
         api_client: DatabricksApiClient,
         permission_builder: PythonPermissionBuilder,
         parsed_model: ParsedPythonModel,
-        cluster_spec: Dict[str, Any],
+        cluster_spec: dict[str, Any],
     ) -> None:
         self.api_client = api_client
         self.permission_builder = permission_builder
@@ -215,7 +212,7 @@ class PythonJobConfigCompiler:
 
     def compile(self, path: str) -> PythonJobDetails:
 
-        job_spec: Dict[str, Any] = {
+        job_spec: dict[str, Any] = {
             "task_key": "inner_notebook",
             "notebook_task": {
                 "notebook_path": path,
@@ -253,7 +250,7 @@ class PythonNotebookSubmitter(PythonSubmitter):
         api_client: DatabricksApiClient,
         tracker: PythonRunTracker,
         parsed_model: ParsedPythonModel,
-        cluster_spec: Dict[str, Any],
+        cluster_spec: dict[str, Any],
     ) -> "PythonNotebookSubmitter":
         notebook_uploader = PythonNotebookUploader(api_client, parsed_model)
         permission_builder = PythonPermissionBuilder(api_client)
@@ -306,7 +303,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
     Top level helper for Python models using job runs or Command API on an all-purpose cluster.
     """
 
-    def __init__(self, parsed_model: Dict, credentials: DatabricksCredentials) -> None:
+    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
@@ -359,10 +356,10 @@ class PythonWorkflowConfigCompiler:
 
     def __init__(
         self,
-        task_settings: Dict[str, Any],
-        workflow_spec: Dict[str, Any],
+        task_settings: dict[str, Any],
+        workflow_spec: dict[str, Any],
         existing_job_id: str,
-        post_hook_tasks: List[Dict[str, Any]],
+        post_hook_tasks: list[dict[str, Any]],
     ) -> None:
         self.task_settings = task_settings
         self.existing_job_id = existing_job_id
@@ -395,11 +392,11 @@ class PythonWorkflowConfigCompiler:
         )
 
     @staticmethod
-    def cluster_settings(parsed_model: ParsedPythonModel) -> Dict[str, Any]:
+    def cluster_settings(parsed_model: ParsedPythonModel) -> dict[str, Any]:
         config = parsed_model.config
         job_cluster_config = config.job_cluster_config
 
-        cluster_settings: Dict[str, Any] = {}
+        cluster_settings: dict[str, Any] = {}
         if job_cluster_config:
             cluster_settings["new_cluster"] = job_cluster_config
         elif config.cluster_id:
@@ -407,7 +404,7 @@ class PythonWorkflowConfigCompiler:
 
         return cluster_settings
 
-    def compile(self, path: str) -> Tuple[Dict[str, Any], str]:
+    def compile(self, path: str) -> tuple[dict[str, Any], str]:
         notebook_task = {
             "task_key": "inner_notebook",
             "notebook_task": {
@@ -429,7 +426,7 @@ class PythonWorkflowCreator:
 
     def create_or_update(
         self,
-        workflow_spec: Dict[str, Any],
+        workflow_spec: dict[str, Any],
         existing_job_id: Optional[str],
     ) -> str:
         """
@@ -465,8 +462,8 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         config_compiler: PythonWorkflowConfigCompiler,
         permission_builder: PythonPermissionBuilder,
         workflow_creater: PythonWorkflowCreator,
-        job_grants: Dict[str, List[Dict[str, str]]],
-        acls: List[Dict[str, str]],
+        job_grants: dict[str, list[dict[str, str]]],
+        acls: list[dict[str, str]],
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker

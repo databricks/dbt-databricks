@@ -1,5 +1,3 @@
-from typing import Dict
-
 import pytest
 
 from dbt.contracts.results import RunResult
@@ -44,7 +42,7 @@ class TestConstraints:
             "snapshots": {"+persist_constraints": True},
         }
 
-    def check_constraints(self, project, model_name: str, expected: Dict[str, str]):
+    def check_constraints(self, project, model_name: str, expected: dict[str, str]):
         rows = project.run_sql("show tblproperties {database}.{schema}." + model_name, fetch="all")
         constraints = {
             row.key: row.value for row in rows if row.key.startswith("delta.constraints")

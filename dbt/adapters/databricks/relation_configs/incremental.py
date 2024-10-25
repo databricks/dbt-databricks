@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Optional
 
 from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
@@ -14,7 +13,7 @@ class IncrementalTableConfig(DatabricksRelationConfigBase):
     def get_changeset(
         self, existing: "IncrementalTableConfig"
     ) -> Optional[DatabricksRelationChangeSet]:
-        changes: Dict[str, DatabricksComponentConfig] = {}
+        changes: dict[str, DatabricksComponentConfig] = {}
 
         for component in self.config_components:
             key = component.name

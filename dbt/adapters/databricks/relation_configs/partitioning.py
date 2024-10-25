@@ -1,6 +1,5 @@
 import itertools
 from typing import ClassVar
-from typing import List
 from typing import Union
 
 from dbt.adapters.contracts.relation import RelationConfig
@@ -13,7 +12,7 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 class PartitionedByConfig(DatabricksComponentConfig):
     """Component encapsulating the partitioning of relations."""
 
-    partition_by: List[str]
+    partition_by: list[str]
 
 
 class PartitionedByProcessor(DatabricksComponentProcessor):
@@ -35,7 +34,7 @@ class PartitionedByProcessor(DatabricksComponentProcessor):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> PartitionedByConfig:
-        partition_by: Union[str, List[str], None] = base.get_config_value(
+        partition_by: Union[str, list[str], None] = base.get_config_value(
             relation_config, "partition_by"
         )
         if not partition_by:
