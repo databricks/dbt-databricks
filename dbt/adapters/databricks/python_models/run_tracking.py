@@ -1,5 +1,4 @@
 import threading
-from typing import Set
 
 from dbt.adapters.databricks.api_client import CommandExecution
 from dbt.adapters.databricks.api_client import DatabricksApiClient
@@ -8,8 +7,8 @@ from dbt_common.exceptions import DbtRuntimeError
 
 
 class PythonRunTracker(object):
-    _run_ids: Set[str] = set()
-    _commands: Set[CommandExecution] = set()
+    _run_ids: set[str] = set()
+    _commands: set[CommandExecution] = set()
     _lock = threading.Lock()
 
     @classmethod

@@ -1,11 +1,8 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
-from typing import Dict
-from typing import Iterable
+from typing import Any, Type
 from typing import Optional
-from typing import Set
-from typing import Type
 
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.base.relation import InformationSchema
@@ -66,10 +63,10 @@ class DatabricksRelation(BaseRelation):
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
 
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
     @classmethod
-    def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
         if "database" not in data["path"]:
             data["path"]["database"] = None
@@ -160,5 +157,5 @@ def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"
 
 
-def extract_identifiers(relations: Iterable[BaseRelation]) -> Set[str]:
+def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:
     return {r.identifier for r in relations if r.identifier is not None}

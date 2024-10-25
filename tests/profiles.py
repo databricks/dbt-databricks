@@ -1,6 +1,5 @@
 import os
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 
@@ -19,9 +18,9 @@ def _build_databricks_cluster_target(
     http_path: str,
     catalog: Optional[str] = None,
     schema: Optional[str] = None,
-    session_properties: Optional[Dict[str, str]] = None,
+    session_properties: Optional[dict[str, str]] = None,
 ):
-    profile: Dict[str, Any] = {
+    profile: dict[str, Any] = {
         "type": "databricks",
         "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
         "http_path": http_path,

@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 import itertools
 import json
 import os
@@ -6,11 +7,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 from typing import cast
-from typing import Dict
-from typing import Iterable
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 import keyring
@@ -55,21 +52,21 @@ class DatabricksCredentials(Credentials):
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     oauth_redirect_url: Optional[str] = None
-    oauth_scopes: Optional[List[str]] = None
-    session_properties: Optional[Dict[str, Any]] = None
-    connection_parameters: Optional[Dict[str, Any]] = None
+    oauth_scopes: Optional[list[str]] = None
+    session_properties: Optional[dict[str, Any]] = None
+    connection_parameters: Optional[dict[str, Any]] = None
     auth_type: Optional[str] = None
 
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
-    compute: Optional[Dict[str, Any]] = None
+    compute: Optional[dict[str, Any]] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False
     connect_max_idle: Optional[int] = None
 
-    _credentials_provider: Optional[Dict[str, Any]] = None
+    _credentials_provider: Optional[dict[str, Any]] = None
     _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
@@ -78,7 +75,7 @@ class DatabricksCredentials(Credentials):
     }
 
     @classmethod
-    def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
         if "database" not in data:
             data["database"] = None
@@ -169,12 +166,12 @@ class DatabricksCredentials(Credentials):
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(cls, user_http_session_headers: Dict[str, str]) -> Dict[str, str]:
+    def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
         http_session_headers_str: Optional[str] = os.environ.get(
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
 
-        http_session_headers_dict: Dict[str, str] = (
+        http_session_headers_dict: dict[str, str] = (
             {
                 k: v if isinstance(v, str) else json.dumps(v)
                 for k, v in json.loads(http_session_headers_str).items()
@@ -204,17 +201,17 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
-        aliases: List[str] = []
+        aliases: list[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
         for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
                 yield key, as_dict[key]
 
-    def _connection_keys(self, *, with_aliases: bool = False) -> Tuple[str, ...]:
+    def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
         # is called from only:
         #

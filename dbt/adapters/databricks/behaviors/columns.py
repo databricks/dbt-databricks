@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
@@ -14,13 +13,13 @@ class GetColumnsBehavior(ABC):
     @abstractmethod
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
-    ) -> List[DatabricksColumn]:
+    ) -> list[DatabricksColumn]:
         pass
 
     @staticmethod
     def _get_columns_with_comments(
         adapter: SQLAdapter, relation: DatabricksRelation, macro_name: str
-    ) -> List[AttrDict]:
+    ) -> list[AttrDict]:
         return list(
             handle_missing_objects(
                 lambda: adapter.execute_macro(macro_name, kwargs={"relation": relation}),
@@ -33,12 +32,12 @@ class GetColumnsByDescribe(GetColumnsBehavior):
     @classmethod
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
-    ) -> List[DatabricksColumn]:
+    ) -> list[DatabricksColumn]:
         rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
         return cls._parse_columns(rows)
 
     @classmethod
-    def _parse_columns(cls, rows: List[AttrDict]) -> List[DatabricksColumn]:
+    def _parse_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
         columns = []
 
         for row in rows:
@@ -57,7 +56,7 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
     @classmethod
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
-    ) -> List[DatabricksColumn]:
+    ) -> list[DatabricksColumn]:
         if relation.is_hive_metastore() or relation.type == DatabricksRelation.View:
             return super().get_columns_in_relation(adapter, relation)
 
@@ -67,5 +66,5 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
         return cls._parse_columns(rows)
 
     @classmethod
-    def _parse_columns(cls, rows: List[AttrDict]) -> List[DatabricksColumn]:
+    def _parse_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
         return [DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]) for row in rows]
