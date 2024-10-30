@@ -72,8 +72,8 @@ select {{source_cols_csv}} from {{ source_relation }}
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
 
-  {%- set target_alias = config.get('target_alias', 'tgt') -%}
-  {%- set source_alias = config.get('source_alias', 'src') -%}
+  {%- set target_alias = config.get('target_alias', 'DBT_INTERNAL_TARGET') -%}
+  {%- set source_alias = config.get('source_alias', 'DBT_INTERNAL_SOURCE') -%}
 
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
