@@ -36,6 +36,11 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
 )
+from dbt.adapters.databricks.behaviors.constraints import (
+    ConstraintsBehavior,
+    DatabricksConstraintsBehavior,
+    DbtConstraintsBehavior,
+)
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
@@ -84,6 +89,8 @@ from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
+from tests.functional.adapter.constraints.test_constraints import DatabricksConstraintsBase
+
 if TYPE_CHECKING:
     from agate import Row
     from agate import Table
@@ -111,6 +118,15 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     description=(
         "Use the user's home folder for uploading python notebooks."
         "  Shared folder use is deprecated due to governance concerns."
+    ),
+)  # type: ignore[typeddict-item]
+
+SUPPORT_ONLY_DBT_CONSTRAINTS = BehaviorFlag(
+    name="support_only_dbt_constraints",
+    default=False,
+    description=(
+        "Removes support for the previous Databricks constraints implementation "
+        "(using persist_constraints) in favor of only using the dbt constraints implementation."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -183,6 +199,7 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     get_column_behavior: GetColumnsBehavior
+    constraints_behavior: ConstraintsBehavior
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
@@ -190,9 +207,12 @@ class DatabricksAdapter(SparkAdapter):
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
+        self.constraints_behavior = DatabricksConstraintsBehavior()
         try:
             if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
                 self.get_column_behavior = GetColumnsByInformationSchema()
+            if self.behavior.support_only_dbt_constraints:  # type: ignore[attr-defined]
+                self.constraints_behavior = DbtConstraintsBehavior()
         except CompilationError:
             pass
 
@@ -760,6 +780,10 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
+
+    @available
+    def validate_constraints(self, config: BaseConfig, is_view: bool, is_incremental: bool) -> bool:
+        return self.constraints_behavior.validate_constraints(config, is_view, is_incremental)
 
 
 @dataclass(frozen=True)

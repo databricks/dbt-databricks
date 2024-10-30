@@ -4,24 +4,10 @@
 {% endmacro %}
 
 {% macro databricks__persist_constraints(relation, model) %}
-  {%- set contract_config = config.get('contract') -%}
-  {% set has_model_contract = contract_config and contract_config.enforced %}
-  {% set has_databricks_constraints = config.get('persist_constraints', False) %}
-
-  {% if (has_model_contract or has_databricks_constraints) %}
-    {% if config.get('file_format', 'delta') != 'delta' %}
-      {# Constraints are only supported for delta tables #}
-      {{ exceptions.warn("Constraints not supported for file format: " ~ config.get('file_format')) }}
-    {% elif relation.is_view %}
-      {# Constraints are not supported for views. This point in the code should not have been reached. #}
-      {{ exceptions.raise_compiler_error("Constraints not supported for views.") }}
-    {% elif is_incremental() %}
-      {# Constraints are not applied for incremental updates. This point in the code should not have been reached #}
-      {{ exceptions.raise_compiler_error("Constraints are not applied for incremental updates. Full refresh is required to update constraints.") }}
-    {% else %}
-      {% do alter_column_set_constraints(relation, model) %}
-      {% do alter_table_add_constraints(relation, model) %}
-    {% endif %}
+  {%- set should_add_constraints = adapter.validate_constraints(config, relation.is_view, is_incremental()) -%}
+  {%- if should_add_constraints %}
+    {% do alter_column_set_constraints(relation, model) %}
+    {% do alter_table_add_constraints(relation, model) %}
   {% endif %}
 {% endmacro %}
 
