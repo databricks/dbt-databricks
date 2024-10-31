@@ -72,8 +72,8 @@ select {{source_cols_csv}} from {{ source_relation }}
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
 
-  {%- set target_alias = config.get('target_alias', 'tgt') -%}
-  {%- set source_alias = config.get('source_alias', 'src') -%}
+  {%- set target_alias = config.get('target_alias', 'DBT_INTERNAL_DEST') -%}
+  {%- set source_alias = config.get('source_alias', 'DBT_INTERNAL_SOURCE') -%}
 
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
@@ -146,7 +146,7 @@ select {{source_cols_csv}} from {{ source_relation }}
     {%- endif %}
 {% endmacro %}
 
-{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias='src') %}
+{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias='DBT_INTERNAL_SOURCE') %}
   {%- if update_columns -%}
     {%- for column_name in update_columns -%}
       {{ column_name }} = {{ source_alias }}.{{ column_name }}{%- if not loop.last %}, {% endif -%}
@@ -160,7 +160,7 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- endif -%}
 {% endmacro %}
 
-{% macro get_merge_insert(on_schema_change, source_columns, source_alias='src') %}
+{% macro get_merge_insert(on_schema_change, source_columns, source_alias='DBT_INTERNAL_SOURCE') %}
   {%- if on_schema_change == 'ignore' -%}
     *
   {%- else -%}
