@@ -2,7 +2,7 @@
 import os
 import sys
 
-# require python 3.8 or newer
+# require python 3.9 or newer
 if sys.version_info < (3, 9):
     print("Error: dbt does not support this version of Python.")
     print("Please upgrade to Python 3.9 or higher.")
@@ -54,8 +54,8 @@ setup(
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     include_package_data=True,
     install_requires=[
-        "dbt-spark>=1.9.0b1, <2.0",
-        "dbt-core>=1.9.0b1, <2.0",
+        "dbt-spark>=1.8.0, <2.0",
+        "dbt-core>=1.8.7, <2.0",
         "dbt-adapters>=1.7.0, <2.0",
         "dbt-common>=1.10.0, <2.0",
         "databricks-sql-connector>=3.5.0, <4.0.0",
