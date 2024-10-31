@@ -84,14 +84,14 @@ from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
-import pkg_resources
+from importlib import metadata
 from packaging import version
 
 if TYPE_CHECKING:
     from agate import Row
     from agate import Table
 
-dbt_version = pkg_resources.get_distribution("dbt-core").version
+dbt_version = metadata.version("dbt-core")
 SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"

@@ -3,11 +3,11 @@ from dbt.tests.adapter.incremental.test_incremental_microbatch import (
 )
 import pytest
 from packaging import version
-import pkg_resources
+from importlib import metadata
 
 from tests.functional.adapter.microbatch import fixtures
 
-dbt_version = pkg_resources.get_distribution("dbt-core").version
+dbt_version = metadata.version("dbt-core")
 
 
 @pytest.mark.skipif(
