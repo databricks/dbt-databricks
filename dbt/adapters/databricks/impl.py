@@ -89,8 +89,6 @@ from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
-from tests.functional.adapter.constraints.test_constraints import DatabricksConstraintsBase
-
 if TYPE_CHECKING:
     from agate import Row
     from agate import Table
@@ -784,6 +782,16 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def validate_constraints(self, config: BaseConfig, is_view: bool, is_incremental: bool) -> bool:
         return self.constraints_behavior.validate_constraints(config, is_view, is_incremental)
+
+    @available
+    def get_model_constraints(self, model: BaseConfig) -> list[dict[str, Any]]:
+        return self.constraints_behavior.get_model_constraints(model)
+
+    @available
+    def get_column_constraints(
+        self, config: BaseConfig, column: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        return self.constraints_behavior.get_column_constraints(config, column)
 
 
 @dataclass(frozen=True)

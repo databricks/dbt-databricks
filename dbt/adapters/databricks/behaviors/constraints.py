@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any
 from dbt_common.contracts.config.base import BaseConfig
 from dbt_common.exceptions import CompilationError
-from dbt_common.contracts.constraints import ColumnLevelConstraint
 
 
 class ConstraintsBehavior(ABC):
@@ -26,6 +25,18 @@ class ConstraintsBehavior(ABC):
                 "Full refresh is required to update constraints."
             )
 
+    @classmethod
+    @abstractmethod
+    def get_model_constraints(cls, config: BaseConfig, model: BaseConfig) -> list[dict[str, Any]]:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_column_constraints(
+        cls, config: BaseConfig, column: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        pass
+
 
 class DbtConstraintsBehavior(ConstraintsBehavior):
     @classmethod
@@ -35,6 +46,14 @@ class DbtConstraintsBehavior(ConstraintsBehavior):
             cls._inner_validate_constraints(config, is_view, is_incremental)
             return True
         return False
+
+    @classmethod
+    def get_model_constraints(cls, _: BaseConfig, model: BaseConfig) -> list[dict[str, Any]]:
+        return model.get("constraints", [])
+
+    @classmethod
+    def get_column_constraints(cls, _: BaseConfig, column: dict[str, Any]) -> list[dict[str, Any]]:
+        return column.get("constraints", [])
 
 
 class DatabricksConstraintsBehavior(ConstraintsBehavior):
@@ -48,43 +67,44 @@ class DatabricksConstraintsBehavior(ConstraintsBehavior):
         return False
 
     @classmethod
-    def convert_databricks_model_constraints_to_dbt(cls, constraints: list[dict[str, Any]]]) -> list[dict[str, Any]]:
-        dbt_constraints = []
-        for constraint in constraints:
-            if constraint.get("type"):
-                # Looks like a dbt constraint
-                dbt_constraints.append(constraint)
-            elif not constraint.get("name"):
-                raise CompilationError("Invalid check constraint name")
-            elif not constraint.get("condition"):
-                raise CompilationError("Invalid check constraint condition")
-            else:
-                dbt_constraints.append(
-                    {
-                        "name": constraint["name"],
-                        "type": "check",
-                        "expression": constraint["condition"],
-                    }
-                )
+    def get_model_constraints(cls, config: BaseConfig, model: BaseConfig) -> list[dict[str, Any]]:
+        dbt_constraints = model.get("constraints", [])
+        constraints = model.get("meta", {}).get("constraints", [])
+        if config.get("persist_constraints", False) and constraints:
+            for constraint in constraints:
+                if constraint.get("type"):
+                    # Looks like a dbt constraint
+                    dbt_constraints.append(constraint)
+                elif not constraint.get("name"):
+                    raise CompilationError("Invalid check constraint name")
+                elif not constraint.get("condition"):
+                    raise CompilationError("Invalid check constraint condition")
+                else:
+                    dbt_constraints.append(
+                        {
+                            "name": constraint["name"],
+                            "type": "check",
+                            "expression": constraint["condition"],
+                        }
+                    )
         return dbt_constraints
 
     @classmethod
-    def convert_databricks_column_constraints_to_dbt(
-        cls, constraints: list[Union[dict[str, Any], str]], column: dict[str, Any]
+    def get_column_constraints(
+        cls, config: BaseConfig, column: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        dbt_constraints = []
-        for constraint in constraints:
-            if isinstance(constraint, dict) and constraint.get("type"):
-                # Looks like a dbt constraint
-                dbt_constraints.append(constraint)
-            elif constraint == "not_null":
-                dbt_constraints.append({"type": "not_null", "columns": [column.get("name")]})
-            else:
-                raise CompilationError(
-                    f"Invalid constraint for column {column.get('name', '')}."
-                    " Only `not_null` is supported."
-                )
+        dbt_constraints = column.get("constraints", [])
+        constraints = column.get("meta", {}).get("constraints", [])
+        if config.get("persist_constraints", False) and constraints:
+            for constraint in constraints:
+                if isinstance(constraint, dict) and constraint.get("type"):
+                    # Looks like a dbt constraint
+                    dbt_constraints.append(constraint)
+                elif constraint == "not_null":
+                    dbt_constraints.append({"type": "not_null", "columns": [column.get("name")]})
+                else:
+                    raise CompilationError(
+                        f"Invalid constraint for column {column.get('name', '')}."
+                        " Only `not_null` is supported."
+                    )
         return dbt_constraints
-
-    @classmethod
-    def _inner_validate_column_constraints(cls, constraint: dict[str, Any]) -> None:

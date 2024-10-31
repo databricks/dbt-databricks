@@ -16,33 +16,13 @@
 {% endmacro %}
 
 {% macro databricks__alter_table_add_constraints(relation, model) %}
-    {% set constraints = get_model_constraints(model) %}
+    {% set constraints = adapter.get_model_constraints(model) %}
     {% set statements = get_constraints_sql(relation, constraints, model) %}
     {% for stmt in statements %}
       {% call statement() %}
         {{ stmt }}
       {% endcall %}
     {% endfor %}
-{% endmacro %}
-
-{% macro get_model_constraints(model) %}
-  {% set constraints = model.get('constraints', []) %}
-  {% if config.get('persist_constraints', False) and model.get('meta', {}).get('constraints') is sequence %}
-    {# Databricks constraints implementation.  Constraints are in the meta property. #}
-    {% set db_constraints = model.get('meta', {}).get('constraints', []) %}
-    {% set constraints = databricks_constraints_to_dbt(db_constraints) %}
-  {% endif %}
-  {{ return(constraints) }}
-{% endmacro %}
-
-{% macro get_column_constraints(column) %}
-  {% set constraints = column.get('constraints', []) %}
-  {% if config.get('persist_constraints', False) and column.get('meta', {}).get('constraint') %}
-    {# Databricks constraints implementation.  Constraint is in the meta property. #}
-    {% set db_constraints = [column.get('meta', {}).get('constraint')] %}
-    {% set constraints = databricks_constraints_to_dbt(db_constraints, column) %}
-  {% endif %}
-  {{ return(constraints) }}
 {% endmacro %}
 
 {% macro alter_column_set_constraints(relation, column_dict) %}
@@ -53,7 +33,7 @@
   {% set column_dict = model.columns %}
   {% for column_name in column_dict %}
     {% set column = column_dict[column_name] %}
-    {% set constraints = get_column_constraints(column)  %}
+    {% set constraints = adapter.get_column_constraints(config, column)  %}
     {% set statements = get_constraints_sql(relation, constraints, model, column) %}
     {% for stmt in statements %}
       {% call statement() %}
@@ -244,35 +224,4 @@
   {% endif %}
 
   {{ return(statements) }}
-{% endmacro %}
-
-{% macro databricks_constraints_to_dbt(constraints, column) %}
-  {# convert constraints defined using the original databricks format #}
-  {% set dbt_constraints = [] %}
-  {% for constraint in constraints %}
-    {% if constraint.get and constraint.get("type") %}
-      {# already in model contract format #}
-      {% do dbt_constraints.append(constraint) %}
-    {% else %}
-      {% if column %}
-        {% if constraint == "not_null" %}
-          {% do dbt_constraints.append({"type": "not_null", "columns": [column.get("name")]}) %}
-        {% else %}
-          {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column.get("name", "") ~ '. Only `not_null` is supported.') }}
-        {% endif %}
-      {% else %}
-        {% set name = constraint['name'] %}
-        {% if not name %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint name') }}
-        {% endif %}
-        {% set condition = constraint['condition'] %}
-        {% if not condition %}
-          {{ exceptions.raise_compiler_error('Invalid check constraint condition') }}
-        {% endif %}
-        {% do dbt_constraints.append({"name": name, "type": "check", "expression": condition}) %}
-      {% endif %}
-    {% endif %}
-  {% endfor %}
-
-  {{ return(dbt_constraints) }}
 {% endmacro %}
