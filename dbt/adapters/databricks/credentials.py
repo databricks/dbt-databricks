@@ -1,3 +1,4 @@
+from http import client
 import itertools
 import json
 import os
@@ -297,6 +298,13 @@ class DatabricksCredentialManager(DataClassDictMixin):
             oauth_scopes=credentials.oauth_scopes or SCOPES,
             auth_type=credentials.auth_type,
         )
+    def authenticate_with_oauth_m2m(self):
+        return Config(
+            host=self.host,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            auth_type="oauth-m2m"
+    )
 
     def authenticate_with_pat(self) -> Config:
         return Config(
