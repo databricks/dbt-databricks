@@ -1,9 +1,8 @@
+from collections.abc import Callable
 import functools
 import inspect
 import re
 from typing import Any
-from typing import Callable
-from typing import Type
 from typing import TYPE_CHECKING
 from typing import TypeVar
 
@@ -46,7 +45,7 @@ def remove_undefined(v: Any) -> Any:
     return None if isinstance(v, Undefined) else v
 
 
-def undefined_proof(cls: Type[A]) -> Type[A]:
+def undefined_proof(cls: type[A]) -> type[A]:
     for name in cls._available_:
         func = getattr(cls, name)
         if not callable(func):

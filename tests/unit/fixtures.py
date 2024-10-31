@@ -1,12 +1,10 @@
-from typing import List
-
 from agate import Table
 
 
 def gen_describe_extended(
-    columns: List[List[str]] = [["col_a", "int", "This is a comment"]],
-    partition_info: List[List[str]] = [],
-    detailed_table_info: List[List[str]] = [],
+    columns: list[list[str]] = [["col_a", "int", "This is a comment"]],
+    partition_info: list[list[str]] = [],
+    detailed_table_info: list[list[str]] = [],
 ) -> Table:
     return Table(
         rows=[
@@ -24,5 +22,5 @@ def gen_describe_extended(
     )
 
 
-def gen_tblproperties(rows: List[List[str]] = [["prop", "1"], ["other", "other"]]) -> Table:
+def gen_tblproperties(rows: list[list[str]] = [["prop", "1"], ["other", "other"]]) -> Table:
     return Table(rows=rows, column_names=["key", "value"])
