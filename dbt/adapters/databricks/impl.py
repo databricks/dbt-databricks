@@ -784,8 +784,8 @@ class DatabricksAdapter(SparkAdapter):
         return self.constraints_behavior.validate_constraints(config, is_view, is_incremental)
 
     @available
-    def get_model_constraints(self, model: BaseConfig) -> list[dict[str, Any]]:
-        return self.constraints_behavior.get_model_constraints(model)
+    def get_model_constraints(self, config: BaseConfig, model: BaseConfig) -> list[dict[str, Any]]:
+        return self.constraints_behavior.get_model_constraints(config, model)
 
     @available
     def get_column_constraints(

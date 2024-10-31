@@ -16,7 +16,7 @@
 {% endmacro %}
 
 {% macro databricks__alter_table_add_constraints(relation, model) %}
-    {% set constraints = adapter.get_model_constraints(model) %}
+    {% set constraints = adapter.get_model_constraints(config, model) %}
     {% set statements = get_constraints_sql(relation, constraints, model) %}
     {% for stmt in statements %}
       {% call statement() %}

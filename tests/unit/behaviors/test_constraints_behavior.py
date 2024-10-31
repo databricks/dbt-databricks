@@ -1,3 +1,4 @@
+from mock import Mock
 import pytest
 from dbt.adapters.databricks.behaviors.constraints import (
     ConstraintsBehavior,
@@ -45,434 +46,6 @@ class TestConstraintsBehavior:
             behavior._inner_validate_constraints(BaseConfig(), False, True)
 
 
-#     def test_macros_databricks_constraints_to_dbt(self, template):
-#     constraint = {"name": "name", "condition": "id > 0"}
-#     r = self.render_constraints(template, [constraint])
-
-#     assert r == "[{'name': 'name', 'type': 'check', 'expression': 'id > 0'}]"
-
-# def test_macros_databricks_constraints_missing_name(self, template):
-#     constraint = {"condition": "id > 0"}
-#     r = self.render_constraints(template, [constraint])
-
-#     assert "raise_compiler_error" in r
-
-# def test_macros_databricks_constraints_missing_condition(self, template):
-#     constraint = {"name": "name", "condition": ""}
-#     r = self.render_constraints(template, [constraint])
-
-#     assert "raise_compiler_error" in r
-
-# def test_macros_databricks_constraints_with_type(self, template):
-#     constraint = {"type": "check", "name": "name", "expression": "id > 0"}
-#     r = self.render_constraints(template, [constraint])
-
-#     assert r == "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
-
-# def test_macros_databricks_constraints_with_column_missing_expression(self, template):
-#     column = {"name": "col"}
-#     constraint = {"name": "name", "condition": "id > 0"}
-#     r = self.render_constraints(template, [constraint], column)
-#     assert "raise_compiler_error" in r
-
-# def test_macros_databricks_constraints_with_column_and_expression(self, template):
-#     column = {"name": "col"}
-#     constraint = {"type": "check", "name": "name", "expression": "id > 0"}
-#     r = self.render_constraints(template, [constraint], column)
-
-#     assert r == "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
-
-# def test_macros_databricks_constraints_with_column_not_null(self, template):
-#     column = {"name": "col"}
-#     constraint = "not_null"
-#     r = self.render_constraints(template, [constraint], column)
-
-#     assert r == "[{'type': 'not_null', 'columns': ['col']}]"
-
-# @pytest.fixture(scope="class")
-# def constraint_model(self):
-#     columns = {
-#         "id": {"name": "id", "data_type": "int"},
-#         "name": {"name": "name", "data_type": "string"},
-#     }
-#     return {
-#         "columns": columns,
-#         "constraints": [{"type": "not_null", "columns": ["id", "name"]}],
-#     }
-
-# def render_model_constraints(self, template, model):
-#     return self.run_macro(template, "get_model_constraints", model)
-
-# def test_macros_get_model_constraints(self, template, constraint_model):
-#     r = self.render_model_constraints(template, constraint_model)
-
-#     expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
-#     assert expected in r
-
-# def test_macros_get_model_constraints_persist(self, config, template, constraint_model):
-#     config["persist_constraints"] = True
-#     r = self.render_model_constraints(template, constraint_model)
-
-#     expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
-#     assert expected in r
-
-# def test_macros_get_model_constraints_persist_with_meta(
-#     self, config, template, constraint_model
-# ):
-#     config["persist_constraints"] = True
-#     constraint_model["meta"] = {"constraints": [{"type": "foo"}]}
-#     r = self.render_model_constraints(template, constraint_model)
-
-#     expected = "[{'type': 'foo'}]"
-#     assert expected in r
-
-# def test_macros_get_model_constraints_no_persist_with_meta(
-#     self, config, template, constraint_model
-# ):
-#     config["persist_constraints"] = False
-#     constraint_model["meta"] = {"constraints": [{"type": "foo"}]}
-#     r = self.render_model_constraints(template, constraint_model)
-
-#     expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
-#     assert expected in r
-
-# def render_column_constraints(self, template, column):
-#     return self.run_macro(template, "get_column_constraints", column)
-
-# def test_macros_get_column_constraints(self, template):
-#     column = {"name": "id"}
-#     r = self.render_column_constraints(template, column)
-
-#     assert r == "[]"
-
-# def test_macros_get_column_constraints_empty(self, config, template):
-#     column = {"name": "id"}
-#     column["constraints"] = []
-#     config["persist_constraints"] = True
-#     r = self.render_column_constraints(template, column)
-
-#     assert r == "[]"
-
-# def test_macros_get_column_constraints_non_null(self, config, template):
-#     column = {"name": "id"}
-#     column["constraints"] = [{"type": "non_null"}]
-#     config["persist_constraints"] = True
-#     r = self.render_column_constraints(template, column)
-
-#     r == "[{'type': 'non_null'}]"
-
-# def test_macros_get_column_constraints_invalid_meta(self, config, template):
-#     column = {"name": "id"}
-#     column["constraints"] = [{"type": "non_null"}]
-#     config["persist_constraints"] = True
-#     column["meta"] = {"constraint": "foo"}
-#     r = self.render_column_constraints(template, column)
-
-#     assert "raise_compiler_error" in r
-
-# def test_macros_get_column_constraints_valid_meta(self, config, template):
-#     column = {"name": "id"}
-#     column["constraints"] = [{"type": "non_null"}]
-#     config["persist_constraints"] = True
-#     column["meta"] = {"constraint": "not_null"}
-#     r = self.render_column_constraints(template, column)
-
-#     assert r == "[{'type': 'not_null', 'columns': ['id']}]"
-
-# def test_macros_get_column_constraints_no_persist(self, config, template):
-#     column = {"name": "id"}
-#     column["constraints"] = [{"type": "non_null"}]
-#     config["persist_constraints"] = False
-#     r = self.render_column_constraints(template, column)
-
-#     r == "[{'type': 'non_null'}]"
-
-# def render_constraint_sql(self, template_bundle, constraint, *args):
-#     return self.run_macro(
-#         template_bundle.template,
-#         "get_constraint_sql",
-#         template_bundle.relation,
-#         constraint,
-#         *args,
-#     )
-
-# @pytest.fixture(scope="class")
-# def model(self):
-#     columns = {
-#         "id": {"name": "id", "data_type": "int"},
-#         "name": {"name": "name", "data_type": "string"},
-#     }
-#     return {"columns": columns}
-
-# def test_macros_get_constraint_sql_not_null_with_columns(self, template_bundle, model):
-#     r = self.render_constraint_sql(
-#         template_bundle, {"type": "not_null", "columns": ["id", "name"]}, model
-#     )
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` change column id "
-#         "set not null ;', 'alter table `some_database`.`some_schema`.`some_table` "
-#         "change column name set not null ;']"
-#     )
-
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_not_null_with_column(self, template_bundle, model):
-#     r = self.render_constraint_sql(
-#         template_bundle, {"type": "not_null"}, model, model["columns"]["id"]
-#     )
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` change column id "
-#         "set not null ;']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_not_null_mismatched_columns(self, template_bundle, model):
-#     r = self.render_constraint_sql(
-#         template_bundle,
-#         {"type": "not_null", "columns": ["name"]},
-#         model,
-#         model["columns"]["id"],
-#     )
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` change column name "
-#         "set not null ;']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_check(self, template_bundle, model):
-#     constraint = {
-#         "type": "check",
-#         "expression": "id != name",
-#         "name": "myconstraint",
-#         "columns": ["id", "name"],
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint check (id != name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_check_named_constraint(self, template_bundle, model):
-#     constraint = {
-#         "type": "check",
-#         "expression": "id != name",
-#         "name": "myconstraint",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint check (id != name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_check_noname_constraint(self, template_bundle, model):
-#     constraint = {
-#         "type": "check",
-#         "expression": "id != name",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` "
-#         "add constraint hash(some_table;;id != name;) "
-#         "check (id != name);']"
-#     )  # noqa: E501
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_check_missing_expression(self, template_bundle, model):
-#     constraint = {
-#         "type": "check",
-#         "expression": "",
-#         "name": "myconstraint",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-#     assert "raise_compiler_error" in r
-
-# def test_macros_get_constraint_sql_primary_key(self, template_bundle, model):
-#     constraint = {
-#         "type": "primary_key",
-#         "name": "myconstraint",
-#         "columns": ["name"],
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint primary key(name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_primary_key_with_specified_column(
-#     self, template_bundle, model
-# ):
-#     constraint = {
-#         "type": "primary_key",
-#         "name": "myconstraint",
-#         "columns": ["name"],
-#     }
-#     column = {"name": "id"}
-#     r = self.render_constraint_sql(template_bundle, constraint, model, column)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint primary key(name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_primary_key_with_name(self, template_bundle, model):
-#     constraint = {
-#         "type": "primary_key",
-#         "name": "myconstraint",
-#     }
-#     column = {"name": "id"}
-#     r = self.render_constraint_sql(template_bundle, constraint, model, column)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint primary key(id);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_primary_key_noname(self, template_bundle, model):
-#     constraint = {"type": "primary_key"}
-#     column = {"name": "id"}
-
-#     r = self.render_constraint_sql(template_bundle, constraint, model, column)
-
-#     expected = (
-#         '["alter table `some_database`.`some_schema`.`some_table` add constraint '
-#         "hash(primary_key;some_table;['id'];) "
-#         'primary key(id);"]'
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_foreign_key(self, template_bundle, model):
-#     constraint = {
-#         "type": "foreign_key",
-#         "name": "myconstraint",
-#         "columns": ["name"],
-#         "to": "parent_table",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add "
-#         "constraint myconstraint foreign key(name) references "
-#         "some_schema.parent_table;']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_foreign_key_noname(self, template_bundle, model):
-#     constraint = {
-#         "type": "foreign_key",
-#         "columns": ["name"],
-#         "to": "parent_table",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         '["alter table `some_database`.`some_schema`.`some_table` add '
-#         "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) "
-#         'foreign key(name) references some_schema.parent_table;"]'
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_foreign_key_parent_column(self, template_bundle, model):
-#     constraint = {
-#         "type": "foreign_key",
-#         "name": "myconstraint",
-#         "columns": ["name"],
-#         "to": "parent_table",
-#         "to_columns": ["parent_name"],
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add "
-#         "constraint myconstraint foreign key(name) references "
-#         "some_schema.parent_table(parent_name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_foreign_key_multiple_columns(self, template_bundle, model):
-#     constraint = {
-#         "type": "foreign_key",
-#         "name": "myconstraint",
-#         "columns": ["name", "id"],
-#         "to": "parent_table",
-#         "to_columns": ["parent_name", "parent_id"],
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint foreign key(name, id) "
-#         "references some_schema.parent_table(parent_name, parent_id);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_foreign_key_columns_supplied_separately(
-#     self, template_bundle, model
-# ):
-#     constraint = {
-#         "type": "foreign_key",
-#         "name": "myconstraint",
-#         "to": "parent_table",
-#         "to_columns": ["parent_name"],
-#     }
-#     column = {"name": "id"}
-#     r = self.render_constraint_sql(template_bundle, constraint, model, column)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint foreign key(id) references "
-#         "some_schema.parent_table(parent_name);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_custom(self, template_bundle, model):
-#     constraint = {
-#         "type": "custom",
-#         "name": "myconstraint",
-#         "expression": "PRIMARY KEY(valid_at TIMESERIES)",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-#         "myconstraint PRIMARY KEY(valid_at TIMESERIES);']"
-#     )
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
-#     constraint = {
-#         "type": "custom",
-#         "expression": "PRIMARY KEY(valid_at TIMESERIES)",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-
-#     expected = (
-#         "['alter table `some_database`.`some_schema`.`some_table` "
-#         "add constraint hash(some_table;PRIMARY KEY(valid_at TIMESERIES);) "
-#         "PRIMARY KEY(valid_at TIMESERIES);']"
-#     )  # noqa: E501
-#     assert expected in r
-
-# def test_macros_get_constraint_sql_custom_missing_expression(self, template_bundle, model):
-#     constraint = {
-#         "type": "check",
-#         "expression": "",
-#         "name": "myconstraint",
-#     }
-#     r = self.render_constraint_sql(template_bundle, constraint, model)
-#     assert "raise_compiler_error" in r
-
-
 class TestDbtConstraintsBehavior:
     @pytest.fixture
     def behavior(self):
@@ -480,11 +53,29 @@ class TestDbtConstraintsBehavior:
 
     def test_validate_constraints__golden_path(self, behavior):
         assert behavior.validate_constraints(
-            BaseConfig({"contract": {"enforced": True}}), False, False
+            BaseConfig({"contract": Mock(enforced=True)}), False, False
         )
 
     def test_validate_constraints__not_enforced(self, behavior):
         assert not behavior.validate_constraints(BaseConfig(), False, False)
+
+    def test_get_model_constraints__no_constraints(self, behavior):
+        constraints = behavior.get_model_constraints({}, {})
+        assert constraints == []
+
+    def test_get_model_constraints__a_constraint(self, behavior):
+        model = {"constraints": [{"type": "non_null"}]}
+        constraints = behavior.get_column_constraints({}, model)
+        assert constraints == [{"type": "non_null"}]
+
+    def test_get_column_constraints__no_constraints(self, behavior):
+        constraints = behavior.get_column_constraints({}, {})
+        assert constraints == []
+
+    def test_get_column_constraints__a_constraint(self, behavior):
+        column = {"constraints": [{"type": "non_null"}]}
+        constraints = behavior.get_column_constraints({}, column)
+        assert constraints == [{"type": "non_null"}]
 
 
 class TestDatabricksConstraintsBehavior(TestDbtConstraintsBehavior):
@@ -492,7 +83,75 @@ class TestDatabricksConstraintsBehavior(TestDbtConstraintsBehavior):
     def behavior(self):
         return DatabricksConstraintsBehavior()
 
-    def test_validate_constraints__databricks_golden_path(self, behavior):
-        assert behavior.validate_constraints(
-            BaseConfig({"persist_constraints": True}), False, False
-        )
+    @pytest.fixture
+    def config(self):
+        return {"persist_constraints": True}
+
+    def test_validate_constraints__databricks_golden_path(self, behavior, config):
+        assert behavior.validate_constraints(config, False, False)
+
+    def test_get_model_constraints__dbt_constraints(self, behavior, config):
+        model = {"constraints": [{"type": "not_null", "columns": ["id", "name"]}]}
+        constraints = behavior.get_model_constraints(config, model)
+        assert constraints == [{"type": "not_null", "columns": ["id", "name"]}]
+
+    def test_get_model_constraints__databricks_constraint(self, behavior, config):
+        model = {"meta": {"constraints": [{"name": "name", "condition": "id > 0"}]}}
+        constraints = behavior.get_model_constraints(config, model)
+        assert constraints == [{"name": "name", "type": "check", "expression": "id > 0"}]
+
+    def test_get_model_constraints__dbt_and_databricks_constraint(self, behavior, config):
+        model = {
+            "constraints": [{"type": "not_null", "columns": ["id", "name"]}],
+            "meta": {"constraints": [{"name": "name", "condition": "id > 0"}]},
+        }
+        constraints = behavior.get_model_constraints(config, model)
+        assert constraints == [
+            {"type": "not_null", "columns": ["id", "name"]},
+            {"name": "name", "type": "check", "expression": "id > 0"},
+        ]
+
+    def test_get_model_constraints__databricks_constraint_missing_name(self, behavior, config):
+        model = {"meta": {"constraints": [{"condition": "id > 0"}]}}
+        with pytest.raises(CompilationError):
+            behavior.get_model_constraints(config, model)
+
+    def test_get_model_constraints__databricks_constraint_missing_condition(self, behavior, config):
+        model = {"meta": {"constraints": [{"name": "name", "condition": ""}]}}
+        with pytest.raises(CompilationError):
+            behavior.get_model_constraints(config, model)
+
+    def test_get_column_constraints__dbt_constraints(self, behavior, config):
+        column = {"constraints": [{"type": "not_null"}]}
+        constraints = behavior.get_column_constraints(config, column)
+        assert constraints == [{"type": "not_null"}]
+
+    def test_get_column_constraints__databricks_constraints(self, behavior, config):
+        column = {"name": "col1", "meta": {"constraints": ["not_null"]}}
+        constraints = behavior.get_column_constraints(config, column)
+        assert constraints == [{"type": "not_null", "columns": ["col1"]}]
+
+    def test_get_column_constraints__dbt_and_databricks_constraints(self, behavior, config):
+        column = {
+            "name": "col1",
+            "constraints": [{"type": "check", "expression": "id > 0"}],
+            "meta": {
+                "constraints": ["not_null"],
+            },
+        }
+        constraints = behavior.get_column_constraints(config, column)
+        assert constraints == [
+            {"type": "check", "expression": "id > 0"},
+            {"type": "not_null", "columns": ["col1"]},
+        ]
+
+    def test_get_column_constraints__databricks_persist_false(self, behavior, config):
+        config["persist_constraints"] = False
+        column = {"name": "col1", "meta": {"constraints": ["not_null"]}}
+        constraints = behavior.get_column_constraints(config, column)
+        assert constraints == []
+
+    def test_get_column_constraints__anything_other_than_not_null(self, behavior, config):
+        column = {"name": "col1", "meta": {"constraints": ["check"]}}
+        with pytest.raises(CompilationError):
+            behavior.get_column_constraints(config, column)

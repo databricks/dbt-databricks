@@ -59,9 +59,10 @@ class DbtConstraintsBehavior(ConstraintsBehavior):
 class DatabricksConstraintsBehavior(ConstraintsBehavior):
     @classmethod
     def validate_constraints(cls, config: BaseConfig, is_view: bool, is_incremental: bool) -> bool:
-        has_model_contract = config.get("contract", {}).get("enforced", False)
+        model_contract = config.get("contract")
+        enforced = False if not model_contract else model_contract.enforced
         has_databricks_constraints = config.get("persist_constraints", False)
-        if has_model_contract or has_databricks_constraints:
+        if enforced or has_databricks_constraints:
             cls._inner_validate_constraints(config, is_view, is_incremental)
             return True
         return False
