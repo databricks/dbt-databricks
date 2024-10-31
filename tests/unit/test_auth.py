@@ -54,7 +54,6 @@ class TestU2MAuth:
         headers2 = headers_fn2()
         assert headers == headers2
 
-@pytest.mark.skip(reason="Broken after rewriting auth")
 class TestTokenAuth:
     def test_token(self):
         host = "my.cloud.databricks.com"
@@ -65,20 +64,18 @@ class TestTokenAuth:
             http_path="http://foo",
             schema="dbt",
         )
-        provider = creds.authenticate(None)
+        credentialManager = creds.authenticate()
+        provider = credentialManager.credentials_provider()
         assert provider is not None
 
-        headers_fn = provider()
+        headers_fn = provider
         headers = headers_fn()
         assert headers is not None
 
-        raw = provider.as_dict()
+        raw = credentialManager._config.as_dict()
         assert raw is not None
 
-        provider_b = creds._provider_from_dict()
-        headers_fn2 = provider_b()
-        headers2 = headers_fn2()
-        assert headers == headers2
+        assert headers == {"Authorization":"Bearer foo"}
 
 
 class TestShardedPassword:
