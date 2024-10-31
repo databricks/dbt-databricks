@@ -665,6 +665,7 @@ class DatabricksAdapter(SparkAdapter):
             cursor.close()
             conn.transaction_open = False
 
+    @available
     def valid_incremental_strategies(self) -> list[str]:
         valid_strategies = ["append", "merge", "insert_overwrite", "replace_where"]
         if SUPPORT_MICROBATCH:
