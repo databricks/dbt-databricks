@@ -84,9 +84,15 @@ from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError
 from dbt_common.contracts.config.base import BaseConfig
 
+from importlib import metadata
+from packaging import version
+
 if TYPE_CHECKING:
     from agate import Row
     from agate import Table
+
+dbt_version = metadata.version("dbt-core")
+SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
@@ -659,8 +665,13 @@ class DatabricksAdapter(SparkAdapter):
             cursor.close()
             conn.transaction_open = False
 
+    @available
     def valid_incremental_strategies(self) -> list[str]:
-        return ["append", "merge", "insert_overwrite", "replace_where", "microbatch"]
+        valid_strategies = ["append", "merge", "insert_overwrite", "replace_where"]
+        if SUPPORT_MICROBATCH:
+            valid_strategies.append("microbatch")
+
+        return valid_strategies
 
     @property
     def python_submission_helpers(self) -> dict[str, type[PythonJobHelper]]:
