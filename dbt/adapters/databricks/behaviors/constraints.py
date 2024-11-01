@@ -95,7 +95,9 @@ class DatabricksConstraintsBehavior(ConstraintsBehavior):
         cls, config: BaseConfig, column: dict[str, Any]
     ) -> list[dict[str, Any]]:
         dbt_constraints = column.get("constraints", [])
-        constraints = column.get("meta", {}).get("constraints", [])
+        constraints = column.get("meta", {}).get("constraint", [])
+        if isinstance(constraints, str):
+            constraints = [constraints]
         if config.get("persist_constraints", False) and constraints:
             for constraint in constraints:
                 if isinstance(constraint, dict) and constraint.get("type"):
