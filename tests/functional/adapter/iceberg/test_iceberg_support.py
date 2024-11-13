@@ -5,7 +5,8 @@ from dbt.tests import util
 from dbt.artifacts.schemas.results import RunStatus
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+# @pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip("Skip for now as it is broken in prod")
 class TestIcebergTables:
     @pytest.fixture(scope="class")
     def models(self):
@@ -20,7 +21,8 @@ class TestIcebergTables:
         assert len(run_results) == 3
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+# @pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip("Skip for now as it is broken in prod")
 class TestIcebergSwap:
     @pytest.fixture(scope="class")
     def models(self):
