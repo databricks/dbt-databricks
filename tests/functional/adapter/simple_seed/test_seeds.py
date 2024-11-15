@@ -1,5 +1,4 @@
 from pathlib import Path
-from re import M
 
 import pytest
 
@@ -139,14 +138,13 @@ class TestSimpleSeedWithBOMV2(TestSimpleSeedWithBOM, MaterializationV2Mixin):
 
 class TestSeedSpecificFormats(DatabricksSetup, BaseSeedSpecificFormats):
     @pytest.fixture(scope="class")
-    def seeds(self, test_data_dir):
-        big_seed = util.read_file(f"{test_data_dir}/big.csv")
+    def seeds(self):
+        big_seed = "seed_id\n" + "\n".join(str(i) for i in range(1, 20001))
 
         yield {
             "big_seed.csv": big_seed,
             "seed_unicode.csv": seeds.seed__unicode_csv,
         }
-        util.rm_dir(test_data_dir)
 
     def test_simple_seed(self, project):
         results = util.run_dbt(["seed"])
