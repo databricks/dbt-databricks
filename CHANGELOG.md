@@ -1,3 +1,9 @@
+## dbt-databricks 1.10.0 (TBD)
+
+### Features
+
+- Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
+
 ## dbt-databricks 1.9.0 (TBD)
 
 ### Features

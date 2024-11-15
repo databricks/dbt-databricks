@@ -1,7 +1,7 @@
 {% materialization seed, adapter='databricks' %}
   {% set target_relation = this.incorporate(type='table') %}
 
-  {% if adapter.behavior.use_table_creation_v2 %}
+  {% if adapter.behavior.use_materialization_v2 %}
     {{ create_seed_v2(target_relation) }}
   {% else %}
     {{ create_seed_v1(target_relation) }}
