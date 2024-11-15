@@ -120,6 +120,15 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_TABLE_CREATION_V2 = BehaviorFlag(
+    name="use_table_creation_v2",
+    default=False,
+    description=(
+        "Use the new table creation API for creating tables."
+        "  This allows more performant column comments, as well as new column features."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
@@ -204,7 +213,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_TABLE_CREATION_V2]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
