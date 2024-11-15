@@ -141,10 +141,10 @@ class DatabricksCredentials(Credentials):
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
         
-        # if not self.token and self.auth_type != "external-browser":
-        #     raise DbtConfigError(
-        #         ("The config `auth_type: oauth` is required when not using access token")
-        #     )
+        if not self.token and self.auth_type != "oauth":
+            raise DbtConfigError(
+                ("The config `auth_type: oauth` is required when not using access token")
+            )
 
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
@@ -276,7 +276,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
-
+    
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
@@ -313,52 +313,58 @@ class DatabricksCredentialManager(DataClassDictMixin):
     )
   
     def __post_init__(self) -> None:
-        if self.token:
-            self._config = Config(
-                host=self.host,
-                token=self.token,
-            )
-        else:
-            auth_methods = {
-                "oauth-m2m": self.authenticate_with_oauth_m2m,
-                "azure-client-secret": self.authenticate_with_azure_client_secret,
-                "external-browser": self.authenticate_with_external_browser
-            }
-
-            auth_type = (
-                "external-browser" if not self.client_secret
-                # if the client_secret starts with "dose" then it's likely using oauth-m2m
-                else "oauth-m2m" if self.client_secret.startswith("dose")
-                else "azure-client-secret"
-            )
-
-            if not self.client_secret:
-                auth_sequence = ["external-browser"]
-            elif self.client_secret.startswith("dose"):
-                auth_sequence = ["oauth-m2m", "azure-client-secret"]
+        self._lock = threading.Lock()
+        with self._lock:
+            if hasattr(self, '_config') and self._config is not None:
+                # _config already exists, so skip initialization
+                return
+                
+            if self.token:
+                self._config = Config(
+                    host=self.host,
+                    token=self.token,
+                )
             else:
-                auth_sequence = ["azure-client-secret", "oauth-m2m"]
+                auth_methods = {
+                    "oauth-m2m": self.authenticate_with_oauth_m2m,
+                    "azure-client-secret": self.authenticate_with_azure_client_secret,
+                    "external-browser": self.authenticate_with_external_browser
+                }
 
-            exceptions = []
-            for i, auth_type in enumerate(auth_sequence):
-                try:
-                    self._config = auth_methods[auth_type]()
-                    self._config.authenticate()
-                    break  # Exit loop if authentication is successful
-                except Exception as e:
-                    exceptions.append((auth_type, e))
-                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
-                    if next_auth_type:
-                        logger.warning(
-                            f"Failed to authenticate with {auth_type}, trying {next_auth_type} next. Error: {e}"
-                        )
-                    else:
-                        logger.error(
-                            f"Failed to authenticate with {auth_type}. No more authentication methods to try. Error: {e}"
-                        )
-                        raise Exception(
-                            f"All authentication methods failed. Details: {exceptions}"
-                        )
+                auth_type = (
+                    "external-browser" if not self.client_secret
+                    # if the client_secret starts with "dose" then it's likely using oauth-m2m
+                    else "oauth-m2m" if self.client_secret.startswith("dose")
+                    else "azure-client-secret"
+                )
+
+                if not self.client_secret:
+                    auth_sequence = ["external-browser"]
+                elif self.client_secret.startswith("dose"):
+                    auth_sequence = ["oauth-m2m", "azure-client-secret"]
+                else:
+                    auth_sequence = ["azure-client-secret", "oauth-m2m"]
+
+                exceptions = []
+                for i, auth_type in enumerate(auth_sequence):
+                    try:
+                        # The Config constructor will implicitly init auth and throw if failed
+                        self._config = auth_methods[auth_type]()
+                        break  # Exit loop if authentication is successful
+                    except Exception as e:
+                        exceptions.append((auth_type, e))
+                        next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
+                        if next_auth_type:
+                            logger.warning(
+                                f"Failed to authenticate with {auth_type}, trying {next_auth_type} next. Error: {e}"
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to authenticate with {auth_type}. No more authentication methods to try. Error: {e}"
+                            )
+                            raise Exception(
+                                f"All authentication methods failed. Details: {exceptions}"
+                            )
 
 
     @property
