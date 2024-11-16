@@ -10,8 +10,6 @@ from typing import Any
 from typing import Callable, Dict, List
 from typing import cast
 from typing import Optional
-from typing import Tuple
-from typing import Union
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
@@ -49,6 +47,8 @@ class DatabricksCredentials(Credentials):
     token: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
+    azure_client_id: Optional[str] = None
+    azure_client_secret: Optional[str] = None
     oauth_redirect_url: Optional[str] = None
     oauth_scopes: Optional[list[str]] = None
     session_properties: Optional[dict[str, Any]] = None
@@ -118,7 +118,9 @@ class DatabricksCredentials(Credentials):
             "_user_agent_entry",
         ):
             if key in connection_parameters:
-                raise DbtValidationError(f"The connection parameter `{key}` is reserved.")
+                raise DbtValidationError(
+                    f"The connection parameter `{key}` is reserved."
+                )
         if "http_headers" in connection_parameters:
             http_headers = connection_parameters["http_headers"]
             if not isinstance(http_headers, dict) or any(
@@ -140,10 +142,12 @@ class DatabricksCredentials(Credentials):
                 raise DbtConfigError(
                     "The config '{}' is required to connect to Databricks".format(key)
                 )
-        
+
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
-                ("The config `auth_type: oauth` is required when not using access token")
+                (
+                    "The config `auth_type: oauth` is required when not using access token"
+                )
             )
 
         if not self.client_id and self.client_secret:
@@ -154,6 +158,16 @@ class DatabricksCredentials(Credentials):
                 )
             )
 
+        if (not self.azure_client_id and self.azure_client_secret) or (
+            self.azure_client_id and not self.azure_client_secret
+        ):
+            raise DbtConfigError(
+                (
+                    "The config 'azure_client_id' and 'azure_client_secret' "
+                    "must be both present or both absent"
+                )
+            )
+
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
         invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
@@ -161,11 +175,15 @@ class DatabricksCredentials(Credentials):
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
             if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
-                raise DbtValidationError(f"Invalid invocation environment: {invocation_env}")
+                raise DbtValidationError(
+                    f"Invalid invocation environment: {invocation_env}"
+                )
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
+    def get_all_http_headers(
+        cls, user_http_session_headers: dict[str, str]
+    ) -> dict[str, str]:
         http_session_headers_str: Optional[str] = os.environ.get(
             DBT_DATABRICKS_HTTP_SESSION_HEADERS
         )
@@ -200,13 +218,17 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
+    def connection_info(
+        self, *, with_aliases: bool = False
+    ) -> Iterable[tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
         aliases: list[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
-        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
+        for key in itertools.chain(
+            self._connection_keys(with_aliases=with_aliases), aliases
+        ):
             if key in as_dict:
                 yield key, as_dict[key]
 
@@ -272,100 +294,124 @@ class DatabricksCredentialManager(DataClassDictMixin):
     host: str
     client_id: str
     client_secret: str
+    azure_client_id: Optional[str] = None
+    azure_client_secret: Optional[str] = None
     oauth_redirect_url: str = REDIRECT_URL
     oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
-    
+
     @classmethod
-    def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
+    def create_from(
+        cls, credentials: DatabricksCredentials
+    ) -> "DatabricksCredentialManager":
+        if credentials.host is None:
+            raise ValueError("host cannot be None")
         return DatabricksCredentialManager(
             host=credentials.host,
             token=credentials.token,
             client_id=credentials.client_id or CLIENT_ID,
             client_secret=credentials.client_secret or "",
+            azure_client_id=credentials.azure_client_id,
+            azure_client_secret=credentials.azure_client_secret,
             oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
             oauth_scopes=credentials.oauth_scopes or SCOPES,
             auth_type=credentials.auth_type,
         )
-    def authenticate_with_oauth_m2m(self):
+
+    def authenticate_with_pat(self) -> Config:
+        return Config(
+            host=self.host,
+            token=self.token,
+        )
+
+    def authenticate_with_oauth_m2m(self) -> Config:
         return Config(
             host=self.host,
             client_id=self.client_id,
             client_secret=self.client_secret,
-            auth_type="oauth-m2m"
-    )
+            auth_type="oauth-m2m",
+        )
 
-    def authenticate_with_external_browser(self):
+    def authenticate_with_external_browser(self) -> Config:
         return Config(
             host=self.host,
             client_id=self.client_id,
             client_secret=self.client_secret,
-            auth_type="external-browser"
-    )
+            auth_type="external-browser",
+        )
 
-    def authenticate_with_azure_client_secret(self):
+    def legacy_authenticate_with_azure_client_secret(self) -> Config:
         return Config(
             host=self.host,
             azure_client_id=self.client_id,
             azure_client_secret=self.client_secret,
-            auth_type="azure-client-secret"
-    )
-  
+            auth_type="azure-client-secret",
+        )
+
+    def authenticate_with_azure_client_secret(self) -> Config:
+        return Config(
+            host=self.host,
+            azure_client_id=self.azure_client_id,
+            azure_client_secret=self.azure_client_secret,
+            auth_type="azure-client-secret",
+        )
+
     def __post_init__(self) -> None:
         self._lock = threading.Lock()
         with self._lock:
-            if hasattr(self, '_config') and self._config is not None:
-                # _config already exists, so skip initialization
+            if not hasattr(self, "_config"):
+                self._config: Optional[Config] = None
+            if self._config is not None:
                 return
-                
+
             if self.token:
-                self._config = Config(
-                    host=self.host,
-                    token=self.token,
-                )
+                self._config = self.authenticate_with_pat()
+            elif self.azure_client_id and self.azure_client_secret:
+                self._config = self.authenticate_with_azure_client_secret()
+            elif not self.client_secret:
+                self._config = self.authenticate_with_external_browser()
             else:
                 auth_methods = {
                     "oauth-m2m": self.authenticate_with_oauth_m2m,
-                    "azure-client-secret": self.authenticate_with_azure_client_secret,
-                    "external-browser": self.authenticate_with_external_browser
+                    "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
                 }
 
-                auth_type = (
-                    "external-browser" if not self.client_secret
-                    # if the client_secret starts with "dose" then it's likely using oauth-m2m
-                    else "oauth-m2m" if self.client_secret.startswith("dose")
-                    else "azure-client-secret"
-                )
-
-                if not self.client_secret:
-                    auth_sequence = ["external-browser"]
-                elif self.client_secret.startswith("dose"):
-                    auth_sequence = ["oauth-m2m", "azure-client-secret"]
+                # If the secret starts with dose, high chance is it is a databricks secret
+                if self.client_secret.startswith("dose"):
+                    auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
                 else:
-                    auth_sequence = ["azure-client-secret", "oauth-m2m"]
+                    auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
 
                 exceptions = []
                 for i, auth_type in enumerate(auth_sequence):
                     try:
                         # The Config constructor will implicitly init auth and throw if failed
                         self._config = auth_methods[auth_type]()
+                        if auth_type == "legacy-azure-client-secret":
+                            logger.warning(
+                                "You are using Azure Service Principal, "
+                                "please use 'azure_client_id' and 'azure_client_secret' instead."
+                            )
                         break  # Exit loop if authentication is successful
                     except Exception as e:
                         exceptions.append((auth_type, e))
-                        next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
+                        next_auth_type = (
+                            auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
+                        )
                         if next_auth_type:
                             logger.warning(
-                                f"Failed to authenticate with {auth_type}, trying {next_auth_type} next. Error: {e}"
+                                f"Failed to authenticate with {auth_type}, "
+                                f"trying {next_auth_type} next. Error: {e}"
                             )
                         else:
                             logger.error(
-                                f"Failed to authenticate with {auth_type}. No more authentication methods to try. Error: {e}"
+                                f"Failed to authenticate with {auth_type}. "
+                                f"No more authentication methods to try. Error: {e}"
                             )
                             raise Exception(
                                 f"All authentication methods failed. Details: {exceptions}"
                             )
-
 
     @property
     def api_client(self) -> WorkspaceClient:

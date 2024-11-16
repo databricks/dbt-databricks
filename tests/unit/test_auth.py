@@ -54,6 +54,7 @@ class TestU2MAuth:
         headers2 = headers_fn2()
         assert headers == headers2
 
+
 class TestTokenAuth:
     def test_token(self):
         host = "my.cloud.databricks.com"
@@ -75,7 +76,8 @@ class TestTokenAuth:
         raw = credentialManager._config.as_dict()
         assert raw is not None
 
-        assert headers == {"Authorization":"Bearer foo"}
+        assert headers == {"Authorization": "Bearer foo"}
+
 
 @pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
 class TestShardedPassword:
@@ -128,6 +130,7 @@ class TestShardedPassword:
         creds.delete_sharded_password(service, host)
         retrieved_password = creds.get_sharded_password(service, host)
         assert retrieved_password is None
+
 
 @pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
 class MockKeyring(keyring.backend.KeyringBackend):

@@ -21,7 +21,7 @@ class TestDatabricksConnectionHTTPPath:
 
     @pytest.fixture
     def creds(self, path):
-          with patch("dbt.adapters.databricks.credentials.Config"):
+        with patch("dbt.adapters.databricks.credentials.Config"):
             return DatabricksCredentials(http_path=path)
 
     @pytest.fixture
