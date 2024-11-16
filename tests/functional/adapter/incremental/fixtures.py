@@ -378,6 +378,7 @@ matching_condition_model = """
     materialized = 'incremental',
     unique_key = 'id',
     incremental_strategy='merge',
+    source_alias='src',
     target_alias='t',
     matched_condition='src.V > t.V and hash(src.first, src.second) <> hash(t.first, t.second)',
     not_matched_condition='src.V > 0',

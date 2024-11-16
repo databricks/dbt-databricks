@@ -101,7 +101,7 @@ class TestParsedPythonModel:
         assert model.run_name.startswith("hive_metastore-default-test-")
 
     def test_parsed_model__invalid_config(self):
-        parsed_model = {"alias": "test", "config": []}
+        parsed_model = {"alias": "test", "config": 1}
         with pytest.raises(ValidationError):
             ParsedPythonModel(**parsed_model)
 

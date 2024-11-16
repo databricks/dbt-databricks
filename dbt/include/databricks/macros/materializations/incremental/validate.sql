@@ -35,7 +35,7 @@
     Use the 'merge' or 'replace_where' strategy instead
   {%- endset %}
 
-  {% if raw_strategy not in ['append', 'merge', 'insert_overwrite', 'replace_where', 'microbatch'] %}
+  {% if raw_strategy not in adapter.valid_incremental_strategies() %}
     {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
   {%-else %}
     {% if raw_strategy == 'merge' and file_format not in ['delta', 'hudi'] %}
