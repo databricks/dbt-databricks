@@ -1220,4 +1220,3 @@ def _get_max_idle_time(query_header_context: Any, creds: DatabricksCredentials) 
             )
 
     return max_idle_time
-
