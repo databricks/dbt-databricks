@@ -42,6 +42,7 @@ from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
+from dbt.adapters.databricks.constraints import parse_model_constraint, process_column_constraint
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
 )
@@ -70,6 +71,7 @@ from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
+from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
 from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER
@@ -79,6 +81,8 @@ from dbt.adapters.spark.impl import SparkAdapter
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
+from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.contracts.constraints import ModelLevelConstraint
 from dbt_common.exceptions import CompilationError
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError
@@ -196,6 +200,14 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    CONSTRAINT_SUPPORT = {
+        ConstraintType.check: ConstraintSupport.ENFORCED,
+        ConstraintType.not_null: ConstraintSupport.ENFORCED,
+        ConstraintType.unique: ConstraintSupport.NOT_SUPPORTED,
+        ConstraintType.primary_key: ConstraintSupport.NOT_ENFORCED,
+        ConstraintType.foreign_key: ConstraintSupport.NOT_ENFORCED,
+    }
 
     get_column_behavior: GetColumnsBehavior
 
@@ -780,6 +792,24 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
+
+    @available
+    @staticmethod
+    def get_enriched_columns(
+        existing_columns: list[DatabricksColumn], model_columns: dict[str, dict[str, Any]]
+    ) -> list[DatabricksColumn]:
+        """Returns a list of columns that have been updated with features for table create."""
+        enriched_columns = []
+
+        for column in existing_columns:
+            if column.name in model_columns:
+                column_info = model_columns[column.name]
+                enriched_column = column.enrich(column_info)
+                enriched_columns.append(enriched_column)
+            else:
+                enriched_columns.append(column)
+
+        return enriched_columns
 
 
 @dataclass(frozen=True)
