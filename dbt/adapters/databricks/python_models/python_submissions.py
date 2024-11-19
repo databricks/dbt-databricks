@@ -211,7 +211,6 @@ class PythonJobConfigCompiler:
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
 
     def compile(self, path: str) -> PythonJobDetails:
-
         job_spec: dict[str, Any] = {
             "task_key": "inner_notebook",
             "notebook_task": {
