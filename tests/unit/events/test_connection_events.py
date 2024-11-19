@@ -1,7 +1,10 @@
-from dbt.adapters.databricks.events.connection_events import ConnectionAcquire
-from dbt.adapters.databricks.events.connection_events import ConnectionCloseError
-from dbt.adapters.databricks.events.connection_events import ConnectionEvent
 from mock import Mock
+
+from dbt.adapters.databricks.events.connection_events import (
+    ConnectionAcquire,
+    ConnectionCloseError,
+    ConnectionEvent,
+)
 
 
 class ConnectionTestEvent(ConnectionEvent):

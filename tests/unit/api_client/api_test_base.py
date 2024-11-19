@@ -1,5 +1,4 @@
-from typing import Any
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
 from dbt_common.exceptions import DbtRuntimeError

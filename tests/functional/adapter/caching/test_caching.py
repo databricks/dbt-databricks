@@ -1,7 +1,9 @@
-from dbt.tests.adapter.caching.test_caching import BaseCachingLowercaseModel
-from dbt.tests.adapter.caching.test_caching import BaseCachingSelectedSchemaOnly
-from dbt.tests.adapter.caching.test_caching import BaseCachingUppercaseModel
-from dbt.tests.adapter.caching.test_caching import BaseNoPopulateCache
+from dbt.tests.adapter.caching.test_caching import (
+    BaseCachingLowercaseModel,
+    BaseCachingSelectedSchemaOnly,
+    BaseCachingUppercaseModel,
+    BaseNoPopulateCache,
+)
 
 
 class TestNoPopulateCache(BaseNoPopulateCache):

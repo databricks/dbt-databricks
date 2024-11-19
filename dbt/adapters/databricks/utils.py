@@ -1,17 +1,15 @@
-from collections.abc import Callable
 import re
-from typing import Any
-from typing import TYPE_CHECKING
-from typing import TypeVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from dbt.adapters.base import BaseAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
 
+from dbt.adapters.base import BaseAdapter
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
+
 if TYPE_CHECKING:
-    from agate import Row
-    from agate import Table
+    from agate import Row, Table
 
 
 A = TypeVar("A", bound=BaseAdapter)

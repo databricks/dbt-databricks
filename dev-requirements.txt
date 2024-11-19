@@ -1,5 +1,4 @@
 ruff
-
 freezegun~=1.5.0
 ipdb
 mock>=1.3.0
