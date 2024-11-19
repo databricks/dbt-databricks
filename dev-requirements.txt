@@ -1,3 +1,5 @@
+ruff
+
 black~=24.3.0
 flake8
 flaky
