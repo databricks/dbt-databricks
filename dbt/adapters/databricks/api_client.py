@@ -452,6 +452,45 @@ class WorkflowJobApi(DatabricksApi):
         return response_json["run_id"]
 
 
+class DltPipelineApi(DatabricksApi):
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.0/pipelines")
+
+    def state(self, pipeline_id: str) -> dict:
+        response = self.session.get(f"/{pipeline_id}")
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting pipeline info for {pipeline_id}: {response.text}")
+
+        return response.json()
+
+    def get_update_error(self, pipeline_id: str, update_id: str) -> str:
+        response = self.session.get(f"/{pipeline_id}/events")
+        if response.status_code != 200:
+            raise DbtRuntimeError(
+                f"Error getting pipeline event info for {pipeline_id}: {response.text}"
+            )
+
+        events = response.json().get("events", [])
+        update_events = [
+            e
+            for e in events
+            if e.get("event_type", "") == "update_progress"
+            and e.get("origin", {}).get("update_id") == update_id
+        ]
+
+        error_events = [
+            e
+            for e in update_events
+            if e.get("details", {}).get("update_progress", {}).get("state", "") == "FAILED"
+        ]
+
+        msg = ""
+        if error_events:
+            msg = error_events[0].get("message", "")
+
+        return msg
+
+
 class DatabricksApiClient:
     def __init__(
         self,
@@ -473,6 +512,7 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
         self.workflow_permissions = JobPermissionsApi(session, host)
+        self.dlt_pipelines = DltPipelineApi(session, host)
 
     @staticmethod
     def create(
