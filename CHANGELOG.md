@@ -4,6 +4,10 @@
 
 - Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
 
+### Under the Hood
+
+- Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files))
+
 ## dbt-databricks 1.9.0 (TBD)
 
 ### Features
