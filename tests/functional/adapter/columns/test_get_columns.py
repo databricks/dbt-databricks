@@ -2,8 +2,8 @@ import pytest
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
-from tests.functional.adapter.columns import fixtures
 from dbt.tests import util
+from tests.functional.adapter.columns import fixtures
 
 
 class ColumnsInRelation:

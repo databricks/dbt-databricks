@@ -1,24 +1,21 @@
 import base64
-from collections.abc import Callable
-import time
-from abc import ABC
-from abc import abstractmethod
-from dataclasses import dataclass
 import re
-from typing import Any
-from typing import Optional
+import time
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from dbt_common.exceptions import DbtRuntimeError
+from requests import Response, Session
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.auth import BearerAuth
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
-from dbt_common.exceptions import DbtRuntimeError
-from requests import Response
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"

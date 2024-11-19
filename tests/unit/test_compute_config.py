@@ -1,8 +1,9 @@
 import pytest
-from dbt.adapters.databricks import connections
-from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt_common.exceptions import DbtRuntimeError
 from mock import Mock
+
+from dbt.adapters.databricks import connections
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 
 class TestDatabricksConnectionHTTPPath:

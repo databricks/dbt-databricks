@@ -1,6 +1,6 @@
-from dbt.adapters.databricks.events.cursor_events import CursorCloseError
-from dbt.adapters.databricks.events.cursor_events import CursorEvent
 from mock import Mock
+
+from dbt.adapters.databricks.events.cursor_events import CursorCloseError, CursorEvent
 
 
 class CursorTestEvent(CursorEvent):
