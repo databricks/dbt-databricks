@@ -1,9 +1,6 @@
-from math import e
 import pytest
 from dbt.adapters.databricks import DatabricksColumn
 from dbt_common.contracts.constraints import ColumnLevelConstraint, ConstraintType
-
-from dbt.adapters.databricks.impl import DatabricksAdapter
 
 
 class TestSparkColumn:

@@ -71,7 +71,6 @@ from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.databricks.utils import undefined_proof
 from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.base.impl import ConstraintSupport
 from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
 from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER
@@ -81,8 +80,6 @@ from dbt.adapters.spark.impl import SparkAdapter
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
-from dbt_common.contracts.constraints import ConstraintType
-from dbt_common.contracts.constraints import ModelLevelConstraint
 from dbt_common.exceptions import CompilationError
 from dbt_common.exceptions import DbtConfigError
 from dbt_common.exceptions import DbtInternalError

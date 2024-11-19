@@ -161,14 +161,14 @@ class DatabricksRelation(BaseRelation):
         else:
             self.create_constraints.append(constraint)
 
-    def enrich_relation(self, raw_constraints: list[dict[str, Any]]) -> "DatabricksRelation":
+    def enrich(self, raw_constraints: list[dict[str, Any]]) -> "DatabricksRelation":
         copy = self.incorporate()
         for constraint in raw_constraints:
             copy.add_constraint(parse_model_constraint(constraint))
 
         return copy
 
-    def render_constraints_for_create(self) -> Optional[str]:
+    def render_constraints_for_create(self) -> str:
         processed = [process_model_constraint(c) for c in self.create_constraints]
         return ", ".join(c for c in processed if c is not None)
 
