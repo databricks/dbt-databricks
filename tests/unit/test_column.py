@@ -1,3 +1,4 @@
+from math import e
 import pytest
 from dbt.adapters.databricks import DatabricksColumn
 from dbt_common.contracts.constraints import ColumnLevelConstraint, ConstraintType
@@ -38,22 +39,13 @@ class TestAddConstraint:
     def test_add_constraint__not_null(self, column):
         column.add_constraint(ColumnLevelConstraint(type=ConstraintType.not_null))
         assert column.not_null is True
-        assert column.create_constraints == []
-        assert column.alter_constraints == []
-
-    def test_add_constraint__check(self, column):
-        constraint = ColumnLevelConstraint(type=ConstraintType.check)
-        column.add_constraint(constraint)
-        assert column.not_null is False
-        assert column.create_constraints == []
-        assert column.alter_constraints == [constraint]
+        assert column.constraints == []
 
     def test_add_constraint__other_constraint(self, column):
         constraint = ColumnLevelConstraint(type=ConstraintType.custom)
         column.add_constraint(constraint)
         assert column.not_null is False
-        assert column.create_constraints == [constraint]
-        assert column.alter_constraints == []
+        assert column.constraints == [constraint]
 
 
 class TestEnrich:
@@ -68,30 +60,17 @@ class TestEnrich:
             "description": "this is a column",
             "constraints": [
                 {"type": "not_null"},
-                {"type": "check", "name": "foo"},
+                {"type": "primary_key", "name": "foo"},
             ],
         }
 
-    def test_enrich__data_type(self, column, model_column):
-        enriched_column = column.enrich(
-            model_column, lambda x: DatabricksAdapter._get_column_constraint(x, "id")
-        )
+    def test_enrich(self, column, model_column):
+        enriched_column = column.enrich(model_column)
         assert enriched_column.data_type == "bigint"
-
-    def test_enrich__description(self, column, model_column):
-        enriched_column = column.enrich(
-            model_column, lambda x: DatabricksAdapter._get_column_constraint(x, "id")
-        )
         assert enriched_column.comment == "this is a column"
-
-    def test_enrich__constraints(self, column, model_column):
-        enriched_column = column.enrich(
-            model_column, lambda x: DatabricksAdapter._get_column_constraint(x, "id")
-        )
         assert enriched_column.not_null is True
-        assert enriched_column.create_constraints == []
-        assert enriched_column.alter_constraints == [
-            ColumnLevelConstraint(type=ConstraintType.check, name="foo")
+        assert enriched_column.constraints == [
+            ColumnLevelConstraint(type=ConstraintType.primary_key, name="foo")
         ]
 
 
@@ -100,54 +79,34 @@ class TestRenderForCreate:
     def column(self):
         return DatabricksColumn("id", "INT")
 
-    @pytest.fixture
-    def render_func(self):
-        return lambda x: str(x.type)
+    def test_render_for_create__base(self, column):
+        assert column.render_for_create() == "id INT"
 
-    def test_render_for_create__base(self, column, render_func):
-        assert column.render_for_create(render_func) == "id INT"
-
-    def test_render_for_create__not_null(self, column, render_func):
+    def test_render_for_create__not_null(self, column):
         column.not_null = True
-        assert column.render_for_create(render_func) == "id INT NOT NULL"
+        assert column.render_for_create() == "id INT NOT NULL"
 
-    def test_render_for_create__comment(self, column, render_func):
+    def test_render_for_create__comment(self, column):
         column.comment = "this is a column"
-        assert column.render_for_create(render_func) == "id INT COMMENT 'this is a column'"
+        assert column.render_for_create() == "id INT COMMENT 'this is a column'"
 
-    def test_render_for_create__constraints(self, column, render_func):
-        column.create_constraints = [
+    def test_render_for_create__constraints(self, column):
+        column.constraints = [
             ColumnLevelConstraint(type=ConstraintType.primary_key),
-            ColumnLevelConstraint(type=ConstraintType.unique),
         ]
-        assert (
-            column.render_for_create(render_func)
-            == "id INT ConstraintType.primary_key ConstraintType.unique"
-        )
+        assert column.render_for_create() == "id INT PRIMARY KEY"
 
-    def test_render_for_create__everything(self, column, render_func):
+    def test_render_for_create__everything(self, column):
         column.not_null = True
         column.comment = "this is a column"
-        column.create_constraints = [
+        column.constraints = [
             ColumnLevelConstraint(type=ConstraintType.primary_key),
-            ColumnLevelConstraint(type=ConstraintType.unique),
+            ColumnLevelConstraint(type=ConstraintType.custom, expression="foo"),
         ]
-        assert column.render_for_create(render_func) == (
-            "id INT NOT NULL COMMENT 'this is a column' "
-            "ConstraintType.primary_key ConstraintType.unique"
+        assert column.render_for_create() == (
+            "id INT NOT NULL COMMENT 'this is a column' " "PRIMARY KEY foo"
         )
 
-    def test_render_for_create__escaping(self, column, render_func):
+    def test_render_for_create__escaping(self, column):
         column.comment = "this is a 'column'"
-        assert column.render_for_create(render_func) == "id INT COMMENT 'this is a \\'column\\''"
-
-
-class TestAdapterRenderColumnForCreate:
-    @pytest.fixture
-    def column(self):
-        c = DatabricksColumn("id", "INT")
-        c.create_constraints = [ColumnLevelConstraint(type=ConstraintType.primary_key, name="foo")]
-        return c
-
-    def test_render_column_for_create(self, column):
-        assert DatabricksAdapter.render_column_for_create(column) == "id INT"
+        assert column.render_for_create() == "id INT COMMENT 'this is a \\'column\\''"

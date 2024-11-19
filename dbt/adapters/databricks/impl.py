@@ -31,6 +31,7 @@ from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -42,7 +43,6 @@ from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
 from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
-from dbt.adapters.databricks.constraints import parse_model_constraint, process_column_constraint
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
 )
@@ -201,13 +201,7 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
-    CONSTRAINT_SUPPORT = {
-        ConstraintType.check: ConstraintSupport.ENFORCED,
-        ConstraintType.not_null: ConstraintSupport.ENFORCED,
-        ConstraintType.unique: ConstraintSupport.NOT_SUPPORTED,
-        ConstraintType.primary_key: ConstraintSupport.NOT_ENFORCED,
-        ConstraintType.foreign_key: ConstraintSupport.NOT_ENFORCED,
-    }
+    CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
 

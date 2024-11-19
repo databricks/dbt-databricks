@@ -12,8 +12,8 @@ from dbt.adapters.databricks import constraints
 class DatabricksColumn(SparkColumn):
     table_comment: Optional[str] = None
     comment: Optional[str] = None
-    not_null: bool = False
-    constraints: list[ColumnLevelConstraint] = field(default_factory=list)
+    not_null: Optional[bool] = None
+    constraints: Optional[list[ColumnLevelConstraint]] = None
 
     TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
@@ -33,6 +33,10 @@ class DatabricksColumn(SparkColumn):
         return self.translate_type(self.dtype)
 
     def add_constraint(self, constraint: ColumnLevelConstraint) -> None:
+        # On first constraint add, initialize constraint details
+        if self.constraints is None:
+            self.constraints = []
+            self.not_null = False
         if constraint.type == ConstraintType.not_null:
             self.not_null = True
         else:
@@ -61,7 +65,7 @@ class DatabricksColumn(SparkColumn):
         if self.comment:
             comment = self.comment.replace("'", "\\'")
             column_str += f" COMMENT '{comment}'"
-        for constraint in self.constraints:
+        for constraint in self.constraints or []:
             c = constraints.process_column_constraint(constraint)
             if c != "":
                 column_str += f" {c}"
