@@ -142,7 +142,6 @@ class SharedFolderApi(FolderApi):
 
 
 class CurrUserApi(DatabricksApi):
-
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
         self._user = ""
@@ -401,7 +400,6 @@ class JobPermissionsApi(DatabricksApi):
 
 
 class WorkflowJobApi(DatabricksApi):
-
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.1/jobs")
 

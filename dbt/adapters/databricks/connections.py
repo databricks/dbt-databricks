@@ -868,7 +868,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
     def _update_compute_connection(
         self, conn: DatabricksDBTConnection, new_name: str
     ) -> DatabricksDBTConnection:
-
         if conn.name == new_name and conn.state == ConnectionState.OPEN:
             # Found a connection and nothing to do, so just return it
             return conn

@@ -20,7 +20,6 @@ class ColumnsInRelation:
 
     @pytest.fixture(scope="class")
     def expected_columns(self):
-
         return [
             DatabricksColumn(
                 column="struct_col",
