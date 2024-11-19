@@ -15,6 +15,7 @@ from dbt.tests.adapter.simple_seed.test_seed import BaseSimpleSeedEnabledViaConf
 from dbt.tests.adapter.simple_seed.test_seed import BaseSimpleSeedWithBOM
 from dbt.tests.adapter.simple_seed.test_seed import BaseTestEmptySeed
 from dbt.tests.adapter.simple_seed.test_seed import SeedTestBase
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.simple_seed import fixtures
 
 
@@ -35,7 +36,17 @@ class TestBasicSeedTests(DatabricksSetup, SeedTestBase):
         )
 
 
+class TestBasicSeedTestsV2(DatabricksSetup, SeedTestBase, MaterializationV2Mixin):
+    pass
+
+
 class TestDatabricksSeedWithUniqueDelimiter(DatabricksSetup, BaseSeedWithUniqueDelimiter):
+    pass
+
+
+class TestDatabricksSeedWithUniqueDelimiterV2(
+    DatabricksSetup, BaseSeedWithUniqueDelimiter, MaterializationV2Mixin
+):
     pass
 
 
@@ -43,7 +54,19 @@ class TestDatabricksSeedWithWrongDelimiter(DatabricksSetup, BaseSeedWithWrongDel
     pass
 
 
+class TestDatabricksSeedWithWrongDelimiterV2(
+    DatabricksSetup, BaseSeedWithWrongDelimiter, MaterializationV2Mixin
+):
+    pass
+
+
 class TestSeedConfigFullRefreshOff(DatabricksSetup, BaseSeedConfigFullRefreshOff):
+    pass
+
+
+class TestSeedConfigFullRefreshOffV2(
+    DatabricksSetup, BaseSeedConfigFullRefreshOff, MaterializationV2Mixin
+):
     pass
 
 
@@ -57,7 +80,17 @@ class TestSeedCustomSchema(DatabricksSetup, BaseSeedCustomSchema):
         project.run_sql(f"drop schema if exists {project.test_schema}_custom_schema cascade")
 
 
+class TestSeedCustomSchemaV2(TestSeedCustomSchema, MaterializationV2Mixin):
+    pass
+
+
 class TestDatabricksSeedWithEmptyDelimiter(DatabricksSetup, BaseSeedWithEmptyDelimiter):
+    pass
+
+
+class TestDatabricksSeedWithEmptyDelimiterV2(
+    DatabricksSetup, BaseSeedWithEmptyDelimiter, MaterializationV2Mixin
+):
     pass
 
 
@@ -65,11 +98,23 @@ class TestDatabricksEmptySeed(BaseTestEmptySeed):
     pass
 
 
+class TestDatabricksEmptySeedV2(BaseTestEmptySeed, MaterializationV2Mixin):
+    pass
+
+
 class TestSimpleSeedEnabledViaConfig(BaseSimpleSeedEnabledViaConfig):
     pass
 
 
+class TestSimpleSeedEnabledViaConfigV2(BaseSimpleSeedEnabledViaConfig, MaterializationV2Mixin):
+    pass
+
+
 class TestSeedParsing(DatabricksSetup, BaseSeedParsing):
+    pass
+
+
+class TestSeedParsingV2(DatabricksSetup, BaseSeedParsing, MaterializationV2Mixin):
     pass
 
 
@@ -87,18 +132,24 @@ class TestSimpleSeedWithBOM(BaseSimpleSeedWithBOM):
         )
 
 
+class TestSimpleSeedWithBOMV2(TestSimpleSeedWithBOM, MaterializationV2Mixin):
+    pass
+
+
 class TestSeedSpecificFormats(DatabricksSetup, BaseSeedSpecificFormats):
     @pytest.fixture(scope="class")
-    def seeds(self, test_data_dir):
-        big_seed_path = self._make_big_seed(test_data_dir)
-        big_seed = util.read_file(big_seed_path)
+    def seeds(self):
+        big_seed = "seed_id\n" + "\n".join(str(i) for i in range(1, 20001))
 
         yield {
             "big_seed.csv": big_seed,
             "seed_unicode.csv": seeds.seed__unicode_csv,
         }
-        util.rm_dir(test_data_dir)
 
     def test_simple_seed(self, project):
         results = util.run_dbt(["seed"])
         assert len(results) == 2
+
+
+class TestSeedSpecificFormatsV2(TestSeedSpecificFormats, MaterializationV2Mixin):
+    pass
