@@ -1,4 +1,4 @@
-from dbt.adapters.databricks import DatabricksColumn
+from dbt.adapters.databricks.column import DatabricksColumn
 
 
 class TestSparkColumn:

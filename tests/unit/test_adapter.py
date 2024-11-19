@@ -8,7 +8,7 @@ from dbt_common.exceptions import DbtConfigError, DbtValidationError
 from mock import Mock
 
 import dbt.flags as flags
-from dbt.adapters.databricks import DatabricksAdapter, DatabricksRelation, __version__
+from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
@@ -16,7 +16,7 @@ from dbt.adapters.databricks.credentials import (
     DBT_DATABRICKS_INVOCATION_ENV,
 )
 from dbt.adapters.databricks.impl import get_identifier_list_string
-from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
 from dbt.adapters.databricks.utils import check_not_found_error
 from dbt.config import RuntimeConfig
 from tests.unit.utils import config_from_parts_or_dicts
