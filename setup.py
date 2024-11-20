@@ -62,7 +62,7 @@ setup(
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
         "pandas<2.2.0",
-        "protobuf<5.0.0",
+        "protobuf>=5.0.0,<6.0.0",
         "pydantic>=1.10.0, <2",
     ],
     zip_safe=False,
