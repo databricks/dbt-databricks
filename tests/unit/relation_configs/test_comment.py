@@ -1,7 +1,7 @@
 from agate import Table
-from dbt.adapters.databricks.relation_configs.comment import CommentConfig
-from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
 from mock import Mock
+
+from dbt.adapters.databricks.relation_configs.comment import CommentConfig, CommentProcessor
 
 
 class TestCommentProcessor:

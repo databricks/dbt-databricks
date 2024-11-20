@@ -2,10 +2,7 @@ import re
 from typing import Any
 
 import pytest
-from jinja2 import Environment
-from jinja2 import FileSystemLoader
-from jinja2 import PackageLoader
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
 from mock import Mock
 
 from dbt.adapters.databricks.relation import DatabricksRelation

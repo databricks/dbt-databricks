@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
-from dbt.adapters.sql import SQLAdapter
+
+from dbt_common.utils.dict import AttrDict
+
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import handle_missing_objects
-from dbt_common.utils.dict import AttrDict
+from dbt.adapters.sql import SQLAdapter
 
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
 

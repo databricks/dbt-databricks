@@ -29,9 +29,8 @@ class TestCreateTableAs(MacroTestBase):
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         external_path = f"/mnt/root/{template_bundle.relation.identifier}"
-        template_bundle.template.globals["adapter"].compute_external_path.return_value = (
-            external_path
-        )
+        adapter_mock = template_bundle.template.globals["adapter"]
+        adapter_mock.compute_external_path.return_value = external_path
         return self.run_macro(
             template_bundle.template,
             "databricks__create_table_as",

@@ -2,6 +2,7 @@ import os
 
 import pytest
 from agate import Table
+
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.tests import util
