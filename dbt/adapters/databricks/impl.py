@@ -809,7 +809,9 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            adapter.connections.poll_for_pipeline_completion(tblproperties.pipeline_id)
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 
