@@ -32,6 +32,7 @@
 - Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 - Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
 - Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
+- Pin protobuf to 5.x to stop incompatibility breaks ([](https://github.com/databricks/dbt-databricks/pull/))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)
 
