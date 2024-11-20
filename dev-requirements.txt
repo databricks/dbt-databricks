@@ -12,4 +12,4 @@ tox>=3.2.0
 types-requests
 types-mock
 
-dbt-tests-adapter>=1.10.2, <2.0
+git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter
