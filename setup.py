@@ -55,7 +55,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "git+https://github.com/dbt-labs/dbt-adapters.git@main",
-        "git+https://github.com/dbt-labs/dbt-core.git@main",
+        "git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
         "git+https://github.com/dbt-labs/dbt-common.git@main",
         "git+https://github.com/dbt-labs/dbt-spark.git@main",
         "databricks-sql-connector>=3.5.0, <4.0.0",
