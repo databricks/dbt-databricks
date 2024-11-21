@@ -1,8 +1,8 @@
 import pytest
-from dbt.adapters.databricks import relation
-from dbt.adapters.databricks.relation import DatabricksQuotePolicy
-from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
+
+from dbt.adapters.databricks import relation
+from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
 
 
 class TestDatabricksRelation:

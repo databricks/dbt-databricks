@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, ClassVar
-from typing import Optional
+from typing import Any, ClassVar, Optional
 
-from dbt.adapters.spark.column import SparkColumn
-from dbt_common.contracts.constraints import ColumnLevelConstraint
-from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.contracts.constraints import ColumnLevelConstraint, ConstraintType
+
 from dbt.adapters.databricks import constraints
+from dbt.adapters.spark.column import SparkColumn
 
 
 @dataclass

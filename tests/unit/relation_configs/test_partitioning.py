@@ -1,6 +1,9 @@
-from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
-from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByProcessor
 from mock import Mock
+
+from dbt.adapters.databricks.relation_configs.partitioning import (
+    PartitionedByConfig,
+    PartitionedByProcessor,
+)
 from tests.unit import fixtures
 
 

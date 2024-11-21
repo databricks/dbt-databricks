@@ -1,6 +1,7 @@
 import pytest
-from dbt.adapters.databricks.api_client import CommandContextApi
 from mock import Mock
+
+from dbt.adapters.databricks.api_client import CommandContextApi
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 

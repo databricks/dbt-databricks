@@ -2,7 +2,6 @@ import pytest
 
 from tests.profiles import get_databricks_cluster_target
 
-
 pytest_plugins = ["dbt.tests.fixtures.project"]
 
 

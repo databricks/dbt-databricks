@@ -5,8 +5,7 @@ import pytest
 
 from dbt.tests import util
 from dbt.tests.adapter.ephemeral import test_ephemeral
-from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeralMulti
+from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral, BaseEphemeralMulti
 
 
 class TestEphemeralMulti(BaseEphemeralMulti):

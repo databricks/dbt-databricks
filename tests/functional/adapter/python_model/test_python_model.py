@@ -4,8 +4,10 @@ import pytest
 
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
-from dbt.tests.adapter.python_model.test_python_model import BasePythonIncrementalTests
-from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTests
+from dbt.tests.adapter.python_model.test_python_model import (
+    BasePythonIncrementalTests,
+    BasePythonModelTests,
+)
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 

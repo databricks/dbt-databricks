@@ -1,5 +1,6 @@
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
 from dbt.adapters.databricks.python_models.python_config import (
     ParsedPythonModel,
     PythonJobConfig,

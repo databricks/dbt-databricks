@@ -1,12 +1,13 @@
 import pytest
 
 from dbt.tests.adapter.aliases import fixtures as dbt_fixtures
-from dbt.tests.adapter.aliases.test_aliases import BaseAliasErrors
-from dbt.tests.adapter.aliases.test_aliases import BaseAliases
-from dbt.tests.adapter.aliases.test_aliases import BaseSameAliasDifferentDatabases
-from dbt.tests.adapter.aliases.test_aliases import BaseSameAliasDifferentSchemas
+from dbt.tests.adapter.aliases.test_aliases import (
+    BaseAliasErrors,
+    BaseAliases,
+    BaseSameAliasDifferentDatabases,
+    BaseSameAliasDifferentSchemas,
+)
 from tests.functional.adapter.aliases import fixtures as databricks_fixtures
-
 
 macro_override = {
     "cast.sql": databricks_fixtures.MACROS__CAST_SQL,
