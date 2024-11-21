@@ -1,8 +1,8 @@
 import pytest
-from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
-from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
-from dbt.exceptions import DbtRuntimeError
 from mock import Mock
+
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
+from dbt.exceptions import DbtRuntimeError
 from tests.unit import fixtures
 
 

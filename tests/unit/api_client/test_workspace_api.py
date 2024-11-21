@@ -1,8 +1,9 @@
 import base64
 
 import pytest
-from dbt.adapters.databricks.api_client import WorkspaceApi
 from mock import Mock
+
+from dbt.adapters.databricks.api_client import WorkspaceApi
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 

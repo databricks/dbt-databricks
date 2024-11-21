@@ -1,4 +1,3 @@
-from collections.abc import Callable, Iterator, Sequence
 import decimal
 import os
 import re
@@ -6,74 +5,76 @@ import sys
 import time
 import uuid
 import warnings
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
 from numbers import Number
 from threading import get_ident
-from typing import Any
-from typing import cast
-from typing import Hashable
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Hashable, Optional, cast
+
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtDatabaseError, DbtInternalError, DbtRuntimeError
+from dbt_common.utils import cast_to_str
+from requests import Session
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection as DatabricksSQLConnection
 from databricks.sql.client import Cursor as DatabricksSQLCursor
 from databricks.sql.exc import Error
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
-from dbt.adapters.contracts.connection import AdapterRequiredConfig
-from dbt.adapters.contracts.connection import AdapterResponse
-from dbt.adapters.contracts.connection import Connection
-from dbt.adapters.contracts.connection import ConnectionState
-from dbt.adapters.contracts.connection import DEFAULT_QUERY_COMMENT
-from dbt.adapters.contracts.connection import Identifier
-from dbt.adapters.contracts.connection import LazyHandle
+from dbt.adapters.contracts.connection import (
+    DEFAULT_QUERY_COMMENT,
+    AdapterRequiredConfig,
+    AdapterResponse,
+    Connection,
+    ConnectionState,
+    Identifier,
+    LazyHandle,
+)
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.auth import BearerAuth
-from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.adapters.databricks.credentials import TCredentialProvider
-from dbt.adapters.databricks.events.connection_events import ConnectionAcquire
-from dbt.adapters.databricks.events.connection_events import ConnectionCancel
-from dbt.adapters.databricks.events.connection_events import ConnectionCancelError
-from dbt.adapters.databricks.events.connection_events import ConnectionClose
-from dbt.adapters.databricks.events.connection_events import ConnectionCloseError
-from dbt.adapters.databricks.events.connection_events import ConnectionCreate
-from dbt.adapters.databricks.events.connection_events import ConnectionCreated
-from dbt.adapters.databricks.events.connection_events import ConnectionCreateError
-from dbt.adapters.databricks.events.connection_events import ConnectionIdleCheck
-from dbt.adapters.databricks.events.connection_events import ConnectionIdleClose
-from dbt.adapters.databricks.events.connection_events import ConnectionRelease
-from dbt.adapters.databricks.events.connection_events import ConnectionReset
-from dbt.adapters.databricks.events.connection_events import ConnectionRetrieve
-from dbt.adapters.databricks.events.connection_events import ConnectionReuse
-from dbt.adapters.databricks.events.cursor_events import CursorCancel
-from dbt.adapters.databricks.events.cursor_events import CursorCancelError
-from dbt.adapters.databricks.events.cursor_events import CursorClose
-from dbt.adapters.databricks.events.cursor_events import CursorCloseError
-from dbt.adapters.databricks.events.cursor_events import CursorCreate
+from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
+from dbt.adapters.databricks.events.connection_events import (
+    ConnectionAcquire,
+    ConnectionCancel,
+    ConnectionCancelError,
+    ConnectionClose,
+    ConnectionCloseError,
+    ConnectionCreate,
+    ConnectionCreated,
+    ConnectionCreateError,
+    ConnectionIdleCheck,
+    ConnectionIdleClose,
+    ConnectionRelease,
+    ConnectionReset,
+    ConnectionRetrieve,
+    ConnectionReuse,
+)
+from dbt.adapters.databricks.events.cursor_events import (
+    CursorCancel,
+    CursorCancelError,
+    CursorClose,
+    CursorCloseError,
+    CursorCreate,
+)
 from dbt.adapters.databricks.events.other_events import QueryError
-from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh
-from dbt.adapters.databricks.events.pipeline_events import PipelineRefreshError
+from dbt.adapters.databricks.events.pipeline_events import PipelineRefresh, PipelineRefreshError
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
-from dbt.adapters.events.types import ConnectionClosedInCleanup
-from dbt.adapters.events.types import ConnectionLeftOpenInCleanup
-from dbt.adapters.events.types import ConnectionReused
-from dbt.adapters.events.types import ConnectionUsed
-from dbt.adapters.events.types import NewConnection
-from dbt.adapters.events.types import SQLQuery
-from dbt.adapters.events.types import SQLQueryStatus
+from dbt.adapters.events.types import (
+    ConnectionClosedInCleanup,
+    ConnectionLeftOpenInCleanup,
+    ConnectionReused,
+    ConnectionUsed,
+    NewConnection,
+    SQLQuery,
+    SQLQueryStatus,
+)
 from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtDatabaseError
-from dbt_common.exceptions import DbtInternalError
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import cast_to_str
-from requests import Session
 
 if TYPE_CHECKING:
     from agate import Table
@@ -868,7 +869,6 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
     def _update_compute_connection(
         self, conn: DatabricksDBTConnection, new_name: str
     ) -> DatabricksDBTConnection:
-
         if conn.name == new_name and conn.state == ConnectionState.OPEN:
             # Found a connection and nothing to do, so just return it
             return conn

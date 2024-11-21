@@ -1,17 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
+
 from attr import dataclass
+from dbt_common.exceptions import DbtRuntimeError
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.api_client import CommandExecution, WorkflowJobApi
-from dbt.adapters.databricks.api_client import DatabricksApiClient
+from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from dbt_common.exceptions import DbtRuntimeError
-
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
@@ -211,7 +209,6 @@ class PythonJobConfigCompiler:
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
 
     def compile(self, path: str) -> PythonJobDetails:
-
         job_spec: dict[str, Any] = {
             "task_key": "inner_notebook",
             "notebook_task": {
