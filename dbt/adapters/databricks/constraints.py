@@ -1,16 +1,17 @@
+from functools import partial
 from typing import Any, Callable, Optional, TypeVar
+
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
-    ModelLevelConstraint,
     ConstraintType,
+    ModelLevelConstraint,
 )
-from dbt_common.exceptions import DbtValidationError
 from dbt_common.events.functions import warn_or_error
-from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.events.types import ConstraintNotSupported, ConstraintNotEnforced
-from dbt.adapters.databricks.logging import logger
-from functools import partial
+from dbt_common.exceptions import DbtValidationError
 
+from dbt.adapters.base import ConstraintSupport
+from dbt.adapters.databricks.logging import logger
+from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
 CONSTRAINT_SUPPORT = {
