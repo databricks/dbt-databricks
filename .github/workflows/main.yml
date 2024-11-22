@@ -89,7 +89,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Unit Tests
-        run: hatch -v env run -i py=${{ matrix.python-version }} test:unit
+        run: hatch run -v +py=${{ matrix.python-version }} test:unit
 
   build:
     name: build packages
