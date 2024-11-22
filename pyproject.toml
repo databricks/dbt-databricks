@@ -48,24 +48,23 @@ include = ["/dbt"]
 
 [tool.hatch.envs.default]
 dependencies = [
-    "dbt_common @ git+https://github.com/dbt-labs/dbt-common.git",
-    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@main",
-    "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
-    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
-    "dbt-spark @ git+https://github.com/dbt-labs/dbt-spark.git@main",
+    "dbt-spark>=1.8.0, <2.0",
+    "dbt-core>=1.8.7, <2.0",
+    "dbt-common>=1.10.0, <2.0",
+    "dbt-adapters>=1.7.0, <2.0",
+    "dbt-tests-adapter>=1.10.2, <2.0",
     "pytest-xdist",
     "pytest-dotenv",
     "freezegun",
     "mypy",
     "pre-commit",
     "types-requests",
-    "pytest-cov",
 ]
 
 [tool.hatch.envs.default.scripts]
 setup = "pre-commit install"
 code-quality = "pre-commit run --all-files"
-unit = "pytest --cov=dbt --color=yes -v -n auto --dist=loadscope tests/unit"
+unit = "pytest --color=yes -v -n auto --dist=loadscope tests/unit"
 cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/functional"
 uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n auto --dist=loadscope tests/functional"
 sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto --dist=loadscope tests/functional"
