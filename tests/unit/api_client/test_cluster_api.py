@@ -1,7 +1,8 @@
+from unittest.mock import patch
+
 import freezegun
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
-from mock import patch
 
 from dbt.adapters.databricks.api_client import ClusterApi
 from tests.unit.api_client.api_test_base import ApiTestBase

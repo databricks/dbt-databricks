@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from attr import dataclass
 from dbt_common.exceptions import DbtRuntimeError
+from pydantic import BaseModel
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
@@ -104,8 +104,7 @@ class PythonNotebookUploader:
         return file_path
 
 
-@dataclass(frozen=True)
-class PythonJobDetails:
+class PythonJobDetails(BaseModel):
     """Details required to submit a Python job run to Databricks."""
 
     run_name: str
@@ -224,7 +223,9 @@ class PythonJobConfigCompiler:
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
 
-        return PythonJobDetails(self.run_name, job_spec, additional_job_config)
+        return PythonJobDetails(
+            run_name=self.run_name, job_spec=job_spec, additional_job_config=additional_job_config
+        )
 
 
 class PythonNotebookSubmitter(PythonSubmitter):
