@@ -46,6 +46,23 @@ path = "dbt/adapters/databricks/__version__.py"
 [tool.hatch.build]
 include = ["/dbt"]
 
+[tool.hatch.envs.verify]
+detached = true
+dependencies = ["wheel", "twine", "check-wheel-contents"]
+
+[tool.hatch.envs.verify.scripts]
+check-all = ["- check-wheel", "- check-sdist"]
+check-wheel = [
+    "twine check dist/*",
+    "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+]
+check-sdist = [
+    "check-wheel-contents dist/*.whl --ignore W007,W008",
+    "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+]
+
 [tool.hatch.envs.default]
 dependencies = [
     "dbt-spark>=1.8.0, <2.0",
