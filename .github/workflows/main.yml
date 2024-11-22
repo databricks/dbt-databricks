@@ -38,7 +38,7 @@ concurrency:
 
 defaults:
   run:
-    shell: zsh
+    shell: bash
 
 jobs:
   code-quality:
@@ -63,7 +63,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Code Quality
-        run: hatch run -i py=3.9 code-quality
+        run: hatch env run -i py=3.9 code-quality
 
   unit:
     name: unit test / python ${{ matrix.python-version }}
@@ -89,7 +89,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Unit Tests
-        run: hatch run -i py=${{ matrix.python-version }} unit
+        run: hatch env run -i py=${{ matrix.python-version }} unit
 
   build:
     name: build packages
