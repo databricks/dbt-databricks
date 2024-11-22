@@ -63,7 +63,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Code Quality
-        run: hatch env run -i py=3.9 code-quality
+        run: hatch -v env run -i py=3.9 code-quality
 
   unit:
     name: unit test / python ${{ matrix.python-version }}
@@ -89,7 +89,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Unit Tests
-        run: hatch env run -i py=${{ matrix.python-version }} unit
+        run: hatch -v env run -i py=${{ matrix.python-version }} unit
 
   build:
     name: build packages
@@ -112,7 +112,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Build distributions
-        run: hatch build
+        run: hatch -v build
 
       - name: Show distributions
         run: ls -lh dist/
