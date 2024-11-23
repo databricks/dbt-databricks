@@ -82,7 +82,7 @@ dependencies = [
 python = "3.9"
 
 [tool.hatch.envs.default.scripts]
-setup = "pre-commit install"
+setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
 unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
 cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/functional"
