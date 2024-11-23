@@ -19,7 +19,7 @@
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier, needs_information=True) -%}
-  {%- if unique_tmp_table_suffix == True and raw_strategy == 'replace_where' and raw_file_format == 'delta' -%}
+  {%- if unique_tmp_table_suffix == True and raw_strategy in ['merge', 'replace_where'] and raw_file_format == 'delta' -%}
     {%- set temp_relation_suffix = adapter.generate_unique_temporary_table_suffix() -%}
   {%- else -%}
     {%- set temp_relation_suffix = '__dbt_tmp' -%}
