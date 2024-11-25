@@ -223,6 +223,7 @@ class PythonJobConfigCompiler:
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
 
+        job_spec["queue"] = {"enabled": True}
         return PythonJobDetails(
             run_name=self.run_name, job_spec=job_spec, additional_job_config=additional_job_config
         )
