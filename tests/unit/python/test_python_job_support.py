@@ -158,6 +158,7 @@ class TestPythonJobConfigCompiler:
                 "notebook_path": "path",
             },
             "libraries": [],
+            "queue": {"enabled": True},
         }
         assert details.additional_job_config == {}
 
@@ -182,5 +183,6 @@ class TestPythonJobConfigCompiler:
             "cluster_id": "id",
             "libraries": [{"pypi": {"package": "foo"}}],
             "access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}],
+            "queue": {"enabled": True},
         }
         assert details.additional_job_config == {"foo": "bar"}
