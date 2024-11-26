@@ -65,22 +65,21 @@ class TestTokenAuth:
             http_path="http://foo",
             schema="dbt",
         )
-        provider = creds.authenticate(None)
+        credentialManager = creds.authenticate()
+        provider = credentialManager.credentials_provider()
         assert provider is not None
 
-        headers_fn = provider()
+        headers_fn = provider
         headers = headers_fn()
         assert headers is not None
 
-        raw = provider.as_dict()
+        raw = credentialManager._config.as_dict()
         assert raw is not None
 
-        provider_b = creds._provider_from_dict()
-        headers_fn2 = provider_b()
-        headers2 = headers_fn2()
-        assert headers == headers2
+        assert headers == {"Authorization": "Bearer foo"}
 
 
+@pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
 class TestShardedPassword:
     def test_store_and_delete_short_password(self):
         # set the keyring to mock class
@@ -133,6 +132,7 @@ class TestShardedPassword:
         assert retrieved_password is None
 
 
+@pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
 class MockKeyring(keyring.backend.KeyringBackend):
     def __init__(self):
         self.file_location = self._generate_test_root_dir()

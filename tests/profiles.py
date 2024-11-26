@@ -26,6 +26,8 @@ def _build_databricks_cluster_target(
         "token": os.getenv("DBT_DATABRICKS_TOKEN"),
         "client_id": os.getenv("DBT_DATABRICKS_CLIENT_ID"),
         "client_secret": os.getenv("DBT_DATABRICKS_CLIENT_SECRET"),
+        "azure_client_id": os.getenv("DBT_DATABRICKS_AZURE_CLIENT_ID"),
+        "azure_client_secret": os.getenv("DBT_DATABRICKS_AZURE_CLIENT_SECRET"),
         "connect_retries": 3,
         "connect_timeout": 5,
         "retry_all": True,
