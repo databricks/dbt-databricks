@@ -83,7 +83,7 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
@@ -107,7 +107,7 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
-    table_format: TableFormat = TableFormat.DEFAULT
+    table_format: str = TableFormat.DEFAULT
     location_root: Optional[str] = None
     include_full_name_in_path: bool = False
     partition_by: Optional[Union[list[str], str]] = None
@@ -762,7 +762,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     For the most part, these are just namespaces to group related methods together.
     """
 
-    relation_type: ClassVar[DatabricksRelationType]
+    relation_type: ClassVar[str]
 
     @classmethod
     @abstractmethod
