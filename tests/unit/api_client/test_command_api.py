@@ -86,6 +86,7 @@ class TestCommandApi(ApiTestBase):
         session.get.return_value.status_code = 200
         session.get.return_value.json.return_value = {
             "status": "Finished",
+            "results": {"resultType": "finished"},
         }
 
         api.poll_for_completion(execution)
@@ -99,3 +100,15 @@ class TestCommandApi(ApiTestBase):
             },
             json=None,
         )
+
+    @freezegun.freeze_time("2020-01-01")
+    @patch("dbt.adapters.databricks.api_client.time.sleep")
+    def test_poll_for_completion__200_with_error(self, _, api, session, host, execution):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {
+            "status": "Finished",
+            "results": {"resultType": "error", "cause": "race condition"},
+        }
+
+        with pytest.raises(DbtRuntimeError, match="Python model failed"):
+            api.poll_for_completion(execution)

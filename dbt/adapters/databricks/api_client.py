@@ -88,8 +88,10 @@ class ClusterApi(DatabricksApi):
 
         response = self.session.post("/start", json={"cluster_id": cluster_id})
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
-        logger.debug(f"Cluster start response={response}")
+            if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
+                raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+            else:
+                logger.debug("Presuming race condition, waiting for cluster to start")
 
         self.wait_for_cluster(cluster_id)
 
@@ -289,7 +291,7 @@ class CommandApi(PollableApi):
             raise DbtRuntimeError(f"Cancel command {command} failed.\n {response.content!r}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
-        self._poll_api(
+        response = self._poll_api(
             url="/status",
             params={
                 "clusterId": command.cluster_id,
@@ -300,7 +302,13 @@ class CommandApi(PollableApi):
             terminal_states={"Finished", "Error", "Cancelled"},
             expected_end_state="Finished",
             unexpected_end_state_func=self._get_exception,
-        )
+        ).json()
+
+        if response["results"]["resultType"] == "error":
+            raise DbtRuntimeError(
+                f"Python model failed with traceback as:\n"
+                f"{utils.remove_ansi(response['results']['cause'])}"
+            )
 
     def _get_exception(self, response: Response) -> None:
         response_json = response.json()
