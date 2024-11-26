@@ -19,6 +19,25 @@ class TestPythonModel(BasePythonModelTests):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonFailureModel:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"my_failure_model.py": override_fixtures.python_error_model}
+
+    def test_failure_model(self, project):
+        util.run_dbt(["run"], expect_pass=False)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonFailureModelNotebook(TestPythonFailureModel):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
     pass
 

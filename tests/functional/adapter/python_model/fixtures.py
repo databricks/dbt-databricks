@@ -9,6 +9,15 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['test', 'test2'])
 """
 
+python_error_model = """
+import pandas as pd
+
+def model(dbt, spark):
+    raise Exception("This is an error")
+
+    return pd.DataFrame()
+"""
+
 serverless_schema = """version: 2
 
 models:

@@ -85,7 +85,7 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
