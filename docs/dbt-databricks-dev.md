@@ -8,24 +8,18 @@ Find installation instructions [here](https://hatch.pypa.io/dev/install/#install
 ## Getting Hatch to Work with your IDE
 
 The main thing to getting our project and all expected functionality to work with your IDE is create the default environment for the project, and point your IDE at the interpreter in that project.
-For your sanity, it is recommended that you install your virtual environment into your dbt-databricks folder.
-You can accomplish this by executing
 
-```
-hatch config set dirs.env.virtual
-```
-
-and setting to `.hatch`.
-This tells Hatch to install your environments into a folder called `.hatch` inside of your project.
-Once you have changed this setting, execute
+First execute
 
 ```
 hatch env create
 ```
 
 to create the default environment, populating the `.hatch` folder.
+This is where your virtual environments for this project will live.
 In your IDE, you should hopefully see an interpreter in this folder recommended when you enter the set interpreter prompt.
 If not, selecting `.hatch/dbt-databricks/bin/python` as the executable for your interpretor should get you IDE integration.
+If you have an existing `.venv` folder in `dbt-databricks` you should remove it to keep the tools from detecting multiple python virtual environments locally and getting confused.
 
 ### VS Code Settings
 
@@ -124,10 +118,36 @@ will run the unit tests against all supported Python versions.
 hatch run {cluster-e2e | uc-cluster-e2e | sqlw-e2e}
 ```
 
-will run the functional tests against the HMS cluster, UC cluster, or SQL Warehouse respectively.
+will run the functional tests against the HMS cluster, UC cluster, or SQL Warehouse respectively, assuming you have configured your `test.env` file correctly.
 
 ```
 hatch build
 ```
 
 builds the `sdist` and `wheel` distributables.
+
+If you ever need to install newer versions of a library into the default environment, but don't want to change the dependency version requirements, you can manage this by first entering the shell
+
+```
+hatch shell
+```
+
+and then pip installing as usual, e.g:
+
+```
+pip install dbt-core==1.8.9
+```
+
+## In Case of Emergency
+
+If you are making changes to pyproject.toml, and for whatever reason Hatch isn't respecting your changes, you can blow away existing environments with
+
+```
+hatch env prune
+```
+
+and then recreate the default environment with:
+
+```
+hatch env create
+```
