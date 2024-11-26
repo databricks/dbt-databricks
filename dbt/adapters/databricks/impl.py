@@ -109,7 +109,7 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
-    table_format: TableFormat = TableFormat.DEFAULT
+    table_format: str = TableFormat.DEFAULT
     location_root: Optional[str] = None
     include_full_name_in_path: bool = False
     partition_by: Optional[Union[list[str], str]] = None
@@ -764,7 +764,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     For the most part, these are just namespaces to group related methods together.
     """
 
-    relation_type: ClassVar[DatabricksRelationType]
+    relation_type: ClassVar[str]
 
     @classmethod
     @abstractmethod
