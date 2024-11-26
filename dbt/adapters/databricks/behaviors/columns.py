@@ -7,8 +7,6 @@ from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import handle_missing_objects
 from dbt.adapters.sql import SQLAdapter
 
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
-
 
 class GetColumnsBehavior(ABC):
     @classmethod

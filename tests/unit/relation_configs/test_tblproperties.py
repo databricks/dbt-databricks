@@ -1,5 +1,6 @@
+from unittest.mock import Mock
+
 import pytest
-from mock import Mock
 
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesConfig,

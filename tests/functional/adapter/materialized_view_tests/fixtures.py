@@ -13,9 +13,9 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
         fetch="one",
     )[0]
     if table_type == "STREAMING_TABLE":
-        return DatabricksRelationType.StreamingTable.value
+        return DatabricksRelationType.StreamingTable
     elif table_type == "MANAGED" or table_type == "EXTERNAL":
-        return DatabricksRelationType.Table.value
+        return DatabricksRelationType.Table
     else:
         is_materialized = project.run_sql(
             "select is_materialized from `system`.`information_schema`.`views`"
@@ -25,9 +25,9 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
             fetch="one",
         )[0]
         if is_materialized == "TRUE":
-            return DatabricksRelationType.MaterializedView.value
+            return DatabricksRelationType.MaterializedView
         else:
-            return DatabricksRelationType.View.value
+            return DatabricksRelationType.View
 
 
 materialized_view = """

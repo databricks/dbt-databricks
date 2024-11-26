@@ -1,5 +1,6 @@
+from unittest.mock import Mock
+
 from agate import Row, Table
-from mock import Mock
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (

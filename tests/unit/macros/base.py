@@ -1,9 +1,9 @@
 import re
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
-from mock import Mock
 
 from dbt.adapters.databricks.relation import DatabricksRelation
 

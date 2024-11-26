@@ -1,6 +1,7 @@
+from unittest.mock import Mock
+
 import pytest
 from agate import Row
-from mock import Mock
 
 from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
 from dbt.exceptions import DbtRuntimeError
