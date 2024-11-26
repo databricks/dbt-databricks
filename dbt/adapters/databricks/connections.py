@@ -36,7 +36,7 @@ from dbt.adapters.contracts.connection import (
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.auth import BearerAuth
-from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
     ConnectionCancel,
