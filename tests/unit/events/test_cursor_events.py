@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 
 from dbt.adapters.databricks.events.cursor_events import CursorCloseError, CursorEvent
 

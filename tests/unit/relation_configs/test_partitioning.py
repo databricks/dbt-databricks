@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByConfig,

@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from attr import dataclass
 from dbt_common.exceptions import DbtRuntimeError
+from pydantic import BaseModel
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
@@ -70,6 +71,8 @@ class PythonCommandSubmitter(PythonSubmitter):
 
     @override
     def submit(self, compiled_code: str) -> None:
+        logger.debug("Submitting Python model using the Command API.")
+
         context_id = self.api_client.command_contexts.create(self.cluster_id)
         command_exec: Optional[CommandExecution] = None
         try:
@@ -104,8 +107,7 @@ class PythonNotebookUploader:
         return file_path
 
 
-@dataclass(frozen=True)
-class PythonJobDetails:
+class PythonJobDetails(BaseModel):
     """Details required to submit a Python job run to Databricks."""
 
     run_name: str
@@ -225,7 +227,9 @@ class PythonJobConfigCompiler:
             job_spec["access_control_list"] = access_control_list
 
         job_spec["queue"] = {"enabled": True}
-        return PythonJobDetails(self.run_name, job_spec, additional_job_config)
+        return PythonJobDetails(
+            run_name=self.run_name, job_spec=job_spec, additional_job_config=additional_job_config
+        )
 
 
 class PythonNotebookSubmitter(PythonSubmitter):
@@ -262,6 +266,8 @@ class PythonNotebookSubmitter(PythonSubmitter):
 
     @override
     def submit(self, compiled_code: str) -> None:
+        logger.debug("Submitting Python model using the Job Run API.")
+
         file_path = self.uploader.upload(compiled_code)
         job_config = self.config_compiler.compile(file_path)
 
@@ -493,6 +499,8 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
 
     @override
     def submit(self, compiled_code: str) -> None:
+        logger.debug("Submitting Python model using the Workflow API.")
+
         file_path = self.uploader.upload(compiled_code)
 
         workflow_config, existing_job_id = self.config_compiler.compile(file_path)
