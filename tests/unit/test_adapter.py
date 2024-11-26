@@ -362,7 +362,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.owner == "owner"
             assert relation.is_hudi
 
-
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
