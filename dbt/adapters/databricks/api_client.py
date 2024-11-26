@@ -1,24 +1,21 @@
 import base64
-from collections.abc import Callable
-import time
-from abc import ABC
-from abc import abstractmethod
-from dataclasses import dataclass
 import re
-from typing import Any
-from typing import Optional
+import time
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from dbt_common.exceptions import DbtRuntimeError
+from requests import Response, Session
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.credentials import BearerAuth
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
-from dbt_common.exceptions import DbtRuntimeError
-from requests import Response
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
 
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
@@ -91,8 +88,10 @@ class ClusterApi(DatabricksApi):
 
         response = self.session.post("/start", json={"cluster_id": cluster_id})
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
-        logger.debug(f"Cluster start response={response}")
+            if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
+                raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+            else:
+                logger.debug("Presuming race condition, waiting for cluster to start")
 
         self.wait_for_cluster(cluster_id)
 
@@ -142,7 +141,6 @@ class SharedFolderApi(FolderApi):
 
 
 class CurrUserApi(DatabricksApi):
-
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.0/preview/scim/v2")
         self._user = ""
@@ -293,7 +291,7 @@ class CommandApi(PollableApi):
             raise DbtRuntimeError(f"Cancel command {command} failed.\n {response.content!r}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
-        self._poll_api(
+        response = self._poll_api(
             url="/status",
             params={
                 "clusterId": command.cluster_id,
@@ -304,7 +302,13 @@ class CommandApi(PollableApi):
             terminal_states={"Finished", "Error", "Cancelled"},
             expected_end_state="Finished",
             unexpected_end_state_func=self._get_exception,
-        )
+        ).json()
+
+        if response["results"]["resultType"] == "error":
+            raise DbtRuntimeError(
+                f"Python model failed with traceback as:\n"
+                f"{utils.remove_ansi(response['results']['cause'])}"
+            )
 
     def _get_exception(self, response: Response) -> None:
         response_json = response.json()
@@ -401,7 +405,6 @@ class JobPermissionsApi(DatabricksApi):
 
 
 class WorkflowJobApi(DatabricksApi):
-
     def __init__(self, session: Session, host: str):
         super().__init__(session, host, "/api/2.1/jobs")
 

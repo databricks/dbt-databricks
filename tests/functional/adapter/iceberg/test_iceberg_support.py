@@ -1,8 +1,8 @@
 import pytest
 
-from tests.functional.adapter.iceberg import fixtures
-from dbt.tests import util
 from dbt.artifacts.schemas.results import RunStatus
+from dbt.tests import util
+from tests.functional.adapter.iceberg import fixtures
 
 
 # @pytest.mark.skip_profile("databricks_cluster")

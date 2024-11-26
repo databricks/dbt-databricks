@@ -1,5 +1,6 @@
+from unittest.mock import Mock
+
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from mock import Mock
 
 
 class TestPythonRunTracker:

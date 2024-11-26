@@ -1,25 +1,20 @@
-from collections.abc import Iterable
 import itertools
 import json
 import os
 import re
 import threading
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import Callable, Dict, List
-from typing import cast
-from typing import Optional
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from typing import Any, Optional, cast
 
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.core import Config
-from databricks.sdk.credentials_provider import CredentialsProvider
-from dbt.adapters.contracts.connection import Credentials
-from dbt_common.exceptions import DbtConfigError
-from dbt_common.exceptions import DbtValidationError
+from dbt_common.exceptions import DbtConfigError, DbtValidationError
 from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config, CredentialsProvider
+from dbt.adapters.contracts.connection import Credentials
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
@@ -274,7 +269,7 @@ class BearerAuth(AuthBase):
         return r
 
 
-PySQLCredentialProvider = Callable[[], Callable[[], Dict[str, str]]]
+PySQLCredentialProvider = Callable[[], Callable[[], dict[str, str]]]
 
 
 @dataclass
@@ -285,7 +280,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     azure_client_id: Optional[str] = None
     azure_client_secret: Optional[str] = None
     oauth_redirect_url: str = REDIRECT_URL
-    oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
+    oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
 
@@ -403,7 +398,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     @property
     def credentials_provider(self) -> PySQLCredentialProvider:
-        def inner() -> Callable[[], Dict[str, str]]:
+        def inner() -> Callable[[], dict[str, str]]:
             return self.header_factory
 
         return inner

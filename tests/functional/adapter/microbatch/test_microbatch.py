@@ -1,10 +1,11 @@
+from importlib import metadata
+
+import pytest
+from packaging import version
+
 from dbt.tests.adapter.incremental.test_incremental_microbatch import (
     BaseMicrobatch,
 )
-import pytest
-from packaging import version
-from importlib import metadata
-
 from tests.functional.adapter.microbatch import fixtures
 
 dbt_version = metadata.version("dbt-core")

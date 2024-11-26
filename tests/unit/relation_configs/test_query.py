@@ -1,9 +1,9 @@
+from unittest.mock import Mock
+
 import pytest
 from agate import Row
-from mock import Mock
 
-from dbt.adapters.databricks.relation_configs.query import QueryConfig
-from dbt.adapters.databricks.relation_configs.query import QueryProcessor
+from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
 from dbt.exceptions import DbtRuntimeError
 
 sql = "select * from foo"

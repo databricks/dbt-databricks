@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+
 import pytest
 
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -32,7 +33,9 @@ def compiled_code():
 @pytest.fixture
 def config_compiler():
     compiler = Mock()
-    compiler.compile.return_value = PythonJobDetails("name", {}, {})
+    compiler.compile.return_value = PythonJobDetails(
+        run_name="name", job_spec={}, additional_job_config={}
+    )
     return compiler
 
 
