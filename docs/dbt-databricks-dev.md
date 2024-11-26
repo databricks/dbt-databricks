@@ -96,7 +96,7 @@ There are a number of useful scripts to invoked from the CLI.
 While it is useful to learn about Hatch to understand environments and all of the functionalities, you can run the commands below to accomplish common developer activities:
 
 ```
-hatch run precommit-setup
+hatch run setup-precommit
 ```
 
 will install our precommit hooks.
