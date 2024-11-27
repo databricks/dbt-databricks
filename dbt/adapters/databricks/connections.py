@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
 from numbers import Number
 from threading import get_ident
-from typing import Any
+from typing import Any, Generator
 from typing import Callable
 from typing import cast
 from typing import Dict
@@ -70,7 +70,9 @@ from dbt.adapters.events.types import ConnectionUsed
 from dbt.adapters.events.types import NewConnection
 from dbt.adapters.events.types import SQLQuery
 from dbt.adapters.events.types import SQLQueryStatus
-from dbt.adapters.spark.connections import SparkConnectionManager
+from dbt.adapters.spark.connections import (
+    SparkConnectionManager,
+)
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtInternalError
@@ -93,6 +95,8 @@ DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 
 # toggle for session managements that minimizes the number of sessions opened/closed
 USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
+# toggle for session managements that assumes the adapter is running in a Databricks session
+USE_SESSION_CONNECTION = os.getenv("DBT_DATABRICKS_SESSION_CONNECTION", "False").upper() == "TRUE"
 
 # Number of idle seconds before a connection is automatically closed. Only applicable if
 # USE_LONG_SESSIONS is true.
@@ -1084,6 +1088,63 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
+
+
+class DatabricksSessionConnectionManager(DatabricksConnectionManager):
+
+    def cancel_open(self) -> List[str]:
+        SparkConnectionManager.cancel_open(self)
+
+    def compare_dbr_version(self, major: int, minor: int) -> int:
+        version = (major, minor)
+        connection = (
+            self.get_thread_connection().handle
+        )
+        dbr_version = connection.dbr_version
+        return (dbr_version > version) - (dbr_version < version)
+
+    def set_query_header(self, query_header_context: Dict[str, Any]) -> None:
+        SparkConnectionManager.set_query_header(self, query_header_context)
+
+    def set_connection_name(
+        self, name: Optional[str] = None, query_header_context: Any = None
+    ) -> Connection:
+        SparkConnectionManager.set_connection_name(self, name)
+
+    def add_query(
+        self,
+        sql: str,
+        auto_begin: bool = True,
+        bindings: Optional[Any] = None,
+        abridge_sql_log: bool = False,
+        *,
+        close_cursor: bool = False,
+    ) -> Tuple[Connection, Any]:
+        return SparkConnectionManager.add_query(
+            self, sql, auto_begin, bindings, abridge_sql_log
+        )
+
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":
+        raise NotImplementedError("list_schemas is not implemented for DatabricksSessionConnectionManager - should call the list_schemas macro instead")
+
+    def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> "Table":
+        raise NotImplementedError("list_tables is not implemented for DatabricksSessionConnectionManager - should call the list_tables macro instead")
+
+    @classmethod
+    def open(cls, connection: Connection) -> Connection:
+        from dbt.adapters.spark.session import Connection
+        from dbt.adapters.databricks.session_connection import DatabricksSessionConnectionWrapper
+        handle = DatabricksSessionConnectionWrapper(
+            Connection()
+        )
+        connection.handle = handle
+        connection.state = ConnectionState.OPEN
+        return connection
+
+    @classmethod
+    def get_response(cls, cursor) -> DatabricksAdapterResponse:
+        response = SparkConnectionManager.get_response(cursor)
+        return DatabricksAdapterResponse(_message=response._message, query_id=None)
 
 
 def _get_pipeline_state(session: Session, host: str, pipeline_id: str) -> dict:
