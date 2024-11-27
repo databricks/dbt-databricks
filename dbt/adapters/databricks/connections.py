@@ -1109,7 +1109,7 @@ class DatabricksSessionConnectionManager(DatabricksConnectionManager):
     def set_connection_name(
         self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
-        SparkConnectionManager.set_connection_name(self, name)
+        return SparkConnectionManager.set_connection_name(self, name)
 
     def add_query(
         self,

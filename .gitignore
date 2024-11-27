@@ -19,3 +19,4 @@ logs/
 .venv*
 *.sublime*
 .python-version
+venv/
