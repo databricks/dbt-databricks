@@ -70,9 +70,7 @@ from dbt.adapters.events.types import ConnectionUsed
 from dbt.adapters.events.types import NewConnection
 from dbt.adapters.events.types import SQLQuery
 from dbt.adapters.events.types import SQLQueryStatus
-from dbt.adapters.spark.connections import (
-    SparkConnectionManager,
-)
+from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtInternalError

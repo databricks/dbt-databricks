@@ -10,6 +10,7 @@ DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 class DatabricksSessionConnectionWrapper(SessionConnectionWrapper):
 
     _is_cluster: bool
+    _dbr_version: Tuple[int, int]
 
     def __init__(self, handle: Connection) -> None:
         super().__init__(handle)
