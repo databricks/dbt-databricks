@@ -38,7 +38,10 @@ from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager, DatabricksSessionConnectionManager
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksSessionConnectionManager,
+)
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
@@ -212,9 +215,7 @@ class DatabricksAdapter(SparkAdapter):
         if database is not None and not USE_SESSION_CONNECTION:
             results = self.connections.list_schemas(database=database)
         else:
-            results = self.execute_macro(
-                LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database}
-            )
+            results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:

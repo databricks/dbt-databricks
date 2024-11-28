@@ -1097,9 +1097,7 @@ class DatabricksSessionConnectionManager(DatabricksConnectionManager):
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
-        connection = (
-            self.get_thread_connection().handle
-        )
+        connection = self.get_thread_connection().handle
         dbr_version = connection.dbr_version
         return (dbr_version > version) - (dbr_version < version)
 
@@ -1120,23 +1118,24 @@ class DatabricksSessionConnectionManager(DatabricksConnectionManager):
         *,
         close_cursor: bool = False,
     ) -> Tuple[Connection, Any]:
-        return SparkConnectionManager.add_query(
-            self, sql, auto_begin, bindings, abridge_sql_log
-        )
+        return SparkConnectionManager.add_query(self, sql, auto_begin, bindings, abridge_sql_log)
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":
-        raise NotImplementedError("list_schemas is not implemented for DatabricksSessionConnectionManager - should call the list_schemas macro instead")
+        raise NotImplementedError(
+            "list_schemas is not implemented for DatabricksSessionConnectionManager - should call the list_schemas macro instead"
+        )
 
     def list_tables(self, database: str, schema: str, identifier: Optional[str] = None) -> "Table":
-        raise NotImplementedError("list_tables is not implemented for DatabricksSessionConnectionManager - should call the list_tables macro instead")
+        raise NotImplementedError(
+            "list_tables is not implemented for DatabricksSessionConnectionManager - should call the list_tables macro instead"
+        )
 
     @classmethod
     def open(cls, connection: Connection) -> Connection:
         from dbt.adapters.spark.session import Connection
         from dbt.adapters.databricks.session_connection import DatabricksSessionConnectionWrapper
-        handle = DatabricksSessionConnectionWrapper(
-            Connection()
-        )
+
+        handle = DatabricksSessionConnectionWrapper(Connection())
         connection.handle = handle
         connection.state = ConnectionState.OPEN
         return connection
