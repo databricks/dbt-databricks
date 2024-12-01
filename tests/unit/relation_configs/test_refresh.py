@@ -1,45 +1,36 @@
-from typing import Any
-from typing import List
+from unittest.mock import Mock
 
 import pytest
-from agate import Table
-from mock import Mock
 
-from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
-from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
 from dbt.exceptions import DbtRuntimeError
+from tests.unit import fixtures
 
 
 class TestRefreshProcessor:
-    @pytest.fixture
-    def rows(self) -> List[List[Any]]:
-        return [
-            ["col_name", "data_type", "comment"],
-            ["col_a", "int", "This is a comment"],
-            [None, None, None],
-            ["# Detailed Table Information", None, None],
-            ["Catalog:", "default", None],
-            ["Schema:", "default", None],
-            ["Table:", "table_abc", None],
-        ]
-
-    def test_from_results__valid_schedule(self, rows):
+    def test_from_results__valid_schedule(self):
         results = {
-            "describe_extended": Table(
-                rows=rows + [["Refresh Schedule", "CRON '*/5 * * * *' AT TIME ZONE 'UTC'"]]
+            "describe_extended": fixtures.gen_describe_extended(
+                detailed_table_info=[["Refresh Schedule", "CRON '*/5 * * * *' AT TIME ZONE 'UTC'"]]
             )
         }
         spec = RefreshProcessor.from_relation_results(results)
         assert spec == RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
 
-    def test_from_results__manual(self, rows):
-        results = {"describe_extended": Table(rows=rows + [["Refresh Schedule", "MANUAL"]])}
+    def test_from_results__manual(self):
+        results = {
+            "describe_extended": fixtures.gen_describe_extended(
+                detailed_table_info=[["Refresh Schedule", "MANUAL"]]
+            )
+        }
         spec = RefreshProcessor.from_relation_results(results)
         assert spec == RefreshConfig()
 
-    def test_from_results__invalid(self, rows):
+    def test_from_results__invalid(self):
         results = {
-            "describe_extended": Table(rows=rows + [["Refresh Schedule", "invalid description"]])
+            "describe_extended": fixtures.gen_describe_extended(
+                [["Refresh Schedule", "invalid description"]]
+            )
         }
         with pytest.raises(
             DbtRuntimeError,

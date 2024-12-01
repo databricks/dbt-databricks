@@ -35,13 +35,13 @@
     Use the 'merge' or 'replace_where' strategy instead
   {%- endset %}
 
-  {% if raw_strategy not in ['append', 'merge', 'insert_overwrite', 'replace_where'] %}
+  {% if raw_strategy not in adapter.valid_incremental_strategies() %}
     {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
   {%-else %}
     {% if raw_strategy == 'merge' and file_format not in ['delta', 'hudi'] %}
       {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
     {% endif %}
-    {% if raw_strategy == 'replace_where' and file_format not in ['delta'] %}
+    {% if raw_strategy in ('replace_where', 'microbatch') and file_format not in ['delta'] %}
       {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
     {% endif %}
   {% endif %}

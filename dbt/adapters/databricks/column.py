@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar
-from typing import Dict
-from typing import Optional
+from typing import ClassVar, Optional
 
 from dbt.adapters.spark.column import SparkColumn
 
@@ -11,7 +9,7 @@ class DatabricksColumn(SparkColumn):
     table_comment: Optional[str] = None
     comment: Optional[str] = None
 
-    TYPE_LABELS: ClassVar[Dict[str, str]] = {
+    TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
     }
 

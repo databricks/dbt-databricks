@@ -1,21 +1,21 @@
-from typing import ClassVar
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import ClassVar, Optional
+
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksComponentProcessor,
+)
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt_common.exceptions import DbtRuntimeError
 
 
 class TagsConfig(DatabricksComponentConfig):
     """Component encapsulating the tblproperties of a relation."""
 
-    set_tags: Dict[str, str]
-    unset_tags: List[str] = []
+    set_tags: dict[str, str]
+    unset_tags: list[str] = []
 
     def get_diff(self, other: "TagsConfig") -> Optional["TagsConfig"]:
         to_unset = []
@@ -46,7 +46,7 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
         tags = base.get_config_value(relation_config, "databricks_tags")
         if not tags:
             return TagsConfig(set_tags=dict())
-        if isinstance(tags, Dict):
+        if isinstance(tags, dict):
             tags = {str(k): str(v) for k, v in tags.items()}
             return TagsConfig(set_tags=tags)
         else:

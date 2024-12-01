@@ -1,40 +1,23 @@
-from agate import Table
-from mock import Mock
+from unittest.mock import Mock
 
-from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
-from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByProcessor
+from dbt.adapters.databricks.relation_configs.partitioning import (
+    PartitionedByConfig,
+    PartitionedByProcessor,
+)
+from tests.unit import fixtures
 
 
 class TestPartitionedByProcessor:
     def test_from_results__none(self):
-        results = {
-            "describe_extended": Table(
-                rows=[
-                    ["col_name", "data_type", "comment"],
-                    ["col_a", "int", "This is a comment"],
-                    [None, None, None],
-                    ["# Detailed Table Information", None, None],
-                    ["Catalog:", "default", None],
-                ]
-            )
-        }
+        results = {"describe_extended": fixtures.gen_describe_extended()}
 
         spec = PartitionedByProcessor.from_relation_results(results)
         assert spec == PartitionedByConfig(partition_by=[])
 
     def test_from_results__single(self):
         results = {
-            "describe_extended": Table(
-                rows=[
-                    ["col_name", "data_type", "comment"],
-                    ["col_a", "int", "This is a comment"],
-                    ["# Partition Information", None, None],
-                    ["# col_name", "data_type", "comment"],
-                    ["col_a", "int", "This is a comment"],
-                    [None, None, None],
-                    ["# Detailed Table Information", None, None],
-                    ["Catalog:", "default", None],
-                ]
+            "describe_extended": fixtures.gen_describe_extended(
+                partition_info=[["col_a", "int", "This is a comment"]]
             )
         }
 
@@ -43,17 +26,10 @@ class TestPartitionedByProcessor:
 
     def test_from_results__multiple(self):
         results = {
-            "describe_extended": Table(
-                rows=[
-                    ["col_name", "data_type", "comment"],
-                    ["col_a", "int", "This is a comment"],
-                    ["# Partition Information", None, None],
-                    ["# col_name", "data_type", "comment"],
+            "describe_extended": fixtures.gen_describe_extended(
+                partition_info=[
                     ["col_a", "int", "This is a comment"],
                     ["col_b", "int", "This is a comment"],
-                    [None, None, None],
-                    ["# Detailed Table Information", None, None],
-                    ["Catalog:", "default", None],
                 ]
             )
         }

@@ -1,9 +1,8 @@
 from abc import ABC
-from typing import Any
-from typing import Optional
-from typing import Tuple
+from typing import Any, Optional
 
 from databricks.sql.client import Connection
+
 from dbt.adapters.databricks.events.base import SQLErrorEvent
 
 
@@ -64,7 +63,7 @@ class ConnectionAcquire(ConnectionWrapperEvent):
         description: str,
         model: Optional[Any],
         compute_name: Optional[str],
-        thread_identifier: Tuple[int, int],
+        thread_identifier: tuple[int, int],
     ):
         message = f"Acquired connection on thread {thread_identifier}, using "
         if not compute_name:

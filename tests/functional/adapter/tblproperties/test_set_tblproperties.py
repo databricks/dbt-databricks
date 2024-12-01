@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 
 from dbt.tests import util
@@ -26,7 +24,7 @@ class TestTblproperties:
             "expected.csv": fixtures.seed_csv,
         }
 
-    def check_tblproperties(self, project, model_name: str, properties: List[str]):
+    def check_tblproperties(self, project, model_name: str, properties: list[str]):
         results = util.run_sql_with_adapter(
             project.adapter,
             f"show tblproperties {project.test_schema}.{model_name}",

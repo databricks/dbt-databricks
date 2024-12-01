@@ -20,14 +20,6 @@
   {% do run_query(comment_query) %}
 {% endmacro %}
 
-{% macro get_columns_comments(relation) -%}
-  {% call statement('get_columns_comments', fetch_result=True) -%}
-    describe table {{ relation|lower }}
-  {% endcall %}
-
-  {% do return(load_result('get_columns_comments').table) %}
-{% endmacro %}
-
 {% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
   {%- if for_relation and config.persist_relation_docs() and model.description %}
     {% do alter_table_comment(relation, model) %}

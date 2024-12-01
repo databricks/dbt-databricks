@@ -1,5 +1,4 @@
-from agate import Table
-from mock import Mock
+from unittest.mock import Mock
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
@@ -8,27 +7,24 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.unit import fixtures
 
 
 class TestStreamingTableConfig:
     def test_from_results(self):
         results = {
-            "describe_extended": Table(
-                rows=[
-                    ["col_name", "data_type", "comment"],
-                    ["col_a", "int", "This is a comment"],
-                    ["# Partition Information", None, None],
-                    ["# col_name", "data_type", "comment"],
+            "describe_extended": fixtures.gen_describe_extended(
+                partition_info=[
                     ["col_a", "int", "This is a comment"],
                     ["col_b", "int", "This is a comment"],
-                    [None, None, None],
-                    ["# Detailed Table Information", None, None],
+                ],
+                detailed_table_info=[
                     ["Catalog:", "default", None],
                     ["Comment", "This is the table comment", None],
                     ["Refresh Schedule", "MANUAL", None],
-                ]
+                ],
             ),
-            "show_tblproperties": Table(rows=[["prop", "1"], ["other", "other"]]),
+            "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
         }
 
         config = StreamingTableConfig.from_results(results)

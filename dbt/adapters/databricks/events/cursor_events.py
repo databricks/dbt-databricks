@@ -2,6 +2,7 @@ from abc import ABC
 from uuid import UUID
 
 from databricks.sql.client import Cursor
+
 from dbt.adapters.databricks.events.base import SQLErrorEvent
 
 

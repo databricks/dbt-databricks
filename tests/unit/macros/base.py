@@ -1,13 +1,9 @@
 import re
 from typing import Any
-from typing import Dict
+from unittest.mock import Mock
 
 import pytest
-from jinja2 import Environment
-from jinja2 import FileSystemLoader
-from jinja2 import PackageLoader
-from jinja2 import Template
-from mock import Mock
+from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
 
 from dbt.adapters.databricks.relation import DatabricksRelation
 
@@ -25,7 +21,7 @@ class MacroTestBase:
         """
         Anything you put in this dict will be returned by config in the rendered template
         """
-        local_config: Dict[str, Any] = {}
+        local_config: dict[str, Any] = {}
         context["config"].get = lambda key, default=None, **kwargs: local_config.get(key, default)
         return local_config
 
@@ -34,7 +30,7 @@ class MacroTestBase:
         """
         Anything you put in this dict will be returned by var in the rendered template
         """
-        local_var: Dict[str, Any] = {}
+        local_var: dict[str, Any] = {}
         context["var"] = lambda key, default=None, **kwargs: local_var.get(key, default)
         return local_var
 

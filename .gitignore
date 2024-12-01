@@ -19,4 +19,5 @@ logs/
 .venv*
 *.sublime*
 .python-version
+.hatch
 venv/

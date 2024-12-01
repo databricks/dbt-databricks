@@ -1,25 +1,18 @@
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import Dict
-from typing import Iterable
-from typing import Optional
-from typing import Set
-from typing import Type
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Any, Optional, Type
 
-from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.relation import InformationSchema
-from dbt.adapters.base.relation import Policy
+from dbt_common.dataclass_schema import StrEnum
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
+
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER
-from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
-from dbt_common.dataclass_schema import StrEnum
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import filter_null_values
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -66,10 +59,10 @@ class DatabricksRelation(BaseRelation):
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
 
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
     @classmethod
-    def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
         if "database" not in data["path"]:
             data["path"]["database"] = None
@@ -160,5 +153,5 @@ def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"
 
 
-def extract_identifiers(relations: Iterable[BaseRelation]) -> Set[str]:
+def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:
     return {r.identifier for r in relations if r.identifier is not None}

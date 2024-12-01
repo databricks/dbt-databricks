@@ -9,6 +9,54 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['test', 'test2'])
 """
 
+python_error_model = """
+import pandas as pd
+
+def model(dbt, spark):
+    raise Exception("This is an error")
+
+    return pd.DataFrame()
+"""
+
+serverless_schema = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_python_model
+    config:
+      submission_method: serverless_cluster
+      create_notebook: true
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
+"""
+
+workflow_schema = """version: 2
+
+models:
+  - name: my_workflow_model
+    config:
+      submission_method: workflow_job
+      user_folder_for_python: true
+      python_job_config:
+        max_retries: 2
+        timeout_seconds: 500
+        additional_task_settings: {
+          "task_key": "my_dbt_task"
+        }
+"""
+
 simple_python_model_v2 = """
 import pandas
 
@@ -54,6 +102,8 @@ models:
   - name: my_python_model
     config:
       http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+      create_notebook: true
+      user_folder_for_python: true
 
 sources:
   - name: test_source
@@ -75,7 +125,9 @@ models:
     config:
       marterialized: table
       tags: ["python"]
-      location_root: '{{ env_var("DBT_DATABRICKS_LOCATION_ROOT") }}'
+      create_notebook: true
+      include_full_name_in_path: true
+      location_root: "{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}"
     columns:
       - name: date
         tests:

@@ -1,17 +1,17 @@
-from typing import Dict
 from typing import Optional
 
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationChangeSet
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksRelationChangeSet,
+    DatabricksRelationConfigBase,
+)
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
-from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
-from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )
@@ -31,7 +31,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         """Get the changeset that must be applied to the existing relation to make it match the
         current state of the dbt project.
         """
-        changes: Dict[str, DatabricksComponentConfig] = {}
+        changes: dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
 
         for component in self.config_components:

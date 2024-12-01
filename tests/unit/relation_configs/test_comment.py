@@ -1,7 +1,8 @@
+from unittest.mock import Mock
+
 from agate import Table
-from dbt.adapters.databricks.relation_configs.comment import CommentConfig
-from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
-from mock import Mock
+
+from dbt.adapters.databricks.relation_configs.comment import CommentConfig, CommentProcessor
 
 
 class TestCommentProcessor:
@@ -16,7 +17,8 @@ class TestCommentProcessor:
                     ["Catalog:", "default", None],
                     ["Schema:", "default", None],
                     ["Table:", "table_abc", None],
-                ]
+                ],
+                column_names=["col_name", "data_type", "comment"],
             )
         }
         config = CommentProcessor.from_relation_results(results)
@@ -34,7 +36,8 @@ class TestCommentProcessor:
                     ["Schema:", "default", None],
                     ["Table:", "table_abc", None],
                     ["Comment", "This is the table comment", None],
-                ]
+                ],
+                column_names=["col_name", "data_type", "comment"],
             )
         }
         config = CommentProcessor.from_relation_results(results)

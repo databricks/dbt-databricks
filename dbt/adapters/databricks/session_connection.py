@@ -1,14 +1,13 @@
 import re
 import sys
 from typing import Tuple
-from dbt.adapters.spark.session import SessionConnectionWrapper, Connection
 
+from dbt.adapters.spark.session import Connection, SessionConnectionWrapper
 
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 
 
 class DatabricksSessionConnectionWrapper(SessionConnectionWrapper):
-
     _is_cluster: bool
     _dbr_version: Tuple[int, int]
 

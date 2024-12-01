@@ -1,17 +1,8 @@
-from abc import ABC
-from abc import abstractmethod
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import Generic
-from typing import List
-from typing import Optional
-from typing import TypeVar
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Generic, Optional, TypeVar
 
-from pydantic import BaseModel
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
-from typing_extensions import Type
 
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
@@ -49,7 +40,7 @@ class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""
 
     model_config = ConfigDict(frozen=True)
-    changes: Dict[str, DatabricksComponentConfig]
+    changes: dict[str, DatabricksComponentConfig]
     requires_full_refresh: bool = False
 
     @property
@@ -101,14 +92,14 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     # The list of components that make up the relation config. In the base implemenation, these
     # components are applied sequentially to either the existing relation, or the model node, to
     # build up the config.
-    config_components: ClassVar[List[Type[DatabricksComponentProcessor]]]
-    config: Dict[str, DatabricksComponentConfig]
+    config_components: ClassVar[list[type[DatabricksComponentProcessor]]]
+    config: dict[str, DatabricksComponentConfig]
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> Self:
         """Build the relation config from a model node."""
 
-        config_dict: Dict[str, DatabricksComponentConfig] = {}
+        config_dict: dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
             relation_component = component.from_relation_config(relation_config)
             if relation_component:
@@ -120,7 +111,7 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
     def from_results(cls, results: RelationResults) -> Self:
         """Build the relation config from the results of a query against the existing relation."""
 
-        config_dict: Dict[str, DatabricksComponentConfig] = {}
+        config_dict: dict[str, DatabricksComponentConfig] = {}
         for component in cls.config_components:
             result_component = component.from_relation_results(results)
             if result_component:
