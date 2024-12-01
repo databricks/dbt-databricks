@@ -2,7 +2,8 @@ import os
 
 import pytest
 
-from dbt.tests.util import get_artifact, run_dbt
+from dbt.tests.util import get_artifact
+from dbt.tests.util import run_dbt
 
 freshness_via_metadata_schema_yml = """
 version: 2

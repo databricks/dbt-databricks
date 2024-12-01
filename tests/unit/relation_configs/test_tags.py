@@ -3,7 +3,8 @@ from unittest.mock import Mock
 import pytest
 from agate import Table
 
-from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig
+from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.exceptions import DbtRuntimeError
 
 

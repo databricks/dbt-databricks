@@ -1,10 +1,12 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import freezegun
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks.api_client import CommandApi, CommandExecution
+from dbt.adapters.databricks.api_client import CommandApi
+from dbt.adapters.databricks.api_client import CommandExecution
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 

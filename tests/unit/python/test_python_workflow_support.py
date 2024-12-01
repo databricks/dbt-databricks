@@ -2,10 +2,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.python_models.python_submissions import (
-    PythonWorkflowConfigCompiler,
-    PythonWorkflowCreator,
-)
+from dbt.adapters.databricks.python_models.python_submissions import PythonWorkflowConfigCompiler
+from dbt.adapters.databricks.python_models.python_submissions import PythonWorkflowCreator
 
 
 class TestPythonWorkflowConfigCompiler:

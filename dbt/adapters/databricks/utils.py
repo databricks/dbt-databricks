@@ -1,6 +1,8 @@
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any
+from typing import TYPE_CHECKING
+from typing import TypeVar
 
 from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined

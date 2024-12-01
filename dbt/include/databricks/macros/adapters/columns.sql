@@ -19,7 +19,7 @@
     from `system`.`information_schema`.`columns`
     where
       table_catalog = '{{ relation.database|lower }}' and
-      table_schema = '{{ relation.schema|lower }}' and 
+      table_schema = '{{ relation.schema|lower }}' and
       table_name = '{{ relation.identifier|lower }}'
   {% endcall %}
 

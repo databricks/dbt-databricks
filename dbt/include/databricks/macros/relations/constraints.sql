@@ -179,7 +179,7 @@
     {% endif %}
 
     {% set name = constraint.get("name") %}
-    
+
     {% if constraint.get('expression') %}
 
       {% if not name %}
@@ -188,7 +188,7 @@
           {%- set name = local_md5("foreign_key;" ~ relation.identifier ~ ";" ~ constraint.get('expression') ~ ";") -%}
         {% else %}
           {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
-        {% endif %}    
+        {% endif %}
       {% endif %}
 
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key" ~ constraint.get('expression') %}
@@ -224,7 +224,7 @@
           {%- set name = local_md5("foreign_key;" ~ relation.identifier ~ ";" ~ column_names ~ ";" ~ parent ~ ";") -%}
         {% else %}
           {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
-        {% endif %}    
+        {% endif %}
       {% endif %}
 
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}

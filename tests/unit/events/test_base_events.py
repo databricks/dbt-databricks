@@ -1,6 +1,7 @@
 from databricks.sql.exc import Error
 
-from dbt.adapters.databricks.events.base import ErrorEvent, SQLErrorEvent
+from dbt.adapters.databricks.events.base import ErrorEvent
+from dbt.adapters.databricks.events.base import SQLErrorEvent
 
 
 class ErrorTestEvent(ErrorEvent):

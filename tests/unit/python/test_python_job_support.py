@@ -3,11 +3,9 @@ from unittest.mock import Mock
 import pytest
 
 from dbt.adapters.databricks.python_models import python_submissions
-from dbt.adapters.databricks.python_models.python_submissions import (
-    PythonJobConfigCompiler,
-    PythonNotebookUploader,
-    PythonPermissionBuilder,
-)
+from dbt.adapters.databricks.python_models.python_submissions import PythonJobConfigCompiler
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookUploader
+from dbt.adapters.databricks.python_models.python_submissions import PythonPermissionBuilder
 
 
 @pytest.fixture

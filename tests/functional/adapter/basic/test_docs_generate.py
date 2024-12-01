@@ -1,9 +1,11 @@
 import pytest
 
 from dbt.tests.adapter.basic import expected_catalog
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
+from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate
+from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenReferences
 from dbt.tests.util import AnyString
-from tests.functional.adapter.basic.typing import AnyLongType, StatsLikeDict
+from tests.functional.adapter.basic.typing import AnyLongType
+from tests.functional.adapter.basic.typing import StatsLikeDict
 
 
 class TestDocsGenerate(BaseDocsGenerate):

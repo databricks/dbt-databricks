@@ -1,7 +1,8 @@
 import pytest
 
 from dbt.adapters.databricks import relation
-from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
+from dbt.adapters.databricks.relation import DatabricksQuotePolicy
+from dbt.adapters.databricks.relation import DatabricksRelation
 
 
 class TestDatabricksRelation:

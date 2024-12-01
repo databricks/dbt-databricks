@@ -1,5 +1,6 @@
 import os
-from typing import Any, Optional
+from typing import Any
+from typing import Optional
 
 
 def get_databricks_cluster_target(profile_type: str):

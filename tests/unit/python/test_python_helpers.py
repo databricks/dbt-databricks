@@ -2,15 +2,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.python_models.python_submissions import (
-    AllPurposeClusterPythonJobHelper,
-    JobClusterPythonJobHelper,
-    PythonCommandSubmitter,
-    PythonNotebookSubmitter,
-    PythonNotebookWorkflowSubmitter,
-    ServerlessClusterPythonJobHelper,
-    WorkflowPythonJobHelper,
-)
+from dbt.adapters.databricks.python_models.python_submissions import AllPurposeClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import PythonCommandSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookWorkflowSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import ServerlessClusterPythonJobHelper
+from dbt.adapters.databricks.python_models.python_submissions import WorkflowPythonJobHelper
 
 
 @pytest.fixture

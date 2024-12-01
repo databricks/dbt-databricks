@@ -2,17 +2,15 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.python_models.python_submissions import (
-    PythonCommandSubmitter,
-    PythonJobConfigCompiler,
-    PythonJobDetails,
-    PythonNotebookSubmitter,
-    PythonNotebookUploader,
-    PythonNotebookWorkflowSubmitter,
-    PythonPermissionBuilder,
-    PythonWorkflowConfigCompiler,
-    PythonWorkflowCreator,
-)
+from dbt.adapters.databricks.python_models.python_submissions import PythonCommandSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import PythonJobConfigCompiler
+from dbt.adapters.databricks.python_models.python_submissions import PythonJobDetails
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookUploader
+from dbt.adapters.databricks.python_models.python_submissions import PythonNotebookWorkflowSubmitter
+from dbt.adapters.databricks.python_models.python_submissions import PythonPermissionBuilder
+from dbt.adapters.databricks.python_models.python_submissions import PythonWorkflowConfigCompiler
+from dbt.adapters.databricks.python_models.python_submissions import PythonWorkflowCreator
 
 
 @pytest.fixture

@@ -91,7 +91,7 @@ select {{source_cols_csv}} from {{ source_relation }}
 
   {%- set not_matched_by_source_action = config.get('not_matched_by_source_action') -%}
   {%- set not_matched_by_source_condition = config.get('not_matched_by_source_condition') -%}
-  
+
 
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}

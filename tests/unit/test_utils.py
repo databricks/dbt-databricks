@@ -1,4 +1,5 @@
-from dbt.adapters.databricks.utils import redact_credentials, remove_ansi
+from dbt.adapters.databricks.utils import redact_credentials
+from dbt.adapters.databricks.utils import remove_ansi
 
 
 class TestDatabricksUtils:

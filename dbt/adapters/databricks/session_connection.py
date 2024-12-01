@@ -2,7 +2,8 @@ import re
 import sys
 from typing import Tuple
 
-from dbt.adapters.spark.session import Connection, SessionConnectionWrapper
+from dbt.adapters.spark.session import Connection
+from dbt.adapters.spark.session import SessionConnectionWrapper
 
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 

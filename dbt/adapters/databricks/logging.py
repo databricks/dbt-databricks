@@ -1,5 +1,7 @@
 import os
-from logging import Handler, LogRecord, getLogger
+from logging import getLogger
+from logging import Handler
+from logging import LogRecord
 from typing import Union
 
 from dbt.adapters.events.logging import AdapterLogger

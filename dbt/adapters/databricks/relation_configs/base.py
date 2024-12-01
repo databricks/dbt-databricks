@@ -1,7 +1,13 @@
-from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, Optional, TypeVar
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
+from typing import ClassVar
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+from pydantic import ConfigDict
 from typing_extensions import Self
 
 from dbt.adapters.contracts.relation import RelationConfig

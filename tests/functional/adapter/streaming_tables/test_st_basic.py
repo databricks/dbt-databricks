@@ -5,7 +5,9 @@ import pytest
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.tests import util
-from dbt.tests.adapter.materialized_view.files import MY_SEED, MY_TABLE, MY_VIEW
+from dbt.tests.adapter.materialized_view.files import MY_SEED
+from dbt.tests.adapter.materialized_view.files import MY_TABLE
+from dbt.tests.adapter.materialized_view.files import MY_VIEW
 from tests.functional.adapter.streaming_tables import fixtures
 
 
