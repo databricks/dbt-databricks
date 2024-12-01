@@ -19,9 +19,18 @@
 {% endmacro %}
 
 {% macro databricks__show_tables(relation) %}
-  {% call statement('show_tables', fetch_result=True) -%}
-    show tables in {{ relation|lower }}
-  {% endcall %}
+  {% set database = (relation.database | default(''))| lower | replace('`', '') %}
+  {% set schema = relation.schema | lower | replace('`', '') %}
+
+  {% if database and schema -%}
+    {% call statement('show_tables', fetch_result=True) -%}
+      SHOW TABLES IN {{ database }}.{{ schema }}
+    {% endcall %}
+  {% else -%}
+    {% call statement('show_tables', fetch_result=True) -%}
+      SHOW TABLES IN {{ relation | lower }}
+    {% endcall %}
+  {% endif %}
 
   {% do return(load_result('show_tables').table) %}
 {% endmacro %}
@@ -103,4 +112,23 @@
   {% endcall %}
 
   {% do return(load_result('get_uc_tables').table) %}
+{% endmacro %}
+
+{% macro list_schemas(database) %}
+  {{ return(adapter.dispatch('list_schemas', 'dbt')(database)) }}
+{% endmacro %}
+
+{% macro databricks__list_schemas(database) -%}
+  {% set database_clean = (database | default('')) | replace('`', '') %}
+  {% if database_clean -%}
+    {% call statement('list_schemas', fetch_result=True, auto_begin=False) %}
+      SHOW DATABASES IN {{ database_clean }}
+    {% endcall %}
+  {% else -%}
+    {% call statement('list_schemas', fetch_result=True, auto_begin=False) %}
+      SHOW DATABASES
+    {% endcall %}
+  {% endif -%}
+
+  {{ return(load_result('list_schemas').table) }}
 {% endmacro %}

@@ -38,11 +38,14 @@ from dbt.adapters.contracts.connection import Connection
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksSessionConnectionManager,
+)
 from dbt.adapters.databricks.connections import DatabricksDBTConnection
 from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
 from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
-from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
+from dbt.adapters.databricks.connections import USE_LONG_SESSIONS, USE_SESSION_CONNECTION
 from dbt.adapters.databricks.python_submissions import (
     DbtDatabricksAllPurposeClusterPythonJobHelper,
 )
@@ -148,7 +151,9 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
+    if USE_SESSION_CONNECTION:
+        ConnectionManager: Type[DatabricksConnectionManager] = DatabricksSessionConnectionManager
+    elif USE_LONG_SESSIONS:
         ConnectionManager: Type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
@@ -207,7 +212,7 @@ class DatabricksAdapter(SparkAdapter):
         If `database` is `None`, fallback to executing `show databases` because
         `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
         """
-        if database is not None:
+        if database is not None and not USE_SESSION_CONNECTION:
             results = self.connections.list_schemas(database=database)
         else:
             results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -281,7 +286,7 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[str, Optional[str]]]
-        if all([relation.database, relation.schema]):
+        if all([relation.database, relation.schema]) and not USE_SESSION_CONNECTION:
             tables = self.connections.list_tables(
                 database=relation.database, schema=relation.schema  # type: ignore[arg-type]
             )
