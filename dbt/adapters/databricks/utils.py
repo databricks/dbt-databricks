@@ -1,6 +1,6 @@
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
@@ -73,3 +73,9 @@ def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
         if check_not_found_error(errmsg):
             return default
         raise e
+
+
+def if_some(value: Optional[T], func: Callable[[T], Any]) -> Any:
+    if value is not None:
+        return func(value)
+    return None

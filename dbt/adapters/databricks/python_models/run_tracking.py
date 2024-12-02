@@ -7,12 +7,12 @@ from dbt.adapters.databricks.logging import logger
 
 
 class PythonRunTracker(object):
-    _run_ids: set[str] = set()
+    _run_ids: set[int] = set()
     _commands: set[CommandExecution] = set()
     _lock = threading.Lock()
 
     @classmethod
-    def remove_run_id(cls, run_id: str) -> None:
+    def remove_run_id(cls, run_id: int) -> None:
         cls._lock.acquire()
         try:
             cls._run_ids.discard(run_id)
@@ -20,7 +20,7 @@ class PythonRunTracker(object):
             cls._lock.release()
 
     @classmethod
-    def insert_run_id(cls, run_id: str) -> None:
+    def insert_run_id(cls, run_id: int) -> None:
         cls._lock.acquire()
         try:
             cls._run_ids.add(run_id)

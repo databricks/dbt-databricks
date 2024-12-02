@@ -481,7 +481,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        api_client = DatabricksApiClient.create(creds, 15 * 60)
+        assert self.credentials_manager
+        api_client = DatabricksApiClient.create(self.credentials_manager.api_client, creds, 15 * 60)
         logger.info("Cancelling open python jobs")
         PythonRunTracker.cancel_runs(api_client)
         return cancelled

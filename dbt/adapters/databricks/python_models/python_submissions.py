@@ -12,8 +12,6 @@ from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
-DEFAULT_TIMEOUT = 60 * 60 * 24
-
 
 class PythonSubmitter(ABC):
     """Interface for submitting Python models to run on Databricks."""
@@ -102,7 +100,7 @@ class PythonNotebookUploader:
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
-        file_path = f"{workdir}{self.identifier}"
+        file_path = f"{workdir}/{self.identifier}"
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
         return file_path
 
@@ -509,7 +507,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         access_control_list = self.permission_builder.build_job_permissions(
             self.job_grants, self.acls
         )
-        self.api_client.workflow_permissions.put(job_id, access_control_list)
+        self.api_client.workflow_permissions.set(job_id, access_control_list)
 
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
         self.tracker.insert_run_id(run_id)
