@@ -1,7 +1,8 @@
 from unittest.mock import Mock
-from dbt.adapters.databricks.column import DatabricksColumn
+
 import pytest
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from tests.unit.macros.base import MacroTestBase
 
 

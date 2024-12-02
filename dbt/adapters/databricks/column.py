@@ -38,7 +38,7 @@ class DatabricksColumn(SparkColumn):
     @staticmethod
     def format_remove_column_list(columns: list["DatabricksColumn"]) -> str:
         return ", ".join([quote(c.name) for c in columns])
-    
+
     @staticmethod
     def format_add_column_list(columns: list["DatabricksColumn"]) -> str:
         return ", ".join([f"{quote(c.name)} {c.data_type}" for c in columns])

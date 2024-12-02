@@ -27,6 +27,7 @@ class TestSparkColumn:
             "stats:rows:value": 12345678,
         }
 
+
 class TestColumnStatics:
     @pytest.mark.parametrize(
         "column, expected",
@@ -55,7 +56,10 @@ class TestColumnStatics:
         [
             ([], ""),
             ([DatabricksColumn("foo", "string")], "`foo` string"),
-            ([DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")], "`foo` string, `bar` int"),
+            (
+                [DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")],
+                "`foo` string, `bar` int",
+            ),
         ],
     )
     def test_format_add_column_list(self, columns, expected):

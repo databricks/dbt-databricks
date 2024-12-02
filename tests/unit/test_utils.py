@@ -66,4 +66,4 @@ class TestDatabricksUtils:
         assert remove_ansi(test_string) == expected_string
 
     def test_quote(self):
-        assert quote("table") == '`table`'
+        assert quote("table") == "`table`"
