@@ -1,13 +1,14 @@
 import re
-from typing import ClassVar
-from typing import Optional
+from typing import ClassVar, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksComponentProcessor,
+)
 from dbt.adapters.relation_configs.config_base import RelationResults
 
 SCHEDULE_REGEX = re.compile(r"CRON '(.*)' AT TIME ZONE '(.*)'")

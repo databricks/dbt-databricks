@@ -1,5 +1,4 @@
-from typing import Any
-from typing import Callable
+from typing import Any, Callable
 from unittest.mock import Mock
 
 import pytest

@@ -1,6 +1,5 @@
 from abc import ABC
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from databricks.sql.client import Connection
 

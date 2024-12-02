@@ -119,7 +119,6 @@ matrix.session_support.env-vars = [
 line-length = 100
 target-version = 'py39'
 
-
 [tool.ruff.lint]
 select = ["E", "W", "F", "I"]
 ignore = ["E203"]
@@ -141,8 +140,6 @@ markers = [
 strict_optional = true
 no_implicit_optional = true
 disallow_untyped_defs = true
-allow_redefinition = true
-
 
 [[tool.mypy.overrides]]
 module = "tests.*"

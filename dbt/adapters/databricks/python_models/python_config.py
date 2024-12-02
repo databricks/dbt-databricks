@@ -1,9 +1,7 @@
 import uuid
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
 

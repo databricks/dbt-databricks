@@ -5,24 +5,20 @@ import re
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
-from typing import cast
-from typing import Optional
-from typing import Union
+from typing import Any, Optional, Union, cast
 
 import keyring
-from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient
-from databricks.sdk.oauth import SessionCredentials
-from dbt_common.exceptions import DbtConfigError
-from dbt_common.exceptions import DbtValidationError
+from dbt_common.exceptions import DbtConfigError, DbtValidationError
 
+from databricks.sdk.core import CredentialsProvider
+from databricks.sdk.oauth import OAuthClient, SessionCredentials
 from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks.auth import m2m_auth
-from dbt.adapters.databricks.auth import token_auth
-from dbt.adapters.databricks.events.credential_events import CredentialLoadError
-from dbt.adapters.databricks.events.credential_events import CredentialSaveError
-from dbt.adapters.databricks.events.credential_events import CredentialShardEvent
+from dbt.adapters.databricks.auth import m2m_auth, token_auth
+from dbt.adapters.databricks.events.credential_events import (
+    CredentialLoadError,
+    CredentialSaveError,
+    CredentialShardEvent,
+)
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"

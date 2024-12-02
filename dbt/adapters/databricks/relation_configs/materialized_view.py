@@ -1,8 +1,10 @@
 from typing import Optional
 
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationChangeSet
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksRelationChangeSet,
+    DatabricksRelationConfigBase,
+)
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )

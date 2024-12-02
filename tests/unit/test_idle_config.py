@@ -3,8 +3,7 @@ from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.contracts.graph import model_config
-from dbt.contracts.graph import nodes
+from dbt.contracts.graph import model_config, nodes
 
 
 class TestDatabricksConnectionMaxIdleTime:

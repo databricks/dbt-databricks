@@ -1,16 +1,13 @@
 import base64
 import re
 import time
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
-from requests import Response
-from requests import Session
+from requests import Response, Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 

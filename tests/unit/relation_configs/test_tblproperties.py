@@ -2,8 +2,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
+from dbt.adapters.databricks.relation_configs.tblproperties import (
+    TblPropertiesConfig,
+    TblPropertiesProcessor,
+)
 from dbt.exceptions import DbtRuntimeError
 from tests.unit import fixtures
 

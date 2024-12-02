@@ -27,7 +27,7 @@
         get(split(
             {{ string_text }},
             {{ delimiter_expr }}
-            ),
+            ), 
                 length({{ string_text }})
                 - length(
                     replace({{ string_text }},  {{ delimiter_text }}, '')

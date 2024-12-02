@@ -1,16 +1,12 @@
-from abc import ABC
-from abc import abstractmethod
-from typing import Any
-from typing import Optional
+from abc import ABC, abstractmethod
+from typing import Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 from pydantic import BaseModel
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.api_client import CommandExecution
-from dbt.adapters.databricks.api_client import DatabricksApiClient
-from dbt.adapters.databricks.api_client import WorkflowJobApi
+from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
