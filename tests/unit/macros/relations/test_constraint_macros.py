@@ -1,5 +1,8 @@
+from unittest.mock import Mock
+
 import pytest
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -16,6 +19,7 @@ class TestConstraintMacros(MacroTestBase):
     def modify_context(self, default_context) -> None:
         # Mock local_md5
         default_context["local_md5"] = lambda s: f"hash({s})"
+        default_context["api"] = Mock(Column=DatabricksColumn)
 
     def render_constraints(self, template, *args):
         return self.run_macro(template, "databricks_constraints_to_dbt", *args)
