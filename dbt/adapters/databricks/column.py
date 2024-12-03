@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
+from dbt.adapters.databricks.utils import quote
 from dbt.adapters.spark.column import SparkColumn
 
 
@@ -28,3 +29,16 @@ class DatabricksColumn(SparkColumn):
 
     def __repr__(self) -> str:
         return "<DatabricksColumn {} ({})>".format(self.name, self.data_type)
+
+    @staticmethod
+    def get_name(column: dict[str, Any]) -> str:
+        name = column["name"]
+        return quote(name) if column.get("quote", False) else name
+
+    @staticmethod
+    def format_remove_column_list(columns: list["DatabricksColumn"]) -> str:
+        return ", ".join([quote(c.name) for c in columns])
+
+    @staticmethod
+    def format_add_column_list(columns: list["DatabricksColumn"]) -> str:
+        return ", ".join([f"{quote(c.name)} {c.data_type}" for c in columns])
