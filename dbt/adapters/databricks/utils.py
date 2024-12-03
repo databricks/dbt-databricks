@@ -73,3 +73,7 @@ def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
         if check_not_found_error(errmsg):
             return default
         raise e
+
+
+def quote(name: str) -> str:
+    return f"`{name}`"
