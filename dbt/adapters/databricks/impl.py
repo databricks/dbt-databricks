@@ -33,9 +33,11 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
     USE_LONG_SESSIONS,
+    USE_SESSION_CONNECTION,
     DatabricksConnectionManager,
     DatabricksDBTConnection,
     DatabricksSQLConnectionWrapper,
+    DatabricksSessionConnectionManager,
     ExtendedSessionConnectionManager,
 )
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -156,7 +158,9 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
+    if USE_SESSION_CONNECTION:
+        ConnectionManager: type[DatabricksConnectionManager] = DatabricksSessionConnectionManager
+    elif USE_LONG_SESSIONS:
         ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
@@ -272,7 +276,7 @@ class DatabricksAdapter(SparkAdapter):
         If `database` is `None`, fallback to executing `show databases` because
         `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
         """
-        if database is not None:
+        if database is not None and not USE_SESSION_CONNECTION:
             results = self.connections.list_schemas(database=database)
         else:
             results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -346,7 +350,7 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"relation": relation}
 
         new_rows: list[tuple[str, Optional[str]]]
-        if all([relation.database, relation.schema]):
+        if all([relation.database, relation.schema]) and not USE_SESSION_CONNECTION:
             tables = self.connections.list_tables(
                 database=relation.database,  # type: ignore[arg-type]
                 schema=relation.schema,  # type: ignore[arg-type]

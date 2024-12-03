@@ -91,10 +91,29 @@ uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n auto 
 sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto --dist=loadscope tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
+unit = """
+if [[ "$DBT_DATABRICKS_SESSION_CONNECTION" == "True" ]]; then
+  PROFILE="session_connection"
+else
+  PROFILE="databricks_cluster"
+fi
+
+pytest --color=yes -v --profile $PROFILE -n auto --dist=loadscope tests/unit
+"""
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
+session_support = ["no_session", "session"]
+
+
+[tool.hatch.envs.test.overrides]
+matrix.session_support.env-vars = [
+  { key = "DBT_DATABRICKS_SESSION_CONNECTION", value = "False", if = ["no_session"]},
+  { key = "DBT_DATABRICKS_SESSION_CONNECTION", value = "True", if = ["session"] }
+]
+
+
+
 
 [tool.ruff]
 line-length = 100

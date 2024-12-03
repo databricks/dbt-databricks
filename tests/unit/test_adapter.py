@@ -110,6 +110,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         test_http_headers(["a", "b"])
         test_http_headers({"a": 1, "b": 2})
 
+    @pytest.mark.skip_profile("session_connection")
     def test_invalid_custom_user_agent(self):
         with pytest.raises(DbtValidationError) as excinfo:
             config = self._get_config()
@@ -120,6 +121,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         assert "Invalid invocation environment" in str(excinfo.value)
 
+    @pytest.mark.skip_profile("session_connection")
     def test_custom_user_agent(self):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
@@ -134,12 +136,14 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
+    @pytest.mark.skip_profile("session_connection")
     def test_environment_single_http_header(self):
         self._test_environment_http_headers(
             http_headers_str='{"test":{"jobId":1,"runId":12123}}',
             expected_http_headers=[("test", '{"jobId": 1, "runId": 12123}')],
         )
 
+    @pytest.mark.skip_profile("session_connection")
     def test_environment_multiple_http_headers(self):
         self._test_environment_http_headers(
             http_headers_str='{"test":{"jobId":1,"runId":12123},"dummy":{"jobId":1,"runId":12123}}',
@@ -149,6 +153,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             ],
         )
 
+    @pytest.mark.skip_profile("session_connection")
     def test_environment_users_http_headers_intersection_error(self):
         with pytest.raises(DbtValidationError) as excinfo:
             self._test_environment_http_headers(
@@ -159,6 +164,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         assert "Intersection with reserved http_headers in keys: {'t'}" in str(excinfo.value)
 
+    @pytest.mark.skip_profile("session_connection")
     def test_environment_users_http_headers_union_success(self):
         self._test_environment_http_headers(
             http_headers_str='{"t":{"jobId":1,"runId":12123},"d":{"jobId":1,"runId":12123}}',
@@ -170,6 +176,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             ],
         )
 
+    @pytest.mark.skip_profile("session_connection")
     def test_environment_http_headers_string(self):
         self._test_environment_http_headers(
             http_headers_str='{"string":"some-string"}',
@@ -269,6 +276,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         return connect
 
+    @pytest.mark.skip_profile("session_connection")
     def test_databricks_sql_connector_connection(self):
         self._test_databricks_sql_connector_connection(self._connect_func())
 
@@ -291,6 +299,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert len(connection.credentials.session_properties) == 1
             assert connection.credentials.session_properties["spark.sql.ansi.enabled"] == "true"
 
+    @pytest.mark.skip_profile("session_connection")
     def test_databricks_sql_connector_catalog_connection(self):
         self._test_databricks_sql_connector_catalog_connection(
             self._connect_func(expected_catalog="main")
@@ -314,6 +323,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert connection.credentials.schema == "analytics"
             assert connection.credentials.database == "main"
 
+    @pytest.mark.skip_profile("session_connection")
     def test_databricks_sql_connector_http_header_connection(self):
         self._test_databricks_sql_connector_http_header_connection(
             {"aaa": "xxx"}, self._connect_func(expected_http_headers=[("aaa", "xxx")])
