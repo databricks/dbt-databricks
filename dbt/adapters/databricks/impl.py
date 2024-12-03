@@ -34,8 +34,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
     USE_LONG_SESSIONS,
     DatabricksConnectionManager,
-    DatabricksDBTConnection,
-    DatabricksSQLConnectionWrapper,
     ExtendedSessionConnectionManager,
 )
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -807,19 +805,13 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         """Get the relation config from the relation."""
 
         relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
-        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            # TODO fix this path so that it doesn't need a cursor
-            # It just calls APIs to poll the pipeline status
-            cursor = wrapper.cursor()
-            try:
-                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            finally:
-                cursor.close()
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 

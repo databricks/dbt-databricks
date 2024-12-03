@@ -340,13 +340,15 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert connection.credentials.token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             assert connection.credentials.schema == "analytics"
 
-    def test_list_relations_without_caching__no_relations(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__no_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = []
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             assert adapter.list_relations("database", "schema") == []
 
-    def test_list_relations_without_caching__some_relations(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__some_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", "hudi", "owner")]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
@@ -360,7 +362,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.owner == "owner"
             assert relation.is_hudi
 
-    def test_list_relations_without_caching__hive_relation(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
@@ -373,7 +376,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.type == DatabricksRelationType.Table
             assert not relation.has_information()
 
-    def test_get_schema_for_catalog__no_columns(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__no_columns(self, _):
         with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
             with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
@@ -382,7 +386,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 0
 
-    def test_get_schema_for_catalog__some_columns(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__some_columns(self, _):
         with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
             with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
