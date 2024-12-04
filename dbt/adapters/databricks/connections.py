@@ -1,5 +1,4 @@
 import decimal
-import os
 import re
 import sys
 import time
@@ -9,22 +8,18 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
-from numbers import Number
-from threading import get_ident
 from typing import TYPE_CHECKING, Any, Hashable, Optional, cast
 
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtDatabaseError, DbtInternalError, DbtRuntimeError
+from dbt_common.exceptions import DbtDatabaseError, DbtInternalError
 from dbt_common.utils import cast_to_str
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection as DatabricksSQLConnection
 from databricks.sql.client import Cursor as DatabricksSQLCursor
 from databricks.sql.exc import Error
-from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.contracts.connection import (
-    DEFAULT_QUERY_COMMENT,
     AdapterRequiredConfig,
     AdapterResponse,
     Connection,
@@ -32,8 +27,10 @@ from dbt.adapters.contracts.connection import (
     Identifier,
     LazyHandle,
 )
+from dbt.adapters.databricks import context
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
+from dbt.adapters.databricks.context import DEFAULT_MAX_IDLE_TIME, DatabricksMacroQueryStringSetter
 from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
@@ -84,15 +81,6 @@ st_refresh_regex = re.compile(
 
 
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
-
-
-# toggle for session managements that minimizes the number of sessions opened/closed
-USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
-
-# Number of idle seconds before a connection is automatically closed. Only applicable if
-# USE_LONG_SESSIONS is true.
-# Updated when idle times of 180s were causing errors
-DEFAULT_MAX_IDLE_TIME = 60
 
 
 class DatabricksSQLConnectionWrapper:
@@ -265,36 +253,6 @@ class DatabricksSQLCursorWrapper:
             with warnings.catch_warnings():
                 warnings.simplefilter("always")
                 warnings.warn("The cursor was closed by destructor.")
-
-
-DATABRICKS_QUERY_COMMENT = f"""
-{{%- set comment_dict = {{}} -%}}
-{{%- do comment_dict.update(
-    app='dbt',
-    dbt_version=dbt_version,
-    dbt_databricks_version='{__version__}',
-    databricks_sql_connector_version='{dbsql.__version__}',
-    profile_name=target.get('profile_name'),
-    target_name=target.get('target_name'),
-) -%}}
-{{%- if node is not none -%}}
-  {{%- do comment_dict.update(
-    node_id=node.unique_id,
-  ) -%}}
-{{% else %}}
-  {{# in the node context, the connection name is the node_id #}}
-  {{%- do comment_dict.update(connection_name=connection_name) -%}}
-{{%- endif -%}}
-{{{{ return(tojson(comment_dict)) }}}}
-"""
-
-
-class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
-    def _get_comment_macro(self) -> Optional[str]:
-        if self.config.query_comment.comment == DEFAULT_QUERY_COMMENT:
-            return DATABRICKS_QUERY_COMMENT
-        else:
-            return self.config.query_comment.comment
 
 
 @dataclass
@@ -646,7 +604,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         # If a model specifies a compute resource the http path
         # may be different than the http_path property of creds.
-        http_path = _get_http_path(query_header_context, creds)
+        http_path = context.get_http_path(query_header_context, creds)
 
         def connect() -> DatabricksSQLConnectionWrapper:
             try:
@@ -707,7 +665,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 class ExtendedSessionConnectionManager(DatabricksConnectionManager):
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext) -> None:
         assert (
-            USE_LONG_SESSIONS
+            context.USE_LONG_SESSIONS
         ), "This connection manager should only be used when USE_LONG_SESSIONS is enabled"
         super().__init__(profile, mp_context)
         self.threads_compute_connections: dict[
@@ -726,7 +684,9 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         conn_name: str = "master" if name is None else name
 
         # Get a connection for this thread
-        conn = self._get_if_exists_compute_connection(_get_compute_name(query_header_context) or "")
+        conn = self._get_if_exists_compute_connection(
+            context.get_compute_name(query_header_context) or ""
+        )
 
         if conn is None:
             conn = self._create_compute_connection(conn_name, query_header_context)
@@ -864,7 +824,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         with the given node."""
 
         # Create a new connection
-        compute_name = _get_compute_name(query_header_context) or ""
+        compute_name = context.get_compute_name(query_header_context) or ""
 
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
@@ -876,9 +836,9 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         )
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = _get_http_path(query_header_context, creds=creds) or ""
+        conn.http_path = context.get_http_path(query_header_context, creds=creds) or ""
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-        conn.max_idle_time = _get_max_idle_time(query_header_context, creds=creds)
+        conn.max_idle_time = context.get_max_idle_time(query_header_context, creds=creds)
 
         conn.handle = LazyHandle(self.open)
 
@@ -910,7 +870,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         # Once long session management is no longer under the USE_LONG_SESSIONS toggle
         # this should be renamed and replace the _open class method.
         assert (
-            USE_LONG_SESSIONS
+            context.USE_LONG_SESSIONS
         ), "This path, '_open2', should only be reachable with USE_LONG_SESSIONS"
 
         databricks_connection = cast(DatabricksDBTConnection, connection)
@@ -986,87 +946,3 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
             retry_limit=creds.connect_retries,
             retry_timeout=(timeout if timeout is not None else exponential_backoff),
         )
-
-
-def _get_compute_name(query_header_context: Any) -> Optional[str]:
-    # Get the name of the specified compute resource from the node's
-    # config.
-    compute_name = None
-    if (
-        query_header_context
-        and hasattr(query_header_context, "config")
-        and query_header_context.config
-    ):
-        compute_name = query_header_context.config.get("databricks_compute", None)
-    return compute_name
-
-
-def _get_http_path(query_header_context: Any, creds: DatabricksCredentials) -> Optional[str]:
-    """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
-
-    thread_id = (os.getpid(), get_ident())
-
-    # ResultNode *should* have relation_name attr, but we work around a core
-    # issue by checking.
-    relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-
-    # If there is no node we return the http_path for the default compute.
-    if not query_header_context:
-        if not USE_LONG_SESSIONS:
-            logger.debug(f"Thread {thread_id}: using default compute resource.")
-        return creds.http_path
-
-    # Get the name of the compute resource specified in the node's config.
-    # If none is specified return the http_path for the default compute.
-    compute_name = _get_compute_name(query_header_context)
-    if not compute_name:
-        if not USE_LONG_SESSIONS:
-            logger.debug(f"On thread {thread_id}: {relation_name} using default compute resource.")
-        return creds.http_path
-
-    # Get the http_path for the named compute.
-    http_path = None
-    if creds.compute:
-        http_path = creds.compute.get(compute_name, {}).get("http_path", None)
-
-    # no http_path for the named compute resource is an error condition
-    if not http_path:
-        raise DbtRuntimeError(
-            f"Compute resource {compute_name} does not exist or "
-            f"does not specify http_path, relation: {relation_name}"
-        )
-
-    if not USE_LONG_SESSIONS:
-        logger.debug(
-            f"On thread {thread_id}: {relation_name} using compute resource '{compute_name}'."
-        )
-
-    return http_path
-
-
-def _get_max_idle_time(query_header_context: Any, creds: DatabricksCredentials) -> int:
-    """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
-
-    max_idle_time = (
-        DEFAULT_MAX_IDLE_TIME if creds.connect_max_idle is None else creds.connect_max_idle
-    )
-
-    if query_header_context:
-        compute_name = _get_compute_name(query_header_context)
-        if compute_name and creds.compute:
-            max_idle_time = creds.compute.get(compute_name, {}).get(
-                "connect_max_idle", max_idle_time
-            )
-
-    if not isinstance(max_idle_time, Number):
-        if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
-            return int(max_idle_time.strip())
-        else:
-            raise DbtRuntimeError(
-                f"{max_idle_time} is not a valid value for connect_max_idle. "
-                "Must be a number of seconds."
-            )
-
-    return max_idle_time
