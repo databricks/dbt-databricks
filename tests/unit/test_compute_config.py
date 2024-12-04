@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks import connections
+from dbt.adapters.databricks import context
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 
@@ -33,27 +33,23 @@ class TestDatabricksConnectionHTTPPath:
         return n
 
     def test_get_http_path__empty(self, path, creds):
-        assert connections._get_http_path(None, creds) == path
+        assert context.get_http_path(creds, None) == path
 
     def test_get_http_path__no_compute(self, node, path, creds):
-        assert connections._get_http_path(node, creds) == path
+        assert context.get_http_path(creds, node) == path
 
     def test_get_http_path__missing_compute(self, node, creds, err_msg):
         node.config["databricks_compute"] = "foo"
-        with pytest.raises(DbtRuntimeError) as exc:
-            connections._get_http_path(node, creds)
-
-        assert err_msg in str(exc.value)
+        with pytest.raises(DbtRuntimeError, match=err_msg):
+            context.get_http_path(creds, node)
 
     def test_get_http_path__empty_compute(self, node, creds, err_msg):
         node.config["databricks_compute"] = "foo"
         creds.compute = {"foo": {}}
-        with pytest.raises(DbtRuntimeError) as exc:
-            connections._get_http_path(node, creds)
-
-        assert err_msg in str(exc.value)
+        with pytest.raises(DbtRuntimeError, match=err_msg):
+            context.get_http_path(creds, node)
 
     def test_get_http_path__matching_compute(self, node, creds):
         node.config["databricks_compute"] = "foo"
         creds.compute = {"foo": {"http_path": "alternate_path"}}
-        assert "alternate_path" == connections._get_http_path(node, creds)
+        assert "alternate_path" == context.get_http_path(creds, node)

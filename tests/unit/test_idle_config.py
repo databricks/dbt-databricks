@@ -1,26 +1,34 @@
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks import connections
+from dbt.adapters.databricks import context
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.contracts.graph import model_config, nodes
+from dbt.contracts.graph import model_config
+from dbt.contracts.graph.nodes import ModelNode
 
 
 class TestDatabricksConnectionMaxIdleTime:
     """Test the various cases for determining a specified warehouse."""
 
-    errMsg = (
-        "Compute resource foo does not exist or does not specify http_path, " "relation: a_relation"
-    )
+    @pytest.fixture
+    def errMsg(self):
+        return (
+            "Compute resource foo does not exist or does not specify http_path, "
+            "relation: a_relation"
+        )
 
-    def test_get_max_idle_default(self):
-        creds = DatabricksCredentials()
+    @pytest.fixture
+    def creds(self):
+        return DatabricksCredentials()
 
-        # No node and nothing specified in creds
-        time = connections._get_max_idle_time(None, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+    @pytest.fixture
+    def creds_with_idle(self, creds):
+        creds.connect_max_idle = 77
+        return creds
 
-        node = nodes.ModelNode(
+    @pytest.fixture
+    def node(self):
+        return ModelNode(
             relation_name="a_relation",
             database="database",
             schema="schema",
@@ -35,206 +43,82 @@ class TestDatabricksConnectionMaxIdleTime:
             checksum=None,
         )
 
-        # node has no configuration so should get back default
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+    @pytest.fixture
+    def node_with_compute(self, node):
+        node.config._extra = {"databricks_compute": "foo"}
+        return node
 
+    def test_get_max_idle__default(self, creds):
+        # No node and nothing specified in creds
+        time = context.get_max_idle_time(creds, None)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
+
+    def test_get_max_idle__with_no_node_config(self, creds, node):
+        # node has no configuration so should get back default
+        time = context.get_max_idle_time(creds, node)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
+
+    def test_get_max_idle__with_empty_config(self, creds, node):
         # empty configuration should return default
         node.config = model_config.ModelConfig()
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+        time = context.get_max_idle_time(creds, node)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
 
-        # node with no extras in configuration should return default
-        node.config._extra = {}
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
-
+    def test_get_max_idle__with_no_compute_config(self, creds, node_with_compute):
         # node that specifies a compute with no corresponding definition should return default
-        node.config._extra["databricks_compute"] = "foo"
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+        time = context.get_max_idle_time(creds, node_with_compute)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
 
+    def test_get_max_idle__with_no_compute_in_creds(self, creds, node_with_compute):
         creds.compute = {}
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
+        time = context.get_max_idle_time(creds, node_with_compute)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
 
+    def test_get_max_idle__with_compute_no_max_time(self, creds, node_with_compute):
         # if alternate compute doesn't specify a max time should return default
         creds.compute = {"foo": {}}
-        time = connections._get_max_idle_time(node, creds)
-        assert connections.DEFAULT_MAX_IDLE_TIME == time
-        # with self.assertRaisesRegex(
-        #     dbt.exceptions.DbtRuntimeError,
-        #     self.errMsg,
-        # ):
-        #     connections._get_http_path(node, creds)
+        time = context.get_max_idle_time(creds, node_with_compute)
+        assert context.DEFAULT_MAX_IDLE_TIME == time
 
-        # creds.compute = {"foo": {"http_path": "alternate_path"}}
-        # path = connections._get_http_path(node, creds)
-        # self.assertEqual("alternate_path", path)
-
-    def test_get_max_idle_creds(self):
-        creds_idle_time = 77
-        creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
-
+    def test_get_max_idle__creds_with_max_idle(self, creds_with_idle):
         # No node so value should come from creds
-        time = connections._get_max_idle_time(None, creds)
-        assert creds_idle_time == time
+        time = context.get_max_idle_time(creds_with_idle, None)
+        assert creds_with_idle.connect_max_idle == time
 
-        node = nodes.ModelNode(
-            relation_name="a_relation",
-            database="database",
-            schema="schema",
-            name="node_name",
-            resource_type="model",
-            package_name="package",
-            path="path",
-            original_file_path="orig_path",
-            unique_id="uniqueID",
-            fqn=[],
-            alias="alias",
-            checksum=None,
-        )
-
+    def test_get_max_idle__creds_with_max_idle_but_empty_node(self, creds_with_idle, node):
         # node has no configuration so should get value from creds
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
+        time = context.get_max_idle_time(creds_with_idle, node)
+        assert creds_with_idle.connect_max_idle == time
 
-        # empty configuration should get value from creds
-        node.config = model_config.ModelConfig()
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
+    def test_get_max_idle__creds_with_max_idle_but_no_compute_config(
+        self, creds_with_idle, node_with_compute
+    ):
+        time = context.get_max_idle_time(creds_with_idle, node_with_compute)
+        assert creds_with_idle.connect_max_idle == time
 
-        # node with no extras in configuration should get value from creds
-        node.config._extra = {}
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
-
-        # node that specifies a compute with no corresponding definition should get value from creds
-        node.config._extra["databricks_compute"] = "foo"
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
-
-        creds.compute = {}
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
-
+    def test_get_max_idle__creds_with_max_idle_and_compute_config_but_no_value(
+        self, creds_with_idle, node_with_compute
+    ):
         # if alternate compute doesn't specify a max time should get value from creds
-        creds.compute = {"foo": {}}
-        time = connections._get_max_idle_time(node, creds)
-        assert creds_idle_time == time
+        creds_with_idle.compute = {"foo": {}}
+        time = context.get_max_idle_time(creds_with_idle, node_with_compute)
+        assert creds_with_idle.connect_max_idle == time
 
-    def test_get_max_idle_compute(self):
-        creds_idle_time = 88
-        compute_idle_time = 77
-        creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
-        creds.compute = {"foo": {"connect_max_idle": compute_idle_time}}
+    def test_get_max_idle__golden_path(self, creds_with_idle, node_with_compute):
+        compute_idle_time = 88
+        creds_with_idle.compute = {"foo": {"connect_max_idle": compute_idle_time}}
 
-        node = nodes.SnapshotNode(
-            config=None,
-            relation_name="a_relation",
-            database="database",
-            schema="schema",
-            name="node_name",
-            resource_type="model",
-            package_name="package",
-            path="path",
-            original_file_path="orig_path",
-            unique_id="uniqueID",
-            fqn=[],
-            alias="alias",
-            checksum=None,
-        )
-
-        node.config = model_config.SnapshotConfig()
-        node.config._extra = {"databricks_compute": "foo"}
-
-        time = connections._get_max_idle_time(node, creds)
+        time = context.get_max_idle_time(creds_with_idle, node_with_compute)
         assert compute_idle_time == time
 
-    def test_get_max_idle_invalid(self):
-        creds_idle_time = "foo"
-        compute_idle_time = "bar"
-        creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
-        creds.compute = {"alternate_compute": {"connect_max_idle": compute_idle_time}}
+    def test_get_max_idle__invalid(self, creds_with_idle, node_with_compute):
+        creds_with_idle.compute = {"foo": {"connect_max_idle": "foo"}}
 
-        node = nodes.SnapshotNode(
-            config=None,
-            relation_name="a_relation",
-            database="database",
-            schema="schema",
-            name="node_name",
-            resource_type="model",
-            package_name="package",
-            path="path",
-            original_file_path="orig_path",
-            unique_id="uniqueID",
-            fqn=[],
-            alias="alias",
-            checksum=None,
-        )
+        with pytest.raises(DbtRuntimeError, match="foo is not a valid value"):
+            context.get_max_idle_time(creds_with_idle, node_with_compute)
 
-        node.config = model_config.SnapshotConfig()
+    def test_get_max_idle__with_string(self, creds_with_idle, node_with_compute):
+        creds_with_idle.compute = {"foo": {"connect_max_idle": "99"}}
 
-        with pytest.raises(DbtRuntimeError) as info:
-            connections._get_max_idle_time(node, creds)
-        assert (
-            f"{creds_idle_time} is not a valid value for connect_max_idle. "
-            "Must be a number of seconds."
-        ) in str(info.value)
-
-        node.config._extra["databricks_compute"] = "alternate_compute"
-        with pytest.raises(DbtRuntimeError) as info:
-            connections._get_max_idle_time(node, creds)
-        assert (
-            f"{compute_idle_time} is not a valid value for connect_max_idle. "
-            "Must be a number of seconds."
-        ) in str(info.value)
-
-        creds.compute["alternate_compute"]["connect_max_idle"] = "1.2.3"
-        with pytest.raises(DbtRuntimeError) as info:
-            connections._get_max_idle_time(node, creds)
-        assert (
-            "1.2.3 is not a valid value for connect_max_idle. " "Must be a number of seconds."
-        ) in str(info.value)
-
-        creds.compute["alternate_compute"]["connect_max_idle"] = "1,002.3"
-        with pytest.raises(DbtRuntimeError) as info:
-            connections._get_max_idle_time(node, creds)
-        assert (
-            "1,002.3 is not a valid value for connect_max_idle. " "Must be a number of seconds."
-        ) in str(info.value)
-
-    def test_get_max_idle_simple_string_conversion(self):
-        creds_idle_time = "12"
-        compute_idle_time = "34"
-        creds = DatabricksCredentials(connect_max_idle=creds_idle_time)
-        creds.compute = {"alternate_compute": {"connect_max_idle": compute_idle_time}}
-
-        node = nodes.SnapshotNode(
-            config=None,
-            relation_name="a_relation",
-            database="database",
-            schema="schema",
-            name="node_name",
-            resource_type="model",
-            package_name="package",
-            path="path",
-            original_file_path="orig_path",
-            unique_id="uniqueID",
-            fqn=[],
-            alias="alias",
-            checksum=None,
-        )
-
-        node.config = model_config.SnapshotConfig()
-
-        time = connections._get_max_idle_time(node, creds)
-        assert float(creds_idle_time) == time
-
-        node.config._extra["databricks_compute"] = "alternate_compute"
-        time = connections._get_max_idle_time(node, creds)
-        assert float(compute_idle_time) == time
-
-        creds.compute["alternate_compute"]["connect_max_idle"] = "  56 "
-        time = connections._get_max_idle_time(node, creds)
-        assert 56 == time
+        time = context.get_max_idle_time(creds_with_idle, node_with_compute)
+        assert time == 99

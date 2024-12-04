@@ -1,6 +1,3 @@
-import os
-from numbers import Number
-from threading import get_ident
 from typing import Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
@@ -33,9 +30,6 @@ DATABRICKS_QUERY_COMMENT = f"""
 {{{{ return(tojson(comment_dict)) }}}}
 """
 
-# toggle for session managements that minimizes the number of sessions opened/closed
-USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
-
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
     def _get_comment_macro(self) -> Optional[str]:
@@ -45,80 +39,58 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
             return self.config.query_comment.comment
 
 
-# Number of idle seconds before a connection is automatically closed. Only applicable if
-# USE_LONG_SESSIONS is true.
+# Number of idle seconds before a connection is automatically closed.
 # Updated when idle times of 180s were causing errors
 DEFAULT_MAX_IDLE_TIME = 60
 
 
-def get_max_idle_time(context: Any, creds: DatabricksCredentials) -> int:
-    """Get the http_path for the compute specified for the node.
+def get_max_idle_time(creds: DatabricksCredentials, context: Any) -> int:
+    """Get the max idle time for the compute specified for the node.
     If none is specified default will be used."""
 
-    max_idle_time = (
-        DEFAULT_MAX_IDLE_TIME if creds.connect_max_idle is None else creds.connect_max_idle
-    )
+    max_idle_time = creds.connect_max_idle or DEFAULT_MAX_IDLE_TIME
 
-    if context:
-        compute_name = get_compute_name(context)
-        if compute_name and creds.compute:
-            max_idle_time = creds.compute.get(compute_name, {}).get(
-                "connect_max_idle", max_idle_time
-            )
+    compute_name = get_compute_name(context)
+    if compute_name and creds.compute:
+        max_idle_time = creds.compute.get(compute_name, {}).get("connect_max_idle", max_idle_time)
 
-    if not isinstance(max_idle_time, Number):
-        if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
-            return int(max_idle_time.strip())
-        else:
-            raise DbtRuntimeError(
-                f"{max_idle_time} is not a valid value for connect_max_idle. "
-                "Must be a number of seconds."
-            )
-
-    return max_idle_time
+    try:
+        return int(max_idle_time)
+    except ValueError:
+        raise DbtRuntimeError(
+            f"{max_idle_time} is not a valid value for connect_max_idle. "
+            "Must be a number of seconds."
+        )
 
 
-def get_compute_name(query_header_context: Any) -> Optional[str]:
-    # Get the name of the specified compute resource from the node's
-    # config.
-    compute_name = None
-    if (
-        query_header_context
-        and hasattr(query_header_context, "config")
-        and query_header_context.config
-    ):
-        compute_name = query_header_context.config.get("databricks_compute", None)
-    return compute_name
+def get_compute_name(context: Any) -> Optional[str]:
+    """Get the name of the specified compute resource from the node's config."""
+    try:
+        return context.config.get("databricks_compute")
+    except Exception:
+        return None
 
 
-def get_http_path(query_header_context: Any, creds: DatabricksCredentials) -> Optional[str]:
+def get_http_path(creds: DatabricksCredentials, context: Any) -> Optional[str]:
     """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
-
-    thread_id = (os.getpid(), get_ident())
+    If none is specified default will be used.
+    """
 
     # ResultNode *should* have relation_name attr, but we work around a core
     # issue by checking.
-    relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-
-    # If there is no node we return the http_path for the default compute.
-    if not query_header_context:
-        if not USE_LONG_SESSIONS:
-            logger.debug(f"Thread {thread_id}: using default compute resource.")
-        return creds.http_path
+    relation_name = getattr(context, "relation_name", "[unknown]")
 
     # Get the name of the compute resource specified in the node's config.
     # If none is specified return the http_path for the default compute.
-    compute_name = get_compute_name(query_header_context)
+    compute_name = get_compute_name(context)
     if not compute_name:
-        if not USE_LONG_SESSIONS:
-            logger.debug(f"On thread {thread_id}: {relation_name} using default compute resource.")
+        logger.debug(f"{relation_name} using default compute resource.")
         return creds.http_path
 
     # Get the http_path for the named compute.
     http_path = None
     if creds.compute:
-        http_path = creds.compute.get(compute_name, {}).get("http_path", None)
+        http_path = creds.compute.get(compute_name, {}).get("http_path")
 
     # no http_path for the named compute resource is an error condition
     if not http_path:
@@ -127,9 +99,6 @@ def get_http_path(query_header_context: Any, creds: DatabricksCredentials) -> Op
             f"does not specify http_path, relation: {relation_name}"
         )
 
-    if not USE_LONG_SESSIONS:
-        logger.debug(
-            f"On thread {thread_id}: {relation_name} using compute resource '{compute_name}'."
-        )
+    logger.debug(f"{relation_name} using compute resource '{compute_name}'.")
 
     return http_path

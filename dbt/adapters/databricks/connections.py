@@ -1,4 +1,5 @@
 import decimal
+import os
 import re
 import sys
 import time
@@ -81,6 +82,9 @@ st_refresh_regex = re.compile(
 
 
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
+
+# toggle for session managements that minimizes the number of sessions opened/closed
+USE_LONG_SESSIONS = os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
 
 
 class DatabricksSQLConnectionWrapper:
@@ -665,7 +669,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 class ExtendedSessionConnectionManager(DatabricksConnectionManager):
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext) -> None:
         assert (
-            context.USE_LONG_SESSIONS
+            USE_LONG_SESSIONS
         ), "This connection manager should only be used when USE_LONG_SESSIONS is enabled"
         super().__init__(profile, mp_context)
         self.threads_compute_connections: dict[
@@ -836,9 +840,9 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         )
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = context.get_http_path(query_header_context, creds=creds) or ""
+        conn.http_path = context.get_http_path(creds, query_header_context) or ""
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-        conn.max_idle_time = context.get_max_idle_time(query_header_context, creds=creds)
+        conn.max_idle_time = context.get_max_idle_time(creds, query_header_context)
 
         conn.handle = LazyHandle(self.open)
 
@@ -870,7 +874,7 @@ class ExtendedSessionConnectionManager(DatabricksConnectionManager):
         # Once long session management is no longer under the USE_LONG_SESSIONS toggle
         # this should be renamed and replace the _open class method.
         assert (
-            context.USE_LONG_SESSIONS
+            USE_LONG_SESSIONS
         ), "This path, '_open2', should only be reachable with USE_LONG_SESSIONS"
 
         databricks_connection = cast(DatabricksDBTConnection, connection)
