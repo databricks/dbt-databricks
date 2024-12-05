@@ -79,3 +79,7 @@ def if_some(value: Optional[T], func: Callable[[T], Any]) -> Any:
     if value is not None:
         return func(value)
     return None
+
+
+def quote(name: str) -> str:
+    return f"`{name}`"
