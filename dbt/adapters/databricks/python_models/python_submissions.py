@@ -360,7 +360,7 @@ class PythonWorkflowConfigCompiler:
         self,
         task_settings: dict[str, Any],
         workflow_spec: dict[str, Any],
-        existing_job_id: str,
+        existing_job_id: Optional[int],
         post_hook_tasks: list[dict[str, Any]],
     ) -> None:
         self.task_settings = task_settings
@@ -382,7 +382,7 @@ class PythonWorkflowConfigCompiler:
                 cluster_settings, workflow_spec, existing_job_id, post_hook_tasks
             )
         else:
-            return PythonWorkflowConfigCompiler(cluster_settings, {}, "", [])
+            return PythonWorkflowConfigCompiler(cluster_settings, {}, None, [])
 
     @staticmethod
     def workflow_name(parsed_model: ParsedPythonModel) -> str:
@@ -406,7 +406,7 @@ class PythonWorkflowConfigCompiler:
 
         return cluster_settings
 
-    def compile(self, path: str) -> tuple[dict[str, Any], str]:
+    def compile(self, path: str) -> tuple[dict[str, Any], Optional[int]]:
         notebook_task = {
             "task_key": "inner_notebook",
             "notebook_task": {
@@ -429,8 +429,8 @@ class PythonWorkflowCreator:
     def create_or_update(
         self,
         workflow_spec: dict[str, Any],
-        existing_job_id: Optional[str],
-    ) -> str:
+        existing_job_id: Optional[int],
+    ) -> int:
         """
         :return: tuple of job_id and whether the job is new
         """
@@ -507,9 +507,9 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         access_control_list = self.permission_builder.build_job_permissions(
             self.job_grants, self.acls
         )
-        self.api_client.workflow_permissions.set(job_id, access_control_list)
+        self.api_client.workflow_permissions.set(str(job_id), access_control_list)
 
-        run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
+        run_id = self.api_client.workflows.run(job_id)
         self.tracker.insert_run_id(run_id)
 
         try:

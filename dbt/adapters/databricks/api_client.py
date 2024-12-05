@@ -9,7 +9,7 @@ from dbt_common.exceptions import DbtRuntimeError
 from typing_extensions import Self
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.compute import CommandStatus, ContextStatus, Language
+from databricks.sdk.service.compute import CommandStatus, ContextStatus, Language, ResultType
 from databricks.sdk.service.iam import User
 from databricks.sdk.service.jobs import (
     Continuous,
@@ -36,6 +36,7 @@ from databricks.sdk.service.jobs import (
     TriggerSettings,
     WebhookNotifications,
 )
+from databricks.sdk.service.pipelines import PipelineState
 from databricks.sdk.service.workspace import ImportFormat
 from databricks.sdk.service.workspace import Language as WorkspaceLanguage
 from dbt.adapters.databricks import utils
@@ -180,8 +181,14 @@ class CommandApi:
                 command.cluster_id, command.command_id, command.cluster_id
             )
         )
-        if response.status == CommandStatus.ERROR:
-            raise DbtRuntimeError(f"Error running command.\n {response}")
+        if response.status != CommandStatus.FINISHED:
+            raise DbtRuntimeError(f"Command failed with {response}")
+
+        if response.results and response.results.result_type == ResultType.ERROR:
+            raise DbtRuntimeError(
+                f"Python model failed with traceback as:\n"
+                f"{utils.remove_ansi(response.results.cause or '')}"
+            )
 
 
 class FromDictable(Protocol):
@@ -354,7 +361,6 @@ class WorkflowJobApi:
             "format": convert_sdk_element(Format, job_settings.get("format")),
             "git_source": convert_sdk_element(GitSource, job_settings.get("git_source")),
             "health": convert_sdk_element(JobsHealthRules, job_settings.get("health")),
-            "idempotency_token": job_settings.get("idempotency_token"),
             "job_clusters": convert_sdk_list(JobCluster, job_settings.get("job_clusters")),
             "max_concurrent_runs": job_settings.get("max_concurrent_runs"),
             "name": job_settings.get("name"),
@@ -368,11 +374,48 @@ class WorkflowJobApi:
             "tags": job_settings.get("tags"),
             "tasks": convert_sdk_list(Task, job_settings.get("tasks")),
             "timeout_seconds": self.timeout.total_seconds(),
-            "trigger_settings": convert_sdk_element(TriggerSettings, job_settings.get("trigger")),
+            "trigger": convert_sdk_element(TriggerSettings, job_settings.get("trigger")),
             "webhook_notifications": convert_sdk_element(
                 WebhookNotifications, job_settings.get("webhook_notifications")
             ),
         }
+
+
+class DltPipelineApi:
+    def __init__(self, wc: WorkspaceClient):
+        self.wc = wc
+
+    def poll_for_completion(self, pipeline_id: str) -> None:
+        response = self.wc.pipelines.wait_get_pipeline_idle(pipeline_id)
+        if response.state != PipelineState.IDLE:
+            if response.cause:
+                raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {response.cause}")
+            else:
+                latest_update = utils.if_some(response.latest_updates, lambda x: x[0])
+                last_error = self.get_update_error(pipeline_id, latest_update)
+                raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {last_error}")
+
+    def get_update_error(self, pipeline_id: str, update_id: str) -> str:
+        events = self.wc.pipelines.list_pipeline_events(pipeline_id)
+        update_events = [
+            e
+            for e in events
+            if e.event_type == "update_progress"
+            and utils.if_some(e.origin, lambda x: x.update_id == update_id)
+        ]
+
+        error_events = [e.error for e in update_events if e.error]
+
+        msg = ""
+        if error_events:
+            msg = (
+                utils.if_some(
+                    error_events[0].exceptions,
+                    lambda x: "\n".join(map(lambda y: y.message or "", x)),
+                )
+                or ""
+            )
+        return msg
 
 
 class DatabricksApiClient:
@@ -395,6 +438,7 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(wc, timeout)
         self.workflows = WorkflowJobApi(wc, timeout)
         self.workflow_permissions = JobPermissionsApi(wc)
+        self.dlt_pipelines = DltPipelineApi(wc)
 
     @classmethod
     def create(

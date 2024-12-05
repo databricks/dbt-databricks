@@ -11,7 +11,7 @@ class PythonJobConfig(BaseModel):
 
     name: Optional[str] = None
     grants: dict[str, list[dict[str, str]]] = Field(exclude=True, default_factory=dict)
-    existing_job_id: str = Field("", exclude=True)
+    existing_job_id: Optional[int] = Field(exclude=True)
     post_hook_tasks: list[dict[str, Any]] = Field(exclude=True, default_factory=list)
     additional_task_settings: dict[str, Any] = Field(exclude=True, default_factory=dict)
 
