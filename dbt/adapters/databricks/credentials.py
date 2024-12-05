@@ -12,9 +12,10 @@ from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
 
-from databricks.sdk import WorkspaceClient
+from databricks.sdk import WorkspaceClient, useragent
 from databricks.sdk.core import Config, CredentialsProvider
 from dbt.adapters.contracts.connection import Credentials
+from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
@@ -32,11 +33,13 @@ MAX_NT_PASSWORD_SIZE = 1280
 # also expire after 24h. Silently accept this in this case.
 SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = "AADSTS700084"
 
+useragent.with_product("dbt-databricks", version)
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
-    database: Optional[str] = None  # type: ignore[assignment]
-    schema: Optional[str] = None  # type: ignore[assignment]
+    database: str = field(default="hive_metastore")
+    schema: str = field(default="default")
     host: Optional[str] = None
     http_path: Optional[str] = None
     token: Optional[str] = None
@@ -66,13 +69,6 @@ class DatabricksCredentials(Credentials):
         "target_catalog": "target_database",
     }
 
-    @classmethod
-    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
-        data = super().__pre_deserialize__(data)
-        if "database" not in data:
-            data["database"] = None
-        return data
-
     def __post_init__(self) -> None:
         if "." in (self.schema or ""):
             raise DbtValidationError(
@@ -82,23 +78,12 @@ class DatabricksCredentials(Credentials):
 
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
-            if self.database is None:
-                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
-                del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
-            else:
-                raise DbtValidationError(
-                    f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
-                    'in session_properties) all map to "database"'
-                )
+            self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+            del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+
         self.session_properties = session_properties
 
-        if self.database is not None:
-            database = self.database.strip()
-            if not database:
-                raise DbtValidationError(f"Invalid catalog name : `{self.database}`.")
-            self.database = database
-        else:
-            self.database = "hive_metastore"
+        self.database = self.database.strip()
 
         connection_parameters = self.connection_parameters or {}
         for key in (
@@ -283,6 +268,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
+    _config: Optional[Config] = field(init=False, metadata={"serialize": "omit"})
 
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
@@ -298,13 +284,13 @@ class DatabricksCredentialManager(DataClassDictMixin):
             auth_type=credentials.auth_type,
         )
 
-    def authenticate_with_pat(self) -> Config:
+    def _auth_with_pat(self) -> Config:
         return Config(
             host=self.host,
             token=self.token,
         )
 
-    def authenticate_with_oauth_m2m(self) -> Config:
+    def _auth_with_oauth_m2m(self) -> Config:
         return Config(
             host=self.host,
             client_id=self.client_id,
@@ -312,7 +298,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
             auth_type="oauth-m2m",
         )
 
-    def authenticate_with_external_browser(self) -> Config:
+    def _auth_with_external_browser(self) -> Config:
         return Config(
             host=self.host,
             client_id=self.client_id,
@@ -320,7 +306,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
             auth_type="external-browser",
         )
 
-    def legacy_authenticate_with_azure_client_secret(self) -> Config:
+    def _legacy_auth_with_azure_client_secret(self) -> Config:
         return Config(
             host=self.host,
             azure_client_id=self.client_id,
@@ -328,7 +314,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
             auth_type="azure-client-secret",
         )
 
-    def authenticate_with_azure_client_secret(self) -> Config:
+    def _auth_with_azure_client_secret(self) -> Config:
         return Config(
             host=self.host,
             azure_client_id=self.azure_client_id,
@@ -337,23 +323,17 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def __post_init__(self) -> None:
-        self._lock = threading.Lock()
-        with self._lock:
-            if not hasattr(self, "_config"):
-                self._config: Optional[Config] = None
-            if self._config is not None:
-                return
-
+        with threading.Lock():
             if self.token:
-                self._config = self.authenticate_with_pat()
+                self._config = self._auth_with_pat()
             elif self.azure_client_id and self.azure_client_secret:
-                self._config = self.authenticate_with_azure_client_secret()
+                self._config = self._auth_with_azure_client_secret()
             elif not self.client_secret:
-                self._config = self.authenticate_with_external_browser()
+                self._config = self._auth_with_external_browser()
             else:
                 auth_methods = {
-                    "oauth-m2m": self.authenticate_with_oauth_m2m,
-                    "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
+                    "oauth-m2m": self._auth_with_oauth_m2m,
+                    "legacy-azure-client-secret": self._legacy_auth_with_azure_client_secret,
                 }
 
                 # If the secret starts with dose, high chance is it is a databricks secret
@@ -405,14 +385,11 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     @property
     def header_factory(self) -> CredentialsProvider:
-        if self._config is None:
-            raise RuntimeError("Config is not initialized")
-        header_factory = self._config._header_factory
+        header_factory = self.config._header_factory
         assert header_factory is not None, "Header factory is not set."
         return header_factory
 
     @property
     def config(self) -> Config:
-        if self._config is None:
-            raise RuntimeError("Config is not initialized")
+        assert self._config, "Config was not initialized by post_init"
         return self._config
