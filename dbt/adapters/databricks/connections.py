@@ -35,7 +35,6 @@ from dbt.adapters.contracts.connection import (
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import (
-    BearerAuth,
     DatabricksCredentialManager,
     DatabricksCredentials,
 )
@@ -392,9 +391,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
-        creds = cast(DatabricksCredentials, self.profile.credentials)
-        assert self.credentials_manager
-        api_client = DatabricksApiClient.create(self.credentials_manager.api_client, creds, 15 * 60)
         logger.info("Cancelling open python jobs")
         PythonRunTracker.cancel_runs(self.api_client)
         return cancelled

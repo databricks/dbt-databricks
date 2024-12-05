@@ -267,7 +267,7 @@ class JobRunsApi:
 
     def _get_exception(self, run: Run, run_id: int) -> None:
         try:
-            run_id = utils.if_some(run.tasks, lambda x: x[0].run_id) or run_id
+            run_id = utils.if_some(run.tasks, lambda x: x[0].run_id if x else None) or run_id  # type: ignore
             output = self.wc.jobs.get_run_output(run_id)
             raise DbtRuntimeError(
                 "Python model failed with traceback as:\n"
@@ -281,8 +281,8 @@ class JobRunsApi:
             if isinstance(e, DbtRuntimeError):
                 raise e
             else:
-                result_state = utils.if_some(run.state, lambda s: s.result_state) or ""
-                state_message = utils.if_some(run.state, lambda s: s.state_message) or ""
+                result_state = utils.if_some(run.state, lambda s: s.result_state) or ""  # type: ignore
+                state_message = utils.if_some(run.state, lambda s: s.state_message) or ""  # type: ignore
                 raise DbtRuntimeError(
                     f"Python model run ended in state {result_state} "
                     f"with state_message\n{state_message}"
@@ -391,7 +391,10 @@ class DltPipelineApi:
             if response.cause:
                 raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {response.cause}")
             else:
-                latest_update = utils.if_some(response.latest_updates, lambda x: x[0])
+                latest_update = utils.if_some(
+                    response.latest_updates,
+                    lambda x: x[0] if x else None,  # type: ignore
+                )
                 last_error = self.get_update_error(pipeline_id, latest_update)
                 raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {last_error}")
 
@@ -401,7 +404,7 @@ class DltPipelineApi:
             e
             for e in events
             if e.event_type == "update_progress"
-            and utils.if_some(e.origin, lambda x: x.update_id == update_id)
+            and utils.if_some(e.origin, lambda x: x.update_id == update_id)  # type: ignore
         ]
 
         error_events = [e.error for e in update_events if e.error]
@@ -411,7 +414,7 @@ class DltPipelineApi:
             msg = (
                 utils.if_some(
                     error_events[0].exceptions,
-                    lambda x: "\n".join(map(lambda y: y.message or "", x)),
+                    lambda x: "\n".join(map(lambda y: y.message or "", x)),  # type: ignore
                 )
                 or ""
             )
