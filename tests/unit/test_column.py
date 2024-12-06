@@ -108,3 +108,41 @@ class TestRenderForCreate:
     def test_render_for_create__escaping(self, column):
         column.comment = "this is a 'column'"
         assert column.render_for_create() == "id INT COMMENT 'this is a \\'column\\''"
+
+
+class TestColumnStatics:
+    @pytest.mark.parametrize(
+        "column, expected",
+        [
+            ({"name": "foo", "quote": True}, "`foo`"),
+            ({"name": "foo", "quote": False}, "foo"),
+            ({"name": "foo"}, "foo"),
+        ],
+    )
+    def test_get_name(self, column, expected):
+        assert DatabricksColumn.get_name(column) == expected
+
+    @pytest.mark.parametrize(
+        "columns, expected",
+        [
+            ([], ""),
+            ([DatabricksColumn("foo", "string")], "`foo`"),
+            ([DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")], "`foo`, `bar`"),
+        ],
+    )
+    def test_format_remove_column_list(self, columns, expected):
+        assert DatabricksColumn.format_remove_column_list(columns) == expected
+
+    @pytest.mark.parametrize(
+        "columns, expected",
+        [
+            ([], ""),
+            ([DatabricksColumn("foo", "string")], "`foo` string"),
+            (
+                [DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")],
+                "`foo` string, `bar` int",
+            ),
+        ],
+    )
+    def test_format_add_column_list(self, columns, expected):
+        assert DatabricksColumn.format_add_column_list(columns) == expected

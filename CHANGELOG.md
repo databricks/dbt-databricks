@@ -12,6 +12,7 @@
 
 ### Features
 
+- Add config for generating unique tmp table names for enabling parralel merge (thanks @huangxingyi-git!) ([854](https://github.com/databricks/dbt-databricks/pull/854))
 - Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
 - Add 'user_folder_for_python' behavior to switch writing python model notebooks to the user's folder ([835](https://github.com/databricks/dbt-databricks/pull/835))
 - Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the following features (thanks @mi-volodin):
@@ -31,6 +32,8 @@
 ### Fixes
 
 - Replace array indexing with 'get' in split_part so as not to raise exception when indexing beyond bounds ([839](https://github.com/databricks/dbt-databricks/pull/839))
+- Set queue enabled for Python notebook jobs ([856](https://github.com/databricks/dbt-databricks/pull/856))
+- Ensure columns that are added get backticked ([859](https://github.com/databricks/dbt-databricks/pull/859))
 
 ### Under the Hood
 
@@ -41,8 +44,8 @@
 - Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
 - Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 - Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
-- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
-- Pin protobuf to 5.x to stop incompatibility breaks ([850](https://github.com/databricks/dbt-databricks/pull/850))
+- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847)
+- Switching to Hatch and pyproject.toml for project config ([853](https://github.com/databricks/dbt-databricks/pull/853))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)
 

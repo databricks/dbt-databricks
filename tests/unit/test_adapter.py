@@ -1,11 +1,10 @@
 from multiprocessing import get_context
 from typing import Any, Optional
+from unittest.mock import Mock, patch
 
-import mock
 import pytest
 from agate import Row
 from dbt_common.exceptions import DbtConfigError, DbtValidationError
-from mock import Mock
 
 import dbt.flags as flags
 from dbt.adapters.databricks import DatabricksAdapter, __version__
@@ -115,7 +114,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         with pytest.raises(DbtValidationError) as excinfo:
             config = self._get_config()
             adapter = DatabricksAdapter(config, get_context("spawn"))
-            with mock.patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
+            with patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -125,11 +124,11 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
+        with patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
-            with mock.patch.dict(
+            with patch.dict(
                 "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
             ):
                 connection = adapter.acquire_connection("dummy")
@@ -187,11 +186,11 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
+        with patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_http_headers=expected_http_headers),
         ):
-            with mock.patch.dict(
+            with patch.dict(
                 "os.environ",
                 **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
             ):
@@ -204,7 +203,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
+        with patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_no_token=True),
         ):
@@ -217,7 +216,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch(
+        with patch(
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_client_creds=True),
         ):
@@ -277,7 +276,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -301,7 +300,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -328,7 +327,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config(connection_parameters={"http_headers": http_headers})
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with mock.patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -341,14 +340,16 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert connection.credentials.token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             assert connection.credentials.schema == "analytics"
 
-    def test_list_relations_without_caching__no_relations(self):
-        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__no_relations(self, _):
+        with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = []
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             assert adapter.list_relations("database", "schema") == []
 
-    def test_list_relations_without_caching__some_relations(self):
-        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__some_relations(self, _):
+        with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", "hudi", "owner")]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
@@ -361,8 +362,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.owner == "owner"
             assert relation.is_hudi
 
-    def test_list_relations_without_caching__hive_relation(self):
-        with mock.patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__hive_relation(self, _):
+        with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
@@ -374,19 +376,21 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.type == DatabricksRelationType.Table
             assert not relation.has_information()
 
-    def test_get_schema_for_catalog__no_columns(self):
-        with mock.patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__no_columns(self, _):
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
-            with mock.patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
                 get_columns.return_value = []
                 adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 0
 
-    def test_get_schema_for_catalog__some_columns(self):
-        with mock.patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__some_columns(self, _):
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
-            with mock.patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
                 get_columns.return_value = [
                     {"name": "col1", "type": "string", "comment": "comment"},
                     {"name": "col2", "type": "string", "comment": "comment"},
@@ -880,7 +884,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         assert get_identifier_list_string(table_names) == "|".join(table_names)
 
         # If environment variable is set, then limit the number of characters
-        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -909,7 +913,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then limit the number of characters
-        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -922,7 +926,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then we may limit the number of characters
-        with mock.patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
             # But a short list of table names is not capped
             assert get_identifier_list_string(list(table_names)[:5]) == "|".join(
                 list(table_names)[:5]

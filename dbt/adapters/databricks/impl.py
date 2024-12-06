@@ -35,8 +35,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
     USE_LONG_SESSIONS,
     DatabricksConnectionManager,
-    DatabricksDBTConnection,
-    DatabricksSQLConnectionWrapper,
     ExtendedSessionConnectionManager,
 )
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -86,7 +84,7 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
@@ -119,7 +117,7 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
-    table_format: TableFormat = TableFormat.DEFAULT
+    table_format: str = TableFormat.DEFAULT
     location_root: Optional[str] = None
     include_full_name_in_path: bool = False
     partition_by: Optional[Union[list[str], str]] = None
@@ -794,7 +792,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     For the most part, these are just namespaces to group related methods together.
     """
 
-    relation_type: ClassVar[DatabricksRelationType]
+    relation_type: ClassVar[str]
 
     @classmethod
     @abstractmethod
@@ -837,19 +835,13 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         """Get the relation config from the relation."""
 
         relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
-        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            # TODO fix this path so that it doesn't need a cursor
-            # It just calls APIs to poll the pipeline status
-            cursor = wrapper.cursor()
-            try:
-                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            finally:
-                cursor.close()
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 
