@@ -91,6 +91,8 @@ select {{source_cols_csv}} from {{ source_relation }}
 
   {%- set not_matched_by_source_action = config.get('not_matched_by_source_action') -%}
   {%- set not_matched_by_source_condition = config.get('not_matched_by_source_condition') -%}
+
+  {%- set not_matched_by_source_action_is_set = not_matched_by_source_action | trim | length > 0}
   
 
   {% if unique_key %}
@@ -137,12 +139,17 @@ select {{source_cols_csv}} from {{ source_relation }}
         then insert
             {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
     {%- endif %}
-    {%- if not_matched_by_source_action == 'delete' %}
+    {%- if not_matched_by_source_action_is_set %}
     when not matched by source
         {%- if not_matched_by_source_condition %}
         and ({{ not_matched_by_source_condition }})
         {%- endif %}
+        {%- if not_matched_by_source_action == 'delete' %}
         then delete
+        {%- else %}
+        then update set
+            {{ not_matched_by_source_action }}
+        {%- endif %}
     {%- endif %}
 {% endmacro %}
 
