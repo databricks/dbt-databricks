@@ -165,7 +165,7 @@ class MockKeyring(keyring.backend.KeyringBackend):
         if not os.path.exists(file_path):
             return None
 
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             password = file.read()
 
         return password

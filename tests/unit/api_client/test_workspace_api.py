@@ -36,7 +36,7 @@ class TestWorkspaceApi(ApiTestBase):
 
     def test_upload_notebook__200(self, api, session, host):
         session.post.return_value.status_code = 200
-        encoded = base64.b64encode("code".encode()).decode()
+        encoded = base64.b64encode(b"code").decode()
         api.upload_notebook("path", "code")
         session.post.assert_called_once_with(
             f"https://{host}/api/2.0/workspace/import",

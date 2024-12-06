@@ -58,7 +58,7 @@ class TestChangingSchema:
         )
         util.run_dbt(["run"])
         log_file = os.path.join(logs_dir, "dbt.log")
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             log = f.read()
             # validate #5510 log_code_execution works
             assert "On model.test.simple_python_model:" in log

@@ -5,13 +5,13 @@ import sys
 import time
 import uuid
 import warnings
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
 from numbers import Number
 from threading import get_ident
-from typing import TYPE_CHECKING, Any, Hashable, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
@@ -488,7 +488,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             try:
                 log_sql = redact_credentials(sql)
                 if abridge_sql_log:
-                    log_sql = "{}...".format(log_sql[:512])
+                    log_sql = f"{log_sql[:512]}..."
 
                 fire_event(
                     SQLQuery(

@@ -539,7 +539,7 @@ class DatabricksAdapter(SparkAdapter):
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: list[Future["Table"]] = []
+            futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -804,7 +804,7 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
+        relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
