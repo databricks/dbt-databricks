@@ -1,28 +1,21 @@
+from unittest.mock import Mock
+
 import pytest
 
-from dbt.adapters.databricks.api_client import CurrUserApi, UserFolderApi
+from dbt.adapters.databricks.api_client import UserFolderApi
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 
 class TestUserFolderApi(ApiTestBase):
     @pytest.fixture
-    def api(self, client):
-        user_api = CurrUserApi(client)
+    def user_api(self):
+        return Mock()
+
+    @pytest.fixture
+    def api(self, user_api):
         return UserFolderApi(user_api)
 
-    def test_get_folder__already_set(self, api):
-        api.user_api._user = "me"
-        assert "/Users/me/dbt_python_models/catalog/schema/" == api.get_folder("catalog", "schema")
-
-    def test_get_folder__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.get_folder("catalog", "schema"), session)
-
-    def test_get_folder__200(self, api, session, host):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"userName": "me@gmail.com"}
+    def test_get_folder__success(self, api, user_api):
+        user_api.get_username.return_value = "me@gmail.com"
         folder = api.get_folder("catalog", "schema")
-        assert folder == "/Users/me@gmail.com/dbt_python_models/catalog/schema/"
-        assert api.user_api._user == "me@gmail.com"
-        session.get.assert_called_once_with(
-            f"https://{host}/api/2.0/preview/scim/v2/Me", json=None, params=None
-        )
+        assert folder == "/Users/me@gmail.com/dbt_python_models/catalog/schema"
