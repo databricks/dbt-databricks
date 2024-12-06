@@ -77,6 +77,7 @@ dependencies = [
     "ruff",
     "types-requests",
     "debugpy",
+    "pydantic>=1.10.0, <2",
 ]
 path = ".hatch"
 python = "3.9"
