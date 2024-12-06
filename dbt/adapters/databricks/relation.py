@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Type
 
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
@@ -131,7 +131,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> type[DatabricksRelationType]:  # type: ignore
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
