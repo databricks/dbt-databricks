@@ -1,4 +1,10 @@
-## dbt-databricks 1.9.0 (TBD)
+## dbt-databricks 1.9.1 (TBD)
+
+### Under the Hood
+
+- Remove pandas pin, and add UP ruleset ([865](https://github.com/databricks/dbt-databricks/pull/865))
+
+## dbt-databricks 1.9.0 (December 9, 2024)
 
 ### Features
 
