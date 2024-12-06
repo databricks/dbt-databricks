@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type
 
+from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
@@ -10,6 +11,7 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
+from dbt.adapters.databricks.constraints import parse_model_constraint, process_model_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
@@ -58,7 +60,8 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-
+    create_constraints: list[ModelLevelConstraint] = field(default_factory=list)
+    alter_constraints: list[ModelLevelConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
 
     @classmethod
@@ -147,6 +150,23 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    def add_constraint(self, constraint: ModelLevelConstraint) -> None:
+        if constraint.type == ConstraintType.check:
+            self.alter_constraints.append(constraint)
+        else:
+            self.create_constraints.append(constraint)
+
+    def enrich(self, raw_constraints: list[dict[str, Any]]) -> "DatabricksRelation":
+        copy = self.incorporate()
+        for constraint in raw_constraints:
+            copy.add_constraint(parse_model_constraint(constraint))
+
+        return copy
+
+    def render_constraints_for_create(self) -> str:
+        processed = [process_model_constraint(c) for c in self.create_constraints]
+        return ", ".join(c for c in processed if c is not None)
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

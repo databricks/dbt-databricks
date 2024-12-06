@@ -1,4 +1,5 @@
 import pytest
+from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
 
 from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
@@ -201,3 +202,60 @@ class TestRelationsFunctions:
     )
     def test_extract_identifiers(self, input, expected):
         assert relation.extract_identifiers(input) == expected
+
+
+class TestConstraints:
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create()
+
+    @pytest.fixture
+    def custom_constraint(self):
+        return ModelLevelConstraint(type=ConstraintType.custom, expression="a > 1")
+
+    @pytest.fixture
+    def check_constraint(self):
+        return ModelLevelConstraint(type=ConstraintType.check, expression="a > 1")
+
+    @pytest.fixture
+    def pk_constraint(self):
+        return ModelLevelConstraint(type=ConstraintType.primary_key, columns=["a"])
+
+    def test_add_constraint__check_is_an_alter_constraint(self, relation, check_constraint):
+        relation.add_constraint(check_constraint)
+        assert relation.alter_constraints == [check_constraint]
+        assert relation.create_constraints == []
+
+    def test_add_constraint__other_constraints_are_create_constraints(
+        self, relation, check_constraint, custom_constraint, pk_constraint
+    ):
+        relation.add_constraint(check_constraint)
+        relation.add_constraint(custom_constraint)
+        relation.add_constraint(pk_constraint)
+        assert relation.alter_constraints == [check_constraint]
+        assert relation.create_constraints == [custom_constraint, pk_constraint]
+
+    def test_enrich_relation__returns_a_copy(self, relation):
+        enriched = relation.enrich([])
+        assert id(enriched) != id(relation)
+
+    def test_enrich_relation__adds_constraints(self, relation, check_constraint, custom_constraint):
+        enriched = relation.enrich(
+            [{"type": "check", "expression": "a > 1"}, {"type": "custom", "expression": "a > 1"}]
+        )
+        assert enriched.alter_constraints == [check_constraint]
+        assert enriched.create_constraints == [custom_constraint]
+
+    def test_render_constraints_for_create__no_constraints(self, relation):
+        assert relation.render_constraints_for_create() == ""
+
+    def test_render_constraints_for_create__check_is_ignored(self, relation, check_constraint):
+        relation.add_constraint(check_constraint)
+        assert relation.render_constraints_for_create() == ""
+
+    def test_render_constraints_for_create__with_constraints(
+        self, relation, custom_constraint, pk_constraint
+    ):
+        relation.add_constraint(custom_constraint)
+        relation.add_constraint(pk_constraint)
+        assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"

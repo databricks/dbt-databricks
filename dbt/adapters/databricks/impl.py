@@ -25,6 +25,7 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -178,6 +179,8 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
 
@@ -763,6 +766,24 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
+
+    @available
+    @staticmethod
+    def get_enriched_columns(
+        existing_columns: list[DatabricksColumn], model_columns: dict[str, dict[str, Any]]
+    ) -> list[DatabricksColumn]:
+        """Returns a list of columns that have been updated with features for table create."""
+        enriched_columns = []
+
+        for column in existing_columns:
+            if column.name in model_columns:
+                column_info = model_columns[column.name]
+                enriched_column = column.enrich(column_info)
+                enriched_columns.append(enriched_column)
+            else:
+                enriched_columns.append(column)
+
+        return enriched_columns
 
 
 @dataclass(frozen=True)
