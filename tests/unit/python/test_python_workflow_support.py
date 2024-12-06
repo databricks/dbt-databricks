@@ -83,13 +83,13 @@ class TestPythonWorkflowConfigCompiler:
         compiler = PythonWorkflowConfigCompiler.create(parsed_model)
         assert compiler.task_settings == {"existing_cluster_id": "test"}
         assert compiler.workflow_spec == {}
-        assert compiler.existing_job_id == ""
+        assert compiler.existing_job_id is None
         assert compiler.post_hook_tasks == []
 
     def test_create__python_job_config(self, parsed_model):
         parsed_model.config.python_job_config.dict.return_value = {"bar": "baz"}
         parsed_model.config.python_job_config.additional_task_settings = {"foo": "bar"}
-        parsed_model.config.python_job_config.existing_job_id = "test"
+        parsed_model.config.python_job_config.existing_job_id = 1
         parsed_model.config.python_job_config.name = "name"
         parsed_model.config.python_job_config.post_hook_tasks = [{"task_key": "post_hook"}]
         parsed_model.config.job_cluster_config = None
@@ -97,7 +97,7 @@ class TestPythonWorkflowConfigCompiler:
         compiler = PythonWorkflowConfigCompiler.create(parsed_model)
         assert compiler.task_settings == {"foo": "bar"}
         assert compiler.workflow_spec == {"name": "name", "bar": "baz"}
-        assert compiler.existing_job_id == "test"
+        assert compiler.existing_job_id == 1
         assert compiler.post_hook_tasks == [{"task_key": "post_hook"}]
 
 

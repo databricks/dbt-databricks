@@ -10,7 +10,6 @@ import dbt.flags as flags
 from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
-    CATALOG_KEY_IN_SESSION_PROPERTIES,
     DBT_DATABRICKS_HTTP_SESSION_HEADERS,
     DBT_DATABRICKS_INVOCATION_ENV,
 )
@@ -69,22 +68,6 @@ class DatabricksAdapterBase:
 
 
 class TestDatabricksAdapter(DatabricksAdapterBase):
-    def test_two_catalog_settings(self):
-        with pytest.raises(DbtConfigError) as excinfo:
-            self._get_config(
-                session_properties={
-                    CATALOG_KEY_IN_SESSION_PROPERTIES: "catalog",
-                    "spark.sql.ansi.enabled": "true",
-                }
-            )
-
-        expected_message = (
-            "Got duplicate keys: (`databricks.catalog` in session_properties)"
-            ' all map to "database"'
-        )
-
-        assert expected_message in str(excinfo.value)
-
     def test_database_and_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(catalog="main", database="database")

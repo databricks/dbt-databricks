@@ -42,7 +42,7 @@ class TestParsedPythonModel:
         assert config.additional_libs == []
         assert config.python_job_config.name is None
         assert config.python_job_config.grants == {}
-        assert config.python_job_config.existing_job_id == ""
+        assert config.python_job_config.existing_job_id is None
         assert config.python_job_config.post_hook_tasks == []
         assert config.python_job_config.additional_task_settings == {}
         assert config.cluster_id is None
@@ -78,7 +78,7 @@ class TestParsedPythonModel:
         assert config.additional_libs == [{"key": "value"}]
         assert config.python_job_config.name == "name"
         assert config.python_job_config.grants == {}
-        assert config.python_job_config.existing_job_id == ""
+        assert config.python_job_config.existing_job_id is None
         assert config.python_job_config.post_hook_tasks == []
         assert config.python_job_config.additional_task_settings == {}
         assert config.cluster_id == "cluster_id"
@@ -119,7 +119,7 @@ class TestPythonJobConfig:
         config = {
             "name": "name",
             "grants": {"view": [{"user": "user"}]},
-            "existing_job_id": "existing_job_id",
+            "existing_job_id": 1,
             "post_hook_tasks": [{"task": "task"}],
             "additional_task_settings": {"key": "value"},
         }
@@ -129,7 +129,7 @@ class TestPythonJobConfig:
     def test_python_job_config__extra_values(self):
         config = {
             "name": "name",
-            "existing_job_id": "existing_job_id",
+            "existing_job_id": 1,
             "foo": "bar",
         }
         job_config = PythonJobConfig(**config).dict()

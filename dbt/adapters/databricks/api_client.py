@@ -66,7 +66,7 @@ class CommandContextApi:
         return response.id
 
     def destroy(self, cluster_id: str, context_id: str) -> None:
-        self.wc.command_execution.destroy(cluster_id, context_id)
+        self.wc.command_execution.destroy(cluster_id=cluster_id, context_id=context_id)
 
 
 class FolderApi(ABC):
@@ -157,7 +157,7 @@ class CommandApi:
             language=Language.PYTHON,
             timeout=self.timeout,
         )
-        if response.status == ContextStatus.ERROR or not response.id:
+        if response.status == CommandStatus.ERROR or not response.id:
             raise DbtRuntimeError(f"Error creating a command.\n {response}")
 
         return CommandExecution(
@@ -171,9 +171,11 @@ class CommandApi:
             command_id=command.command_id,
             context_id=command.context_id,
         )
-        self.wc.command_execution.wait_command_status_command_execution_cancelled(
+        response = self.wc.command_execution.wait_command_status_command_execution_cancelled(
             command.cluster_id, command.command_id, command.cluster_id
         )
+        if response.status not in [CommandStatus.FINISHED, CommandStatus.CANCELLED]:
+            raise DbtRuntimeError(f"Command failed to cancel with {response}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
         response = (
@@ -224,10 +226,9 @@ class JobRunsApi:
 
         logger.debug(f"Job submission response={submit_response}")
         status = submit_response.status
-        if (
-            status
-            and status.termination_details
-            and status.termination_details.type != TerminationTypeType.SUCCESS
+        if status and utils.if_some(
+            status.termination_details,
+            lambda x: x.type != TerminationTypeType.SUCCESS,  # type: ignore
         ):
             raise DbtRuntimeError(f"Error submitting job run {run_name}:\n {status}")
 
@@ -395,10 +396,10 @@ class DltPipelineApi:
                     response.latest_updates,
                     lambda x: x[0] if x else None,  # type: ignore
                 )
-                last_error = self.get_update_error(pipeline_id, latest_update)
+                last_error = self._get_update_error(pipeline_id, latest_update)
                 raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {last_error}")
 
-    def get_update_error(self, pipeline_id: str, update_id: str) -> str:
+    def _get_update_error(self, pipeline_id: str, update_id: str) -> str:
         events = self.wc.pipelines.list_pipeline_events(pipeline_id)
         update_events = [
             e

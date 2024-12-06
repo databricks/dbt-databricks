@@ -43,7 +43,7 @@ class TestPythonNotebookUploader:
         client.workspace.create_python_model_dir.return_value = workdir
 
         file_path = uploader.upload(compiled_code)
-        assert file_path == f"{workdir}{identifier}"
+        assert file_path == f"{workdir}/{identifier}"
         client.workspace.upload_notebook.assert_called_once_with(file_path, compiled_code)
 
 

@@ -6,9 +6,9 @@ from tests.unit.api_client.api_test_base import ApiTestBase
 
 class TestUserFolderApi(ApiTestBase):
     @pytest.fixture
-    def api(self, session, host):
-        user_api = CurrUserApi(session, host)
-        return UserFolderApi(session, host, user_api)
+    def api(self, client):
+        user_api = CurrUserApi(client)
+        return UserFolderApi(user_api)
 
     def test_get_folder__already_set(self, api):
         api.user_api._user = "me"
