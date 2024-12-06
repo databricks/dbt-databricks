@@ -1,3 +1,9 @@
+## dbt-databricks 1.8.8 (TBD)
+
+### Under the Hood
+
+- Remove pins that are no longer needed ([864](https://github.com/databricks/dbt-databricks/pull/864))
+
 ## dbt-databricks 1.8.7 (October 10, 2024)
 
 ### Features
