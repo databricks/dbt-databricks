@@ -136,9 +136,7 @@ class DatabricksCredentials(Credentials):
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
             if not getattr(self, key):
-                raise DbtConfigError(
-                    f"The config '{key}' is required to connect to Databricks"
-                )
+                raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
                 "The config `auth_type: oauth` is required when not using access token"
@@ -146,10 +144,8 @@ class DatabricksCredentials(Credentials):
 
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
-
-                    "The config 'client_id' is required to connect "
-                    "to Databricks when 'client_secret' is present"
-
+                "The config 'client_id' is required to connect "
+                "to Databricks when 'client_secret' is present"
             )
 
     @classmethod
