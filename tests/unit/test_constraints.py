@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -5,7 +7,6 @@ from dbt_common.contracts.constraints import (
     ModelLevelConstraint,
 )
 from dbt_common.exceptions import DbtValidationError
-from mock import patch
 
 from dbt.adapters.databricks import constraints
 

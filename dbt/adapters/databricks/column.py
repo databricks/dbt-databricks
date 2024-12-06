@@ -67,7 +67,7 @@ class DatabricksColumn(SparkColumn):
             column_str += f" COMMENT '{comment}'"
         for constraint in self.constraints or []:
             c = constraints.process_column_constraint(constraint)
-            if c != "":
+            if c:
                 column_str += f" {c}"
         return column_str
 
