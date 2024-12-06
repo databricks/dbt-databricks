@@ -49,7 +49,7 @@ class TestPrePostModelHooks(BaseTestPrePost):
             "invocation_id",
             "thread_id",
         ]
-        field_list = ", ".join(["{}".format(f) for f in fields])
+        field_list = ", ".join([f"{f}" for f in fields])
         query = (
             f"select {field_list} from {project.test_schema}.on_model_hook"
             f" where test_state = '{state}'"
