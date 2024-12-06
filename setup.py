@@ -17,7 +17,9 @@ try:
 except ImportError:
     # the user has a downlevel version of setuptools.
     print("Error: dbt requires setuptools v40.1.0 or higher.")
-    print('Please upgrade setuptools with "pip install --upgrade setuptools" and try again')
+    print(
+        'Please upgrade setuptools with "pip install --upgrade setuptools" and try again'
+    )
     sys.exit(1)
 
 
@@ -29,12 +31,16 @@ with open(os.path.join(this_directory, "README.md"), "r", encoding="utf8") as f:
 
 # get this package's version from dbt/adapters/<name>/__version__.py
 def _get_plugin_version() -> str:
-    _version_path = os.path.join(this_directory, "dbt", "adapters", "databricks", "__version__.py")
+    _version_path = os.path.join(
+        this_directory, "dbt", "adapters", "databricks", "__version__.py"
+    )
     try:
         exec(open(_version_path).read())
         return locals()["version"]
     except IOError:
-        print("Failed to load dbt-databricks version file for packaging.", file=sys.stderr)
+        print(
+            "Failed to load dbt-databricks version file for packaging.", file=sys.stderr
+        )
         sys.exit(-1)
 
 
@@ -60,8 +66,6 @@ setup(
         "databricks-sql-connector>=3.1.0, <3.2.0",
         "databricks-sdk==0.17.0",
         "keyring>=23.13.0",
-        "pandas<2.2.0",
-        "protobuf<5.0.0",
     ],
     zip_safe=False,
     classifiers=[
