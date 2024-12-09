@@ -8,7 +8,7 @@
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files))
 
-## dbt-databricks 1.9.0 (TBD)
+## dbt-databricks 1.9.0 (Dec 9, 2024)
 
 ### Features
 
