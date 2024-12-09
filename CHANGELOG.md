@@ -1,4 +1,4 @@
-## dbt-databricks 1.9.0 (TBD)
+## dbt-databricks 1.9.0 (Dec 9, 2024)
 
 ### Features
 
