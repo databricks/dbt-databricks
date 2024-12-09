@@ -63,6 +63,8 @@ class DatabricksRelation(BaseRelation):
     create_constraints: list[ModelLevelConstraint] = field(default_factory=list)
     alter_constraints: list[ModelLevelConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
+    renameable_relations = frozenset({DatabricksRelationType.Table, DatabricksRelationType.View})
+    replaceable_relations = frozenset({DatabricksRelationType.Table, DatabricksRelationType.View})
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -104,6 +106,10 @@ class DatabricksRelation(BaseRelation):
     @property
     def stats(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
+
+    @property
+    def can_be_replaced(self) -> bool:
+        return self.is_delta and super().can_be_replaced
 
     def matches(
         self,
