@@ -106,7 +106,7 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
 
 USE_MATERIALIZATION_V2 = BehaviorFlag(
     name="use_materialization_v2",
-    default=False,
+    default=True,
     description=(
         "Use revamped materializations based on separating create and insert."
         "  This allows more performant column comments, as well as new column features."

@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type
+from uuid import uuid4
 
 from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
 from dbt_common.dataclass_schema import StrEnum
@@ -11,7 +12,7 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
-from dbt.adapters.databricks.constraints import parse_model_constraint, process_model_constraint
+from dbt.adapters.databricks.constraints import parse_constraint, process_model_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
@@ -166,13 +167,21 @@ class DatabricksRelation(BaseRelation):
     def enrich(self, raw_constraints: list[dict[str, Any]]) -> "DatabricksRelation":
         copy = self.incorporate()
         for constraint in raw_constraints:
-            copy.add_constraint(parse_model_constraint(constraint))
+            copy.add_constraint(self._parse_model_constraint(constraint))
 
         return copy
 
     def render_constraints_for_create(self) -> str:
         processed = [process_model_constraint(c) for c in self.create_constraints]
         return ", ".join(c for c in processed if c is not None)
+
+    def _parse_model_constraint(self, raw_constraint: dict[str, Any]) -> ModelLevelConstraint:
+        constraint = parse_constraint(ModelLevelConstraint, raw_constraint)
+        if constraint.type == ConstraintType.check and not constraint.name:
+            constraint.name = (
+                f"ck_{constraint.columns[0].replace('`', '')}_{str(uuid4()).split('-')[0]}"
+            )
+        return constraint
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

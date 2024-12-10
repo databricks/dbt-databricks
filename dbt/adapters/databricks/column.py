@@ -66,11 +66,11 @@ class DatabricksColumn(SparkColumn):
         if self.comment:
             comment = self.comment.replace("'", "\\'")
             column_str += f" COMMENT '{comment}'"
-        for constraint in self.constraints or []:
-            c = constraints.process_column_constraint(constraint)
-            if c:
-                column_str += f" {c}"
         return column_str
+
+    def render_constraints(self) -> str:
+        processed = map(constraints.process_column_constraint, self.constraints or [])
+        return (", ").join(x for x in processed if x is not None)
 
     def __repr__(self) -> str:
         return "<DatabricksColumn {} ({})>".format(self.name, self.data_type)

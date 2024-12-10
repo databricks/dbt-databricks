@@ -177,11 +177,6 @@ def render_foreign_key_for_column(constraint: ColumnLevelConstraint) -> str:
     raise render_error(constraint, [["expression"], ["to", "to_columns"]])
 
 
-# ModelLevelConstraint specialization
-def parse_model_constraint(raw_constraint: dict[str, Any]) -> ModelLevelConstraint:
-    return parse_constraint(ModelLevelConstraint, raw_constraint)
-
-
 MODEL_WARNING = (
     "While constraint of type {type} is supported for columns, it is not supported for models."
 )
