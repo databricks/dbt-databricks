@@ -7,7 +7,6 @@
   {%- set tags = config.get('databricks_tags') -%}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
-  {% set is_replaceable = existing_relation.can_be_replaced and config.get('file_format', default='delta') == 'delta'%}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {% set safe_create = config.get('safe_table_create') %}
@@ -26,7 +25,7 @@
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
-        {% if not is_replaceable -%}
+        {% if existing_relation and not (existing_relation.can_be_replaced and config.get('file_format', default='delta') == 'delta') -%}
           {{ adapter.drop_relation(existing_relation) }}
         {%- endif %}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
@@ -42,7 +41,7 @@
     -- setup: if the target relation already exists, drop it
     -- in case if the existing and future table is delta, we want to do a
     -- create or replace table instead of dropping, so we don't have the table unavailable
-    {% if not is_replaceable -%}
+    {% if existing_relation and not (existing_relation.can_be_replaced and config.get('file_format', default='delta') == 'delta') -%}
       {{ adapter.drop_relation(existing_relation) }}
     {%- endif %}
 

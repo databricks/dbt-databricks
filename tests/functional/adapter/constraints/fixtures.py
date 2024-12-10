@@ -101,3 +101,34 @@ child_sql = """
 
 select 2 as id, 'name' as name, 1 as parent_id
 """
+
+
+model_quoted_column_schema_yml = """
+version: 2
+models:
+  - name: my_model
+    config:
+      contract:
+        enforced: true
+      materialized: table
+    constraints:
+      - type: check
+        name: check_from
+        # this one is the on the user
+        expression: (`from` = 'blue')
+    columns:
+      - name: id
+        data_type: integer
+        description: hello
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: from  # reserved word
+        quote: true
+        data_type: string
+        constraints:
+          - type: not_null
+      - name: date_day
+        data_type: string
+"""

@@ -3,7 +3,6 @@ import pytest
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
 from dbt.tests.adapter.constraints.test_constraints import (
-    BaseConstraintQuotedColumn,
     BaseConstraintsRollback,
     BaseConstraintsRuntimeDdlEnforcement,
     BaseIncrementalConstraintsColumnsEqual,
@@ -11,6 +10,8 @@ from dbt.tests.adapter.constraints.test_constraints import (
     BaseIncrementalConstraintsRuntimeDdlEnforcement,
     BaseTableConstraintsColumnsEqual,
     BaseViewConstraintsColumnsEqual,
+    _find_and_replace,
+    _normalize_whitespace,
 )
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 
@@ -215,31 +216,34 @@ class TestForeignKeyParentConstraint:
         util.run_dbt(["build"])
 
 
-class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
+class TestConstraintQuotedColumn:
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "my_model.sql": fixtures.my_model_with_quoted_column_name_sql,
-            "constraints_schema.yml": fixtures.model_quoted_column_schema_yml.replace(
-                "text", "string"
-            ).replace('"from"', "`from`"),
+            "constraints_schema.yml": override_fixtures.model_quoted_column_schema_yml,
         }
 
     @pytest.fixture(scope="class")
     def expected_sql(self):
         return """
-create or replace table <model_identifier>
+create or replace table <model_identifier> (
+    `from` string not null,
+    id integer not null comment 'hello',
+    date_day string
+)
     using delta
-    as
-select
-  id,
-  `from`,
-  date_day
-from
-
-(
-    select
-    'blue' as `from`,
-    1 as id,
-    '2019-01-01' as date_day ) as model_subq
 """
+
+    def test__constraints_ddl(self, project, expected_sql):
+        results, logs = util.run_dbt_and_capture(["run", "--debug", "-s", "+my_model"])
+        assert len(results) >= 1
+        generated_sql_generic = _find_and_replace(logs, "my_model", "<model_identifier>")
+        normalized = _normalize_whitespace(generated_sql_generic)
+        assert _normalize_whitespace(expected_sql) in normalized
+        assert (
+            _normalize_whitespace(
+                "ALTER TABLE <model_identifier> ADD CONSTRAINT check_from CHECK (`from` = 'blue')"
+            )
+            in normalized
+        )

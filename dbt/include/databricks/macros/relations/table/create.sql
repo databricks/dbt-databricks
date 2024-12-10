@@ -1,6 +1,6 @@
 {% macro create_table_at(relation, intermediate_relation, compiled_code) %}
   {% set tags = config.get('databricks_tags') %}
-  {% set model_constraints = model.get('model_constraints', []) %}
+  {% set model_constraints = model.get('constraints', []) %}
 
   {%- set target_relation = relation.enrich(model_constraints) -%}
   {% call statement('main') %}
@@ -10,7 +10,7 @@
   {{ apply_alter_constraints(target_relation) }}
   {{ apply_tags(target_relation, tags) }}
 
-  {% call statement('main') %}
+  {% call statement('merge into target') %}
     insert into {{ target_relation }} select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
