@@ -46,7 +46,7 @@ Example below illustrates how these parameters affect the merge statement genera
     not_matched_by_source_condition='t.tech_change_ts < current_timestamp()',
     not_matched_by_source_action='''
         update set
-            t.attr1 = \'deleted\',
+            t.attr1 = 'deleted',
             t.tech_change_ts = current_timestamp()
     ''',
     merge_with_schema_evolution=true

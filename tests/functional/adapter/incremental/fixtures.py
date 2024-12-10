@@ -464,8 +464,8 @@ not_matched_by_source_then_update_model = """
     not_matched_by_source_condition='t.V > 0',
     not_matched_by_source_action='''
         update set
-            t.first = \'--\',
-            t.second = \'--\',
+            t.first = \\\'--\\\',
+            t.second = \\\'--\\\',
             t.V = -1
     ''',
 ) }}
