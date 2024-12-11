@@ -1,5 +1,9 @@
 ## dbt-databricks 1.9.1 (TBD)
 
+### Features
+
+- Merge strategy now supports the `update set ...` action with the explicit list of updates for `when not matched by source` ([866](https://github.com/databricks/dbt-databricks/pull/866)) (thanks @mi-volodin).
+
 ### Under the Hood
 
 - Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
@@ -13,7 +17,7 @@
 - Add 'user_folder_for_python' behavior to switch writing python model notebooks to the user's folder ([835](https://github.com/databricks/dbt-databricks/pull/835))
 - Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the following features (thanks @mi-volodin):
   - `with schema evolution` clause (requires Databricks Runtime 15.2 or above);
-  - `when not matched by source` clause allows both `delete` and `update set ...` with explicit action list.
+  - `when not matched by source` clause, only for `delete` action
   - `matched`, `not matched` and `not matched by source` condition clauses;
   - custom aliases for source and target tables can be specified and used in condition clauses;
   - `matched` and `not matched` steps can now be skipped;
