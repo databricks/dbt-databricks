@@ -1,4 +1,10 @@
-## dbt-databricks 1.9.0 (Dec 9, 2024)
+## dbt-databricks 1.9.1 (TBD)
+
+### Under the Hood
+
+- Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
+
+## dbt-databricks 1.9.0 (December 9, 2024)
 
 ### Features
 
