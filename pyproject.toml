@@ -29,6 +29,7 @@ dependencies = [
     "dbt-core>=1.8.7, <2.0",
     "dbt-spark>=1.8.0, <2.0",
     "keyring>=23.13.0",
+    "pydantic>=1.10.0",
 ]
 
 [project.urls]

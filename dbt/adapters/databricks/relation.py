@@ -39,6 +39,8 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     External = "external"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
 
 
