@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from functools import partial
-from typing import Any, Callable, ClassVar, Optional, TypeVar
+from typing import Any, ClassVar, Optional, Type, TypeVar
 
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -11,8 +10,6 @@ from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
@@ -26,10 +23,7 @@ CONSTRAINT_SUPPORT = {
 
 # Types
 """Generic type variable for constraints."""
-T = TypeVar("T", bound=ColumnLevelConstraint)
-
-"""Function type for checking constraint support."""
-SupportFunc = Callable[[T], bool]
+T = TypeVar("T", bound="TypedConstraint")
 
 
 class TypedConstraint(ModelLevelConstraint, ABC):
@@ -38,9 +32,13 @@ class TypedConstraint(ModelLevelConstraint, ABC):
     str_type: ClassVar[str]
 
     @classmethod
-    def validate(cls, raw_constraint: dict[str, Any]) -> None:
-        super().validate(raw_constraint)
-        assert raw_constraint.get("type") == cls.str_type
+    def __post_deserialize__(cls: Type[T], obj: T) -> T:
+        assert obj.type == cls.str_type, "Mismatched constraint type"
+        obj._validate()
+        return obj
+
+    def _validate(self) -> None:
+        return
 
     def render(self) -> str:
         return f"{self._render_prefix()}{self._render_suffix()}"
@@ -55,21 +53,20 @@ class TypedConstraint(ModelLevelConstraint, ABC):
         pass
 
     @classmethod
-    def _render_error(cls, name: str, missing: list[list[str]]) -> DbtValidationError:
+    def _render_error(self, missing: list[list[str]]) -> DbtValidationError:
         fields = " or ".join(["(" + ", ".join([f"'{e}'" for e in x]) + ")" for x in missing])
+        name = self.name or ""
         return DbtValidationError(
-            f"{cls.str_type} constraint '{name}' is missing required field(s): {fields}"
+            f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
         )
 
 
 class CustomConstraint(TypedConstraint):
     str_type = "custom"
 
-    @classmethod
-    def validate(cls, raw_constraint: dict[str, Any]) -> None:
-        super().validate(raw_constraint)
-        if raw_constraint.get("expression") is None:
-            raise cls._render_error(raw_constraint.get("name", ""), [["expression"]])
+    def _validate(self) -> None:
+        if self.expression is None:
+            raise self._render_error([["expression"]])
 
     def _render_suffix(self) -> str:
         return self.expression or ""
@@ -78,13 +75,11 @@ class CustomConstraint(TypedConstraint):
 class PrimaryKeyConstraint(TypedConstraint):
     str_type = "primary_key"
 
-    @classmethod
-    def validate(cls, raw_constraint: dict[str, Any]) -> None:
-        super().validate(raw_constraint)
-        if raw_constraint.get("columns", []) == [] and not raw_constraint.get("expression"):
-            raise cls._render_error(raw_constraint.get("name", ""), [["columns"], ["expression"]])
+    def _validate(self) -> None:
+        if not self.columns:
+            raise self._render_error([["columns"]])
 
-    def render_suffix(self) -> str:
+    def _render_suffix(self) -> str:
         suffix = f"PRIMARY KEY ({', '.join(self.columns)})"
         if self.expression:
             suffix += f" {self.expression}"
@@ -94,19 +89,13 @@ class PrimaryKeyConstraint(TypedConstraint):
 class ForeignKeyConstraint(TypedConstraint):
     str_type = "foreign_key"
 
-    @classmethod
-    def validate(cls, raw_constraint: dict[str, Any]) -> None:
-        super().validate(raw_constraint)
-        columns = raw_constraint.get("columns", [])
-        to = raw_constraint.get("to")
-        to_columns = raw_constraint.get("to_columns", [])
-        if columns == [] or (to_columns == [] and not to and not raw_constraint.get("expression")):
-            raise cls._render_error(
-                raw_constraint.get("name", ""),
+    def _validate(self) -> None:
+        if not self.columns or (not (self.to_columns and self.to) and not self.expression):
+            raise self._render_error(
                 [["columns", "to", "to_columns"], ["columns", "expression"]],
             )
 
-    def render_suffix(self) -> str:
+    def _render_suffix(self) -> str:
         suffix = f"FOREIGN KEY ({', '.join(self.columns)})"
         if self.expression:
             suffix += f" {self.expression}"
@@ -118,13 +107,11 @@ class ForeignKeyConstraint(TypedConstraint):
 class CheckConstraint(TypedConstraint):
     str_type = "check"
 
-    @classmethod
-    def validate(cls, raw_constraint: dict[str, Any]) -> None:
-        super().validate(raw_constraint)
-        if raw_constraint.get("expression") is None:
-            raise cls._render_error(raw_constraint.get("name", ""), [["expression"]])
+    def _validate(self) -> None:
+        if not self.expression:
+            raise self._render_error([["expression"]])
 
-    def render_suffix(self) -> str:
+    def _render_suffix(self) -> str:
         return f"CHECK ({self.expression})"
 
 
@@ -144,18 +131,18 @@ def is_enforced(constraint: ColumnLevelConstraint) -> bool:
     ]
 
 
-def process_constraint(constraint: TypedConstraint, support_func: SupportFunc) -> Optional[str]:
-    if validate_constraint(constraint, support_func):
+def process_constraint(constraint: TypedConstraint) -> Optional[str]:
+    if validate_constraint(constraint):
         return constraint.render()
     return None
 
 
-def validate_constraint(constraint: T, support_func: SupportFunc) -> bool:
+def validate_constraint(constraint: ColumnLevelConstraint) -> bool:
     # Custom constraints are always supported
     if constraint.type == ConstraintType.custom:
         return True
 
-    supported = support_func(constraint)
+    supported = is_supported(constraint)
 
     if constraint.warn_unsupported and not supported:
         warn_or_error(
@@ -169,36 +156,47 @@ def validate_constraint(constraint: T, support_func: SupportFunc) -> bool:
     return supported
 
 
-def supported_for(constraint: T, support_func: SupportFunc, warning: str) -> bool:
-    if is_supported(constraint) and not support_func(constraint):
-        logger.warning(warning.format(type=constraint.type))
+def parse_constraints(
+    model_columns: list[dict[str, Any]], model_constraints: list[dict[str, Any]]
+) -> tuple[set[str], list[TypedConstraint]]:
+    not_nulls, constraints_from_columns = parse_column_constraints(model_columns)
+    not_nulls_from_models, constraints_from_models = parse_model_constraints(model_constraints)
 
-    return is_supported(constraint) and support_func(constraint)
-
-
-# ColumnLevelConstraint specialization
-def parse_column_constraint(
-    column: DatabricksColumn, raw_constraint: dict[str, Any]
-) -> ColumnLevelConstraint:
-    if raw_constraint.get("type") != "not_null":
-        raw_constraint["columns"] = [column.name]
-
-    # Convert to model constraint since column constraints don't work well in multiples
-    raw_constraint["columns"] = [column.name]
-    return parse_constraint(raw_constraint, CONSTRAINT_TYPE_MAP)
+    return not_nulls.union(
+        not_nulls_from_models
+    ), constraints_from_columns + constraints_from_models
 
 
-COLUMN_WARNING = (
-    "While constraint of type {type} is supported for models, it is not supported for columns."
-)
+def parse_column_constraints(
+    model_columns: list[dict[str, Any]],
+) -> tuple[set[str], list[TypedConstraint]]:
+    column_names: set[str] = set()
+    constraints: list[TypedConstraint] = []
+    for column in model_columns:
+        for constraint in column.get("constraints", []):
+            if constraint["type"] == ConstraintType.not_null:
+                column_names.add(column["name"])
+            else:
+                constraint["columns"] = [column["name"]]
+                constraints.append(parse_constraint(constraint))
 
-supported_for_columns = partial(
-    supported_for, support_func=lambda x: is_supported(x), warning=COLUMN_WARNING
-)
+    return column_names, constraints
 
 
-def process_column_constraint(constraint: TypedConstraint) -> Optional[str]:
-    return process_constraint(constraint, supported_for_columns)
+def parse_model_constraints(
+    model_constraints: list[dict[str, Any]],
+) -> tuple[set[str], list[TypedConstraint]]:
+    column_names: set[str] = set()
+    constraints: list[TypedConstraint] = []
+    for constraint in model_constraints:
+        if constraint["type"] == ConstraintType.not_null:
+            if not constraint.get("columns"):
+                raise DbtValidationError("not_null constraint on model must have 'columns' defined")
+            column_names.add(*constraint["columns"])
+        else:
+            constraints.append(parse_constraint(constraint))
+
+    return column_names, constraints
 
 
 CONSTRAINT_TYPE_MAP = {
@@ -211,24 +209,12 @@ CONSTRAINT_TYPE_MAP = {
 }
 
 
-def parse_constraint(type_map: dict[str, type[T]], raw_constraint: dict[str, Any]) -> T:
+def parse_constraint(
+    raw_constraint: dict[str, Any], type_map: dict[str, type[T]] = CONSTRAINT_TYPE_MAP
+) -> T:
     try:
         klass = type_map[raw_constraint["type"]]
         klass.validate(raw_constraint)
         return klass.from_dict(raw_constraint)
     except Exception:
         raise DbtValidationError(f"Could not parse constraint: {raw_constraint}")
-
-
-MODEL_WARNING = (
-    "While constraint of type {type} is supported for columns, it is not supported for models."
-)
-
-
-supported_for_models = partial(
-    supported_for, support_func=lambda x: x.type != ConstraintType.not_null, warning=MODEL_WARNING
-)
-
-
-def process_model_constraint(constraint: TypedConstraint) -> Optional[str]:
-    return process_constraint(constraint, supported_for_models)

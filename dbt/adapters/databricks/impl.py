@@ -769,21 +769,28 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     @staticmethod
-    def get_enriched_columns(
-        existing_columns: list[DatabricksColumn], model_columns: dict[str, dict[str, Any]]
-    ) -> list[DatabricksColumn]:
+    def parse_columns_and_constraints(
+        existing_columns: list[DatabricksColumn],
+        model_columns: dict[str, dict[str, Any]],
+        model_constraints: list[dict[str, Any]],
+    ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
+        not_null_set, parsed_constraints = constraints.parse_constraints(
+            list(model_columns.values()), model_constraints
+        )
 
         for column in existing_columns:
             if column.name in model_columns:
                 column_info = model_columns[column.name]
-                enriched_column = column.enrich(column_info)
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
                 enriched_columns.append(enriched_column)
             else:
+                if column.name in not_null_set:
+                    column.not_null = True
                 enriched_columns.append(column)
 
-        return enriched_columns
+        return enriched_columns, parsed_constraints
 
 
 @dataclass(frozen=True)
