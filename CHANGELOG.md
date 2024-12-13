@@ -8,6 +8,7 @@
 
 - Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
 - Add more relation types to make codegen happy ([875](https://github.com/databricks/dbt-databricks/pull/875))
+- add UP ruleset ([865](https://github.com/databricks/dbt-databricks/pull/865))
 
 ## dbt-databricks 1.9.0 (December 9, 2024)
 
