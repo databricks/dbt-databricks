@@ -19,7 +19,7 @@ from tests.functional.adapter.materialized_view_tests import fixtures
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if not k.startswith("pipeline")
+        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
     }
     assert final_tblproperties == expected
 
