@@ -246,7 +246,7 @@ class PollableApi(DatabricksApi, ABC):
 
 
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
-class CommandExecution(object):
+class CommandExecution:
     command_id: str
     context_id: str
     cluster_id: str
