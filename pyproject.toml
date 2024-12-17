@@ -68,6 +68,7 @@ requires = ["hatch-pip-compile"]
 [tool.hatch.envs.default]
 type = "pip-compile"
 pip-compile-resolver = "uv"
+pip-compile-installer = "pip-sync"
 lock-filename = "uv.lock"
 pip-compile-constraint = "default"
 dependencies = [
