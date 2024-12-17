@@ -427,7 +427,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "numeric_precision": None,
             "char_size": None,
             "comment": None,
-            "constraints": None,
             "not_null": None,
         }
 

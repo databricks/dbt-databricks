@@ -1,5 +1,5 @@
-from functools import partial
-from typing import Any, Callable, Optional, TypeVar
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Optional, Type, TypeVar
 
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -10,7 +10,6 @@ from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
@@ -22,21 +21,98 @@ CONSTRAINT_SUPPORT = {
     ConstraintType.foreign_key: ConstraintSupport.NOT_ENFORCED,
 }
 
-SUPPORTED_FOR_COLUMN = {
-    ConstraintType.custom,
-    ConstraintType.primary_key,
-    ConstraintType.foreign_key,
-}
-
 # Types
 """Generic type variable for constraints."""
-T = TypeVar("T", bound=ColumnLevelConstraint)
+T = TypeVar("T", bound="TypedConstraint")
 
-"""Function type for checking constraint support."""
-SupportFunc = Callable[[T], bool]
 
-"""Function type for rendering constraints."""
-RenderFunc = Callable[[T], str]
+class TypedConstraint(ModelLevelConstraint, ABC):
+    """Constraint that enforces type because it has render logic"""
+
+    str_type: ClassVar[str]
+
+    @classmethod
+    def __post_deserialize__(cls: Type[T], obj: T) -> T:
+        assert obj.type == cls.str_type, "Mismatched constraint type"
+        obj._validate()
+        return obj
+
+    def _validate(self) -> None:
+        return
+
+    def render(self) -> str:
+        return f"{self._render_prefix()}{self._render_suffix()}"
+
+    def _render_prefix(self) -> str:
+        if self.name:
+            return f"CONSTRAINT {self.name} "
+        return ""
+
+    @abstractmethod
+    def _render_suffix(self) -> str:
+        pass
+
+    @classmethod
+    def _render_error(self, missing: list[list[str]]) -> DbtValidationError:
+        fields = " or ".join(["(" + ", ".join([f"'{e}'" for e in x]) + ")" for x in missing])
+        name = self.name or ""
+        return DbtValidationError(
+            f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
+        )
+
+
+class CustomConstraint(TypedConstraint):
+    str_type = "custom"
+
+    def _validate(self) -> None:
+        if self.expression is None:
+            raise self._render_error([["expression"]])
+
+    def _render_suffix(self) -> str:
+        return self.expression or ""
+
+
+class PrimaryKeyConstraint(TypedConstraint):
+    str_type = "primary_key"
+
+    def _validate(self) -> None:
+        if not self.columns:
+            raise self._render_error([["columns"]])
+
+    def _render_suffix(self) -> str:
+        suffix = f"PRIMARY KEY ({', '.join(self.columns)})"
+        if self.expression:
+            suffix += f" {self.expression}"
+        return suffix
+
+
+class ForeignKeyConstraint(TypedConstraint):
+    str_type = "foreign_key"
+
+    def _validate(self) -> None:
+        if not self.columns or (not (self.to_columns and self.to) and not self.expression):
+            raise self._render_error(
+                [["columns", "to", "to_columns"], ["columns", "expression"]],
+            )
+
+    def _render_suffix(self) -> str:
+        suffix = f"FOREIGN KEY ({', '.join(self.columns)})"
+        if self.expression:
+            suffix += f" {self.expression}"
+        else:
+            suffix += f" REFERENCES {self.to} ({', '.join(self.to_columns)})"
+        return suffix
+
+
+class CheckConstraint(TypedConstraint):
+    str_type = "check"
+
+    def _validate(self) -> None:
+        if not self.expression:
+            raise self._render_error([["expression"]])
+
+    def _render_suffix(self) -> str:
+        return f"CHECK ({self.expression})"
 
 
 # Base support and enforcement
@@ -55,32 +131,18 @@ def is_enforced(constraint: ColumnLevelConstraint) -> bool:
     ]
 
 
-# Core parsing, validation, and processing
-def parse_constraint(klass: type[T], raw_constraint: dict[str, Any]) -> T:
-    try:
-        klass.validate(raw_constraint)
-        return klass.from_dict(raw_constraint)
-    except Exception:
-        raise DbtValidationError(f"Could not parse constraint: {raw_constraint}")
-
-
-def process_constraint(
-    constraint: T,
-    support_func: SupportFunc,
-    render_funcs: dict[ConstraintType, RenderFunc],
-) -> Optional[str]:
-    if validate_constraint(constraint, support_func):
-        return render_constraint(constraint, render_funcs)
-
+def process_constraint(constraint: TypedConstraint) -> Optional[str]:
+    if validate_constraint(constraint):
+        return constraint.render()
     return None
 
 
-def validate_constraint(constraint: T, support_func: SupportFunc) -> bool:
+def validate_constraint(constraint: ColumnLevelConstraint) -> bool:
     # Custom constraints are always supported
     if constraint.type == ConstraintType.custom:
         return True
 
-    supported = support_func(constraint)
+    supported = is_supported(constraint)
 
     if constraint.warn_unsupported and not supported:
         warn_or_error(
@@ -94,141 +156,65 @@ def validate_constraint(constraint: T, support_func: SupportFunc) -> bool:
     return supported
 
 
-def render_constraint(
-    constraint: T, render_funcs: dict[ConstraintType, RenderFunc]
-) -> Optional[str]:
-    rendered_constraint = ""
+def parse_constraints(
+    model_columns: list[dict[str, Any]], model_constraints: list[dict[str, Any]]
+) -> tuple[set[str], list[TypedConstraint]]:
+    not_nulls, constraints_from_columns = parse_column_constraints(model_columns)
+    not_nulls_from_models, constraints_from_models = parse_model_constraints(model_constraints)
 
-    if constraint.type in render_funcs:
-        if constraint.name:
-            rendered_constraint = f"CONSTRAINT {constraint.name} "
-        rendered_constraint += render_funcs[constraint.type](constraint)
-
-    rendered_constraint = rendered_constraint.strip()
-
-    return rendered_constraint if rendered_constraint != "" else None
+    return not_nulls.union(
+        not_nulls_from_models
+    ), constraints_from_columns + constraints_from_models
 
 
-def supported_for(constraint: T, support_func: SupportFunc, warning: str) -> bool:
-    if is_supported(constraint) and not support_func(constraint):
-        logger.warning(warning.format(type=constraint.type))
+def parse_column_constraints(
+    model_columns: list[dict[str, Any]],
+) -> tuple[set[str], list[TypedConstraint]]:
+    column_names: set[str] = set()
+    constraints: list[TypedConstraint] = []
+    for column in model_columns:
+        for constraint in column.get("constraints", []):
+            if constraint["type"] == ConstraintType.not_null:
+                column_names.add(column["name"])
+            else:
+                constraint["columns"] = [column["name"]]
+                constraints.append(parse_constraint(constraint))
 
-    return is_supported(constraint) and support_func(constraint)
-
-
-# Shared render functions
-def render_error(constraint: ColumnLevelConstraint, missing: list[list[str]]) -> DbtValidationError:
-    fields = " or ".join(["(" + ", ".join([f"'{e}'" for e in x]) + ")" for x in missing])
-    constraint_type = constraint.type.value
-    constraint_name = "" if not constraint.name else f"{constraint.name} "
-    return DbtValidationError(
-        f"{constraint_type} constraint {constraint_name}is missing required field(s): {fields}"
-    )
-
-
-def render_custom(constraint: ColumnLevelConstraint) -> str:
-    assert constraint.type == ConstraintType.custom
-    if constraint.expression:
-        return constraint.expression
-    raise render_error(constraint, [["expression"]])
+    return column_names, constraints
 
 
-# ColumnLevelConstraint specialization
-def parse_column_constraint(raw_constraint: dict[str, Any]) -> ColumnLevelConstraint:
-    return parse_constraint(ColumnLevelConstraint, raw_constraint)
+def parse_model_constraints(
+    model_constraints: list[dict[str, Any]],
+) -> tuple[set[str], list[TypedConstraint]]:
+    column_names: set[str] = set()
+    constraints: list[TypedConstraint] = []
+    for constraint in model_constraints:
+        if constraint["type"] == ConstraintType.not_null:
+            if not constraint.get("columns"):
+                raise DbtValidationError("not_null constraint on model must have 'columns' defined")
+            column_names.add(*constraint["columns"])
+        else:
+            constraints.append(parse_constraint(constraint))
+
+    return column_names, constraints
 
 
-COLUMN_WARNING = (
-    "While constraint of type {type} is supported for models, it is not supported for columns."
-)
-
-supported_for_columns = partial(
-    supported_for, support_func=lambda x: x.type in SUPPORTED_FOR_COLUMN, warning=COLUMN_WARNING
-)
-
-
-def column_constraint_map() -> dict[ConstraintType, RenderFunc]:
-    return {
-        ConstraintType.primary_key: render_primary_key_for_column,
-        ConstraintType.foreign_key: render_foreign_key_for_column,
-        ConstraintType.custom: render_custom,
-    }
+CONSTRAINT_TYPE_MAP = {
+    "primary_key": PrimaryKeyConstraint,
+    "foreign_key": ForeignKeyConstraint,
+    "check": CheckConstraint,
+    "custom": CustomConstraint,
+    "not_null": ColumnLevelConstraint,
+    "unique": ColumnLevelConstraint,
+}
 
 
-def process_column_constraint(constraint: ColumnLevelConstraint) -> Optional[str]:
-    return process_constraint(constraint, supported_for_columns, column_constraint_map())
-
-
-def render_primary_key_for_column(constraint: ColumnLevelConstraint) -> str:
-    assert constraint.type == ConstraintType.primary_key
-    rendered = "PRIMARY KEY"
-    if constraint.expression:
-        rendered += f" {constraint.expression}"
-    return rendered
-
-
-def render_foreign_key_for_column(constraint: ColumnLevelConstraint) -> str:
-    assert constraint.type == ConstraintType.foreign_key
-    rendered = "FOREIGN KEY"
-    if constraint.expression:
-        return rendered + f" {constraint.expression}"
-    elif constraint.to and constraint.to_columns:
-        return rendered + f" REFERENCES {constraint.to} ({', '.join(constraint.to_columns)})"
-    raise render_error(constraint, [["expression"], ["to", "to_columns"]])
-
-
-# ModelLevelConstraint specialization
-def parse_model_constraint(raw_constraint: dict[str, Any]) -> ModelLevelConstraint:
-    return parse_constraint(ModelLevelConstraint, raw_constraint)
-
-
-MODEL_WARNING = (
-    "While constraint of type {type} is supported for columns, it is not supported for models."
-)
-
-
-supported_for_models = partial(
-    supported_for, support_func=lambda x: x.type != ConstraintType.not_null, warning=MODEL_WARNING
-)
-
-
-def model_constraint_map() -> dict[ConstraintType, RenderFunc]:
-    return {
-        ConstraintType.primary_key: render_primary_key_for_model,
-        ConstraintType.foreign_key: render_foreign_key_for_model,
-        ConstraintType.custom: render_custom,
-        ConstraintType.check: render_check,
-    }
-
-
-def process_model_constraint(constraint: ModelLevelConstraint) -> Optional[str]:
-    return process_constraint(constraint, supported_for_models, model_constraint_map())
-
-
-def render_primary_key_for_model(constraint: ModelLevelConstraint) -> str:
-    prefix = render_primary_key_for_column(constraint)
-    if constraint.expression:
-        return prefix
-    if constraint.columns:
-        return f"{prefix} ({', '.join(constraint.columns)})"
-    raise render_error(constraint, [["columns"], ["expression"]])
-
-
-def render_foreign_key_for_model(constraint: ModelLevelConstraint) -> str:
-    assert constraint.type == ConstraintType.foreign_key
-    rendered = "FOREIGN KEY"
-    if constraint.columns and constraint.to and constraint.to_columns:
-        columns = ", ".join(constraint.columns)
-        to_columns = ", ".join(constraint.to_columns)
-        return rendered + f" ({columns}) REFERENCES {constraint.to} ({to_columns})"
-    elif constraint.expression:
-        return rendered + " " + constraint.expression
-    raise render_error(constraint, [["expression"], ["columns", "to", "to_columns"]])
-
-
-def render_check(constraint: ColumnLevelConstraint) -> str:
-    assert constraint.type == ConstraintType.check
-    if constraint.expression:
-        return f"CHECK ({constraint.expression})"
-
-    raise render_error(constraint, [["expression"]])
+def parse_constraint(
+    raw_constraint: dict[str, Any], type_map: dict[str, type[T]] = CONSTRAINT_TYPE_MAP
+) -> T:
+    try:
+        klass = type_map[raw_constraint["type"]]
+        klass.validate(raw_constraint)
+        return klass.from_dict(raw_constraint)
+    except Exception:
+        raise DbtValidationError(f"Could not parse constraint: {raw_constraint}")

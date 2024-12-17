@@ -1,5 +1,4 @@
 import pytest
-from dbt_common.contracts.constraints import ColumnLevelConstraint, ConstraintType
 
 from dbt.adapters.databricks.column import DatabricksColumn
 
@@ -29,23 +28,6 @@ class TestSparkColumn:
         }
 
 
-class TestAddConstraint:
-    @pytest.fixture
-    def column(self):
-        return DatabricksColumn("id", "LONG")
-
-    def test_add_constraint__not_null(self, column):
-        column.add_constraint(ColumnLevelConstraint(type=ConstraintType.not_null))
-        assert column.not_null is True
-        assert column.constraints == []
-
-    def test_add_constraint__other_constraint(self, column):
-        constraint = ColumnLevelConstraint(type=ConstraintType.custom)
-        column.add_constraint(constraint)
-        assert column.not_null is False
-        assert column.constraints == [constraint]
-
-
 class TestEnrich:
     @pytest.fixture
     def column(self):
@@ -63,13 +45,10 @@ class TestEnrich:
         }
 
     def test_enrich(self, column, model_column):
-        enriched_column = column.enrich(model_column)
+        enriched_column = column.enrich(model_column, True)
         assert enriched_column.data_type == "bigint"
         assert enriched_column.comment == "this is a column"
         assert enriched_column.not_null is True
-        assert enriched_column.constraints == [
-            ColumnLevelConstraint(type=ConstraintType.primary_key, name="foo")
-        ]
 
 
 class TestRenderForCreate:
@@ -87,23 +66,6 @@ class TestRenderForCreate:
     def test_render_for_create__comment(self, column):
         column.comment = "this is a column"
         assert column.render_for_create() == "id INT COMMENT 'this is a column'"
-
-    def test_render_for_create__constraints(self, column):
-        column.constraints = [
-            ColumnLevelConstraint(type=ConstraintType.primary_key),
-        ]
-        assert column.render_for_create() == "id INT PRIMARY KEY"
-
-    def test_render_for_create__everything(self, column):
-        column.not_null = True
-        column.comment = "this is a column"
-        column.constraints = [
-            ColumnLevelConstraint(type=ConstraintType.primary_key),
-            ColumnLevelConstraint(type=ConstraintType.custom, expression="foo"),
-        ]
-        assert column.render_for_create() == (
-            "id INT NOT NULL COMMENT 'this is a column' " "PRIMARY KEY foo"
-        )
 
     def test_render_for_create__escaping(self, column):
         column.comment = "this is a 'column'"
