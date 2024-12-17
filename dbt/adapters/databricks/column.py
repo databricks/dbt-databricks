@@ -72,7 +72,7 @@ class DatabricksColumn(SparkColumn):
         return column_str
 
     def __repr__(self) -> str:
-        return "<DatabricksColumn {} ({})>".format(self.name, self.data_type)
+        return f"<DatabricksColumn {self.name} ({self.data_type})>"
 
     @staticmethod
     def get_name(column: dict[str, Any]) -> str:

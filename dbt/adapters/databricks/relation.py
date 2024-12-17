@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type  # noqa
 
 from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
 from dbt_common.dataclass_schema import StrEnum
@@ -136,7 +136,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:

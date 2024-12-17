@@ -8,7 +8,7 @@
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files))
 
-## dbt-databricks 1.9.1 (TBD)
+## dbt-databricks 1.9.1 (December 16, 2024)
 
 ### Features
 
@@ -18,6 +18,7 @@
 
 - Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
 - Add more relation types to make codegen happy ([875](https://github.com/databricks/dbt-databricks/pull/875))
+- add UP ruleset ([865](https://github.com/databricks/dbt-databricks/pull/865))
 
 ## dbt-databricks 1.9.0 (December 9, 2024)
 

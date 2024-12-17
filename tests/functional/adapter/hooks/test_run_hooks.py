@@ -65,7 +65,7 @@ class TestPrePostRunHooks(BasePrePostRunHooks):
             "invocation_id",
             "thread_id",
         ]
-        field_list = ", ".join(["{}".format(f) for f in fields])
+        field_list = ", ".join([f"{f}" for f in fields])
         query = (
             f"select {field_list} from {project.test_schema}.on_run_hook where test_state = "
             f"'{state}'"
