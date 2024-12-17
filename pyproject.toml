@@ -62,14 +62,7 @@ check-sdist = [
     "pip freeze | grep dbt-databricks",
 ]
 
-[tool.hatch.env]
-requires = ["hatch-pip-compile"]
-
 [tool.hatch.envs.default]
-type = "pip-compile"
-pip-compile-resolver = "uv"
-lock-filename = "uv.lock"
-pip-compile-constraint = "default"
 dependencies = [
     "dbt_common @ git+https://github.com/dbt-labs/dbt-common.git",
     "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@main",

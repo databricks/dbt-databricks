@@ -1,9 +1,3 @@
-## dbt-databricks 1.9.2 (TBD)
-
-### Under the Hood
-
-- Switch to UV and locks for dependency management ([878](https://github.com/databricks/dbt-databricks/pull/878))
-
 ## dbt-databricks 1.9.1 (December 16, 2024)
 
 ### Features
