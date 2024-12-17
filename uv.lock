@@ -31,7 +31,7 @@ agate==1.9.1
     #   dbt-adapters
     #   dbt-common
     #   dbt-core
-attrs==24.2.0
+attrs==24.3.0
     # via
     #   jsonschema
     #   referencing
@@ -41,7 +41,7 @@ backports-tarfile==1.2.0
     # via jaraco-context
 cachetools==5.5.0
     # via google-auth
-certifi==2024.8.30
+certifi==2024.12.14
     # via requests
 cfgv==3.4.0
     # via pre-commit
@@ -65,13 +65,13 @@ dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@e3964d76c1719baf
     #   dbt-core
     #   dbt-spark
     #   dbt-tests-adapter
-dbt-common @ git+https://github.com/dbt-labs/dbt-common.git@243568e244ba4b620fac0d2ab8e039a89fe483f3
+dbt-common @ git+https://github.com/dbt-labs/dbt-common.git@c72ea7e3abf70ce632d30722036dd0b4afcaf330
     # via
     #   hatch.envs.default
     #   dbt-adapters
     #   dbt-core
     #   dbt-spark
-dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@7df04b0fe461dcad3c2abcb67004178efaf445ce#subdirectory=core
+dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@6c61cb7f7adbdce8edec35a887d6c766a401e403#subdirectory=core
     # via
     #   hatch.envs.default
     #   dbt-spark
