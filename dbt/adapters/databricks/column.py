@@ -1,9 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
-from dbt_common.contracts.constraints import ColumnLevelConstraint, ConstraintType
-
-from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.utils import quote
 from dbt.adapters.spark.column import SparkColumn
 
@@ -13,7 +10,6 @@ class DatabricksColumn(SparkColumn):
     table_comment: Optional[str] = None
     comment: Optional[str] = None
     not_null: Optional[bool] = None
-    constraints: Optional[list[ColumnLevelConstraint]] = None
 
     TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
@@ -32,17 +28,7 @@ class DatabricksColumn(SparkColumn):
     def data_type(self) -> str:
         return self.translate_type(self.dtype)
 
-    def add_constraint(self, constraint: ColumnLevelConstraint) -> None:
-        # On first constraint add, initialize constraint details
-        if self.constraints is None:
-            self.constraints = []
-            self.not_null = False
-        if constraint.type == ConstraintType.not_null:
-            self.not_null = True
-        else:
-            self.constraints.append(constraint)
-
-    def enrich(self, model_column: dict[str, Any]) -> "DatabricksColumn":
+    def enrich(self, model_column: dict[str, Any], not_null: bool) -> "DatabricksColumn":
         """Create a copy that incorporates model column metadata, including constraints."""
 
         data_type = model_column.get("data_type") or self.dtype
@@ -51,11 +37,7 @@ class DatabricksColumn(SparkColumn):
         if model_column.get("description"):
             enriched_column.comment = model_column["description"]
 
-        if model_column.get("constraints"):
-            for constraint in model_column["constraints"]:
-                parsed_constraint = constraints.parse_column_constraint(constraint)
-                enriched_column.add_constraint(parsed_constraint)
-
+        enriched_column.not_null = not_null
         return enriched_column
 
     def render_for_create(self) -> str:
@@ -73,7 +55,7 @@ class DatabricksColumn(SparkColumn):
         return (", ").join(x for x in processed if x is not None)
 
     def __repr__(self) -> str:
-        return "<DatabricksColumn {} ({})>".format(self.name, self.data_type)
+        return f"<DatabricksColumn {self.name} ({self.data_type})>"
 
     @staticmethod
     def get_name(column: dict[str, Any]) -> str:

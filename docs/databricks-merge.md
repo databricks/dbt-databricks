@@ -18,7 +18,11 @@ From v.1.9 onwards `merge` behavior can be tuned by setting the additional param
 
   - `skip_matched_step`: if set to `true`, dbt will completely skip the `matched` clause of the merge statement.
   - `skip_not_matched_step`: similarly if `true` the `not matched` clause will be skipped.
-  - `not_matched_by_source_action`: if set to `delete` the corresponding `when not matched by source ... then delete` clause will be added to the merge statement.
+  - `not_matched_by_source_action`: can be set to an action for the case the record does not exist in a source dataset. 
+    - if set to `delete` the corresponding `when not matched by source ... then delete` clause will be added to the merge statement. 
+    - if the action starts with `update` then the format `update set <actions>` is assumed, which will run update statement syntactically as provided.
+      Can be multiline formatted.
+    - in other cases by default no action is taken and now error raised.
   - `merge_with_schema_evolution`: when set to `true` dbt generates the merge statement with `WITH SCHEMA EVOLUTION` clause.
 
 - Step conditions that are expressed with an explicit SQL predicates allow to execute corresponding action only in case the conditions are met in addition to matching by the `unique_key`.
@@ -40,7 +44,11 @@ Example below illustrates how these parameters affect the merge statement genera
     matched_condition='t.tech_change_ts < s.tech_change_ts',
     not_matched_condition='s.attr1 IS NOT NULL',
     not_matched_by_source_condition='t.tech_change_ts < current_timestamp()',
-    not_matched_by_source_action='delete',
+    not_matched_by_source_action='''
+        update set
+            t.attr1 = 'deleted',
+            t.tech_change_ts = current_timestamp()
+    ''',
     merge_with_schema_evolution=true
 ) }}
 
@@ -93,5 +101,7 @@ when not matched
 
 when not matched by source
     and t.tech_change_ts < current_timestamp()
-    then delete
+    then update set
+        t.attr1 = 'deleted',
+        t.tech_change_ts = current_timestamp()
 ```

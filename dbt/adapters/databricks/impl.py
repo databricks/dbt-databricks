@@ -552,7 +552,7 @@ class DatabricksAdapter(SparkAdapter):
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: list[Future["Table"]] = []
+            futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -770,21 +770,28 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     @staticmethod
-    def get_enriched_columns(
-        existing_columns: list[DatabricksColumn], model_columns: dict[str, dict[str, Any]]
-    ) -> list[DatabricksColumn]:
+    def parse_columns_and_constraints(
+        existing_columns: list[DatabricksColumn],
+        model_columns: dict[str, dict[str, Any]],
+        model_constraints: list[dict[str, Any]],
+    ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
+        not_null_set, parsed_constraints = constraints.parse_constraints(
+            list(model_columns.values()), model_constraints
+        )
 
         for column in existing_columns:
             if column.name in model_columns:
                 column_info = model_columns[column.name]
-                enriched_column = column.enrich(column_info)
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
                 enriched_columns.append(enriched_column)
             else:
+                if column.name in not_null_set:
+                    column.not_null = True
                 enriched_columns.append(column)
 
-        return enriched_columns
+        return enriched_columns, parsed_constraints
 
 
 @dataclass(frozen=True)
@@ -835,7 +842,7 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
+        relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])

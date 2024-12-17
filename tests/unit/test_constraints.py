@@ -4,11 +4,139 @@ import pytest
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
-    ModelLevelConstraint,
 )
 from dbt_common.exceptions import DbtValidationError
 
-from dbt.adapters.databricks import constraints
+from dbt.adapters.databricks.constraints import (
+    CheckConstraint,
+    CustomConstraint,
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    TypedConstraint,
+    is_enforced,
+    is_supported,
+    parse_column_constraints,
+    parse_constraint,
+    parse_constraints,
+    parse_model_constraints,
+    process_constraint,
+    validate_constraint,
+)
+
+
+class TestConstraint(TypedConstraint):
+    str_type = "unique"
+
+    def _render_suffix(self):
+        return "test"
+
+
+class TestTypedConstraint:
+    def test_typed_constraint_from_dict__invalid_type(self):
+        with pytest.raises(AssertionError, match="Mismatched constraint type"):
+            TestConstraint.from_dict({"type": "custom"})
+
+    def test_render__with_name(self):
+        constraint = TestConstraint(type=ConstraintType.check, name="my_constraint")
+        assert constraint.render() == "CONSTRAINT my_constraint test"
+
+
+class TestCustomConstraint:
+    def test_custom_constraint_from_dict__valid(self):
+        raw = {"type": "custom", "expression": "1 = 1"}
+        assert CustomConstraint(
+            type=ConstraintType.custom, expression="1 = 1"
+        ) == CustomConstraint.from_dict(raw)
+
+    def test_custom_constraint_from_dict__invalid(self):
+        raw = {"type": "custom"}
+        with pytest.raises(
+            DbtValidationError, match="custom constraint '' is missing required field"
+        ):
+            CustomConstraint.from_dict(raw)
+
+    def test_custom_constraint_render(self):
+        constraint = CustomConstraint(type=ConstraintType.custom, expression="1 = 1")
+        assert constraint.render() == "1 = 1"
+
+
+class TestCheckConstraint:
+    def test_check_constraint_from_dict__valid(self):
+        raw = {"type": "check", "expression": "1 = 1"}
+        assert CheckConstraint(
+            type=ConstraintType.check, expression="1 = 1"
+        ) == CheckConstraint.from_dict(raw)
+
+    def test_check_constraint_validate__invalid(self):
+        raw = {"type": "check"}
+        with pytest.raises(
+            DbtValidationError, match="check constraint '' is missing required field"
+        ):
+            CheckConstraint.from_dict(raw)
+
+    def test_custom_constraint_render(self):
+        constraint = CheckConstraint(type=ConstraintType.check, expression="1 = 1")
+        assert constraint.render() == "CHECK (1 = 1)"
+
+
+class TestPrimaryKeyConstraint:
+    def test_primary_key_constraint_from_dict__valid(self):
+        raw = {"type": "primary_key", "columns": ["id"]}
+        assert PrimaryKeyConstraint(
+            type=ConstraintType.primary_key, columns=["id"]
+        ) == PrimaryKeyConstraint.from_dict(raw)
+
+    def test_primary_key_constraint_validate__invalid(self):
+        raw = {"type": "primary_key"}
+        with pytest.raises(
+            DbtValidationError, match="primary_key constraint '' is missing required field"
+        ):
+            PrimaryKeyConstraint.from_dict(raw)
+
+    def test_primary_key_constraint_render__no_expression(self):
+        constraint = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        assert constraint.render() == "PRIMARY KEY (id)"
+
+    def test_primary_key_constraint_render__with_expression(self):
+        constraint = PrimaryKeyConstraint(
+            type=ConstraintType.primary_key, columns=["id", "other"], expression="DEFERRABLE"
+        )
+        assert constraint.render() == "PRIMARY KEY (id, other) DEFERRABLE"
+
+
+class TestForeignKeyConstraint:
+    def test_foreign_key_constraint_from_dict__valid(self):
+        raw = {"type": "foreign_key", "columns": ["id"], "expression": "1 = 1"}
+        assert ForeignKeyConstraint(
+            type=ConstraintType.foreign_key, columns=["id"], expression="1 = 1"
+        ) == ForeignKeyConstraint.from_dict(raw)
+
+    def test_foreign_key_constraint_validate__invalid(self):
+        raw = {"type": "foreign_key"}
+        with pytest.raises(
+            DbtValidationError, match="foreign_key constraint '' is missing required field"
+        ):
+            ForeignKeyConstraint.from_dict(raw)
+
+    def test_foreign_key_constraint_render__to(self):
+        constraint = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            columns=["id"],
+            to="other_table",
+            to_columns=["other_id"],
+        )
+        assert constraint.render() == "FOREIGN KEY (id) REFERENCES other_table (other_id)"
+
+    def test_foreign_key_constraint_render__with_expression(self):
+        constraint = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            columns=["id", "other"],
+            expression="REFERENCES other_table (other_id) DEFERRABLE",
+        )
+        assert (
+            constraint.render()
+            == "FOREIGN KEY (id, other) REFERENCES other_table (other_id) DEFERRABLE"
+        )
 
 
 class TestConstraintsSupported:
@@ -26,7 +154,7 @@ class TestConstraintsSupported:
     )
     def test_supported__expected(self, constraint_type, supported):
         constraint = ColumnLevelConstraint(type=constraint_type)
-        assert constraints.is_supported(constraint) == supported
+        assert is_supported(constraint) == supported
 
 
 class TestConstraintsEnforced:
@@ -44,43 +172,46 @@ class TestConstraintsEnforced:
     )
     def test_enforced__expected(self, constraint_type, enforced):
         constraint = ColumnLevelConstraint(type=constraint_type)
-        assert constraints.is_enforced(constraint) == enforced
+        assert is_enforced(constraint) == enforced
 
 
 class TestParseConstraint:
-    @pytest.mark.parametrize("klass", [ColumnLevelConstraint, ModelLevelConstraint])
-    def test_parse_constraint__valid_column(self, klass):
-        raw_constraint = {"type": "not_null"}
-        constraint = constraints.parse_constraint(klass, raw_constraint)
-        assert isinstance(constraint, klass)
-        assert constraint.type == ConstraintType.not_null
+    @pytest.mark.parametrize(
+        "type, expectedType",
+        [
+            ("not_null", ColumnLevelConstraint),
+            ("check", CheckConstraint),
+            ("custom", CustomConstraint),
+            ("unique", ColumnLevelConstraint),
+            ("primary_key", PrimaryKeyConstraint),
+            ("foreign_key", ForeignKeyConstraint),
+        ],
+    )
+    def test_parse_constraint__valid_column(self, type, expectedType):
+        raw_constraint = {
+            "type": type,
+            "expression": "1 = 1",
+            "name": "my_constraint",
+        }
+        if type not in ["not_null", "unique"]:
+            raw_constraint["columns"] = ["id"]
+        constraint = parse_constraint(raw_constraint)
+        assert isinstance(constraint, expectedType)
 
-    @pytest.mark.parametrize("klass", [ColumnLevelConstraint, ModelLevelConstraint])
-    def test_parse_constraint__invalid_column(self, klass):
+    def test_parse_constraint__invalid_constraint(self):
         raw_constraint = {"type": None}
         with pytest.raises(DbtValidationError, match="Could not parse constraint"):
-            constraints.parse_constraint(klass, raw_constraint)
-
-
-@pytest.fixture
-def constraint():
-    return ColumnLevelConstraint(type=ConstraintType.check)
+            parse_constraint(raw_constraint)
 
 
 class TestProcessConstraint:
-    @pytest.fixture
-    def success(self):
-        return "SUCCESS"
+    def test_process_constraint__valid_constraint(self):
+        constraint = CheckConstraint(type=ConstraintType.check, expression="1 = 1")
+        assert process_constraint(constraint) == constraint.render()
 
-    @pytest.fixture
-    def render_map(self, constraint, success):
-        return {constraint.type: lambda _: success}
-
-    def test_process_constraint__valid_constraint(self, constraint, render_map, success):
-        assert constraints.process_constraint(constraint, lambda _: True, render_map) == success
-
-    def test_process_constraint__invalid_constraint(self, constraint, render_map):
-        assert constraints.process_constraint(constraint, lambda x: False, render_map) is None
+    def test_process_constraint__invalid_constraint(self):
+        constraint = ColumnLevelConstraint(type=ConstraintType.unique)
+        assert process_constraint(constraint) is None
 
 
 class TestValidateConstraint:
@@ -92,215 +223,97 @@ class TestValidateConstraint:
 
     def test_validate_constraint__custom(self):
         constraint = ColumnLevelConstraint(type=ConstraintType.custom)
-        assert constraints.validate_constraint(constraint, lambda _: False) is True
+        assert validate_constraint(constraint) is True
 
     def test_validate_constraint__supported(self, pk_constraint):
-        assert constraints.validate_constraint(pk_constraint, lambda _: True) is True
+        assert validate_constraint(pk_constraint) is True
 
     @patch("dbt.adapters.databricks.constraints.warn_or_error")
-    def test_validate_constraint__unsupported(self, pk_constraint):
+    def test_validate_constraint__unsupported(self, _):
         with patch("dbt.adapters.databricks.constraints.ConstraintNotSupported") as mock_warn:
-            assert constraints.validate_constraint(pk_constraint, lambda _: False) is False
+            constraint = ColumnLevelConstraint(type=ConstraintType.unique)
+            assert validate_constraint(constraint) is False
             mock_warn.assert_called_with(
-                constraint=pk_constraint.type.value, adapter="DatabricksAdapter"
+                constraint=constraint.type.value, adapter="DatabricksAdapter"
             )
 
     @patch("dbt.adapters.databricks.constraints.warn_or_error")
-    def test_validate_constraint__unenforced(self, pk_constraint):
+    def test_validate_constraint__unenforced(self, _, pk_constraint):
         with patch("dbt.adapters.databricks.constraints.ConstraintNotEnforced") as mock_warn:
-            assert constraints.validate_constraint(pk_constraint, lambda _: True) is True
+            assert validate_constraint(pk_constraint) is True
             mock_warn.assert_called_with(
                 constraint=pk_constraint.type.value, adapter="DatabricksAdapter"
             )
 
 
-class TestRenderConstraint:
-    @pytest.fixture
-    def success(self):
-        return "CHECK (1 = 1)"
+class TestParseConstraints:
+    def test_parse_column_constraints__empty(self):
+        assert (set(), []) == parse_column_constraints([])
 
-    @pytest.fixture
-    def render_map(self, constraint, success):
-        return {constraint.type: lambda _: success}
+    def test_parse_column_constraints__not_nulls(self):
+        columns = [{"name": "id", "constraints": [{"type": "not_null"}]}]
+        assert ({"id"}, []) == parse_column_constraints(columns)
 
-    def test_render_constraint__valid_constraint(self, constraint, render_map, success):
-        assert constraints.render_constraint(constraint, render_map) == success
-
-    def test_render_constraint__invalid_constraint(self, render_map):
+    def test_parse_column_constraints__model_constraints(self):
+        columns = [{"name": "id", "constraints": [{"type": "primary_key"}]}]
         assert (
-            constraints.render_constraint(
-                ColumnLevelConstraint(type=ConstraintType.not_null), render_map
-            )
-            is None
-        )
+            set(),
+            [PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])],
+        ) == parse_column_constraints(columns)
 
-    def test_render_constraint__with_name(self, constraint, render_map, success):
-        constraint.name = "my_constraint"
+    def test_parse_column_constraints__both(self):
+        columns = [{"name": "id", "constraints": [{"type": "primary_key"}, {"type": "not_null"}]}]
         assert (
-            constraints.render_constraint(constraint, render_map)
-            == f"CONSTRAINT {constraint.name} {success}"
-        )
+            {"id"},
+            [PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])],
+        ) == parse_column_constraints(columns)
 
-    def test_render_constraint__excess_gets_trimmed(self, constraint):
-        constraint.name = "my_constraint"
-        render_map = {constraint.type: lambda _: "CHECK (1 = 1)   "}
-        assert (
-            constraints.render_constraint(constraint, render_map)
-            == f"CONSTRAINT {constraint.name} CHECK (1 = 1)"
-        )
+    def test_parse_model_constraints__empty(self):
+        assert (set(), []) == parse_model_constraints([])
 
-
-class TestSupportedFor:
-    @pytest.fixture
-    def warning(self):
-        return "Warning for {type}"
-
-    def test_supported_for__supported(self, constraint, warning):
-        assert constraints.supported_for(constraint, lambda _: True, warning) is True
-
-    def test_supported_for__not_supported_in_base(self, warning):
-        constraint = ColumnLevelConstraint(type=ConstraintType.unique)
-        assert constraints.supported_for(constraint, lambda _: True, warning) is False
-
-    def test_supported_for__not_supported_in_context(self, constraint, warning):
-        with patch("dbt.adapters.databricks.constraints.logger.warning") as mock_warn:
-            assert constraints.supported_for(constraint, lambda _: False, warning) is False
-            mock_warn.assert_called_with(warning.format(type=constraint.type))
-
-
-class TestRenderError:
-    @pytest.mark.parametrize(
-        "constraint, missing, expected",
-        [
-            (
-                ColumnLevelConstraint(type=ConstraintType.check),
-                [["expression"]],
-                "check constraint is missing required field(s): ('expression')",
-            ),
-            (
-                ColumnLevelConstraint(type=ConstraintType.foreign_key),
-                [["expression"], ["to", "to_columns"]],
-                (
-                    "foreign_key constraint is missing required field(s): "
-                    "('expression') or ('to', 'to_columns')"
-                ),
-            ),
-            (
-                ColumnLevelConstraint(type=ConstraintType.primary_key, name="my_pk"),
-                [["expression"]],
-                "primary_key constraint my_pk is missing required field(s): ('expression')",
-            ),
-        ],
-    )
-    def test_render_error__expected(self, constraint, missing, expected):
-        assert constraints.render_error(constraint, missing).msg == expected
-
-
-class TestRenderCustom:
-    def test_render_custom__valid(self):
-        constraint = ColumnLevelConstraint(type=ConstraintType.custom, expression="1 = 1")
-        assert constraints.render_custom(constraint) == "1 = 1"
-
-    def test_render_custom__invalid(self):
-        constraint = ColumnLevelConstraint(type=ConstraintType.custom)
-        with pytest.raises(DbtValidationError, match="custom constraint is missing required field"):
-            constraints.render_custom(constraint)
-
-
-class TestRenderPrimaryKeyForColumn:
-    def test_render_primary_key_for_column__valid(self):
-        constraint = ColumnLevelConstraint(type=ConstraintType.primary_key, expression="DEFERRABLE")
-        assert constraints.render_primary_key_for_column(constraint) == "PRIMARY KEY DEFERRABLE"
-
-    def test_render_primary_key_for_column__no_expression(self):
-        constraint = ColumnLevelConstraint(type=ConstraintType.primary_key)
-        assert constraints.render_primary_key_for_column(constraint) == "PRIMARY KEY"
-
-
-class TestRenderForeignKeyForColumn:
-    def test_render_foreign_key_for_column__valid_to(self):
-        constraint = ColumnLevelConstraint(
-            type=ConstraintType.foreign_key,
-            to="other_table",
-            to_columns=["other_id"],
-        )
-        assert (
-            constraints.render_foreign_key_for_column(constraint)
-            == "FOREIGN KEY REFERENCES other_table (other_id)"
-        )
-
-    def test_render_foreign_key_for_column__valid_expression(self):
-        constraint = ColumnLevelConstraint(
-            type=ConstraintType.foreign_key, expression="references other_table (other_id)"
-        )
-        assert (
-            constraints.render_foreign_key_for_column(constraint)
-            == "FOREIGN KEY references other_table (other_id)"
-        )
-
-    def test_render_foreign_key_for_column__invalid(self):
-        constraint = ColumnLevelConstraint(type=ConstraintType.foreign_key)
+    def test_parse_model_constraints__not_nulls_invalid(self):
+        constraints = [{"type": "not_null"}]
         with pytest.raises(
-            DbtValidationError, match="foreign_key constraint is missing required field"
+            DbtValidationError, match="not_null constraint on model must have 'columns' defined"
         ):
-            constraints.render_foreign_key_for_column(constraint)
+            parse_model_constraints(constraints)
 
+    def test_parse_model_constraints__not_nulls(self):
+        constraints = [{"type": "not_null", "columns": ["id"]}]
+        assert ({"id"}, []) == parse_model_constraints(constraints)
 
-class TestRenderPrimaryKeyForModel:
-    def test_render_primary_key_for_model__valid_columns(self):
-        constraint = ModelLevelConstraint(type=ConstraintType.primary_key, columns=["id", "ts"])
-        assert constraints.render_primary_key_for_model(constraint) == "PRIMARY KEY (id, ts)"
-
-    def test_render_primary_key_for_model__expression(self):
-        constraint = ModelLevelConstraint(
-            type=ConstraintType.primary_key, expression="(id TIMESERIES)"
-        )
-        assert constraints.render_primary_key_for_model(constraint) == "PRIMARY KEY (id TIMESERIES)"
-
-    def test_render_primary_key_for_model__invalid(self):
-        constraint = ModelLevelConstraint(type=ConstraintType.primary_key)
-        with pytest.raises(
-            DbtValidationError, match="primary_key constraint is missing required field"
-        ):
-            constraints.render_primary_key_for_model(constraint)
-
-
-class TestRenderForeignKeyForModel:
-    def test_render_foreign_key_for_model__valid_columns(self):
-        constraint = ModelLevelConstraint(
-            type=ConstraintType.foreign_key,
-            columns=["id"],
-            to="other_table",
-            to_columns=["other_id"],
-        )
+    def test_parse_model_constraints__model_constraints(self):
+        columns = [{"type": "primary_key", "columns": ["id"]}]
         assert (
-            constraints.render_foreign_key_for_model(constraint)
-            == "FOREIGN KEY (id) REFERENCES other_table (other_id)"
-        )
+            set(),
+            [PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])],
+        ) == parse_model_constraints(columns)
 
-    def test_render_foreign_key_for_model__expression(self):
-        constraint = ModelLevelConstraint(
-            type=ConstraintType.foreign_key, expression="references other_table (other_id)"
-        )
+    def test_parse_model_constraints__both(self):
+        columns = [
+            {"type": "primary_key", "columns": ["id"]},
+            {"type": "not_null", "columns": ["id"]},
+        ]
         assert (
-            constraints.render_foreign_key_for_model(constraint)
-            == "FOREIGN KEY references other_table (other_id)"
-        )
+            {"id"},
+            [PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])],
+        ) == parse_model_constraints(columns)
 
-    def test_render_foreign_key_for_model__invalid(self):
-        constraint = ModelLevelConstraint(type=ConstraintType.foreign_key)
-        with pytest.raises(
-            DbtValidationError, match="foreign_key constraint is missing required field"
-        ):
-            constraints.render_foreign_key_for_model(constraint)
+    def test_parse_constraints__empty(self):
+        assert (set(), []) == parse_constraints([], [])
 
+    def test_parse_constraints__not_nulls(self):
+        columns = [{"name": "id", "constraints": [{"type": "not_null"}]}]
+        constraints = [{"type": "not_null", "columns": ["id2"]}]
+        assert ({"id", "id2"}, []) == parse_constraints(columns, constraints)
 
-class TestRenderCheck:
-    def test_render_check__valid(self):
-        constraint = ModelLevelConstraint(type=ConstraintType.check, expression="id > 0")
-        assert constraints.render_check(constraint) == "CHECK (id > 0)"
-
-    def test_render_check__invalid(self):
-        constraint = ModelLevelConstraint(type=ConstraintType.check)
-        with pytest.raises(DbtValidationError, match="check constraint is missing required field"):
-            constraints.render_check(constraint)
+    def test_parse_constraints__constraints(self):
+        columns = [{"name": "id", "constraints": [{"type": "primary_key"}]}]
+        constraints = [{"type": "custom", "expression": "1 = 1"}]
+        assert (
+            set(),
+            [
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"]),
+                CustomConstraint(type=ConstraintType.custom, expression="1 = 1"),
+            ],
+        ) == parse_constraints(columns, constraints)

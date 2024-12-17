@@ -1,7 +1,12 @@
 import pytest
-from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
+from dbt_common.contracts.constraints import ConstraintType
 
 from dbt.adapters.databricks import relation
+from dbt.adapters.databricks.constraints import (
+    CheckConstraint,
+    CustomConstraint,
+    PrimaryKeyConstraint,
+)
 from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
 
 
@@ -211,15 +216,15 @@ class TestConstraints:
 
     @pytest.fixture
     def custom_constraint(self):
-        return ModelLevelConstraint(type=ConstraintType.custom, expression="a > 1")
+        return CustomConstraint(type=ConstraintType.custom, expression="a > 1")
 
     @pytest.fixture
     def check_constraint(self):
-        return ModelLevelConstraint(type=ConstraintType.check, expression="a > 1")
+        return CheckConstraint(type=ConstraintType.check, expression="a > 1")
 
     @pytest.fixture
     def pk_constraint(self):
-        return ModelLevelConstraint(type=ConstraintType.primary_key, columns=["a"])
+        return PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["a"])
 
     def test_add_constraint__check_is_an_alter_constraint(self, relation, check_constraint):
         relation.add_constraint(check_constraint)
@@ -240,9 +245,7 @@ class TestConstraints:
         assert id(enriched) != id(relation)
 
     def test_enrich_relation__adds_constraints(self, relation, check_constraint, custom_constraint):
-        enriched = relation.enrich(
-            [{"type": "check", "expression": "a > 1"}, {"type": "custom", "expression": "a > 1"}]
-        )
+        enriched = relation.enrich([check_constraint, custom_constraint])
         assert enriched.alter_constraints == [check_constraint]
         assert enriched.create_constraints == [custom_constraint]
 

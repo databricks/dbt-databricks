@@ -1,9 +1,8 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Type
-from uuid import uuid4
+from typing import Any, Optional, Type  # noqa
 
-from dbt_common.contracts.constraints import ConstraintType, ModelLevelConstraint
+from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
@@ -12,7 +11,7 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
-from dbt.adapters.databricks.constraints import parse_constraint, process_model_constraint
+from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
@@ -42,6 +41,8 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     External = "external"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
 
 
@@ -61,8 +62,8 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-    create_constraints: list[ModelLevelConstraint] = field(default_factory=list)
-    alter_constraints: list[ModelLevelConstraint] = field(default_factory=list)
+    create_constraints: list[TypedConstraint] = field(default_factory=list)
+    alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = frozenset({DatabricksRelationType.Table, DatabricksRelationType.View})
     replaceable_relations = frozenset({DatabricksRelationType.Table, DatabricksRelationType.View})
@@ -141,7 +142,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
@@ -158,30 +159,22 @@ class DatabricksRelation(BaseRelation):
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
 
-    def add_constraint(self, constraint: ModelLevelConstraint) -> None:
+    def add_constraint(self, constraint: TypedConstraint) -> None:
         if constraint.type == ConstraintType.check:
             self.alter_constraints.append(constraint)
         else:
             self.create_constraints.append(constraint)
 
-    def enrich(self, raw_constraints: list[dict[str, Any]]) -> "DatabricksRelation":
+    def enrich(self, constraints: list[TypedConstraint]) -> "DatabricksRelation":
         copy = self.incorporate()
-        for constraint in raw_constraints:
-            copy.add_constraint(self._parse_model_constraint(constraint))
+        for constraint in constraints:
+            copy.add_constraint(constraint)
 
         return copy
 
     def render_constraints_for_create(self) -> str:
-        processed = [process_model_constraint(c) for c in self.create_constraints]
+        processed = map(process_constraint, self.create_constraints)
         return ", ".join(c for c in processed if c is not None)
-
-    def _parse_model_constraint(self, raw_constraint: dict[str, Any]) -> ModelLevelConstraint:
-        constraint = parse_constraint(ModelLevelConstraint, raw_constraint)
-        if constraint.type == ConstraintType.check and not constraint.name:
-            constraint.name = (
-                f"ck_{constraint.columns[0].replace('`', '')}_{str(uuid4()).split('-')[0]}"
-            )
-        return constraint
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:
