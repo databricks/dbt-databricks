@@ -13,7 +13,7 @@ class GlobalState:
     def get_use_long_sessions(cls) -> bool:
         if cls.__use_long_sessions is None:
             cls.__use_long_sessions = (
-                os.environ.get("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
+                os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
             )
         return cls.__use_long_sessions
 
@@ -23,7 +23,7 @@ class GlobalState:
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
         if not cls.__invocation_env_set:
-            cls.__invocation_env = os.environ.get("DBT_DATABRICKS_INVOCATION_ENV")
+            cls.__invocation_env = os.getenv("DBT_DATABRICKS_INVOCATION_ENV")
             cls.__invocation_env_set = True
         return cls.__invocation_env
 
@@ -33,7 +33,7 @@ class GlobalState:
     @classmethod
     def get_http_session_headers(cls) -> Optional[str]:
         if not cls.__session_headers_set:
-            cls.__session_headers = os.environ.get("DBT_DATABRICKS_HTTP_SESSION_HEADERS")
+            cls.__session_headers = os.getenv("DBT_DATABRICKS_HTTP_SESSION_HEADERS")
             cls.__session_headers_set = True
         return cls.__session_headers
 
@@ -43,7 +43,7 @@ class GlobalState:
     def get_char_limit_bypass(cls) -> bool:
         if cls.__describe_char_bypass is None:
             cls.__describe_char_bypass = (
-                os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "False").upper() == "TRUE"
+                os.getenv("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "False").upper() == "TRUE"
             )
         return cls.__describe_char_bypass
 
@@ -52,7 +52,7 @@ class GlobalState:
     @classmethod
     def get_connector_log_level(cls) -> str:
         if cls.__connector_log_level is None:
-            cls.__connector_log_level = os.environ.get(
+            cls.__connector_log_level = os.getenv(
                 "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN"
             ).upper()
         return cls.__connector_log_level
