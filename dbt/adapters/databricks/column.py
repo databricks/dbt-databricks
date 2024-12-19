@@ -50,10 +50,6 @@ class DatabricksColumn(SparkColumn):
             column_str += f" COMMENT '{comment}'"
         return column_str
 
-    def render_constraints(self) -> str:
-        processed = map(constraints.process_column_constraint, self.constraints or [])
-        return (", ").join(x for x in processed if x is not None)
-
     def __repr__(self) -> str:
         return f"<DatabricksColumn {self.name} ({self.data_type})>"
 

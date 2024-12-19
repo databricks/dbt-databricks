@@ -1,10 +1,14 @@
 {% macro create_table_at(relation, intermediate_relation, compiled_code) %}
+  {{ log("I shouldn't be here") }}
   {% set tags = config.get('databricks_tags') %}
+  {%- set model_columns = model.get('columns', []) -%}
+  {%- set existing_columns = adapter.get_columns_in_relation(intermediate_relation) -%}
   {% set model_constraints = model.get('constraints', []) %}
+  {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints) %}
 
-  {%- set target_relation = relation.enrich(model_constraints) -%}
+  {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
   {% call statement('main') %}
-    {{ get_create_table_sql(target_relation, intermediate_relation, compiled_code) }}
+    {{ get_create_table_sql(target_relation, columns_and_constraints[0], intermediate_relation, compiled_code) }}
   {% endcall %}
 
   {{ apply_alter_constraints(target_relation) }}
@@ -15,10 +19,8 @@
   {% endcall %}
 {% endmacro %}
 
-{% macro get_create_table_sql(target_relation, intermediate_relation, compiled_code) %}
-  {%- set model_columns = model.get('columns', []) -%}
-  {%- set existing_columns = adapter.get_columns_in_relation(intermediate_relation) -%}
-  {%- set columns = adapter.get_enriched_columns(existing_columns, model_columns)  -%}
+{% macro get_create_table_sql(target_relation, columns, intermediate_relation, compiled_code) %}
+  {{ log("or here") }}
   {%- set file_format = config.get('file_format', default='delta') -%}
   {%- set contract = config.get('contract') -%}
   {%- set contract_enforced = contract and contract.enforced -%}

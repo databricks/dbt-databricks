@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Optional, TypeVar
+from uuid import uuid4
 
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -108,11 +109,15 @@ class CheckConstraint(TypedConstraint):
     str_type = "check"
 
     def _validate(self) -> None:
+        if not self.name:
+            self.name = f"chk_{str(uuid4()).split('-')[0]}"
         if not self.expression:
             raise self._render_error([["expression"]])
+        if self.expression[0] != "(" or self.expression[-1] != ")":
+            self.expression = f"({self.expression})"
 
     def _render_suffix(self) -> str:
-        return f"CHECK ({self.expression})"
+        return f"CHECK {self.expression}"
 
 
 # Base support and enforcement
@@ -174,6 +179,8 @@ def parse_column_constraints(
     constraints: list[TypedConstraint] = []
     for column in model_columns:
         for constraint in column.get("constraints", []):
+            if constraint["type"] == ConstraintType.unique:
+                raise DbtValidationError("Unique constraints are not supported on Databricks")
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
@@ -189,6 +196,8 @@ def parse_model_constraints(
     column_names: set[str] = set()
     constraints: list[TypedConstraint] = []
     for constraint in model_constraints:
+        if constraint["type"] == ConstraintType.unique:
+            raise DbtValidationError("Unique constraints are not supported on Databricks")
         if constraint["type"] == ConstraintType.not_null:
             if not constraint.get("columns"):
                 raise DbtValidationError("not_null constraint on model must have 'columns' defined")
@@ -204,14 +213,12 @@ CONSTRAINT_TYPE_MAP = {
     "foreign_key": ForeignKeyConstraint,
     "check": CheckConstraint,
     "custom": CustomConstraint,
-    "not_null": ColumnLevelConstraint,
-    "unique": ColumnLevelConstraint,
 }
 
 
 def parse_constraint(
-    raw_constraint: dict[str, Any], type_map: dict[str, type[T]] = CONSTRAINT_TYPE_MAP
-) -> T:
+    raw_constraint: dict[str, Any], type_map: dict[str, type[TypedConstraint]] = CONSTRAINT_TYPE_MAP
+) -> TypedConstraint:
     try:
         klass = type_map[raw_constraint["type"]]
         klass.validate(raw_constraint)

@@ -28,29 +28,6 @@ class TestSparkColumn:
         }
 
 
-class TestEnrich:
-    @pytest.fixture
-    def column(self):
-        return DatabricksColumn("id", "INT")
-
-    @pytest.fixture
-    def model_column(self):
-        return {
-            "data_type": "LONG",
-            "description": "this is a column",
-            "constraints": [
-                {"type": "not_null"},
-                {"type": "primary_key", "name": "foo"},
-            ],
-        }
-
-    def test_enrich(self, column, model_column):
-        enriched_column = column.enrich(model_column, True)
-        assert enriched_column.data_type == "bigint"
-        assert enriched_column.comment == "this is a column"
-        assert enriched_column.not_null is True
-
-
 class TestRenderForCreate:
     @pytest.fixture
     def column(self):

@@ -5,11 +5,13 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set tblproperties = config.get('tblproperties') -%}
   {%- set tags = config.get('databricks_tags') -%}
+  {%- set safe_create = config.get("safe_table_create") %}
+  {{ adapter.log_config(config) }}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
 
   {% if adapter.behavior.use_materialization_v2 %}
-    {% set safe_create = config.get('safe_table_create') %}
+    {{ log(safe_create) }}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
