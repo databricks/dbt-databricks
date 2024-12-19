@@ -11,8 +11,6 @@ from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
-    DBT_DATABRICKS_INVOCATION_ENV,
 )
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
@@ -114,7 +112,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         with pytest.raises(DbtValidationError) as excinfo:
             config = self._get_config()
             adapter = DatabricksAdapter(config, get_context("spawn"))
-            with patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
+            with patch.dict("os.environ", **{"DBT_DATABRICKS_INVOCATION_ENV": "(Some-thing)"}):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -129,7 +127,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
             with patch.dict(
-                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
+                "os.environ", **{"DBT_DATABRICKS_INVOCATION_ENV": "databricks-workflows"}
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
@@ -192,7 +190,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         ):
             with patch.dict(
                 "os.environ",
-                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
+                **{"DBT_DATABRICKS_HTTP_SESSION_HEADERS": http_headers_str},
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
