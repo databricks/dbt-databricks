@@ -19,10 +19,10 @@ from dbt.adapters.databricks.events.credential_events import (
     CredentialSaveError,
     CredentialShardEvent,
 )
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
-DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
@@ -150,7 +150,7 @@ class DatabricksCredentials(Credentials):
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
-        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        invocation_env = GlobalState.get_invocation_env()
         if invocation_env:
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
@@ -160,9 +160,7 @@ class DatabricksCredentials(Credentials):
 
     @classmethod
     def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
-        http_session_headers_str: Optional[str] = os.environ.get(
-            DBT_DATABRICKS_HTTP_SESSION_HEADERS
-        )
+        http_session_headers_str = GlobalState.get_http_session_headers()
 
         http_session_headers_dict: dict[str, str] = (
             {
