@@ -50,11 +50,7 @@ We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception:
 
 ### Linting
 
-This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command and commit before opening your pull request.
-
-```
-tox -e linter
-```
+This project uses [Ruff](https://docs.astral.sh/ruff/) and [mypy](https://www.mypy-lang.org/) for linting and static type checks.
 
 To simplify reviews you can commit any format changes in a separate commit.
 
@@ -118,21 +114,21 @@ If you set your `user.name` and `user.email` git configs, you can sign your comm
 Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before opening a pull request.
 
 ```bash
-tox -e unit
+hatch run unit
 ```
 
 ## Functional Tests
 
 Functional tests require a Databricks account with access to a workspace containing three specific compute resources as detailed below.
-The `tox` commands to run each set of these tests appear below:
+The `hatch` commands to run each set of these tests appear below:
 
-| Compute Type        | Unity Catalog | Command                                         |
-| ------------------- | ------------- | ----------------------------------------------- |
-| SQL Warehouse       | Yes           | `tox -e integration-databricks-uc-sql-endpoint` |
-| All Purpose Cluster | Yes           | `tox -e integration-databricks-uc-cluster`      |
-| All Purpose         | No            | `tox -e integration-databricks-cluster`         |
+| Compute Type        | Unity Catalog | Command                    |
+| ------------------- | ------------- | -------------------------- |
+| SQL Warehouse       | Yes           | `hatch run sqlw-e2e`       |
+| All Purpose Cluster | Yes           | `hatch run uc-cluster-e2e` |
+| All Purpose         | No            | `hatch run cluster-e2e`    |
 
-These tests are configured with environment variables that `tox` reads from a file called [test.env](/test.env.example) which you can copy from the example:
+These tests are configured with environment variables that `hatch` reads from a file called [test.env](/test.env.example) which you can copy from the example:
 
 ```sh
 cp test.env.example test.env
