@@ -300,6 +300,9 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 @dataclass
 class DatabricksAdapterResponse(AdapterResponse):
     query_id: str = ""
+    job_id: str = ""
+    run_id: str = ""
+    task_run_id: str = ""
 
 
 @dataclass(init=False)
@@ -699,9 +702,20 @@ class DatabricksConnectionManager(SparkConnectionManager):
             logger.debug("No cursor was provided. Query ID not available.")
             query_id = "N/A"
         else:
-            query_id = _query_id
+            query_id = str(_query_id)
         message = "OK"
-        return DatabricksAdapterResponse(_message=message, query_id=query_id)  # type: ignore
+        # Fetch additional job metadata
+        job_id = os.getenv("DATABRICKS_JOB_ID", "unknown")
+        run_id = os.getenv("DATABRICKS_RUN_ID", "unknown")
+        task_run_id = os.getenv("DATABRICKS_TASK_RUN_ID", "unknown")
+
+        return DatabricksAdapterResponse(
+            _message=message,
+            query_id=query_id,
+            job_id=job_id,
+            run_id=run_id,
+            task_run_id=task_run_id,
+        )  # type: ignore
 
 
 class ExtendedSessionConnectionManager(DatabricksConnectionManager):
