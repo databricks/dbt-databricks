@@ -13,4 +13,3 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [types-requests]
-        language: python
