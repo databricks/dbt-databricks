@@ -1,9 +1,7 @@
 import os
 import re
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from collections.abc import Iterable, Iterator
-from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib import metadata
@@ -14,17 +12,17 @@ from uuid import uuid4
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig
 from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
-from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
-from dbt.adapters.base.impl import catch_as_completed, log_code_execution
+from dbt.adapters.base.impl import log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.databricks.behaviors.catalog import DefaultGetCatalogBehavior, GetCatalogBehavior
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -79,7 +77,6 @@ SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
 
 CURRENT_CATALOG_MACRO_NAME = "current_catalog"
 USE_CATALOG_MACRO_NAME = "use_catalog"
-GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
@@ -132,22 +129,6 @@ class DatabricksConfig(AdapterConfig):
     merge_with_schema_evolution: Optional[bool] = None
 
 
-def get_identifier_list_string(table_names: set[str]) -> str:
-    """Returns `"|".join(table_names)` by default.
-
-    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
-    and the joined string exceeds 2048 characters
-
-    This is for AWS Glue Catalog users. See issue #325.
-    """
-
-    _identifier = "|".join(table_names)
-    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
-    if bypass_2048_char_limit == "true":
-        _identifier = _identifier if len(_identifier) < 2048 else "*"
-    return _identifier
-
-
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -171,6 +152,7 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     get_column_behavior: GetColumnsBehavior
+    get_catalog_behavior: GetCatalogBehavior
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
@@ -178,6 +160,7 @@ class DatabricksAdapter(SparkAdapter):
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
+        self.get_catalog_behavior = DefaultGetCatalogBehavior()
         try:
             if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
                 self.get_column_behavior = GetColumnsByInformationSchema()
@@ -478,142 +461,17 @@ class DatabricksAdapter(SparkAdapter):
 
         return self._get_updated_relation(relation)[0]
 
-    def parse_columns_from_information(  # type: ignore[override]
-        self, relation: DatabricksRelation, information: str
-    ) -> list[DatabricksColumn]:
-        owner_match = re.findall(self.INFORMATION_OWNER_REGEX, information)
-        owner = owner_match[0] if owner_match else None
-        matches = re.finditer(self.INFORMATION_COLUMNS_REGEX, information)
-        comment_match = re.findall(self.INFORMATION_COMMENT_REGEX, information)
-        table_comment = comment_match[0] if comment_match else None
-        columns = []
-        stats_match = re.findall(self.INFORMATION_STATISTICS_REGEX, information)
-        raw_table_stats = stats_match[0] if stats_match else None
-        table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
-
-        for match_num, match in enumerate(matches):
-            column_name, column_type, _ = match.groups()
-            column = DatabricksColumn(
-                table_database=relation.database,
-                table_schema=relation.schema,
-                table_name=relation.table,
-                table_type=relation.type,
-                table_comment=table_comment,
-                column_index=match_num,
-                table_owner=owner,
-                column=column_name,
-                dtype=DatabricksColumn.translate_type(column_type),
-                table_stats=table_stats,
-            )
-            columns.append(column)
-        return columns
-
     def get_catalog_by_relations(
         self, used_schemas: frozenset[tuple[str, str]], relations: set[BaseRelation]
     ) -> tuple["Table", list[Exception]]:
-        relation_map: dict[tuple[str, str], set[str]] = defaultdict(set)
-        for relation in relations:
-            if relation.identifier:
-                relation_map[
-                    (relation.database or "hive_metastore", relation.schema or "schema")
-                ].add(relation.identifier)
-
-        return self._get_catalog_for_relation_map(relation_map, used_schemas)
+        return self.get_catalog_behavior.get_catalog_by_relations(self, used_schemas, relations)
 
     def get_catalog(
         self,
         relation_configs: Iterable[RelationConfig],
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
-        relation_map: dict[tuple[str, str], set[str]] = defaultdict(set)
-        for relation in relation_configs:
-            relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
-                relation.identifier
-            )
-
-        return self._get_catalog_for_relation_map(relation_map, used_schemas)
-
-    def _get_catalog_for_relation_map(
-        self,
-        relation_map: dict[tuple[str, str], set[str]],
-        used_schemas: frozenset[tuple[str, str]],
-    ) -> tuple["Table", list[Exception]]:
-        with executor(self.config) as tpe:
-            futures: list[Future[Table]] = []
-            for schema, relations in relation_map.items():
-                if schema in used_schemas:
-                    identifier = get_identifier_list_string(relations)
-                    if identifier:
-                        futures.append(
-                            tpe.submit_connected(
-                                self,
-                                str(schema),
-                                self._get_schema_for_catalog,
-                                schema[0],
-                                schema[1],
-                                identifier,
-                            )
-                        )
-            catalogs, exceptions = catch_as_completed(futures)
-        return catalogs, exceptions
-
-    def _list_relations_with_information(
-        self, schema_relation: DatabricksRelation
-    ) -> list[tuple[DatabricksRelation, str]]:
-        results = self._show_table_extended(schema_relation)
-
-        relations: list[tuple[DatabricksRelation, str]] = []
-        if results:
-            for name, information in results.select(["tableName", "information"]):
-                rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-                relation = self.Relation.create(
-                    database=schema_relation.database.lower() if schema_relation.database else None,
-                    schema=schema_relation.schema.lower() if schema_relation.schema else None,
-                    identifier=name,
-                    type=rel_type,
-                )
-                relations.append((relation, information))
-
-        return relations
-
-    def _show_table_extended(self, schema_relation: DatabricksRelation) -> Optional["Table"]:
-        kwargs = {"schema_relation": schema_relation}
-
-        def exec() -> AttrDict:
-            with self._catalog(schema_relation.database):
-                return self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
-
-        return handle_missing_objects(exec, None)
-
-    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
-        # Lazy load to improve startup time
-        from agate import Table
-        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
-
-        columns: list[dict[str, Any]] = []
-
-        if identifier:
-            schema_relation = self.Relation.create(
-                database=catalog or "hive_metastore",
-                schema=schema,
-                identifier=identifier,
-                quote_policy=self.config.quoting,
-            )
-            for relation, information in self._list_relations_with_information(schema_relation):
-                columns.extend(self._get_columns_for_catalog(relation, information))
-        return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
-
-    def _get_columns_for_catalog(  # type: ignore[override]
-        self, relation: DatabricksRelation, information: str
-    ) -> Iterable[dict[str, Any]]:
-        columns = self.parse_columns_from_information(relation, information)
-
-        for column in columns:
-            # convert DatabricksRelation into catalog dicts
-            as_dict = column.to_column_dict()
-            as_dict["column_name"] = as_dict.pop("column", None)
-            as_dict["column_type"] = as_dict.pop("dtype")
-            yield as_dict
+        return self.get_catalog_behavior.get_catalog(self, relation_configs, used_schemas)
 
     def add_query(
         self,
