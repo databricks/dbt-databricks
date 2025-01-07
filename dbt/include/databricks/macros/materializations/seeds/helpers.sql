@@ -6,7 +6,7 @@
 
   {% set batch_size = get_batch_size() %}
   {% set column_override = model['config'].get('column_types', {}) %}
-  {% set must_cast = model['config'].get("file_format", "delta") == "parquet" %}
+  {% set must_cast = model['config'].get('file_format', 'delta') == 'parquet' %}
 
   {% set statements = [] %}
 

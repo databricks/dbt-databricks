@@ -114,19 +114,19 @@
 
 {% macro get_constraint_sql(relation, constraint, model, column={}) %}
   {% set statements = [] %}
-  {% set type = constraint.get("type", "") %}
+  {% set type = constraint.get('type', '') %}
 
   {% if type == 'check' %}
-    {% set expression = constraint.get("expression", "") %}
+    {% set expression = constraint.get('expression', '') %}
     {% if not expression %}
       {{ exceptions.raise_compiler_error('Invalid check constraint expression') }}
     {% endif %}
 
-    {% set name = constraint.get("name") %}
+    {% set name = constraint.get('name') %}
     {% if not name %}
       {% if local_md5 %}
         {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
-        {%- set name = local_md5 (relation.identifier ~ ";" ~ column.get("name", "") ~ ";" ~ expression ~ ";") -%}
+        {%- set name = local_md5 (relation.identifier ~ ";" ~ column.get('name', '') ~ ";" ~ expression ~ ";") -%}
       {% else %}
         {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
       {% endif %}
@@ -134,7 +134,7 @@
     {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
     {% do statements.append(stmt) %}
   {% elif type == 'not_null' %}
-    {% set column_names = constraint.get("columns", []) %}
+    {% set column_names = constraint.get('columns', []) %}
     {% if column and not column_names %}
       {% set column_names = [column['name']] %}
     {% endif %}
@@ -152,7 +152,7 @@
     {% if constraint.get('warn_unenforced') %}
       {{ exceptions.warn("unenforced constraint type: " ~ type)}}
     {% endif %}
-    {% set column_names = constraint.get("columns", []) %}
+    {% set column_names = constraint.get('columns', []) %}
     {% if column and not column_names %}
       {% set column_names = [column['name']] %}
     {% endif %}
@@ -169,7 +169,7 @@
 
     {% set joined_names = quoted_names|join(", ") %}
 
-    {% set name = constraint.get("name") %}
+    {% set name = constraint.get('name') %}
     {% if not name %}
       {% if local_md5 %}
         {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
@@ -186,7 +186,7 @@
       {{ exceptions.warn("unenforced constraint type: " ~ constraint.type)}}
     {% endif %}
 
-    {% set name = constraint.get("name") %}
+    {% set name = constraint.get('name') %}
     
     {% if constraint.get('expression') %}
 
@@ -201,7 +201,7 @@
 
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key" ~ constraint.get('expression') %}
     {% else %}
-      {% set column_names = constraint.get("columns", []) %}
+      {% set column_names = constraint.get('columns', []) %}
       {% if column and not column_names %}
         {% set column_names = [column['name']] %}
       {% endif %}
@@ -218,7 +218,7 @@
 
       {% set joined_names = quoted_names|join(", ") %}
 
-      {% set parent = constraint.get("to") %}
+      {% set parent = constraint.get('to') %}
       {% if not parent %}
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
       {% endif %}
@@ -236,7 +236,7 @@
       {% endif %}
 
       {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
-      {% set parent_columns = constraint.get("to_columns") %}
+      {% set parent_columns = constraint.get('to_columns') %}
       {% if parent_columns %}
         {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
       {% endif %}
@@ -244,13 +244,13 @@
     {% set stmt = stmt ~ ";" %}
     {% do statements.append(stmt) %}
   {% elif type == 'custom' %}
-    {% set expression = constraint.get("expression", "") %}
+    {% set expression = constraint.get('expression', '') %}
     {% if not expression %}
       {{ exceptions.raise_compiler_error('Missing custom constraint expression') }}
     {% endif %}
 
-    {% set name = constraint.get("name") %}
-    {% set expression = constraint.get("expression") %}
+    {% set name = constraint.get('name') %}
+    {% set expression = constraint.get('expression') %}
     {% if not name %}
       {% if local_md5 %}
         {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
@@ -272,15 +272,15 @@
   {# convert constraints defined using the original databricks format #}
   {% set dbt_constraints = [] %}
   {% for constraint in constraints %}
-    {% if constraint.get and constraint.get("type") %}
+    {% if constraint.get and constraint.get('type') %}
       {# already in model contract format #}
       {% do dbt_constraints.append(constraint) %}
     {% else %}
       {% if column %}
         {% if constraint == "not_null" %}
-          {% do dbt_constraints.append({"type": "not_null", "columns": [column.get("name")]}) %}
+          {% do dbt_constraints.append({"type": "not_null", "columns": [column.get('name')]}) %}
         {% else %}
-          {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column.get("name", "") ~ '. Only `not_null` is supported.') }}
+          {{ exceptions.raise_compiler_error('Invalid constraint for column ' ~ column.get('name', "") ~ '. Only `not_null` is supported.') }}
         {% endif %}
       {% else %}
         {% set name = constraint['name'] %}
