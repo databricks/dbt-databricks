@@ -30,6 +30,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
 )
+from dbt.adapters.databricks.behaviors.metadata import DefaultMetadataBehavior, MetadataBehavior
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
@@ -43,7 +44,6 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     WorkflowPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import (
-    KEY_TABLE_PROVIDER,
     DatabricksRelation,
     DatabricksRelationType,
 )
@@ -171,6 +171,7 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     get_column_behavior: GetColumnsBehavior
+    metadata_behavior: MetadataBehavior
 
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
@@ -178,6 +179,7 @@ class DatabricksAdapter(SparkAdapter):
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
+        self.metadata_behavior = DefaultMetadataBehavior()
         try:
             if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
                 self.get_column_behavior = GetColumnsByInformationSchema()
@@ -295,84 +297,8 @@ class DatabricksAdapter(SparkAdapter):
             if staging_table is not None:
                 self.drop_relation(staging_table)
 
-    def list_relations_without_caching(  # type: ignore[override]
-        self, schema_relation: DatabricksRelation
-    ) -> list[DatabricksRelation]:
-        empty: list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
-        results = handle_missing_objects(
-            lambda: self.get_relations_without_caching(schema_relation), empty
-        )
-
-        relations = []
-        for row in results:
-            name, kind, file_format, owner = row
-            metadata = None
-            if file_format:
-                metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
-            relations.append(
-                self.Relation.create(
-                    database=schema_relation.database,
-                    schema=schema_relation.schema,
-                    identifier=name,
-                    type=self.Relation.get_relation_type(kind),
-                    metadata=metadata,
-                )
-            )
-
-        return relations
-
-    def get_relations_without_caching(
-        self, relation: DatabricksRelation
-    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        if relation.is_hive_metastore():
-            return self._get_hive_relations(relation)
-        return self._get_uc_relations(relation)
-
-    def _get_uc_relations(
-        self, relation: DatabricksRelation
-    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        kwargs = {"relation": relation}
-        results = self.execute_macro("get_uc_tables", kwargs=kwargs)
-        return [
-            (row["table_name"], row["table_type"], row["file_format"], row["table_owner"])
-            for row in results
-        ]
-
-    def _get_hive_relations(
-        self, relation: DatabricksRelation
-    ) -> list[tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
-        kwargs = {"relation": relation}
-
-        new_rows: list[tuple[str, Optional[str]]]
-        if all([relation.database, relation.schema]):
-            tables = self.connections.list_tables(
-                database=relation.database,  # type: ignore[arg-type]
-                schema=relation.schema,  # type: ignore[arg-type]
-            )
-
-            new_rows = []
-            for row in tables:
-                # list_tables returns TABLE_TYPE as view for both materialized views and for
-                # streaming tables.  Set type to "" in this case and it will be resolved below.
-                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"] else None
-                row = (row["TABLE_NAME"], type)
-                new_rows.append(row)
-
-        else:
-            tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
-            new_rows = [(row["tableName"], None) for row in tables]
-
-        # if there are any table types to be resolved
-        if any(not row[1] for row in new_rows):
-            with self._catalog(relation.database):
-                views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
-                view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
-                new_rows = [
-                    (row[0], str(RelationType.View if row[0] in view_names else RelationType.Table))
-                    for row in new_rows
-                ]
-
-        return [(row[0], row[1], None, None) for row in new_rows]
+    def list_relations_without_caching(self, schema_relation: BaseRelation) -> list[BaseRelation]:
+        return self.metadata_behavior.list_relations_without_caching(self, schema_relation)
 
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
