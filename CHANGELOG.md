@@ -8,6 +8,12 @@
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 
+## dbt-databricks 1.9.2 (TBD)
+
+### Under the Hood
+
+- Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+
 ## dbt-databricks 1.9.1 (December 16, 2024)
 
 ### Features

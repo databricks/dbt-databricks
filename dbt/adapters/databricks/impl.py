@@ -33,10 +33,10 @@ from dbt.adapters.databricks.behaviors.columns import (
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
-    USE_LONG_SESSIONS,
     DatabricksConnectionManager,
     ExtendedSessionConnectionManager,
 )
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -152,7 +152,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     """
 
     _identifier = "|".join(table_names)
-    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
     if bypass_2048_char_limit == "true":
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
@@ -164,7 +164,7 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
+    if GlobalState.get_use_long_sessions():
         ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
