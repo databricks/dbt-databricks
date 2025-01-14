@@ -1,5 +1,4 @@
 {% macro create_table_at(relation, intermediate_relation, compiled_code) %}
-  {{ log("I shouldn't be here") }}
   {% set tags = config.get('databricks_tags') %}
   {%- set model_columns = model.get('columns', []) -%}
   {%- set existing_columns = adapter.get_columns_in_relation(intermediate_relation) -%}
@@ -20,7 +19,6 @@
 {% endmacro %}
 
 {% macro get_create_table_sql(target_relation, columns, intermediate_relation, compiled_code) %}
-  {{ log("or here") }}
   {%- set file_format = config.get('file_format', default='delta') -%}
   {%- set contract = config.get('contract') -%}
   {%- set contract_enforced = contract and contract.enforced -%}

@@ -153,7 +153,7 @@ class TestIncrementalConstraintsDdlEnforcement(
 class BaseDatabricksConstraintHandling(BaseConstraintsRollback):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"flags": {"use_materialization_v2": True}}
+        return {"flags": {"use_materialization_v2": True}, "models": {"safe_table_create+": True}}
 
     def test__constraints_enforcement_rollback(
         self, project, expected_color, expected_error_messages, null_model_sql
@@ -168,7 +168,7 @@ class BaseDatabricksConstraintHandling(BaseConstraintsRollback):
         assert len(failing_results) == 1
 
         # Verify the previous table still exists
-        relation = util.relation_from_name(project.adapter, "my_model__dbt_backup")
+        relation = util.relation_from_name(project.adapter, "my_model")
         old_model_exists_sql = f"select * from {relation}"
         old_model_exists = project.run_sql(old_model_exists_sql, fetch="all")
         assert len(old_model_exists) == 1

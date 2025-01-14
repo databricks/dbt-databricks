@@ -5,12 +5,11 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set tblproperties = config.get('tblproperties') -%}
   {%- set tags = config.get('databricks_tags') -%}
-  {%- set safe_create = config.get('safe_table_create') %}
+  {%- set safe_create = config.get('safe_table_create', True) %}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
 
   {% if adapter.behavior.use_materialization_v2 %}
-    {{ log(safe_create) }}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
@@ -19,7 +18,7 @@
     {% call statement('main', language=language) %}
       {{ get_create_intermediate_table(intermediate_relation, compiled_code, language) }}
     {% endcall %}
-
+    {{ log(existing_relation ~ " " ~ safe_create ~ " " ~ existing_relation.can_be_renamed) }}
     {% if not existing_relation %}
       {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
     {% else %}
