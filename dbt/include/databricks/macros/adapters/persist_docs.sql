@@ -4,7 +4,7 @@
       {% set comment = column['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}
       {% set comment_query %}
-        alter table {{ relation }} change column {{ api.Column.get_name(column) }} comment '{{ escaped_comment }}';
+        alter table {{ relation.render()|lower }} change column {{ api.Column.get_name(column) }} comment '{{ escaped_comment }}';
       {% endset %}
       {% do run_query(comment_query) %}
     {% endfor %}
@@ -13,7 +13,7 @@
 
 {% macro alter_table_comment(relation, model) %}
   {% set comment_query %}
-    comment on table {{ relation|lower }} is '{{ model.description | replace("'", "\\'") }}'
+    comment on table {{ relation.render()|lower }} is '{{ model.description | replace("'", "\\'") }}'
   {% endset %}
   {% do run_query(comment_query) %}
 {% endmacro %}

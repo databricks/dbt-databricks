@@ -15,7 +15,7 @@
       {%- set cols = [cols] -%}
     {%- endif -%}
     {%- call statement('set_cluster_by_columns') -%}
-        ALTER {{ target_relation.type }} {{ target_relation }} CLUSTER BY ({{ cols | join(', ') }})
+        ALTER {{ target_relation.type }} {{ target_relation.render() }} CLUSTER BY ({{ cols | join(', ') }})
     {%- endcall -%}
   {%- endif %}
 {%- endmacro -%}

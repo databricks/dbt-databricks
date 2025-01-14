@@ -32,13 +32,13 @@
       {{ exceptions.raise_compiler_error('Delta format required for dropping columns from tables') }}
     {% endif %}
     {%- call statement('alter_relation_remove_columns') -%}
-      ALTER TABLE {{ relation }} DROP COLUMNS ({{ api.Column.format_remove_column_list(remove_columns) }})
+      ALTER TABLE {{ relation.render() }} DROP COLUMNS ({{ api.Column.format_remove_column_list(remove_columns) }})
     {%- endcall -%}
   {% endif %}
 
   {% if add_columns %}
     {%- call statement('alter_relation_add_columns') -%}
-      ALTER TABLE {{ relation }} ADD COLUMNS ({{ api.Column.format_add_column_list(add_columns) }})
+      ALTER TABLE {{ relation.render() }} ADD COLUMNS ({{ api.Column.format_add_column_list(add_columns) }})
     {%- endcall -%}
   {% endif %}
 {% endmacro %}
