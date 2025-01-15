@@ -46,6 +46,6 @@
 {% macro get_alter_mv_internal(relation, configuration_changes) %}
     {%- set refresh = configuration_changes.changes["refresh"] -%}
     -- Currently only schedule can be altered
-    ALTER MATERIALIZED VIEW {{ relation }}
+    ALTER MATERIALIZED VIEW {{ relation.render() }}
         {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, refresh.is_altered) -}}
 {% endmacro %}

@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+- Switch to relation.render() for string interpolation ([903](https://github.com/databricks/dbt-databricks/pull/903))
 
 ## dbt-databricks 1.9.1 (December 16, 2024)
 
