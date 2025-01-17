@@ -1,5 +1,9 @@
 ## dbt-databricks 1.9.2 (TBD)
 
+### Features
+
+- Update snapshot materialization to support new snapshot features ([904](https://github.com/databricks/dbt-databricks/pull/904))
+
 ### Under the Hood
 
 - Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
