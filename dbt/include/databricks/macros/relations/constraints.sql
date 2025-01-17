@@ -134,7 +134,7 @@
       {% set column = model.get('columns', {}).get(column_name) %}
       {% if column %}
         {% set quoted_name = api.Column.get_name(column) %}
-        {% set stmt = "alter table " ~ relation ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
+        {% set stmt = "alter table " ~ relation.render() ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
         {% do statements.append(stmt) %}
       {% else %}
         {{ exceptions.warn('not_null constraint on invalid column: ' ~ column_name) }}
@@ -170,7 +170,7 @@
         {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
       {% endif %}
     {% endif %}
-    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
+    {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
     {% do statements.append(stmt) %}
   {% elif type == 'foreign_key' %}
 
@@ -191,7 +191,7 @@
         {% endif %}    
       {% endif %}
 
-      {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key" ~ constraint.get('expression') %}
+      {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " foreign key" ~ constraint.get('expression') %}
     {% else %}
       {% set column_names = constraint.get('columns', []) %}
       {% if column and not column_names %}
@@ -227,7 +227,7 @@
         {% endif %}    
       {% endif %}
 
-      {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
+      {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
       {% set parent_columns = constraint.get('to_columns') %}
       {% if parent_columns %}
         {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
@@ -251,7 +251,7 @@
         {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
       {% endif %}
     {% endif %}
-    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " " ~ expression ~ ";" %}
+    {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " " ~ expression ~ ";" %}
     {% do statements.append(stmt) %}
   {% elif constraint.get('warn_unsupported') %}
     {{ exceptions.warn("unsupported constraint type: " ~ constraint.type)}}
