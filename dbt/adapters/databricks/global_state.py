@@ -7,16 +7,6 @@ class GlobalState:
     single place than scattered throughout the codebase.
     """
 
-    __use_long_sessions: ClassVar[Optional[bool]] = None
-
-    @classmethod
-    def get_use_long_sessions(cls) -> bool:
-        if cls.__use_long_sessions is None:
-            cls.__use_long_sessions = (
-                os.getenv("DBT_DATABRICKS_LONG_SESSIONS", "True").upper() == "TRUE"
-            )
-        return cls.__use_long_sessions
-
     __invocation_env: ClassVar[Optional[str]] = None
     __invocation_env_set: ClassVar[bool] = False
 
