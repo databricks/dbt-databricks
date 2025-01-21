@@ -8,11 +8,17 @@
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 
-## dbt-databricks 1.9.2 (TBD)
+## dbt-databricks 1.9.2 (Jan 21, 2024)
+
+### Features
+
+- Update snapshot materialization to support new snapshot features ([904](https://github.com/databricks/dbt-databricks/pull/904))
 
 ### Under the Hood
 
 - Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+- Switch to relation.render() for string interpolation ([903](https://github.com/databricks/dbt-databricks/pull/903))
+- Ensure retry defaults for PySQL ([907](https://github.com/databricks/dbt-databricks/pull/907))
 
 ## dbt-databricks 1.9.1 (December 16, 2024)
 
