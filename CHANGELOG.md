@@ -1,4 +1,14 @@
+<<<<<<< HEAD
 ## dbt-databricks 1.10.0 (TBD)
+=======
+## dbt-databricks 1.9.3 (TBD)
+
+### Under the Hood
+
+- Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
+
+## dbt-databricks 1.9.2 (Jan 21, 2024)
+>>>>>>> 395801ec (Compress to one connection manager (#910))
 
 ### Features
 

@@ -31,6 +31,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
+<<<<<<< HEAD
 from dbt.adapters.databricks.connections import (
     USE_LONG_SESSIONS,
     DatabricksConnectionManager,
@@ -38,6 +39,10 @@ from dbt.adapters.databricks.connections import (
     DatabricksSQLConnectionWrapper,
     ExtendedSessionConnectionManager,
 )
+=======
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.global_state import GlobalState
+>>>>>>> 395801ec (Compress to one connection manager (#910))
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -165,10 +170,14 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
+<<<<<<< HEAD
     if USE_LONG_SESSIONS:
         ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
+=======
+    ConnectionManager = DatabricksConnectionManager
+>>>>>>> 395801ec (Compress to one connection manager (#910))
 
     connections: DatabricksConnectionManager
 
