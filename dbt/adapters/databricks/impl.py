@@ -371,17 +371,17 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
         """Get a list of the Columns with names and data types from the given sql."""
-        _, cursor = self.connections.add_select_query(sql)
+        _, handle = self.connections.add_select_query(sql)
         try:
             columns: list[DatabricksColumn] = [
                 self.Column.create(
                     column_name, self.connections.data_type_code_to_name(column_type_code)
                 )
                 # https://peps.python.org/pep-0249/#description
-                for column_name, column_type_code, *_ in cursor.description
+                for column_name, column_type_code, *_ in handle.description
             ]
         finally:
-            cursor.close()
+            handle.close_cursor()
         return columns
 
     def get_relation(
@@ -625,13 +625,13 @@ class DatabricksAdapter(SparkAdapter):
     def run_sql_for_tests(
         self, sql: str, fetch: str, conn: Connection
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
-        cursor = conn.handle.cursor()
+        handle = conn.handle
         try:
-            cursor.execute(sql)
+            handle.execute(sql)
             if fetch == "one":
-                return cursor.fetchone()
+                return handle.fetchone()
             elif fetch == "all":
-                return cursor.fetchall()
+                return handle.fetchall()
             else:
                 return None
         except BaseException as e:
@@ -639,7 +639,7 @@ class DatabricksAdapter(SparkAdapter):
             print(e)
             raise
         finally:
-            cursor.close()
+            handle.close_cursor()
             conn.transaction_open = False
 
     @available
