@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
-from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.connection.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker

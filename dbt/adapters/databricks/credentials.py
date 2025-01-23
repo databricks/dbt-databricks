@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from typing import Any, Optional, Union, cast
 
 import keyring
-from dbt_common.exceptions import DbtConfigError, DbtValidationError
-
 from databricks.sdk.core import CredentialsProvider
 from databricks.sdk.oauth import OAuthClient, SessionCredentials
+from dbt_common.exceptions import DbtConfigError, DbtValidationError
+
 from dbt.adapters.contracts.connection import Credentials
 from dbt.adapters.databricks.auth import m2m_auth, token_auth
 from dbt.adapters.databricks.events.credential_events import (

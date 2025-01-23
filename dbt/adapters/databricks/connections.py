@@ -4,7 +4,6 @@ from collections.abc import Callable, Hashable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
-from numbers import Number
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from dbt_common.events.contextvars import get_node_info
@@ -26,8 +25,11 @@ from dbt.adapters.contracts.connection import (
 )
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
-from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
-from dbt.adapters.databricks.dbsql import DatabricksHandle
+from dbt.adapters.databricks.connection.credentials import (
+    DatabricksCredentials,
+    TCredentialProvider,
+)
+from dbt.adapters.databricks.connection.handle import CursorWrapper, DatabricksHandle
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
     ConnectionCreate,
@@ -284,24 +286,23 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 pre = time.time()
 
                 handle: DatabricksHandle = connection.handle
-                handle.execute(sql, bindings)
+                cursor = handle.execute(sql, bindings)
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(handle.get_response()),
+                        status=str(cursor.get_response()),
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
                     )
                 )
 
-                return connection, handle
+                return connection, cursor
             except Error:
-                if handle is not None:
-                    handle.close_cursor()
+                close_cursor = True
                 raise
             finally:
-                if close_cursor and handle is not None:
-                    handle.close_cursor()
+                if close_cursor and cursor is not None:
+                    cursor.close()
 
     def execute(
         self,
@@ -311,11 +312,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
         limit: Optional[int] = None,
     ) -> tuple[AdapterResponse, "Table"]:
         sql = self._add_query_comment(sql)
-        _, handle = self.add_query(sql, auto_begin)
+        _, cursor = self.add_query(sql, auto_begin)
         try:
-            response = handle.get_response()
+            response = cursor.get_response()
             if fetch:
-                table = self.get_result_from_cursor(handle, limit)
+                table = self.get_result_from_cursor(cursor, limit)
             else:
                 # Lazy import agate to improve CLI startup time
                 from dbt_common.clients import agate_helper
@@ -323,9 +324,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 table = agate_helper.empty_table()
             return response, table
         finally:
-            handle.close_cursor()
+            cursor.close()
 
-    def _execute_with_handle(self, log_sql: str, f: Callable[[DatabricksHandle], None]) -> "Table":
+    def _execute_with_cursor(
+        self, log_sql: str, f: Callable[[DatabricksHandle], CursorWrapper]
+    ) -> "Table":
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
@@ -343,11 +346,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 pre = time.time()
 
                 handle: DatabricksHandle = connection.handle
-                f(handle)
+                cursor = f(handle)
 
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(handle)),
+                        status=str(self.get_response(cursor)),
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
                     )
@@ -355,14 +358,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 return self.get_result_from_cursor(handle, None)
             finally:
-                if handle is not None:
-                    handle.close_cursor()
+                if cursor is not None:
+                    cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":
         database = database.strip("`")
         if schema:
             schema = schema.strip("`").lower()
-        return self._execute_with_handle(
+        return self._execute_with_cursor(
             f"GetSchemas(database={database}, schema={schema})",
             lambda cursor: cursor.list_schemas(database=database, schema=schema),
         )
@@ -370,7 +373,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def list_tables(self, database: str, schema: str) -> "Table":
         database = database.strip("`")
         schema = schema.strip("`").lower()
-        return self._execute_with_handle(
+        return self._execute_with_cursor(
             f"GetTables(database={database}, schema={schema})",
             lambda cursor: cursor.list_tables(database=database, schema=schema),
         )
@@ -570,9 +573,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return connection
 
     @classmethod
-    def get_response(cls, handle: Any) -> AdapterResponse:
-        if isinstance(handle, DatabricksHandle):
-            return handle.get_response()
+    def get_response(cls, cursor: Any) -> AdapterResponse:
+        if isinstance(cursor, CursorWrapper):
+            return cursor.get_response()
         else:
             return AdapterResponse("OK")
 
@@ -768,7 +771,7 @@ def _get_max_idle_time(query_header_context: Any, creds: DatabricksCredentials) 
                 "connect_max_idle", max_idle_time
             )
 
-    if not isinstance(max_idle_time, Number):
+    if not isinstance(max_idle_time, int):
         if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
             return int(max_idle_time.strip())
         else:
