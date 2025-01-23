@@ -104,7 +104,7 @@ class DatabricksHandle:
         with self.lock:
             self._enforce_open()
             self._cursor = self._reset_cursor()
-            self._cursor.schemas(
+            self._cursor.tables(
                 catalog_name=database,
                 schema_name=schema,
             )
