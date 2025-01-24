@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
+- Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
 
 ## dbt-databricks 1.9.2 (Jan 21, 2024)
 
