@@ -85,7 +85,7 @@ class DatabricksHandle:
             if self._is_cluster:
                 cursor = self._safe_execute(
                     lambda cursor: cursor.execute(
-                        "SELECT spark.databricks.clusterUsageTags.sparkVersion"
+                        "SET spark.databricks.clusterUsageTags.sparkVersion"
                     )
                 )
                 results = cursor.fetchone()
