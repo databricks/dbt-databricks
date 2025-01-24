@@ -25,11 +25,10 @@ from dbt.adapters.contracts.connection import (
 )
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
-from dbt.adapters.databricks.connection.credentials import (
+from dbt.adapters.databricks.credentials import (
     DatabricksCredentials,
     TCredentialProvider,
 )
-from dbt.adapters.databricks.connection.handle import CursorWrapper, DatabricksHandle
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
     ConnectionCreate,
@@ -43,6 +42,7 @@ from dbt.adapters.databricks.events.connection_events import (
     ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
+from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
@@ -270,6 +270,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
+            cursor: Optional[CursorWrapper] = None
             try:
                 log_sql = redact_credentials(sql)
                 if abridge_sql_log:
@@ -334,6 +335,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(log_sql):
+            cursor: Optional[CursorWrapper] = None
             try:
                 fire_event(
                     SQLQuery(
@@ -356,9 +358,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     )
                 )
 
-                return self.get_result_from_cursor(handle, None)
+                return self.get_result_from_cursor(cursor, None)
             finally:
-                if cursor is not None:
+                if cursor:
                     cursor.close()
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> "Table":

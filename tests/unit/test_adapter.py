@@ -9,7 +9,7 @@ from dbt_common.exceptions import DbtConfigError, DbtValidationError
 import dbt.flags as flags
 from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connection.credentials import (
+from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
 from dbt.adapters.databricks.impl import get_identifier_list_string

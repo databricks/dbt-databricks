@@ -31,7 +31,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connection.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
@@ -371,17 +371,17 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
         """Get a list of the Columns with names and data types from the given sql."""
-        _, handle = self.connections.add_select_query(sql)
+        _, cursor = self.connections.add_select_query(sql)
         try:
             columns: list[DatabricksColumn] = [
                 self.Column.create(
                     column_name, self.connections.data_type_code_to_name(column_type_code)
                 )
                 # https://peps.python.org/pep-0249/#description
-                for column_name, column_type_code, *_ in handle.description
+                for column_name, column_type_code, *_ in cursor.description
             ]
         finally:
-            handle.close_cursor()
+            cursor.close()
         return columns
 
     def get_relation(
@@ -627,11 +627,11 @@ class DatabricksAdapter(SparkAdapter):
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
         handle = conn.handle
         try:
-            handle.execute(sql)
+            cursor = handle.execute(sql)
             if fetch == "one":
-                return handle.fetchone()
+                return cursor.fetchone()
             elif fetch == "all":
-                return handle.fetchall()
+                return cursor.fetchall()
             else:
                 return None
         except BaseException as e:
@@ -639,7 +639,8 @@ class DatabricksAdapter(SparkAdapter):
             print(e)
             raise
         finally:
-            handle.close_cursor()
+            if cursor:
+                cursor.close()
             conn.transaction_open = False
 
     @available
