@@ -168,7 +168,12 @@ class DatabricksHandle:
         self.close()
 
     def __str__(self) -> str:
-        return f"Connection(session-id={self._conn.get_session_id_hex() or 'Unknown'})"
+        session_id = "Unknown"
+        try:
+            session_id = self._conn.get_session_id_hex()
+        except Exception:
+            pass
+        return f"Connection(session-id={session_id})"
 
 
 def clean_sql(sql: str) -> str:
