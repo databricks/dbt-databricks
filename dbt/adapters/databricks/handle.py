@@ -2,28 +2,27 @@ import decimal
 import re
 import sys
 from collections.abc import Callable, Sequence
+from functools import partial
 from threading import RLock
 from typing import TYPE_CHECKING, Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
-from databricks.sql import Error
 from databricks.sql.client import Connection, Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
-from dbt.adapters.databricks.events.connection_events import (
-    ConnectionCancel,
-    ConnectionCancelError,
-    ConnectionClose,
-    ConnectionCloseError,
-)
-from dbt.adapters.databricks.events.cursor_events import (
-    CursorClose,
-    CursorCloseError,
-)
+from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
     pass
+
+
+CursorOp = Callable[[Cursor], None]
+CursorExecOp = Callable[[Cursor], Cursor]
+CursorWrapperOp = Callable[["CursorWrapper"], None]
+ConnectionOp = Callable[[Connection], None]
+LogOp = Callable[[], str]
+FailLogOp = Callable[[Exception], str]
 
 
 class CursorWrapper:
@@ -36,22 +35,30 @@ class CursorWrapper:
         return self._cursor.description
 
     def cancel(self) -> None:
-        if self.open and self._cursor.active_op_handle:
-            self.open = False
-            try:
-                self._cursor.cancel()
-            except Error as exc:
-                logger.warning(ConnectionCancelError(self._conn, exc))
+        if self._cursor.active_op_handle:
+            self._cleanup(
+                Cursor.cancel,
+                lambda: f"{self} - Cancelling",
+                lambda ex: f"{self} - Exception while cancelling: {ex}",
+            )
 
     def close(self) -> None:
+        self._cleanup(
+            Cursor.close,
+            lambda: f"{self} - Closing",
+            lambda ex: f"{self} - Exception while closing: {ex}",
+        )
+
+    def _cleanup(
+        self,
+        cleanup: CursorOp,
+        startLog: LogOp,
+        failLog: FailLogOp,
+    ) -> None:
         if self.open:
             self.open = False
-            logger.debug(CursorClose(self._cursor))
-
-            try:
-                self._cursor.close()
-            except Error as exc:
-                logger.warning(CursorCloseError(self._cursor, exc))
+            logger.debug(startLog())
+            utils.handle_exceptions_as_warning(lambda: cleanup(self._cursor), failLog)
 
     def fetchall(self) -> Sequence[tuple]:
         return self._cursor.fetchall()
@@ -64,6 +71,12 @@ class CursorWrapper:
 
     def get_response(self) -> AdapterResponse:
         return AdapterResponse(_message="OK", query_id=self._cursor.query_id or "N/A")
+
+    def __str__(self) -> str:
+        return (
+            f"Cursor(session-id={self._cursor.connection.get_session_id_hex()}, "
+            f"command-id={self._cursor.query_id})"
+        )
 
 
 class DatabricksHandle:
@@ -83,14 +96,10 @@ class DatabricksHandle:
     def dbr_version(self) -> tuple[int, int]:
         if not self._dbr_version:
             if self._is_cluster:
-                cursor = self._safe_execute(
-                    lambda cursor: cursor.execute(
-                        "SET spark.databricks.clusterUsageTags.sparkVersion"
-                    )
-                )
+                cursor = self._safe_execute(get_dbr_version)
                 results = cursor.fetchone()
-                cursor.close()
                 self._dbr_version = extract_dbr_version(results[1] if results else "")
+                cursor.close()
             else:
                 # Assuming SQL Warehouse uses the latest version.
                 self._dbr_version = (sys.maxsize, sys.maxsize)
@@ -103,60 +112,63 @@ class DatabricksHandle:
         )
 
     def list_schemas(self, database: str, schema: Optional[str] = None) -> CursorWrapper:
-        return self._safe_execute(
-            lambda cursor: cursor.schemas(catalog_name=database, schema_name=schema)
-        )
+        return self._safe_execute(partial(list_schemas, catalog_name=database, schema_name=schema))
 
     def list_tables(self, database: str, schema: str) -> "CursorWrapper":
-        return self._safe_execute(
-            lambda cursor: cursor.tables(catalog_name=database, schema_name=schema)
-        )
+        return self._safe_execute(partial(list_tables, catalog_name=database, schema_name=schema))
 
     def cancel(self) -> None:
-        with self._lock:
-            if self.open:
-                self.open = False
-                logger.debug(ConnectionCancel(self._conn))
-
-                if self._cursor:
-                    self._cursor.cancel()
+        self._cleanup(
+            Connection.close,
+            CursorWrapper.cancel,
+            lambda: f"{self} - Cancelling",
+            lambda ex: f"{self} - Exception while cancelling: {ex}",
+        )
 
     def close(self) -> None:
-        with self._lock:
-            if self.open:
-                self.open = False
-                logger.debug(ConnectionClose(self._conn))
-
-                try:
-                    self._conn.close()
-                except Error as exc:
-                    logger.warning(ConnectionCloseError(self._conn, exc))
+        self._cleanup(
+            Connection.close,
+            CursorWrapper.close,
+            lambda: f"{self} - Closing",
+            lambda ex: f"{self} - Exception while closing: {ex}",
+        )
 
     def rollback(self) -> None:
         logger.debug("NotImplemented: rollback")
 
-    def _safe_execute(self, f: Callable[[Cursor], Cursor]) -> CursorWrapper:
+    def _cleanup(
+        self,
+        connect_op: ConnectionOp,
+        cursor_op: CursorWrapperOp,
+        startLog: LogOp,
+        failLog: FailLogOp,
+    ) -> None:
+        if self.open:
+            self.open = False
+            logger.debug(startLog())
+
+            if self._cursor:
+                cursor_op(self._cursor)
+
+            utils.handle_exceptions_as_warning(lambda: connect_op(self._conn), failLog)
+
+    def _safe_execute(self, f: CursorExecOp) -> CursorWrapper:
         with self._lock:
             if not self.open:
                 raise DbtRuntimeError("Attempting to execute on a closed connection")
-            if self._cursor and self._cursor.open:
+            if self._cursor:
                 self._cursor.close()
             self._cursor = CursorWrapper(f(self._conn.cursor()))
             return self._cursor
 
     def __del__(self) -> None:
-        if self._cursor and self._cursor.open:
-            # This should not happen. The cursor should explicitly be closed.
-            logger.debug(CursorClose(self._cursor._cursor))
-
+        if self._cursor:
             self._cursor.close()
-            logger.warning("A cursor was closed by destructor.")
 
-        if self.open:
-            logger.debug(ConnectionClose(self._conn))
+        self.close()
 
-            self._conn.close()
-            logger.warning("A connection was closed by destructor.")
+    def __str__(self) -> str:
+        return f"Connection(session-id={self._conn.get_session_id_hex() or 'Unknown'})"
 
 
 def clean_sql(sql: str) -> str:
@@ -166,6 +178,18 @@ def clean_sql(sql: str) -> str:
     return cleaned
 
 
+def get_dbr_version(cursor: Cursor) -> Cursor:
+    return cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
+
+
+def list_schemas(cursor: Cursor, catalog_name: str, schema_name: Optional[str]) -> Cursor:
+    return cursor.schemas(catalog_name=catalog_name, schema_name=schema_name)
+
+
+def list_tables(cursor: Cursor, catalog_name: str, schema_name: str) -> Cursor:
+    return cursor.tables(catalog_name=catalog_name, schema_name=schema_name)
+
+
 DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
 
 
@@ -173,10 +197,10 @@ def extract_dbr_version(version: str) -> tuple[int, int]:
     m = DBR_VERSION_REGEX.search(version)
     if m:
         major = int(m.group(1))
-        try:
-            minor = int(m.group(2))
-        except ValueError:
+        if m.group(2) == "x":
             minor = sys.maxsize
+        else:
+            minor = int(m.group(2))
         return (major, minor)
     else:
         raise DbtRuntimeError("Failed to detect DBR version")
