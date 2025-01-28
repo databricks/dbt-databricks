@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Type  # noqa
+from typing import Any, Optional, Type
 
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
@@ -39,8 +39,6 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     External = "external"
-    ManagedShallowClone = "managed_shallow_clone"
-    ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
 
 
@@ -133,7 +131,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
