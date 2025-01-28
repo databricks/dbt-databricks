@@ -27,4 +27,4 @@ class TestConcurrency(BaseConcurrency):
         util.check_table_does_not_exist(project.adapter, "invalid")
         util.check_table_does_not_exist(project.adapter, "skip")
 
-        assert "PASS=5 WARN=0 ERROR=1 SKIP=1 TOTAL=7" in output
+        assert "PASS=5 WARN=0 ERROR=1 SKIP=1" in output

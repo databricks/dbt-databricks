@@ -1,3 +1,5 @@
+import pytest
+
 from dbt.adapters.databricks.column import DatabricksColumn
 
 
@@ -24,3 +26,41 @@ class TestSparkColumn:
             "stats:rows:label": "rows",
             "stats:rows:value": 12345678,
         }
+
+
+class TestColumnStatics:
+    @pytest.mark.parametrize(
+        "column, expected",
+        [
+            ({"name": "foo", "quote": True}, "`foo`"),
+            ({"name": "foo", "quote": False}, "foo"),
+            ({"name": "foo"}, "foo"),
+        ],
+    )
+    def test_get_name(self, column, expected):
+        assert DatabricksColumn.get_name(column) == expected
+
+    @pytest.mark.parametrize(
+        "columns, expected",
+        [
+            ([], ""),
+            ([DatabricksColumn("foo", "string")], "`foo`"),
+            ([DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")], "`foo`, `bar`"),
+        ],
+    )
+    def test_format_remove_column_list(self, columns, expected):
+        assert DatabricksColumn.format_remove_column_list(columns) == expected
+
+    @pytest.mark.parametrize(
+        "columns, expected",
+        [
+            ([], ""),
+            ([DatabricksColumn("foo", "string")], "`foo` string"),
+            (
+                [DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")],
+                "`foo` string, `bar` int",
+            ),
+        ],
+    )
+    def test_format_add_column_list(self, columns, expected):
+        assert DatabricksColumn.format_add_column_list(columns) == expected

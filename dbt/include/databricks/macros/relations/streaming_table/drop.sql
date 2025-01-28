@@ -3,5 +3,5 @@
 {%- endmacro %}
 
 {% macro default__drop_streaming_table(relation) -%}
-    drop table if exists {{ relation }}
+    drop table if exists {{ relation.render() }}
 {%- endmacro %}

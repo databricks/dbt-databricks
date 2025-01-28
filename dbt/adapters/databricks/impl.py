@@ -31,13 +31,8 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import (
-    USE_LONG_SESSIONS,
-    DatabricksConnectionManager,
-    DatabricksDBTConnection,
-    DatabricksSQLConnectionWrapper,
-    ExtendedSessionConnectionManager,
-)
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -153,7 +148,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     """
 
     _identifier = "|".join(table_names)
-    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
     if bypass_2048_char_limit == "true":
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
@@ -165,10 +160,7 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
+    ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
@@ -550,7 +542,7 @@ class DatabricksAdapter(SparkAdapter):
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: list[Future["Table"]] = []
+            futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -815,20 +807,14 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
-        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
+        relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            # TODO fix this path so that it doesn't need a cursor
-            # It just calls APIs to poll the pipeline status
-            cursor = wrapper.cursor()
-            try:
-                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            finally:
-                cursor.close()
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 

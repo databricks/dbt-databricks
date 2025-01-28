@@ -1,5 +1,5 @@
 {% macro databricks__create_view_as(relation, sql) -%}
-  create or replace view {{ relation }}
+  create or replace view {{ relation.render() }}
   {% if config.persist_column_docs() -%}
     {% set model_columns = model.columns %}
     {% set query_columns = get_columns_in_query(sql) %}
