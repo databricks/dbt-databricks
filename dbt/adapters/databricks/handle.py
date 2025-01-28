@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
+import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks import utils
+from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
@@ -106,6 +109,10 @@ class DatabricksHandle:
 
         return self._dbr_version
 
+    @property
+    def session_id(self) -> str:
+        return self._conn.get_session_id_hex()
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
         return self._safe_execute(
             lambda cursor: cursor.execute(clean_sql(sql), translate_bindings(bindings))
@@ -135,6 +142,39 @@ class DatabricksHandle:
 
     def rollback(self) -> None:
         logger.debug("NotImplemented: rollback")
+
+    @staticmethod
+    def from_credentials(
+        creds: DatabricksCredentials, creds_provider: TCredentialProvider, http_path: str
+    ) -> "DatabricksHandle":
+        invocation_env = creds.get_invocation_env()
+        user_agent_entry = GlobalState.USER_AGENT
+        if invocation_env:
+            user_agent_entry = f"{user_agent_entry}; {invocation_env}"
+
+        connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
+
+        http_headers: list[tuple[str, str]] = list(
+            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
+        )
+
+        conn = dbsql.connect(
+            server_hostname=creds.host,
+            http_path=http_path,
+            credentials_provider=creds_provider,
+            http_headers=http_headers if http_headers else None,
+            session_configuration=creds.session_properties,
+            catalog=creds.database,
+            use_inline_params="silent",
+            # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
+            _user_agent_entry=user_agent_entry,
+            **connection_parameters,
+        )
+        connection = DatabricksHandle(conn, is_cluster=creds.cluster_id is not None)
+
+        logger.debug(f"{connection} - Created")
+
+        return connection
 
     def _cleanup(
         self,

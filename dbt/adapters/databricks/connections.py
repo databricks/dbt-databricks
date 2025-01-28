@@ -11,7 +11,7 @@ from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtDatabaseError, DbtInternalError, DbtRuntimeError
 from dbt_common.utils import cast_to_str
 
-import databricks.sql as dbsql
+from databricks.sql import __version__ as dbsql_version
 from databricks.sql.exc import Error
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.contracts.connection import (
@@ -32,7 +32,6 @@ from dbt.adapters.databricks.credentials import (
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
     ConnectionCreate,
-    ConnectionCreated,
     ConnectionCreateError,
     ConnectionIdleCheck,
     ConnectionIdleClose,
@@ -79,7 +78,7 @@ DATABRICKS_QUERY_COMMENT = f"""
     app='dbt',
     dbt_version=dbt_version,
     dbt_databricks_version='{__version__}',
-    databricks_sql_connector_version='{dbsql.__version__}',
+    databricks_sql_connector_version='{dbsql_version}',
     profile_name=target.get('profile_name'),
     target_name=target.get('target_name'),
 ) -%}}
@@ -409,20 +408,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             self.threads_compute_connections.clear()
 
     @classmethod
-    def get_open_for_context(
-        cls, query_header_context: Any = None
-    ) -> Callable[[Connection], Connection]:
-        # If there is no node we can simply return the exsting class method open.
-        # If there is a node create a closure that will call cls._open with the node.
-        if not query_header_context:
-            return cls.open
-
-        def open_for_model(connection: Connection) -> Connection:
-            return cls._open(connection, query_header_context)
-
-        return open_for_model
-
-    @classmethod
     def open(cls, connection: Connection) -> Connection:
         databricks_connection = cast(DatabricksDBTConnection, connection)
 
@@ -433,116 +418,21 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
-
-        invocation_env = creds.get_invocation_env()
-        user_agent_entry = cls._user_agent
-        if invocation_env:
-            user_agent_entry = f"{cls._user_agent}; {invocation_env}"
-
-        connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
-
-        http_headers: list[tuple[str, str]] = list(
-            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
-        )
-
-        # If a model specifies a compute resource the http path
-        # may be different than the http_path property of creds.
-        http_path = databricks_connection.http_path
+        credentials_provider = creds.authenticate(cls.credentials_provider)
+        cls.credentials_provider = credentials_provider
 
         def connect() -> DatabricksHandle:
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
-                conn = dbsql.connect(
-                    server_hostname=creds.host,
-                    http_path=http_path,
-                    credentials_provider=cls.credentials_provider,
-                    http_headers=http_headers if http_headers else None,
-                    session_configuration=creds.session_properties,
-                    catalog=creds.database,
-                    use_inline_params="silent",
-                    # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
-                    _user_agent_entry=user_agent_entry,
-                    **connection_parameters,
+                conn = DatabricksHandle.from_credentials(
+                    creds, credentials_provider, databricks_connection.http_path
                 )
 
                 if conn:
-                    databricks_connection.session_id = conn.get_session_id_hex()
+                    databricks_connection.session_id = conn.session_id
                 databricks_connection.last_used_time = time.time()
-                logger.debug(ConnectionCreated(str(databricks_connection)))
 
-                return DatabricksHandle(
-                    conn,
-                    is_cluster=creds.cluster_id is not None,
-                )
-            except Error as exc:
-                logger.error(ConnectionCreateError(exc))
-                raise
-
-        def exponential_backoff(attempt: int) -> int:
-            return attempt * attempt
-
-        retryable_exceptions = []
-        # this option is for backwards compatibility
-        if creds.retry_all:
-            retryable_exceptions = [Error]
-
-        return cls.retry_connection(
-            connection,
-            connect=connect,
-            logger=logger,
-            retryable_exceptions=retryable_exceptions,
-            retry_limit=creds.connect_retries,
-            retry_timeout=(timeout if timeout is not None else exponential_backoff),
-        )
-
-    @classmethod
-    def _open(cls, connection: Connection, query_header_context: Any = None) -> Connection:
-        if connection.state == ConnectionState.OPEN:
-            return connection
-
-        creds: DatabricksCredentials = connection.credentials
-        timeout = creds.connect_timeout
-
-        # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
-
-        invocation_env = creds.get_invocation_env()
-        user_agent_entry = cls._user_agent
-        if invocation_env:
-            user_agent_entry = f"{cls._user_agent}; {invocation_env}"
-
-        connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
-
-        http_headers: list[tuple[str, str]] = list(
-            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
-        )
-
-        # If a model specifies a compute resource the http path
-        # may be different than the http_path property of creds.
-        http_path = _get_http_path(query_header_context, creds)
-
-        def connect() -> DatabricksHandle:
-            try:
-                # TODO: what is the error when a user specifies a catalog they don't have access to
-                conn = dbsql.connect(
-                    server_hostname=creds.host,
-                    http_path=http_path,
-                    credentials_provider=cls.credentials_provider,
-                    http_headers=http_headers if http_headers else None,
-                    session_configuration=creds.session_properties,
-                    catalog=creds.database,
-                    use_inline_params="silent",
-                    # schema=creds.schema,  # TODO: Explicitly set once DBR 7.3LTS is EOL.
-                    _user_agent_entry=user_agent_entry,
-                    **connection_parameters,
-                )
-                logger.debug(ConnectionCreated(str(conn)))
-
-                return DatabricksHandle(
-                    conn,
-                    is_cluster=creds.cluster_id is not None,
-                )
+                return conn
             except Error as exc:
                 logger.error(ConnectionCreateError(exc))
                 raise
@@ -623,7 +513,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 ) and conn._idle_too_long():
                     logger.debug(ConnectionIdleClose(str(conn)))
                     self.close(conn)
-                    conn._reset_handle(self._open)
+                    conn._reset_handle(self.open)
 
     def _create_compute_connection(
         self, conn_name: str, query_header_context: Any = None
