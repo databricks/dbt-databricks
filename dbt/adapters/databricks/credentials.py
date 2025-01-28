@@ -287,7 +287,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
-            host=credentials.host or "",
+            host=credentials.host,
             token=credentials.token,
             client_id=credentials.client_id or CLIENT_ID,
             client_secret=credentials.client_secret or "",
