@@ -24,13 +24,12 @@ classifiers = [
 dependencies = [
     "databricks-sdk==0.41.0",
     "databricks-sql-connector>=3.5.0, <4.0.0",
-    "dbt-adapters>=1.7.0, <2.0",
-    "dbt-common>=1.10.0, <2.0",
-    "dbt-core>=1.8.7, <2.0",
-    "dbt-spark>=1.8.0, <2.0",
+    "dbt-adapters>=1.10.3, <2.0",
+    "dbt-common>=1.13.0, <2.0",
+    "dbt-core>=1.9.0rc2, <2.0",
+    "dbt-spark>=1.9.0b1, <2.0",
     "keyring>=23.13.0",
-    "pandas<2.2.0",
-    "pydantic>=1.10.0, <2",
+    "pydantic>=1.10.0",
 ]
 
 [project.urls]
@@ -76,8 +75,10 @@ dependencies = [
     "freezegun",
     "mypy",
     "pre-commit",
+    "ruff",
     "types-requests",
     "debugpy",
+    "pydantic>=1.10.0, <2",
 ]
 path = ".hatch"
 python = "3.9"
@@ -101,7 +102,7 @@ line-length = 100
 target-version = 'py39'
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I"]
+select = ["E", "W", "F", "I", "UP"]
 ignore = ["E203"]
 
 [tool.pytest.ini_options]

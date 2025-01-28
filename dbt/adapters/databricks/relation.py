@@ -1,7 +1,8 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type  # noqa
 
+from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
@@ -10,6 +11,7 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
+from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
@@ -39,6 +41,8 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     External = "external"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
 
 
@@ -58,7 +62,8 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-
+    create_constraints: list[TypedConstraint] = field(default_factory=list)
+    alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
 
     @classmethod
@@ -131,7 +136,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
@@ -147,6 +152,23 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    def add_constraint(self, constraint: TypedConstraint) -> None:
+        if constraint.type == ConstraintType.check:
+            self.alter_constraints.append(constraint)
+        else:
+            self.create_constraints.append(constraint)
+
+    def enrich(self, constraints: list[TypedConstraint]) -> "DatabricksRelation":
+        copy = self.incorporate()
+        for constraint in constraints:
+            copy.add_constraint(constraint)
+
+        return copy
+
+    def render_constraints_for_create(self) -> str:
+        processed = map(process_constraint, self.create_constraints)
+        return ", ".join(c for c in processed if c is not None)
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

@@ -25,24 +25,18 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-<<<<<<< HEAD
 from dbt.adapters.databricks.connections import (
-    USE_LONG_SESSIONS,
     DatabricksConnectionManager,
-    DatabricksDBTConnection,
-    DatabricksSQLConnectionWrapper,
     ExtendedSessionConnectionManager,
 )
-=======
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
->>>>>>> 395801ec (Compress to one connection manager (#910))
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -158,7 +152,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     """
 
     _identifier = "|".join(table_names)
-    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
     if bypass_2048_char_limit == "true":
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
@@ -170,14 +164,10 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-<<<<<<< HEAD
-    if USE_LONG_SESSIONS:
+    if GlobalState.get_use_long_sessions():
         ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
     else:
         ConnectionManager = DatabricksConnectionManager
-=======
-    ConnectionManager = DatabricksConnectionManager
->>>>>>> 395801ec (Compress to one connection manager (#910))
 
     connections: DatabricksConnectionManager
 
@@ -189,6 +179,8 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
 
@@ -559,7 +551,7 @@ class DatabricksAdapter(SparkAdapter):
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: list[Future["Table"]] = []
+            futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -775,6 +767,31 @@ class DatabricksAdapter(SparkAdapter):
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
 
+    @available
+    @staticmethod
+    def parse_columns_and_constraints(
+        existing_columns: list[DatabricksColumn],
+        model_columns: dict[str, dict[str, Any]],
+        model_constraints: list[dict[str, Any]],
+    ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
+        """Returns a list of columns that have been updated with features for table create."""
+        enriched_columns = []
+        not_null_set, parsed_constraints = constraints.parse_constraints(
+            list(model_columns.values()), model_constraints
+        )
+
+        for column in existing_columns:
+            if column.name in model_columns:
+                column_info = model_columns[column.name]
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
+                enriched_columns.append(enriched_column)
+            else:
+                if column.name in not_null_set:
+                    column.not_null = True
+                enriched_columns.append(column)
+
+        return enriched_columns, parsed_constraints
+
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
@@ -824,20 +841,14 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
-        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
+        relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            # TODO fix this path so that it doesn't need a cursor
-            # It just calls APIs to poll the pipeline status
-            cursor = wrapper.cursor()
-            try:
-                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            finally:
-                cursor.close()
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 
