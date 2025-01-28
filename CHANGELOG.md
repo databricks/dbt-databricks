@@ -4,7 +4,29 @@
 
 - Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
 
-## dbt-databricks 1.9.0 (TBD)
+### Under the Hood
+
+- Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
+
+## dbt-databricks 1.9.2 (TBD)
+
+### Under the Hood
+
+- Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+
+## dbt-databricks 1.9.1 (December 16, 2024)
+
+### Features
+
+- Merge strategy now supports the `update set ...` action with the explicit list of updates for `when not matched by source` ([866](https://github.com/databricks/dbt-databricks/pull/866)) (thanks @mi-volodin).
+
+### Under the Hood
+
+- Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
+- Add more relation types to make codegen happy ([875](https://github.com/databricks/dbt-databricks/pull/875))
+- add UP ruleset ([865](https://github.com/databricks/dbt-databricks/pull/865))
+
+## dbt-databricks 1.9.0 (December 9, 2024)
 
 ### Features
 
@@ -29,6 +51,7 @@
 
 - Replace array indexing with 'get' in split_part so as not to raise exception when indexing beyond bounds ([839](https://github.com/databricks/dbt-databricks/pull/839))
 - Set queue enabled for Python notebook jobs ([856](https://github.com/databricks/dbt-databricks/pull/856))
+- Ensure columns that are added get backticked ([859](https://github.com/databricks/dbt-databricks/pull/859))
 
 ### Under the Hood
 
@@ -39,7 +62,7 @@
 - Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
 - Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 - Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
-- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
+- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847)
 - Switching to Hatch and pyproject.toml for project config ([853](https://github.com/databricks/dbt-databricks/pull/853))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)

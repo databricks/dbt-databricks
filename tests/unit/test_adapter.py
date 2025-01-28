@@ -11,8 +11,6 @@ from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
-    DBT_DATABRICKS_INVOCATION_ENV,
 )
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
@@ -114,7 +112,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         with pytest.raises(DbtValidationError) as excinfo:
             config = self._get_config()
             adapter = DatabricksAdapter(config, get_context("spawn"))
-            with patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_invocation_env",
+                return_value="(Some-thing)",
+            ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -128,8 +129,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
-            with patch.dict(
-                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_invocation_env",
+                return_value="databricks-workflows",
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
@@ -190,9 +192,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "dbt.adapters.databricks.connections.dbsql.connect",
             new=self._connect_func(expected_http_headers=expected_http_headers),
         ):
-            with patch.dict(
-                "os.environ",
-                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_http_session_headers",
+                return_value=http_headers_str,
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
@@ -343,13 +345,15 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert connection.credentials.token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             assert connection.credentials.schema == "analytics"
 
-    def test_list_relations_without_caching__no_relations(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__no_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = []
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             assert adapter.list_relations("database", "schema") == []
 
-    def test_list_relations_without_caching__some_relations(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__some_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", "hudi", "owner")]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
@@ -363,7 +367,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.owner == "owner"
             assert relation.is_hudi
 
-    def test_list_relations_without_caching__hive_relation(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
             mocked.return_value = [("name", "table", None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
@@ -376,7 +381,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.type == DatabricksRelationType.Table
             assert not relation.has_information()
 
-    def test_get_schema_for_catalog__no_columns(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__no_columns(self, _):
         with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
             with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
@@ -385,7 +391,8 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 0
 
-    def test_get_schema_for_catalog__some_columns(self):
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
+    def test_get_schema_for_catalog__some_columns(self, _):
         with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
             list_info.return_value = [(Mock(), "info")]
             with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
@@ -409,6 +416,27 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             type=rel_type,
         )
         assert relation.database == "test_catalog"
+
+    def expected_column(self, real_vals):
+        default_col = {
+            "table_database": None,
+            "table_schema": None,
+            "table_name": None,
+            "table_type": "table",
+            "table_owner": "root",
+            "table_comment": None,
+            "column": "col1",
+            "column_index": 0,
+            "dtype": None,
+            "numeric_scale": None,
+            "numeric_precision": None,
+            "char_size": None,
+            "comment": None,
+            "not_null": None,
+        }
+
+        default_col.update(real_vals)
+        return default_col
 
     def test_parse_relation(self):
         self.maxDiff = None
@@ -477,69 +505,51 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         }
 
         assert len(rows) == 4
-        assert rows[0].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "col1",
-            "column_index": 0,
-            "dtype": "decimal(22,0)",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "comment": "comment",
-        }
+        assert rows[0].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "col1",
+                "column_index": 0,
+                "dtype": "decimal(22,0)",
+                "comment": "comment",
+            }
+        )
 
-        assert rows[1].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "col2",
-            "column_index": 1,
-            "dtype": "string",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "comment": "comment",
-        }
+        assert rows[1].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "col2",
+                "column_index": 1,
+                "dtype": "string",
+                "comment": "comment",
+            }
+        )
 
-        assert rows[2].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "dt",
-            "column_index": 2,
-            "dtype": "date",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "comment": None,
-        }
+        assert rows[2].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "dt",
+                "column_index": 2,
+                "dtype": "date",
+            }
+        )
 
-        assert rows[3].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "struct_col",
-            "column_index": 3,
-            "dtype": "struct<struct_inner_col:string>",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "comment": None,
-        }
+        assert rows[3].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "struct_col",
+                "column_index": 3,
+                "dtype": "struct<struct_inner_col:string>",
+            }
+        )
 
     def test_parse_relation_with_integer_owner(self):
         self.maxDiff = None
@@ -630,29 +640,27 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         }
 
         assert len(rows) == 1
-        assert rows[0].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": "Table model description",
-            "column": "col1",
-            "column_index": 0,
-            "comment": "comment",
-            "dtype": "decimal(22,0)",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "stats:bytes:description": "",
-            "stats:bytes:include": True,
-            "stats:bytes:label": "bytes",
-            "stats:bytes:value": 1109049927,
-            "stats:rows:description": "",
-            "stats:rows:include": True,
-            "stats:rows:label": "rows",
-            "stats:rows:value": 14093476,
-        }
+        assert rows[0].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "table_owner": "root",
+                "table_comment": "Table model description",
+                "column": "col1",
+                "column_index": 0,
+                "comment": "comment",
+                "dtype": "decimal(22,0)",
+                "stats:bytes:description": "",
+                "stats:bytes:include": True,
+                "stats:bytes:label": "bytes",
+                "stats:bytes:value": 1109049927,
+                "stats:rows:description": "",
+                "stats:rows:include": True,
+                "stats:rows:label": "rows",
+                "stats:rows:value": 14093476,
+            }
+        )
 
     def test_relation_with_database(self):
         config = self._get_config()
@@ -699,45 +707,35 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             relation, information
         )
         assert len(columns) == 4
-        assert columns[0].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "col1",
-            "column_index": 0,
-            "dtype": "decimal(22,0)",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "stats:bytes:description": "",
-            "stats:bytes:include": True,
-            "stats:bytes:label": "bytes",
-            "stats:bytes:value": 123456789,
-            "comment": None,
-        }
+        assert columns[0].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "col1",
+                "column_index": 0,
+                "dtype": "decimal(22,0)",
+                "stats:bytes:description": "",
+                "stats:bytes:include": True,
+                "stats:bytes:label": "bytes",
+                "stats:bytes:value": 123456789,
+            }
+        )
 
-        assert columns[3].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "struct_col",
-            "column_index": 3,
-            "dtype": "struct",
-            "comment": None,
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "stats:bytes:description": "",
-            "stats:bytes:include": True,
-            "stats:bytes:label": "bytes",
-            "stats:bytes:value": 123456789,
-        }
+        assert columns[3].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "struct_col",
+                "column_index": 3,
+                "dtype": "struct",
+                "stats:bytes:description": "",
+                "stats:bytes:include": True,
+                "stats:bytes:label": "bytes",
+                "stats:bytes:value": 123456789,
+            }
+        )
 
     def test_parse_columns_from_information_with_view_type(self):
         self.maxDiff = None
@@ -784,37 +782,27 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             relation, information
         )
         assert len(columns) == 4
-        assert columns[1].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "col2",
-            "column_index": 1,
-            "comment": None,
-            "dtype": "string",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-        }
+        assert columns[1].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "col2",
+                "column_index": 1,
+                "dtype": "string",
+            }
+        )
 
-        assert columns[3].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "struct_col",
-            "column_index": 3,
-            "comment": None,
-            "dtype": "struct",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-        }
+        assert columns[3].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "struct_col",
+                "column_index": 3,
+                "dtype": "struct",
+            }
+        )
 
     def test_parse_columns_from_information_with_table_type_and_parquet_provider(self):
         self.maxDiff = None
@@ -850,53 +838,43 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             relation, information
         )
         assert len(columns) == 4
-        assert columns[2].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "dt",
-            "column_index": 2,
-            "comment": None,
-            "dtype": "date",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "stats:bytes:description": "",
-            "stats:bytes:include": True,
-            "stats:bytes:label": "bytes",
-            "stats:bytes:value": 1234567890,
-            "stats:rows:description": "",
-            "stats:rows:include": True,
-            "stats:rows:label": "rows",
-            "stats:rows:value": 12345678,
-        }
+        assert columns[2].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "dt",
+                "column_index": 2,
+                "dtype": "date",
+                "stats:bytes:description": "",
+                "stats:bytes:include": True,
+                "stats:bytes:label": "bytes",
+                "stats:bytes:value": 1234567890,
+                "stats:rows:description": "",
+                "stats:rows:include": True,
+                "stats:rows:label": "rows",
+                "stats:rows:value": 12345678,
+            }
+        )
 
-        assert columns[3].to_column_dict(omit_none=False) == {
-            "table_database": None,
-            "table_schema": relation.schema,
-            "table_name": relation.name,
-            "table_type": rel_type,
-            "table_owner": "root",
-            "table_comment": None,
-            "column": "struct_col",
-            "column_index": 3,
-            "comment": None,
-            "dtype": "struct",
-            "numeric_scale": None,
-            "numeric_precision": None,
-            "char_size": None,
-            "stats:bytes:description": "",
-            "stats:bytes:include": True,
-            "stats:bytes:label": "bytes",
-            "stats:bytes:value": 1234567890,
-            "stats:rows:description": "",
-            "stats:rows:include": True,
-            "stats:rows:label": "rows",
-            "stats:rows:value": 12345678,
-        }
+        assert columns[3].to_column_dict(omit_none=False) == self.expected_column(
+            {
+                "table_schema": relation.schema,
+                "table_name": relation.name,
+                "table_type": rel_type,
+                "column": "struct_col",
+                "column_index": 3,
+                "dtype": "struct",
+                "stats:bytes:description": "",
+                "stats:bytes:include": True,
+                "stats:bytes:label": "bytes",
+                "stats:bytes:value": 1234567890,
+                "stats:rows:description": "",
+                "stats:rows:include": True,
+                "stats:rows:label": "rows",
+                "stats:rows:value": 12345678,
+            }
+        )
 
     def test_describe_table_extended_2048_char_limit(self):
         """GIVEN a list of table_names whos total character length exceeds 2048 characters
@@ -910,7 +888,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         assert get_identifier_list_string(table_names) == "|".join(table_names)
 
         # If environment variable is set, then limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -939,7 +920,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -952,7 +936,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then we may limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # But a short list of table names is not capped
             assert get_identifier_list_string(list(table_names)[:5]) == "|".join(
                 list(table_names)[:5]
