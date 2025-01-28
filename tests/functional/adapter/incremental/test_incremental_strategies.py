@@ -288,38 +288,17 @@ class TestMatchedAndNotMatchedCondition(IncrementalBase):
         )
 
 
-class TestNotMatchedBySourceAndConditionThenDelete(IncrementalBase):
+class TestNotMatchedBySourceAndCondition(IncrementalBase):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
-            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_then_del_expected,
+            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_expected,
         }
 
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "not_matched_by_source.sql": fixtures.not_matched_by_source_then_delete_model,
-        }
-
-    def test_merge(self, project):
-        self.seed_and_run_twice()
-        util.check_relations_equal(
-            project.adapter,
-            ["not_matched_by_source", "not_matched_by_source_expected"],
-        )
-
-
-class TestNotMatchedBySourceAndConditionThenUpdate(IncrementalBase):
-    @pytest.fixture(scope="class")
-    def seeds(self):
-        return {
-            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_then_upd_expected,
-        }
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "not_matched_by_source.sql": fixtures.not_matched_by_source_then_update_model,
+            "not_matched_by_source.sql": fixtures.not_matched_by_source_model,
         }
 
     def test_merge(self, project):

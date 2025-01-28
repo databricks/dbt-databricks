@@ -5,9 +5,9 @@
     {%- else -%}
       {%- set file_format = config.get('file_format', default='delta') -%}
       {% if file_format == 'delta' %}
-        create or replace table {{ relation.render() }}
+        create or replace table {{ relation }}
       {% else %}
-        create table {{ relation.render() }}
+        create table {{ relation }}
       {% endif %}
       {%- set contract_config = config.get('contract') -%}
       {% if contract_config and contract_config.enforced %}

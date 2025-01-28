@@ -15,16 +15,10 @@ from requests.auth import AuthBase
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, CredentialsProvider
 from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks.auth import m2m_auth, token_auth
-from dbt.adapters.databricks.events.credential_events import (
-    CredentialLoadError,
-    CredentialSaveError,
-    CredentialShardEvent,
-)
-from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
+DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
@@ -75,10 +69,8 @@ class DatabricksCredentials(Credentials):
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
-        data.setdefault("database", None)
-        data.setdefault("connection_parameters", {})
-        data["connection_parameters"].setdefault("_retry_stop_after_attempts_count", 30)
-        data["connection_parameters"].setdefault("_retry_delay_max", 60)
+        if "database" not in data:
+            data["database"] = None
         return data
 
     def __post_init__(self) -> None:
@@ -140,16 +132,21 @@ class DatabricksCredentials(Credentials):
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
             if not getattr(self, key):
-                raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
+                raise DbtConfigError(
+                    "The config '{}' is required to connect to Databricks".format(key)
+                )
+
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
-                "The config `auth_type: oauth` is required when not using access token"
+                ("The config `auth_type: oauth` is required when not using access token")
             )
 
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
-                "The config 'client_id' is required to connect "
-                "to Databricks when 'client_secret' is present"
+                (
+                    "The config 'client_id' is required to connect "
+                    "to Databricks when 'client_secret' is present"
+                )
             )
 
         if (not self.azure_client_id and self.azure_client_secret) or (
@@ -164,7 +161,7 @@ class DatabricksCredentials(Credentials):
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
-        invocation_env = GlobalState.get_invocation_env()
+        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
         if invocation_env:
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
@@ -174,7 +171,9 @@ class DatabricksCredentials(Credentials):
 
     @classmethod
     def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
-        http_session_headers_str = GlobalState.get_http_session_headers()
+        http_session_headers_str: Optional[str] = os.environ.get(
+            DBT_DATABRICKS_HTTP_SESSION_HEADERS
+        )
 
         http_session_headers_dict: dict[str, str] = (
             {
