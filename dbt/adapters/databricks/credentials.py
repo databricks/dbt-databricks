@@ -70,10 +70,8 @@ class DatabricksCredentials(Credentials):
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
-        data.setdefault("database", None)
-        data.setdefault("connection_parameters", {})
-        data["connection_parameters"].setdefault("_retry_stop_after_attempts_count", 30)
-        data["connection_parameters"].setdefault("_retry_delay_max", 60)
+        if "database" not in data:
+            data["database"] = None
         return data
 
     def __post_init__(self) -> None:
