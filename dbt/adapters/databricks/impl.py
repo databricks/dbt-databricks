@@ -25,6 +25,7 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -172,6 +173,8 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
 
@@ -757,6 +760,31 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
+
+    @available
+    @staticmethod
+    def parse_columns_and_constraints(
+        existing_columns: list[DatabricksColumn],
+        model_columns: dict[str, dict[str, Any]],
+        model_constraints: list[dict[str, Any]],
+    ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
+        """Returns a list of columns that have been updated with features for table create."""
+        enriched_columns = []
+        not_null_set, parsed_constraints = constraints.parse_constraints(
+            list(model_columns.values()), model_constraints
+        )
+
+        for column in existing_columns:
+            if column.name in model_columns:
+                column_info = model_columns[column.name]
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
+                enriched_columns.append(enriched_column)
+            else:
+                if column.name in not_null_set:
+                    column.not_null = True
+                enriched_columns.append(column)
+
+        return enriched_columns, parsed_constraints
 
 
 @dataclass(frozen=True)

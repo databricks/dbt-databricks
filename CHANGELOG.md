@@ -1,14 +1,14 @@
-## dbt-databricks 1.9.3 (TBD)
-
-### Under the Hood
-
-- Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
-
-## dbt-databricks 1.9.2 (Jan 21, 2024)
+## dbt-databricks 1.10.0 (TBD)
 
 ### Features
 
-- Update snapshot materialization to support new snapshot features ([904](https://github.com/databricks/dbt-databricks/pull/904))
+- Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
+
+### Under the Hood
+
+- Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
+
+## dbt-databricks 1.9.2 (TBD)
 
 ### Under the Hood
 
@@ -64,8 +64,7 @@
 - Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
 - Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 - Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
-- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
-- Refactoring location of DLT polling code ([849](https://github.com/databricks/dbt-databricks/pull/849))
+- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847)
 - Switching to Hatch and pyproject.toml for project config ([853](https://github.com/databricks/dbt-databricks/pull/853))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)

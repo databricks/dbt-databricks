@@ -28,6 +28,50 @@ class TestSparkColumn:
         }
 
 
+class TestEnrich:
+    @pytest.fixture
+    def column(self):
+        return DatabricksColumn("id", "INT")
+
+    @pytest.fixture
+    def model_column(self):
+        return {
+            "data_type": "LONG",
+            "description": "this is a column",
+            "constraints": [
+                {"type": "not_null"},
+                {"type": "primary_key", "name": "foo"},
+            ],
+        }
+
+    def test_enrich(self, column, model_column):
+        enriched_column = column.enrich(model_column, True)
+        assert enriched_column.data_type == "bigint"
+        assert enriched_column.comment == "this is a column"
+        assert enriched_column.not_null is True
+
+
+class TestRenderForCreate:
+    @pytest.fixture
+    def column(self):
+        return DatabricksColumn("id", "INT")
+
+    def test_render_for_create__base(self, column):
+        assert column.render_for_create() == "id INT"
+
+    def test_render_for_create__not_null(self, column):
+        column.not_null = True
+        assert column.render_for_create() == "id INT NOT NULL"
+
+    def test_render_for_create__comment(self, column):
+        column.comment = "this is a column"
+        assert column.render_for_create() == "id INT COMMENT 'this is a column'"
+
+    def test_render_for_create__escaping(self, column):
+        column.comment = "this is a 'column'"
+        assert column.render_for_create() == "id INT COMMENT 'this is a \\'column\\''"
+
+
 class TestColumnStatics:
     @pytest.mark.parametrize(
         "column, expected",
