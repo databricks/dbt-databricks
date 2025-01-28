@@ -264,7 +264,14 @@ matching_condition_expected = """id,first,second,V
 4,Baron,Harkonnen,1
 """
 
-not_matched_by_source_expected = """id,first,second,V
+not_matched_by_source_then_del_expected = """id,first,second,V
+2,Paul,Atreides,0
+3,Dunkan,Aidaho,1
+4,Baron,Harkonnen,1
+"""
+
+not_matched_by_source_then_upd_expected = """id,first,second,V
+1,--,--,-1
 2,Paul,Atreides,0
 3,Dunkan,Aidaho,1
 4,Baron,Harkonnen,1
@@ -411,7 +418,7 @@ select 5 as id, 'Raban' as first, '' as second, 0 as V -- no append
 {% endif %}
 """
 
-not_matched_by_source_model = """
+not_matched_by_source_then_delete_model = """
 {{ config(
     materialized = 'incremental',
     unique_key = 'id',
@@ -438,6 +445,46 @@ select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
 -- data for subsequent incremental update
 
 -- id = 1 should be deleted
+-- id = 2 should be kept as condition doesn't hold (t.V = 0)
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- No update, skipped
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 1 as V -- should append
+
+{% endif %}
+"""
+
+not_matched_by_source_then_update_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    source_alias='s',
+    skip_matched_step=true,
+    not_matched_by_source_condition='t.V > 0',
+    not_matched_by_source_action='''
+        update set
+            t.first = \\\'--\\\',
+            t.second = \\\'--\\\',
+            t.V = -1
+    ''',
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as V
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 0 as V
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as V
+
+{% else %}
+
+-- data for subsequent incremental update
+
+-- id = 1 should be updated with
 -- id = 2 should be kept as condition doesn't hold (t.V = 0)
 select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V -- No update, skipped
 union all

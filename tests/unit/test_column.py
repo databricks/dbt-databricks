@@ -1,3 +1,5 @@
+import pytest
+
 from dbt.adapters.databricks.column import DatabricksColumn
 
 
