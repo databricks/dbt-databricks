@@ -32,10 +32,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import (
-    DatabricksConnectionManager,
-    ExtendedSessionConnectionManager,
-)
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
@@ -164,10 +161,7 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if GlobalState.get_use_long_sessions():
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
+    ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
