@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
+- Use POSIX standard when creating location for the tables ([919](https://github.com/databricks/dbt-databricks/pull/919))
 
 ## dbt-databricks 1.9.2 (Jan 21, 2024)
 
