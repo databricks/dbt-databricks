@@ -1,10 +1,10 @@
 from unittest.mock import patch
 import pytest
+from dbt_common.exceptions import DbtRuntimeError
+
 from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.contracts.graph import model_config
-from dbt.contracts.graph import nodes
-from dbt_common.exceptions import DbtRuntimeError
+from dbt.contracts.graph import model_config, nodes
 
 
 @patch("dbt.adapters.databricks.credentials.Config")

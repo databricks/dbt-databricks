@@ -4,8 +4,10 @@ import pytest
 
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
-from dbt.tests.adapter.python_model.test_python_model import BasePythonIncrementalTests
-from dbt.tests.adapter.python_model.test_python_model import BasePythonModelTests
+from dbt.tests.adapter.python_model.test_python_model import (
+    BasePythonIncrementalTests,
+    BasePythonModelTests,
+)
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 
@@ -13,6 +15,25 @@ from tests.functional.adapter.python_model import fixtures as override_fixtures
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonModel(BasePythonModelTests):
     pass
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonFailureModel:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"my_failure_model.py": override_fixtures.python_error_model}
+
+    def test_failure_model(self, project):
+        util.run_dbt(["run"], expect_pass=False)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonFailureModelNotebook(TestPythonFailureModel):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
@@ -37,7 +58,7 @@ class TestChangingSchema:
         )
         util.run_dbt(["run"])
         log_file = os.path.join(logs_dir, "dbt.log")
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             log = f.read()
             # validate #5510 log_code_execution works
             assert "On model.test.simple_python_model:" in log

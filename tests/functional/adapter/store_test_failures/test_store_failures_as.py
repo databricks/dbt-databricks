@@ -1,17 +1,9 @@
 from dbt.tests.adapter.store_test_failures_tests.basic import (
     StoreTestFailuresAsExceptions,
-)
-from dbt.tests.adapter.store_test_failures_tests.basic import StoreTestFailuresAsGeneric
-from dbt.tests.adapter.store_test_failures_tests.basic import (
+    StoreTestFailuresAsGeneric,
     StoreTestFailuresAsInteractions,
-)
-from dbt.tests.adapter.store_test_failures_tests.basic import (
     StoreTestFailuresAsProjectLevelEphemeral,
-)
-from dbt.tests.adapter.store_test_failures_tests.basic import (
     StoreTestFailuresAsProjectLevelOff,
-)
-from dbt.tests.adapter.store_test_failures_tests.basic import (
     StoreTestFailuresAsProjectLevelView,
 )
 from dbt.tests.adapter.store_test_failures_tests.test_store_test_failures import (

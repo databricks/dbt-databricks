@@ -2,10 +2,12 @@ import os
 
 import pytest
 from agate import Table
+
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.tests import util
 from dbt.tests.adapter.persist_docs import fixtures
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.persist_docs import fixtures as override_fixtures
 
 
@@ -290,3 +292,10 @@ class TestPersistDocsWithSeeds:
         assert table_comment.startswith("A seed description")
         assert columns[0].comment.startswith("An id column")
         assert columns[1].comment.startswith("A name column")
+
+
+@pytest.mark.external
+# Skipping UC Cluster to ensure these tests don't fail due to overlapping resources
+@pytest.mark.skip_profile("databricks_uc_cluster")
+class TestPersistDocsWithSeedsV2(TestPersistDocsWithSeeds, MaterializationV2Mixin):
+    pass

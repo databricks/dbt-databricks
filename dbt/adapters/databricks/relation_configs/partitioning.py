@@ -1,11 +1,12 @@
 import itertools
-from typing import ClassVar
-from typing import Union
+from typing import ClassVar, Union
 
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentProcessor
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksComponentProcessor,
+)
 from dbt.adapters.relation_configs.config_base import RelationResults
 
 

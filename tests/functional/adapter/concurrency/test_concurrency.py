@@ -1,6 +1,5 @@
 from dbt.tests import util
-from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency
-from dbt.tests.adapter.concurrency.test_concurrency import seeds__update_csv
+from dbt.tests.adapter.concurrency.test_concurrency import BaseConcurrency, seeds__update_csv
 
 
 # Copied from dbt-core
@@ -28,4 +27,4 @@ class TestConcurrency(BaseConcurrency):
         util.check_table_does_not_exist(project.adapter, "invalid")
         util.check_table_does_not_exist(project.adapter, "skip")
 
-        assert "PASS=5 WARN=0 ERROR=1 SKIP=1 TOTAL=7" in output
+        assert "PASS=5 WARN=0 ERROR=1 SKIP=1" in output

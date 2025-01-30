@@ -3,8 +3,7 @@ import os
 import pytest
 
 from dbt.tests import util
-from dbt.tests.adapter.hooks.test_run_hooks import BaseAfterRunHooks
-from dbt.tests.adapter.hooks.test_run_hooks import BasePrePostRunHooks
+from dbt.tests.adapter.hooks.test_run_hooks import BaseAfterRunHooks, BasePrePostRunHooks
 from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 
@@ -66,7 +65,7 @@ class TestPrePostRunHooks(BasePrePostRunHooks):
             "invocation_id",
             "thread_id",
         ]
-        field_list = ", ".join(["{}".format(f) for f in fields])
+        field_list = ", ".join([f"{f}" for f in fields])
         query = (
             f"select {field_list} from {project.test_schema}.on_run_hook where test_state = "
             f"'{state}'"

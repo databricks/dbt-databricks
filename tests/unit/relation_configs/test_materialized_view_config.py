@@ -1,5 +1,7 @@
-from agate import Row
-from agate import Table
+from unittest.mock import Mock
+
+from agate import Row, Table
+
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -8,7 +10,6 @@ from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByC
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from mock import Mock
 
 
 class TestMaterializedViewConfig:

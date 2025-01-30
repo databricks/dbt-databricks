@@ -33,7 +33,7 @@
 {%- endmacro -%}
 
 {% macro alter_set_tags(relation, tags) -%}
-  ALTER {{ relation.type }} {{ relation }} SET TAGS (
+  ALTER {{ relation.type }} {{ relation.render() }} SET TAGS (
     {% for tag in tags -%}
       '{{ tag }}' = '{{ tags[tag] }}' {%- if not loop.last %}, {% endif -%}
     {%- endfor %}
@@ -41,7 +41,7 @@
 {%- endmacro -%}
 
 {% macro alter_unset_tags(relation, tags) -%}
-  ALTER {{ relation.type }} {{ relation }} UNSET TAGS (
+  ALTER {{ relation.type }} {{ relation.render() }} UNSET TAGS (
     {% for tag in tags -%}
       '{{ tag }}' {%- if not loop.last %}, {%- endif %}
     {%- endfor %}

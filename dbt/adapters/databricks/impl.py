@@ -1,36 +1,31 @@
-from collections.abc import Iterable, Iterator
-from multiprocessing.context import SpawnContext
 import os
 import re
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
-from typing import cast
-from typing import ClassVar
-from typing import Generic
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Union
+from importlib import metadata
+from multiprocessing.context import SpawnContext
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Union, cast
 from uuid import uuid4
 
-from dbt.adapters.base import AdapterConfig
-from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.base.impl import catch_as_completed
-from dbt.adapters.base.impl import log_code_execution
+from dbt_common.behavior_flags import BehaviorFlag
+from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.utils import executor
+from dbt_common.utils.dict import AttrDict
+from packaging import version
+
+from dbt.adapters.base import AdapterConfig, PythonJobHelper
+from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.capability import Capability
-from dbt.adapters.capability import CapabilityDict
-from dbt.adapters.capability import CapabilitySupport
-from dbt.adapters.capability import Support
-from dbt.adapters.contracts.connection import AdapterResponse
-from dbt.adapters.contracts.connection import Connection
-from dbt.adapters.contracts.relation import RelationConfig
-from dbt.adapters.contracts.relation import RelationType
+from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
+from dbt.adapters.contracts.connection import AdapterResponse, Connection
+from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.databricks import constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -38,25 +33,22 @@ from dbt.adapters.databricks.behaviors.columns import (
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
-from dbt.adapters.databricks.connections import DatabricksDBTConnection
-from dbt.adapters.databricks.connections import DatabricksSQLConnectionWrapper
-from dbt.adapters.databricks.connections import ExtendedSessionConnectionManager
-from dbt.adapters.databricks.connections import USE_LONG_SESSIONS
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
-)
-from dbt.adapters.databricks.python_models.python_submissions import JobClusterPythonJobHelper
-from dbt.adapters.databricks.python_models.python_submissions import (
+    JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
-)
-from dbt.adapters.databricks.python_models.python_submissions import (
     WorkflowPythonJobHelper,
 )
-from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.relation import DatabricksRelationType
-from dbt.adapters.databricks.relation import KEY_TABLE_PROVIDER
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation import (
+    KEY_TABLE_PROVIDER,
+    DatabricksRelation,
+    DatabricksRelationType,
+)
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksRelationConfig,
+    DatabricksRelationConfigBase,
+)
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -66,30 +58,19 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 )
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects
-from dbt.adapters.databricks.utils import redact_credentials
-from dbt.adapters.databricks.utils import undefined_proof
+from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
 from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.spark.impl import DESCRIBE_TABLE_EXTENDED_MACRO_NAME
-from dbt.adapters.spark.impl import GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER
-from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
-from dbt.adapters.spark.impl import LIST_SCHEMAS_MACRO_NAME
-from dbt.adapters.spark.impl import SparkAdapter
-from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.utils import executor
-from dbt_common.utils.dict import AttrDict
-from dbt_common.exceptions import CompilationError
-from dbt_common.exceptions import DbtConfigError
-from dbt_common.exceptions import DbtInternalError
-from dbt_common.contracts.config.base import BaseConfig
-
-from importlib import metadata
-from packaging import version
+from dbt.adapters.spark.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+    KEY_TABLE_OWNER,
+    KEY_TABLE_STATISTICS,
+    LIST_SCHEMAS_MACRO_NAME,
+    SparkAdapter,
+)
 
 if TYPE_CHECKING:
-    from agate import Row
-    from agate import Table
+    from agate import Row, Table
 
 dbt_version = metadata.version("dbt-core")
 SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
@@ -100,7 +81,7 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
@@ -120,11 +101,20 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_MATERIALIZATION_V2 = BehaviorFlag(
+    name="use_materialization_v2",
+    default=False,
+    description=(
+        "Use revamped materializations based on separating create and insert."
+        "  This allows more performant column comments, as well as new column features."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 @dataclass
 class DatabricksConfig(AdapterConfig):
     file_format: str = "delta"
-    table_format: TableFormat = TableFormat.DEFAULT
+    table_format: str = TableFormat.DEFAULT
     location_root: Optional[str] = None
     include_full_name_in_path: bool = False
     partition_by: Optional[Union[list[str], str]] = None
@@ -159,23 +149,19 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     """
 
     _identifier = "|".join(table_names)
-    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
     if bypass_2048_char_limit == "true":
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
 
 
-@undefined_proof
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
+    ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
@@ -187,6 +173,8 @@ class DatabricksAdapter(SparkAdapter):
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
+
+    CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
 
@@ -204,7 +192,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -364,7 +352,8 @@ class DatabricksAdapter(SparkAdapter):
         new_rows: list[tuple[str, Optional[str]]]
         if all([relation.database, relation.schema]):
             tables = self.connections.list_tables(
-                database=relation.database, schema=relation.schema  # type: ignore[arg-type]
+                database=relation.database,  # type: ignore[arg-type]
+                schema=relation.schema,  # type: ignore[arg-type]
             )
 
             new_rows = []
@@ -556,7 +545,7 @@ class DatabricksAdapter(SparkAdapter):
         used_schemas: frozenset[tuple[str, str]],
     ) -> tuple["Table", list[Exception]]:
         with executor(self.config) as tpe:
-            futures: list[Future["Table"]] = []
+            futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
                     identifier = get_identifier_list_string(relations)
@@ -772,6 +761,31 @@ class DatabricksAdapter(SparkAdapter):
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
 
+    @available
+    @staticmethod
+    def parse_columns_and_constraints(
+        existing_columns: list[DatabricksColumn],
+        model_columns: dict[str, dict[str, Any]],
+        model_constraints: list[dict[str, Any]],
+    ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
+        """Returns a list of columns that have been updated with features for table create."""
+        enriched_columns = []
+        not_null_set, parsed_constraints = constraints.parse_constraints(
+            list(model_columns.values()), model_constraints
+        )
+
+        for column in existing_columns:
+            if column.name in model_columns:
+                column_info = model_columns[column.name]
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
+                enriched_columns.append(enriched_column)
+            else:
+                if column.name in not_null_set:
+                    column.not_null = True
+                enriched_columns.append(column)
+
+        return enriched_columns, parsed_constraints
+
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
@@ -779,7 +793,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     For the most part, these are just namespaces to group related methods together.
     """
 
-    relation_type: ClassVar[DatabricksRelationType]
+    relation_type: ClassVar[str]
 
     @classmethod
     @abstractmethod
@@ -821,20 +835,14 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super(DeltaLiveTableAPIBase, cls).get_from_relation(adapter, relation)
-        connection = cast(DatabricksDBTConnection, adapter.connections.get_thread_connection())
-        wrapper: DatabricksSQLConnectionWrapper = connection.handle
+        relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
-            # TODO fix this path so that it doesn't need a cursor
-            # It just calls APIs to poll the pipeline status
-            cursor = wrapper.cursor()
-            try:
-                cursor.poll_refresh_pipeline(tblproperties.pipeline_id)
-            finally:
-                cursor.close()
+            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
+                tblproperties.pipeline_id
+            )
         return relation_config
 
 
