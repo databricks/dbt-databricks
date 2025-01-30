@@ -1,3 +1,9 @@
+## dbt-databricks 1.9.3 (Jan 30, 2024)
+
+### Under the Hood
+
+- Pinned the python sql connector to 3.6.0 as a temporary measure while we investigate failure to wait for cluster start
+
 ## dbt-databricks 1.9.2 (Jan 21, 2024)
 
 ### Features
