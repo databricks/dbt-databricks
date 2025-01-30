@@ -1,9 +1,15 @@
-## dbt-databricks 1.9.3 (TBD)
+## dbt-databricks 1.9.4 (TBD)
 
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
 - Use POSIX standard when creating location for the tables ([919](https://github.com/databricks/dbt-databricks/pull/919))
+
+## dbt-databricks 1.9.3 (Jan 30, 2024)
+
+### Under the Hood
+
+- Pinned the python sql connector to 3.6.0 as a temporary measure while we investigate failure to wait for cluster start
 
 ## dbt-databricks 1.9.2 (Jan 21, 2024)
 
