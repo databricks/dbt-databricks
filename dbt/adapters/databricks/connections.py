@@ -41,7 +41,7 @@ from dbt.adapters.databricks.events.connection_events import (
     ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
-from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle
+from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
@@ -179,7 +179,6 @@ class DatabricksDBTConnection(Connection):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_provider: Optional[TCredentialProvider] = None
-    _user_agent = f"dbt-databricks/{__version__}"
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
@@ -418,19 +417,20 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
-        credentials_provider = creds.authenticate(cls.credentials_provider)
-        cls.credentials_provider = credentials_provider
+        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+        conn_args = SqlUtils.prepare_connection_arguments(
+            creds, cls.credentials_provider, databricks_connection.http_path
+        )
 
         def connect() -> DatabricksHandle:
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
-                conn = DatabricksHandle.from_credentials(
-                    creds, credentials_provider, databricks_connection.http_path
+                conn = DatabricksHandle.from_connection_args(
+                    conn_args, creds.cluster_id is not None
                 )
-
-                if conn:
+                if conn.open:
                     databricks_connection.session_id = conn.session_id
-                databricks_connection.last_used_time = time.time()
+                    databricks_connection.last_used_time = time.time()
 
                 return conn
             except Error as exc:

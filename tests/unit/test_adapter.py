@@ -125,7 +125,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
             with patch(
@@ -188,7 +188,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_http_headers=expected_http_headers),
         ):
             with patch(
@@ -205,7 +205,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_no_token=True),
         ):
             connection = adapter.acquire_connection("dummy")
@@ -218,7 +218,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_client_creds=True),
         ):
             connection = adapter.acquire_connection("dummy")
@@ -277,7 +277,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -301,7 +301,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -328,7 +328,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config(connection_parameters={"http_headers": http_headers})
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
