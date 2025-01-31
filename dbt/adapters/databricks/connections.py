@@ -713,7 +713,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+        cls.credentials_manager = creds.authenticate()
 
         invocation_env = creds.get_invocation_env()
         user_agent_entry = cls._user_agent
