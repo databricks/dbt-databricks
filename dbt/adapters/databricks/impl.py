@@ -1,4 +1,4 @@
-import os
+import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -214,9 +214,9 @@ class DatabricksAdapter(SparkAdapter):
             raise DbtConfigError("location_root is required for external tables.")
         include_full_name_in_path = config.get("include_full_name_in_path", False)
         if include_full_name_in_path:
-            path = os.path.join(location_root, database, schema, identifier)
+            path = posixpath.join(location_root, database, schema, identifier)
         else:
-            path = os.path.join(location_root, identifier)
+            path = posixpath.join(location_root, identifier)
         if is_incremental:
             path = path + "_tmp"
         return path
