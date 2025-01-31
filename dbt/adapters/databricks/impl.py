@@ -1,4 +1,4 @@
-import os
+import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -31,10 +31,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import (
-    DatabricksConnectionManager,
-    ExtendedSessionConnectionManager,
-)
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
@@ -154,10 +151,7 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if GlobalState.get_use_long_sessions():
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
+    ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
@@ -220,9 +214,9 @@ class DatabricksAdapter(SparkAdapter):
             raise DbtConfigError("location_root is required for external tables.")
         include_full_name_in_path = config.get("include_full_name_in_path", False)
         if include_full_name_in_path:
-            path = os.path.join(location_root, database, schema, identifier)
+            path = posixpath.join(location_root, database, schema, identifier)
         else:
-            path = os.path.join(location_root, identifier)
+            path = posixpath.join(location_root, identifier)
         if is_incremental:
             path = path + "_tmp"
         return path
