@@ -625,9 +625,9 @@ class DatabricksAdapter(SparkAdapter):
     def run_sql_for_tests(
         self, sql: str, fetch: str, conn: Connection
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
-        cursor = conn.handle.cursor()
+        handle = conn.handle
         try:
-            cursor.execute(sql)
+            cursor = handle.execute(sql)
             if fetch == "one":
                 return cursor.fetchone()
             elif fetch == "all":
@@ -639,7 +639,8 @@ class DatabricksAdapter(SparkAdapter):
             print(e)
             raise
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
             conn.transaction_open = False
 
     @available

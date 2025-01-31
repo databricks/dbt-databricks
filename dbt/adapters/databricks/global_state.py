@@ -1,6 +1,8 @@
 import os
 from typing import ClassVar, Optional
 
+from dbt.adapters.databricks.__version__ import version as __version__
+
 
 class GlobalState:
     """Global state is a bad idea, but since we don't control instantiation, better to have it in a
@@ -9,6 +11,8 @@ class GlobalState:
 
     __invocation_env: ClassVar[Optional[str]] = None
     __invocation_env_set: ClassVar[bool] = False
+
+    USER_AGENT = f"dbt-databricks/{__version__}"
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:

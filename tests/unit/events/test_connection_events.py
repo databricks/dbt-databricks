@@ -2,7 +2,6 @@ from unittest.mock import Mock
 
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
-    ConnectionCloseError,
     ConnectionEvent,
 )
 
@@ -28,16 +27,6 @@ class TestConnectionEvents:
         mock.get_session_id_hex.return_value = "1234"
         event = ConnectionTestEvent(mock)
         assert str(event) == "Connection(session-id=1234) - This is a test"
-
-
-class TestConnectionCloseError:
-    def test_connection_close_error(self):
-        e = Exception("This is an exception")
-        event = ConnectionCloseError(None, e)
-        assert (
-            str(event) == "Connection(session-id=Unknown) "
-            "- Exception while trying to close connection: This is an exception"
-        )
 
 
 class TestConnectionAcquire:
