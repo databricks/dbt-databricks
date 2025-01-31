@@ -1,25 +1,20 @@
 import itertools
 import json
-import os
 import re
 import threading
 from collections.abc import Iterable
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any, Optional, Callable, Dict, List, cast
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from dbt_common.exceptions import DbtConfigError, DbtValidationError
-
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.core import Config
-from databricks.sdk.core import CredentialsProvider
-from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks.global_state import GlobalState
-from dbt.adapters.databricks.logging import logger
-
 from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.core import Config, CredentialsProvider
+from dbt.adapters.contracts.connection import Credentials
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
@@ -154,10 +149,8 @@ class DatabricksCredentials(Credentials):
             self.azure_client_id and not self.azure_client_secret
         ):
             raise DbtConfigError(
-                (
-                    "The config 'azure_client_id' and 'azure_client_secret' "
-                    "must be both present or both absent"
-                )
+                "The config 'azure_client_id' and 'azure_client_secret' "
+                "must be both present or both absent"
             )
 
     @classmethod
