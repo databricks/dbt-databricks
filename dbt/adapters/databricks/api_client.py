@@ -556,7 +556,7 @@ class DatabricksApiClient:
         http_headers = credentials.get_all_http_headers(
             connection_parameters.pop("http_headers", {})
         )
-        header_factory = credentials.authenticate().credentials_provider()  # type: ignore
+        header_factory = credentials.authenticate().credentials_provider()
         session.auth = BearerAuth(header_factory)
 
         session.headers.update({"User-Agent": user_agent, **http_headers})
