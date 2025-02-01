@@ -4,7 +4,7 @@ import re
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 from dbt_common.exceptions import DbtConfigError, DbtValidationError
 from mashumaro import DataClassDictMixin
@@ -261,7 +261,7 @@ class BearerAuth(AuthBase):
         return r
 
 
-PySQLCredentialProvider = Callable[[], Callable[[], Dict[str, str]]]
+PySQLCredentialProvider = Callable[[], Callable[[], dict[str, str]]]
 
 
 @dataclass
@@ -272,7 +272,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     azure_client_id: Optional[str] = None
     azure_client_secret: Optional[str] = None
     oauth_redirect_url: str = REDIRECT_URL
-    oauth_scopes: List[str] = field(default_factory=lambda: SCOPES)
+    oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
 
@@ -390,7 +390,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     @property
     def credentials_provider(self) -> PySQLCredentialProvider:
-        def inner() -> Callable[[], Dict[str, str]]:
+        def inner() -> Callable[[], dict[str, str]]:
             return self.header_factory
 
         return inner
