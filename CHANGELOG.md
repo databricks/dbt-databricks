@@ -2,9 +2,13 @@
 
 ### Features
 
+- Support databricks OAuth M2M auth type. Updated OAuth readme doc with instructions.([827](https://github.com/databricks/dbt-databricks/pull/827))
+
 - Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
 
 ### Under the Hood
+
+- Update pinned python SDK version from 0.17.0 to 0.41.0. ([827](https://github.com/databricks/dbt-databricks/pull/827))
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 
