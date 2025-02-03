@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Optional, Type, TypeVar
+from typing import Any, ClassVar, Optional, TypeVar
 
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
@@ -32,7 +32,7 @@ class TypedConstraint(ModelLevelConstraint, ABC):
     str_type: ClassVar[str]
 
     @classmethod
-    def __post_deserialize__(cls: Type[T], obj: T) -> T:
+    def __post_deserialize__(cls: type[T], obj: T) -> T:
         assert obj.type == cls.str_type, "Mismatched constraint type"
         obj._validate()
         return obj

@@ -32,7 +32,10 @@ from dbt.adapters.contracts.connection import (
 )
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
-from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
+from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
+    DatabricksCredentials,
+)
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
     ConnectionCancel,
@@ -373,7 +376,7 @@ class DatabricksDBTConnection(Connection):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
-    credentials_provider: Optional[TCredentialProvider] = None
+    credentials_manager: Optional[DatabricksCredentialManager] = None
     _user_agent = f"dbt-databricks/{__version__}"
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
@@ -634,7 +637,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+        cls.credentials_manager = creds.authenticate()
 
         invocation_env = creds.get_invocation_env()
         user_agent_entry = cls._user_agent
@@ -652,12 +655,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
         http_path = databricks_connection.http_path
 
         def connect() -> DatabricksSQLConnectionWrapper:
+            assert cls.credentials_manager is not None
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn = dbsql.connect(
                     server_hostname=creds.host,
                     http_path=http_path,
-                    credentials_provider=cls.credentials_provider,
+                    credentials_provider=cls.credentials_manager.credentials_provider,
                     http_headers=http_headers if http_headers else None,
                     session_configuration=creds.session_properties,
                     catalog=creds.database,
@@ -708,7 +712,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+        cls.credentials_manager = creds.authenticate()
 
         invocation_env = creds.get_invocation_env()
         user_agent_entry = cls._user_agent
