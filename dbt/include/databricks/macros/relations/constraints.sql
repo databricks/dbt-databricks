@@ -26,7 +26,6 @@
 {% endmacro %}
 
 {% macro apply_alter_constraints(relation) %}
-  {{ log("Alter constraints " ~ relation.alter_constraints) }}
   {%- for constraint in relation.alter_constraints -%}
     {% call statement('add constraint') %}
       ALTER TABLE {{ relation }} ADD {{ constraint.render() }}

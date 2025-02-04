@@ -13,8 +13,6 @@ from uuid import uuid4
 
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.events.functions import fire_event
-from dbt_common.events.types import Note
 from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -788,10 +786,6 @@ class DatabricksAdapter(SparkAdapter):
                 enriched_columns.append(column)
 
         return enriched_columns, parsed_constraints
-
-    @available
-    def log_config(self, config: DatabricksConfig) -> None:
-        fire_event(Note(msg=f"In impl: {config.get('safe_table_create')}"))
 
 
 @dataclass(frozen=True)

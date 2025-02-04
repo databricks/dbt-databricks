@@ -18,7 +18,6 @@
     {% call statement('main', language=language) %}
       {{ get_create_intermediate_table(intermediate_relation, compiled_code, language) }}
     {% endcall %}
-    {{ log(existing_relation ~ " " ~ safe_create ~ " " ~ existing_relation.can_be_renamed) }}
     {% if not existing_relation %}
       {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
     {% else %}
