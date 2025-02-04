@@ -1,3 +1,47 @@
+{% macro create_table_at(relation, intermediate_relation, compiled_code) %}
+  {% set tags = config.get('databricks_tags') %}
+  {%- set model_columns = model.get('columns', []) -%}
+  {%- set existing_columns = adapter.get_columns_in_relation(intermediate_relation) -%}
+  {% set model_constraints = model.get('constraints', []) %}
+  {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints) %}
+
+  {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
+  {% call statement('main') %}
+    {{ get_create_table_sql(target_relation, columns_and_constraints[0], intermediate_relation, compiled_code) }}
+  {% endcall %}
+
+  {{ apply_alter_constraints(target_relation) }}
+  {{ apply_tags(target_relation, tags) }}
+
+  {% call statement('merge into target') %}
+    insert into {{ target_relation }} select * from {{ intermediate_relation }}
+  {% endcall %}
+{% endmacro %}
+
+{% macro get_create_table_sql(target_relation, columns, intermediate_relation, compiled_code) %}
+  {%- set file_format = config.get('file_format', default='delta') -%}
+  {%- set contract = config.get('contract') -%}
+  {%- set contract_enforced = contract and contract.enforced -%}
+  {%- if contract_enforced -%}
+    {{ get_assert_columns_equivalent(compiled_code) }}
+  {% endif %}
+
+  {% if file_format == 'delta' %}
+    create or replace table {{ target_relation }}
+  {% else %}
+    create table {{ target_relation }}
+  {% endif -%}
+  {{ get_column_and_constraints_sql(target_relation, columns) }}
+  {{ file_format_clause() }}
+  {{ options_clause() }}
+  {{ partition_cols(label="partitioned by") }}
+  {{ liquid_clustered_cols() }}
+  {{ clustered_cols(label="clustered by") }}
+  {{ location_clause(target_relation) }}
+  {{ comment_clause() }}
+  {{ tblproperties_clause() }}
+{% endmacro %}
+
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
   {%- if language == 'sql' -%}
     {%- if temporary -%}
@@ -58,3 +102,11 @@
     )
   {%- endif %}
 {%- endmacro -%}
+
+{% macro get_create_intermediate_table(relation, compiled_code, language) %}
+  {%- if language == 'sql' -%}
+    {{ create_temporary_view(relation, compiled_code) }}
+  {%- else -%}
+    {{ create_python_intermediate_table(relation, compiled_code) }}
+  {%- endif -%}
+{% endmacro %}

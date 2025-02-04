@@ -35,8 +35,8 @@
 
     {# /* create target_relation in place by first backing up the existing relation */ #}
     {%- elif existing_relation.can_be_renamed -%}
+        {{ create_backup(existing_relation) }}
         {{ return([
-            get_create_backup_sql(existing_relation),
             get_create_sql(target_relation, sql),
             get_drop_backup_sql(existing_relation)
         ]) }}

@@ -16,6 +16,16 @@ from
     '2019-01-01' as date_day ) as model_subq
 """
 
+expected_sql_v2 = """
+create or replace table <model_identifier> (
+  color string,
+  id integer not null comment 'hello',
+  date_day string,
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES <foreign_key_model_identifier> (id)
+  ) using delta
+"""
+
 constraints_yml = fixtures.model_schema_yml.replace("text", "string").replace("primary key", "")
 
 incremental_foreign_key_schema_yml = """
@@ -100,4 +110,19 @@ child_sql = """
  -- depends_on: {{ ref('parent_table') }}
 
 select 2 as id, 'name' as name, 1 as parent_id
+"""
+
+
+my_model_sql = """
+{{
+  config(
+    materialized = "table",
+    safe_table_create = true
+  )
+}}
+
+select
+  1 as id,
+  'blue' as color,
+  '2019-01-01' as date_day
 """
