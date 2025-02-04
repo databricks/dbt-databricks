@@ -110,11 +110,11 @@ class CheckConstraint(TypedConstraint):
 
     def _validate(self) -> None:
         if not self.name:
-            self.name = f"chk_{str(uuid4()).split('-')[0]}"
+            self.name: str = f"chk_{str(uuid4()).split('-')[0]}"
         if not self.expression:
             raise self._render_error([["expression"]])
         if self.expression[0] != "(" or self.expression[-1] != ")":
-            self.expression = f"({self.expression})"
+            self.expression: str = f"({self.expression})"
 
     def _render_suffix(self) -> str:
         return f"CHECK {self.expression}"
