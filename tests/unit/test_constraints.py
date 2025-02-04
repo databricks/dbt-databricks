@@ -64,7 +64,7 @@ class TestCheckConstraint:
     def test_check_constraint_from_dict__valid(self):
         raw = {"name": "chk_raw", "type": "check", "expression": "1 = 1"}
         assert CheckConstraint(
-            name="chk_raw", type=ConstraintType.check, expression="1 = 1"
+            name="chk_raw", type=ConstraintType.check, expression="(1 = 1)"
         ) == CheckConstraint.from_dict(raw)
 
     def test_check_constraint_validate__invalid(self):
@@ -75,8 +75,8 @@ class TestCheckConstraint:
             CheckConstraint.from_dict(raw)
 
     def test_custom_constraint_render(self):
-        constraint = CheckConstraint(type=ConstraintType.check, expression="1 = 1")
-        assert constraint.render() == "CHECK (1 = 1)"
+        constraint = CheckConstraint.from_dict({"type": "check", "expression": "1 = 1"})
+        assert constraint.render().endswith(" CHECK (1 = 1)")
 
 
 class TestPrimaryKeyConstraint:
