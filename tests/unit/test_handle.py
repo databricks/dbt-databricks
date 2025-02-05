@@ -108,6 +108,20 @@ class TestCursorWrapper:
         wrapper = CursorWrapper(cursor)
         assert wrapper.get_response() == AdapterResponse("OK", query_id="id")
 
+    def test_with__no_exception(self, cursor):
+        with CursorWrapper(cursor) as c:
+            c.fetchone()
+        cursor.fetchone.assert_called_once()
+        cursor.close.assert_called_once()
+
+    def test_with__exception(self, cursor):
+        cursor.fetchone.side_effect = Exception("foo")
+        with pytest.raises(Exception, match="foo"):
+            with CursorWrapper(cursor) as c:
+                c.fetchone()
+        cursor.fetchone.assert_called_once()
+        cursor.close.assert_called_once()
+
 
 class TestDatabricksHandle:
     @pytest.fixture

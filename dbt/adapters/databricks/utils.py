@@ -85,6 +85,6 @@ ExceptionToStrOp = Callable[[Exception], str]
 
 def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStrOp) -> None:
     try:
-        return op()
+        op()
     except Exception as e:
         logger.warning(log_gen(e))

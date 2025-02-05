@@ -2,7 +2,8 @@ import decimal
 import re
 import sys
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -69,22 +70,41 @@ class CursorWrapper:
             utils.handle_exceptions_as_warning(lambda: cleanup(self._cursor), failLog)
 
     def fetchall(self) -> Sequence[tuple]:
-        return self._cursor.fetchall()
+        return self._safe_execute(lambda cursor: cursor.fetchall())
 
     def fetchone(self) -> Optional[tuple]:
-        return self._cursor.fetchone()
+        return self._safe_execute(lambda cursor: cursor.fetchone())
 
     def fetchmany(self, size: int) -> Sequence[tuple]:
-        return self._cursor.fetchmany(size)
+        return self._safe_execute(lambda cursor: cursor.fetchmany(size))
 
     def get_response(self) -> AdapterResponse:
         return AdapterResponse(_message="OK", query_id=self._cursor.query_id or "N/A")
+
+    T = TypeVar("T")
+
+    def _safe_execute(self, f: Callable[[Cursor], T]) -> T:
+        if not self.open:
+            raise DbtRuntimeError("Attempting to execute on a closed cursor")
+        return f(self._cursor)
 
     def __str__(self) -> str:
         return (
             f"Cursor(session-id={self._cursor.connection.get_session_id_hex()}, "
             f"command-id={self._cursor.query_id})"
         )
+
+    def __enter__(self) -> "CursorWrapper":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool:
+        self.close()
+        return exc_val is None
 
 
 class DatabricksHandle:
@@ -96,11 +116,11 @@ class DatabricksHandle:
 
     def __init__(
         self,
-        conn: Optional[Connection],
+        conn: Connection,
         is_cluster: bool,
     ):
         self._conn = conn
-        self.open = self._conn is not None
+        self.open = True
         self._cursor: Optional[CursorWrapper] = None
         self._dbr_version: Optional[tuple[int, int]] = None
         self._is_cluster = is_cluster
@@ -128,9 +148,7 @@ class DatabricksHandle:
 
     @property
     def session_id(self) -> str:
-        if self._conn:
-            return self._conn.get_session_id_hex()
-        return "N/A"
+        return self._conn.get_session_id_hex()
 
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
         """
@@ -160,7 +178,6 @@ class DatabricksHandle:
         Cancel in progress query, if any, then close connection and cursor.
         """
         self._cleanup(
-            lambda conn: conn.close() if conn else None,
             lambda cursor: cursor.cancel(),
             lambda: f"{self} - Cancelling",
             lambda ex: f"{self} - Exception while cancelling: {ex}",
@@ -172,7 +189,6 @@ class DatabricksHandle:
         """
 
         self._cleanup(
-            lambda conn: conn.close() if conn else None,
             lambda cursor: cursor.close(),
             lambda: f"{self} - Closing",
             lambda ex: f"{self} - Exception while closing: {ex}",
@@ -185,7 +201,9 @@ class DatabricksHandle:
         logger.debug("NotImplemented: rollback")
 
     @staticmethod
-    def from_connection_args(conn_args: dict[str, Any], is_cluster: bool) -> "DatabricksHandle":
+    def from_connection_args(
+        conn_args: dict[str, Any], is_cluster: bool
+    ) -> Optional["DatabricksHandle"]:
         """
         Create a new DatabricksHandle from the given connection arguments.
         """
@@ -193,16 +211,14 @@ class DatabricksHandle:
         conn = dbsql.connect(**conn_args)
         if not conn:
             logger.warning(f"Failed to create connection for {conn_args.get('http_path')}")
-
+            return None
         connection = DatabricksHandle(conn, is_cluster=is_cluster)
-
         logger.debug(f"{connection} - Created")
 
         return connection
 
     def _cleanup(
         self,
-        connect_op: ConnectionOp,
         cursor_op: CursorWrapperOp,
         startLog: LogOp,
         failLog: FailLogOp,
@@ -217,7 +233,7 @@ class DatabricksHandle:
             if self._cursor:
                 cursor_op(self._cursor)
 
-            utils.handle_exceptions_as_warning(lambda: connect_op(self._conn), failLog)
+            utils.handle_exceptions_as_warning(lambda: self._conn.close(), failLog)
 
     def _safe_execute(self, f: CursorExecOp) -> CursorWrapper:
         """
