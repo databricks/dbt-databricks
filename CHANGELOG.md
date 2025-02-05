@@ -1,5 +1,9 @@
 ## dbt-databricks 1.9.5 (TBD)
 
+### Fixes
+
+- table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
