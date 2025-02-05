@@ -448,11 +448,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 conn = DatabricksHandle.from_connection_args(
                     conn_args, creds.cluster_id is not None
                 )
-                if conn.open:
+                if conn:
                     databricks_connection.session_id = conn.session_id
                     databricks_connection.last_used_time = time.time()
 
-                return conn
+                    return conn
+                else:
+                    raise DbtDatabaseError("Failed to create connection")
             except Error as exc:
                 logger.error(ConnectionCreateError(exc))
                 raise

@@ -267,6 +267,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 assert http_headers is None
             else:
                 assert http_headers == expected_http_headers
+            return Mock()
 
         return connect
 
