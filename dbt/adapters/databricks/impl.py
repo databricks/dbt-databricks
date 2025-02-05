@@ -194,9 +194,10 @@ class DatabricksAdapter(SparkAdapter):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', cannot set file_format to other than delta."
                 )
-            if config.get("materialized") not in ("incremental", "table"):
+            if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
-                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                    "When table_format is 'iceberg', materialized must be 'incremental'"
+                    ", 'table', or 'snapshot'."
                 )
             result["delta.enableIcebergCompatV2"] = "true"
             result["delta.universalFormat.enabledFormats"] = "iceberg"
