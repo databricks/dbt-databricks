@@ -2,7 +2,13 @@
 
 ### Features
 
-- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models. 
+- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models.
+
+### Fixes
+
+- table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+- Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
+
 
 ### Under the Hood
 
