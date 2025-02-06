@@ -94,6 +94,26 @@ DATABRICKS_QUERY_COMMENT = f"""
 """
 
 
+@dataclass(frozen=True)
+class QueryContextWrapper:
+    """
+    Until dbt tightens this protocol up, we need to wrap the context for safety
+    """
+
+    compute_name: Optional[str] = None
+    relation_name: Optional[str] = None
+
+    @staticmethod
+    def from_context(query_header_context: Any) -> "QueryContextWrapper":
+        if query_header_context is None:
+            return QueryContextWrapper()
+        compute_name = None
+        relation_name = getattr(query_header_context, "relation_name", "[unknown]")
+        if hasattr(query_header_context, "config") and query_header_context.config:
+            compute_name = query_header_context.config.get("databricks_compute")
+        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+
+
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
     def _get_comment_macro(self) -> Optional[str]:
         if self.config.query_comment.comment == DEFAULT_QUERY_COMMENT:
@@ -238,16 +258,16 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self._cleanup_idle_connections()
 
         conn_name: str = "master" if name is None else name
-
+        wrapped = QueryContextWrapper.from_context(query_header_context)
         # Get a connection for this thread
-        conn = self._get_if_exists_compute_connection(_get_compute_name(query_header_context) or "")
+        conn = self._get_if_exists_compute_connection(wrapped.compute_name or "")
 
         if conn is None:
-            conn = self._create_compute_connection(conn_name, query_header_context)
+            conn = self._create_compute_connection(conn_name, wrapped)
         else:  # existing connection either wasn't open or didn't have the right name
             conn = self._update_compute_connection(conn, conn_name)
 
-        conn._acquire(query_header_context)
+        conn._acquire(wrapped)
 
         return conn
 
@@ -518,13 +538,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     conn._reset_handle(self.open)
 
     def _create_compute_connection(
-        self, conn_name: str, query_header_context: Any = None
+        self, conn_name: str, query_header_context: QueryContextWrapper
     ) -> DatabricksDBTConnection:
         """Create anew connection for the combination of current thread and compute associated
         with the given node."""
 
         # Create a new connection
-        compute_name = _get_compute_name(query_header_context) or ""
+        compute_name = query_header_context.compute_name or ""
 
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
@@ -536,9 +556,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         )
         conn.compute_name = compute_name
         creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = _get_http_path(query_header_context, creds=creds) or ""
+        conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-        conn.max_idle_time = _get_max_idle_time(query_header_context, creds=creds)
+        conn.max_idle_time = QueryConfigUtils.get_max_idle_time(query_header_context, creds)
 
         conn.handle = LazyHandle(self.open)
 
@@ -604,74 +624,56 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return conn
 
 
-def _get_compute_name(query_header_context: Any) -> Optional[str]:
-    # Get the name of the specified compute resource from the node's
-    # config.
-    compute_name = None
-    if (
-        query_header_context
-        and hasattr(query_header_context, "config")
-        and query_header_context.config
-    ):
-        compute_name = query_header_context.config.get("databricks_compute", None)
-    return compute_name
+class QueryConfigUtils:
+    """
+    Utility class for getting config values from QueryHeaderContextWrapper and Credentials.
+    """
 
+    @staticmethod
+    def get_http_path(context: QueryContextWrapper, creds: DatabricksCredentials) -> str:
+        """
+        Get the http_path for the compute specified for the node.
+        If none is specified default will be used.
+        """
 
-def _get_http_path(query_header_context: Any, creds: DatabricksCredentials) -> Optional[str]:
-    """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
+        if not context.compute_name:
+            return creds.http_path or ""
 
-    # ResultNode *should* have relation_name attr, but we work around a core
-    # issue by checking.
-    relation_name = getattr(query_header_context, "relation_name", "[unknown]")
+        # Get the http_path for the named compute.
+        http_path = None
+        if creds.compute:
+            http_path = creds.compute.get(context.compute_name, {}).get("http_path", None)
 
-    # If there is no node we return the http_path for the default compute.
-    if not query_header_context:
-        return creds.http_path
+        # no http_path for the named compute resource is an error condition
+        if not http_path:
+            raise DbtRuntimeError(
+                f"Compute resource {context.compute_name} does not exist or "
+                f"does not specify http_path, relation: {context.relation_name}"
+            )
 
-    # Get the name of the compute resource specified in the node's config.
-    # If none is specified return the http_path for the default compute.
-    compute_name = _get_compute_name(query_header_context)
-    if not compute_name:
-        return creds.http_path
+        return http_path
 
-    # Get the http_path for the named compute.
-    http_path = None
-    if creds.compute:
-        http_path = creds.compute.get(compute_name, {}).get("http_path", None)
+    @staticmethod
+    def get_max_idle_time(context: QueryContextWrapper, creds: DatabricksCredentials) -> int:
+        """Get the http_path for the compute specified for the node.
+        If none is specified default will be used."""
 
-    # no http_path for the named compute resource is an error condition
-    if not http_path:
-        raise DbtRuntimeError(
-            f"Compute resource {compute_name} does not exist or "
-            f"does not specify http_path, relation: {relation_name}"
+        max_idle_time = (
+            DEFAULT_MAX_IDLE_TIME if creds.connect_max_idle is None else creds.connect_max_idle
         )
 
-    return http_path
-
-
-def _get_max_idle_time(query_header_context: Any, creds: DatabricksCredentials) -> int:
-    """Get the http_path for the compute specified for the node.
-    If none is specified default will be used."""
-
-    max_idle_time = (
-        DEFAULT_MAX_IDLE_TIME if creds.connect_max_idle is None else creds.connect_max_idle
-    )
-
-    if query_header_context:
-        compute_name = _get_compute_name(query_header_context)
-        if compute_name and creds.compute:
-            max_idle_time = creds.compute.get(compute_name, {}).get(
+        if context.compute_name and creds.compute:
+            max_idle_time = creds.compute.get(context.compute_name, {}).get(
                 "connect_max_idle", max_idle_time
             )
 
-    if not isinstance(max_idle_time, int):
-        if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
-            return int(max_idle_time.strip())
-        else:
-            raise DbtRuntimeError(
-                f"{max_idle_time} is not a valid value for connect_max_idle. "
-                "Must be a number of seconds."
-            )
+        if not isinstance(max_idle_time, int):
+            if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
+                return int(max_idle_time.strip())
+            else:
+                raise DbtRuntimeError(
+                    f"{max_idle_time} is not a valid value for connect_max_idle. "
+                    "Must be a number of seconds."
+                )
 
-    return max_idle_time
+        return max_idle_time
