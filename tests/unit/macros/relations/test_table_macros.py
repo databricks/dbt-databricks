@@ -190,7 +190,6 @@ class TestCreateTableAs(MacroTestBase):
 
         assert sql == expected
 
-
     def test_macros_create_table_as_comment(self, config, template_bundle):
         config["persist_docs"] = {"relation": True}
         template_bundle.context["model"].description = "Description Test"
