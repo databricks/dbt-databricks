@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models.
+- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models ([935](https://github.com/databricks/dbt-databricks/pull/935))
 
 ### Fixes
 
