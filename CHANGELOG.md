@@ -3,6 +3,7 @@
 ### Fixes
 
 - table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+- Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
 
 ### Under the Hood
 

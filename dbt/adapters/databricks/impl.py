@@ -140,7 +140,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 
     _identifier = "|".join(table_names)
     bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
-    if bypass_2048_char_limit == "true":
+    if bypass_2048_char_limit:
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
 
