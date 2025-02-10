@@ -110,6 +110,7 @@ class DatabricksConfig(AdapterConfig):
     partition_by: Optional[Union[list[str], str]] = None
     clustered_by: Optional[Union[list[str], str]] = None
     liquid_clustered_by: Optional[Union[list[str], str]] = None
+    auto_liquid_cluster: Optional[bool] = None
     buckets: Optional[int] = None
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
