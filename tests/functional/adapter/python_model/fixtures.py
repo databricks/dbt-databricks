@@ -42,6 +42,32 @@ sources:
         identifier: source
 """
 
+serverless_schema_with_environment = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_python_model
+    config:
+      submission_method: serverless_cluster
+      create_notebook: true
+      environment_key: "test_key"
+      environment_dependencies: ["requests"]
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
+"""
+
 workflow_schema = """version: 2
 
 models:
