@@ -327,7 +327,8 @@ class JobRunsApi(PollableApi):
         self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
     ) -> str:
         logger.debug(
-            f"Submitting job with run_name={run_name} and job_spec={job_spec} and additional_job_settings={additional_job_settings}"
+            f"Submitting job with run_name={run_name} and job_spec={job_spec}"
+            " and additional_job_settings={additional_job_settings}"
         )
         submit_response = self.session.post(
             "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
