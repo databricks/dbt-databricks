@@ -32,6 +32,17 @@ class TestSnapshotCheck(BaseSnapshotCheck):
     pass
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+class TestSnapshotIceberg(BaseSnapshotCheck):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "snapshots": {
+                "+table_format": "iceberg",
+            }
+        }
+
+
 class TestSnapshotPersistDocs:
     @pytest.fixture(scope="class")
     def models(self):
