@@ -146,8 +146,16 @@ class TestPythonJobConfigCompiler:
         parsed_model.config.additional_libs = []
         return run_name
 
+    @pytest.fixture
+    def environment_key(self, parsed_model):
+        environment_key = "test_key"
+        parsed_model.config.environment_key = environment_key
+        parsed_model.config.environment_dependencies = ["requests"]
+        return environment_key
+
     def test_compile__empty_configs(self, client, permission_builder, parsed_model, run_name):
         parsed_model.config.python_job_config.dict.return_value = {}
+        parsed_model.config.environment_key = None
         compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
         permission_builder.build_job_permissions.return_value = []
         details = compiler.compile("path")
@@ -162,7 +170,9 @@ class TestPythonJobConfigCompiler:
         }
         assert details.additional_job_config == {}
 
-    def test_compile__nonempty_configs(self, client, permission_builder, parsed_model, run_name):
+    def test_compile__nonempty_configs(
+        self, client, permission_builder, parsed_model, run_name, environment_key
+    ):
         parsed_model.config.packages = ["foo"]
         parsed_model.config.index_url = None
         parsed_model.config.python_job_config.dict.return_value = {"foo": "bar"}
@@ -176,6 +186,7 @@ class TestPythonJobConfigCompiler:
         details = compiler.compile("path")
         assert details.run_name == run_name
         assert details.job_spec == {
+            "environment_key": environment_key,
             "task_key": "inner_notebook",
             "notebook_task": {
                 "notebook_path": "path",
@@ -185,4 +196,12 @@ class TestPythonJobConfigCompiler:
             "access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}],
             "queue": {"enabled": True},
         }
-        assert details.additional_job_config == {"foo": "bar"}
+        assert details.additional_job_config == {
+            "foo": "bar",
+            "environments": [
+                {
+                    "environment_key": environment_key,
+                    "spec": {"client": "2", "dependencies": ["requests"]},
+                }
+            ],
+        }
