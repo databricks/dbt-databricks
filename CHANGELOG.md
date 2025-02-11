@@ -16,6 +16,7 @@
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
 - Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
+- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
 
 ## dbt-databricks 1.9.4 (Jan 30, 2025)
 
