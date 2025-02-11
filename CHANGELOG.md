@@ -1,14 +1,16 @@
-## dbt-databricks 1.9.5 (Feb 10, 2025)
+## dbt-databricks 1.9.5 (Feb 11, 2025)
 
 ### Features
 
 - Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models (thanks @ShaneMazur!) ([935](https://github.com/databricks/dbt-databricks/pull/935))
+- Prepare for environments for python models with serverless clusters ([938](https://github.com/databricks/dbt-databricks/pull/938))
 
 ### Fixes
 
 - table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
 - Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
 - Use POSIX standard when creating location for the tables (thanks @gsolasab!) ([919](https://github.com/databricks/dbt-databricks/pull/919))
+
 
 ### Under the Hood
 
