@@ -209,6 +209,8 @@ class PythonJobConfigCompiler:
         self.job_grants = parsed_model.config.python_job_config.grants
         self.acls = parsed_model.config.access_control_list
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
+        self.environment_key = parsed_model.config.environment_key
+        self.environment_deps = parsed_model.config.environment_dependencies
 
     def compile(self, path: str) -> PythonJobDetails:
         job_spec: dict[str, Any] = {
@@ -217,9 +219,20 @@ class PythonJobConfigCompiler:
                 "notebook_path": path,
             },
         }
-        job_spec.update(self.cluster_spec)  # updates 'new_cluster' config
 
         additional_job_config = self.additional_job_settings
+
+        if self.environment_key:
+            job_spec["environment_key"] = self.environment_key
+            if self.environment_deps and not self.additional_job_settings.get("environments"):
+                additional_job_config["environments"] = [
+                    {
+                        "environment_key": self.environment_key,
+                        "spec": {"client": "2", "dependencies": self.environment_deps},
+                    }
+                ]
+        job_spec.update(self.cluster_spec)  # updates 'new_cluster' config
+
         access_control_list = self.permission_builder.build_job_permissions(
             self.job_grants, self.acls
         )
