@@ -1,4 +1,10 @@
-## dbt-databricks 1.9.5 (Feb 11, 2025)
+## dbt-databricks 1.9.6 (TBD)
+
+### Under the Hood
+
+- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
+
+## dbt-databricks 1.9.5 (Feb 13, 2025)
 
 ### Features
 
@@ -11,12 +17,10 @@
 - Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
 - Use POSIX standard when creating location for the tables (thanks @gsolasab!) ([919](https://github.com/databricks/dbt-databricks/pull/919))
 
-
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
 - Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
-- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
 
 ## dbt-databricks 1.9.4 (Jan 30, 2025)
 
