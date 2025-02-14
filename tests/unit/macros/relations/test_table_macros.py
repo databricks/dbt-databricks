@@ -180,6 +180,16 @@ class TestCreateTableAs(MacroTestBase):
 
         assert sql == expected
 
+    def test_macros_create_table_as_liquid_cluster_auto(self, config, template_bundle):
+        config["auto_liquid_cluster"] = True
+        sql = self.render_create_table_as(template_bundle)
+        expected = (
+            f"create or replace table {template_bundle.relation} using"
+            " delta CLUSTER BY AUTO as select 1"
+        )
+
+        assert sql == expected
+
     def test_macros_create_table_as_comment(self, config, template_bundle):
         config["persist_docs"] = {"relation": True}
         template_bundle.context["model"].description = "Description Test"

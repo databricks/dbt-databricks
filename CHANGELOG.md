@@ -12,14 +12,31 @@
 
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 
-## dbt-databricks 1.9.5 (TBD)
+## dbt-databricks 1.9.6 (TBD)
+
+### Under the Hood
+
+- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
+
+## dbt-databricks 1.9.5 (Feb 13, 2025)
+
+### Features
+
+- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models (thanks @ShaneMazur!) ([935](https://github.com/databricks/dbt-databricks/pull/935))
+- Prepare for environments for python models with serverless clusters ([938](https://github.com/databricks/dbt-databricks/pull/938))
+
+### Fixes
+
+- table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+- Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
+- Use POSIX standard when creating location for the tables (thanks @gsolasab!) ([919](https://github.com/databricks/dbt-databricks/pull/919))
 
 ### Under the Hood
 
 - Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
-- Use POSIX standard when creating location for the tables ([919](https://github.com/databricks/dbt-databricks/pull/919))
+- Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
 
-## dbt-databricks 1.9.4 (Jan 30, 2024)
+## dbt-databricks 1.9.4 (Jan 30, 2025)
 
 ### Under the Hood
 
@@ -29,7 +46,7 @@
 
 Yanked due to being published with the incorrect bits
 
-## dbt-databricks 1.9.2 (Jan 21, 2024)
+## dbt-databricks 1.9.2 (Jan 21, 2025)
 
 ### Features
 
