@@ -25,22 +25,20 @@ from dbt.adapters.contracts.connection import (
 )
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
-from dbt.adapters.databricks.connections import (
-    ConnectionCreate,
-    ConnectionCreateError,
-    ConnectionIdleCheck,
-    ConnectionIdleClose,
-    ConnectionRetrieve,
-    ConnectionReuse,
-)
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
     DatabricksCredentials,
 )
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionAcquire,
+    ConnectionCreate,
+    ConnectionCreateError,
+    ConnectionIdleCheck,
+    ConnectionIdleClose,
     ConnectionRelease,
     ConnectionReset,
+    ConnectionRetrieve,
+    ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils

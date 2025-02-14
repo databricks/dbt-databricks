@@ -24,7 +24,7 @@ from dbt.adapters.databricks.constraints import (
 )
 
 
-class TestConstraint(TypedConstraint):
+class FakeConstraint(TypedConstraint):
     str_type = "unique"
 
     def _render_suffix(self):
@@ -34,10 +34,10 @@ class TestConstraint(TypedConstraint):
 class TestTypedConstraint:
     def test_typed_constraint_from_dict__invalid_type(self):
         with pytest.raises(AssertionError, match="Mismatched constraint type"):
-            TestConstraint.from_dict({"type": "custom"})
+            FakeConstraint.from_dict({"type": "custom"})
 
     def test_render__with_name(self):
-        constraint = TestConstraint(type=ConstraintType.check, name="my_constraint")
+        constraint = FakeConstraint(type=ConstraintType.check, name="my_constraint")
         assert constraint.render() == "CONSTRAINT my_constraint test"
 
 

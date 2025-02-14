@@ -1,9 +1,10 @@
+from unittest.mock import Mock
+
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import connections
 from dbt.adapters.databricks.connections import QueryConfigUtils, QueryContextWrapper
-from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 
 class TestQueryConfigUtils:
@@ -22,7 +23,7 @@ class TestQueryConfigUtils:
 
     @pytest.fixture
     def creds(self, path):
-        return DatabricksCredentials(http_path=path)
+        return Mock(http_path=path, compute={}, connect_max_idle=None)
 
     def test_get_http_path__empty(self, path, creds):
         assert QueryConfigUtils.get_http_path(QueryContextWrapper(), creds) == path
