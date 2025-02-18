@@ -202,7 +202,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
-        self._api_client = None
+        self._api_client: Optional[DatabricksApiClient] = None
         self.threads_compute_connections: dict[
             Hashable, dict[Hashable, DatabricksDBTConnection]
         ] = {}
