@@ -202,16 +202,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
-        creds = cast(DatabricksCredentials, self.profile.credentials)
-        self.api_client = DatabricksApiClient.create(creds, 15 * 60)
         self.threads_compute_connections: dict[
             Hashable, dict[Hashable, DatabricksDBTConnection]
         ] = {}
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
-        logger.info("Cancelling open python jobs")
-        PythonRunTracker.cancel_runs(self.api_client)
+        if self.profile.credentials:
+            api_client = DatabricksApiClient.create(
+                cast(DatabricksCredentials, self.profile.credentials), 15 * 60
+            )
+            logger.info("Cancelling open python jobs")
+            PythonRunTracker.cancel_runs(api_client)
         return cancelled
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
