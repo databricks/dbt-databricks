@@ -17,30 +17,6 @@ class ConnectionEvent(ABC):
         return f"Connection(session-id={self.session_id}) - {self.message}"
 
 
-class ConnectionCancel(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection]):
-        super().__init__(connection, "Cancelling connection")
-
-
-class ConnectionClose(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection]):
-        super().__init__(connection, "Closing connection")
-
-
-class ConnectionCancelError(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection], exception: Exception):
-        super().__init__(
-            connection, str(SQLErrorEvent(exception, "Exception while trying to cancel connection"))
-        )
-
-
-class ConnectionCloseError(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection], exception: Exception):
-        super().__init__(
-            connection, str(SQLErrorEvent(exception, "Exception while trying to close connection"))
-        )
-
-
 class ConnectionCreateError(ConnectionEvent):
     def __init__(self, exception: Exception):
         super().__init__(

@@ -6,6 +6,7 @@ from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
 
 from dbt.adapters.base import BaseAdapter
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ def _redact_credentials_in_copy_into(sql: str) -> str:
             f"{key.strip()} = '[REDACTED]'"
             for key, _ in (pair.strip().split("=", 1) for pair in m.group(1).split(","))
         )
-        return f"{sql[: m.start()]} ({redacted}){sql[m.end():]}"
+        return f"{sql[: m.start()]} ({redacted}){sql[m.end() :]}"
     else:
         return sql
 
@@ -77,3 +78,13 @@ def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
 
 def quote(name: str) -> str:
     return f"`{name}`" if "`" not in name else name
+
+
+ExceptionToStrOp = Callable[[Exception], str]
+
+
+def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStrOp) -> None:
+    try:
+        op()
+    except Exception as e:
+        logger.warning(log_gen(e))

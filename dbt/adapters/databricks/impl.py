@@ -120,6 +120,7 @@ class DatabricksConfig(AdapterConfig):
     partition_by: Optional[Union[list[str], str]] = None
     clustered_by: Optional[Union[list[str], str]] = None
     liquid_clustered_by: Optional[Union[list[str], str]] = None
+    auto_liquid_cluster: Optional[bool] = None
     buckets: Optional[int] = None
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
@@ -151,7 +152,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 
     _identifier = "|".join(table_names)
     bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
-    if bypass_2048_char_limit == "true":
+    if bypass_2048_char_limit:
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
 
@@ -207,9 +208,10 @@ class DatabricksAdapter(SparkAdapter):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', cannot set file_format to other than delta."
                 )
-            if config.get("materialized") not in ("incremental", "table"):
+            if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
-                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                    "When table_format is 'iceberg', materialized must be 'incremental'"
+                    ", 'table', or 'snapshot'."
                 )
             result["delta.enableIcebergCompatV2"] = "true"
             result["delta.universalFormat.enabledFormats"] = "iceberg"
@@ -638,9 +640,9 @@ class DatabricksAdapter(SparkAdapter):
     def run_sql_for_tests(
         self, sql: str, fetch: str, conn: Connection
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
-        cursor = conn.handle.cursor()
+        handle = conn.handle
         try:
-            cursor.execute(sql)
+            cursor = handle.execute(sql)
             if fetch == "one":
                 return cursor.fetchone()
             elif fetch == "all":
@@ -652,7 +654,8 @@ class DatabricksAdapter(SparkAdapter):
             print(e)
             raise
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
             conn.transaction_open = False
 
     @available
