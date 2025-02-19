@@ -14,6 +14,10 @@
 
 ## dbt-databricks 1.9.6 (TBD)
 
+### Fixes
+
+- Fix for parse raising error for not having credentials ([941](https://github.com/databricks/dbt-databricks/pull/941))
+
 ### Under the Hood
 
 - Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
