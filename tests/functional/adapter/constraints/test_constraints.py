@@ -17,6 +17,10 @@ from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 class DatabricksConstraintsBase:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
     def schema_string_type(self, string_type):
         return string_type
 
@@ -85,11 +89,7 @@ class TestIncrementalConstraintsColumnsEqual(
 class BaseConstraintsDdlEnforcementSetup:
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-            }
-        }
+        return {"flags": {"use_materialization_v2": False}}
 
     @pytest.fixture(scope="class")
     def expected_sql(self):
@@ -124,11 +124,7 @@ class TestIncrementalConstraintsDdlEnforcement(
 class BaseConstraintsRollbackSetup:
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-            }
-        }
+        return {"flags": {"use_materialization_v2": False}}
 
     @pytest.fixture(scope="class")
     def expected_error_messages(self):
@@ -216,6 +212,10 @@ class TestForeignKeyParentConstraint:
 
 
 class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
     @pytest.fixture(scope="class")
     def models(self):
         return {

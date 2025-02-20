@@ -138,6 +138,7 @@ class DatabricksConfig(AdapterConfig):
     target_alias: Optional[str] = None
     source_alias: Optional[str] = None
     merge_with_schema_evolution: Optional[bool] = None
+    safe_table_create: Optional[bool] = None
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
@@ -318,11 +319,11 @@ class DatabricksAdapter(SparkAdapter):
             if file_format:
                 metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
             relations.append(
-                self.Relation.create(
+                DatabricksRelation.create(
                     database=schema_relation.database,
                     schema=schema_relation.schema,
                     identifier=name,
-                    type=self.Relation.get_relation_type(kind),
+                    type=DatabricksRelation.get_relation_type(kind),
                     metadata=metadata,
                 )
             )
@@ -469,7 +470,7 @@ class DatabricksAdapter(SparkAdapter):
         columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
         return (
-            self.Relation.create(
+            DatabricksRelation.create(
                 database=relation.database,
                 schema=relation.schema,
                 identifier=relation.identifier,
@@ -574,7 +575,7 @@ class DatabricksAdapter(SparkAdapter):
         if results:
             for name, information in results.select(["tableName", "information"]):
                 rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-                relation = self.Relation.create(
+                relation = DatabricksRelation.create(
                     database=schema_relation.database.lower() if schema_relation.database else None,
                     schema=schema_relation.schema.lower() if schema_relation.schema else None,
                     identifier=name,
@@ -601,7 +602,7 @@ class DatabricksAdapter(SparkAdapter):
         columns: list[dict[str, Any]] = []
 
         if identifier:
-            schema_relation = self.Relation.create(
+            schema_relation = DatabricksRelation.create(
                 database=catalog or "hive_metastore",
                 schema=schema,
                 identifier=identifier,

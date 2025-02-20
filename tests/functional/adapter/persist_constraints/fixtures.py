@@ -144,3 +144,70 @@ insert into {database}.{schema}.seed values (0, 'Cathy', '2022-03-01');
 insert_invalid_name = """
 insert into {database}.{schema}.seed values (3, null, '2022-03-01');
 """
+
+schema_v2_yml = """
+version: 2
+
+models:
+  - name: table_model
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        expression: id > 0
+    columns:
+      - name: id
+      - name: name
+        constraints:
+          - type: not_null
+      - name: date
+
+  - name: incremental_model
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        expression: id > 0
+    columns:
+      - name: id
+      - name: name
+        constraints:
+          - type: not_null
+      - name: date
+
+  - name: invalid_check_constraint
+    constraints:
+      - type: check
+        name: invalid_constraint
+
+  - name: invalid_column_constraint
+    columns:
+      - name: id
+        constraints:
+          - type: check
+            name: invalid_constraint
+
+  - name: table_model_disable_constraints
+    config:
+        persist_constraints: false
+    constraints:
+      - type: check
+        name: id_greater_than_zero
+        expression: id > 0
+    columns:
+      - name: id
+      - name: name
+        constraints:
+          - type: not_null
+      - name: date
+
+  - name: table_model_contract
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+      - name: name
+        data_type: string
+      - name: date
+        data_type: string
+"""
