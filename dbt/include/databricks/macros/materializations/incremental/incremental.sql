@@ -1,37 +1,24 @@
 {% materialization incremental, adapter='databricks', supported_languages=['sql', 'python'] -%}
   {{ log("MATERIALIZING INCREMENTAL") }}
-  {% set identifier = model['alias'] %}
-  {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
-  {%- set target_relation = this.incorporate(type='table') -%}
-  {%- set raw_file_format = config.get('file_format', default='delta') -%}
-  {%- set raw_strategy = config.get('incremental_strategy') or 'merge' -%}
-  {%- set grant_config = config.get('grants') -%}
-  {%- set tblproperties = config.get('tblproperties') -%}
-  {%- set tags = config.get('databricks_tags') -%}
-  {%- set full_refresh = should_full_refresh() %}
-  {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
-  {%- set unique_tmp_table_suffix = config.get('unique_tmp_table_suffix', False) | as_bool -%}
-  {%- set file_format = dbt_databricks_validate_get_file_format(raw_file_format) -%}
-  {% set is_replaceable = existing_relation.can_be_replaced and existing_relation.is_delta and file_format == 'delta' %}
-  {%- set incremental_strategy = dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) -%}
-  {%- set partition_by = config.get('partition_by') -%}
-  {%- set language = model['language'] -%}
-  {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
+  
+  {% set existing_relation = load_relation_with_metadata(this) %}
+  {% set target_relation = this.incorporate(type='table') %}
+  {% set file_format = get_file_format() %}
+  {% set incremental_strategy = get_incremental_strategy(file_format) %}
+  {% set grant_config = config.get('grants') %}
+  {% set full_refresh = should_full_refresh() %}
+  {% set partition_by = config.get('partition_by') %}
+  {% set language = model['language'] %}
+  {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
   {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
-  {%- if unique_tmp_table_suffix -%}
-    {%- set temp_relation_suffix = adapter.generate_unique_temporary_table_suffix() -%}
-  {%- else -%}
-    {%- set temp_relation_suffix = '__dbt_tmp' -%}
-  {%- endif -%}
-  {%- set incremental_predicates = config.get('predicates') or config.get('incremental_predicates') -%}
-  {%- set unique_key = config.get('unique_key') -%}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {#-- Set vars --#}
-    {% set model_constraints = model.get('constraints') %}
     {% set safe_create = config.get('safe_table_create', True) | as_bool  %}
+    {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
+    {% set is_replaceable = existing_relation.can_be_replaced and is_delta %}
 
-    {% set intermediate_relation = make_intermediate_relation(target_relation, temp_relation_suffix) %}
+    {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
     {{ run_pre_hooks() }}
@@ -71,10 +58,21 @@
           {{ build_sql }}
         {%- endcall -%}
       {%- endif -%}
-
-      {{ run_post_hooks() }}
     {%- endif -%}
+
+    {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
+    {% do apply_grants(target_relation, grant_config, should_revoke) %}
+    {% do optimize(target_relation) %}
+
+    {{ run_post_hooks() }}
+
   {% else %}
+    {%- set tblproperties = config.get('tblproperties') -%}
+    {%- set tags = config.get('databricks_tags') -%}
+    {% set temp_relation = make_temp_relation(target_relation) %}
+    {% set incremental_predicates = config.get('predicates') or config.get('incremental_predicates') %}
+    {%- set unique_key = config.get('unique_key') -%}
+
     {#-- Run pre-hooks --#}
     {{ run_hooks(pre_hooks) }}
     {#-- Incremental run logic --#}
@@ -92,7 +90,6 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
       {#-- Relation must be dropped & recreated --#}
-      {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
       {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
         {% do adapter.drop_relation(existing_relation) %}
       {% endif %}
@@ -116,7 +113,6 @@
       {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
       {%- set model_config = adapter.get_config_from_model(config.model) -%}
       {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
-      {%- set temp_relation = databricks__make_temp_relation(target_relation, suffix=temp_relation_suffix, as_table=language != 'sql') -%}
       {%- call statement('create_temp_relation', language=language) -%}
         {{ create_table_as(True, temp_relation, compiled_code, language) }}
       {%- endcall -%}

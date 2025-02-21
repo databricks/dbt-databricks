@@ -8,15 +8,25 @@
     {{ return(databricks__make_temp_relation(base_relation, suffix)) }}
 {% endmacro %}
 
-{% macro databricks__make_temp_relation(base_relation, suffix='__dbt_tmp', as_table=False) %}
-    {% set tmp_identifier = base_relation.identifier ~ suffix %}
-    {% set language = model['language'] %}
-    {%- if language == 'sql' -%}
-      {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
-    {%- else -%}
-      {% set tmp_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=tmp_identifier, type='table') %}
-    {%- endif -%}
-    {% do return(tmp_relation) %}
+{% macro databricks__make_temp_relation(base_relation, suffix='__dbt_tmp') %}
+  {% set unique_tmp_table_suffix = config.get('unique_tmp_table_suffix', False) | as_bool %}
+
+  {% if unique_tmp_table_suffix %}
+    {% set suffix = adapter.generate_unique_temporary_table_suffix() %}
+  {% endif %}
+  
+  {% if suffix == '__dbt_tmp' and model.batch %}
+    {% set suffix = suffix ~ '_' ~ model.batch.id %}
+  {% endif %}
+
+  {% set tmp_identifier = base_relation.identifier ~ suffix %}
+  {% set language = model['language'] %}
+  {%- if language == 'sql' -%}
+    {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
+  {%- else -%}
+    {% set tmp_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=tmp_identifier, type='table') %}
+  {%- endif -%}
+  {% do return(tmp_relation) %}
 {% endmacro %}
 
 {% macro databricks__get_or_create_relation(database, schema, identifier, type, needs_information=False) %}
@@ -48,4 +58,14 @@
       {{ relation.render_constraints_for_create() }}
     {% endif %}
   )
+{% endmacro %}
+
+-- a user-friendly interface into adapter.get_relation
+{% macro load_relation_with_metadata(relation) %}
+  {% do return(adapter.get_relation(
+    database=relation.database,
+    schema=relation.schema,
+    identifier=relation.identifier,
+    needs_information=True
+  )) -%}
 {% endmacro %}
