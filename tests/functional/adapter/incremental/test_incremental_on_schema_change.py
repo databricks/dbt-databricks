@@ -4,6 +4,7 @@ from dbt.tests.adapter.incremental import fixtures
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
 )
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.incremental import fixtures as fixture_overrides
 
 
@@ -28,6 +29,10 @@ class TestIncrementalOnSchemaChange(BaseIncrementalOnSchemaChange):
     def test_run_incremental_sync_all_columns(self, project):
         # Anything other than additions to the target table will fail for now
         self.run_incremental_sync_all_columns(project)
+
+
+class TestIncrementalOnSchemaChangeV2(MaterializationV2Mixin, TestIncrementalOnSchemaChange):
+    pass
 
 
 class TestIncrementalOnSchemaChangeAppend(BaseIncrementalOnSchemaChange):
@@ -55,3 +60,9 @@ class TestIncrementalOnSchemaChangeAppend(BaseIncrementalOnSchemaChange):
     def test_run_incremental_sync_all_columns(self, project):
         # Anything other than additions to the target table will fail for now
         self.run_incremental_sync_all_columns(project)
+
+
+class TestIncrementalOnSchemaChangeAppendV2(
+    MaterializationV2Mixin, TestIncrementalOnSchemaChangeAppend
+):
+    pass

@@ -174,6 +174,23 @@ class TestComplexConfig:
 
 
 @pytest.mark.python
+@pytest.mark.external
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+class TestComplexConfigV2(TestComplexConfig):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestWorkflowJob:
     @pytest.fixture(scope="class")

@@ -13,10 +13,11 @@
   {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
+    {{ log("USING V2 MATERIALIZATION") }}
     {#-- Set vars --#}
     {% set safe_create = config.get('safe_table_create', True) | as_bool  %}
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
-    {% set is_replaceable = existing_relation.can_be_replaced and is_delta %}
+    {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
 
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
@@ -29,18 +30,24 @@
 
     {#-- Incremental run logic --#}
     {%- if existing_relation is none -%}
+      {{ log("No existing relation found") }}
       {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
     {%- elif should_replace -%}
+      {{ log("Existing relation found that requires replacement") }}
       {% if safe_create and existing_relation.can_be_renamed %}
+        {{ log("Safe create enabled and relation can be renamed") }}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
         {#-- Relation must be dropped & recreated --#}
         {% if not is_replaceable %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+          {{ log("Dropping existing relation, as it is not replaceable") }}
           {% do adapter.drop_relation(existing_relation) %}
         {% endif %}
+        {{ log("Replacing target relation") }}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
       {% endif %}
     {%- else -%}
+      {{ log("Existing relation found, proceeding with incremental work")}}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
         {{ set_overwrite_mode('DYNAMIC') }}

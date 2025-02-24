@@ -7,7 +7,7 @@
 
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
   {% call statement('main') %}
-    {{ get_create_table_sql(target_relation, columns_and_constraints[0], intermediate_relation, compiled_code) }}
+    {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
   {% endcall %}
 
   {{ apply_alter_constraints(target_relation) }}
@@ -18,7 +18,7 @@
   {% endcall %}
 {% endmacro %}
 
-{% macro get_create_table_sql(target_relation, columns, intermediate_relation, compiled_code) %}
+{% macro get_create_table_sql(target_relation, columns, compiled_code) %}
   {%- set file_format = config.get('file_format', default='delta') -%}
   {%- set contract = config.get('contract') -%}
   {%- set contract_enforced = contract and contract.enforced -%}
