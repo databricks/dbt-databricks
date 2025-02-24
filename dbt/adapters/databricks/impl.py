@@ -1,4 +1,4 @@
-import os
+import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -31,11 +31,8 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import (
-    USE_LONG_SESSIONS,
-    DatabricksConnectionManager,
-    ExtendedSessionConnectionManager,
-)
+from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -113,6 +110,7 @@ class DatabricksConfig(AdapterConfig):
     partition_by: Optional[Union[list[str], str]] = None
     clustered_by: Optional[Union[list[str], str]] = None
     liquid_clustered_by: Optional[Union[list[str], str]] = None
+    auto_liquid_cluster: Optional[bool] = None
     buckets: Optional[int] = None
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
@@ -142,8 +140,8 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     """
 
     _identifier = "|".join(table_names)
-    bypass_2048_char_limit = os.environ.get("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "false")
-    if bypass_2048_char_limit == "true":
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
+    if bypass_2048_char_limit:
         _identifier = _identifier if len(_identifier) < 2048 else "*"
     return _identifier
 
@@ -154,10 +152,7 @@ class DatabricksAdapter(SparkAdapter):
     Relation = DatabricksRelation
     Column = DatabricksColumn
 
-    if USE_LONG_SESSIONS:
-        ConnectionManager: type[DatabricksConnectionManager] = ExtendedSessionConnectionManager
-    else:
-        ConnectionManager = DatabricksConnectionManager
+    ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
@@ -200,9 +195,10 @@ class DatabricksAdapter(SparkAdapter):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', cannot set file_format to other than delta."
                 )
-            if config.get("materialized") not in ("incremental", "table"):
+            if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
-                    "When table_format is 'iceberg', materialized must be 'incremental' or 'table'."
+                    "When table_format is 'iceberg', materialized must be 'incremental'"
+                    ", 'table', or 'snapshot'."
                 )
             result["delta.enableIcebergCompatV2"] = "true"
             result["delta.universalFormat.enabledFormats"] = "iceberg"
@@ -220,9 +216,9 @@ class DatabricksAdapter(SparkAdapter):
             raise DbtConfigError("location_root is required for external tables.")
         include_full_name_in_path = config.get("include_full_name_in_path", False)
         if include_full_name_in_path:
-            path = os.path.join(location_root, database, schema, identifier)
+            path = posixpath.join(location_root, database, schema, identifier)
         else:
-            path = os.path.join(location_root, identifier)
+            path = posixpath.join(location_root, identifier)
         if is_incremental:
             path = path + "_tmp"
         return path
@@ -631,9 +627,9 @@ class DatabricksAdapter(SparkAdapter):
     def run_sql_for_tests(
         self, sql: str, fetch: str, conn: Connection
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
-        cursor = conn.handle.cursor()
+        handle = conn.handle
         try:
-            cursor.execute(sql)
+            cursor = handle.execute(sql)
             if fetch == "one":
                 return cursor.fetchone()
             elif fetch == "all":
@@ -645,7 +641,8 @@ class DatabricksAdapter(SparkAdapter):
             print(e)
             raise
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
             conn.transaction_open = False
 
     @available

@@ -11,8 +11,6 @@ from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DBT_DATABRICKS_HTTP_SESSION_HEADERS,
-    DBT_DATABRICKS_INVOCATION_ENV,
 )
 from dbt.adapters.databricks.impl import get_identifier_list_string
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
@@ -79,8 +77,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             )
 
         expected_message = (
-            "Got duplicate keys: (`databricks.catalog` in session_properties)"
-            ' all map to "database"'
+            'Got duplicate keys: (`databricks.catalog` in session_properties) all map to "database"'
         )
 
         assert expected_message in str(excinfo.value)
@@ -114,7 +111,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         with pytest.raises(DbtValidationError) as excinfo:
             config = self._get_config()
             adapter = DatabricksAdapter(config, get_context("spawn"))
-            with patch.dict("os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "(Some-thing)"}):
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_invocation_env",
+                return_value="(Some-thing)",
+            ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
 
@@ -125,11 +125,12 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_invocation_env="databricks-workflows"),
         ):
-            with patch.dict(
-                "os.environ", **{DBT_DATABRICKS_INVOCATION_ENV: "databricks-workflows"}
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_invocation_env",
+                return_value="databricks-workflows",
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
@@ -187,12 +188,12 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_http_headers=expected_http_headers),
         ):
-            with patch.dict(
-                "os.environ",
-                **{DBT_DATABRICKS_HTTP_SESSION_HEADERS: http_headers_str},
+            with patch(
+                "dbt.adapters.databricks.global_state.GlobalState.get_http_session_headers",
+                return_value=http_headers_str,
             ):
                 connection = adapter.acquire_connection("dummy")
                 connection.handle  # trigger lazy-load
@@ -204,7 +205,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_no_token=True),
         ):
             connection = adapter.acquire_connection("dummy")
@@ -217,7 +218,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
         with patch(
-            "dbt.adapters.databricks.connections.dbsql.connect",
+            "dbt.adapters.databricks.handle.dbsql.connect",
             new=self._connect_func(expected_client_creds=True),
         ):
             connection = adapter.acquire_connection("dummy")
@@ -266,6 +267,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 assert http_headers is None
             else:
                 assert http_headers == expected_http_headers
+            return Mock()
 
         return connect
 
@@ -276,7 +278,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -300,7 +302,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config()
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -327,7 +329,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         config = self._get_config(connection_parameters={"http_headers": http_headers})
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        with patch("dbt.adapters.databricks.connections.dbsql.connect", new=connect):
+        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
 
@@ -912,7 +914,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         assert get_identifier_list_string(table_names) == "|".join(table_names)
 
         # If environment variable is set, then limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -941,7 +946,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # Long list of table names is capped
             assert get_identifier_list_string(table_names) == "*"
 
@@ -954,7 +962,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         table_names = set([f"customers_{i}" for i in range(200)])
 
         # If environment variable is set, then we may limit the number of characters
-        with patch.dict("os.environ", **{"DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS": "true"}):
+        with patch(
+            "dbt.adapters.databricks.global_state.GlobalState.get_char_limit_bypass",
+            return_value="true",
+        ):
             # But a short list of table names is not capped
             assert get_identifier_list_string(list(table_names)[:5]) == "|".join(
                 list(table_names)[:5]

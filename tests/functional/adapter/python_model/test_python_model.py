@@ -114,6 +114,21 @@ class TestServerlessCluster(BasePythonModelTests):
 
 
 @pytest.mark.python
+# @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.skip("Not available in Databricks yet")
+class TestServerlessClusterWithEnvironment(BasePythonModelTests):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.serverless_schema_with_environment,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
+
+
+@pytest.mark.python
 @pytest.mark.external
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestComplexConfig:

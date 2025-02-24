@@ -1,3 +1,53 @@
+## dbt-databricks 1.9.6 (TBD)
+
+### Fixes
+
+- Fix for parse raising error for not having credentials ([941](https://github.com/databricks/dbt-databricks/pull/941))
+
+### Under the Hood
+
+- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
+
+## dbt-databricks 1.9.5 (Feb 13, 2025)
+
+### Features
+
+- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models (thanks @ShaneMazur!) ([935](https://github.com/databricks/dbt-databricks/pull/935))
+- Prepare for environments for python models with serverless clusters ([938](https://github.com/databricks/dbt-databricks/pull/938))
+
+### Fixes
+
+- table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+- Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
+- Use POSIX standard when creating location for the tables (thanks @gsolasab!) ([919](https://github.com/databricks/dbt-databricks/pull/919))
+
+### Under the Hood
+
+- Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
+- Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
+
+## dbt-databricks 1.9.4 (Jan 30, 2025)
+
+### Under the Hood
+
+- Pinned the python sql connector to 3.6.0 as a temporary measure while we investigate failure to wait for cluster start
+
+## dbt-databricks 1.9.3
+
+Yanked due to being published with the incorrect bits
+
+## dbt-databricks 1.9.2 (Jan 21, 2025)
+
+### Features
+
+- Update snapshot materialization to support new snapshot features ([904](https://github.com/databricks/dbt-databricks/pull/904))
+
+### Under the Hood
+
+- Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+- Switch to relation.render() for string interpolation ([903](https://github.com/databricks/dbt-databricks/pull/903))
+- Ensure retry defaults for PySQL ([907](https://github.com/databricks/dbt-databricks/pull/907))
+
 ## dbt-databricks 1.9.1 (December 16, 2024)
 
 ### Features
