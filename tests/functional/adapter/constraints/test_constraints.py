@@ -177,6 +177,10 @@ class TestIncrementalConstraintsRollback(
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalForeignKeyExpressionConstraint:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
     def models(self):
         return {
             "schema.yml": override_fixtures.incremental_foreign_key_schema_yml,
@@ -199,6 +203,10 @@ class TestIncrementalForeignKeyExpressionConstraint:
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestForeignKeyParentConstraint:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
     @pytest.fixture(scope="class")
     def models(self):
         return {

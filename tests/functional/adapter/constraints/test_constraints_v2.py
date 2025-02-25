@@ -10,7 +10,6 @@ from tests.functional.adapter.constraints import fixtures as override_fixtures
 from tests.functional.adapter.constraints.test_constraints import (
     BaseConstraintsRollback,
     BaseIncrementalConstraintsColumnsEqual,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
     BaseTableConstraintsColumnsEqual,
     BaseViewConstraintsColumnsEqual,
     DatabricksConstraintsBase,
@@ -136,17 +135,14 @@ class TestTableConstraintsDdlEnforcement(BaseV2ConstraintSetup):
     pass
 
 
-@pytest.mark.skip("Haven't implemented incremental for V2 yet")
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalConstraintsDdlEnforcement(
-    BaseV2ConstraintSetup,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
-):
+class TestIncrementalConstraintsDdlEnforcement(BaseV2ConstraintSetup):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "my_model.sql": fixtures.my_model_incremental_wrong_order_sql,
-            "constraints_schema.yml": override_fixtures.constraints_yml,
+            "my_model.sql": fixtures.my_model_incremental_wrong_order_depends_on_fk_sql,
+            "foreign_key_model.sql": fixtures.foreign_key_model_sql,
+            "constraints_schema.yml": override_fixtures.model_fk_constraint_schema_yml,
         }
 
 

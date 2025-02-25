@@ -1,3 +1,8 @@
+{% macro get_incremental_strategy(file_format) %}
+  {% set raw_strategy = config.get('incremental_strategy') or 'merge' %}
+  {% do return(dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format)) %}
+{% endmacro %}
+
 {% macro databricks__get_incremental_default_sql(arg_dict) %}
   {{ return(get_incremental_merge_sql(arg_dict)) }}
 {% endmacro %}

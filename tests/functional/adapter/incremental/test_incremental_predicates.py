@@ -25,6 +25,18 @@ class TestIncrementalPredicatesMergeDatabricks(BaseIncrementalPredicates):
         }
 
 
+class TestIncrementalPredicatesMergeDatabricksV2(TestIncrementalPredicatesMergeDatabricks):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+incremental_predicates": ["dbt_internal_dest.id != 2"],
+                "+target_alias": "dbt_internal_dest",
+            },
+        }
+
+
 class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -41,4 +53,16 @@ class TestPredicatesMergeDatabricks(BaseIncrementalPredicates):
             "delete_insert_incremental_predicates.sql": (
                 fixtures.models__databricks_incremental_predicates_sql
             )
+        }
+
+
+class TestPredicatesMergeDatabricksV2(TestPredicatesMergeDatabricks):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+predicates": ["dbt_internal_dest.id != 2"],
+                "+target_alias": "dbt_internal_dest",
+            },
         }

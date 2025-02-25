@@ -140,7 +140,7 @@ writer = (
         .option("overwriteSchema", "true")
         .format("{{ file_format }}")
 {%- if location_root is not none -%}
-{%- set model_path = adapter.compute_external_path(config, model, is_incremental()) %}
+{%- set model_path = adapter.compute_external_path(config, model, True) %}
         .option("path", "{{ model_path }}")
 {%- endif -%}
 )
