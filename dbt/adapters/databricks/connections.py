@@ -278,6 +278,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return conn
 
+    def add_begin_query(self) -> Any:
+        return (None, None)
+
+    def add_commit_query(self) -> Any:
+        return (None, None)
+
     def add_query(
         self,
         sql: str,
@@ -290,8 +296,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         close_cursor: bool = False,
     ) -> tuple[Connection, Any]:
         connection = self.get_thread_connection()
-        if auto_begin and connection.transaction_open is False:
-            self.begin()
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
@@ -497,6 +501,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return cursor.get_response()
         else:
             return AdapterResponse("OK")
+
+    def clear_transaction(self) -> None:
+        """Noop."""
+        pass
+
+    def commit_if_has_connection(self) -> None:
+        """Noop."""
+        pass
 
     def get_thread_connection(self) -> Connection:
         conn = super().get_thread_connection()
