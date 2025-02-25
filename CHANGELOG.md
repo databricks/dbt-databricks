@@ -1,3 +1,9 @@
+## dbt-databricks 1.9.7 (Feb 25, 2025)
+
+### Fixes
+
+- Fix for missing language extraction from query header ([945](https://github.com/databricks/dbt-databricks/pull/945))
+
 ## dbt-databricks 1.9.6 (Feb 24, 2025)
 
 ### Fixes
