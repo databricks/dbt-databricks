@@ -33,21 +33,6 @@ class ConnectionWrapperEvent(ABC):
         return f"{self.description} - {self.message}"
 
 
-class ConnectionAcquire(ConnectionWrapperEvent):
-    def __init__(self, description: str, relation_name: Optional[str]):
-        message = "Acquired connection"
-
-        if relation_name:
-            message += f" for model '{relation_name}'"
-
-        super().__init__(description, message)
-
-
-class ConnectionRelease(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Released connection")
-
-
 class ConnectionReset(ConnectionWrapperEvent):
     def __init__(self, description: str):
         super().__init__(description, "Reset connection handle")
@@ -63,19 +48,9 @@ class ConnectionCreate(ConnectionWrapperEvent):
         super().__init__(description, "Creating connection")
 
 
-class ConnectionIdleCheck(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Checking idleness")
-
-
 class ConnectionIdleClose(ConnectionWrapperEvent):
     def __init__(self, description: str):
         super().__init__(description, "Recreating due to idleness")
-
-
-class ConnectionRetrieve(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Retrieving connection")
 
 
 class ConnectionCreated(ConnectionWrapperEvent):

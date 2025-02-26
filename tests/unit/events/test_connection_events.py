@@ -1,7 +1,6 @@
 from unittest.mock import Mock
 
 from dbt.adapters.databricks.events.connection_events import (
-    ConnectionAcquire,
     ConnectionEvent,
 )
 
@@ -27,37 +26,3 @@ class TestConnectionEvents:
         mock.get_session_id_hex.return_value = "1234"
         event = ConnectionTestEvent(mock)
         assert str(event) == "Connection(session-id=1234) - This is a test"
-
-
-class TestConnectionAcquire:
-    def test_connection_acquire__missing_data(self):
-        event = ConnectionAcquire(None, None, None, (0, 0))
-        assert (
-            str(event)
-            == "None - Acquired connection on thread (0, 0), using default compute resource"
-        )
-
-    def test_connection_acquire__with_compute_name(self):
-        event = ConnectionAcquire(None, None, "Eniac", (0, 0))
-        assert (
-            str(event)
-            == "None - Acquired connection on thread (0, 0), using compute resource 'Eniac'"
-        )
-
-    def test_connection_acquire__with_nonmodel_node(self):
-        event = ConnectionAcquire(None, Mock([]), None, (0, 0))
-        assert (
-            str(event)
-            == "None - Acquired connection on thread (0, 0), using default compute resource"
-            " for model '[Unknown]'"
-        )
-
-    def test_connection_acquire__with_everything(self):
-        model = Mock()
-        model.relation_name = "MyModel"
-        event = ConnectionAcquire("Connection", model, "Eniac", (0, 0))
-        assert (
-            str(event)
-            == "Connection - Acquired connection on thread (0, 0), using compute resource 'Eniac'"
-            " for model 'MyModel'"
-        )
