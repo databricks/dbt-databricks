@@ -11,6 +11,12 @@
 - Update pinned python SDK version from 0.17.0 to 0.41.0. ([827](https://github.com/databricks/dbt-databricks/pull/827))
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 
+## dbt-databricks 1.9.7 (Feb 25, 2025)
+
+### Fixes
+
+- Fix for missing language extraction from query header ([945](https://github.com/databricks/dbt-databricks/pull/945))
+
 ## dbt-databricks 1.9.6 (Feb 24, 2025)
 
 ### Fixes

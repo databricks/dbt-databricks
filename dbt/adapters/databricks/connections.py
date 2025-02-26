@@ -102,16 +102,21 @@ class QueryContextWrapper:
 
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
+    language: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
+        language = getattr(query_header_context, "language", None)
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
-        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+
+        return QueryContextWrapper(
+            compute_name=compute_name, relation_name=relation_name, language=language
+        )
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -142,16 +147,13 @@ class DatabricksDBTConnection(Connection):
 
     session_id: Optional[str] = None
 
-    def _acquire(self, query_header_context: Any) -> None:
+    def _acquire(self, query_header_context: QueryContextWrapper) -> None:
         """Indicate that this connection is in use."""
 
         self.acquire_release_count += 1
         if self.last_used_time is None:
             self.last_used_time = time.time()
-        if query_header_context and hasattr(query_header_context, "language"):
-            self.language = query_header_context.language
-        else:
-            self.language = None
+        self.language = query_header_context.language
 
         logger.debug(
             ConnectionAcquire(
