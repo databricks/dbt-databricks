@@ -1,4 +1,5 @@
 {% macro databricks__create_view_as(relation, sql) %}
+  {{ log("Creating view " ~ relation) }}
   create or replace view {{ relation.render() }}
   {%- if config.persist_column_docs() -%}
     {%- set model_columns = model.columns -%}
@@ -33,6 +34,6 @@
 
 {% macro get_persist_docs_column_list(model_columns, query_columns) -%}
   {%- for column_name in query_columns -%}
-    {{ get_column_comment_sql(column_name, model_columns) }}{{",\n\t\t" if not loop.last else "" }}
+    {{ get_column_comment_sql(column_name, model_columns) }}{{",\n\t" if not loop.last else "" }}
   {%- endfor -%}
 {% endmacro %}
