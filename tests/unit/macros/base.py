@@ -47,6 +47,7 @@ class MacroTestBase:
             "statement": lambda r, caller: r,
             "adapter": Mock(),
             "var": Mock(),
+            "log": Mock(return_value=""),
             "return": lambda r: r,
             "is_incremental": Mock(return_value=False),
         }
