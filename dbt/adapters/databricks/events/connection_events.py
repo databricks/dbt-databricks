@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any, Optional
+from typing import Optional
 
 from databricks.sql.client import Connection
 
@@ -34,23 +34,10 @@ class ConnectionWrapperEvent(ABC):
 
 
 class ConnectionAcquire(ConnectionWrapperEvent):
-    def __init__(
-        self,
-        description: str,
-        model: Optional[Any],
-        compute_name: Optional[str],
-        thread_identifier: tuple[int, int],
-    ):
-        message = f"Acquired connection on thread {thread_identifier}, using "
-        if not compute_name:
-            message += "default compute resource"
-        else:
-            message += f"compute resource '{compute_name}'"
+    def __init__(self, description: str, relation_name: Optional[str]):
+        message = "Acquired connection"
 
-        if model:
-            # ResultNode *should* have relation_name attr, but we work around a core
-            # issue by checking.
-            relation_name = getattr(model, "relation_name", "[Unknown]")
+        if relation_name:
             message += f" for model '{relation_name}'"
 
         super().__init__(description, message)
@@ -83,7 +70,7 @@ class ConnectionIdleCheck(ConnectionWrapperEvent):
 
 class ConnectionIdleClose(ConnectionWrapperEvent):
     def __init__(self, description: str):
-        super().__init__(description, "Closing for idleness")
+        super().__init__(description, "Recreating due to idleness")
 
 
 class ConnectionRetrieve(ConnectionWrapperEvent):

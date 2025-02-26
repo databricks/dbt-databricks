@@ -30,14 +30,10 @@ from dbt.adapters.databricks.credentials import (
     DatabricksCredentials,
 )
 from dbt.adapters.databricks.events.connection_events import (
-    ConnectionAcquire,
     ConnectionCreate,
     ConnectionCreateError,
-    ConnectionIdleCheck,
     ConnectionIdleClose,
-    ConnectionRelease,
     ConnectionReset,
-    ConnectionRetrieve,
     ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
@@ -155,12 +151,6 @@ class DatabricksDBTConnection(Connection):
             self.last_used_time = time.time()
         self.language = query_header_context.language
 
-        logger.debug(
-            ConnectionAcquire(
-                str(self), query_header_context, self.compute_name, self.thread_identifier
-            )
-        )
-
     def _release(self) -> None:
         """Indicate that this connection is not in use."""
         # Need to check for > 0 because in some situations the dbt code will make an extra
@@ -173,8 +163,6 @@ class DatabricksDBTConnection(Connection):
         if self.acquire_release_count == 0 and self.language != "python":
             self.last_used_time = time.time()
 
-        logger.debug(ConnectionRelease(str(self)))
-
     def _get_idle_time(self) -> float:
         return 0 if self.last_used_time is None else time.time() - self.last_used_time
 
@@ -183,10 +171,9 @@ class DatabricksDBTConnection(Connection):
 
     def __str__(self) -> str:
         return (
-            f"DatabricksDBTConnection(id={id(self)}, session-id={self.session_id}, "
-            f"name={self.name}, idle-time={self._get_idle_time()}s, acquire-count="
-            f"{self.acquire_release_count}, language={self.language}, thread-identifier="
-            f"{self.thread_identifier}, compute-name={self.compute_name})"
+            f"DatabricksDBTConnection(session-id={self.session_id}, "
+            f"name={self.name}, idle-time={self._get_idle_time()}s, language={self.language}, "
+            f"compute-name={self.compute_name})"
         )
 
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
@@ -515,8 +502,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def get_thread_connection(self) -> Connection:
         conn = super().get_thread_connection()
         self._cleanup_idle_connections()
-        dbr_conn = cast(DatabricksDBTConnection, conn)
-        logger.debug(ConnectionRetrieve(str(dbr_conn)))
 
         return conn
 
@@ -537,8 +522,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # if different models use different compute resources
             thread_conns = self._get_compute_connections()
             for conn in thread_conns.values():
-                logger.debug(ConnectionIdleCheck(str(conn)))
-
                 # Generally speaking we only want to close/refresh the connection if the
                 # acquire_release_count is zero.  i.e. the connection is not currently in use.
                 # However python models acquire a connection then run the pyton model, which
