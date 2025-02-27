@@ -1,11 +1,11 @@
 {% macro create_table_at(relation, intermediate_relation, compiled_code) %}
   {% set tags = config.get('databricks_tags') %}
-  {%- set model_columns = model.get('columns', []) -%}
-  {%- set existing_columns = adapter.get_columns_in_relation(intermediate_relation) -%}
+  {% set model_columns = model.get('columns', []) %}
+  {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
   {% set model_constraints = model.get('constraints', []) %}
   {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints) %}
-
-  {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
+  {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
+  
   {% call statement('main') %}
     {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
   {% endcall %}
@@ -24,12 +24,12 @@
   {%- set contract_enforced = contract and contract.enforced -%}
   {%- if contract_enforced -%}
     {{ get_assert_columns_equivalent(compiled_code) }}
-  {% endif %}
+  {%- endif -%}
 
-  {% if file_format == 'delta' %}
-    create or replace table {{ target_relation }}
+  {%- if file_format == 'delta' %}
+  create or replace table {{ target_relation }}
   {% else %}
-    create table {{ target_relation }}
+  create table {{ target_relation }}
   {% endif -%}
   {{ get_column_and_constraints_sql(target_relation, columns) }}
   {{ file_format_clause() }}

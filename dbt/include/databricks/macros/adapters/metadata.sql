@@ -85,19 +85,21 @@
 {% endmacro %}
 
 {% macro get_uc_tables(relation) %}
-  {% call statement('get_uc_tables', fetch_result=True) -%}
-    select
-      table_name,
-      if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
-      lower(data_source_format) as file_format,
-      table_owner
-    from `system`.`information_schema`.`tables`
-    where table_catalog = '{{ relation.database|lower }}'
-      and table_schema = '{{ relation.schema|lower }}'
-    {% if relation.identifier %}
-      and table_name = '{{ relation.identifier|lower }}'
+  {{ log("Fetching tables for: " ~ relation.render()) }}
+  {%- call statement('get_uc_tables', fetch_result=True) %}
+
+  select
+    table_name,
+    if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
+    lower(data_source_format) as file_format,
+    table_owner
+  from `system`.`information_schema`.`tables`
+  where table_catalog = '{{ relation.database|lower }}' 
+    and table_schema = '{{ relation.schema|lower }}'
+    {%- if relation.identifier %}
+    and table_name = '{{ relation.identifier|lower }}'
     {% endif %}
-  {% endcall %}
+  {% endcall -%}
 
   {% do return(load_result('get_uc_tables').table) %}
 {% endmacro %}

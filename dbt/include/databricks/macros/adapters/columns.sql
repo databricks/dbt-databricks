@@ -42,3 +42,22 @@
     {%- endcall -%}
   {% endif %}
 {% endmacro %}
+
+{% macro databricks__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
+  {%- if select_sql_header is not none -%}
+  {{ select_sql_header }}
+  {%- endif %}
+  select * from (
+    {{ select_sql }}
+  ) as __dbt_sbq
+  where false
+  limit 0
+{% endmacro %}
+
+{% macro databricks__get_columns_in_query(select_sql) %}
+  {{ log("Getting column information via empty query")}}
+  {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
+     {{ get_empty_subquery_sql(select_sql) }}
+  {% endcall %}
+  {{ return(load_result('get_columns_in_query').table.columns | map(attribute='name') | list) }}
+{% endmacro %}
