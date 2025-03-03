@@ -57,7 +57,11 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        if relation.is_hive_metastore() or relation.type == DatabricksRelation.View:
+        if (
+            relation.is_hive_metastore()
+            or relation.type == DatabricksRelation.View
+            or not relation.is_delta
+        ):
             return super().get_columns_in_relation(adapter, relation)
 
         rows = cls._get_columns_with_comments(
