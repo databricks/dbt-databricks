@@ -119,14 +119,23 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
 
         return cls(config=config_dict)
 
-    @abstractmethod
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         """Get the changeset that must be applied to the existing relation to make it match the
         current state of the dbt project. If no changes are required, this method should return
         None.
         """
+        changes: dict[str, DatabricksComponentConfig] = {}
 
-        raise NotImplementedError("Must be implemented by subclass")
+        for component in self.config_components:
+            key = component.name
+            value = self.config[key]
+            diff = value.get_diff(existing.config[key])
+            if diff:
+                changes[key] = diff
+
+        if len(changes) > 0:
+            return DatabricksRelationChangeSet(changes=changes, requires_full_refresh=False)
+        return None
 
 
 DatabricksRelationConfig = TypeVar("DatabricksRelationConfig", bound=DatabricksRelationConfigBase)

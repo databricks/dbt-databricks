@@ -58,6 +58,7 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 )
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
@@ -103,7 +104,7 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
 
 USE_MATERIALIZATION_V2 = BehaviorFlag(
     name="use_materialization_v2",
-    default=False,
+    default=True,
     description=(
         "Use revamped materializations based on separating create and insert."
         "  This allows more performant column comments, as well as new column features."
@@ -139,6 +140,8 @@ class DatabricksConfig(AdapterConfig):
     source_alias: Optional[str] = None
     merge_with_schema_evolution: Optional[bool] = None
     safe_table_create: Optional[bool] = None
+    incremental_apply_config_changes: Optional[bool] = None
+    view_update_via_alter: Optional[bool] = None
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
@@ -744,22 +747,10 @@ class DatabricksAdapter(SparkAdapter):
             return StreamingTableAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.Table:
             return IncrementalTableAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.View:
+            return ViewAPI.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
-
-    @available.parse(lambda *a, **k: {})
-    def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
-        assert model.config, "Config was missing from relation"
-        if model.config.materialized == "materialized_view":
-            return MaterializedViewAPI.get_from_relation_config(model)
-        elif model.config.materialized == "streaming_table":
-            return StreamingTableAPI.get_from_relation_config(model)
-        elif model.config.materialized == "incremental":
-            return IncrementalTableAPI.get_from_relation_config(model)
-        else:
-            raise NotImplementedError(
-                f"Materialization {model.config.materialized} is not supported."
-            )
 
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
@@ -789,6 +780,22 @@ class DatabricksAdapter(SparkAdapter):
                 enriched_columns.append(column)
 
         return enriched_columns, parsed_constraints
+
+    @available.parse(lambda *a, **k: {})
+    def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
+        assert model.config, "Config was missing from relation"
+        if model.config.materialized == "materialized_view":
+            return MaterializedViewAPI.get_from_relation_config(model)
+        elif model.config.materialized == "streaming_table":
+            return StreamingTableAPI.get_from_relation_config(model)
+        elif model.config.materialized == "incremental":
+            return IncrementalTableAPI.get_from_relation_config(model)
+        elif model.config.materialized == "view":
+            return ViewAPI.get_from_relation_config(model)
+        else:
+            raise NotImplementedError(
+                f"Materialization {model.config.materialized} is not supported."
+            )
 
 
 @dataclass(frozen=True)
@@ -868,13 +875,11 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         )
 
         kwargs = {"relation": relation}
-        results["information_schema.views"] = cls._get_information_schema_views(adapter, kwargs)
+        results["information_schema.views"] = get_first_row(
+            adapter.execute_macro("get_view_description", kwargs=kwargs)
+        )
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
-
-    @staticmethod
-    def _get_information_schema_views(adapter: DatabricksAdapter, kwargs: dict[str, Any]) -> "Row":
-        return get_first_row(adapter.execute_macro("get_view_description", kwargs=kwargs))
 
 
 class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
@@ -914,6 +919,29 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         results = {}
         kwargs = {"relation": relation}
 
+        if not relation.is_hive_metastore():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        return results
+
+
+class ViewAPI(RelationAPIBase[ViewConfig]):
+    relation_type = DatabricksRelationType.View
+
+    @classmethod
+    def config_type(cls) -> type[ViewConfig]:
+        return ViewConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        results = {}
+        kwargs = {"relation": relation}
+
+        results["information_schema.views"] = get_first_row(
+            adapter.execute_macro("get_view_description", kwargs=kwargs)
+        )
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)

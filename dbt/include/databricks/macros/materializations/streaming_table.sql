@@ -32,7 +32,7 @@
 
         -- get config options
         {% set on_configuration_change = config.get('on_configuration_change') %}
-        {% set configuration_changes = get_streaming_table_configuration_changes(existing_relation, config) %}
+        {% set configuration_changes = get_configuration_changes(existing_relation) %}
         {% if configuration_changes is none %}
             {% set build_sql = refresh_streaming_table(target_relation, sql) %}
 
