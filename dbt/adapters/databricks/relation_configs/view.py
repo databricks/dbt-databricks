@@ -1,10 +1,22 @@
+from typing import Optional
+
+from typing_extensions import Self
+
 from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
+from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
 from dbt.adapters.databricks.relation_configs.query import QueryProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
 
 
 class ViewConfig(DatabricksRelationConfigBase):
-    config_components = [TagsProcessor, TblPropertiesProcessor, QueryProcessor]
+    config_components = [TagsProcessor, TblPropertiesProcessor, QueryProcessor, CommentProcessor]
+
+    def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
+        changeset = super().get_changeset(existing)
+        if changeset and "comment" in changeset.changes:
+            changeset.requires_full_refresh = True
+        return changeset

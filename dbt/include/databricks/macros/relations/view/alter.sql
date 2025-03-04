@@ -1,6 +1,6 @@
-{% macro alter_view(existing_relation, target_relation, sql) %}
-  {% set config_changes = get_configuration_changes(existing_relation) %}
-  {% if config_changes %}
+{% macro alter_view(target_relation, configuration_changes) %}
+  {{ log("Updating view via ALTER VIEW") }}
+  {% if configuration_changes %}
     {% set tags = configuration_changes.changes.get("tags") %}
     {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
     {% set query = configuration_changes.changes.get("query") %}
@@ -13,10 +13,10 @@
     {%- if query -%}
       {% call statement('main') -%}
   ALTER VIEW {{ target_relation.render() }} AS (
-    {{ query }}
+    {{ query.query }}
   )
       {% endcall %}
     {%- endif -%}
-    {% do persist_docs(target_relation, model, for_relation=True) %}
+    {% do persist_docs(target_relation, model, for_relation=False) %}
   {% endif %}
 {% endmacro %}
