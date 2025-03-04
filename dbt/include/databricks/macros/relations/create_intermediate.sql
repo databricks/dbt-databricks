@@ -1,6 +1,4 @@
 {%- macro databricks__get_create_intermediate_sql(relation, sql) -%}
-
-    -- get the standard intermediate name
     {% set intermediate_relation = make_intermediate_relation(relation) %}
 
     -- drop any pre-existing intermediate
