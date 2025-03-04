@@ -10,6 +10,12 @@ from dbt.tests.adapter.persist_docs import fixtures
 from tests.functional.adapter.persist_docs import fixtures as override_fixtures
 
 
+_MODEL__TABLE = """
+{{ config(materialized='table') }}
+select 1 as id, 'Joe' as name, struct('Spark', 5) as struct_col
+"""
+
+
 class DatabricksPersistDocsMixin:
     @pytest.fixture(scope="class", autouse=True)
     def setUp(self, project):
@@ -24,7 +30,7 @@ class DatabricksPersistDocsMixin:
     def models(self):
         return {
             "no_docs_model.sql": fixtures._MODELS__NO_DOCS_MODEL,
-            "table_model.sql": fixtures._MODELS__TABLE,
+            "table_model.sql": _MODEL__TABLE,
             "view_model.sql": fixtures._MODELS__VIEW,
         }
 
@@ -98,6 +104,9 @@ class DatabricksPersistDocsMixin:
                 assert table_name_comment and table_name_comment.startswith(
                     "Some stuff here and then a call to"
                 )
+
+            if column.column == "struct_col":
+                assert column.data_type == "struct<col1:string,col2:int>"
 
         self._assert_common_comments(table_comment, table_id_comment, table_name_comment)
 
