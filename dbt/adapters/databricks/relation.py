@@ -60,7 +60,7 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-
+    is_delta: Optional[bool] = None
     metadata: Optional[dict[str, Any]] = None
 
     @classmethod
@@ -85,11 +85,6 @@ class DatabricksRelation(BaseRelation):
     @property
     def is_streaming_table(self) -> bool:
         return self.type == DatabricksRelationType.StreamingTable
-
-    @property
-    def is_delta(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
 
     @property
     def is_hudi(self) -> bool:
