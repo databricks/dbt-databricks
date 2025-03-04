@@ -9,7 +9,6 @@ from dbt.tests import util
 from dbt.tests.adapter.persist_docs import fixtures
 from tests.functional.adapter.persist_docs import fixtures as override_fixtures
 
-
 _MODEL__TABLE = """
 {{ config(materialized='table') }}
 select 1 as id, 'Joe' as name, struct('Spark', 5) as struct_col
