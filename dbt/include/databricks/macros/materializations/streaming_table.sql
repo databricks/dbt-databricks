@@ -74,18 +74,7 @@
 
     {% set grant_config = config.get('grants') %}
 
-    {%- if build_sql is string %}
-        {% call statement(name="main") %}
-            {{ build_sql }}
-        {% endcall %}
-    {%- else %}
-        {%- for sql in build_sql %}
-            {% call statement(name="main") %}
-                {{ sql }}
-            {% endcall %}
-        {% endfor %}
-    {% endif %}
-
+    {{ execute_multiple_statements(build_sql) }}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}

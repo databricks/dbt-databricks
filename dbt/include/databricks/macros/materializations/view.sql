@@ -61,33 +61,6 @@
 
 {% macro replace_with_view(existing_relation, target_relation) %}
   {% set tags = config.get('databricks_tags') %}
-  {% set safe_create = config.get('safe_table_create', False) | as_bool  %}
-  {% if safe_create %}
-    {{ log("Trying safe create") }}
-    {%- set backup_relation_type = existing_relation.type -%}
-    {%- set backup_relation = make_backup_relation(target_relation, backup_relation_type) -%}
-    {%- set preexisting_backup_relation = load_cached_relation(backup_relation) -%}
-    {%- set intermediate_relation =  make_staging_relation(target_relation, type='view') -%}
-    {%- set preexisting_intermediate_relation = load_cached_relation(intermediate_relation) -%}
-      -- drop the temp relations if they exist already in the database
-    {{ drop_relation_if_exists(preexisting_intermediate_relation) }}
-    {{ drop_relation_if_exists(preexisting_backup_relation) }}
-    {% call statement('main') -%}
-      {{ get_create_view_as_sql(intermediate_relation, sql) }}
-    {%- endcall %}
-    {% if existing_relation.is_dlt %}
-      {{ drop_relation(existing_relation) }}
-    {% else %}
-      {{ log("Backing up existing relation") }}
-      {{ adapter.rename_relation(existing_relation, backup_relation) }}
-    {% endif %}
-    {{ adapter.rename_relation(intermediate_relation, target_relation) }}
-    {{ drop_relation_if_exists(backup_relation) }}
-  {% else %}
-    {{ drop_relation(existing_relation) }}
-    {% call statement('main') -%}
-      {{ get_create_view_as_sql(target_relation, sql) }}
-    {%- endcall %}
-  {% endif %}
+  {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
   {%- do apply_tags(target_relation, tags) -%}
 {% endmacro %}

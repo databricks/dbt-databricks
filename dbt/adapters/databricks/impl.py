@@ -139,7 +139,7 @@ class DatabricksConfig(AdapterConfig):
     target_alias: Optional[str] = None
     source_alias: Optional[str] = None
     merge_with_schema_evolution: Optional[bool] = None
-    safe_table_create: Optional[bool] = None
+    use_safer_relation_operations: Optional[bool] = None
     incremental_apply_config_changes: Optional[bool] = None
     view_update_via_alter: Optional[bool] = None
 
