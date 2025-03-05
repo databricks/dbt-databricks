@@ -16,7 +16,8 @@ class BaseUpdateView:
 
     def test_view_update_with_description(self, project):
         util.run_dbt(["build"])
-        schema_2 = fixtures.schema_yml.replace("This is a view", "This is an updated view")
+        schema = util.read_file("models", "schema.yml")
+        schema_2 = schema.replace("This is a view", "This is an updated view")
         util.write_file(schema_2, "models", "schema.yml")
         util.run_dbt(["run"])
 
@@ -41,7 +42,8 @@ class BaseUpdateView:
 
     def test_view_update_tblproperties(self, project):
         util.run_dbt(["build"])
-        schema_2 = fixtures.schema_yml.replace("key: value", "key: value2")
+        schema = util.read_file("models", "schema.yml")
+        schema_2 = schema.replace("key: value", "key: value2")
         util.write_file(schema_2, "models", "schema.yml")
         util.run_dbt(["run"])
 
@@ -68,6 +70,7 @@ class TestUpdateViewViaAlter(BaseUpdateView):
         }
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewSafeReplace(BaseUpdateView):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -83,7 +86,46 @@ class TestUpdateViewSafeReplace(BaseUpdateView):
         }
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateUnsafeReplace(BaseUpdateView):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+use_safer_relation_operations": False,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+class HiveBaseUpdateView(BaseUpdateView):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"initial_view.sql": fixtures.view_sql, "schema.yml": fixtures.hive_schema_yml}
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestHiveUpdateViewSafeReplace(HiveBaseUpdateView):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+use_safer_relation_operations": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestHiveUpdateUnsafeReplace(HiveBaseUpdateView):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
