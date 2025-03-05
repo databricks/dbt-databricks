@@ -15,9 +15,10 @@ version: 2
 models:
   - name: initial_view
     description: "This is a view"
-    tblproperties:
+    config:
+      tblproperties:
         key: value
-    tags:
+      databricks_tags:
         tag1: value1
     columns:
       - name: id

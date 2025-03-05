@@ -21,7 +21,7 @@ class BaseUpdateView:
         util.run_dbt(["run"])
 
         results = project.run_sql(
-            f"describe extended {project.database}.{project.test_schema}.initial_view",
+            "describe extended {database}.{schema}.initial_view",
             fetch="all",
         )
         for row in results:
@@ -34,12 +34,25 @@ class BaseUpdateView:
         util.run_dbt(["run"])
 
         results = project.run_sql(
-            f"select * from {project.database}.{project.test_schema}.initial_view",
+            "select * from {database}.{schema}.initial_view",
             fetch="all",
         )
         assert results[0] == Row([1], ["id"])
 
+    def test_view_update_tblproperties(self, project):
+        util.run_dbt(["build"])
+        schema_2 = fixtures.schema_yml.replace("key: value", "key: value2")
+        util.write_file(schema_2, "models", "schema.yml")
+        util.run_dbt(["run"])
 
+        results = project.run_sql(
+            "show tblproperties {database}.{schema}.initial_view",
+            fetch="all",
+        )
+        assert results[0][1] == "value2"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlter(BaseUpdateView):
     @pytest.fixture(scope="class")
     def project_config_update(self):
