@@ -1,5 +1,4 @@
-basic_seed_csv = """
-id,msg
+basic_seed_csv = """id,msg
 1,hello
 2,goodbye
 2,yo

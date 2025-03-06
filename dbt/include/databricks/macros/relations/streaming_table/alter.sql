@@ -17,19 +17,6 @@
     )) -%}
 {% endmacro %}
 
-
-{% macro get_streaming_table_configuration_changes(existing_relation, new_config) -%}
-    {{- log('Determining configuration changes on: ' ~ existing_relation) -}}
-    {%- do return(adapter.dispatch('get_streaming_table_configuration_changes', 'dbt')(existing_relation, new_config)) -%}
-{%- endmacro %}
-
-{%- macro databricks__get_streaming_table_configuration_changes(existing_relation, new_config) -%}
-    {%- set _existing_streaming_table = adapter.get_relation_config(existing_relation) -%}
-    {%- set streaming_table = adapter.get_config_from_model(config.model) -%}
-    {%- set _configuration_changes = streaming_table.get_changeset(_existing_streaming_table) -%}
-    {% do return(_configuration_changes) %}
-{%- endmacro -%}
-
 {% macro databricks__get_alter_streaming_table_as_sql(
     relation,
     configuration_changes,

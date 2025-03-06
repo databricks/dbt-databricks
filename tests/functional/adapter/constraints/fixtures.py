@@ -213,7 +213,7 @@ my_model_sql = """
 {{
   config(
     materialized = "table",
-    safe_table_create = true
+    use_safer_relation_operations = true
   )
 }}
 

@@ -2,8 +2,8 @@
     {{ log("Applying configuration changes to relation " ~ target_relation) }}
     {% do apply_liquid_clustered_cols(target_relation) %}
     {% if configuration_changes %}
-      {% set tags = configuration_changes.changes.get("tags", None) %}
-      {% set tblproperties = configuration_changes.changes.get("tblproperties", None) %}
+      {% set tags = configuration_changes.changes.get("tags") %}
+      {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
       {% if tags is not none %}
         {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
       {%- endif -%}

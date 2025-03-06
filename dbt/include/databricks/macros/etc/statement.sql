@@ -15,3 +15,17 @@
 
   {%- endif -%}
 {%- endmacro %}
+
+{% macro execute_multiple_statements(statements) %}
+  {%- if statements is string %}
+    {% call statement(name="main") %}
+      {{ statements }}
+    {% endcall %}
+  {%- else %}
+    {%- for sql in statements %}
+      {% call statement(name="main") %}
+        {{ sql }}
+      {% endcall %}
+    {% endfor %}
+  {% endif %}
+{% endmacro %}

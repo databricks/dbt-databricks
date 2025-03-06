@@ -149,7 +149,10 @@ class TestIncrementalConstraintsDdlEnforcement(BaseV2ConstraintSetup):
 class BaseDatabricksConstraintHandling(BaseConstraintsRollback):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"flags": {"use_materialization_v2": True}, "models": {"safe_table_create+": True}}
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"use_safer_relation_operations+": True},
+        }
 
     def test__constraints_enforcement_rollback(
         self, project, expected_color, expected_error_messages, null_model_sql

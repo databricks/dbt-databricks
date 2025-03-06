@@ -56,7 +56,7 @@
 
 {% macro databricks__get_columns_in_query(select_sql) %}
   {{ log("Getting column information via empty query")}}
-  {% call statement('get_columns_in_query', fetch_result=True, auto_begin=False) -%}
+  {% call statement('get_columns_in_query', fetch_result=True) -%}
      {{ get_empty_subquery_sql(select_sql) }}
   {% endcall %}
   {{ return(load_result('get_columns_in_query').table.columns | map(attribute='name') | list) }}
