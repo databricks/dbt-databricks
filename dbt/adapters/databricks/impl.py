@@ -104,7 +104,7 @@ USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
 
 USE_MATERIALIZATION_V2 = BehaviorFlag(
     name="use_materialization_v2",
-    default=True,
+    default=False,
     description=(
         "Use revamped materializations based on separating create and insert."
         "  This allows more performant column comments, as well as new column features."
@@ -739,19 +739,6 @@ class DatabricksAdapter(SparkAdapter):
 
         return return_columns
 
-    @available.parse(lambda *a, **k: {})
-    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
-        if relation.type == DatabricksRelationType.MaterializedView:
-            return MaterializedViewAPI.get_from_relation(self, relation)
-        elif relation.type == DatabricksRelationType.StreamingTable:
-            return StreamingTableAPI.get_from_relation(self, relation)
-        elif relation.type == DatabricksRelationType.Table:
-            return IncrementalTableAPI.get_from_relation(self, relation)
-        elif relation.type == DatabricksRelationType.View:
-            return ViewAPI.get_from_relation(self, relation)
-        else:
-            raise NotImplementedError(f"Relation type {relation.type} is not supported.")
-
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{str(uuid4())}"
@@ -780,6 +767,19 @@ class DatabricksAdapter(SparkAdapter):
                 enriched_columns.append(column)
 
         return enriched_columns, parsed_constraints
+
+    @available.parse(lambda *a, **k: {})
+    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+        if relation.type == DatabricksRelationType.MaterializedView:
+            return MaterializedViewAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.StreamingTable:
+            return StreamingTableAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.Table:
+            return IncrementalTableAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.View:
+            return ViewAPI.get_from_relation(self, relation)
+        else:
+            raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
     @available.parse(lambda *a, **k: {})
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
