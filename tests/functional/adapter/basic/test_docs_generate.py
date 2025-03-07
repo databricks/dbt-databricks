@@ -2,7 +2,7 @@ import pytest
 
 from dbt.tests.adapter.basic import expected_catalog
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
-from dbt.tests.util import AnyString
+from tests.functional.adapter.basic.fixtures import AnyStringOrNone
 from tests.functional.adapter.basic.typing import AnyLongType, StatsLikeDict
 
 
@@ -11,7 +11,7 @@ class TestDocsGenerate(BaseDocsGenerate):
     def expected_catalog(self, project):
         return expected_catalog.base_expected_catalog(
             project,
-            role=AnyString(),
+            role=AnyStringOrNone(),
             id_type=AnyLongType(),
             text_type="string",
             time_type="timestamp",
@@ -26,7 +26,7 @@ class TestDocsGenReferences(BaseDocsGenReferences):
     def expected_catalog(self, project):
         return self.expected_references_catalog(
             project,
-            role=AnyString(),
+            role=AnyStringOrNone(),
             id_type=AnyLongType(),
             text_type="string",
             time_type="timestamp",
