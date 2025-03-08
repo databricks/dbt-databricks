@@ -7,6 +7,7 @@
 ### Under the Hood
 
 - Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
+- Adding a Dev Container configuration to simplify onboarding of new contributors ([882](https://github.com/databricks/dbt-databricks/pull/882))
 
 ## dbt-databricks 1.9.5 (Feb 13, 2025)
 
