@@ -2,6 +2,7 @@ from typing import Optional
 
 from typing_extensions import Self
 
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
@@ -18,5 +19,9 @@ class ViewConfig(DatabricksRelationConfigBase):
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         changeset = super().get_changeset(existing)
         if changeset and "comment" in changeset.changes:
+            logger.debug(
+                "View description changed, requiring replace, as there is"
+                " no API yet to update comments."
+            )
             changeset.requires_full_refresh = True
         return changeset
