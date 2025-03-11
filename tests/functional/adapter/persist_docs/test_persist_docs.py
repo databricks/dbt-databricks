@@ -59,13 +59,13 @@ class DatabricksPersistDocsMixin:
         metadata, columns = adapter.parse_describe_extended(
             relation, Table(results, ["col_name", "data_type", "comment"])
         )
-        view_comment = metadata["Comment"]
 
         if has_node_comments:
+            view_comment = metadata["Comment"]
             assert view_comment.startswith("View model description")
             self._assert_common_comments(view_comment)
         else:
-            assert view_comment == "" or view_comment is None
+            assert metadata.get("Comment") is None
 
         for column in columns:
             if column.column == "id":
