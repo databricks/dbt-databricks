@@ -4,7 +4,8 @@
 
 - Support databricks OAuth M2M auth type. Updated OAuth readme doc with instructions.([827](https://github.com/databricks/dbt-databricks/pull/827))
 - Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
-- Introduce Tables V2, including use_safer_relation_operations which will not change the production table unless new data can safely be ingested ([927](https://github.com/databricks/dbt-databricks/pull/927))
+- Introduce Tables V2, including safe_table_create which will not change the production table unless new data can safely be ingested ([927](https://github.com/databricks/dbt-databricks/pull/927))
+- Views V2, including renaming safe_table_create to use_safer_relation_operations, and adding view_update_via_alter, to allow updating views by altering, instead of recreating ([954](https://github.com/databricks/dbt-databricks/pull/954))
 
 ### Under the Hood
 
