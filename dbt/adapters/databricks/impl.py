@@ -325,6 +325,7 @@ class DatabricksAdapter(SparkAdapter):
                     identifier=name,
                     type=DatabricksRelation.get_relation_type(kind),
                     metadata=metadata,
+                    is_delta=file_format == "delta",
                 )
             )
 
@@ -476,6 +477,7 @@ class DatabricksAdapter(SparkAdapter):
                 identifier=relation.identifier,
                 type=relation.type,  # type: ignore
                 metadata=metadata,
+                is_delta=metadata.get(KEY_TABLE_PROVIDER) == "delta",
             ),
             columns,
         )
@@ -574,16 +576,26 @@ class DatabricksAdapter(SparkAdapter):
         relations: list[tuple[DatabricksRelation, str]] = []
         if results:
             for name, information in results.select(["tableName", "information"]):
-                rel_type = RelationType.View if "Type: VIEW" in information else RelationType.Table
-                relation = DatabricksRelation.create(
+                rel_type = self._get_relation_type(information)
+                relation = self.Relation.create(
                     database=schema_relation.database.lower() if schema_relation.database else None,
                     schema=schema_relation.schema.lower() if schema_relation.schema else None,
                     identifier=name,
-                    type=rel_type,
+                    type=rel_type,  # type: ignore
+                    is_delta="Provider: delta" in information,
                 )
                 relations.append((relation, information))
 
         return relations
+
+    def _get_relation_type(self, information: str) -> str:
+        if "Type: VIEW" in information:
+            return RelationType.View
+        if "TYPE: MATERIALIZED_VIEW" in information:
+            return DatabricksRelationType.MaterializedView
+        if "TYPE: STREAMING_TABLE" in information:
+            return DatabricksRelationType.StreamingTable
+        return DatabricksRelationType.Table
 
     def _show_table_extended(self, schema_relation: DatabricksRelation) -> Optional["Table"]:
         kwargs = {"schema_relation": schema_relation}

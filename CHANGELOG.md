@@ -12,6 +12,12 @@
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 - Streamlining debug logging to make it more usable ([946](https://github.com/databricks/dbt-databricks/pull/946))
 
+## dbt-databricks 1.9.8 (TBD)
+
+### Fixes
+
+- Switch to using full_data_type column when using info schema for column info ([950](https://github.com/databricks/dbt-databricks/pull/950))
+
 ## dbt-databricks 1.9.7 (Feb 25, 2025)
 
 ### Fixes
