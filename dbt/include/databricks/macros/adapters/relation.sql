@@ -1,6 +1,6 @@
-{% macro make_staging_relation(base_relation, suffix='__dbt_stg') %}
+{% macro make_staging_relation(base_relation, suffix='__dbt_stg', type='table') %}
   {% set stg_identifier = base_relation.identifier ~ suffix %}
-  {% set stg_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=stg_identifier, type='table') %}
+  {% set stg_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=stg_identifier, type=type) %}
   {% do return(stg_relation) %}
 {% endmacro %}
 

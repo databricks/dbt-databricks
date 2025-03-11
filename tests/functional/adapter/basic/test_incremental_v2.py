@@ -8,7 +8,16 @@ from dbt.tests.adapter.basic.test_incremental import BaseIncremental, BaseIncrem
 class BaseIncrementalV2(BaseIncremental):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"name": "incremental", "flags": {"use_materialization_v2": True}}
+        return {
+            "name": "incremental",
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                }
+            },
+        }
 
     @pytest.fixture(autouse=True)
     def clean_up(self, project):

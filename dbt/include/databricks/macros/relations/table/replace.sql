@@ -14,7 +14,3 @@
 
   {{ drop_relation_if_exists(intermediate_relation) }}
 {% endmacro %}
-
-{% macro databricks__get_rename_table_sql(relation, new_name) %}
-  ALTER TABLE {{ relation }} RENAME TO `{{ relation.database }}`.`{{ relation.schema }}`.`{{ new_name }}`
-{% endmacro %}
