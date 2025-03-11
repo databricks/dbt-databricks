@@ -62,6 +62,7 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
+    is_delta: Optional[bool] = None
     create_constraints: list[TypedConstraint] = field(default_factory=list)
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
@@ -96,11 +97,6 @@ class DatabricksRelation(BaseRelation):
         return self.is_materialized_view or self.is_streaming_table
 
     @property
-    def is_delta(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
-
-    @property
     def is_hudi(self) -> bool:
         assert self.metadata is not None
         return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
@@ -115,7 +111,7 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def can_be_replaced(self) -> bool:
-        return self.is_delta and self.type in (
+        return self.is_delta is True and self.type in (
             DatabricksRelationType.Table,
             DatabricksRelationType.View,
         )
