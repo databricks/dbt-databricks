@@ -14,12 +14,7 @@ from dbt.adapters.databricks.relation_configs.tblproperties import TblProperties
 
 
 class ViewConfig(DatabricksRelationConfigBase):
-    config_components = [
-        TagsProcessor,
-        TblPropertiesProcessor,
-        QueryProcessor,
-        CommentProcessor,
-    ]
+    config_components = [TagsProcessor, TblPropertiesProcessor, QueryProcessor, CommentProcessor]
 
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         changeset = super().get_changeset(existing)
