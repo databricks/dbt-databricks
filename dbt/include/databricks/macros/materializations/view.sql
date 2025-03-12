@@ -14,11 +14,14 @@
           {{ exceptions.raise_compiler_error("Cannot update a view in the Hive metastore via ALTER VIEW. Please set `view_update_via_alter: false` in your model configuration.") }}
         {% endif %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
-        {% if configuration_changes and not configuration_changes.requires_full_refresh %}
-          {{ alter_view(target_relation, configuration_changes) }}
-        {% else %}
-          {{ replace_with_view(existing_relation, target_relation) }}
+        {% if configuration_changes and configuration_changes.changes %}
+          {% if configuration_changes.requires_full_refresh %}
+            {{ replace_with_view(existing_relation, target_relation) }}
+          {% else %}
+            {{ alter_view(target_relation, configuration_changes.changes) }}
+          {% endif %}
         {% endif %}
+        {{ persist_docs(target_relation, model, for_relation=False) }}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
       {% endif %}

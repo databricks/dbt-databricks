@@ -182,7 +182,7 @@ class MacroTestBase:
                 "schema": "some_schema",
                 "identifier": "some_table",
             },
-            "type": None,
+            "type": "view",
         }
 
         return DatabricksRelation.from_dict(data)
