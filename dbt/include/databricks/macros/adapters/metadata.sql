@@ -84,9 +84,6 @@
   {% do return(load_result('get_view_description').table) %}
 {% endmacro %}
 
-  {% do return(load_result('get_view_description_alt').table) %}
-{% endmacro %}
-
 {% macro get_uc_tables(relation) %}
   {% call statement('get_uc_tables', fetch_result=True) -%}
     select
