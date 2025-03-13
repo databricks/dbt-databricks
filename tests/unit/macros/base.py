@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
 
 
@@ -34,7 +35,7 @@ class MacroTestBase:
         context["var"] = lambda key, default=None, **kwargs: local_var.get(key, default)
         return local_var
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def default_context(self) -> dict:
         """
         This is the default context used in all tests.
@@ -50,11 +51,12 @@ class MacroTestBase:
             "log": Mock(return_value=""),
             "return": lambda r: r,
             "is_incremental": Mock(return_value=False),
+            "api": Mock(Column=DatabricksColumn),
+            "local_md5": lambda s: f"hash({s})",
         }
-
         return context
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def spark_env(self) -> Environment:
         """
         The environment used for rendering dbt-spark macros
@@ -64,7 +66,7 @@ class MacroTestBase:
             extensions=["jinja2.ext.do"],
         )
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def spark_template_names(self) -> list:
         """
         The list of Spark templates to load for the tests.
@@ -72,14 +74,14 @@ class MacroTestBase:
         """
         return ["adapters.sql"]
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def spark_context(self, default_context, spark_env, spark_template_names) -> dict:
         """
         Adds all the requested Spark macros to the context
         """
         return self.build_up_context(default_context, spark_env, spark_template_names)
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def macro_folders_to_load(self) -> list:
         """
         This is a list of folders from which we look to load Databricks macro templates.
@@ -88,7 +90,7 @@ class MacroTestBase:
         """
         return ["macros"]
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def databricks_env(self, macro_folders_to_load) -> Environment:
         """
         The environment used for rendering Databricks macros
@@ -100,7 +102,7 @@ class MacroTestBase:
             extensions=["jinja2.ext.do"],
         )
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def databricks_template_names(self) -> list:
         """
         The list of databricks templates to load for referencing imported macros in the
@@ -111,7 +113,7 @@ class MacroTestBase:
         """
         return []
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def databricks_context(self, spark_context, databricks_env, databricks_template_names) -> dict:
         """
         Adds all the requested Databricks macros to the context
@@ -131,7 +133,7 @@ class MacroTestBase:
 
         return new_context
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def template_name(self) -> str:
         """
         The name of the Databricks template you want to test, not including the path.
@@ -171,7 +173,7 @@ class MacroTestBase:
         """
         return template.globals
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def relation(self):
         """
         Dummy relation to use in tests.

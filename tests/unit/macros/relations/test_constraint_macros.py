@@ -1,8 +1,5 @@
-from unittest.mock import Mock
-
 import pytest
 
-from dbt.adapters.databricks.column import DatabricksColumn
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -11,15 +8,9 @@ class TestConstraintMacros(MacroTestBase):
     def template_name(self) -> str:
         return "constraints.sql"
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def macro_folders_to_load(self) -> list:
         return ["macros/relations", "macros"]
-
-    @pytest.fixture(scope="class", autouse=True)
-    def modify_context(self, default_context) -> None:
-        # Mock local_md5
-        default_context["local_md5"] = lambda s: f"hash({s})"
-        default_context["api"] = Mock(Column=DatabricksColumn)
 
     def render_constraints(self, template, *args):
         return self.run_macro(template, "databricks_constraints_to_dbt", *args)
@@ -68,7 +59,7 @@ class TestConstraintMacros(MacroTestBase):
 
         assert r == "[{'type': 'not_null', 'columns': ['col']}]"
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def constraint_model(self):
         columns = {
             "id": {"name": "id", "data_type": "int"},
@@ -175,7 +166,7 @@ class TestConstraintMacros(MacroTestBase):
             *args,
         )
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def model(self):
         columns = {
             "id": {"name": "id", "data_type": "int"},

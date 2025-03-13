@@ -44,7 +44,7 @@ class TestAlterView(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/relations/view"]
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="function")
     def mocks(self, context):
         context["apply_tags"] = Mock()
         context["apply_tblproperties"] = Mock()
