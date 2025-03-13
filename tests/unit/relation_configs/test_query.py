@@ -30,3 +30,23 @@ class TestQueryProcessor:
             match="Cannot compile model 1 with no SQL query",
         ):
             _ = QueryProcessor.from_relation_config(model)
+
+    def test_get_diff__similar_query(self):
+        model = QueryConfig(query="select * from foo")
+        results = {
+            "information_schema.views": Row(
+                ["(\nselect * from foo\n)", "other"], ["view_definition", "comment"]
+            )
+        }
+        other = QueryProcessor.from_relation_results(results)
+        assert model.get_diff(other) is None
+
+    def test_get_diff__different_query(self):
+        model = QueryConfig(query="select * from foo")
+        results = {
+            "information_schema.views": Row(
+                ["(\nselect * from bar\n)", "other"], ["view_definition", "comment"]
+            )
+        }
+        other = QueryProcessor.from_relation_results(results)
+        assert model.get_diff(other) is model
