@@ -45,6 +45,20 @@ class BaseUpdateQuery(BaseUpdateView):
         assert results[0] == Row([1], ["id"])
 
 
+class BaseUpdateNothing(BaseUpdateView):
+    """This test is only to ensure that we don't error out due to lack of changes."""
+
+    def test_view_update_nothing(self, project):
+        util.run_dbt(["build"])
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "describe extended {database}.{schema}.initial_view",
+            fetch="all",
+        )
+        assert results[0][2] == "This is the id column"
+
+
 class BaseUpdateTblProperties(BaseUpdateView):
     def test_view_update_tblproperties(self, project):
         util.run_dbt(["build"])
@@ -77,6 +91,22 @@ class BaseUpdateColumnComments(BaseUpdateView):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterDescription(BaseUpdateDescription):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterNothing(BaseUpdateNothing):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

@@ -21,6 +21,10 @@
             {{ alter_view(target_relation, configuration_changes.changes) }}
           {% endif %}
         {% endif %}
+        {# This is to satisfy dbt that main must be called in a materialization, but there are no changes needed here #}
+        {% call statement('main') %}
+          select 1
+        {% endcall %}
         {{ persist_docs(target_relation, model, for_relation=False) }}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
@@ -29,6 +33,7 @@
       {% call statement('main') -%}
         {{ get_create_view_as_sql(target_relation, sql) }}
       {%- endcall %}
+      {{ apply_tags(target_relation, tags) }}
     {% endif %}
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
