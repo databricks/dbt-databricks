@@ -7,7 +7,7 @@
 {% set build_sql = streaming_table_get_build_sql(existing_relation, target_relation) %}
 
     {% if build_sql == '' %}
-        {{ streaming_table_execute_no_op(target_relation) }}
+        {{ execute_no_op(target_relation) }}
     {% else %}
         {{ streaming_table_execute_build_sql(build_sql, existing_relation, target_relation, post_hooks) }}
     {% endif %}
@@ -55,17 +55,6 @@
     {% do return(build_sql) %}
 
 {% endmacro %}
-
-
-{% macro streaming_table_execute_no_op(target_relation) %}
-    {% do store_raw_result(
-        name="main",
-        message="skip " ~ target_relation,
-        code="skip",
-        rows_affected="-1"
-    ) %}
-{% endmacro %}
-
 
 {% macro streaming_table_execute_build_sql(build_sql, existing_relation, target_relation, post_hooks) %}
 

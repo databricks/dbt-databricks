@@ -7,7 +7,7 @@
     {% set build_sql = materialized_view_get_build_sql(existing_relation, target_relation) %}
 
     {% if build_sql == '' %}
-        {{ materialized_view_execute_no_op(target_relation) }}
+        {{ execute_no_op(target_relation) }}
     {% else %}
         {{ materialized_view_execute_build_sql(build_sql, existing_relation, target_relation, post_hooks) }}
     {% endif %}
@@ -17,7 +17,6 @@
     {{ return({'relations': [target_relation]}) }}
 
 {% endmaterialization %}
-
 
 {% macro materialized_view_get_build_sql(existing_relation, target_relation) %}
 
@@ -55,16 +54,6 @@
 
     {% do return(build_sql) %}
 
-{% endmacro %}
-
-
-{% macro materialized_view_execute_no_op(target_relation) %}
-    {% do store_raw_result(
-        name="main",
-        message="skip " ~ target_relation,
-        code="skip",
-        rows_affected="-1"
-    ) %}
 {% endmacro %}
 
 
