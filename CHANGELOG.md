@@ -13,6 +13,7 @@
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
 - Streamlining debug logging to make it more usable ([946](https://github.com/databricks/dbt-databricks/pull/946))
 - Upgrading Databricks SQL Connector to V4 ([962](https://github.com/databricks/dbt-databricks/pull/962))
+- Validation of sample mode ([961](https://github.com/databricks/dbt-databricks/pull/961))
 
 ## dbt-databricks 1.9.8 (TBD)
 
