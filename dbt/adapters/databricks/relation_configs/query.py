@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -15,14 +15,21 @@ class QueryConfig(DatabricksComponentConfig):
 
     query: str
 
+    def get_diff(self, other: "QueryConfig") -> Optional["QueryConfig"]:
+        if self.query.strip() != other.query.strip():
+            return self
+        return None
+
 
 class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     name: ClassVar[str] = "query"
 
     @classmethod
     def from_relation_results(cls, result: RelationResults) -> QueryConfig:
-        row = result["information_schema.views"]
-        return QueryConfig(query=row["view_definition"])
+        view_definition = result["information_schema.views"]["view_definition"].strip()
+        if view_definition[0] == "(" and view_definition[-1] == ")":
+            view_definition = view_definition[1:-1]
+        return QueryConfig(query=view_definition.strip())
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> QueryConfig:
