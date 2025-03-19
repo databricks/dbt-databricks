@@ -19,7 +19,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
 
     # List of tblproperties that should be ignored when comparing configs. These are generally
     # set by Databricks and are not user-configurable.
-    ignore_list: list[str] = [
+    ignore_list: ClassVar[list[str]] = [
         "pipelines.pipelineId",
         "delta.enableChangeDataFeed",
         "delta.minReaderVersion",
@@ -27,6 +27,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "pipeline_internal.catalogType",
         "pipelines.metastore.tableName",
         "pipeline_internal.enzymeMode",
+        "clusterByAuto",
         "clusteringColumns",
         "delta.enableRowTracking",
         "delta.feature.appendOnly",
@@ -68,7 +69,8 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
             for row in table.rows:
                 if str(row[0]) == "pipelines.pipelineId":
                     pipeline_id = str(row[1])
-                tblproperties[str(row[0])] = str(row[1])
+                elif str(row[0]) not in TblPropertiesConfig.ignore_list:
+                    tblproperties[str(row[0])] = str(row[1])
 
         return TblPropertiesConfig(tblproperties=tblproperties, pipeline_id=pipeline_id)
 
