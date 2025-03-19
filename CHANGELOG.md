@@ -11,6 +11,7 @@
 
 - Update pinned python SDK version from 0.17.0 to 0.41.0. ([827](https://github.com/databricks/dbt-databricks/pull/827))
 - Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
+  - Quote constraint names if we quote column names (thanks @samuelberntzen!) ([966](https://github.com/databricks/dbt-databricks/pull/966))
 - Streamlining debug logging to make it more usable ([946](https://github.com/databricks/dbt-databricks/pull/946))
 - Upgrading Databricks SQL Connector to V4 ([962](https://github.com/databricks/dbt-databricks/pull/962))
 - Validation of sample mode ([961](https://github.com/databricks/dbt-databricks/pull/961))
