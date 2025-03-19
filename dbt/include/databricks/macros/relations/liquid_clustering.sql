@@ -14,7 +14,7 @@
 {% macro apply_liquid_clustered_cols(target_relation, liquid_clustering) -%}
   {%- set cols = liquid_clustering.cluster_by -%}
   {%- set auto_cluster = liquid_clustering.auto_cluster -%}
-  {%- if cols and len(cols) > 0 %}
+  {%- if cols and cols != [] %}
     {%- call statement('set_cluster_by_columns') -%}
       ALTER {{ target_relation.type }} {{ target_relation.render() }} CLUSTER BY ({{ cols | join(', ') }})
     {%- endcall -%}
