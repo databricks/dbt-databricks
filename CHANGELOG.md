@@ -16,6 +16,7 @@
 - Streamlining debug logging to make it more usable ([946](https://github.com/databricks/dbt-databricks/pull/946))
 - Upgrading Databricks SQL Connector to V4 ([962](https://github.com/databricks/dbt-databricks/pull/962))
 - Validation of sample mode ([961](https://github.com/databricks/dbt-databricks/pull/961))
+- Move liquid clustering behavior to on_config_change approach for incremental ([968](https://github.com/databricks/dbt-databricks/pull/968))
 
 ## dbt-databricks 1.9.8 (TBD)
 
