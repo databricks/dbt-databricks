@@ -184,7 +184,9 @@ def parse_column_constraints(
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
-                constraint["columns"] = [column["name"]]
+                constraint["columns"] = [
+                    f"`{column['name']}`" if column.get("quote") else column["name"]
+                ]
                 constraints.append(parse_constraint(constraint))
 
     return column_names, constraints
