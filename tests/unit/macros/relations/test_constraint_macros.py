@@ -417,7 +417,7 @@ class TestConstraintMacros(MacroTestBase):
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
             "myconstraint PRIMARY KEY(valid_at TIMESERIES);']"
         )
-        assert expected in r
+        assert self.clean_sql(expected) in r
 
     def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
         constraint = {
@@ -431,7 +431,7 @@ class TestConstraintMacros(MacroTestBase):
             "add constraint hash(some_table;PRIMARY KEY(valid_at TIMESERIES);) "
             "PRIMARY KEY(valid_at TIMESERIES);']"
         )  # noqa: E501
-        assert expected in r
+        assert self.clean_sql(expected) in r
 
     def test_macros_get_constraint_sql_custom_missing_expression(self, template_bundle, model):
         constraint = {

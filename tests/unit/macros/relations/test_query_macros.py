@@ -22,7 +22,7 @@ class TestAlterQuery(MacroTestBase):
 
     def test_macros__alter_query(self, template_bundle):
         sql = self.render_alter_query(template_bundle)
-        expected = (
+        expected = self.clean_sql(
             f"ALTER {str(template_bundle.relation.type).upper()}"
             f" {template_bundle.relation.render()} AS ( select 1 )"
         )

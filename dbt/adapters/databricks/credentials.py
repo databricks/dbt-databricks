@@ -110,6 +110,7 @@ class DatabricksCredentials(Credentials):
             "catalog",
             "schema",
             "_user_agent_entry",
+            "user_agent_entry",
         ):
             if key in connection_parameters:
                 raise DbtValidationError(f"The connection parameter `{key}` is reserved.")

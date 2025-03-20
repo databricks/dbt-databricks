@@ -49,10 +49,10 @@ class TestCreateTableAs(MacroTestBase):
             "delta.universalFormat.enabledFormats": "iceberg",
         }
         sql = self.render_create_table_as(template_bundle)
-        assert sql == (
+        assert sql == self.clean_sql(
             f"create or replace table {template_bundle.relation} using delta"
             " tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
-            "'delta.universalFormat.enabledFormats' = 'iceberg' ) as select 1"
+            "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
         )
 
     @pytest.mark.parametrize("format", ["parquet", "hudi"])
@@ -69,7 +69,7 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_options(self, config, template_bundle):
         config["options"] = {"compression": "gzip"}
         sql = self.render_create_table_as(template_bundle)
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} "
             'using delta options (compression "gzip" ) as select 1'
         )
@@ -82,7 +82,7 @@ class TestCreateTableAs(MacroTestBase):
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
-        expected = (
+        expected = self.clean_sql(
             f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
             f"location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
@@ -99,7 +99,7 @@ class TestCreateTableAs(MacroTestBase):
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
-        expected = (
+        expected = self.clean_sql(
             f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
             f"location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
@@ -162,7 +162,7 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_liquid_cluster(self, config, template_bundle):
         config["liquid_clustered_by"] = "cluster_1"
         sql = self.render_create_table_as(template_bundle)
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} using"
             " delta CLUSTER BY (cluster_1) as select 1"
         )
@@ -173,7 +173,7 @@ class TestCreateTableAs(MacroTestBase):
         config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         sql = self.render_create_table_as(template_bundle)
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} "
             "using delta CLUSTER BY (cluster_1, cluster_2) as select 1"
         )
@@ -183,7 +183,7 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_liquid_cluster_auto(self, config, template_bundle):
         config["auto_liquid_cluster"] = True
         sql = self.render_create_table_as(template_bundle)
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} using"
             " delta CLUSTER BY AUTO as select 1"
         )
@@ -196,7 +196,7 @@ class TestCreateTableAs(MacroTestBase):
 
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} "
             "using delta comment 'Description Test' as select 1"
         )
@@ -218,7 +218,7 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "delta"
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
+        expected = self.clean_sql(
             f"create or replace table {template_bundle.relation} "
             "using delta "
             "partitioned by (partition_1,partition_2) "
@@ -246,7 +246,7 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "hudi"
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
+        expected = self.clean_sql(
             f"create table {template_bundle.relation} "
             "using hudi "
             "partitioned by (partition_1,partition_2) "

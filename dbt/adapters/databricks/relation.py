@@ -183,6 +183,9 @@ class DatabricksRelation(BaseRelation):
         processed = map(process_constraint, self.create_constraints)
         return ", ".join(c for c in processed if c is not None)
 
+    def render(self) -> str:
+        return super().render().lower()
+
 
 def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"
