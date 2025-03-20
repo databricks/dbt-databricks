@@ -6,6 +6,7 @@
 - Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
 - Introduce Tables V2, including safe_table_create which will not change the production table unless new data can safely be ingested ([927](https://github.com/databricks/dbt-databricks/pull/927))
 - Views V2, including renaming safe_table_create to use_safer_relation_operations, and adding view_update_via_alter, to allow updating views by altering, instead of recreating ([954](https://github.com/databricks/dbt-databricks/pull/954))
+- Remover blockers to custom incremental strategies ([972](https://github.com/databricks/dbt-databricks/pull/972))
 
 ### Under the Hood
 
