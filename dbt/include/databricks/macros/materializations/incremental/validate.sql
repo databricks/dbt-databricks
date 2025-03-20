@@ -19,11 +19,6 @@
 {% macro dbt_databricks_validate_get_incremental_strategy(raw_strategy, file_format) %}
   {#-- Validate the incremental strategy #}
 
-  {% set invalid_strategy_msg -%}
-    Invalid incremental strategy provided: {{ raw_strategy }}
-    Expected one of: 'merge', 'replace_where', 'append', 'insert_overwrite'
-  {%- endset %}
-
   {% set invalid_delta_only_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
     You can only choose this strategy when file_format is set to 'delta'
@@ -35,15 +30,11 @@
     Use the 'merge' or 'replace_where' strategy instead
   {%- endset %}
 
-  {% if raw_strategy not in adapter.valid_incremental_strategies() %}
-    {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
-  {%-else %}
-    {% if raw_strategy == 'merge' and file_format not in ['delta', 'hudi'] %}
-      {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
-    {% endif %}
-    {% if raw_strategy in ('replace_where', 'microbatch') and file_format not in ['delta'] %}
-      {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
-    {% endif %}
+  {% if raw_strategy == 'merge' and file_format not in ['delta', 'hudi'] %}
+    {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
+  {% endif %}
+  {% if raw_strategy in ('replace_where', 'microbatch') and file_format not in ['delta'] %}
+    {% do exceptions.raise_compiler_error(invalid_delta_only_msg) %}
   {% endif %}
 
   {% do return(raw_strategy) %}
