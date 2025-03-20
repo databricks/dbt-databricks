@@ -22,7 +22,7 @@ class TestOptimizeMacros(MacroTestBase):
         config["zorder"] = ["foo", "bar"]
         sql = self.render_bundle(template_bundle, "get_optimize_sql")
 
-        assert sql == "optimize `some_database`.`some_schema`.`some_table` zorder by ( foo, bar )"
+        assert sql == "optimize `some_database`.`some_schema`.`some_table` zorder by (foo, bar)"
 
     def test_macros_optimize_with_extraneous_info(self, config, var, template_bundle):
         config["zorder"] = ["foo", "bar"]

@@ -320,5 +320,6 @@ class SqlUtils:
             "use_inline_params": "silent",
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
+            "user_agent_entry": user_agent_entry,
             **connection_parameters,
         }

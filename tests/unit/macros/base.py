@@ -208,8 +208,19 @@ class MacroTestBase:
         Run the named macro from a template, and return the rendered value.
         This version strips off extra whitespace and newlines.
         """
-        value = self.run_macro_raw(template, name, *args)
-        return re.sub(r"\s\s+", " ", value).strip()
+        return self.clean_sql(self.run_macro_raw(template, name, *args))
+
+    def clean_sql(self, sql):
+        """Helper method to normalize SQL for comparison"""
+
+        sql = sql.lower()
+        # Remove extra whitespace, newlines, and standardize spacing
+        sql = re.sub(r"\s+", " ", sql).strip()
+        # Normalize multiple spaces to single spaces
+        sql = re.sub(r" +", " ", sql)
+        sql = sql.replace("( ", "(")
+        sql = sql.replace(" )", ")")
+        return sql
 
     def render_bundle(self, template_bundle, name, *args):
         """

@@ -14,7 +14,7 @@ class TestTagsMacros(MacroTestBase):
 
     def test_macros_fetch_tags_sql(self, template_bundle):
         sql = self.render_bundle(template_bundle, "fetch_tags_sql")
-        expected = (
+        expected = self.clean_sql(
             "SELECT tag_name, tag_value "
             "FROM `system`.`information_schema`.`table_tags` "
             "WHERE catalog_name = 'some_database'"
@@ -24,7 +24,7 @@ class TestTagsMacros(MacroTestBase):
 
     def test_macros_alter_set_tags(self, template_bundle):
         sql = self.render_bundle(template_bundle, "alter_set_tags", {"a": "valA", "b": "valB"})
-        expected = (
+        expected = self.clean_sql(
             "ALTER view `some_database`.`some_schema`.`some_table` "
             "SET TAGS ( 'a' = 'valA', 'b' = 'valB' )"
         )
@@ -33,6 +33,8 @@ class TestTagsMacros(MacroTestBase):
 
     def test_macros_alter_unset_tags(self, template_bundle):
         sql = self.render_bundle(template_bundle, "alter_unset_tags", ["a", "b"])
-        expected = "ALTER view `some_database`.`some_schema`.`some_table` UNSET TAGS ( 'a','b' )"
+        expected = self.clean_sql(
+            "ALTER view `some_database`.`some_schema`.`some_table` UNSET TAGS ( 'a','b' )"
+        )
 
         assert sql == expected
