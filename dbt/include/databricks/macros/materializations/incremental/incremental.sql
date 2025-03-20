@@ -148,16 +148,19 @@
         Also, why does not either drop_relation or adapter.drop_relation work here?!
         --#}
       {%- endif -%}
-      {% do apply_liquid_clustered_cols(target_relation) %}
       {% if _configuration_changes is not none %}
         {% set tags = _configuration_changes.changes.get("tags", None) %}
         {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
+        {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustered_by") %}
         {% if tags is not none %}
           {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
         {%- endif -%}
         {% if tblproperties is not none %}
           {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
         {%- endif -%}
+        {% if liquid_clustered_by is not none %}
+          
+        {% endif %}
       {%- endif -%}
       {% do persist_docs(target_relation, model, for_relation=True) %}
     {%- endif -%}
