@@ -52,7 +52,7 @@ class TestColumnsMacros(MacroTestBase):
             FROM `system`.`information_schema`.`columns`
             WHERE
               table_catalog = 'test_db' and
-              table_schema = 'test_schema' and 
+              table_schema = 'test_schema' and
               table_name = 'test_table'
         """
 
@@ -89,44 +89,3 @@ class TestColumnsMacros(MacroTestBase):
             "ALTER TABLE `test_db`.`test_schema`.`test_table` ADD COLUMNS (col1 INT, col2 STRING)"
         )
         assert self.clean_sql(result) == self.clean_sql(expected_sql)
-
-    def test_databricks__get_columns_in_query(self, template_bundle, context):
-        """Test get_columns_in_query macro"""
-        select_sql = "SELECT col1, col2 FROM test_table"
-
-        # This macro is not in your current file, so we'll mock its implementation
-        # For simplicity, we'll mock load_result directly
-
-        # Create mock columns and table result
-        mock_column1 = Mock()
-        mock_column1.name = "col1"
-        mock_column2 = Mock()
-        mock_column2.name = "col2"
-        mock_table = Mock()
-        mock_table.columns = [mock_column1, mock_column2]
-
-        # Mock load_result
-        mock_result = Mock()
-        mock_result.table = mock_table
-        context["load_result"] = Mock(return_value=mock_result)
-
-        # Set up mocks for log, statement
-        context["log"] = Mock()
-
-        # Run the macro (if it exists)
-        # You may need to comment this out if databricks__get_columns_in_query
-        # is not in your file
-        try:
-            result = self.run_macro_raw(
-                template_bundle.template, "databricks__get_columns_in_query", select_sql
-            )
-
-            # If it runs successfully, verify the expected result
-            assert result == ["col1", "col2"]
-
-            # Verify statement and log were called
-            context["statement"].assert_called_once()
-            context["log"].assert_called_once()
-        except:
-            # If the macro doesn't exist, this will be skipped
-            pass
