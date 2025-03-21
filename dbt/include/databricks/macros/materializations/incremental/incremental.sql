@@ -16,6 +16,7 @@
     {{ log("USING V2 MATERIALIZATION") }}
     {#-- Set vars --#}
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
+    {{ log("Safe create: " ~ safe_create) }}
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
     {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
 
