@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "databricks-sdk==0.46.0",
+    "databricks-sdk>=0.41, <0.48.0",
     "databricks-sql-connector[pyarrow]>=4.0.0, <5.0.0",
     "dbt-adapters>=1.9.0, <2.0",
     "dbt-common>=1.12.0, <2.0",
