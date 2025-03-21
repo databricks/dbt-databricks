@@ -5,7 +5,7 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set tblproperties = config.get('tblproperties') -%}
   {%- set tags = config.get('databricks_tags') -%}
-  {%- set safe_create = config.get('use_safer_relation_operations', True) %}
+  {%- set safe_create = config.get('use_safer_relation_operations', False) %}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
 
