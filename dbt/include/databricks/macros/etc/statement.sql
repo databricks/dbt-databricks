@@ -29,3 +29,14 @@
     {% endfor %}
   {% endif %}
 {% endmacro %}
+
+{# a user-friendly interface into statements #}
+{% macro run_query_as(sql, name, fetch_result=True) %}
+  {% call statement(name, fetch_result, auto_begin=False) %}
+    {{ sql }}
+  {% endcall %}
+
+  {% if fetch_result %}
+    {{ return(load_result(name).table) }}
+  {% endif %}
+{% endmacro %}

@@ -135,15 +135,15 @@ class TestCatalogMacros(MacroTestBase):
 
         # Mock run_query to return a dummy result
         mock_result = Mock()
-        context["run_query"] = Mock(return_value=mock_result)
+        context["run_query_as"] = Mock(return_value=mock_result)
 
         self.run_macro_raw(
             template_bundle.template, "databricks__get_catalog", information_schema, schemas
         )
 
         # Verify run_query was called once and capture the SQL
-        context["run_query"].assert_called_once()
-        sql_query = context["run_query"].call_args[0][0]
+        context["run_query_as"].assert_called_once()
+        sql_query = context["run_query_as"].call_args[0][0]
 
         # Check complete SQL structure
         expected_sql = """
@@ -197,7 +197,6 @@ class TestCatalogMacros(MacroTestBase):
         """Test the get_catalog_relations macro with mocked run_query"""
         information_schema = {"database": "test_catalog"}
 
-        # Create mock relations
         relation1 = MagicMock()
         relation1.schema = "test_schema1"
         relation1.identifier = "test_table1"
@@ -208,9 +207,8 @@ class TestCatalogMacros(MacroTestBase):
 
         relations = [relation1, relation2]
 
-        # Mock run_query to return a dummy result
         mock_result = Mock()
-        context["run_query"] = Mock(return_value=mock_result)
+        context["run_query_as"] = Mock(return_value=mock_result)
 
         self.run_macro_raw(
             template_bundle.template,
@@ -219,9 +217,7 @@ class TestCatalogMacros(MacroTestBase):
             relations,
         )
 
-        # Verify run_query was called once and capture the SQL
-        context["run_query"].assert_called_once()
-        sql_query = context["run_query"].call_args[0][0]
+        sql_query = context["run_query_as"].call_args[0][0]
 
         # Check complete SQL structure
         expected_sql = """

@@ -11,7 +11,7 @@ columns AS (
 {{ databricks__get_catalog_results_sql() }}
   {%- endset -%}
 
-  {{ return(run_query(query)) }}
+  {{ return(run_query_as(query, 'get_catalog')) }}
 {%- endmacro %}
 
 {% macro databricks__get_catalog_relations(information_schema, relations) -%}
@@ -27,7 +27,7 @@ columns AS (
 {{ databricks__get_catalog_results_sql() }}
   {%- endset -%}
 
-  {{ return(run_query(query)) }}
+  {{ return(run_query_as(query, 'get_catalog_relations')) }}
 {%- endmacro %}
 
 {% macro databricks__get_catalog_tables_sql(information_schema) -%}

@@ -1,0 +1,208 @@
+from unittest.mock import Mock
+
+import pytest
+
+from tests.unit.macros.base import MacroTestBase
+
+
+class TestMetadataMacros(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "adapters/metadata.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros", "macros/adapters"]
+
+    @pytest.fixture
+    def mock_relation(self):
+        relation = Mock()
+        relation.database = "test_db"
+        relation.schema = "test_schema"
+        relation.identifier = "test_table"
+        relation.render = Mock(return_value="`test_db`.`test_schema`.`test_table`")
+
+        relation.without_identifier = Mock(return_value="`test_db`.`test_schema`")
+
+        return relation
+
+    @pytest.fixture
+    def mock_schema_relation(self):
+        relation = Mock()
+        relation.database = "test_db"
+        relation.schema = "test_schema"
+        relation.render = Mock(return_value="`test_db`.`test_schema`")
+        return relation
+
+    @pytest.fixture
+    def mock_information_schema(self):
+        info_schema = Mock()
+        info_schema.database = "test_db"
+        info_schema.is_hive_metastore = Mock(return_value=False)
+        return info_schema
+
+    @pytest.fixture
+    def mock_relations_list(self, mock_relation):
+        relation1 = Mock()
+        relation1.schema = "test_schema1"
+        relation1.identifier = "test_table1"
+
+        relation2 = Mock()
+        relation2.schema = "test_schema2"
+        relation2.identifier = "test_table2"
+
+        return [relation1, relation2]
+
+    def test_show_table_extended_sql(self, template_bundle, mock_relation):
+        """Test SQL generation for show_table_extended_sql"""
+        result = self.run_macro(template_bundle.template, "show_table_extended_sql", mock_relation)
+
+        expected_sql = "SHOW TABLE EXTENDED IN `test_db`.`test_schema` LIKE 'test_table'"
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_show_tables_sql(self, template_bundle, mock_schema_relation):
+        """Test SQL generation for show_tables_sql"""
+        result = self.run_macro(template_bundle.template, "show_tables_sql", mock_schema_relation)
+
+        expected_sql = "SHOW TABLES IN `test_db`.`test_schema`"
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_show_views_sql(self, template_bundle, mock_schema_relation):
+        """Test SQL generation for show_views_sql"""
+        result = self.run_macro(template_bundle.template, "show_views_sql", mock_schema_relation)
+
+        expected_sql = "SHOW VIEWS IN `test_db`.`test_schema`"
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_get_relation_last_modified_sql_unity_catalog(
+        self, context, template_bundle, mock_information_schema, mock_relations_list
+    ):
+        """Test SQL generation for get_relation_last_modified_sql with Unity Catalog"""
+
+        context["current_timestamp"] = Mock(return_value="current_timestamp()")
+        mock_information_schema.is_hive_metastore.return_value = False
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_relation_last_modified_sql",
+            mock_information_schema,
+            mock_relations_list,
+        )
+
+        expected_sql = """
+            SELECT
+              table_schema AS schema,
+              table_name AS identifier,
+              last_altered AS last_modified,
+              current_timestamp() AS snapshotted_at
+            FROM `system`.`information_schema`.`tables`
+            WHERE table_catalog = 'test_db'
+              AND (
+                (table_schema = 'test_schema1' AND table_name = 'test_table1') OR
+                (table_schema = 'test_schema2' AND table_name = 'test_table2')
+              )
+        """
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_get_relation_last_modified_sql_hive_metastore(
+        self, context, template_bundle, mock_information_schema, mock_relations_list
+    ):
+        """Test SQL generation for get_relation_last_modified_sql with Hive Metastore"""
+
+        context["current_timestamp"] = Mock(return_value="current_timestamp()")
+        mock_information_schema.is_hive_metastore.return_value = True
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_relation_last_modified_sql",
+            mock_information_schema,
+            mock_relations_list,
+        )
+
+        expected_sql = """
+            SELECT
+              'test_schema1' AS schema,
+              'test_table1' AS identifier,
+              max(timestamp) AS last_modified,
+              current_timestamp() AS snapshotted_at
+            FROM (DESCRIBE HISTORY test_schema1.test_table1)
+            UNION ALL
+            SELECT
+              'test_schema2' AS schema,
+              'test_table2' AS identifier,
+              max(timestamp) AS last_modified,
+              current_timestamp() AS snapshotted_at
+            FROM (DESCRIBE HISTORY test_schema2.test_table2)
+        """
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_get_view_description_sql(self, template_bundle, mock_relation):
+        """Test SQL generation for get_view_description_sql"""
+        result = self.run_macro(template_bundle.template, "get_view_description_sql", mock_relation)
+
+        expected_sql = """
+            SELECT *
+            FROM `system`.`information_schema`.`views`
+            WHERE table_catalog = 'test_db'
+              AND table_schema = 'test_schema'
+              AND table_name = 'test_table'
+        """
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_get_uc_tables_sql_with_identifier(self, template_bundle, mock_relation):
+        """Test SQL generation for get_uc_tables_sql with identifier"""
+        result = self.run_macro(template_bundle.template, "get_uc_tables_sql", mock_relation)
+
+        expected_sql = """
+            SELECT
+              table_name,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
+              lower(data_source_format) AS file_format,
+              table_owner
+            FROM `system`.`information_schema`.`tables`
+            WHERE table_catalog = 'test_db' 
+              AND table_schema = 'test_schema'
+              AND table_name = 'test_table'
+        """  # noqa
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_get_uc_tables_sql_without_identifier(self, template_bundle, mock_schema_relation):
+        """Test SQL generation for get_uc_tables_sql without identifier"""
+        mock_schema_relation.identifier = None
+
+        result = self.run_macro(template_bundle.template, "get_uc_tables_sql", mock_schema_relation)
+
+        expected_sql = """
+            SELECT
+              table_name,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
+              lower(data_source_format) AS file_format,
+              table_owner
+            FROM `system`.`information_schema`.`tables`
+            WHERE table_catalog = 'test_db' 
+              AND table_schema = 'test_schema'
+        """  # noqa
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+
+    def test_case_sensitivity(self, template_bundle):
+        """Test proper handling of case sensitivity with lowercase filters"""
+        relation = Mock()
+        relation.database = "TEST_DB"
+        relation.schema = "TEST_SCHEMA"
+        relation.identifier = "TEST_TABLE"
+        relation.render = Mock(return_value="`TEST_DB`.`TEST_SCHEMA`.`TEST_TABLE`")
+
+        result = self.run_macro(template_bundle.template, "get_uc_tables_sql", relation)
+
+        expected_sql = """
+            SELECT
+              table_name,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
+              lower(data_source_format) AS file_format,
+              table_owner
+            FROM `system`.`information_schema`.`tables`
+            WHERE table_catalog = 'test_db' 
+              AND table_schema = 'test_schema'
+              AND table_name = 'test_table'
+        """  # noqa
+        assert self.clean_sql(result) == self.clean_sql(expected_sql)

@@ -1,6 +1,6 @@
 
 {% macro get_columns_comments(relation) -%}
-  {{ return(run_query(get_columns_comments_sql(relation))) }}
+  {{ return(run_query_as(get_columns_comments_sql(relation), 'get_columns_comments')) }}
 {% endmacro %}
 
 {% macro get_columns_comments_sql(relation) %}
@@ -8,10 +8,8 @@ DESCRIBE TABLE {{ relation.render() }}
 {% endmacro %}
 
 {% macro get_columns_comments_via_information_schema(relation) -%}
-  {% call statement('repair_table', fetch_result=False) -%}
-    {{ repair_table_sql(relation) }}
-  {% endcall %}
-  {{ return(run_query(get_columns_comments_via_information_schema_sql(relation))) }}
+  {{ run_query_as(repair_table_sql(relation), 'repair_table', fetch_result=False) }}
+  {{ return(run_query_as(get_columns_comments_via_information_schema_sql(relation), 'get_columns_comments_via_information_schema')) }}
 {% endmacro %}
 
 {% macro repair_table_sql(relation) %}
@@ -35,18 +33,14 @@ WHERE
     {% if not relation.is_delta %}
       {{ exceptions.raise_compiler_error('Delta format required for dropping columns from tables') }}
     {% endif %}
-    {%- call statement('alter_relation_remove_columns') -%}
-      {{ drop_columns_sql(relation, remove_columns) }}
-    {%- endcall -%}
+    {{ run_query_as(drop_columns_sql(relation, remove_columns), 'alter_relation_remove_columns', fetch_result=False) }}
   {% endif %}
 
   {% if add_columns %}
     {% if not relation.is_delta %}
       {{ exceptions.raise_compiler_error('Delta format required for dropping columns from tables') }}
     {% endif %}
-    {%- call statement('alter_relation_add_columns') -%}
-      {{ add_columns_sql(relation, add_columns) }}
-    {%- endcall -%}
+    {{ run_query_as(add_columns_sql(relation, add_columns), 'alter_relation_add_columns', fetch_result=False) }}
   {% endif %}
 {% endmacro %}
 
