@@ -31,8 +31,8 @@
 {% endmacro %}
 
 {# a user-friendly interface into statements #}
-{% macro run_query_as(sql, name, fetch_result=true) %}
-  {% call statement(name, fetch_result, auto_begin=false) %}
+{% macro run_query_as(sql, name, fetch_result=True) %}
+  {% call statement(name, fetch_result, auto_begin=False) %}
     {{ sql }}
   {% endcall %}
 
