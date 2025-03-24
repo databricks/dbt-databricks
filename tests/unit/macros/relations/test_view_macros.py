@@ -28,7 +28,7 @@ class TestCreateViewAs(MacroTestBase):
 
         sql = self.render_create_view_as(template_bundle)
         expected = (
-            f"create or replace view {template_bundle.relation} "
+            f"create or replace view {template_bundle.relation.render()} "
             "tblproperties ('tblproperties_to_view' = 'true') as (select 1)"
         )
 

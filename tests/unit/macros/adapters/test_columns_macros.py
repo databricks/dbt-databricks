@@ -14,33 +14,23 @@ class TestColumnsMacros(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/adapters"]
 
-    @pytest.fixture
-    def mock_relation(self):
-        relation = Mock()
-        relation.database = "test_db"
-        relation.schema = "test_schema"
-        relation.identifier = "test_table"
-        relation.render = Mock(return_value="`test_db`.`test_schema`.`test_table`")
-        relation.is_delta = True
-        return relation
+    def test_get_columns_comments_sql(self, template_bundle, relation):
+        result = self.run_macro(template_bundle.template, "get_columns_comments_sql", relation)
 
-    def test_get_columns_comments_sql(self, template_bundle, mock_relation):
-        result = self.run_macro(template_bundle.template, "get_columns_comments_sql", mock_relation)
+        expected_sql = "DESCRIBE TABLE `some_database`.`some_schema`.`some_table`"
+        self.assert_sql_equal(result, expected_sql)
 
-        expected_sql = "DESCRIBE TABLE `test_db`.`test_schema`.`test_table`"
-        assert result == self.clean_sql(expected_sql)
+    def test_repair_table_sql(self, template_bundle, relation):
+        result = self.run_macro(template_bundle.template, "repair_table_sql", relation)
 
-    def test_repair_table_sql(self, template_bundle, mock_relation):
-        result = self.run_macro(template_bundle.template, "repair_table_sql", mock_relation)
+        expected_sql = "REPAIR TABLE `some_database`.`some_schema`.`some_table` SYNC METADATA"
+        self.assert_sql_equal(result, expected_sql)
 
-        expected_sql = "REPAIR TABLE `test_db`.`test_schema`.`test_table` SYNC METADATA"
-        assert result == self.clean_sql(expected_sql)
-
-    def test_get_columns_comments_via_information_schema_sql(self, template_bundle, mock_relation):
+    def test_get_columns_comments_via_information_schema_sql(self, template_bundle, relation):
         result = self.run_macro(
             template_bundle.template,
             "get_columns_comments_via_information_schema_sql",
-            mock_relation,
+            relation,
         )
 
         # Note the lowercase in the WHERE clause due to |lower filters
@@ -51,14 +41,14 @@ class TestColumnsMacros(MacroTestBase):
               comment
             FROM `system`.`information_schema`.`columns`
             WHERE
-              table_catalog = 'test_db' and
-              table_schema = 'test_schema' and
-              table_name = 'test_table'
+              table_catalog = 'some_database' and
+              table_schema = 'some_schema' and
+              table_name = 'some_table'
         """
 
-        assert result == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)
 
-    def test_drop_columns_sql(self, template_bundle, context, mock_relation):
+    def test_drop_columns_sql(self, template_bundle, context, relation):
         """Test drop_columns_sql macro"""
         # Mock Column.format_remove_column_list
         context["api"] = MagicMock()
@@ -67,13 +57,15 @@ class TestColumnsMacros(MacroTestBase):
         remove_columns = ["col1", "col2"]
 
         result = self.run_macro(
-            template_bundle.template, "drop_columns_sql", mock_relation, remove_columns
+            template_bundle.template, "drop_columns_sql", relation, remove_columns
         )
 
-        expected_sql = "ALTER TABLE `test_db`.`test_schema`.`test_table` DROP COLUMNS (col1, col2)"
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        expected_sql = (
+            "ALTER TABLE `some_database`.`some_schema`.`some_table` DROP COLUMNS (col1, col2)"
+        )
+        self.assert_sql_equal(result, expected_sql)
 
-    def test_add_columns_sql(self, template_bundle, context, mock_relation):
+    def test_add_columns_sql(self, template_bundle, context, relation):
         """Test add_columns_sql macro"""
         # Mock Column.format_add_column_list
         context["api"] = MagicMock()
@@ -81,11 +73,10 @@ class TestColumnsMacros(MacroTestBase):
 
         add_columns = ["col1", "col2"]
 
-        result = self.run_macro(
-            template_bundle.template, "add_columns_sql", mock_relation, add_columns
-        )
+        result = self.run_macro(template_bundle.template, "add_columns_sql", relation, add_columns)
 
         expected_sql = (
-            "ALTER TABLE `test_db`.`test_schema`.`test_table` ADD COLUMNS (col1 INT, col2 STRING)"
+            "ALTER TABLE `some_database`.`some_schema`.`some_table` "
+            "ADD COLUMNS (col1 INT, col2 STRING)"
         )
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)

@@ -38,7 +38,7 @@ class TestCatalogMacros(MacroTestBase):
             from `system`.`information_schema`.`tables`
         """
 
-        assert result == self.clean_sql(expected)
+        self.assert_sql_equal(result, expected)
 
     def test_get_catalog_columns_sql(self, template_bundle):
         """Test the SQL generation for catalog columns query"""
@@ -60,7 +60,7 @@ class TestCatalogMacros(MacroTestBase):
             from `system`.`information_schema`.`columns`
         """
 
-        assert result == self.clean_sql(expected)
+        self.assert_sql_equal(result, expected)
 
     def test_get_catalog_results_sql(self, template_bundle):
         """Test the SQL generation for joining tables and columns"""
@@ -73,7 +73,7 @@ class TestCatalogMacros(MacroTestBase):
             order by column_index
         """
 
-        assert result == self.clean_sql(expected)
+        self.assert_sql_equal(result, expected)
 
     def test_get_catalog_schemas_where_clause_sql(self, template_bundle):
         """Test the SQL generation for schemas where clause"""
@@ -95,7 +95,7 @@ class TestCatalogMacros(MacroTestBase):
             )
         """
 
-        assert result == self.clean_sql(expected)
+        self.assert_sql_equal(result, expected)
 
     def test_get_catalog_relations_where_clause_sql(self, template_bundle):
         """Test the SQL generation for relations where clause"""
@@ -126,7 +126,7 @@ class TestCatalogMacros(MacroTestBase):
             )
         """
 
-        assert result == self.clean_sql(expected)
+        self.assert_sql_equal(result, expected)
 
     def test_get_catalog(self, template_bundle, context):
         """Test the full get_catalog macro with mocked run_query"""
@@ -191,7 +191,7 @@ class TestCatalogMacros(MacroTestBase):
             order by column_index
         """
 
-        assert self.clean_sql(sql_query) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(sql_query, expected_sql)
 
     def test_get_catalog_relations(self, template_bundle, context):
         """Test the get_catalog_relations macro with mocked run_query"""
@@ -265,4 +265,4 @@ class TestCatalogMacros(MacroTestBase):
             order by column_index
         """
 
-        assert self.clean_sql(sql_query) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(sql_query, expected_sql)

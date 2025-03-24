@@ -4,7 +4,7 @@
   {%- set tblproperties = materialized_view.config["tblproperties"].tblproperties -%}
   {%- set comment = materialized_view.config["comment"].comment -%}
   {%- set refresh = materialized_view.config["refresh"] -%}
-  create materialized view {{ relation }}
+  create materialized view {{ relation.render() }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}

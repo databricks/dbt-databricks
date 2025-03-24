@@ -23,6 +23,7 @@ class TestTagsMacros(MacroTestBase):
         assert sql == expected
 
     def test_macros_alter_set_tags(self, template_bundle):
+        template_bundle.relation.type = "view"
         sql = self.render_bundle(template_bundle, "alter_set_tags", {"a": "valA", "b": "valB"})
         expected = self.clean_sql(
             "ALTER view `some_database`.`some_schema`.`some_table` "
@@ -34,7 +35,7 @@ class TestTagsMacros(MacroTestBase):
     def test_macros_alter_unset_tags(self, template_bundle):
         sql = self.render_bundle(template_bundle, "alter_unset_tags", ["a", "b"])
         expected = self.clean_sql(
-            "ALTER view `some_database`.`some_schema`.`some_table` UNSET TAGS ( 'a','b' )"
+            "ALTER table `some_database`.`some_schema`.`some_table` UNSET TAGS ( 'a','b' )"
         )
 
         assert sql == expected

@@ -9,7 +9,7 @@
   {%- set comment = streaming_table.config["comment"].comment -%}
   {%- set refresh = streaming_table.config["refresh"] -%}
 
-  CREATE STREAMING TABLE {{ relation }}
+  CREATE STREAMING TABLE {{ relation.render() }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}
