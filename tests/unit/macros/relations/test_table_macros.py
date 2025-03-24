@@ -86,8 +86,8 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = self.clean_sql(
-            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id")'
+            f" location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
         )
 
@@ -103,8 +103,8 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = self.clean_sql(
-            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id")'
+            f" location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
         )
         assert sql == expected
