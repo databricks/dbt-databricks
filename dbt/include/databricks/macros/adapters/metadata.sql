@@ -39,7 +39,10 @@ SHOW VIEWS IN {{ relation.render() }}
 {% endmacro %}
 
 {% macro databricks__get_relation_last_modified(information_schema, relations) -%}
-  {{ return(run_query_as(get_relation_last_modified_sql(information_schema, relations), 'last_modified')) }}
+  {% call statement('last_modified', fetch_result=True) %}
+    {{ get_relation_last_modified_sql(information_schema, relations) }}
+  {% endcall %}
+  {{ return(load_result('last_modified')) }}
 {% endmacro %}
 
 {% macro get_relation_last_modified_sql(information_schema, relations) %}
