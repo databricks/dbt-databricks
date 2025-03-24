@@ -48,7 +48,7 @@
   {%- set partition_by = configuration_changes.changes["partition_by"].partition_by -%}
   {%- set tblproperties = configuration_changes.changes["tblproperties"].tblproperties -%}
   {%- set comment = configuration_changes.changes["comment"].comment -%}
-  CREATE OR REFRESH STREAMING TABLE {{ relation }}
+  CREATE OR REFRESH STREAMING TABLE {{ relation.render() }}
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}
@@ -64,7 +64,7 @@
 {% macro get_alter_st_internal(relation, configuration_changes) %}
   {%- set refresh = configuration_changes.changes["refresh"] -%}
   {%- if refresh and refresh.cron -%}
-    ALTER STREAMING TABLE {{ relation }}
+    ALTER STREAMING TABLE {{ relation.render() }}
         {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, False) -}}
   {%- endif -%}
 {% endmacro %}

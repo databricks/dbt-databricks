@@ -37,20 +37,18 @@
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}
-    {%- set predicates = args_dict['incremental_predicates'] -%}
-    {%- set target_relation = args_dict['target_relation'] -%}
-    {%- set temp_relation = args_dict['temp_relation'] -%}
-
-    insert into {{ target_relation }}
-    {% if predicates %}
-      {% if predicates is sequence and predicates is not string %}
-    replace where {{ predicates | join(' and ') }}
-      {% else %}
-    replace where {{ predicates }}
-      {% endif %}
-    {% endif %}
-    table {{ temp_relation }}
-
+  {%- set predicates = args_dict['incremental_predicates'] -%}
+  {%- set target_relation = args_dict['target_relation'] -%}
+  {%- set temp_relation = args_dict['temp_relation'] -%}
+INSERT INTO {{ target_relation.render() }}
+{% if predicates %}
+  {% if predicates is sequence and predicates is not string %}
+REPLACE WHERE {{ predicates | join(' and ') }}
+  {% else %}
+REPLACE WHERE {{ predicates }}
+  {% endif %}
+{% endif %}
+TABLE {{ temp_relation.render() }}
 {% endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}

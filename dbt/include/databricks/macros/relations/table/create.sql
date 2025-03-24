@@ -27,9 +27,9 @@
   {%- endif -%}
 
   {%- if file_format == 'delta' %}
-  create or replace table {{ target_relation }}
+  create or replace table {{ target_relation.render() }}
   {% else %}
-  create table {{ target_relation }}
+  create table {{ target_relation.render() }}
   {% endif -%}
   {{ get_column_and_constraints_sql(target_relation, columns) }}
   {{ file_format_clause() }}

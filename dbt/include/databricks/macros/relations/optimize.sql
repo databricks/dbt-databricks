@@ -15,7 +15,7 @@
 {%- endmacro -%}
 
 {%- macro get_optimize_sql(relation) %}
-  optimize {{ relation }}
+  optimize {{ relation.render() }}
   {%- if config.get('zorder', False) and config.get('file_format', 'delta') == 'delta' %}
     {%- if config.get('liquid_clustered_by', False) or config.get('auto_liquid_cluster', False) %}
       {{ exceptions.warn("Both zorder and liquid_clustering are set but they are incompatible. zorder will be ignored.") }}

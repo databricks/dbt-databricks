@@ -145,5 +145,5 @@ writer = (
 {%- endif -%}
 )
 
-writer.saveAsTable("{{ relation }}")
+writer.saveAsTable("{{ relation.render() }}")
 {% endmacro %}

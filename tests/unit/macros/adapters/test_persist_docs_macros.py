@@ -15,16 +15,6 @@ class TestPersistDocsMacros(MacroTestBase):
         return ["macros", "macros/adapters"]
 
     @pytest.fixture
-    def mock_relation(self):
-        relation = Mock()
-        relation.database = "test_db"
-        relation.schema = "test_schema"
-        relation.identifier = "test_table"
-        relation.render = Mock(return_value="`test_db`.`test_schema`.`test_table`")
-        relation.type = "table"
-        return relation
-
-    @pytest.fixture
     def mock_model_with_description(self):
         model = Mock()
         model.description = "This is a test model"
@@ -52,35 +42,36 @@ class TestPersistDocsMacros(MacroTestBase):
         expected_sql = """
             COMMENT ON COLUMN `test_db`.`test_schema`.`test_table`.id IS 'This is a column comment'
         """
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)
 
     def test_alter_relation_comment_sql(
-        self, template_bundle, mock_relation, mock_model_with_description
+        self, template_bundle, relation, mock_model_with_description
     ):
         result = self.run_macro(
             template_bundle.template,
             "alter_relation_comment_sql",
-            mock_relation,
+            relation,
             mock_model_with_description,
         )
 
         expected_sql = (
-            "COMMENT ON TABLE `test_db`.`test_schema`.`test_table` IS 'This is a test model'"
+            "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         )
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)
 
-    def test_alter_relation_comment_sql_with_quotes(self, template_bundle, mock_relation):
+    def test_alter_relation_comment_sql_with_quotes(self, template_bundle, relation):
         model = Mock()
         model.description = "Model with 'quotes'"
 
         result = self.run_macro(
-            template_bundle.template, "alter_relation_comment_sql", mock_relation, model
+            template_bundle.template, "alter_relation_comment_sql", relation, model
         )
 
         expected_sql = (
-            "COMMENT ON TABLE `test_db`.`test_schema`.`test_table` IS 'Model with \\'quotes\\''"
+            "COMMENT ON TABLE `some_database`.`some_schema`.`some_table`"
+            " IS 'Model with \\'quotes\\''"
         )
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)
 
     def test_alter_relation_comment_sql_view(self, template_bundle, mock_model_with_description):
         view_relation = Mock()
@@ -100,10 +91,10 @@ class TestPersistDocsMacros(MacroTestBase):
         expected_sql = (
             "COMMENT ON VIEW `test_db`.`test_schema`.`test_view` IS 'This is a test model'"
         )
-        assert self.clean_sql(result) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(result, expected_sql)
 
     def test_databricks__alter_column_comment_delta(
-        self, template_bundle, context, mock_relation, mock_model_with_columns
+        self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
         context["config"].get = Mock(return_value="delta")
@@ -116,7 +107,7 @@ class TestPersistDocsMacros(MacroTestBase):
         self.run_macro_raw(
             template_bundle.template,
             "databricks__alter_column_comment",
-            mock_relation,
+            relation,
             mock_model_with_columns.columns,
         )
 
@@ -126,18 +117,18 @@ class TestPersistDocsMacros(MacroTestBase):
 
         first_call = call_args_list[0][0][0]
         expected_first_sql = (
-            "COMMENT ON COLUMN `test_db`.`test_schema`.`test_table`.id IS 'Primary key'"
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.id IS 'Primary key'"
         )
-        assert self.clean_sql(first_call) == self.clean_sql(expected_first_sql)
+        self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
         expected_second_sql = """
-        COMMENT ON COLUMN `test_db`.`test_schema`.`test_table`.value IS 'Contains \\'quoted\\' text'
+        COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.value IS 'Contains \\'quoted\\' text'
 """
-        assert self.clean_sql(second_call) == self.clean_sql(expected_second_sql)
+        self.assert_sql_equal(second_call, expected_second_sql)
 
     def test_databricks__alter_column_comment_unsupported_format(
-        self, template_bundle, context, mock_relation, mock_model_with_columns
+        self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
         context["config"].get = Mock(return_value="parquet")
@@ -148,7 +139,7 @@ class TestPersistDocsMacros(MacroTestBase):
         self.run_macro_raw(
             template_bundle.template,
             "databricks__alter_column_comment",
-            mock_relation,
+            relation,
             mock_model_with_columns.columns,
         )
 
@@ -159,7 +150,7 @@ class TestPersistDocsMacros(MacroTestBase):
         )
 
     def test_databricks__persist_docs_relation_only(
-        self, template_bundle, context, mock_relation, mock_model_with_description
+        self, template_bundle, context, relation, mock_model_with_description
     ):
         context["config"] = MagicMock()
         context["config"].persist_relation_docs.return_value = True
@@ -169,7 +160,7 @@ class TestPersistDocsMacros(MacroTestBase):
         self.run_macro_raw(
             template_bundle.template,
             "databricks__persist_docs",
-            mock_relation,
+            relation,
             mock_model_with_description,
             True,  # for_relation
             False,  # for_columns
@@ -177,6 +168,6 @@ class TestPersistDocsMacros(MacroTestBase):
 
         sql = context["run_query_as"].call_args[0][0]
         expected_sql = (
-            "COMMENT ON TABLE `test_db`.`test_schema`.`test_table` IS 'This is a test model'"
+            "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         )
-        assert self.clean_sql(sql) == self.clean_sql(expected_sql)
+        self.assert_sql_equal(sql, expected_sql)
