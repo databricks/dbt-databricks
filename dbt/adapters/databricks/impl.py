@@ -934,6 +934,11 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
+        kwargs = {"table_name": relation}
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
         return results
 
 

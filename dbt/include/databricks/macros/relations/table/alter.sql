@@ -1,6 +1,7 @@
 {% macro apply_config_changeset(target_relation, model, configuration_changes) %}
     {{ log("Applying configuration changes to relation " ~ target_relation) }}
     {% if configuration_changes %}
+      {% set comment = configuration_changes.changes.get("comment") %}
       {% set tags = configuration_changes.changes.get("tags") %}
       {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
       {% set liquid_clustering = configuration_changes.changes.get("liquid_clustering")%}
@@ -14,5 +15,5 @@
         {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
       {%- endif -%}
     {%- endif -%}
-    {% do persist_docs(target_relation, model, for_relation=True) %}
+    {% do persist_docs(target_relation, model, for_relation=(comment is not none)) %}
 {% endmacro %}
