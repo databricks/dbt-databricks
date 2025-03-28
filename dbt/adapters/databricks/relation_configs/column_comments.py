@@ -1,6 +1,7 @@
 from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -16,14 +17,16 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
     persist: bool = False
 
     def get_diff(self, other: "ColumnCommentsConfig") -> Optional["ColumnCommentsConfig"]:
+        logger.debug(f"Getting diff for ColumnCommentsConfig: {self} and {other}")
         comments = {}
         if self.persist:
             for column_name, comment in self.comments.items():
-                if comment != other.comments.get(column_name):
+                if comment != other.comments.get(column_name.lower()):
                     column_name = (
                         f"`{column_name}`" if self.quoted.get(column_name, False) else column_name
                     )
                     comments[column_name] = comment
+            logger.debug(f"Comments: {comments}")
             return ColumnCommentsConfig(comments=comments, persist=True)
         return None
 
@@ -38,7 +41,7 @@ class ColumnCommentsProcessor(DatabricksComponentProcessor[ColumnCommentsConfig]
         for row in table.rows:
             if row["col_name"].startswith("#"):
                 break
-            comments[row["col_name"]] = row["comment"] or ""
+            comments[row["col_name"].lower()] = row["comment"] or ""
         return ColumnCommentsConfig(comments=comments)
 
     @classmethod
