@@ -11,7 +11,6 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
-from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
@@ -67,7 +66,6 @@ class DatabricksRelation(BaseRelation):
     create_constraints: list[TypedConstraint] = field(default_factory=list)
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
-    columns: Optional[list["DatabricksColumn"]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
     replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
 

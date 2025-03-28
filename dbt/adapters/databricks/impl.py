@@ -473,18 +473,17 @@ class DatabricksAdapter(SparkAdapter):
         # strip hudi metadata columns.
         columns = [x for x in columns if x.name not in self.HUDI_METADATA_COLUMNS]
 
-        updated_relation = DatabricksRelation.create(
-            database=relation.database,
-            schema=relation.schema,
-            identifier=relation.identifier,
-            type=relation.type,  # type: ignore
-            metadata=metadata,
-            is_delta=metadata.get(KEY_TABLE_PROVIDER) == "delta",
+        return (
+            DatabricksRelation.create(
+                database=relation.database,
+                schema=relation.schema,
+                identifier=relation.identifier,
+                type=relation.type,  # type: ignore
+                metadata=metadata,
+                is_delta=metadata.get(KEY_TABLE_PROVIDER) == "delta",
+            ),
+            columns,
         )
-        # Store the columns on the relation for future use
-        updated_relation.columns = columns
-
-        return updated_relation, columns
 
     def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
         """Update the information of the relation, or return it if it already exists."""
