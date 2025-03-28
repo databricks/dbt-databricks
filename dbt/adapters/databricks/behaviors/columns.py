@@ -33,6 +33,11 @@ class GetColumnsByDescribe(GetColumnsBehavior):
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
+        # If the relation already has column information, use it
+        if hasattr(relation, "columns") and relation.columns:
+            return relation.columns
+
+        # Otherwise fall back to making a describe call
         rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
         return cls._parse_columns(rows)
 

@@ -15,12 +15,6 @@ class TestPersistDocsMacros(MacroTestBase):
         return ["macros", "macros/adapters"]
 
     @pytest.fixture
-    def mock_model_with_description(self):
-        model = Mock()
-        model.description = "This is a test model"
-        return model
-
-    @pytest.fixture
     def mock_model_with_columns(self):
         model = Mock()
         model.description = "Test model with columns"
@@ -44,27 +38,22 @@ class TestPersistDocsMacros(MacroTestBase):
         """
         self.assert_sql_equal(result, expected_sql)
 
-    def test_alter_relation_comment_sql(
-        self, template_bundle, relation, mock_model_with_description
-    ):
+    def test_alter_relation_comment_sql(self, template_bundle, relation):
         result = self.run_macro(
             template_bundle.template,
             "alter_relation_comment_sql",
             relation,
-            mock_model_with_description,
+            "This is a test model",
         )
 
         expected_sql = (
             "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         )
-        self.assert_sql_equal(result, expected_sql)
+        self.assert_sql_equal(expected_sql, result)
 
     def test_alter_relation_comment_sql_with_quotes(self, template_bundle, relation):
-        model = Mock()
-        model.description = "Model with 'quotes'"
-
         result = self.run_macro(
-            template_bundle.template, "alter_relation_comment_sql", relation, model
+            template_bundle.template, "alter_relation_comment_sql", relation, "Model with 'quotes'"
         )
 
         expected_sql = (
@@ -73,7 +62,7 @@ class TestPersistDocsMacros(MacroTestBase):
         )
         self.assert_sql_equal(result, expected_sql)
 
-    def test_alter_relation_comment_sql_view(self, template_bundle, mock_model_with_description):
+    def test_alter_relation_comment_sql_view(self, template_bundle):
         view_relation = Mock()
         view_relation.database = "test_db"
         view_relation.schema = "test_schema"
@@ -85,7 +74,7 @@ class TestPersistDocsMacros(MacroTestBase):
             template_bundle.template,
             "alter_relation_comment_sql",
             view_relation,
-            mock_model_with_description,
+            "This is a test model",
         )
 
         expected_sql = (
@@ -150,11 +139,13 @@ class TestPersistDocsMacros(MacroTestBase):
             "but file format parquet does not support that."
         )
 
-    def test_databricks__persist_docs_relation_only(
-        self, template_bundle, context, relation, mock_model_with_description
-    ):
+    def test_databricks__persist_docs_relation_only(self, template_bundle, context, relation):
         context["config"] = MagicMock()
         context["config"].persist_relation_docs.return_value = True
+
+        # Create a model with a description
+        model = Mock()
+        model.description = "This is a test model"
 
         context["run_query_as"] = Mock()
 
@@ -162,7 +153,7 @@ class TestPersistDocsMacros(MacroTestBase):
             template_bundle.template,
             "databricks__persist_docs",
             relation,
-            mock_model_with_description,
+            model,
             True,  # for_relation
             False,  # for_columns
         )

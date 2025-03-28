@@ -7,6 +7,7 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
+from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsProcessor
 from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
 from dbt.adapters.databricks.relation_configs.query import QueryProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
@@ -14,7 +15,13 @@ from dbt.adapters.databricks.relation_configs.tblproperties import TblProperties
 
 
 class ViewConfig(DatabricksRelationConfigBase):
-    config_components = [TagsProcessor, TblPropertiesProcessor, QueryProcessor, CommentProcessor]
+    config_components = [
+        TagsProcessor,
+        TblPropertiesProcessor,
+        QueryProcessor,
+        CommentProcessor,
+        ColumnCommentsProcessor,
+    ]
 
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         changeset = super().get_changeset(existing)

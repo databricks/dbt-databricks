@@ -12,6 +12,12 @@ class CommentConfig(DatabricksComponentConfig):
     """Component encapsulating the relation-level comment."""
 
     comment: Optional[str] = None
+    persist: bool = False
+
+    def get_diff(self, other: "CommentConfig") -> Optional["CommentConfig"]:
+        if self.persist and self.comment != other.comment:
+            return self
+        return None
 
 
 class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
@@ -30,7 +36,10 @@ class CommentProcessor(DatabricksComponentProcessor[CommentConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> CommentConfig:
+        persist = False
+        if relation_config.config:
+            persist = relation_config.config.persist_docs.get("relation", False)
         comment = getattr(relation_config, "description", None)
         if comment:
-            return CommentConfig(comment=comment)
-        return CommentConfig()
+            return CommentConfig(comment=comment, persist=persist)
+        return CommentConfig(persist=persist)

@@ -19,7 +19,6 @@
         {% endif %}
         {# This is to satisfy dbt as there are no changes needed here #}
         {{ execute_no_op(target_relation) }}
-        {{ persist_docs(target_relation, model, for_relation=False) }}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
       {% endif %}
