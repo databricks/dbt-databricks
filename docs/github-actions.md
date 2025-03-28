@@ -1,8 +1,6 @@
 # Using GitHub Actions for dbt CI/CD on Databricks
 dbt encourages software development lifecycle best-practices, including continuous integration (CI) and continuous deployment (CD). This page describes how you can execute dbt tests on every pull request (PR), only merging when tests pass and you are confident of the build quality.
 
-> The capability of running dbt in a Job is currently in private preview. You must be enrolled in the private preview to follow the steps in this guide. Features, capabilities and pricing may change at any time.
-
 ## Overview
 ![image](/docs/img/ci-cd-overview.png "CI/CD overview")
 1. Analytics engineers will issue a pull request on GitHub
