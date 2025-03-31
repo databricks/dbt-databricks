@@ -7,6 +7,7 @@
   {% set tags = changes.get("tags") %}
   {% set tblproperties = changes.get("tblproperties") %}
   {% set query = changes.get("query") %}
+  {% set column_comments = changes.get("column_comments") %}
   {% if tags %}
     {{ apply_tags(target_relation, tags.set_tags, tags.unset_tags) }}
   {% endif %}
@@ -15,5 +16,8 @@
   {% endif %}
   {% if query %}
     {{ alter_query(target_relation, query.query) }}
+  {% endif %}
+  {% if column_comments %}
+    {{ alter_column_comments(target_relation, column_comments.comments) }}
   {% endif %}
 {% endmacro %}

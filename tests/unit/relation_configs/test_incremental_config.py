@@ -1,5 +1,7 @@
 from agate import Table
 
+from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
+from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig
@@ -24,13 +26,23 @@ class TestIncrementalConfig:
                 ],
                 column_names=["key", "value"],
             ),
+            "describe_extended": Table(
+                rows=[
+                    ["column", "string", "test comment"],
+                ],
+                column_names=["col_name", "col_type", "comment"],
+            ),
         }
 
         config = IncrementalTableConfig.from_results(results)
 
         assert config == IncrementalTableConfig(
             config={
+                "comment": CommentConfig(comment=None, persist=False),
                 "tags": TagsConfig(set_tags={"tag1": "value1", "tag2": "value2"}),
+                "column_comments": ColumnCommentsConfig(
+                    comments={"column": "test comment"}, quoted={}, persist=False
+                ),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "f1"}),
                 "liquid_clustering": LiquidClusteringConfig(
                     auto_cluster=True,

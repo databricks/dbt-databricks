@@ -26,7 +26,7 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
         table = results["show_tblproperties"]
         for row in table.rows:
             if row[0] == "clusterByAuto":
-                cluster_by_auto = bool(row[1])
+                cluster_by_auto = row[1] == "true"
             if row[0] == "clusteringColumns":
                 cluster_by = cls.extract_cluster_by(row[1])
         return LiquidClusteringConfig(cluster_by=cluster_by, auto_cluster=cluster_by_auto)
