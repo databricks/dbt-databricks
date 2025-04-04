@@ -67,8 +67,8 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
         rows = cls._get_columns_with_comments(
             adapter, relation, "get_columns_comments_via_information_schema"
         )
-        return cls._parse_columns(rows)
+        return cls._parse_info_columns(rows)
 
     @classmethod
-    def _parse_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
+    def _parse_info_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
         return [DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]) for row in rows]

@@ -104,3 +104,12 @@
 {% macro databricks__create_csv_table(model, agate_table) %}
   {{ return(create_or_replace_csv_table(model, agate_table)) }}
 {% endmacro %}
+
+{% macro log_seed_operation(agate_table, full_refresh_mode, create_table_sql, sql) %}
+  {% set code = 'CREATE' if full_refresh_mode else 'INSERT' %}
+  {% set rows_affected = (agate_table.rows | length) %}
+
+  {% call noop_statement('main', code ~ ' ' ~ rows_affected, code, rows_affected) %}
+    {{ get_csv_sql(create_table_sql, sql) }};
+  {% endcall %}
+{% endmacro %}

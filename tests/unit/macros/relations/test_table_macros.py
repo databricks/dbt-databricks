@@ -41,7 +41,10 @@ class TestCreateTableAs(MacroTestBase):
 
     def test_macros_create_table_as(self, template_bundle):
         sql = self.render_create_table_as(template_bundle)
-        assert sql == f"create or replace table {template_bundle.relation} using delta as select 1"
+        assert (
+            sql == f"create or replace table {template_bundle.relation.render()}"
+            " using delta as select 1"
+        )
 
     def test_macros_create_table_as_with_iceberg(self, template_bundle):
         template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
@@ -49,10 +52,10 @@ class TestCreateTableAs(MacroTestBase):
             "delta.universalFormat.enabledFormats": "iceberg",
         }
         sql = self.render_create_table_as(template_bundle)
-        assert sql == (
-            f"create or replace table {template_bundle.relation} using delta"
+        assert sql == self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using delta"
             " tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
-            "'delta.universalFormat.enabledFormats' = 'iceberg' ) as select 1"
+            "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
         )
 
     @pytest.mark.parametrize("format", ["parquet", "hudi"])
@@ -61,7 +64,7 @@ class TestCreateTableAs(MacroTestBase):
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle)
         expected = (
-            f"create table {template_bundle.relation} using {format} location "
+            f"create table {template_bundle.relation.render()} using {format} location "
             f"'/mnt/root/{template_bundle.relation.identifier}' as select 1"
         )
         assert sql == expected
@@ -69,8 +72,8 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_options(self, config, template_bundle):
         config["options"] = {"compression": "gzip"}
         sql = self.render_create_table_as(template_bundle)
-        expected = (
-            f"create or replace table {template_bundle.relation} "
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} "
             'using delta options (compression "gzip" ) as select 1'
         )
 
@@ -82,9 +85,9 @@ class TestCreateTableAs(MacroTestBase):
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
-        expected = (
-            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+        expected = self.clean_sql(
+            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id")'
+            f" location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
         )
 
@@ -99,9 +102,9 @@ class TestCreateTableAs(MacroTestBase):
         config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
-        expected = (
-            f'create table {template_bundle.relation} using hudi options (primaryKey "id" ) '
-            f"location '/mnt/root/{template_bundle.relation.identifier}'"
+        expected = self.clean_sql(
+            f'create table {template_bundle.relation.render()} using hudi options (primaryKey "id")'
+            f" location '/mnt/root/{template_bundle.relation.identifier}'"
             " as select 1 as id"
         )
         assert sql == expected
@@ -120,7 +123,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
 
         expected = (
-            f"create or replace table {template_bundle.relation} using delta"
+            f"create or replace table {template_bundle.relation.render()} using delta"
             " partitioned by (partition_1) as select 1"
         )
         assert sql == expected
@@ -129,7 +132,7 @@ class TestCreateTableAs(MacroTestBase):
         config["partition_by"] = ["partition_1", "partition_2"]
         sql = self.render_create_table_as(template_bundle)
         expected = (
-            f"create or replace table {template_bundle.relation} "
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta partitioned by (partition_1,partition_2) as select 1"
         )
 
@@ -141,7 +144,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
 
         expected = (
-            f"create or replace table {template_bundle.relation} "
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta clustered by (cluster_1) into 1 buckets as select 1"
         )
 
@@ -153,7 +156,7 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
 
         expected = (
-            f"create or replace table {template_bundle.relation} "
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta clustered by (cluster_1,cluster_2) into 1 buckets as select 1"
         )
 
@@ -162,8 +165,8 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_liquid_cluster(self, config, template_bundle):
         config["liquid_clustered_by"] = "cluster_1"
         sql = self.render_create_table_as(template_bundle)
-        expected = (
-            f"create or replace table {template_bundle.relation} using"
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using"
             " delta CLUSTER BY (cluster_1) as select 1"
         )
 
@@ -173,8 +176,8 @@ class TestCreateTableAs(MacroTestBase):
         config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         sql = self.render_create_table_as(template_bundle)
-        expected = (
-            f"create or replace table {template_bundle.relation} "
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta CLUSTER BY (cluster_1, cluster_2) as select 1"
         )
 
@@ -183,8 +186,8 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_liquid_cluster_auto(self, config, template_bundle):
         config["auto_liquid_cluster"] = True
         sql = self.render_create_table_as(template_bundle)
-        expected = (
-            f"create or replace table {template_bundle.relation} using"
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using"
             " delta CLUSTER BY AUTO as select 1"
         )
 
@@ -196,8 +199,8 @@ class TestCreateTableAs(MacroTestBase):
 
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
-            f"create or replace table {template_bundle.relation} "
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta comment 'Description Test' as select 1"
         )
 
@@ -218,8 +221,8 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "delta"
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
-            f"create or replace table {template_bundle.relation} "
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} "
             "using delta "
             "partitioned by (partition_1,partition_2) "
             "CLUSTER BY (cluster_1, cluster_2) "
@@ -246,8 +249,8 @@ class TestCreateTableAs(MacroTestBase):
         config["file_format"] = "hudi"
         sql = self.render_create_table_as(template_bundle)
 
-        expected = (
-            f"create table {template_bundle.relation} "
+        expected = self.clean_sql(
+            f"create table {template_bundle.relation.render()} "
             "using hudi "
             "partitioned by (partition_1,partition_2) "
             "clustered by (cluster_1,cluster_2) into 1 buckets "

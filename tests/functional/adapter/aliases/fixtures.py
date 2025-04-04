@@ -4,7 +4,7 @@ MACROS__CAST_SQL = """
   {{ adapter.dispatch('string_literal', macro_namespace='test')(s) }}
 {%- endmacro %}
 
-{% macro databricks__string_literal(s) %}
+{% macro databricks__string_literal(s) -%}
     cast('{{ s }}' as STRING)
-{% endmacro %}
+{%- endmacro %}
 """

@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
+from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
@@ -10,6 +11,7 @@ from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
+from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
@@ -61,7 +63,11 @@ class DatabricksRelation(BaseRelation):
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
     is_delta: Optional[bool] = None
+    create_constraints: list[TypedConstraint] = field(default_factory=list)
+    alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
+    renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -87,6 +93,10 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.StreamingTable
 
     @property
+    def is_dlt(self) -> bool:
+        return self.is_materialized_view or self.is_streaming_table
+
+    @property
     def is_hudi(self) -> bool:
         assert self.metadata is not None
         return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
@@ -98,6 +108,17 @@ class DatabricksRelation(BaseRelation):
     @property
     def stats(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
+
+    @property
+    def can_be_replaced(self) -> bool:
+        return self.is_delta is True and self.type in (
+            DatabricksRelationType.Table,
+            DatabricksRelationType.View,
+        )
+
+    @property
+    def can_be_renamed(self) -> bool:
+        return self.type in (DatabricksRelationType.Table, DatabricksRelationType.View)
 
     def matches(
         self,
@@ -144,6 +165,26 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def StreamingTable(cls) -> str:
         return str(DatabricksRelationType.StreamingTable)
+
+    def add_constraint(self, constraint: TypedConstraint) -> None:
+        if constraint.type == ConstraintType.check:
+            self.alter_constraints.append(constraint)
+        else:
+            self.create_constraints.append(constraint)
+
+    def enrich(self, constraints: list[TypedConstraint]) -> "DatabricksRelation":
+        copy = self.incorporate()
+        for constraint in constraints:
+            copy.add_constraint(constraint)
+
+        return copy
+
+    def render_constraints_for_create(self) -> str:
+        processed = map(process_constraint, self.create_constraints)
+        return ", ".join(c for c in processed if c is not None)
+
+    def render(self) -> str:
+        return super().render().lower()
 
 
 def is_hive_metastore(database: Optional[str]) -> bool:

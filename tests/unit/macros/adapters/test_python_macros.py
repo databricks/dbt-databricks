@@ -6,17 +6,17 @@ from tests.unit.macros.base import MacroTestBase
 
 
 class TestPythonMacros(MacroTestBase):
-    @pytest.fixture(scope="class", autouse=True)
+    @pytest.fixture(autouse=True)
     def modify_context(self, default_context) -> None:
         default_context["model"] = MagicMock()
         d = {"alias": "schema"}
         default_context["model"].__getitem__.side_effect = d.__getitem__
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def macro_folders_to_load(self) -> list:
         return ["macros/adapters"]
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def template_name(self) -> str:
         return "python.sql"
 

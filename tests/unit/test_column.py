@@ -28,6 +28,27 @@ class TestSparkColumn:
         }
 
 
+class TestRenderForCreate:
+    @pytest.fixture
+    def column(self):
+        return DatabricksColumn("id", "INT")
+
+    def test_render_for_create__base(self, column):
+        assert column.render_for_create() == "id INT"
+
+    def test_render_for_create__not_null(self, column):
+        column.not_null = True
+        assert column.render_for_create() == "id INT NOT NULL"
+
+    def test_render_for_create__comment(self, column):
+        column.comment = "this is a column"
+        assert column.render_for_create() == "id INT COMMENT 'this is a column'"
+
+    def test_render_for_create__escaping(self, column):
+        column.comment = "this is a 'column'"
+        assert column.render_for_create() == "id INT COMMENT 'this is a \\'column\\''"
+
+
 class TestColumnStatics:
     @pytest.mark.parametrize(
         "column, expected",

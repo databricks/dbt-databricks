@@ -26,18 +26,14 @@ from dbt.adapters.contracts.connection import (
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
     DatabricksCredentials,
-    TCredentialProvider,
 )
 from dbt.adapters.databricks.events.connection_events import (
-    ConnectionAcquire,
     ConnectionCreate,
     ConnectionCreateError,
-    ConnectionIdleCheck,
     ConnectionIdleClose,
-    ConnectionRelease,
     ConnectionReset,
-    ConnectionRetrieve,
     ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
@@ -155,12 +151,6 @@ class DatabricksDBTConnection(Connection):
             self.last_used_time = time.time()
         self.language = query_header_context.language
 
-        logger.debug(
-            ConnectionAcquire(
-                str(self), query_header_context, self.compute_name, self.thread_identifier
-            )
-        )
-
     def _release(self) -> None:
         """Indicate that this connection is not in use."""
         # Need to check for > 0 because in some situations the dbt code will make an extra
@@ -173,8 +163,6 @@ class DatabricksDBTConnection(Connection):
         if self.acquire_release_count == 0 and self.language != "python":
             self.last_used_time = time.time()
 
-        logger.debug(ConnectionRelease(str(self)))
-
     def _get_idle_time(self) -> float:
         return 0 if self.last_used_time is None else time.time() - self.last_used_time
 
@@ -183,10 +171,9 @@ class DatabricksDBTConnection(Connection):
 
     def __str__(self) -> str:
         return (
-            f"DatabricksDBTConnection(id={id(self)}, session-id={self.session_id}, "
-            f"name={self.name}, idle-time={self._get_idle_time()}s, acquire-count="
-            f"{self.acquire_release_count}, language={self.language}, thread-identifier="
-            f"{self.thread_identifier}, compute-name={self.compute_name})"
+            f"DatabricksDBTConnection(session-id={self.session_id}, "
+            f"name={self.name}, idle-time={self._get_idle_time()}s, language={self.language}, "
+            f"compute-name={self.compute_name})"
         )
 
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
@@ -200,7 +187,7 @@ class DatabricksDBTConnection(Connection):
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
-    credentials_provider: Optional[TCredentialProvider] = None
+    credentials_manager: Optional[DatabricksCredentialManager] = None
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
@@ -280,6 +267,12 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return conn
 
+    def add_begin_query(self) -> Any:
+        return (None, None)
+
+    def add_commit_query(self) -> Any:
+        return (None, None)
+
     def add_query(
         self,
         sql: str,
@@ -292,8 +285,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         close_cursor: bool = False,
     ) -> tuple[Connection, Any]:
         connection = self.get_thread_connection()
-        if auto_begin and connection.transaction_open is False:
-            self.begin()
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
@@ -445,10 +436,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        # gotta keep this so we don't prompt users many times
-        cls.credentials_provider = creds.authenticate(cls.credentials_provider)
+        cls.credentials_manager = creds.authenticate()
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, cls.credentials_provider, databricks_connection.http_path
+            creds, cls.credentials_manager, databricks_connection.http_path
         )
 
         def connect() -> DatabricksHandle:
@@ -460,7 +450,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.session_id
                     databricks_connection.last_used_time = time.time()
-
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")
@@ -502,11 +491,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
         else:
             return AdapterResponse("OK")
 
+    def clear_transaction(self) -> None:
+        """Noop."""
+        pass
+
+    def commit_if_has_connection(self) -> None:
+        """Noop."""
+        pass
+
     def get_thread_connection(self) -> Connection:
         conn = super().get_thread_connection()
         self._cleanup_idle_connections()
-        dbr_conn = cast(DatabricksDBTConnection, conn)
-        logger.debug(ConnectionRetrieve(str(dbr_conn)))
 
         return conn
 
@@ -527,8 +522,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             # if different models use different compute resources
             thread_conns = self._get_compute_connections()
             for conn in thread_conns.values():
-                logger.debug(ConnectionIdleCheck(str(conn)))
-
                 # Generally speaking we only want to close/refresh the connection if the
                 # acquire_release_count is zero.  i.e. the connection is not currently in use.
                 # However python models acquire a connection then run the pyton model, which

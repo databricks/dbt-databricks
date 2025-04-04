@@ -41,3 +41,19 @@ class TestIncrementalPersistDocs:
         )
         assert results[0][2] == "This is the id column"
         assert results[1][2] == "This is the msg column"
+
+
+class TestIncrementalPersistDocsV2(TestIncrementalPersistDocs):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "test": {
+                    "+persist_docs": {
+                        "relation": True,
+                        "columns": True,
+                    },
+                }
+            },
+        }

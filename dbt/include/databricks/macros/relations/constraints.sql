@@ -25,6 +25,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro apply_alter_constraints(relation) %}
+  {%- for constraint in relation.alter_constraints -%}
+    {% call statement('add constraint') %}
+      ALTER TABLE {{ relation.render() }} ADD {{ constraint.render() }}
+    {% endcall %}
+  {%- endfor -%}
+{% endmacro %}
+
 {% macro alter_table_add_constraints(relation, constraints) %}
   {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
 {% endmacro %}
@@ -123,7 +131,7 @@
         {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
       {% endif %}
     {% endif %}
-    {% set stmt = "alter table " ~ relation ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
+    {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " check (" ~ expression ~ ");" %}
     {% do statements.append(stmt) %}
   {% elif type == 'not_null' %}
     {% set column_names = constraint.get('columns', []) %}

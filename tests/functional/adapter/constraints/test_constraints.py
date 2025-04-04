@@ -17,6 +17,10 @@ from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 class DatabricksConstraintsBase:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
     def schema_string_type(self, string_type):
         return string_type
 
@@ -85,11 +89,7 @@ class TestIncrementalConstraintsColumnsEqual(
 class BaseConstraintsDdlEnforcementSetup:
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-            }
-        }
+        return {"flags": {"use_materialization_v2": False}}
 
     @pytest.fixture(scope="class")
     def expected_sql(self):
@@ -124,11 +124,7 @@ class TestIncrementalConstraintsDdlEnforcement(
 class BaseConstraintsRollbackSetup:
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "models": {
-                "+file_format": "delta",
-            }
-        }
+        return {"flags": {"use_materialization_v2": False}}
 
     @pytest.fixture(scope="class")
     def expected_error_messages(self):
@@ -181,6 +177,10 @@ class TestIncrementalConstraintsRollback(
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalForeignKeyExpressionConstraint:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
     def models(self):
         return {
             "schema.yml": override_fixtures.incremental_foreign_key_schema_yml,
@@ -204,6 +204,10 @@ class TestIncrementalForeignKeyExpressionConstraint:
 @pytest.mark.skip_profile("databricks_cluster")
 class TestForeignKeyParentConstraint:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
     def models(self):
         return {
             "schema.yml": override_fixtures.parent_foreign_key,
@@ -216,6 +220,10 @@ class TestForeignKeyParentConstraint:
 
 
 class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
     @pytest.fixture(scope="class")
     def models(self):
         return {

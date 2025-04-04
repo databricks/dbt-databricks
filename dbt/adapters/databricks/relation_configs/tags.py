@@ -22,7 +22,7 @@ class TagsConfig(DatabricksComponentConfig):
         for k in other.set_tags.keys():
             if k not in self.set_tags:
                 to_unset.append(k)
-        if self.set_tags or to_unset:
+        if self.set_tags != other.set_tags or to_unset:
             return TagsConfig(set_tags=self.set_tags, unset_tags=to_unset)
         return None
 

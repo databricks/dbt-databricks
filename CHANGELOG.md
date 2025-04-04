@@ -1,3 +1,25 @@
+## dbt-databricks 1.10.0 (TBD)
+
+### Features
+
+- Support databricks OAuth M2M auth type. Updated OAuth readme doc with instructions.([827](https://github.com/databricks/dbt-databricks/pull/827))
+- Introduced use_materialization_v2 flag for gating materialization revamps. ([844](https://github.com/databricks/dbt-databricks/pull/844))
+- Introduce Tables V2, including safe_table_create which will not change the production table unless new data can safely be ingested ([927](https://github.com/databricks/dbt-databricks/pull/927))
+- Views V2, including renaming safe_table_create to use_safer_relation_operations, and adding view_update_via_alter, to allow updating views by altering, instead of recreating ([954](https://github.com/databricks/dbt-databricks/pull/954))
+- Remover blockers to custom incremental strategies ([972](https://github.com/databricks/dbt-databricks/pull/972))
+
+### Under the Hood
+
+- Update pinned python SDK version from 0.17.0 to 0.41.0. ([827](https://github.com/databricks/dbt-databricks/pull/827))
+- Update pinned python SDK version from 0.41.0 to 0.46.0 ([969](https://github.com/databricks/dbt-databricks/pull/969))
+- Implement new constraint logic for use_materialization_v2 flag ([846](https://github.com/databricks/dbt-databricks/pull/846/files)), ([876](https://github.com/databricks/dbt-databricks/pull/876))
+  - Quote constraint names if we quote column names (thanks @samuelberntzen!) ([966](https://github.com/databricks/dbt-databricks/pull/966))
+- Streamlining debug logging to make it more usable ([946](https://github.com/databricks/dbt-databricks/pull/946))
+- Upgrading Databricks SQL Connector to V4 ([962](https://github.com/databricks/dbt-databricks/pull/962))
+- Validation of sample mode ([961](https://github.com/databricks/dbt-databricks/pull/961))
+- Move liquid clustering behavior to on_config_change approach for incremental ([968](https://github.com/databricks/dbt-databricks/pull/968))
+- Move column coments to on_config_change approach ([981](https://github.com/databricks/dbt-databricks/pull/981))
+
 ## dbt-databricks 1.9.8 (TBD)
 
 ### Fixes
@@ -108,8 +130,7 @@ Yanked due to being published with the incorrect bits
 - Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
 - Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
 - Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
-- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
-- Refactoring location of DLT polling code ([849](https://github.com/databricks/dbt-databricks/pull/849))
+- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847)
 - Switching to Hatch and pyproject.toml for project config ([853](https://github.com/databricks/dbt-databricks/pull/853))
 
 ## dbt-databricks 1.8.7 (October 10, 2024)

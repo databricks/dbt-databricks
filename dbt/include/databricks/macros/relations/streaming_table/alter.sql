@@ -17,19 +17,6 @@
     )) -%}
 {% endmacro %}
 
-
-{% macro get_streaming_table_configuration_changes(existing_relation, new_config) -%}
-    {{- log('Determining configuration changes on: ' ~ existing_relation) -}}
-    {%- do return(adapter.dispatch('get_streaming_table_configuration_changes', 'dbt')(existing_relation, new_config)) -%}
-{%- endmacro %}
-
-{%- macro databricks__get_streaming_table_configuration_changes(existing_relation, new_config) -%}
-    {%- set _existing_streaming_table = adapter.get_relation_config(existing_relation) -%}
-    {%- set streaming_table = adapter.get_config_from_model(config.model) -%}
-    {%- set _configuration_changes = streaming_table.get_changeset(_existing_streaming_table) -%}
-    {% do return(_configuration_changes) %}
-{%- endmacro -%}
-
 {% macro databricks__get_alter_streaming_table_as_sql(
     relation,
     configuration_changes,
@@ -61,7 +48,7 @@
   {%- set partition_by = configuration_changes.changes["partition_by"].partition_by -%}
   {%- set tblproperties = configuration_changes.changes["tblproperties"].tblproperties -%}
   {%- set comment = configuration_changes.changes["comment"].comment -%}
-  CREATE OR REFRESH STREAMING TABLE {{ relation }}
+  CREATE OR REFRESH STREAMING TABLE {{ relation.render() }}
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}
@@ -77,7 +64,7 @@
 {% macro get_alter_st_internal(relation, configuration_changes) %}
   {%- set refresh = configuration_changes.changes["refresh"] -%}
   {%- if refresh and refresh.cron -%}
-    ALTER STREAMING TABLE {{ relation }}
+    ALTER STREAMING TABLE {{ relation.render() }}
         {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, False) -}}
   {%- endif -%}
 {% endmacro %}

@@ -39,6 +39,7 @@ class TestConstraints:
         return {
             "models": {"+persist_constraints": True},
             "snapshots": {"+persist_constraints": True},
+            "flags": {"use_materialization_v2": False},
         }
 
     def check_constraints(self, project, model_name: str, expected: dict[str, str]):

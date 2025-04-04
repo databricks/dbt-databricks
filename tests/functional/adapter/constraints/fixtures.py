@@ -16,7 +16,113 @@ from
     '2019-01-01' as date_day ) as model_subq
 """
 
+expected_sql_v2 = """
+create or replace table <model_identifier> (
+  color string,
+  id integer not null comment 'hello',
+  date_day string,
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES <foreign_key_model_identifier> (id)
+  ) using delta
+"""
+
 constraints_yml = fixtures.model_schema_yml.replace("text", "string").replace("primary key", "")
+
+model_fk_constraint_schema_yml = """
+version: 2
+models:
+  - name: my_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        description: hello
+        constraints:
+          - type: not_null
+          - type: primary_key
+          - type: check
+            expression: (id > 0)
+          - type: check
+            expression: id >= 1
+          - type: foreign_key
+            to: ref('foreign_key_model')
+            to_columns: ["id"]
+        data_tests:
+          - unique
+      - name: color
+        data_type: string
+      - name: date_day
+        data_type: string
+  - name: my_model_error
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        description: hello
+        constraints:
+          - type: not_null
+          - type: primary_key
+          - type: check
+            expression: (id > 0)
+        data_tests:
+          - unique
+      - name: color
+        data_type: string
+      - name: date_day
+        data_type: string
+  - name: my_model_wrong_order
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        description: hello
+        constraints:
+          - type: not_null
+          - type: primary_key
+          - type: check
+            expression: (id > 0)
+        data_tests:
+          - unique
+      - name: color
+        data_type: string
+      - name: date_day
+        data_type: string
+  - name: my_model_wrong_name
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        description: hello
+        constraints:
+          - type: not_null
+          - type: primary_key
+          - type: check
+            expression: (id > 0)
+        data_tests:
+          - unique
+      - name: color
+        data_type: string
+      - name: date_day
+        data_type: string
+  - name: foreign_key_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        constraints:
+          - type: primary_key
+"""
+
 
 incremental_foreign_key_schema_yml = """
 version: 2
@@ -100,4 +206,19 @@ child_sql = """
  -- depends_on: {{ ref('parent_table') }}
 
 select 2 as id, 'name' as name, 1 as parent_id
+"""
+
+
+my_model_sql = """
+{{
+  config(
+    materialized = "table",
+    use_safer_relation_operations = true
+  )
+}}
+
+select
+  1 as id,
+  'blue' as color,
+  '2019-01-01' as date_day
 """

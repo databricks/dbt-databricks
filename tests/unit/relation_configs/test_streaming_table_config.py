@@ -48,6 +48,7 @@ class TestStreamingTableConfig:
                 "other": "other",
             },
         }
+        model.config.persist_docs = {"relation": False, "columns": True}
         model.description = "This is the table comment"
 
         config = StreamingTableConfig.from_relation_config(model)
@@ -55,7 +56,7 @@ class TestStreamingTableConfig:
         assert config == StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
-                "comment": CommentConfig(comment="This is the table comment"),
+                "comment": CommentConfig(comment="This is the table comment", persist=False),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
             }

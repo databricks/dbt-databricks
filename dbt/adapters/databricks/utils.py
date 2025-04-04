@@ -77,7 +77,7 @@ def handle_missing_objects(exec: Callable[[], T], default: T) -> T:
 
 
 def quote(name: str) -> str:
-    return f"`{name}`"
+    return f"`{name}`" if "`" not in name else name
 
 
 ExceptionToStrOp = Callable[[Exception], str]

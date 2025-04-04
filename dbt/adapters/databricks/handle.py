@@ -12,7 +12,7 @@ from databricks.sql.client import Connection, Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.credentials import DatabricksCredentials, TCredentialProvider
+from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
@@ -297,7 +297,7 @@ class SqlUtils:
 
     @staticmethod
     def prepare_connection_arguments(
-        creds: DatabricksCredentials, creds_provider: TCredentialProvider, http_path: str
+        creds: DatabricksCredentials, creds_manager: DatabricksCredentialManager, http_path: str
     ) -> dict[str, Any]:
         invocation_env = creds.get_invocation_env()
         user_agent_entry = SqlUtils.user_agent
@@ -313,12 +313,13 @@ class SqlUtils:
         return {
             "server_hostname": creds.host,
             "http_path": http_path,
-            "credentials_provider": creds_provider,
+            "credentials_provider": creds_manager.credentials_provider,
             "http_headers": http_headers if http_headers else None,
             "session_configuration": creds.session_properties,
             "catalog": creds.database,
             "use_inline_params": "silent",
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
+            "user_agent_entry": user_agent_entry,
             **connection_parameters,
         }

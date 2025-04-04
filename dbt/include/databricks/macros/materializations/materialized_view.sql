@@ -7,7 +7,7 @@
     {% set build_sql = materialized_view_get_build_sql(existing_relation, target_relation) %}
 
     {% if build_sql == '' %}
-        {{ materialized_view_execute_no_op(target_relation) }}
+        {{ execute_no_op(target_relation) }}
     {% else %}
         {{ materialized_view_execute_build_sql(build_sql, existing_relation, target_relation, post_hooks) }}
     {% endif %}
@@ -17,7 +17,6 @@
     {{ return({'relations': [target_relation]}) }}
 
 {% endmaterialization %}
-
 
 {% macro materialized_view_get_build_sql(existing_relation, target_relation) %}
 
@@ -32,7 +31,7 @@
 
         -- get config options
         {% set on_configuration_change = config.get('on_configuration_change') %}
-        {% set configuration_changes = get_materialized_view_configuration_changes(existing_relation, config) %}
+        {% set configuration_changes = get_configuration_changes(existing_relation) %}
 
         {% if configuration_changes is none %}
             {% set build_sql = refresh_materialized_view(target_relation) %}
@@ -58,16 +57,6 @@
 {% endmacro %}
 
 
-{% macro materialized_view_execute_no_op(target_relation) %}
-    {% do store_raw_result(
-        name="main",
-        message="skip " ~ target_relation,
-        code="skip",
-        rows_affected="-1"
-    ) %}
-{% endmacro %}
-
-
 {% macro materialized_view_execute_build_sql(build_sql, existing_relation, target_relation, post_hooks) %}
 
     -- `BEGIN` happens here:
@@ -75,18 +64,7 @@
 
     {% set grant_config = config.get('grants') %}
 
-    {%- if build_sql is string %}
-        {% call statement(name="main") %}
-            {{ build_sql }}
-        {% endcall %}
-    {%- else %}
-        {%- for sql in build_sql %}
-            {% call statement(name="main") %}
-                {{ sql }}
-            {% endcall %}
-        {% endfor %}
-    {% endif %}
-
+    {{ execute_multiple_statements(build_sql) }}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
