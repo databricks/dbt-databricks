@@ -350,8 +350,12 @@ class JobRunsApi(PollableApi):
 
     def _get_exception(self, response: Response) -> None:
         response_json = response.json()
-        result_state = response_json["state"]["life_cycle_state"]
-        if result_state != "SUCCESS":
+        result_state = response_json["state"]["result_state"]
+        life_cycle_state = response_json["state"]["life_cycle_state"]
+        
+        if result_state == "CANCELED":
+            raise DbtRuntimeError("Python model was cancelled by user")
+        if life_cycle_state != "SUCCESS":
             try:
                 task_id = response_json["tasks"][0]["run_id"]
                 # get end state to return to user
@@ -371,7 +375,7 @@ class JobRunsApi(PollableApi):
                 else:
                     state_message = response.json()["state"]["state_message"]
                     raise DbtRuntimeError(
-                        f"Python model run ended in state {result_state} "
+                        f"Python model run ended in state {life_cycle_state} "
                         f"with state_message\n{state_message}"
                     )
 
