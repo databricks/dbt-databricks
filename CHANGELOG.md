@@ -20,8 +20,6 @@
 - Move liquid clustering behavior to on_config_change approach for incremental ([968](https://github.com/databricks/dbt-databricks/pull/968))
 - Move column coments to on_config_change approach ([981](https://github.com/databricks/dbt-databricks/pull/981))
 
-## dbt-databricks 1.9.8 (TBD)
-
 ### Fixes
 
 - Switch to using full_data_type column when using info schema for column info ([950](https://github.com/databricks/dbt-databricks/pull/950))
