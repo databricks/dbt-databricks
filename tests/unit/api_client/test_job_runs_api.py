@@ -92,7 +92,7 @@ class TestJobRunsApi(ApiTestBase):
             "state": {
                 "life_cycle_state": "TERMINATED",
                 "result_state": "CANCELED",
-                "state_message": "cancelled by user"
+                "state_message": "cancelled by user",
             }
         }
 

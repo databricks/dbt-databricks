@@ -220,7 +220,7 @@ class PollableApi(DatabricksApi, ABC):
         params: dict,
         get_state_func: Callable[[Response], str],
         terminal_states: set[str],
-        expected_end_state: str,
+        expected_end_state: Optional[str],
         unexpected_end_state_func: Callable[[Response], None],
     ) -> Response:
         state = None
@@ -353,10 +353,10 @@ class JobRunsApi(PollableApi):
         state = response_json["state"]
         result_state = state.get("result_state")
         life_cycle_state = state["life_cycle_state"]
-        
+
         if result_state is not None and result_state != "SUCCESS":
             raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
-        
+
         if life_cycle_state != "TERMINATED":
             try:
                 task_id = response_json["tasks"][0]["run_id"]
