@@ -1,3 +1,9 @@
+## dbt-databricks 1.10.1 (TBD)
+
+### Fixes
+
+- Fix: DBT Python Model Canceled Notebook Job Treated as Successful ([985](https://github.com/databricks/dbt-databricks/pull/985))
+
 ## dbt-databricks 1.10.0 (TBD)
 
 ### Features
@@ -23,7 +29,6 @@
 ### Fixes
 
 - Switch to using full_data_type column when using info schema for column info ([950](https://github.com/databricks/dbt-databricks/pull/950))
-- Fix: DBT Python Model Canceled Notebook Job Treated as Successful ([985](https://github.com/databricks/dbt-databricks/pull/985))
 
 ## dbt-databricks 1.9.7 (Feb 25, 2025)
 
