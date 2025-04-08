@@ -11,6 +11,7 @@
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
   {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+  {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {{ log("USING V2 MATERIALIZATION") }}

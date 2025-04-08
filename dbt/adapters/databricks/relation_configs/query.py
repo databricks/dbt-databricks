@@ -3,6 +3,7 @@ from typing import ClassVar, Optional
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -36,7 +37,7 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
         query = relation_config.compiled_code
 
         if query:
-            return QueryConfig(query=query.strip())
+            return QueryConfig(query=SqlUtils.clean_sql(query))
         else:
             raise DbtRuntimeError(
                 f"Cannot compile model {relation_config.identifier} with no SQL query"
