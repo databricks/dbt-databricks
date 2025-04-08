@@ -4,7 +4,7 @@
 
 - Fix: DBT Python Model Canceled Notebook Job Treated as Successful ([985](https://github.com/databricks/dbt-databricks/pull/985))
 
-## dbt-databricks 1.10.0 (TBD)
+## dbt-databricks 1.10.0 (Apr 08, 2025)
 
 ### Features
 
