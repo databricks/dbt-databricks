@@ -11,7 +11,6 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Union, cast
 from uuid import uuid4
 
-from dbt.adapters.databricks.handle import SqlUtils
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig
 from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
@@ -35,6 +34,7 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
+from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -813,7 +813,6 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
-
 
 
 @dataclass(frozen=True)
