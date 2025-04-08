@@ -220,7 +220,7 @@ class PollableApi(DatabricksApi, ABC):
         params: dict,
         get_state_func: Callable[[Response], str],
         terminal_states: set[str],
-        expected_end_state: str,
+        expected_end_state: Optional[str],
         unexpected_end_state_func: Callable[[Response], None],
     ) -> Response:
         state = None
@@ -344,14 +344,20 @@ class JobRunsApi(PollableApi):
             params={"run_id": run_id},
             get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
             terminal_states={"TERMINATED", "SKIPPED", "INTERNAL_ERROR"},
-            expected_end_state="TERMINATED",
+            expected_end_state=None,
             unexpected_end_state_func=self._get_exception,
         )
 
     def _get_exception(self, response: Response) -> None:
         response_json = response.json()
-        result_state = response_json["state"]["life_cycle_state"]
-        if result_state != "SUCCESS":
+        state = response_json["state"]
+        result_state = state.get("result_state")
+        life_cycle_state = state["life_cycle_state"]
+
+        if result_state is not None and result_state != "SUCCESS":
+            raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
+
+        if life_cycle_state != "TERMINATED":
             try:
                 task_id = response_json["tasks"][0]["run_id"]
                 # get end state to return to user
@@ -371,7 +377,7 @@ class JobRunsApi(PollableApi):
                 else:
                     state_message = response.json()["state"]["state_message"]
                     raise DbtRuntimeError(
-                        f"Python model run ended in state {result_state} "
+                        f"Python model run ended in state {life_cycle_state}"
                         f"with state_message\n{state_message}"
                     )
 
