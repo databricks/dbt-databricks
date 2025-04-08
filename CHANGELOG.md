@@ -1,4 +1,4 @@
-## dbt-databricks 1.10.0 (TBD)
+## dbt-databricks 1.10.0 (Apr 08, 2025)
 
 ### Features
 
@@ -19,8 +19,6 @@
 - Validation of sample mode ([961](https://github.com/databricks/dbt-databricks/pull/961))
 - Move liquid clustering behavior to on_config_change approach for incremental ([968](https://github.com/databricks/dbt-databricks/pull/968))
 - Move column coments to on_config_change approach ([981](https://github.com/databricks/dbt-databricks/pull/981))
-
-## dbt-databricks 1.9.8 (TBD)
 
 ### Fixes
 
