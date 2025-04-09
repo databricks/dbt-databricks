@@ -809,6 +809,11 @@ class DatabricksAdapter(SparkAdapter):
                 f"Materialization {model.config.materialized} is not supported."
             )
 
+    @available
+    def is_cluster(self) -> bool:
+        """Check if the current connection is a cluster."""
+        return self.connections.is_cluster()
+
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
