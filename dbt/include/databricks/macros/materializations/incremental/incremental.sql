@@ -113,7 +113,7 @@
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-        {{ set_overwrite_mode(DYNAMIC) }}
+        {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
