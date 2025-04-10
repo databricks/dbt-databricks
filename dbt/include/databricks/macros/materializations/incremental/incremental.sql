@@ -114,9 +114,7 @@
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-        {%- call statement() -%}
-          set spark.sql.sources.partitionOverwriteMode = DYNAMIC
-        {%- endcall -%}
+        {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
@@ -183,9 +181,13 @@
 {%- endmaterialization %}
 
 {% macro set_overwrite_mode(value) %}
-  {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
-    set spark.sql.sources.partitionOverwriteMode = {{ value }}
-  {%- endcall -%}
+  {% if adapter.is_cluster() %}
+    {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
+      set spark.sql.sources.partitionOverwriteMode = {{ value }}
+    {%- endcall -%}
+  {% else %}
+    {{ exceptions.raise_compiler_error('INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.') }}
+  {% endif %}
 {% endmacro %}
 
 {% macro get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}

@@ -204,6 +204,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
         return self._api_client
 
+    def is_cluster(self) -> bool:
+        return self.get_thread_connection().credentials.cluster_id is not None
+
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
         logger.info("Cancelling open python jobs")

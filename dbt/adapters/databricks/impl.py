@@ -810,6 +810,11 @@ class DatabricksAdapter(SparkAdapter):
                 f"Materialization {model.config.materialized} is not supported."
             )
 
+    @available
+    def is_cluster(self) -> bool:
+        """Check if the current connection is a cluster."""
+        return self.connections.is_cluster()
+
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
