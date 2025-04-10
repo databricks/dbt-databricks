@@ -1,6 +1,6 @@
 {% materialization snapshot, adapter='databricks' %}
   {%- set target_table = model.get('alias', model.get('name')) -%}
-
+  {% set sql = adapter.clean_sql(sql) %}
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
   {%- set file_format = config.get('file_format', 'delta') -%}
@@ -43,7 +43,7 @@
 
   {% if not target_relation_exists %}
 
-      {% set build_sql = build_snapshot_table(strategy, model['compiled_code']) %}
+      {% set build_sql = build_snapshot_table(strategy, adapter.clean_sql(model['compiled_code'])) %}
       {% set build_or_select_sql = build_sql %}
       {% set final_sql = create_table_as(False, target_relation, build_sql) %}
 

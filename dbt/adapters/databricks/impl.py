@@ -34,6 +34,7 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
+from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -813,6 +814,10 @@ class DatabricksAdapter(SparkAdapter):
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
+
+    @available.parse(lambda *a, **k: {})
+    def clean_sql(self, sql: str) -> str:
+        return SqlUtils.clean_sql(sql)
 
 
 @dataclass(frozen=True)

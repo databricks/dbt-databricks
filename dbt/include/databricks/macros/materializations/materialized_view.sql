@@ -19,6 +19,7 @@
 {% endmaterialization %}
 
 {% macro materialized_view_get_build_sql(existing_relation, target_relation) %}
+    {% set sql = adapter.clean_sql(sql) %}
 
     {% set full_refresh_mode = should_full_refresh() %}
 

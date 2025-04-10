@@ -3,6 +3,9 @@
 ### Fixes
 
 - Fix: DBT Python Model Canceled Notebook Job Treated as Successful ([985](https://github.com/databricks/dbt-databricks/pull/985))
+- Fix failures when models end with ';' ([990](https://github.com/databricks/dbt-databricks/pull/990))
+- Added internal table property delta.columnMapping.maxColumnId to ignore_list to allow enabling delta.columnMapping.mode without breaking concurrent job runs (thanks @
+iamatharkhan!) ([991](https://github.com/databricks/dbt-databricks/pull/991))
 
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 

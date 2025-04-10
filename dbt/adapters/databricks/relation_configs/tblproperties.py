@@ -40,6 +40,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "delta.rowTracking.materializedRowCommitVersionColumnName",
         "delta.rowTracking.materializedRowIdColumnName",
         "spark.internal.pipelines.top_level_entry.user_specified_name",
+        "delta.columnMapping.maxColumnId",
     ]
 
     def __eq__(self, __value: Any) -> bool:
