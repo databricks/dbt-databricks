@@ -4,6 +4,7 @@
   {%- set target_relation = this.incorporate(type='view') -%}
   {% set grant_config = config.get('grants') %}
   {% set tags = config.get('databricks_tags') %}
+  {% set sql = adapter.clean_sql(sql) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {{ run_pre_hooks() }}
@@ -61,6 +62,7 @@
 {%- endmaterialization %}
 
 {% macro replace_with_view(existing_relation, target_relation) %}
+  {% set sql = adapter.clean_sql(sql) %}
   {% set tags = config.get('databricks_tags') %}
   {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
   {%- do apply_tags(target_relation, tags) -%}

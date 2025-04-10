@@ -8,6 +8,7 @@
   {%- set safe_create = config.get('use_safer_relation_operations', False) %}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
+  {% set compiled_code = adapter.clean_sql(compiled_code) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
