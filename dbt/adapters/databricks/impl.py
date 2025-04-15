@@ -754,7 +754,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
-        return f"{suffix_initial}_{re.sub("[^A-Za-z0-9]+", "_", str(uuid4()))}"
+        return f"{suffix_initial}_{re.sub(r'[^A-Za-z0-9]+', '_', str(uuid4()))}"
 
     @available
     @staticmethod
