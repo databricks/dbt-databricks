@@ -7,7 +7,7 @@
 - Added internal table property delta.columnMapping.maxColumnId to ignore_list to allow enabling delta.columnMapping.mode without breaking concurrent job runs (thanks @
   iamatharkhan!) ([991](https://github.com/databricks/dbt-databricks/pull/991))
 - For insert_overwrite, raise exception when using SQL Warehouse and inform users that such use causes truncate + insert ([992](https://github.com/databricks/dbt-databricks/pull/992))
-- Remove illegal characters in unique temporary table names which preventing dropping these tables on session close ([995](https://github.com/databricks/dbt-databricks/pull/995))
+- Remove illegal characters in unique temporary table names which prevented dropping these tables on session close ([995](https://github.com/databricks/dbt-databricks/pull/995))
 
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 
