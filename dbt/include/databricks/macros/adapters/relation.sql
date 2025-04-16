@@ -22,7 +22,7 @@
   {% set tmp_identifier = base_relation.identifier ~ suffix %}
   {% set language = model['language'] %}
   {%- if language == 'sql' -%}
-    {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
+    {% set tmp_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=tmp_identifier, type='view') %}
   {%- else -%}
     {% set tmp_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=tmp_identifier, type='table') %}
   {%- endif -%}

@@ -17,15 +17,15 @@ flowchart TD
     D6{Existing can be renamed?}
 
     SAFE_REPLACE["Safely replace -
-        get_create_intermediate_sql(target_relation, sql),
         get_create_backup_sql(existing_relation),
-        get_rename_intermediate_sql(target_relation),
+        get_create_sql(intermediate_relation, sql),
+        get_rename_sql(intermediate_relation, target_relation.render()),
         get_drop_backup_sql(existing_relation)"]
 
     STAGE_THEN_REPLACE["Stage then replace -
-        get_create_intermediate_sql(target_relation, sql),
+        get_create_sql(intermediate_relation, sql),
         get_drop_sql(existing_relation),
-        get_rename_intermediate_sql(target_relation)"]
+        get_rename_sql(intermediate_relation, target_relation.render())"]
 
     BACKUP_THEN_REPLACE["Backup then write to target -
         create_backup(existing_relation)
