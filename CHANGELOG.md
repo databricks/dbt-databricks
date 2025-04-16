@@ -9,9 +9,9 @@
 - For insert_overwrite, raise exception when using SQL Warehouse and inform users that such use causes truncate + insert ([992](https://github.com/databricks/dbt-databricks/pull/992))
 - Remove illegal characters in unique temporary table names which prevented dropping these tables on session close (thanks @geo-martino!) ([995](https://github.com/databricks/dbt-databricks/pull/995))
 - Fix bug on replace flows which prevented replacing of some relations. Intermediate relations are now created in same catalog+schema of the existing view.
-  ([???](https://github.com/databricks/dbt-databricks/pull/???))
+  ([998](https://github.com/databricks/dbt-databricks/pull/998))
 - Fix bug in replace flows which caused issues when using unique temporary names
-  ([???](https://github.com/databricks/dbt-databricks/pull/???))
+  ([998](https://github.com/databricks/dbt-databricks/pull/998))
 
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 
