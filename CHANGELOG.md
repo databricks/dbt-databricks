@@ -9,7 +9,7 @@
 - For insert_overwrite, raise exception when using SQL Warehouse and inform users that such use causes truncate + insert ([992](https://github.com/databricks/dbt-databricks/pull/992))
 - Remove illegal characters in unique temporary table names which prevented dropping these tables on session close (thanks @geo-martino!) ([995](https://github.com/databricks/dbt-databricks/pull/995))
 - Dropping a pre-existing backup relation now removes the pre-existing relation name from the cache.
-  ([???](https://github.com/databricks/dbt-databricks/pull/???))
+  ([999](https://github.com/databricks/dbt-databricks/pull/999))
 
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 
