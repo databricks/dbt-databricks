@@ -37,19 +37,26 @@
 {# Create target at a staging location, then rename existing, then rename target, then drop existing #}
 {% macro safely_replace(existing_relation, target_relation, sql) %}
   {{ create_backup(existing_relation) }}
+
+  {% set intermediate_relation = make_intermediate_relation(target_relation) %}
+  {{ drop_relation(intermediate_relation) }}
+
   {{ return([
-    get_create_intermediate_sql(target_relation, sql),
-    get_rename_intermediate_sql(target_relation),
+    get_create_sql(intermediate_relation, sql),
+    get_rename_sql(intermediate_relation, target_relation.render()),
     get_drop_backup_sql(existing_relation)
   ]) }}
 {% endmacro %}
 
 {# Stage the target relation, then drop and replace the existing relation #}
 {% macro stage_then_replace(existing_relation, target_relation, sql) %}
+  {% set intermediate_relation = make_intermediate_relation(target_relation) %}
+  {{ drop_relation(intermediate_relation) }}
+
   {{ return([
-    get_create_intermediate_sql(target_relation, sql),
+    get_create_sql(intermediate_relation, sql),
     get_drop_sql(existing_relation),
-    get_rename_intermediate_sql(target_relation),
+    get_rename_sql(intermediate_relation, target_relation.render()),
   ]) }}
 {% endmacro %}
 
