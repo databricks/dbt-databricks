@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Generic, Optional, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
 from dbt.adapters.contracts.relation import RelationConfig
@@ -39,9 +39,8 @@ class DatabricksComponentConfig(BaseModel):
 class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""
 
-    model_config = ConfigDict(frozen=True)
-    changes: dict[str, DatabricksComponentConfig]
-    requires_full_refresh: bool = False
+    changes: dict[str, DatabricksComponentConfig] = Field(frozen=True)
+    requires_full_refresh: bool = Field(default=False, frozen=False)
 
     @property
     def has_changes(self) -> bool:
