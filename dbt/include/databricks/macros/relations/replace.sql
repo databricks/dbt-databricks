@@ -36,6 +36,7 @@
 
 {# Create target at a staging location, then rename existing, then rename target, then drop existing #}
 {% macro safely_replace(existing_relation, target_relation, sql) %}
+  {{ log('Using safely_replace') }}
   {% set staging_relation = make_staging_relation(target_relation) %}
   {{ drop_relation_if_exists(staging_relation) }}
   {% call statement(name="main") %}
@@ -50,6 +51,7 @@
 
 {# Stage the target relation, then drop and replace the existing relation #}
 {% macro stage_then_replace(existing_relation, target_relation, sql) %}
+  {{ log('Using stage_then_replace') }}
   {% set staging_relation = make_staging_relation(target_relation) %}
   {{ drop_relation_if_exists(staging_relation) }}
   {% call statement(name="main") %}
@@ -64,6 +66,7 @@
 
 {# Backup the existing relation, then create the target relation in place #}
 {% macro backup_and_create_in_place(existing_relation, target_relation, sql) %}
+  {{ log('Using backup_and_create_in_place') }}
   {{ create_backup(existing_relation) }}
   {{ return([
     get_create_sql(target_relation, sql),
@@ -73,6 +76,7 @@
 
 {# Drop the existing relation, then create the target relation #}
 {% macro drop_and_create(existing_relation, target_relation, sql) %}
+  {{ log('Using drop_and_create') }}
   {{ return([
     get_drop_sql(existing_relation),
     get_create_sql(target_relation, sql)
