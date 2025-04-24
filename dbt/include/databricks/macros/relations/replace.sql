@@ -11,7 +11,7 @@
 
   {% set safe_replace = config.get('use_safer_relation_operations', False) | as_bool  %}
   {% set file_format = config.get('file_format', default='delta') %}
-  {% set is_replaceable = existing_relation.type == target_relation_type and existing_relation.can_be_replaced and file_format == "delta" %}
+  {% set is_replaceable = existing_relation.type == target_relation.type and existing_relation.can_be_replaced and file_format == "delta" %}
 
   {% if not safe_replace %}
     {# Prioritize 'create or replace' for speed #}
@@ -36,20 +36,29 @@
 
 {# Create target at a staging location, then rename existing, then rename target, then drop existing #}
 {% macro safely_replace(existing_relation, target_relation, sql) %}
+  {% set staging_relation = make_staging_relation(target_relation) %}
+  {{ drop_relation_if_exists(staging_relation) }}
+  {% call statement(name="main") %}
+    {{ get_create_sql(staging_relation, sql) }}
+  {% endcall %}
   {{ create_backup(existing_relation) }}
   {{ return([
-    get_create_intermediate_sql(target_relation, sql),
-    get_rename_intermediate_sql(target_relation),
+    get_rename_sql(staging_relation, existing_relation.identifier),
     get_drop_backup_sql(existing_relation)
   ]) }}
 {% endmacro %}
 
 {# Stage the target relation, then drop and replace the existing relation #}
 {% macro stage_then_replace(existing_relation, target_relation, sql) %}
+  {% set staging_relation = make_staging_relation(target_relation) %}
+  {{ drop_relation_if_exists(staging_relation) }}
+  {% call statement(name="main") %}
+    {{ get_create_sql(staging_relation, sql) }}
+  {% endcall %}
+
   {{ return([
-    get_create_intermediate_sql(target_relation, sql),
     get_drop_sql(existing_relation),
-    get_rename_intermediate_sql(target_relation),
+    get_rename_sql(staging_relation, existing_relation.identifier),
   ]) }}
 {% endmacro %}
 
