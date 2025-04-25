@@ -17,9 +17,9 @@
           {% else %}
             {{ alter_view(target_relation, configuration_changes.changes) }}
           {% endif %}
+        {% else %}
+          {{ execute_no_op(target_relation) }}
         {% endif %}
-        {# This is to satisfy dbt as there are no changes needed here #}
-        {{ execute_no_op(target_relation) }}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
       {% endif %}
