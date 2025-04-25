@@ -44,7 +44,7 @@
   {% endcall %}
   {{ create_backup(existing_relation) }}
   {{ return([
-    get_rename_sql(staging_relation, existing_relation.identifier),
+    get_rename_sql(staging_relation, existing_relation.render()),
     get_drop_backup_sql(existing_relation)
   ]) }}
 {% endmacro %}
@@ -60,7 +60,7 @@
 
   {{ return([
     get_drop_sql(existing_relation),
-    get_rename_sql(staging_relation, existing_relation.identifier),
+    get_rename_sql(staging_relation, existing_relation.render()),
   ]) }}
 {% endmacro %}
 
