@@ -36,6 +36,6 @@ COMMENT ON {{ relation.type.upper() }} {{ relation.render() }} IS '{{ descriptio
     {{ log('Updating comment for column ' ~ column ~ ' with comment ' ~ comment) }}
     {% set escaped_comment = comment | replace('\'', '\\\'') %}
     {% set column_path = relation.render() ~ '.' ~ column %}
-    {{ run_query_as(comment_on_column_sql(column_path, escaped_comment), 'alter_column_comment', fetch_result=False) }}
+    {{ run_query_as(comment_on_column_sql(column_path, escaped_comment), 'main', fetch_result=False) }}
   {% endfor %}
 {% endmacro %}
