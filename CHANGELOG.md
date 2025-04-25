@@ -12,7 +12,7 @@
   ([999](https://github.com/databricks/dbt-databricks/pull/999))
 - Error no longer thrown when setting `requires_full_refresh` attribute after comment is changed on view and `view_update_via_alter` is true (thanks @geo-martino!)
   ([1000](https://github.com/databricks/dbt-databricks/pull/1000))
-- Many fixes related to how we handle view replacements, but specifically allowing views to function properly with using unique temporary names ([1004](https://github.com/databricks/dbt-databricks/pull/1004))
+- Many fixes related to how we handle view replacements, but specifically allowing views to function properly with using unique temporary names (thanks @geo-martino for help with validation!) ([1004](https://github.com/databricks/dbt-databricks/pull/1004))
 
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 
