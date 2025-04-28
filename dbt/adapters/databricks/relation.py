@@ -111,9 +111,10 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def can_be_replaced(self) -> bool:
-        return self.is_delta is True and self.type in (
-            DatabricksRelationType.Table,
-            DatabricksRelationType.View,
+        return (
+            self.type == DatabricksRelationType.View
+            or self.is_delta is True
+            and self.type == DatabricksRelationType.Table
         )
 
     @property

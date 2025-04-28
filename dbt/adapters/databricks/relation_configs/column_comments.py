@@ -27,7 +27,8 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
                     )
                     comments[column_name] = comment
             logger.debug(f"Comments: {comments}")
-            return ColumnCommentsConfig(comments=comments, persist=True)
+            if len(comments) > 0:
+                return ColumnCommentsConfig(comments=comments, persist=True)
         return None
 
 

@@ -1,4 +1,8 @@
 {% macro make_staging_relation(base_relation, suffix='__dbt_stg', type='table') %}
+  {% set unique_tmp_table_suffix = config.get('unique_tmp_table_suffix', False) | as_bool %}
+  {% if unique_tmp_table_suffix %}
+    {% set suffix = adapter.generate_unique_temporary_table_suffix(suffix) %}
+  {% endif %}
   {% set stg_identifier = base_relation.identifier ~ suffix %}
   {% set stg_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=stg_identifier, type=type) %}
   {% do return(stg_relation) %}
