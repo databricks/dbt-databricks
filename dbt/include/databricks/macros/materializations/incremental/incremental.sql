@@ -11,6 +11,7 @@
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
   {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+  {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
     {{ log("USING V2 MATERIALIZATION") }}
@@ -113,9 +114,7 @@
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-        {%- call statement() -%}
-          set spark.sql.sources.partitionOverwriteMode = DYNAMIC
-        {%- endcall -%}
+        {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
@@ -182,9 +181,13 @@
 {%- endmaterialization %}
 
 {% macro set_overwrite_mode(value) %}
-  {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
-    set spark.sql.sources.partitionOverwriteMode = {{ value }}
-  {%- endcall -%}
+  {% if adapter.is_cluster() %}
+    {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
+      set spark.sql.sources.partitionOverwriteMode = {{ value }}
+    {%- endcall -%}
+  {% else %}
+    {{ exceptions.raise_compiler_error('INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.') }}
+  {% endif %}
 {% endmacro %}
 
 {% macro get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}

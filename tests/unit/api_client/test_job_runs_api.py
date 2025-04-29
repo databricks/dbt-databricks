@@ -86,6 +86,23 @@ class TestJobRunsApi(ApiTestBase):
 
     @freezegun.freeze_time("2020-01-01")
     @patch("dbt.adapters.databricks.api_client.time.sleep")
+    def test_poll_for_completion__cancelled(self, _, api, session):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {
+            "state": {
+                "life_cycle_state": "TERMINATED",
+                "result_state": "CANCELED",
+                "state_message": "cancelled by user",
+            }
+        }
+
+        with pytest.raises(DbtRuntimeError) as exc:
+            api.poll_for_completion("run_id")
+
+        assert "Python model run ended in result_state CANCELED" in str(exc.value)
+
+    @freezegun.freeze_time("2020-01-01")
+    @patch("dbt.adapters.databricks.api_client.time.sleep")
     def test_poll_for_completion__200(self, _, api, session, host):
         session.get.return_value.status_code = 200
         session.get.return_value.json.return_value = {"state": {"life_cycle_state": "TERMINATED"}}

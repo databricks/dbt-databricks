@@ -34,6 +34,7 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
+from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -752,8 +753,9 @@ class DatabricksAdapter(SparkAdapter):
         return return_columns
 
     @available
-    def generate_unique_temporary_table_suffix(self, suffix_initial: str = "__dbt_tmp") -> str:
-        return f"{suffix_initial}_{str(uuid4())}"
+    @staticmethod
+    def generate_unique_temporary_table_suffix(suffix_initial: str = "__dbt_tmp") -> str:
+        return f"{suffix_initial}_{re.sub(r'[^A-Za-z0-9]+', '_', str(uuid4()))}"
 
     @available
     @staticmethod
@@ -808,6 +810,15 @@ class DatabricksAdapter(SparkAdapter):
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
             )
+
+    @available
+    def is_cluster(self) -> bool:
+        """Check if the current connection is a cluster."""
+        return self.connections.is_cluster()
+
+    @available.parse(lambda *a, **k: {})
+    def clean_sql(self, sql: str) -> str:
+        return SqlUtils.clean_sql(sql)
 
 
 @dataclass(frozen=True)

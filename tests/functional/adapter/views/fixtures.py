@@ -7,7 +7,7 @@ seed_csv = """id,msg
 
 view_sql = """
 {{ config(materialized='view') }}
-select * from {{ ref('seed') }}
+select * from {{ ref('seed') }};
 """
 
 schema_yml = """
@@ -42,5 +42,5 @@ models:
 
 altered_view_sql = """
 {{ config(materialized='view') }}
-select id from {{ ref('seed') }}
+select id from {{ ref('seed') }};
 """

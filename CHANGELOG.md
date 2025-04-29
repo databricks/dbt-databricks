@@ -1,3 +1,19 @@
+## dbt-databricks 1.10.1 (Apr 29, 2025)
+
+### Fixes
+
+- Fix: DBT Python Model Canceled Notebook Job Treated as Successful ([985](https://github.com/databricks/dbt-databricks/pull/985))
+- Fix failures when models end with ';' ([990](https://github.com/databricks/dbt-databricks/pull/990))
+- Added internal table property delta.columnMapping.maxColumnId to ignore_list to allow enabling delta.columnMapping.mode without breaking concurrent job runs (thanks @
+  iamatharkhan!) ([991](https://github.com/databricks/dbt-databricks/pull/991))
+- For insert_overwrite, raise exception when using SQL Warehouse and inform users that such use causes truncate + insert ([992](https://github.com/databricks/dbt-databricks/pull/992))
+- Remove illegal characters in unique temporary table names which prevented dropping these tables on session close (thanks @geo-martino!) ([995](https://github.com/databricks/dbt-databricks/pull/995))
+- Dropping a pre-existing backup relation now removes the pre-existing relation name from the cache (thanks @geo-martino!).
+  ([999](https://github.com/databricks/dbt-databricks/pull/999))
+- Error no longer thrown when setting `requires_full_refresh` attribute after comment is changed on view and `view_update_via_alter` is true (thanks @geo-martino!)
+  ([1000](https://github.com/databricks/dbt-databricks/pull/1000))
+- Many fixes related to how we handle view replacements, but specifically allowing views to function properly with using unique temporary names (thanks @geo-martino for help with validation!) ([1004](https://github.com/databricks/dbt-databricks/pull/1004))
+
 ## dbt-databricks 1.10.0 (Apr 08, 2025)
 
 ### Features

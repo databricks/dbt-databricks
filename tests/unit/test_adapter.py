@@ -1,3 +1,4 @@
+import re
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
@@ -944,6 +945,20 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert get_identifier_list_string(list(table_names)[:5]) == "|".join(
                 list(table_names)[:5]
             )
+
+    def test_generate_unique_temporary_table_suffix_adds_unique_identifier(self):
+        suffix_initial = "dbt_tmp"
+
+        result = DatabricksAdapter.generate_unique_temporary_table_suffix(suffix_initial)
+        assert result != suffix_initial
+        assert result.startswith(suffix_initial)
+        assert result != DatabricksAdapter.generate_unique_temporary_table_suffix(suffix_initial)
+
+    def test_generate_unique_temporary_table_suffix_generates_no_new_illegal_characters(self):
+        suffix_initial = "dbt_tmp"
+
+        result = DatabricksAdapter.generate_unique_temporary_table_suffix(suffix_initial)
+        assert not re.match(r"[^A-Za-z0-9_]+", result.replace(suffix_initial, ""))
 
 
 class TestCheckNotFound:
