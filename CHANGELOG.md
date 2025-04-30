@@ -1,3 +1,9 @@
+## dbt-databricks 1.10.2 (TBD)
+
+### Fixes
+
+- Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
+
 ## dbt-databricks 1.10.1 (Apr 29, 2025)
 
 ### Fixes
