@@ -276,9 +276,13 @@ class TestParseConstraints:
         ):
             parse_model_constraints(constraints)
 
-    def test_parse_model_constraints__not_nulls(self):
+    def test_parse_model_constraints__not_null_single(self):
         constraints = [{"type": "not_null", "columns": ["id"]}]
         assert ({"id"}, []) == parse_model_constraints(constraints)
+
+    def test_parse_model_constraints__not_nulls(self):
+        constraints = [{"type": "not_null", "columns": ["id", "other"]}]
+        assert ({"id", "other"}, []) == parse_model_constraints(constraints)
 
     def test_parse_model_constraints__model_constraints(self):
         columns = [{"type": "primary_key", "columns": ["id"]}]
