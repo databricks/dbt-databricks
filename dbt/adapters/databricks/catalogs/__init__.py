@@ -1,0 +1,1 @@
+from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
