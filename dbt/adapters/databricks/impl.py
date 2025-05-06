@@ -25,11 +25,15 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constraints
+from dbt.adapters.databricks import constants, constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
+)
+from dbt.adapters.databricks.catalogs import (
+    DeltaCatalogIntegration,
+    HiveMetastoreCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -180,6 +184,10 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
+    CATALOG_INTEGRATIONS = [
+        DeltaCatalogIntegration,
+        HiveMetastoreCatalogIntegration,
+    ]
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -195,6 +203,9 @@ class DatabricksAdapter(SparkAdapter):
                 self.get_column_behavior = GetColumnsByInformationSchema()
         except CompilationError:
             pass
+
+        self.add_catalog_integration(constants.DEFAULT_DELTA_CATALOG)
+        self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
