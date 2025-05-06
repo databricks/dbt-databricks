@@ -1,2 +1,3 @@
+from dbt.adapters.databricks.catalogs._delta import DeltaCatalogIntegration
 from dbt.adapters.databricks.catalogs._hive_metastore import HiveMetastoreCatalogIntegration
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
