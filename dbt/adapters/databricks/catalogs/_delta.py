@@ -16,14 +16,23 @@ class DeltaCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        if location := config.adapter_properties.get("location"):
-            self.external_volume: Optional[str] = location
+        if location_root := config.adapter_properties.get("location_root"):
+            self.external_volume: Optional[str] = location_root
         self.table_format: str = config.adapter_properties.get("table_format")
         self.file_format: str = config.adapter_properties.get("file_format")
 
     @property
-    def location(self) -> Optional[str]:
+    def location_root(self) -> Optional[str]:
+        """
+        Volumes in Databricks are non-tabular datasets, which is something
+        different from what we mean by "external_volume" in dbt.
+        However, the protocol expects "external_volume" to be set.
+        """
         return self.external_volume
+
+    @location_root.setter
+    def location_root(self, value: Optional[str]) -> None:
+        self.external_volume = value
 
     def build_relation(self, model: RelationConfig) -> DatabricksCatalogRelation:
         """

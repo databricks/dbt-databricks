@@ -32,6 +32,7 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.catalogs import (
+    DatabricksCatalogRelation,
     DeltaCatalogIntegration,
     HiveMetastoreCatalogIntegration,
 )
@@ -216,20 +217,18 @@ class DatabricksAdapter(SparkAdapter):
         self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
     ) -> dict[str, str]:
         result = tblproperties or config.get("tblproperties", {})
-        if config.get("table_format") == TableFormat.ICEBERG:
+
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
                 raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
-            if config.get("file_format", "delta") != "delta":
-                raise DbtConfigError(
-                    "When table_format is 'iceberg', cannot set file_format to other than delta."
-                )
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result["delta.enableIcebergCompatV2"] = "true"
-            result["delta.universalFormat.enabledFormats"] = "iceberg"
+            result.update(catalog_relation.iceberg_table_properties)
+
         return result
 
     @available.parse(lambda *a, **k: 0)
