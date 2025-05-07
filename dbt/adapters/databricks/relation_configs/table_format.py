@@ -10,7 +10,7 @@ class TableFormat(StrEnum):
     simplify things for users.
     """
 
-    DEFAULT = constants.BUILT_IN_TABLE_FORMAT
+    DEFAULT = constants.DEFAULT_TABLE_FORMAT
     ICEBERG = constants.ICEBERG_TABLE_FORMAT
 
     def __str__(self) -> str:
