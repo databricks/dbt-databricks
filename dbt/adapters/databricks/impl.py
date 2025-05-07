@@ -25,11 +25,16 @@ from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constraints
+from dbt.adapters.databricks import constants, constraints
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
+)
+from dbt.adapters.databricks.catalogs import (
+    DatabricksCatalogRelation,
+    DeltaCatalogIntegration,
+    HiveMetastoreCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -180,6 +185,10 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
+    CATALOG_INTEGRATIONS = [
+        DeltaCatalogIntegration,
+        HiveMetastoreCatalogIntegration,
+    ]
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -196,6 +205,9 @@ class DatabricksAdapter(SparkAdapter):
         except CompilationError:
             pass
 
+        self.add_catalog_integration(constants.DEFAULT_DELTA_CATALOG)
+        self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
@@ -205,20 +217,18 @@ class DatabricksAdapter(SparkAdapter):
         self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
     ) -> dict[str, str]:
         result = tblproperties or config.get("tblproperties", {})
-        if config.get("table_format") == TableFormat.ICEBERG:
+
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
                 raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
-            if config.get("file_format", "delta") != "delta":
-                raise DbtConfigError(
-                    "When table_format is 'iceberg', cannot set file_format to other than delta."
-                )
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result["delta.enableIcebergCompatV2"] = "true"
-            result["delta.universalFormat.enabledFormats"] = "iceberg"
+            result.update(catalog_relation.iceberg_table_properties)
+
         return result
 
     @available.parse(lambda *a, **k: 0)
