@@ -620,3 +620,53 @@ replace_expected = """id,msg,color
 1,hello,blue
 2,goodbye,red
 """
+
+constraint_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg, (cast(NULL as string)) as color
+
+{% else %}
+
+select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+
+{% endif %}
+"""
+
+schema_without_constraints = """
+version: 2
+
+models:
+  - name: constraint_model
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+      - name: color
+        data_type: string
+"""
+
+schema_with_constraints = """
+version: 2
+
+models:
+  - name: constraint_model
+    constraints:
+      - type: primary_key
+        columns: [id]
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+      - name: color
+        data_type: string
+        constraints:
+          - type: not_null
+"""
