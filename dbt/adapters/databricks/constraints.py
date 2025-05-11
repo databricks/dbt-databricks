@@ -203,7 +203,7 @@ def parse_model_constraints(
         if constraint["type"] == ConstraintType.not_null:
             if not constraint.get("columns"):
                 raise DbtValidationError("not_null constraint on model must have 'columns' defined")
-            column_names.add(*constraint["columns"])
+            column_names.update(constraint["columns"])
         else:
             constraints.append(parse_constraint(constraint))
 

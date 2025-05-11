@@ -13,13 +13,16 @@
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
         {% if configuration_changes and configuration_changes.changes %}
           {% if configuration_changes.requires_full_refresh %}
+            {{ log('Using replace_with_view') }}
             {{ replace_with_view(existing_relation, target_relation) }}
           {% else %}
+            {{ log('Using alter_view') }}
+            {{ log(configuration_changes.changes) }}
             {{ alter_view(target_relation, configuration_changes.changes) }}
           {% endif %}
+        {% else %}
+          {{ execute_no_op(target_relation) }}
         {% endif %}
-        {# This is to satisfy dbt as there are no changes needed here #}
-        {{ execute_no_op(target_relation) }}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
       {% endif %}
