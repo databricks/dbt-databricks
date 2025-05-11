@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -8,6 +8,7 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     PythonNotebookUploader,
     PythonPermissionBuilder,
 )
+from dbt_common.exceptions import DbtRuntimeError
 
 
 @pytest.fixture
@@ -37,14 +38,78 @@ class TestPythonNotebookUploader:
     @pytest.fixture
     def uploader(self, client, parsed_model, identifier):
         parsed_model.identifier = identifier
+        parsed_model.config.python_job_config.grants = {}
+        parsed_model.config.access_control_list = []
         return PythonNotebookUploader(client, parsed_model)
 
     def test_upload__golden_path(self, uploader, client, compiled_code, workdir, identifier):
         client.workspace.create_python_model_dir.return_value = workdir
+        uploader.set_notebook_permissions = Mock()
 
         file_path = uploader.upload(compiled_code)
+        
         assert file_path == f"{workdir}{identifier}"
         client.workspace.upload_notebook.assert_called_once_with(file_path, compiled_code)
+        uploader.set_notebook_permissions.assert_not_called()
+        
+    def test_upload__with_grants(self, uploader, client, compiled_code, workdir, identifier):
+        client.workspace.create_python_model_dir.return_value = workdir
+        uploader.job_grants = {"view": [{"group_name": "data-team"}]}
+        uploader.set_notebook_permissions = Mock()
+
+        file_path = uploader.upload(compiled_code)
+        
+        assert file_path == f"{workdir}{identifier}"
+        client.workspace.upload_notebook.assert_called_once_with(file_path, compiled_code)
+        uploader.set_notebook_permissions.assert_called_once_with(file_path)
+
+    def test_set_notebook_permissions__with_grants(self, uploader, client):
+        permission_builder = Mock()
+        python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
+        permission_builder.build_job_permissions.return_value = [
+            {"user_name": "owner", "permission_level": "IS_OWNER"},
+            {"group_name": "data-team", "permission_level": "CAN_VIEW"}
+        ]
+        
+        uploader.set_notebook_permissions("/path/to/notebook")
+        
+        permission_builder.build_job_permissions.assert_called_once_with(
+            uploader.job_grants, uploader.acls
+        )
+        client.notebook_permissions.put.assert_called_once_with(
+            "/path/to/notebook", 
+            [
+                {"user_name": "owner", "permission_level": "IS_OWNER"},
+                {"group_name": "data-team", "permission_level": "CAN_VIEW"}
+            ]
+        )
+        
+    def test_set_notebook_permissions__no_acls(self, uploader, client):
+        permission_builder = Mock()
+        python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
+        permission_builder.build_job_permissions.return_value = []
+        
+        uploader.set_notebook_permissions("/path/to/notebook")
+        
+        permission_builder.build_job_permissions.assert_called_once_with(
+            uploader.job_grants, uploader.acls
+        )
+        client.notebook_permissions.put.assert_not_called()
+        
+    def test_set_notebook_permissions__exception_handled(self, uploader, client):
+        permission_builder = Mock()
+        python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
+        permission_builder.build_job_permissions.return_value = [
+            {"user_name": "owner", "permission_level": "IS_OWNER"}
+        ]
+        client.notebook_permissions.put.side_effect = Exception("API error")
+        
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            uploader.set_notebook_permissions("/path/to/notebook")
+        
+        assert "Failed to set permissions on notebook" in str(exc_info.value)
+        permission_builder.build_job_permissions.assert_called_once()
+        client.notebook_permissions.put.assert_called_once()
 
 
 class TestPythonPermissionBuilder:

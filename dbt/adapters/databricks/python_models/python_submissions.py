@@ -98,13 +98,33 @@ class PythonNotebookUploader:
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
         self.identifier = parsed_model.identifier
+        self.job_grants = parsed_model.config.python_job_config.grants
+        self.acls = parsed_model.config.access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
+        
+        if self.job_grants or self.acls:
+            self.set_notebook_permissions(file_path)
+            
         return file_path
+        
+    def set_notebook_permissions(self, notebook_path: str) -> None:
+        try:
+            permission_builder = PythonPermissionBuilder(self.api_client)
+            access_control_list = permission_builder.build_job_permissions(
+                self.job_grants, self.acls
+            )
+            
+            if access_control_list:
+                logger.debug(f"Setting permissions on notebook: {notebook_path}")
+                self.api_client.notebook_permissions.put(notebook_path, access_control_list)
+        except Exception as e:
+            logger.error(f"Failed to set permissions on notebook {notebook_path}: {str(e)}")
+            raise DbtRuntimeError(f"Failed to set permissions on notebook: notebook_path={notebook_path}, error: {str(e)}")
 
 
 class PythonJobDetails(BaseModel):
@@ -289,7 +309,19 @@ class PythonNotebookSubmitter(PythonSubmitter):
             job_config.run_name, job_config.job_spec, **job_config.additional_job_config
         )
         self.tracker.insert_run_id(run_id)
+        
         try:
+            if "access_control_list" in job_config.job_spec:
+                try:
+                    job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
+                    logger.debug(f"Setting permissions on job: {job_id}")
+                    self.api_client.workflow_permissions.put(
+                        job_id, job_config.job_spec["access_control_list"]
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
+                    raise DbtRuntimeError(f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}")
+                    
             self.api_client.job_runs.poll_for_completion(run_id)
         finally:
             self.tracker.remove_run_id(run_id)

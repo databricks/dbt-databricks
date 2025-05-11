@@ -1,6 +1,7 @@
 import base64
 import re
 import time
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -338,6 +339,23 @@ class JobRunsApi(PollableApi):
         logger.info(f"Job submission response={submit_response.content!r}")
         return submit_response.json()["run_id"]
 
+    def get_run_info(self, run_id: str) -> dict[str, Any]:
+        response = self.session.get("/get", params={"run_id": run_id})
+        
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting run info.\n {response.content!r}")
+            
+        return response.json()
+        
+    def get_job_id_from_run_id(self, run_id: str) -> str:
+        run_info = self.get_run_info(run_id)
+        job_id = run_info.get("job_id")
+        
+        if not job_id:
+            raise DbtRuntimeError(f"Could not get job_id from run_id {run_id}")
+            
+        return str(job_id)
+
     def poll_for_completion(self, run_id: str) -> None:
         self._poll_api(
             url="/get",
@@ -411,6 +429,23 @@ class JobPermissionsApi(DatabricksApi):
             )
 
         return response.json()
+
+
+class NotebookPermissionsApi(DatabricksApi):
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.0/permissions")
+
+    def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
+        request_body = {"access_control_list": access_control_list}
+        
+        encoded_path = urllib.parse.quote(notebook_path)
+        response = self.session.put(f"/workspace/{encoded_path}", json=request_body)
+        logger.debug(f"Notebook permissions update response={response.json()}")
+        
+        if response.status_code != 200:
+            error_msg = f"Error updating Databricks notebook permissions.\n {response.content!r}"
+            logger.error(error_msg)
+            raise DbtRuntimeError(error_msg)
 
 
 class WorkflowJobApi(DatabricksApi):
@@ -544,6 +579,7 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
         self.workflow_permissions = JobPermissionsApi(session, host)
+        self.notebook_permissions = NotebookPermissionsApi(session, host)
         self.dlt_pipelines = DltPipelineApi(session, host, polling_interval)
 
     @staticmethod

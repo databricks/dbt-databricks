@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.python_models.python_submissions import (
     PythonCommandSubmitter,
@@ -98,12 +99,58 @@ class TestPythonNotebookSubmitter:
         return client.job_runs.submit.return_value
 
     def test_submit__golden_path(self, submitter, compiled_code, client, tracker, run_id):
+        job_config = Mock()
+        job_config.job_spec = {}
+        job_config.additional_job_config = {}
+        submitter.config_compiler.compile.return_value = job_config
+        
         submitter.submit(compiled_code)
+        
         tracker.insert_run_id.assert_called_once_with(run_id)
         client.job_runs.poll_for_completion.assert_called_once_with(run_id)
         tracker.remove_run_id.assert_called_once_with(run_id)
+        client.workflow_permissions.put.assert_not_called()
+        
+    def test_submit__with_acls(self, submitter, compiled_code, client, tracker, run_id):
+        job_config = Mock()
+        job_config.job_spec = {"access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}]}
+        job_config.additional_job_config = {}
+        submitter.config_compiler.compile.return_value = job_config
+        
+        client.job_runs.get_job_id_from_run_id.return_value = "job_id"
+        
+        submitter.submit(compiled_code)
+        
+        tracker.insert_run_id.assert_called_once_with(run_id)
+        client.job_runs.get_job_id_from_run_id.assert_called_once_with(run_id)
+        client.workflow_permissions.put.assert_called_once_with(
+            "job_id", [{"user_name": "user", "permission_level": "IS_OWNER"}]
+        )
+        client.job_runs.poll_for_completion.assert_called_once_with(run_id)
+        tracker.remove_run_id.assert_called_once_with(run_id)
+
+    def test_submit__with_acls_permission_error(self, submitter, compiled_code, client, tracker, run_id):
+        job_config = Mock()
+        job_config.job_spec = {"access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}]}
+        job_config.additional_job_config = {}
+        submitter.config_compiler.compile.return_value = job_config
+        
+        client.job_runs.get_job_id_from_run_id.side_effect = Exception("Error getting job_id")
+        
+        with pytest.raises(DbtRuntimeError):
+            submitter.submit(compiled_code)
+        
+        tracker.insert_run_id.assert_called_once_with(run_id)
+        client.job_runs.get_job_id_from_run_id.assert_called_once_with(run_id)
+        client.workflow_permissions.put.assert_not_called()
+        tracker.remove_run_id.assert_called_once_with(run_id)
 
     def test_submit__poll_fails__cleans_up(self, submitter, compiled_code, client, tracker, run_id):
+        job_config = Mock()
+        job_config.job_spec = {}
+        job_config.additional_job_config = {}
+        submitter.config_compiler.compile.return_value = job_config
+        
         client.job_runs.poll_for_completion.side_effect = Exception("error")
         with pytest.raises(Exception):
             submitter.submit(compiled_code)
