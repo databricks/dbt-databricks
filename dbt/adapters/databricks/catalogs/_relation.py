@@ -1,8 +1,8 @@
-from dataclasses import dataclass
 import posixpath
+from dataclasses import dataclass
 from typing import Optional
 
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks import constants
 
@@ -31,7 +31,7 @@ class DatabricksCatalogRelation:
 
     @property
     def location(self) -> Optional[str]:
-        if all([self.location_root, self.location_path]):
+        if self.location_root and self.location_path:
             return posixpath.join(self.location_root, self.location_path)
         return None
 

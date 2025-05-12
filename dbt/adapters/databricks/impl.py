@@ -844,7 +844,7 @@ class DatabricksAdapter(SparkAdapter):
             model (RelationConfig): `config.model` (not `model`) from the jinja context
 
         Returns:
-            Any: The constructed relation object generated through the catalog integration and parser
+            Any: The relation object generated through the catalog integration and parser
         """
         if catalog := parse_model.catalog_name(model):
             catalog_integration = self.get_catalog_integration(catalog)

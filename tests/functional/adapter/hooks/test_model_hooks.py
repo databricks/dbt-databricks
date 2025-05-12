@@ -11,7 +11,7 @@ class TestPrePostModelHooks(BaseTestPrePost):
     def setUp(self, project):
         util.run_sql_with_adapter(
             project.adapter,
-            f"drop table if exists { project.test_schema }.on_model_hook",
+            f"drop table if exists {project.test_schema}.on_model_hook",
         )
         util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_statement)
 

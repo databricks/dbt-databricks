@@ -3,15 +3,14 @@ from typing import Optional
 import pytest
 
 from dbt.adapters.databricks import catalogs, constants
-
 from tests.unit.macros.base import MacroTestBase
 
 
 def unity_relation(
-        table_format: Optional[str] = None,
-        file_format: Optional[str] = None,
-        location_root: Optional[str] = None,
-        location_path: Optional[str] = None,
+    table_format: Optional[str] = None,
+    file_format: Optional[str] = None,
+    location_root: Optional[str] = None,
+    location_path: Optional[str] = None,
 ) -> catalogs.DatabricksCatalogRelation:
     catalog_integration = constants.DEFAULT_UNITY_CATALOG
     return catalogs.DatabricksCatalogRelation(
@@ -71,7 +70,9 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_with_iceberg(self, template_bundle):
         catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
         template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = catalog_relation.iceberg_table_properties
+        template_bundle.context[
+            "adapter"
+        ].update_tblproperties_for_iceberg.return_value = catalog_relation.iceberg_table_properties  # type: ignore
         sql = self.render_create_table_as(template_bundle)
         assert sql == self.clean_sql(
             f"create or replace table {template_bundle.relation.render()} using delta"

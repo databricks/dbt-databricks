@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 
-
 DEFAULT_TABLE_FORMAT = "default"
 ICEBERG_TABLE_FORMAT = "iceberg"
 
