@@ -101,6 +101,15 @@ select {{source_cols_csv}} from {{ source_relation }}
       or not_matched_by_source_action_trimmed.startswith('update')
     )
   %}
+
+  {#
+    Merge actions can be set explicitly by providing a multiline code block
+    in the model config. In that case all matched/not matched actions settings
+    are ignored.
+  #}
+  {%- set merge_actions_explicit = config.get('merge_actions_explicit', '') | trim(' \n\t') -%}
+
+  {%- set merge_actions_explicit_is_set = merge_actions_explicit | length > 0  %}
   
   
   {% if unique_key %}
@@ -131,28 +140,32 @@ select {{source_cols_csv}} from {{ source_relation }}
         {{ source }} as {{ source_alias }}
     on
         {{ predicates | join('\n    and ') }}
-    {%- if not skip_matched_step %}
+    {%- if merge_actions_explicit_is_set %}
+    {{ merge_actions_explicit }}
+    {%- else %}
+        {%- if not skip_matched_step %}
     when matched
-        {%- if matched_condition %}
+            {%- if matched_condition %}
         and ({{ matched_condition }})
-        {%- endif %}
+            {%- endif %}
         then update set
             {{ get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) }}
-    {%- endif %}
-    {%- if not skip_not_matched_step %}
-    when not matched
-        {%- if not_matched_condition %}
-        and ({{ not_matched_condition }})
         {%- endif %}
+        {%- if not skip_not_matched_step %}
+    when not matched
+            {%- if not_matched_condition %}
+        and ({{ not_matched_condition }})
+            {%- endif %}
         then insert
             {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
-    {%- endif %}
-    {%- if not_matched_by_source_action_is_set %}
-    when not matched by source
-        {%- if not_matched_by_source_condition %}
-        and ({{ not_matched_by_source_condition }})
         {%- endif %}
+        {%- if not_matched_by_source_action_is_set %}
+    when not matched by source
+            {%- if not_matched_by_source_condition %}
+        and ({{ not_matched_by_source_condition }})
+            {%- endif %}
         then {{ not_matched_by_source_action }}
+        {%- endif %}
     {%- endif %}
 {% endmacro %}
 
