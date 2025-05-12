@@ -31,7 +31,9 @@ class DatabricksCatalogRelation:
 
     @property
     def location(self) -> Optional[str]:
-        return posixpath.join(self.location_root, self.location_path)
+        if all([self.location_root, self.location_path]):
+            return posixpath.join(self.location_root, self.location_path)
+        return None
 
     @property
     def iceberg_table_properties(self) -> dict[str, str]:

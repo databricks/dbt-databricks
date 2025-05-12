@@ -16,7 +16,6 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        self.table_format: str = config.adapter_properties.get("table_format")
         self.file_format: str = config.adapter_properties.get("file_format")
 
     @property
