@@ -6,19 +6,18 @@ from dbt.adapters.catalogs import (
 )
 from dbt.adapters.contracts.relation import RelationConfig
 
-from dbt.adapters.databricks import constants
+from dbt.adapters.databricks import constants, parse_model
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 
 
-class DeltaCatalogIntegration(CatalogIntegration):
-    catalog_type = constants.DELTA_CATALOG_TYPE
+class UnityCatalogIntegration(CatalogIntegration):
+    catalog_type = constants.UNITY_CATALOG_TYPE
     allows_writes = True
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
         if location_root := config.adapter_properties.get("location_root"):
             self.external_volume: Optional[str] = location_root
-        self.table_format: str = config.adapter_properties.get("table_format")
         self.file_format: str = config.adapter_properties.get("file_format")
 
     @property
@@ -39,4 +38,11 @@ class DeltaCatalogIntegration(CatalogIntegration):
         Args:
             model: `config.model` (not `model`) from the jinja context
         """
-        return DatabricksCatalogRelation()
+        return DatabricksCatalogRelation(
+            catalog_type=self.catalog_type,
+            catalog_name=self.catalog_name,
+            table_format=parse_model.table_format(model) or self.table_format,
+            file_format=parse_model.file_format(model) or self.file_format,
+            external_volume=parse_model.location_root(model) or self.external_volume,
+            location_path=parse_model.location_path(model),
+        )

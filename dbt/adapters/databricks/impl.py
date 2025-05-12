@@ -23,9 +23,10 @@ from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
+from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constants, constraints
+from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
@@ -33,8 +34,8 @@ from dbt.adapters.databricks.behaviors.columns import (
 )
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
-    DeltaCatalogIntegration,
     HiveMetastoreCatalogIntegration,
+    UnityCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -186,8 +187,8 @@ class DatabricksAdapter(SparkAdapter):
     )
 
     CATALOG_INTEGRATIONS = [
-        DeltaCatalogIntegration,
         HiveMetastoreCatalogIntegration,
+        UnityCatalogIntegration,
     ]
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
@@ -205,7 +206,7 @@ class DatabricksAdapter(SparkAdapter):
         except CompilationError:
             pass
 
-        self.add_catalog_integration(constants.DEFAULT_DELTA_CATALOG)
+        self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
     @property
@@ -829,6 +830,26 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
+
+    @available
+    def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
+        """
+        Builds a relation for a given configuration.
+
+        This method uses the provided configuration to determine the appropriate catalog
+        integration and config parser for building the relation. It defaults to the built-in Delta
+        catalog if none is provided in the configuration for backward compatibility.
+
+        Args:
+            model (RelationConfig): `config.model` (not `model`) from the jinja context
+
+        Returns:
+            Any: The constructed relation object generated through the catalog integration and parser
+        """
+        if catalog := parse_model.catalog_name(model):
+            catalog_integration = self.get_catalog_integration(catalog)
+            return catalog_integration.build_relation(model)
+        return None
 
 
 @dataclass(frozen=True)
