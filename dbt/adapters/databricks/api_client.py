@@ -341,19 +341,19 @@ class JobRunsApi(PollableApi):
 
     def get_run_info(self, run_id: str) -> dict[str, Any]:
         response = self.session.get("/get", params={"run_id": run_id})
-        
+
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error getting run info.\n {response.content!r}")
-            
+
         return response.json()
-        
+
     def get_job_id_from_run_id(self, run_id: str) -> str:
         run_info = self.get_run_info(run_id)
         job_id = run_info.get("job_id")
-        
+
         if not job_id:
             raise DbtRuntimeError(f"Could not get job_id from run_id {run_id}")
-            
+
         return str(job_id)
 
     def poll_for_completion(self, run_id: str) -> None:
@@ -437,11 +437,11 @@ class NotebookPermissionsApi(DatabricksApi):
 
     def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
         request_body = {"access_control_list": access_control_list}
-        
+
         encoded_path = urllib.parse.quote(notebook_path)
         response = self.session.put(f"/workspace/{encoded_path}", json=request_body)
         logger.debug(f"Notebook permissions update response={response.json()}")
-        
+
         if response.status_code != 200:
             error_msg = f"Error updating Databricks notebook permissions.\n {response.content!r}"
             logger.error(error_msg)

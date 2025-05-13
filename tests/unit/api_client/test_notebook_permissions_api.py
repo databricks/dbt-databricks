@@ -1,6 +1,5 @@
 import pytest
 import urllib.parse
-
 from dbt.adapters.databricks.api_client import NotebookPermissionsApi
 from dbt_common.exceptions import DbtRuntimeError
 from tests.unit.api_client.api_test_base import ApiTestBase
@@ -42,4 +41,4 @@ class TestNotebookPermissionsApi(ApiTestBase):
             f"https://host/api/2.0/permissions/workspace/{encoded_path}",
             json={"access_control_list": access_control_list},
             params=None,
-        ) 
+        )
