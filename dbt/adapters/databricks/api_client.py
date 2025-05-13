@@ -354,7 +354,7 @@ class JobRunsApi(PollableApi):
         result_state = state.get("result_state")
         life_cycle_state = state["life_cycle_state"]
 
-        if result_state is not None and result_state != "SUCCESS":
+        if result_state == "CANCELED":
             raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
 
         if life_cycle_state != "TERMINATED":
