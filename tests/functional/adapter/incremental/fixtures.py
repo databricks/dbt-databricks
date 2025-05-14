@@ -621,52 +621,241 @@ replace_expected = """id,msg,color
 2,goodbye,red
 """
 
-constraint_model = """
+non_null_constraint_sql = """
 {{ config(
     materialized = 'incremental',
     unique_key = 'id',
+    incremental_strategy='merge',
 ) }}
 
 {% if not is_incremental() %}
 
-select cast(1 as bigint) as id, 'hello' as msg, (cast(NULL as string)) as color
+select cast(1 as bigint) as id, 'hello' as msg
 
 {% else %}
 
-select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+select cast(2 as bigint) as id, cast(NULL as string) as msg
 
 {% endif %}
 """
 
-schema_without_constraints = """
+
+schema_without_non_null_constraint = """
 version: 2
 
 models:
-  - name: constraint_model
+  - name: non_null_constraint_sql
     columns:
       - name: id
         data_type: bigint
       - name: msg
-        data_type: string
-      - name: color
         data_type: string
 """
 
-schema_with_constraints = """
+schema_with_non_null_constraint = """
 version: 2
 
 models:
-  - name: constraint_model
-    constraints:
-      - type: primary_key
-        columns: [id]
+  - name: non_null_constraint_sql
     columns:
       - name: id
         data_type: bigint
       - name: msg
         data_type: string
-      - name: color
-        data_type: string
         constraints:
           - type: not_null
+"""
+
+check_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(6 as bigint) as id
+
+{% else %}
+
+select cast(3 as bigint) as id
+
+{% endif %}
+"""
+
+schema_without_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+"""
+
+schema_with_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+    constraints:
+      - type: check
+        name: id_greater_than_5
+        expression: id > 5
+"""
+
+primary_key_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'version'],
+    incremental_strategy='merge',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+"""
+
+schema_with_single_column_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model
+        columns: [id]
+"""
+
+schema_with_composite_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model_updated
+        columns: [id, version]
+"""
+
+fk_referenced_from_table = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'version'],
+    incremental_strategy='merge',
+) }}
+
+{% if not is_incremental() %}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+
+{% else %}
+
+select
+    cast(2 as bigint) as id,
+    cast(2 as int) as version,
+    'world' as msg
+
+{% endif %}
+"""
+
+fk_referenced_to_table = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'version'],
+    incremental_strategy='merge',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'parent' as type
+"""
+
+constraint_schema_without_fk_constraint = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_from_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+"""
+
+constraint_schema_with_fk_constraint = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    constraints:
+      - type: primary_key
+        columns: [id, version]
+        name: pk_parent
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_from_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: foreign_key
+        name: fk_to_parent
+        columns: [id, version]
+        to: ref('fk_referenced_to_table')
+        to_columns: [id, version]
 """
