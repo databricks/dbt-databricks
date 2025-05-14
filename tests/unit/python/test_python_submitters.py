@@ -195,7 +195,7 @@ class TestPythonNotebookWorkflowSubmitter:
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
-        submitter.permission_builder.build_permissions.return_value = []
+        submitter.permission_builder.build_job_permissions.return_value = []
         submitter.api_client.workflows.run.return_value = "run_id"
         submitter.submit(compiled_code)
         submitter.tracker.insert_run_id.assert_called_once_with("run_id")
@@ -206,7 +206,7 @@ class TestPythonNotebookWorkflowSubmitter:
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
-        submitter.permission_builder.build_permissions.return_value = []
+        submitter.permission_builder.build_job_permissions.return_value = []
         submitter.api_client.workflows.run.return_value = "run_id"
         submitter.api_client.job_runs.poll_for_completion.side_effect = Exception("error")
         with pytest.raises(Exception):

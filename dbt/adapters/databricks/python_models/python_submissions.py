@@ -98,16 +98,20 @@ class PythonNotebookUploader:
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
         self.identifier = parsed_model.identifier
-        self.job_grants = parsed_model.config.python_job_config.grants
-        self.acls = parsed_model.config.access_control_list
+        # Use notebook-specific ACLs
+        self.notebook_acls = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
-        file_path = f"{workdir}{self.identifier}"
+        if workdir.endswith('/'):
+            file_path = f"{workdir}{self.identifier}"
+        else:
+            file_path = f"{workdir}/{self.identifier}"
+            
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
 
-        if self.job_grants or self.acls:
+        if self.notebook_acls:
             self.set_notebook_permissions(file_path)
 
         return file_path
@@ -115,8 +119,8 @@ class PythonNotebookUploader:
     def set_notebook_permissions(self, notebook_path: str) -> None:
         try:
             permission_builder = PythonPermissionBuilder(self.api_client)
-            access_control_list = permission_builder.build_job_permissions(
-                self.job_grants, self.acls
+            access_control_list = permission_builder.build_permissions(
+                {}, self.notebook_acls, target_type="notebook"
             )
 
             if access_control_list:
@@ -138,7 +142,11 @@ class PythonJobDetails(BaseModel):
 
 
 class PythonPermissionBuilder:
-    """Class for building access control list for Python jobs."""
+    """Class for building access control list for Python jobs and notebooks."""
+
+    # 各ターゲットで有効なパーミッションレベルを定義
+    JOB_PERMISSIONS = {"IS_OWNER", "CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
+    NOTEBOOK_PERMISSIONS = {"IS_OWNER", "CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
 
     def __init__(
         self,
@@ -160,13 +168,28 @@ class PythonPermissionBuilder:
     ) -> list[dict[str, Any]]:
         return [{**grant, **{"permission_level": permission}} for grant in job_grants]
 
+    def _filter_permissions(
+        self, acls: list[dict[str, Any]], valid_permissions: set[str]
+    ) -> list[dict[str, Any]]:
+        """Filter access control list to only include valid permission levels."""
+        return [
+            acl for acl in acls 
+            if "permission_level" in acl and acl["permission_level"] in valid_permissions
+        ]
+    
     def build_job_permissions(
         self,
         job_grants: dict[str, list[dict[str, Any]]],
         acls: list[dict[str, str]],
     ) -> list[dict[str, Any]]:
-        """Build the access control list for the job."""
-
+        """Build the access control list for jobs.
+        
+        Databricks job permissions use:
+        - IS_OWNER
+        - CAN_VIEW
+        - CAN_MANAGE_RUN
+        - CAN_MANAGE
+        """
         access_control_list = []
         owner, permissions_attribute = self._get_job_owner_for_config()
         access_control_list.append(
@@ -186,7 +209,67 @@ class PythonPermissionBuilder:
             self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
         )
 
-        return access_control_list + acls
+        # Combine all ACLs and filter only once at the end
+        combined_acls = access_control_list + acls
+        return self._filter_permissions(combined_acls, self.JOB_PERMISSIONS)
+    
+    def build_notebook_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
+        """Build the access control list for notebooks.
+        
+        Databricks notebook permissions use:
+        - CAN_READ (shown as CAN_VIEW in UI)
+        - CAN_RUN
+        - CAN_EDIT
+        - CAN_MANAGE
+        
+        Note: IS_OWNER is not included as it's not supported by some Databricks environments.
+        """
+        access_control_list = []
+        
+        # Skip adding owner permission - IS_OWNER is not supported in some environments
+        
+        # Convert job permission levels to notebook permission levels
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("view", []), "CAN_READ")
+        )
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("run", []), "CAN_RUN")
+        )
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
+        )
+
+        # Combine all ACLs and filter only once at the end
+        combined_acls = access_control_list + acls
+        filtered_acls = self._filter_permissions(combined_acls, self.NOTEBOOK_PERMISSIONS)
+        
+        # Remove entries with IS_OWNER permission
+        return [acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"]
+
+    def build_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+        target_type: str = "job"
+    ) -> list[dict[str, Any]]:
+        """Build the access control list for the target.
+        
+        Args:
+            job_grants: Dictionary of grants (view, run, manage)
+            acls: List of existing ACLs
+            target_type: Type of target ("job" or "notebook")
+            
+        Returns:
+            List of access control specifications
+        """
+        if target_type == "notebook":
+            return self.build_notebook_permissions(job_grants, acls)
+        else:
+            return self.build_job_permissions(job_grants, acls)
 
 
 def get_library_config(
@@ -543,7 +626,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             permission_builder,
             workflow_creater,
             parsed_model.config.python_job_config.grants,
-            parsed_model.config.access_control_list,
+            parsed_model.config.access_control_list,  # ジョブ権限として使用
         )
 
     @override

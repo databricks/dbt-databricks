@@ -1,10 +1,14 @@
 import os
 
-# Get test user names from environment variables or use defaults
-# These align with the existing tests in tests/functional/adapter/grants/
-TEST_USER_1 = os.environ.get("DBT_TEST_USER_1", "test_user1")
-TEST_USER_2 = os.environ.get("DBT_TEST_USER_2", "test_user2")
-TEST_USER_3 = os.environ.get("DBT_TEST_USER_3", "test_user3")
+# Use separate test users for ACL testing
+TEST_USER_1 = os.environ.get("DBT_TEST_USER_1", "test_user_1")
+TEST_USER_2 = os.environ.get("DBT_TEST_USER_2", "test_user_2")
+TEST_USER_3 = os.environ.get("DBT_TEST_USER_3", "test_user_3")
+
+# Keep these for backward compatibility
+TEST_USER_ACL = TEST_USER_1
+TEST_USER_GRANT = TEST_USER_2 
+TEST_USER_GRANT2 = TEST_USER_3
 
 simple_python_model = """
 import pandas
@@ -32,8 +36,8 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='table',
-        access_control_list=[
-            {{"user_name": "{TEST_USER_1}", "permission_level": "CAN_VIEW"}}
+        notebook_access_control_list=[
+            {{"user_name": "{TEST_USER_1}", "permission_level": "CAN_READ"}}
         ]
     )
     data = [[1,2]] * 10
@@ -47,9 +51,45 @@ models:
     config:
       create_notebook: true
       user_folder_for_python: true
-      access_control_list:
+      notebook_access_control_list:
         - user_name: {TEST_USER_2}
-          permission_level: CAN_VIEW
+          permission_level: CAN_READ
+"""
+
+# New test case for notebook specific ACL
+notebook_acl_schema = f"""version: 2
+
+models:
+  - name: python_model_with_notebook_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      notebook_access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_READ
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_RUN
+        - user_name: {TEST_USER_3}
+          permission_level: CAN_MANAGE
+"""
+
+# Test case for mixed notebook and job permissions
+notebook_job_acl_schema = f"""version: 2
+
+models:
+  - name: python_model_with_mixed_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      notebook_access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_READ
+      python_job_config:
+        grants:
+          view:
+            - user_name: {TEST_USER_2}
+          manage:
+            - user_name: {TEST_USER_3}
 """
 
 job_grant_schema = f"""version: 2
@@ -76,14 +116,14 @@ models:
     config:
       create_notebook: true
       user_folder_for_python: true
-      access_control_list:
+      notebook_access_control_list:
         - user_name: {TEST_USER_1}
-          permission_level: CAN_VIEW
+          permission_level: CAN_READ
       python_job_config:
         grants:
           view:
             - user_name: {TEST_USER_2}
-          run:
+          manage_run:
             - user_name: {TEST_USER_3}
 """
 
