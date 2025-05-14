@@ -624,8 +624,6 @@ replace_expected = """id,msg,color
 non_null_constraint_sql = """
 {{ config(
     materialized = 'incremental',
-    unique_key = 'id',
-    incremental_strategy='merge',
 ) }}
 
 {% if not is_incremental() %}
@@ -669,8 +667,6 @@ models:
 check_constraint_sql = """
 {{ config(
     materialized = 'incremental',
-    unique_key = 'id',
-    incremental_strategy='merge',
 ) }}
 
 {% if not is_incremental() %}
@@ -711,8 +707,6 @@ models:
 primary_key_constraint_sql = """
 {{ config(
     materialized = 'incremental',
-    unique_key = ['id', 'version'],
-    incremental_strategy='merge',
 ) }}
 
 select
@@ -766,8 +760,6 @@ models:
 fk_referenced_from_table = """
 {{ config(
     materialized = 'incremental',
-    unique_key = ['id', 'version'],
-    incremental_strategy='merge',
 ) }}
 
 {% if not is_incremental() %}
@@ -790,8 +782,6 @@ select
 fk_referenced_to_table = """
 {{ config(
     materialized = 'incremental',
-    unique_key = ['id', 'version'],
-    incremental_strategy='merge',
 ) }}
 
 select

@@ -2,6 +2,7 @@ from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.constraints import ConstraintsConfig
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig
@@ -32,6 +33,7 @@ class TestIncrementalConfig:
                 ],
                 column_names=["col_name", "col_type", "comment"],
             ),
+            # TODO: Update this part
         }
 
         config = IncrementalTableConfig.from_results(results)
@@ -47,6 +49,13 @@ class TestIncrementalConfig:
                 "liquid_clustering": LiquidClusteringConfig(
                     auto_cluster=True,
                     cluster_by=["col1", '"a"'],
+                ),
+                "constraints": ConstraintsConfig(
+                    model_config={"frozen": True},
+                    set_non_nulls=[],
+                    unset_non_nulls=[],
+                    set_constraints=[],
+                    unset_constraints=[],
                 ),
             }
         )
