@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.python_models import python_submissions
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -7,7 +9,6 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     PythonNotebookUploader,
     PythonPermissionBuilder,
 )
-from dbt_common.exceptions import DbtRuntimeError
 
 
 @pytest.fixture

@@ -1,3 +1,11 @@
+import os
+
+# Get test user names from environment variables or use defaults
+# These align with the existing tests in tests/functional/adapter/grants/
+TEST_USER_1 = os.environ.get("DBT_TEST_USER_1", "test_user1")
+TEST_USER_2 = os.environ.get("DBT_TEST_USER_2", "test_user2")
+TEST_USER_3 = os.environ.get("DBT_TEST_USER_3", "test_user3")
+
 simple_python_model = """
 import pandas
 
@@ -16,6 +24,67 @@ def model(dbt, spark):
     raise Exception("This is an error")
 
     return pd.DataFrame()
+"""
+
+acl_python_model = f"""
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        access_control_list=[
+            {{"user_name": "{TEST_USER_1}", "permission_level": "CAN_VIEW"}}
+        ]
+    )
+    data = [[1,2]] * 10
+    return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
+acl_schema = f"""version: 2
+
+models:
+  - name: python_model_with_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      access_control_list:
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_VIEW
+"""
+
+job_grant_schema = f"""version: 2
+
+models:
+  - name: python_model_with_grants
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      python_job_config:
+        grants:
+          view:
+            - user_name: {TEST_USER_1}
+          run:
+            - user_name: {TEST_USER_2}
+          manage:
+            - user_name: {TEST_USER_3}
+"""
+
+combined_acl_schema = f"""version: 2
+
+models:
+  - name: python_model_with_combined_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_VIEW
+      python_job_config:
+        grants:
+          view:
+            - user_name: {TEST_USER_2}
+          run:
+            - user_name: {TEST_USER_3}
 """
 
 serverless_schema = """version: 2

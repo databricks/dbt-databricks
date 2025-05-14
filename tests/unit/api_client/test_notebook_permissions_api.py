@@ -1,7 +1,9 @@
-import pytest
 import urllib.parse
-from dbt.adapters.databricks.api_client import NotebookPermissionsApi
+
+import pytest
 from dbt_common.exceptions import DbtRuntimeError
+
+from dbt.adapters.databricks.api_client import NotebookPermissionsApi
 from tests.unit.api_client.api_test_base import ApiTestBase
 
 
