@@ -37,14 +37,15 @@ class TestPythonNotebookUploader:
 
     @pytest.fixture
     def uploader(self, client, parsed_model, identifier):
+        parsed_model.catalog = "catalog"
+        parsed_model.schema_ = "schema"
         parsed_model.identifier = identifier
-        parsed_model.config.python_job_config.grants = {}
-        parsed_model.config.access_control_list = []
         return PythonNotebookUploader(client, parsed_model)
 
     def test_upload__golden_path(self, uploader, client, compiled_code, workdir, identifier):
         client.workspace.create_python_model_dir.return_value = workdir
         uploader.set_notebook_permissions = Mock()
+        uploader.job_grants = {}
 
         file_path = uploader.upload(compiled_code)
 
@@ -54,6 +55,7 @@ class TestPythonNotebookUploader:
 
     def test_upload__with_grants(self, uploader, client, compiled_code, workdir, identifier):
         client.workspace.create_python_model_dir.return_value = workdir
+        # job_grantsを直接設定
         uploader.job_grants = {"view": [{"group_name": "data-team"}]}
         uploader.set_notebook_permissions = Mock()
 
@@ -66,40 +68,40 @@ class TestPythonNotebookUploader:
     def test_set_notebook_permissions__with_grants(self, uploader, client):
         permission_builder = Mock()
         python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
-        permission_builder.build_job_permissions.return_value = [
+        permission_builder.build_permissions.return_value = [
             {"user_name": "owner", "permission_level": "IS_OWNER"},
-            {"group_name": "data-team", "permission_level": "CAN_VIEW"},
+            {"group_name": "data-team", "permission_level": "CAN_READ"},
         ]
 
         uploader.set_notebook_permissions("/path/to/notebook")
 
-        permission_builder.build_job_permissions.assert_called_once_with(
-            uploader.job_grants, uploader.acls
+        permission_builder.build_permissions.assert_called_once_with(
+            uploader.job_grants, [], target_type="notebook"
         )
         client.notebook_permissions.put.assert_called_once_with(
             "/path/to/notebook",
             [
                 {"user_name": "owner", "permission_level": "IS_OWNER"},
-                {"group_name": "data-team", "permission_level": "CAN_VIEW"},
+                {"group_name": "data-team", "permission_level": "CAN_READ"},
             ],
         )
 
     def test_set_notebook_permissions__no_acls(self, uploader, client):
         permission_builder = Mock()
         python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
-        permission_builder.build_job_permissions.return_value = []
+        permission_builder.build_permissions.return_value = []
 
         uploader.set_notebook_permissions("/path/to/notebook")
 
-        permission_builder.build_job_permissions.assert_called_once_with(
-            uploader.job_grants, uploader.acls
+        permission_builder.build_permissions.assert_called_once_with(
+            uploader.job_grants, [], target_type="notebook"
         )
         client.notebook_permissions.put.assert_not_called()
 
     def test_set_notebook_permissions__exception_handled(self, uploader, client):
         permission_builder = Mock()
         python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
-        permission_builder.build_job_permissions.return_value = [
+        permission_builder.build_permissions.return_value = [
             {"user_name": "owner", "permission_level": "IS_OWNER"}
         ]
         client.notebook_permissions.put.side_effect = Exception("API error")
@@ -108,7 +110,7 @@ class TestPythonNotebookUploader:
             uploader.set_notebook_permissions("/path/to/notebook")
 
         assert "Failed to set permissions on notebook" in str(exc_info.value)
-        permission_builder.build_job_permissions.assert_called_once()
+        permission_builder.build_permissions.assert_called_once()
         client.notebook_permissions.put.assert_called_once()
 
 
@@ -117,19 +119,19 @@ class TestPythonPermissionBuilder:
     def builder(self, client):
         return PythonPermissionBuilder(client)
 
-    def test_build_permission__no_grants_no_acls_user_owner(self, builder, client):
+    def test_build_job_permission__no_grants_no_acls_user_owner(self, builder, client):
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = False
         acls = builder.build_job_permissions({}, [])
         assert acls == [{"user_name": "user", "permission_level": "IS_OWNER"}]
 
-    def test_build_permission__no_grants_no_acls_sp_owner(self, builder, client):
+    def test_build_job_permission__no_grants_no_acls_sp_owner(self, builder, client):
         client.curr_user.get_username.return_value = "user"
         client.curr_user.is_service_principal.return_value = True
         acls = builder.build_job_permissions({}, [])
         assert acls == [{"service_principal_name": "user", "permission_level": "IS_OWNER"}]
 
-    def test_build_permission__grants_no_acls(self, builder, client):
+    def test_build_job_permission__grants_no_acls(self, builder, client):
         grants = {
             "view": [{"user_name": "user1"}],
             "run": [{"user_name": "user2"}],
@@ -147,7 +149,24 @@ class TestPythonPermissionBuilder:
 
         assert builder.build_job_permissions(grants, []) == expected
 
-    def test_build_permission__grants_and_acls(self, builder, client):
+    def test_build_notebook_permission__grants_no_acls(self, builder, client):
+        grants = {
+            "view": [{"user_name": "user1"}],
+            "run": [{"user_name": "user2"}],
+            "manage": [{"user_name": "user3"}],
+        }
+        client.curr_user.get_username.return_value = "user"
+        client.curr_user.is_service_principal.return_value = False
+
+        expected = [
+            {"user_name": "user1", "permission_level": "CAN_READ"},
+            {"user_name": "user2", "permission_level": "CAN_RUN"},
+            {"user_name": "user3", "permission_level": "CAN_MANAGE"},
+        ]
+
+        assert builder.build_notebook_permissions(grants, []) == expected
+
+    def test_build_job_permission__grants_and_acls(self, builder, client):
         grants = {
             "view": [{"user_name": "user1"}],
         }

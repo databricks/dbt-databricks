@@ -1,4 +1,5 @@
 import urllib.parse
+from unittest.mock import Mock
 
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
@@ -9,8 +10,16 @@ from tests.unit.api_client.api_test_base import ApiTestBase
 
 class TestNotebookPermissionsApi(ApiTestBase):
     @pytest.fixture
-    def api(self, session, host):
-        return NotebookPermissionsApi(session, host)
+    def workspace_api(self):
+        mock = Mock()
+        mock.get_object_id.return_value = "12345"
+        return mock
+
+    @pytest.fixture
+    def api(self, session, host, workspace_api):
+        api = NotebookPermissionsApi(session, host)
+        api.workspace_api = workspace_api
+        return api
 
     @pytest.fixture
     def notebook_path(self):
@@ -27,9 +36,9 @@ class TestNotebookPermissionsApi(ApiTestBase):
         session.put.return_value.status_code = 500
         with pytest.raises(DbtRuntimeError):
             api.put(notebook_path, access_control_list)
-        encoded_path = urllib.parse.quote(notebook_path)
+        encoded_path = urllib.parse.quote("12345")
         session.put.assert_called_once_with(
-            f"https://host/api/2.0/permissions/workspace/{encoded_path}",
+            f"https://host/api/2.0/permissions/notebooks/{encoded_path}",
             json={"access_control_list": access_control_list},
             params=None,
         )
@@ -38,9 +47,9 @@ class TestNotebookPermissionsApi(ApiTestBase):
         session.put.return_value.status_code = 200
         session.put.return_value.json.return_value = {"access_control_list": access_control_list}
         api.put(notebook_path, access_control_list)
-        encoded_path = urllib.parse.quote(notebook_path)
+        encoded_path = urllib.parse.quote("12345")
         session.put.assert_called_once_with(
-            f"https://host/api/2.0/permissions/workspace/{encoded_path}",
+            f"https://host/api/2.0/permissions/notebooks/{encoded_path}",
             json={"access_control_list": access_control_list},
             params=None,
         )

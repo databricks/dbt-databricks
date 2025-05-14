@@ -114,7 +114,7 @@ class TestPythonNotebookSubmitter:
     def test_submit__with_acls(self, submitter, compiled_code, client, tracker, run_id):
         job_config = Mock()
         job_config.job_spec = {
-            "access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}]
+            "access_control_list": [{"user_name": "user", "permission_level": "CAN_RUN"}]
         }
         job_config.additional_job_config = {}
         submitter.config_compiler.compile.return_value = job_config
@@ -125,8 +125,8 @@ class TestPythonNotebookSubmitter:
 
         tracker.insert_run_id.assert_called_once_with(run_id)
         client.job_runs.get_job_id_from_run_id.assert_called_once_with(run_id)
-        client.workflow_permissions.put.assert_called_once_with(
-            "job_id", [{"user_name": "user", "permission_level": "IS_OWNER"}]
+        client.workflow_permissions.patch.assert_called_once_with(
+            "job_id", [{"user_name": "user", "permission_level": "CAN_RUN"}]
         )
         client.job_runs.poll_for_completion.assert_called_once_with(run_id)
         tracker.remove_run_id.assert_called_once_with(run_id)
@@ -136,7 +136,7 @@ class TestPythonNotebookSubmitter:
     ):
         job_config = Mock()
         job_config.job_spec = {
-            "access_control_list": [{"user_name": "user", "permission_level": "IS_OWNER"}]
+            "access_control_list": [{"user_name": "user", "permission_level": "CAN_RUN"}]
         }
         job_config.additional_job_config = {}
         submitter.config_compiler.compile.return_value = job_config
@@ -188,14 +188,14 @@ class TestPythonNotebookWorkflowSubmitter:
         self, client, tracker, uploader, config_compiler, permission_builder, workflow_creater
     ):
         return PythonNotebookWorkflowSubmitter(
-            client, tracker, uploader, config_compiler, permission_builder, workflow_creater, {}, []
+            client, tracker, uploader, config_compiler, permission_builder, workflow_creater, {}
         )
 
     def test_submit__golden_path(self, submitter):
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
-        submitter.permission_builder.build_permissions.return_value = []
+        submitter.permission_builder.build_job_permissions.return_value = []
         submitter.api_client.workflows.run.return_value = "run_id"
         submitter.submit(compiled_code)
         submitter.tracker.insert_run_id.assert_called_once_with("run_id")
@@ -206,7 +206,7 @@ class TestPythonNotebookWorkflowSubmitter:
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
-        submitter.permission_builder.build_permissions.return_value = []
+        submitter.permission_builder.build_job_permissions.return_value = []
         submitter.api_client.workflows.run.return_value = "run_id"
         submitter.api_client.job_runs.poll_for_completion.side_effect = Exception("error")
         with pytest.raises(Exception):
@@ -218,7 +218,6 @@ class TestPythonNotebookWorkflowSubmitter:
         parsed_model.config.python_job_config.grants = {}
         parsed_model.config.python_job_config.additional_task_settings = {}
         parsed_model.config.python_job_config.dict.return_value = {}
-        parsed_model.config.access_control_list = []
         submitter = PythonNotebookWorkflowSubmitter.create(client, tracker, parsed_model)
         assert submitter.api_client == client
         assert submitter.tracker == tracker

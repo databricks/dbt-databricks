@@ -36,7 +36,6 @@ class TestParsedPythonModel:
         assert config.user_folder_for_python is False
         assert config.timeout == 86400
         assert config.job_cluster_config == {}
-        assert config.access_control_list == []
         assert config.packages == []
         assert config.index_url is None
         assert config.additional_libs == []
@@ -56,11 +55,10 @@ class TestParsedPythonModel:
                 "user_folder_for_python": True,
                 "timeout": 100,
                 "job_cluster_config": {"key": "value"},
-                "access_control_list": [{"key": "value"}],
                 "packages": ["package"],
                 "index_url": "index_url",
                 "additional_libs": [{"key": "value"}],
-                "python_job_config": {"name": "name"},
+                "python_job_config": {"name": "name", "grants": {"view": [{"user_name": "test"}]}},
                 "cluster_id": "cluster_id",
                 "http_path": "http_path",
                 "create_notebook": True,
@@ -72,12 +70,11 @@ class TestParsedPythonModel:
         assert config.user_folder_for_python is True
         assert config.timeout == 100
         assert config.job_cluster_config == {"key": "value"}
-        assert config.access_control_list == [{"key": "value"}]
         assert config.packages == ["package"]
         assert config.index_url == "index_url"
         assert config.additional_libs == [{"key": "value"}]
         assert config.python_job_config.name == "name"
-        assert config.python_job_config.grants == {}
+        assert config.python_job_config.grants == {"view": [{"user_name": "test"}]}
         assert config.python_job_config.existing_job_id == ""
         assert config.python_job_config.post_hook_tasks == []
         assert config.python_job_config.additional_task_settings == {}
