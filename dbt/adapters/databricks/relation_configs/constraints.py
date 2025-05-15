@@ -161,12 +161,19 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> ConstraintsConfig:
-        constraints = [c.to_dict() for c in getattr(relation_config, "constraints", [])]
+        constraints = getattr(relation_config, "constraints", [])
+        constraints = [
+            {
+                "name": (item["name"] if isinstance(item, dict) else item.name),
+                **(item if isinstance(item, dict) else asdict(item)),
+            }
+            for item in constraints
+        ]
 
         columns = getattr(relation_config, "columns", {})
         columns = [
-            {**asdict(col), "constraints": [c.to_dict() for c in col.constraints]}
-            for col in columns.values()
+            {"name": name, **(col if isinstance(col, dict) else asdict(col))}
+            for name, col in columns.items()
         ]
 
         non_nulls, other_constraints = parse_constraints(columns, constraints)
