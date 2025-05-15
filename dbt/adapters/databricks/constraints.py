@@ -61,6 +61,31 @@ class TypedConstraint(ModelLevelConstraint, ABC):
             f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
         )
 
+    # Enables set equality checks, especially for convenient unit testing
+    def __hash__(self) -> int:
+        # Create a tuple of all the fields that should be used for equality comparison
+        fields = (
+            self.type,
+            self.name,
+            tuple(self.columns) if self.columns else None,
+            self.expression,
+            self.to,
+            tuple(self.to_columns) if self.to_columns else None,
+        )
+        return hash(fields)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TypedConstraint):
+            return NotImplemented
+        return (
+            self.type == other.type
+            and self.name == other.name
+            and self.columns == other.columns
+            and self.expression == other.expression
+            and self.to == other.to
+            and self.to_columns == other.to_columns
+        )
+
 
 class CustomConstraint(TypedConstraint):
     str_type = "custom"

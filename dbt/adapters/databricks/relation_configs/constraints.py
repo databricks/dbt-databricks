@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from typing import ClassVar, Optional, cast
+from typing import ClassVar, Optional
 
 from agate import Table
 
@@ -22,29 +22,23 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 class ConstraintsConfig(DatabricksComponentConfig):
     """Component encapsulating the constraints of a relation."""
 
-    set_non_nulls: list[str]
-    unset_non_nulls: list[str] = []
-    set_constraints: list[TypedConstraint]
-    unset_constraints: list[TypedConstraint] = []
-
     class Config:
         arbitrary_types_allowed = True
 
+    set_non_nulls: set[str]
+    unset_non_nulls: set[str] = set()
+    set_constraints: set[TypedConstraint]
+    unset_constraints: set[TypedConstraint] = set()
+
     def get_diff(self, other: "ConstraintsConfig") -> Optional["ConstraintsConfig"]:
-        constraints_to_unset = []
-        non_nulls_to_unset = []
         # Find constraints that need to be unset
-        for constraint in other.set_constraints:
-            if constraint not in self.set_constraints:
-                constraints_to_unset.append(constraint)
+        constraints_to_unset = other.set_constraints - self.set_constraints
         # Find non-nulls that need to be unset
-        for non_null in other.set_non_nulls:
-            if non_null not in self.set_non_nulls:
-                non_nulls_to_unset.append(non_null)
+        non_nulls_to_unset = other.set_non_nulls - self.set_non_nulls
 
         # Set constraints that exist in self but not in other
-        set_constraints = [c for c in self.set_constraints if c not in other.set_constraints]
-        set_non_nulls = [n for n in self.set_non_nulls if n not in other.set_non_nulls]
+        set_constraints = self.set_constraints - other.set_constraints
+        set_non_nulls = self.set_non_nulls - other.set_non_nulls
 
         if set_constraints or set_non_nulls or constraints_to_unset or non_nulls_to_unset:
             return ConstraintsConfig(
@@ -62,12 +56,12 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
     @classmethod
     def _process_check_constraints(
         cls, check_constraints_table: Optional[Table]
-    ) -> list[CheckConstraint]:
-        check_constraints = []
+    ) -> set[CheckConstraint]:
+        check_constraints = set()
         if check_constraints_table:
             for row in check_constraints_table.rows:
                 if row[0].startswith("delta.constraints."):
-                    check_constraints.append(
+                    check_constraints.add(
                         CheckConstraint(
                             type=ConstraintType.check,
                             name=row[0].replace("delta.constraints.", ""),
@@ -79,8 +73,8 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
     @classmethod
     def _process_primary_key_constraints(
         cls, pk_constraints_table: Optional[Table]
-    ) -> list[PrimaryKeyConstraint]:
-        pk_constraints = []
+    ) -> set[PrimaryKeyConstraint]:
+        pk_constraints = set()
         if pk_constraints_table:
             # Group columns by constraint name
             constraint_columns: dict[str, list[str]] = {}
@@ -93,7 +87,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
             # Create one PrimaryKeyConstraint per unique constraint name
             for constraint_name, columns in constraint_columns.items():
-                pk_constraints.append(
+                pk_constraints.add(
                     PrimaryKeyConstraint(
                         type=ConstraintType.primary_key, name=constraint_name, columns=columns
                     )
@@ -103,8 +97,8 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
     @classmethod
     def _process_foreign_key_constraints(
         cls, fk_constraints_table: Optional[Table]
-    ) -> list[ForeignKeyConstraint]:
-        fk_constraints = []
+    ) -> set[ForeignKeyConstraint]:
+        fk_constraints = set()
         if fk_constraints_table:
             # Group by constraint_name
             fk_data: dict[str, dict] = {}
@@ -121,7 +115,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
             # Create ForeignKeyConstraint objects
             for constraint_name, data in fk_data.items():
-                fk_constraints.append(
+                fk_constraints.add(
                     ForeignKeyConstraint(
                         type=ConstraintType.foreign_key,
                         name=constraint_name,
@@ -136,9 +130,9 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
     def from_relation_results(cls, results: RelationResults) -> ConstraintsConfig:
         non_null_constraint_columns = results.get("non_null_constraint_columns")
         to_set_non_nulls = (
-            [row[0] for row in non_null_constraint_columns.rows]
+            {row[0] for row in non_null_constraint_columns.rows}
             if non_null_constraint_columns
-            else []
+            else set()
         )
 
         table_properties = results.get("show_tblproperties")
@@ -156,7 +150,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
         return ConstraintsConfig(
             set_non_nulls=to_set_non_nulls,
-            set_constraints=cast(list[TypedConstraint], all_constraints),
+            set_constraints=set(all_constraints),
         )
 
     @classmethod
@@ -179,6 +173,6 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         non_nulls, other_constraints = parse_constraints(columns, constraints)
 
         return ConstraintsConfig(
-            set_non_nulls=list(non_nulls),
-            set_constraints=other_constraints,
+            set_non_nulls=set(non_nulls),
+            set_constraints=set(other_constraints),
         )

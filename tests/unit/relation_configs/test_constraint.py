@@ -29,7 +29,7 @@ class TestConstraintsProcessor:
             "foreign_key_constraints": None,
         }
         spec = ConstraintsProcessor.from_relation_results(results)
-        assert spec == ConstraintsConfig(set_non_nulls=[], set_constraints=[])
+        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
 
     def test_from_relation_results__with_check_constraints(self):
         results = {
@@ -42,14 +42,14 @@ class TestConstraintsProcessor:
         }
         spec = ConstraintsProcessor.from_relation_results(results)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 CheckConstraint(
                     type=ConstraintType.check,
                     name="check_name_length",
                     expression="LENGTH (name) >= 1",
                 )
-            ],
+            },
         )
 
     def test_from_relation_results__with_primary_key_constraints(self):
@@ -64,14 +64,14 @@ class TestConstraintsProcessor:
         }
         spec = ConstraintsProcessor.from_relation_results(results)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["id", "email"],
                 )
-            ],
+            },
         )
 
     def test_from_relation_results__with_foreign_key_constraints(self):
@@ -93,8 +93,8 @@ class TestConstraintsProcessor:
         }
         spec = ConstraintsProcessor.from_relation_results(results)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 ForeignKeyConstraint(
                     type=ConstraintType.foreign_key,
                     name="fk_user_1",
@@ -102,7 +102,7 @@ class TestConstraintsProcessor:
                     to="`catalog`.`schema`.`customers`",
                     to_columns=["customer_id", "email"],
                 )
-            ],
+            },
         )
 
     def test_from_relation_results__with_non_null_constraints(self):
@@ -117,8 +117,8 @@ class TestConstraintsProcessor:
         }
         spec = ConstraintsProcessor.from_relation_results(results)
         assert spec == ConstraintsConfig(
-            set_non_nulls=["id", "email"],
-            set_constraints=[],
+            set_non_nulls={"id", "email"},
+            set_constraints=set(),
         )
 
     def test_from_relation_config__without_constraints(self):
@@ -126,7 +126,7 @@ class TestConstraintsProcessor:
         model.constraints = []
         model.columns = {}
         spec = ConstraintsProcessor.from_relation_config(model)
-        assert spec == ConstraintsConfig(set_non_nulls=[], set_constraints=[])
+        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
 
     def test_from_relation_config__with_check_constraint(self):
         model = Mock()
@@ -140,14 +140,14 @@ class TestConstraintsProcessor:
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 CheckConstraint(
                     type=ConstraintType.check,
                     name="check_name_length",
                     expression="(LENGTH (name) >= 1)",
                 )
-            ],
+            },
         )
 
     def test_from_relation_config__with_primary_key_constraint(self):
@@ -162,14 +162,14 @@ class TestConstraintsProcessor:
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["id", "email"],
                 )
-            ],
+            },
         )
 
     def test_from_relation_config__with_foreign_key_constraint(self):
@@ -186,8 +186,8 @@ class TestConstraintsProcessor:
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
-            set_non_nulls=[],
-            set_constraints=[
+            set_non_nulls=set(),
+            set_constraints={
                 ForeignKeyConstraint(
                     type=ConstraintType.foreign_key,
                     name="fk_user_customer",
@@ -195,7 +195,7 @@ class TestConstraintsProcessor:
                     to="`catalog`.`schema`.`customers`",
                     to_columns=["customer_id", "email"],
                 )
-            ],
+            },
         )
 
     def test_from_relation_config__with_non_null_constraint(self):
@@ -214,69 +214,69 @@ class TestConstraintsProcessor:
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
 
-        assert sorted(spec.set_non_nulls) == ["email", "id"]
-        assert spec.set_constraints == []
-        assert spec.unset_non_nulls == []
-        assert spec.unset_constraints == []
+        assert spec == ConstraintsConfig(
+            set_non_nulls={"email", "id"},
+            set_constraints=set(),
+        )
 
 
 class TestConstraintsConfig:
     def test_get_diff__empty_and_some_exist(self):
-        config = ConstraintsConfig(set_non_nulls=[], set_constraints=[])
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         other = ConstraintsConfig(
-            set_non_nulls=["id"],
-            set_constraints=[
+            set_non_nulls={"id"},
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="user_pk",
                     columns=["id"],
                 )
-            ],
+            },
         )
         diff = config.get_diff(other)
         assert diff == ConstraintsConfig(
-            set_non_nulls=[],
-            unset_non_nulls=["id"],
-            set_constraints=[],
-            unset_constraints=[
+            set_non_nulls=set(),
+            unset_non_nulls={"id"},
+            set_constraints=set(),
+            unset_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="user_pk",
                     columns=["id"],
                 )
-            ],
+            },
         )
 
     def test_get_diff__some_new_and_empty_existing(self):
         config = ConstraintsConfig(
-            set_non_nulls=["id"],
-            set_constraints=[
+            set_non_nulls={"id"},
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["id"],
                 )
-            ],
+            },
         )
-        other = ConstraintsConfig(set_non_nulls=[], set_constraints=[])
+        other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         diff = config.get_diff(other)
         assert diff == ConstraintsConfig(
-            set_non_nulls=["id"],
-            unset_non_nulls=[],
-            set_constraints=[
+            set_non_nulls={"id"},
+            unset_non_nulls=set(),
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["id"],
                 )
-            ],
-            unset_constraints=[],
+            },
+            unset_constraints=set(),
         )
 
     def test_get_diff__mixed_case(self):
         config = ConstraintsConfig(
-            set_non_nulls=["id", "email"],
-            set_constraints=[
+            set_non_nulls={"id", "email"},
+            set_constraints={
                 CheckConstraint(
                     type=ConstraintType.check,
                     name="check_name_length",
@@ -287,11 +287,11 @@ class TestConstraintsConfig:
                     name="pk_user",
                     columns=["id"],
                 ),
-            ],
+            },
         )
         other = ConstraintsConfig(
-            set_non_nulls=["id", "name"],
-            set_constraints=[
+            set_non_nulls={"id", "name"},
+            set_constraints={
                 CheckConstraint(
                     type=ConstraintType.check,
                     name="check_name_length",
@@ -302,24 +302,24 @@ class TestConstraintsConfig:
                     name="pk_user",
                     columns=["name"],
                 ),
-            ],
+            },
         )
         diff = config.get_diff(other)
         assert diff == ConstraintsConfig(
-            set_non_nulls=["email"],
-            unset_non_nulls=["name"],
-            set_constraints=[
+            set_non_nulls={"email"},
+            unset_non_nulls={"name"},
+            set_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["id"],
                 )
-            ],
-            unset_constraints=[
+            },
+            unset_constraints={
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
                     name="pk_user",
                     columns=["name"],
                 )
-            ],
+            },
         )
