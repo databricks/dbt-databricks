@@ -1,6 +1,6 @@
 {% macro fetch_non_null_constraint_columns(relation) -%}
   {% if relation.is_hive_metastore() %}
-    {{ exceptions.raise_compiler_error("Constraints are only supported for Unity Catalog") }}
+    {{ exceptions.raise_compiler_error("Incremental application of constraints is not supported for Hive Metastore") }}
   {%- endif %}
   {% call statement('list_non_null_constraint_columns', fetch_result=True) -%}
     {{ fetch_non_null_constraint_columns_sql(relation) }}
@@ -19,7 +19,7 @@
 
 {% macro fetch_primary_key_constraints(relation) -%}
   {% if relation.is_hive_metastore() %}
-    {{ exceptions.raise_compiler_error("Constraints are only supported for Unity Catalog") }}
+    {{ exceptions.raise_compiler_error("Incremental application of constraints is not supported for Hive Metastore") }}
   {%- endif %}
   {% call statement('list_primary_key_constraints', fetch_result=True) -%}
     {{ fetch_primary_key_constraints_sql(relation) }}
@@ -46,7 +46,7 @@
 
 {% macro fetch_foreign_key_constraints(relation) -%}
   {% if relation.is_hive_metastore() %}
-    {{ exceptions.raise_compiler_error("Constraints are only supported for Unity Catalog") }}
+    {{ exceptions.raise_compiler_error("Incremental application of constraints is not supported for Hive Metastore") }}
   {%- endif %}
   {% call statement('list_foreign_key_constraints', fetch_result=True) -%}
     {{ fetch_foreign_key_constraints_sql(relation) }}
