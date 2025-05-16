@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.2 (TBD)
 
+### Features
+
+- Support constraint updates on incremental runs ([1013](https://github.com/databricks/dbt-databricks/pull/1013))
+
 ### Fixes
 
 - Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
