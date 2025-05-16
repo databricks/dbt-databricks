@@ -21,7 +21,7 @@
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
     {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
 
-    {% set intermediate_relation = databricks__make_intermediate_relation(target_relation) %}
+    {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
     {{ run_pre_hooks() }}
@@ -72,6 +72,10 @@
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
+
+    {% if language == 'python' %}
+      {{ drop_relation_if_exists(intermediate_relation) }}
+    {% endif %}
 
     {{ run_post_hooks() }}
 
