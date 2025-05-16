@@ -2,6 +2,7 @@
 
 ### Features
 
+- Support constraint updates on incremental runs (with Materialization V2) ([1013](https://github.com/databricks/dbt-databricks/pull/1013))
 - Add catalog integration support - set table formats, file formats, and locations in `catalogs.yml` ([1012](https://github.com/databricks/dbt-databricks/pull/1012))
 
 ### Fixes

@@ -2,4 +2,4 @@
 # the repo. Unless a later match takes precedence, these
 # users will be requested for review when someone opens a
 # pull request.
-*       @andrefurlan-db @susodapop @benc-db @rcypher-databricks
+*       @benc-db @ericj-db
