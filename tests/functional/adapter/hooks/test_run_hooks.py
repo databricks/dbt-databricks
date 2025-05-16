@@ -10,10 +10,10 @@ from tests.functional.adapter.hooks import fixtures as override_fixtures
 class TestPrePostRunHooks(BasePrePostRunHooks):
     @pytest.fixture(scope="function")
     def setUp(self, project):
-        project.run_sql(f"drop table if exists { project.test_schema }.on_run_hook")
+        project.run_sql(f"drop table if exists {project.test_schema}.on_run_hook")
         util.run_sql_with_adapter(project.adapter, override_fixtures.create_table_run_statement)
-        project.run_sql(f"drop table if exists { project.test_schema }.schemas")
-        project.run_sql(f"drop table if exists { project.test_schema }.db_schemas")
+        project.run_sql(f"drop table if exists {project.test_schema}.schemas")
+        project.run_sql(f"drop table if exists {project.test_schema}.db_schemas")
         os.environ["TERM_TEST"] = "TESTING"
 
     @pytest.fixture(scope="class")
