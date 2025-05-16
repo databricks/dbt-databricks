@@ -32,7 +32,6 @@
       {% endif %}
     {% endif %}
 
-
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {{ apply_grants(target_relation, grant_config, should_revoke) }}
     
