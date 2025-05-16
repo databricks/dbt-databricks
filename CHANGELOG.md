@@ -2,7 +2,7 @@
 
 ### Features
 
-- Support constraint updates on incremental runs ([1013](https://github.com/databricks/dbt-databricks/pull/1013))
+- Support constraint updates on incremental runs (with Materialization V2) ([1013](https://github.com/databricks/dbt-databricks/pull/1013))
 
 ### Fixes
 
