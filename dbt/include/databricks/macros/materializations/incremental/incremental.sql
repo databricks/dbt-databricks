@@ -73,6 +73,10 @@
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
 
+    {%- if language == 'python' -%}
+      {{ drop_relation_if_exists(staging_relation) }}
+    {%- endif -%}
+
     {{ run_post_hooks() }}
 
   {% else %}

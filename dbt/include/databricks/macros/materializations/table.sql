@@ -32,6 +32,10 @@
       {% endif %}
     {% endif %}
 
+    {%- if language == 'python' and staging_relation -%}
+      {{ adapter.drop_relation_if_exists(staging_relation) }}
+    {%- endif -%}
+
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {{ apply_grants(target_relation, grant_config, should_revoke) }}
     
