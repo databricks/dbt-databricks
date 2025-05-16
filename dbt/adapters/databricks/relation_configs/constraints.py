@@ -22,9 +22,6 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 class ConstraintsConfig(DatabricksComponentConfig):
     """Component encapsulating the constraints of a relation."""
 
-    class Config:
-        arbitrary_types_allowed = True
-
     set_non_nulls: set[str]
     unset_non_nulls: set[str] = set()
     set_constraints: set[TypedConstraint]

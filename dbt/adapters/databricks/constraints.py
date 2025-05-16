@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
@@ -27,6 +28,7 @@ CONSTRAINT_SUPPORT = {
 T = TypeVar("T", bound="TypedConstraint")
 
 
+@dataclass
 class TypedConstraint(ModelLevelConstraint, ABC):
     """Constraint that enforces type because it has render logic"""
 
@@ -73,18 +75,6 @@ class TypedConstraint(ModelLevelConstraint, ABC):
             tuple(self.to_columns) if self.to_columns else None,
         )
         return hash(fields)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TypedConstraint):
-            return NotImplemented
-        return (
-            self.type == other.type
-            and self.name == other.name
-            and self.columns == other.columns
-            and self.expression == other.expression
-            and self.to == other.to
-            and self.to_columns == other.to_columns
-        )
 
 
 class CustomConstraint(TypedConstraint):
