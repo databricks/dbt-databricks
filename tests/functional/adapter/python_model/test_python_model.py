@@ -8,7 +8,20 @@ from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonIncrementalTests,
     BasePythonModelTests,
 )
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.python_model import fixtures as override_fixtures
+
+
+def verify_temp_tables_cleaned(project):
+    verify_temp_table_cleaned(project, "*__dbt_stg")
+    verify_temp_table_cleaned(project, "*__dbt_tmp")
+
+
+def verify_temp_table_cleaned(project, suffix):
+    tmp_tables = project.run_sql(
+        "SHOW TABLES IN {database}.{schema} LIKE '" + f"{suffix}'", fetch="all"
+    )
+    assert len(tmp_tables) == 0
 
 
 @pytest.mark.python
@@ -207,3 +220,39 @@ class TestWorkflowJob:
             "SELECT * FROM {database}.{schema}.my_workflow_model", fetch="all"
         )
         assert len(sql_results) == 10
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestChangingSchemaV2(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"simple_python_model.py": override_fixtures.simple_python_model}
+
+    def test_changing_unique_tmp_table_suffix(self, project):
+        util.run_dbt(["run"])
+        util.write_file(
+            override_fixtures.simple_python_model_v2,
+            project.project_root + "/models",
+            "simple_python_model.py",
+        )
+        util.run_dbt(["run"])
+        verify_temp_tables_cleaned(project)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"incremental_model.py": override_fixtures.simple_incremental_python_model}
+
+    def test_changing_unique_tmp_table_suffix(self, project):
+        util.run_dbt(["run"])
+        util.write_file(
+            override_fixtures.simple_incremental_python_model_v2,
+            project.project_root + "/models",
+            "incremental_model.py",
+        )
+        util.run_dbt(["run"])
+        verify_temp_tables_cleaned(project)
