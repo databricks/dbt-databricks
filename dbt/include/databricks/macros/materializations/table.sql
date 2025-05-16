@@ -11,7 +11,7 @@
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
-    {% set intermediate_relation = databricks__make_intermediate_relation(target_relation) %}
+    {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
     {{ run_pre_hooks() }}
@@ -34,6 +34,10 @@
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {{ apply_grants(target_relation, grant_config, should_revoke) }}
+
+    {% if language == 'python' %}
+      {{ drop_relation_if_exists(intermediate_relation) }}
+    {% endif %}
     
     {{ run_post_hooks() }}
   {% else %}
