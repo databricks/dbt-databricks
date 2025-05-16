@@ -549,6 +549,7 @@ python_schema2 = """version: 2
 models:
   - name: tags
     config:
+      unique_tmp_table_suffix: true
       tags: ["python"]
       databricks_tags:
         c: e
