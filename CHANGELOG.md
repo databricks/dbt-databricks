@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.2 (TBD)
 
+### Features
+
+- Add catalog integration support - set table formats, file formats, and locations in `catalogs.yml` ([1012](https://github.com/databricks/dbt-databricks/pull/1012))
+
 ### Fixes
 
 - Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
