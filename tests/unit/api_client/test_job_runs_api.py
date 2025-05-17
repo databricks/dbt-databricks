@@ -26,6 +26,31 @@ class TestJobRunsApi(ApiTestBase):
             params=None,
         )
 
+    def test_get_run_info__non_200(self, api, session):
+        self.assert_non_200_raises_error(lambda: api.get_run_info("run_id"), session)
+
+    def test_get_run_info__200(self, api, session, host):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {"job_id": 123, "run_id": "run_id"}
+        result = api.get_run_info("run_id")
+        assert result == {"job_id": 123, "run_id": "run_id"}
+        session.get.assert_called_once_with(
+            f"https://{host}/api/2.1/jobs/runs/get",
+            json=None,
+            params={"run_id": "run_id"},
+        )
+
+    def test_get_job_id_from_run_id__job_id_exists(self, api, session):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {"job_id": 123, "run_id": "run_id"}
+        assert api.get_job_id_from_run_id("run_id") == "123"
+
+    def test_get_job_id_from_run_id__no_job_id(self, api, session):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {"run_id": "run_id"}
+        with pytest.raises(DbtRuntimeError, match="Could not get job_id from run_id run_id"):
+            api.get_job_id_from_run_id("run_id")
+
     def test_cancel__non_200(self, api, session):
         self.assert_non_200_raises_error(lambda: api.cancel("run_id"), session)
 
