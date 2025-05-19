@@ -7,6 +7,7 @@
 ### Fixes
 
 - Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
+- Fix bug with temp tables not being dropped after python model is materialized ([1010](https://github.com/databricks/dbt-databricks/issues/1010))
 
 ## dbt-databricks 1.10.1 (Apr 29, 2025)
 
