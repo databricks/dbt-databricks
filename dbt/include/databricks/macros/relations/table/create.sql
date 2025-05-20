@@ -19,36 +19,40 @@
 {% endmacro %}
 
 {% macro get_create_table_sql(target_relation, columns, compiled_code) %}
-  {%- set file_format = config.get('file_format', default='delta') -%}
+
+  {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
+
   {%- set contract = config.get('contract') -%}
   {%- set contract_enforced = contract and contract.enforced -%}
   {%- if contract_enforced -%}
     {{ get_assert_columns_equivalent(compiled_code) }}
   {%- endif -%}
 
-  {%- if file_format == 'delta' %}
+  {%- if catalog_relation.file_format == 'delta' %}
   create or replace table {{ target_relation.render() }}
   {% else %}
   create table {{ target_relation.render() }}
   {% endif -%}
   {{ get_column_and_constraints_sql(target_relation, columns) }}
-  {{ file_format_clause() }}
-  {{ options_clause() }}
+  {{ file_format_clause(catalog_relation) }}
+  {{ databricks__options_clause(catalog_relation) }}
   {{ partition_cols(label="partitioned by") }}
   {{ liquid_clustered_cols() }}
   {{ clustered_cols(label="clustered by") }}
-  {{ location_clause(target_relation) }}
+  {{ location_clause(catalog_relation) }}
   {{ comment_clause() }}
   {{ tblproperties_clause() }}
 {% endmacro %}
 
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
+
+  {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
+
   {%- if language == 'sql' -%}
     {%- if temporary -%}
       {{ create_temporary_view(relation, compiled_code) }}
     {%- else -%}
-      {%- set file_format = config.get('file_format', default='delta') -%}
-      {% if file_format == 'delta' %}
+      {% if catalog_relation.file_format == 'delta' %}
         create or replace table {{ relation.render() }}
       {% else %}
         create table {{ relation.render() }}
@@ -58,12 +62,12 @@
         {{ get_assert_columns_equivalent(compiled_code) }}
         {%- set compiled_code = get_select_subquery(compiled_code) %}
       {% endif %}
-      {{ file_format_clause() }}
-      {{ options_clause() }}
+      {{ file_format_clause(catalog_relation) }}
+      {{ databricks__options_clause(catalog_relation) }}
       {{ partition_cols(label="partitioned by") }}
       {{ liquid_clustered_cols() }}
       {{ clustered_cols(label="clustered by") }}
-      {{ location_clause(relation) }}
+      {{ location_clause(catalog_relation) }}
       {{ comment_clause() }}
       {{ tblproperties_clause() }}
       as
@@ -81,9 +85,23 @@
   {%- endif -%}
 {%- endmacro -%}
 
-{% macro databricks__options_clause() -%}
+{% macro databricks__options_clause(catalog_relation=none) -%}
+  {#-
+    Moving forward, this macro should require a `catalog_relation`, which is covered by the first condition.
+    However, there could be existing macros that is still passing no arguments, including user macros.
+    Hence, we need to support the old code still, which is covered by the second condition.
+    Additionally, since this rolls up to `options_clause` in `dbt-spark`, which does not have any arguments,
+    all calls to `options_clause` will take the second path. This macro needs to be called directly
+    via `databricks__options_clause`.
+  -#}
+  {%- if catalog_relation is not none -%}
+    {%- set file_format = catalog_relation.file_format -%}
+  {%- else -%}
+    {%- set file_format = config.get('file_format', default='delta') -%}
+  {%- endif -%}
+
   {%- set options = config.get('options') -%}
-  {%- if config.get('file_format', default='delta') == 'hudi' -%}
+  {%- if file_format == 'hudi' -%}
     {%- set unique_key = config.get('unique_key') -%}
     {%- if unique_key is not none and options is none -%}
       {%- set options = {'primaryKey': config.get('unique_key')} -%}
