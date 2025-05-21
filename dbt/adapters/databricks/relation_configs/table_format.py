@@ -1,5 +1,7 @@
 from dbt_common.dataclass_schema import StrEnum
 
+from dbt.adapters.databricks import constants
+
 
 class TableFormat(StrEnum):
     """
@@ -8,8 +10,8 @@ class TableFormat(StrEnum):
     simplify things for users.
     """
 
-    DEFAULT = "default"
-    ICEBERG = "iceberg"
+    DEFAULT = constants.DEFAULT_TABLE_FORMAT
+    ICEBERG = constants.ICEBERG_TABLE_FORMAT
 
     def __str__(self) -> str:
         return self.value

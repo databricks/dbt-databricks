@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
@@ -27,6 +28,7 @@ CONSTRAINT_SUPPORT = {
 T = TypeVar("T", bound="TypedConstraint")
 
 
+@dataclass
 class TypedConstraint(ModelLevelConstraint, ABC):
     """Constraint that enforces type because it has render logic"""
 
@@ -60,6 +62,19 @@ class TypedConstraint(ModelLevelConstraint, ABC):
         return DbtValidationError(
             f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
         )
+
+    # Enables set equality checks, especially for convenient unit testing
+    def __hash__(self) -> int:
+        # Create a tuple of all the fields that should be used for equality comparison
+        fields = (
+            self.type,
+            self.name,
+            tuple(self.columns) if self.columns else None,
+            self.expression,
+            self.to,
+            tuple(self.to_columns) if self.to_columns else None,
+        )
+        return hash(fields)
 
 
 class CustomConstraint(TypedConstraint):
@@ -203,7 +218,7 @@ def parse_model_constraints(
         if constraint["type"] == ConstraintType.not_null:
             if not constraint.get("columns"):
                 raise DbtValidationError("not_null constraint on model must have 'columns' defined")
-            column_names.add(*constraint["columns"])
+            column_names.update(constraint["columns"])
         else:
             constraints.append(parse_constraint(constraint))
 

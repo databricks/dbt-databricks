@@ -6,6 +6,7 @@
       {% set tags = configuration_changes.changes.get("tags") %}
       {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
       {% set liquid_clustering = configuration_changes.changes.get("liquid_clustering")%}
+      {% set constraints = configuration_changes.changes.get("constraints") %}
       {% if tags is not none %}
         {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
       {%- endif -%}
@@ -20,6 +21,9 @@
       {% endif %}
       {% if column_comments %}
         {{ alter_column_comments(target_relation, column_comments.comments) }}
+      {% endif %}
+      {% if constraints %}
+        {{ apply_constraints(target_relation, constraints) }}
       {% endif %}
     {%- endif -%}
 {% endmacro %}

@@ -23,13 +23,19 @@ from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
+from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constraints
+from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
     GetColumnsByInformationSchema,
+)
+from dbt.adapters.databricks.catalogs import (
+    DatabricksCatalogRelation,
+    HiveMetastoreCatalogIntegration,
+    UnityCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
@@ -180,6 +186,10 @@ class DatabricksAdapter(SparkAdapter):
         }
     )
 
+    CATALOG_INTEGRATIONS = [
+        HiveMetastoreCatalogIntegration,
+        UnityCatalogIntegration,
+    ]
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -196,6 +206,9 @@ class DatabricksAdapter(SparkAdapter):
         except CompilationError:
             pass
 
+        self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
+        self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
@@ -205,20 +218,18 @@ class DatabricksAdapter(SparkAdapter):
         self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
     ) -> dict[str, str]:
         result = tblproperties or config.get("tblproperties", {})
-        if config.get("table_format") == TableFormat.ICEBERG:
+
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
                 raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
-            if config.get("file_format", "delta") != "delta":
-                raise DbtConfigError(
-                    "When table_format is 'iceberg', cannot set file_format to other than delta."
-                )
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result["delta.enableIcebergCompatV2"] = "true"
-            result["delta.universalFormat.enabledFormats"] = "iceberg"
+            result.update(catalog_relation.iceberg_table_properties)
+
         return result
 
     @available.parse(lambda *a, **k: 0)
@@ -820,6 +831,26 @@ class DatabricksAdapter(SparkAdapter):
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
 
+    @available
+    def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
+        """
+        Builds a relation for a given configuration.
+
+        This method uses the provided configuration to determine the appropriate catalog
+        integration and config parser for building the relation. It defaults to the built-in Delta
+        catalog if none is provided in the configuration for backward compatibility.
+
+        Args:
+            model (RelationConfig): `config.model` (not `model`) from the jinja context
+
+        Returns:
+            Any: The relation object generated through the catalog integration and parser
+        """
+        if catalog := parse_model.catalog_name(model):
+            catalog_integration = self.get_catalog_integration(catalog)
+            return catalog_integration.build_relation(model)
+        return None
+
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
@@ -944,6 +975,15 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["non_null_constraint_columns"] = adapter.execute_macro(
+                "fetch_non_null_constraint_columns", kwargs=kwargs
+            )
+            results["primary_key_constraints"] = adapter.execute_macro(
+                "fetch_primary_key_constraints", kwargs=kwargs
+            )
+            results["foreign_key_constraints"] = adapter.execute_macro(
+                "fetch_foreign_key_constraints", kwargs=kwargs
+            )
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}

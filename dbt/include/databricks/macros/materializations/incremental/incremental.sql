@@ -1,16 +1,17 @@
 {% materialization incremental, adapter='databricks', supported_languages=['sql', 'python'] -%}
   {{ log("MATERIALIZING INCREMENTAL") }}
-  
+
+  {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
+
   {% set existing_relation = load_relation_with_metadata(this) %}
   {% set target_relation = this.incorporate(type='table') %}
-  {% set file_format = get_file_format() %}
-  {% set incremental_strategy = get_incremental_strategy(file_format) %}
+  {% set incremental_strategy = get_incremental_strategy(catalog_relation.file_format) %}
   {% set grant_config = config.get('grants') %}
   {% set full_refresh = should_full_refresh() %}
   {% set partition_by = config.get('partition_by') %}
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
-  {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+  {% set is_delta = (catalog_relation.file_format == 'delta' and existing_relation.is_delta) %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
@@ -72,6 +73,10 @@
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
+
+    {% if language == 'python' %}
+      {{ drop_relation_if_exists(intermediate_relation) }}
+    {% endif %}
 
     {{ run_post_hooks() }}
 
