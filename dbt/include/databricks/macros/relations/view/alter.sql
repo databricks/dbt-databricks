@@ -1,6 +1,6 @@
 {% macro alter_view(target_relation, changes) %}
   {{ log("Updating view via ALTER") }}
-  {{ adapter.dispatch('alter_view', 'databricks')(target_relation, changes) }}
+  {{ adapter.dispatch('alter_view', 'dbt')(target_relation, changes) }}
 {% endmacro %}
 
 {% macro databricks__alter_view(target_relation, changes) %}
