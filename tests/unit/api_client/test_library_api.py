@@ -41,3 +41,10 @@ class TestLibraryApi(ApiTestBase):
 
         result = api.all_libraries_installed("cluster_id")
         assert result is False
+
+    def test_library_statuses_not_present(self, api, session, host):
+        session.get.return_value.status_code = 200
+        session.get.return_value.json.return_value = {"cluster-id": "abc-123"}
+
+        result = api.all_libraries_installed("cluster_id")
+        assert result is True

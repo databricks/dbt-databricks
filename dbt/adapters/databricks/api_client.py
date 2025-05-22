@@ -53,10 +53,14 @@ class LibraryApi(DatabricksApi):
         super().__init__(session, host, "/api/2.0/libraries")
 
     def all_libraries_installed(self, cluster_id: str) -> bool:
-        return all(
-            library["status"] in LIBRARY_VALID_STATUSES
-            for library in self.get_cluster_libraries_status(cluster_id)["library_statuses"]
-        )
+        status = self.get_cluster_libraries_status(cluster_id)
+        if "library_statuses" in status:
+            return all(
+                library["status"] in LIBRARY_VALID_STATUSES
+                for library in status["library_statuses"]
+            )
+        else:
+            return True
 
     def get_cluster_libraries_status(self, cluster_id: str) -> dict[str, Any]:
         response = self.session.get(
