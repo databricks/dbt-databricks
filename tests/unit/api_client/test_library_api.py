@@ -46,5 +46,5 @@ class TestLibraryApi(ApiTestBase):
         session.get.return_value.status_code = 200
         session.get.return_value.json.return_value = {"cluster-id": "abc-123"}
 
-        result = api.all_libraries_installed("cluster_id")
+        result = api.all_libraries_installed("abc-123")
         assert result is True
