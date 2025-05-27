@@ -12,15 +12,36 @@ class TestCommandContextApi(ApiTestBase):
         return Mock()
 
     @pytest.fixture
-    def api(self, session, host, cluster_api):
-        return CommandContextApi(session, host, cluster_api)
+    def library_api(self):
+        return Mock()
+
+    @pytest.fixture
+    def api(self, session, host, cluster_api, library_api):
+        return CommandContextApi(session, host, cluster_api, library_api)
 
     def test_create__non_200(self, api, cluster_api, session):
         cluster_api.status.return_value = "RUNNING"
         self.assert_non_200_raises_error(lambda: api.create("cluster_id"), session)
 
-    def test_create__cluster_running(self, api, cluster_api, session):
+    def test_create__cluster_running(self, api, cluster_api, library_api, session):
         cluster_api.status.return_value = "RUNNING"
+        library_api.all_libraries_installed.return_value = True
+        session.post.return_value.status_code = 200
+        session.post.return_value.json.return_value = {"id": "context_id"}
+        id = api.create("cluster_id")
+        session.post.assert_called_once_with(
+            "https://host/api/1.2/contexts/create",
+            json={"clusterId": "cluster_id", "language": "python"},
+            params=None,
+        )
+        cluster_api.wait_for_cluster.assert_not_called()
+        assert id == "context_id"
+
+    def test_create__cluster_running_with_pending_libraries(
+        self, api, cluster_api, library_api, session
+    ):
+        cluster_api.status.return_value = "RUNNING"
+        library_api.all_libraries_installed.return_value = False
         session.post.return_value.status_code = 200
         session.post.return_value.json.return_value = {"id": "context_id"}
         id = api.create("cluster_id")
@@ -30,6 +51,7 @@ class TestCommandContextApi(ApiTestBase):
             params=None,
         )
         assert id == "context_id"
+        cluster_api.wait_for_cluster.assert_called_once_with("cluster_id")
 
     def test_create__cluster_terminated(self, api, cluster_api, session):
         cluster_api.status.return_value = "TERMINATED"

@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.3 (TBD)
 
+### Fixes
+
+- Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))
+
 ## dbt-databricks 1.10.2 (May 21, 2025)
 
 ### Features
