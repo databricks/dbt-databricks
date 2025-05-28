@@ -8,6 +8,7 @@ from tests.functional.adapter.column_masks.fixtures import (
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestColumnMask(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
@@ -44,6 +45,7 @@ class TestColumnMask(MaterializationV2Mixin):
         assert result[1] == "*****"  # Masked value should be 5 asterisks
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalColumnMask(TestColumnMask):
     @pytest.fixture(scope="class")
     def models(self):
@@ -53,6 +55,7 @@ class TestIncrementalColumnMask(TestColumnMask):
         }
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestViewColumnMaskFailure(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
