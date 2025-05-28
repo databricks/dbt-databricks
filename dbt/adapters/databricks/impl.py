@@ -984,6 +984,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["foreign_key_constraints"] = adapter.execute_macro(
                 "fetch_foreign_key_constraints", kwargs=kwargs
             )
+            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}

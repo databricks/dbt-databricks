@@ -7,6 +7,7 @@
       {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
       {% set liquid_clustering = configuration_changes.changes.get("liquid_clustering")%}
       {% set constraints = configuration_changes.changes.get("constraints") %}
+      {% set column_masks = configuration_changes.changes.get("column_masks") %}
       {% if tags is not none %}
         {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
       {%- endif -%}
@@ -24,6 +25,9 @@
       {% endif %}
       {% if constraints %}
         {{ apply_constraints(target_relation, constraints) }}
+      {% endif %}
+      {% if column_masks %}
+        {{ apply_column_masks(target_relation, column_masks) }}
       {% endif %}
     {%- endif -%}
 {% endmacro %}
