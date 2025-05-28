@@ -66,4 +66,11 @@
   SET MASK {{ mask }};
 {%- endmacro -%}
 
-
+{% macro column_mask_exists() %}
+  {% for column_name, column in model.columns.items() %}
+    {% if column is mapping and column.get('column_mask') %}
+      {{ return(true) }}
+    {% endif %}
+  {% endfor %}
+  {{ return(false) }}
+{% endmacro %}
