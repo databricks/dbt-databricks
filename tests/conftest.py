@@ -48,6 +48,13 @@ def dbt_profile_data(unique_schema, dbt_profile_target, profiles_config_update):
     }
     target = dbt_profile_target
     target["schema"] = unique_schema
+
+    # For testing model-level compute override
+    target["compute"] = {
+        "alternate_uc_cluster": {
+            "http_path": get_databricks_cluster_target("databricks_uc_cluster")["http_path"]
+        }
+    }
     profile["test"]["outputs"]["default"] = target
 
     alternate_warehouse = target.copy()

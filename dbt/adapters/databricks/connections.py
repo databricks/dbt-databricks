@@ -205,7 +205,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return self._api_client
 
     def is_cluster(self) -> bool:
-        return self.get_thread_connection().credentials.cluster_id is not None
+        conn = self.get_thread_connection()
+        return (
+            conn.credentials.cluster_id is not None
+            # Credentials field is not updated when overriding the compute at model level.
+            # This secondary check is a workaround for that case
+            or "/warehouses/" not in cast(DatabricksDBTConnection, conn).http_path
+        )
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
