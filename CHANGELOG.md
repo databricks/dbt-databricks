@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))
+- Fix bug where incorrect insert overwrite exception was being thrown when overriding compute at model level ([1032](https://github.com/databricks/dbt-databricks/issues/1032))
 
 ## dbt-databricks 1.10.2 (May 21, 2025)
 
