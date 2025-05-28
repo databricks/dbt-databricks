@@ -51,3 +51,16 @@ class TestIncrementalColumnMask(TestColumnMask):
             "base_model.sql": base_model_sql.replace("table", "incremental"),
             "schema.yml": model,
         }
+
+
+class TestViewColumnMaskFailure(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_sql.replace("table", "view"),
+            "schema.yml": model,
+        }
+
+    def test_view_column_mask_failure(self, project):
+        result = run_dbt(["run"], expect_pass=False)
+        assert "Column masks are not supported for views" in result.results[0].message
