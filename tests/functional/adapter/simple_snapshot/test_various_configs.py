@@ -236,7 +236,7 @@ class BaseSnapshotDbtValidToCurrent:
             "ref_snapshot.sql": ref_snapshot_sql,
         }
 
-    def TEST_VALID_TO_current(self, project):
+    def test_valid_to_current(self, project):
         project.run_sql(create_seed_sql)
         project.run_sql(create_snapshot_expected_sql)
         project.run_sql(seed_insert_sql)
