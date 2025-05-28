@@ -66,4 +66,14 @@ class TestViewColumnMaskFailure(MaterializationV2Mixin):
 
     def test_view_column_mask_failure(self, project):
         result = run_dbt(["run"], expect_pass=False)
-        assert "Column masks are not supported for views" in result.results[0].message
+        assert "Column masks are not supported" in result.results[0].message
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMaterializedViewColumnMaskFailure(TestViewColumnMaskFailure):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_sql.replace("table", "materialized_view"),
+            "schema.yml": model,
+        }
