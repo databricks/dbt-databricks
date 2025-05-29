@@ -150,6 +150,37 @@ class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
+# Insert overwrite in SQL warehouse is expected to behave like a table materialization
+# We support this as a short term hack for customers who want the side effect of reusing
+# the same table on subsequent runs
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestInsertOverwriteSqlWarehouse(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+partition_by": "id",
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "overwrite_expected.csv": fixtures.overwrite_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "overwrite_model.sql": fixtures.base_model,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
+
+
 @pytest.mark.external
 @pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteParquet(InsertOverwriteBase):

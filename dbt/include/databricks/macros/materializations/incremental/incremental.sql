@@ -191,7 +191,7 @@
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.raise_compiler_error('INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.') }}
+    {{ exceptions.warn("INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
