@@ -71,7 +71,7 @@
   WHERE kcu.table_catalog = '{{ relation.database|lower }}'
     AND kcu.table_schema = '{{ relation.schema|lower }}'
     AND kcu.table_name = '{{ relation.identifier|lower }}'
-    AND kcu.constraint_name = (
+    AND kcu.constraint_name IN (
       SELECT constraint_name
       FROM `{{ relation.database|lower }}`.information_schema.table_constraints
       WHERE table_catalog = '{{ relation.database|lower }}'
