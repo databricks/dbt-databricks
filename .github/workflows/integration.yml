@@ -51,7 +51,7 @@ jobs:
         with:
           name: uc-cluster-test-logs
           path: logs/
-          retention-days: 30
+          retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
         with:
           name: sql-endpoint-test-logs
           path: logs/
-          retention-days: 30
+          retention-days: 5
 
   run-cluster-e2e-tests:
     runs-on: ubuntu-latest
@@ -128,4 +128,4 @@ jobs:
         with:
           name: cluster-test-logs
           path: logs/
-          retention-days: 30
+          retention-days: 5
