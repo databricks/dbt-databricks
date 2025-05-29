@@ -194,6 +194,7 @@ class TestIncrementalSetForeignKeyConstraint:
     def models(self):
         return {
             "fk_referenced_to_table.sql": fixtures.fk_referenced_to_table,
+            "fk_referenced_to_table_2.sql": fixtures.fk_referenced_to_table_2,
             "fk_referenced_from_table.sql": fixtures.fk_referenced_from_table,
             "schema.yml": fixtures.constraint_schema_without_fk_constraint,
         }
@@ -205,12 +206,14 @@ class TestIncrementalSetForeignKeyConstraint:
 
         # Foreign key constraint is informational only, so we cannot verify enforcement.
         # Instead, check that the metadata is updated correctly.
-        util.write_file(fixtures.constraint_schema_with_fk_constraint, "models", "schema.yml")
+        util.write_file(fixtures.constraint_schema_with_fk_constraints, "models", "schema.yml")
         util.run_dbt(["run"])
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
-        assert len(referential_constraints) == 1
+        assert len(referential_constraints) == 2
         assert referential_constraints[0][0] == "fk_to_parent"
         assert referential_constraints[0][1] == "pk_parent"
+        assert referential_constraints[1][0] == "fk_to_parent_2"
+        assert referential_constraints[1][1] == "pk_parent_2"
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -225,8 +228,9 @@ class TestIncrementalRemoveForeignKeyConstraint:
     def models(self):
         return {
             "fk_referenced_to_table.sql": fixtures.fk_referenced_to_table,
+            "fk_referenced_to_table_2.sql": fixtures.fk_referenced_to_table_2,
             "fk_referenced_from_table.sql": fixtures.fk_referenced_from_table,
-            "schema.yml": fixtures.constraint_schema_with_fk_constraint,
+            "schema.yml": fixtures.constraint_schema_with_fk_constraints,
         }
 
     def test_remove_foreign_key_constraint(self, project):
@@ -235,9 +239,11 @@ class TestIncrementalRemoveForeignKeyConstraint:
 
         # Verify the constraint exists
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
-        assert len(referential_constraints) == 1
+        assert len(referential_constraints) == 2
         assert referential_constraints[0][0] == "fk_to_parent"
         assert referential_constraints[0][1] == "pk_parent"
+        assert referential_constraints[1][0] == "fk_to_parent_2"
+        assert referential_constraints[1][1] == "pk_parent_2"
 
         # Remove foreign key constraint and verify
         util.write_file(fixtures.constraint_schema_without_fk_constraint, "models", "schema.yml")

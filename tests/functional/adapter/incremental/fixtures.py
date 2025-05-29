@@ -791,6 +791,16 @@ select
     'parent' as type
 """
 
+fk_referenced_to_table_2 = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    'hello' as name
+"""
+
 constraint_schema_without_fk_constraint = """
 version: 2
 
@@ -814,7 +824,7 @@ models:
         data_type: string
 """
 
-constraint_schema_with_fk_constraint = """
+constraint_schema_with_fk_constraints = """
 version: 2
 
 models:
@@ -835,6 +845,19 @@ models:
       - name: type
         data_type: string
 
+  - name: fk_referenced_to_table_2
+    constraints:
+      - type: primary_key
+        columns: [id]
+        name: pk_parent_2
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: name
+        data_type: string
+
   - name: fk_referenced_from_table
     columns:
       - name: id
@@ -849,4 +872,9 @@ models:
         columns: [id, version]
         to: ref('fk_referenced_to_table')
         to_columns: [id, version]
+      - type: foreign_key
+        name: fk_to_parent_2
+        columns: [id]
+        to: ref('fk_referenced_to_table_2')
+        to_columns: [id]
 """
