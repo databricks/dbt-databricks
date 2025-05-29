@@ -210,10 +210,11 @@ class TestIncrementalSetForeignKeyConstraint:
         util.run_dbt(["run"])
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 2
-        assert referential_constraints[0][0] == "fk_to_parent"
-        assert referential_constraints[0][1] == "pk_parent"
-        assert referential_constraints[1][0] == "fk_to_parent_2"
-        assert referential_constraints[1][1] == "pk_parent_2"
+
+        # Convert results to a set of tuples for order-independent comparison
+        constraint_pairs = {(row[0], row[1]) for row in referential_constraints}
+        expected_pairs = {("fk_to_parent", "pk_parent"), ("fk_to_parent_2", "pk_parent_2")}
+        assert constraint_pairs == expected_pairs
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -240,10 +241,11 @@ class TestIncrementalRemoveForeignKeyConstraint:
         # Verify the constraint exists
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 2
-        assert referential_constraints[0][0] == "fk_to_parent"
-        assert referential_constraints[0][1] == "pk_parent"
-        assert referential_constraints[1][0] == "fk_to_parent_2"
-        assert referential_constraints[1][1] == "pk_parent_2"
+
+        # Convert results to a set of tuples for order-independent comparison
+        constraint_pairs = {(row[0], row[1]) for row in referential_constraints}
+        expected_pairs = {("fk_to_parent", "pk_parent"), ("fk_to_parent_2", "pk_parent_2")}
+        assert constraint_pairs == expected_pairs
 
         # Remove foreign key constraint and verify
         util.write_file(fixtures.constraint_schema_without_fk_constraint, "models", "schema.yml")
