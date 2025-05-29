@@ -29,7 +29,7 @@ def location_path(model: RelationConfig) -> Optional[str]:
 
 
 def location_root(model: RelationConfig) -> Optional[str]:
-    return _get(model, "location_root")
+    return _get(model, "location_root", case_sensitive=True)
 
 
 def table_format(model: RelationConfig) -> Optional[str]:
