@@ -38,15 +38,15 @@
     {{ exceptions.raise_compiler_error("Column masks are not supported for Hive Metastore") }}
   {%- endif %}
   {{ log("Applying column masks to relation " ~ relation) }}
-  {%- if column_masks.unset_column_mask %}
-    {%- for column in column_masks.unset_column_mask -%}
+  {%- if column_masks.unset_column_masks %}
+    {%- for column in column_masks.unset_column_masks -%}
       {%- call statement('main') -%}
         {{ alter_drop_column_mask(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
-  {%- if column_masks.set_column_mask %}
-    {%- for column, mask in column_masks.set_column_mask.items() -%}
+  {%- if column_masks.set_column_masks %}
+    {%- for column, mask in column_masks.set_column_masks.items() -%}
       {%- call statement('main') -%}
         {{ alter_set_column_mask(relation, column, mask) }}
       {%- endcall -%}
