@@ -63,11 +63,13 @@ check-sdist = [
 ]
 
 [tool.hatch.envs.default]
+pre-install-commands = [
+    "pip install git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-adapters",
+    "pip install git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
+]
 dependencies = [
     "dbt_common @ git+https://github.com/dbt-labs/dbt-common.git",
-    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-adapters",
     "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
-    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
     "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-spark",
     "pytest",
     "pytest-xdist",
