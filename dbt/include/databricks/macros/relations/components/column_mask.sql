@@ -11,7 +11,8 @@
 {% macro fetch_column_masks_sql(relation) -%}
   SELECT 
     column_name,
-    mask_name
+    mask_name,
+    using_columns
   FROM `{{ relation.database|lower }}`.information_schema.column_masks
   WHERE table_catalog = '{{ relation.database|lower }}'
     AND table_schema = '{{ relation.schema|lower }}'
@@ -63,7 +64,10 @@
 {% macro alter_set_column_mask(relation, column, mask) -%}
   ALTER TABLE {{ relation.render() }}
   ALTER COLUMN {{ column }}
-  SET MASK {{ mask }};
+  SET MASK {{ mask.function }}
+  {%- if mask.using_columns %}
+  USING COLUMNS ({{ mask.using_columns }})
+  {%- endif %};
 {%- endmacro -%}
 
 {% macro column_mask_exists() %}
