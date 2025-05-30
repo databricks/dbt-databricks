@@ -11,15 +11,15 @@ class TestIncrementalColumnMasks(MaterializationV2Mixin):
     def models(self):
         return {
             "column_mask_sql.sql": fixtures.column_mask_sql,
-            "schema.yml": fixtures.column_mask_name,
+            "schema.yml": fixtures.column_mask_base,
         }
 
     def test_changing_column_masks(self, project):
-        # Create the mask functions
+        # Create the full mask function
         project.run_sql(
             f"""
             CREATE OR REPLACE FUNCTION
-                {project.database}.{project.test_schema}.full_mask(value STRING)
+                {project.database}.{project.test_schema}.full_mask(password STRING)
             RETURNS STRING
             RETURN '*****';
             """
@@ -50,7 +50,7 @@ class TestIncrementalColumnMasks(MaterializationV2Mixin):
         assert masks[0][3] == "password123"  # password (unmasked)
 
         # Update masks and verify changes
-        util.write_file(fixtures.column_mask_password, "models", "schema.yml")
+        util.write_file(fixtures.column_mask_valid_mask_updates, "models", "schema.yml")
         util.run_dbt(["run"])
 
         result = project.run_sql(
@@ -61,3 +61,35 @@ class TestIncrementalColumnMasks(MaterializationV2Mixin):
         assert result[0][1] == "hello"  # name (unmasked)
         assert result[0][2] == "********@example.com"  # email (partially masked)
         assert result[0][3] == "*****"  # password (masked)
+
+
+class TestInvalidColumnMaskUpdate(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "column_mask_sql.sql": fixtures.column_mask_sql,
+            "schema.yml": fixtures.column_mask_base,
+        }
+
+    def test_invalid_using_columns_update(self, project):
+        # Create the full mask function
+        project.run_sql(
+            f"""
+            CREATE OR REPLACE FUNCTION
+                {project.database}.{project.test_schema}.full_mask(password STRING)
+            RETURNS STRING
+            RETURN '*****';
+            """
+        )
+
+        # First run with name masked
+        util.run_dbt(["run"])
+
+        # Trying to feed new arguments to using_columns on existing function should fail
+        util.write_file(fixtures.column_mask_invalid_update, "models", "schema.yml")
+        results = util.run_dbt(["run"], expect_pass=False)
+        assert len(results.results) == 1
+        assert (
+            "This is not supported. Please use a new function with a different name."
+            in results.results[0].message
+        )
