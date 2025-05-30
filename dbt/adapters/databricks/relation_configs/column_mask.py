@@ -1,6 +1,8 @@
 from dataclasses import asdict
 from typing import ClassVar, Optional
 
+from dbt_common.exceptions import DbtRuntimeError
+
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -10,11 +12,27 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class ColumnMaskConfig(DatabricksComponentConfig):
-    # column name -> mask
-    set_column_masks: dict[str, str]
+    # column name -> mask config (function name and optional using_columns)
+    set_column_masks: dict[str, dict[str, str]]
     unset_column_masks: list[str] = []
 
     def get_diff(self, other: "ColumnMaskConfig") -> Optional["ColumnMaskConfig"]:
+        # Create a mapping of function names to their using_columns values
+        function_using_columns = {}
+        for mask in self.set_column_masks.values():
+            function_using_columns[mask["function"]] = mask.get("using_columns")
+
+        # Check if any function's using_columns has changed
+        for mask in other.set_column_masks.values():
+            function = mask["function"]
+            if function in function_using_columns and function_using_columns[function] != mask.get(
+                "using_columns"
+            ):
+                raise DbtRuntimeError(
+                    f"The value of using_columns for existing function {function} was updated. "
+                    f"This is not supported. Please use a new function with a different name."
+                )
+
         # Find column masks that need to be unset
         unset_column_mask = [
             col for col in other.set_column_masks if col not in self.set_column_masks
@@ -45,7 +63,11 @@ class ColumnMaskProcessor(DatabricksComponentProcessor[ColumnMaskConfig]):
 
         if column_masks:
             for row in column_masks.rows:
-                set_column_masks[row[0]] = row[1]
+                # row contains [column_name, mask_name, using_columns]
+                mask_config = {"function": row[1]}
+                if row[2]:
+                    mask_config["using_columns"] = row[2]
+                set_column_masks[row[0]] = mask_config
 
         return ColumnMaskConfig(set_column_masks=set_column_masks)
 
@@ -61,6 +83,17 @@ class ColumnMaskProcessor(DatabricksComponentProcessor[ColumnMaskConfig]):
         set_column_masks = {}
         for col in columns:
             extra = col.get("_extra", {})
-            if extra and "column_mask" in extra:
-                set_column_masks[col["name"]] = extra["column_mask"]
+            column_mask = extra.get("column_mask") if extra else None
+            if column_mask:
+                fully_qualified_function_name = (
+                    column_mask["function"]
+                    if "." in column_mask["function"]
+                    else (
+                        f"{relation_config.database}."
+                        f"{relation_config.schema}."
+                        f"{column_mask['function']}"
+                    )
+                )
+                column_mask["function"] = fully_qualified_function_name
+                set_column_masks[col["name"]] = column_mask
         return ColumnMaskConfig(set_column_masks=set_column_masks)
