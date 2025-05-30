@@ -1,4 +1,8 @@
 {% macro databricks__create_view_as(relation, sql) %}
+  {# Column masks result in silent failure for views, so throw custom compiler error #}
+  {% if column_mask_exists() %}
+    {% do exceptions.raise_compiler_error("Column masks are not supported for views. Column '" ~ column_name ~ "' has a mask defined.") %}
+  {% endif %}
   {{ log("Creating view " ~ relation) }}
   create or replace view {{ relation.render() }}
   {%- if config.persist_column_docs() -%}

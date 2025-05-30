@@ -878,3 +878,63 @@ models:
         to: ref('fk_referenced_to_table_2')
         to_columns: [id]
 """
+
+
+column_mask_sql = """
+{{ config(
+    materialized = 'incremental',
+    incremental_strategy = 'merge',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name, 'john.doe@example.com' as email,
+'password123' as password
+"""
+
+column_mask_base = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
+        - name: email
+          column_mask:
+            function: full_mask
+        - name: password
+"""
+
+column_mask_valid_mask_updates = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+        - name: email
+          column_mask:
+            function: email_mask
+        - name: password
+          column_mask:
+            function: full_mask
+"""
+
+column_mask_invalid_update = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+        - name: email
+        - name: password
+          column_mask:
+            function: full_mask
+            using_columns: "id"
+"""
