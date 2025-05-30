@@ -71,8 +71,8 @@ class TestIncrementalConfig:
                 ],
             ),
             "column_masks": Table(
-                rows=[["col1", "mask1"], ["col2", "mask2"]],
-                column_names=["column_name", "mask_name"],
+                rows=[["col1", "mask1", "col2"], ["col2", "mask2", "col1"]],
+                column_names=["column_name", "mask_name", "using_columns"],
             ),
         }
 
@@ -127,7 +127,10 @@ class TestIncrementalConfig:
                     unset_constraints=[],
                 ),
                 "column_masks": ColumnMaskConfig(
-                    set_column_masks={"col1": "mask1", "col2": "mask2"},
+                    set_column_masks={
+                        "col1": {"function": "mask1", "using_columns": "col2"},
+                        "col2": {"function": "mask2", "using_columns": "col1"},
+                    },
                     unset_column_masks=[],
                 ),
             }
