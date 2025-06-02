@@ -38,6 +38,7 @@ class TestStreamingTablesBasic:
             "my_table.sql": MY_TABLE,
             "my_view.sql": MY_VIEW,
             "my_streaming_table.sql": fixtures.streaming_table,
+            "schema.yml": fixtures.streaming_table_schema,
         }
 
     @pytest.fixture(scope="class")
@@ -125,6 +126,22 @@ class TestStreamingTablesBasic:
     def test_streaming_table_create(self, project, my_streaming_table):
         # setup creates it; verify it's there
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        # verify the non-null constraint and column comment are persisted on create
+        results = project.run_sql(
+            f"""
+            SELECT
+                is_nullable,
+                comment
+            FROM {project.database}.information_schema.columns
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = '{my_streaming_table.identifier}'
+              AND column_name = 'id'""",
+            fetch="all",
+        )
+        row = results[0]
+        assert row[0] == "NO"
+        assert row[1] == "The unique identifier for each record"
 
     def test_streaming_table_create_idempotent(self, project, my_streaming_table):
         # setup creates it once; verify it's there and run once

@@ -69,8 +69,6 @@
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 
-    {% do persist_docs(target_relation, model, for_relation=False) %}
-
     {{ run_hooks(post_hooks, inside_transaction=True) }}
 
 {% endmacro %}

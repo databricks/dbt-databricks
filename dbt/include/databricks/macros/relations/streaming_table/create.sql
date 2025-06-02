@@ -9,7 +9,14 @@
   {%- set comment = streaming_table.config["comment"].comment -%}
   {%- set refresh = streaming_table.config["refresh"] -%}
 
+  {%- set analysis_sql = sql | replace('STREAM ', '') | replace('stream ', '') -%}
+  {%- set columns = adapter.get_column_schema_from_query(analysis_sql) -%}
+  {%- set model_columns = model.get('columns', {}) -%}
+  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, []) -%}
+
+  {#-- We don't enrich the relation with model constraints because they are not supported for streaming tables --#}
   CREATE STREAMING TABLE {{ relation.render() }}
+    {{ get_column_and_constraints_sql(relation, columns_and_constraints[0]) }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}

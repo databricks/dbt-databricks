@@ -44,3 +44,23 @@ materialized_view = """
 ) }}
 select * from {{ ref('my_seed') }}
 """
+
+materialized_view_schema = """
+version: 2
+
+models:
+  - name: my_materialized_view
+    columns:
+      - name: id
+        description: "The unique identifier for each record"
+        constraints:
+          - type: not_null
+      - name: value
+    constraints:
+        - type: primary_key
+          columns: [id]
+    config:
+      persist_docs:
+        relation: true
+        columns: true
+"""
