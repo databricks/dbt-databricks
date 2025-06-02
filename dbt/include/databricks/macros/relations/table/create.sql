@@ -12,7 +12,6 @@
 
   {{ apply_alter_constraints(target_relation) }}
   {{ apply_tags(target_relation, tags) }}
-  {{ apply_column_masks_from_model_columns(target_relation) }}
 
   {% call statement('merge into target') %}
     insert into {{ target_relation }} select * from {{ intermediate_relation }}
