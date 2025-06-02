@@ -1,8 +1,6 @@
 from dataclasses import asdict
 from typing import ClassVar, Optional
 
-from dbt_common.exceptions import DbtRuntimeError
-
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -17,22 +15,6 @@ class ColumnMaskConfig(DatabricksComponentConfig):
     unset_column_masks: list[str] = []
 
     def get_diff(self, other: "ColumnMaskConfig") -> Optional["ColumnMaskConfig"]:
-        # Create a mapping of function names to their using_columns values
-        function_using_columns = {}
-        for mask in self.set_column_masks.values():
-            function_using_columns[mask["function"]] = mask.get("using_columns")
-
-        # Check if any function's using_columns has changed
-        for mask in other.set_column_masks.values():
-            function = mask["function"]
-            if function in function_using_columns and function_using_columns[function] != mask.get(
-                "using_columns"
-            ):
-                raise DbtRuntimeError(
-                    f"The value of using_columns for existing function {function} was updated. "
-                    f"This is not supported. Please use a new function with a different name."
-                )
-
         # Find column masks that need to be unset
         unset_column_mask = [
             col for col in other.set_column_masks if col not in self.set_column_masks
