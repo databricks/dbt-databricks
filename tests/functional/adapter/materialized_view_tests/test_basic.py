@@ -4,6 +4,7 @@ import pytest
 
 from dbt.adapters.base.relation import BaseRelation
 from dbt.tests import util
+from dbt.tests.adapter.materialized_view import files
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 from tests.functional.adapter.materialized_view_tests import fixtures
 
@@ -29,6 +30,15 @@ class TestMaterializedViewsMixin:
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
+    @pytest.fixture(scope="class", autouse=True)
+    def models(self):
+        yield {
+            "my_table.sql": files.MY_TABLE,
+            "my_view.sql": files.MY_VIEW,
+            "my_materialized_view.sql": files.MY_MATERIALIZED_VIEW,
+            "schema.yml": fixtures.materialized_view_schema,
+        }
+
     def test_table_replaces_materialized_view(self, project, my_materialized_view):
         util.run_dbt(["run", "--models", my_materialized_view.identifier])
         assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
@@ -70,3 +80,42 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         util.run_dbt(["run", "--models", my_view.identifier])
         # UC doesn't sync metadata fast enough for this to pass consistently
         # assert self.query_relation_type(project, my_view) == "materialized_view"
+
+    def test_create_materialized_view_with_comment_and_constraints(
+        self, project, my_materialized_view
+    ):
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+
+        # verify the non-null constraint and column comment are persisted on create
+        results = project.run_sql(
+            f"""
+            SELECT
+                is_nullable,
+                comment
+            FROM {project.database}.information_schema.columns
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = '{my_materialized_view.identifier}'
+              AND column_name = 'id'""",
+            fetch="all",
+        )
+        row = results[0]
+        assert row[0] == "NO"
+        assert row[1] == "The unique identifier for each record"
+        # Verify primary key constraint is persisted
+        results = project.run_sql(
+            f"""
+            SELECT
+                constraint_name,
+                column_name
+            FROM {project.database}.information_schema.key_column_usage
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = '{my_materialized_view.identifier}'
+            """,
+            fetch="all",
+        )
+        assert len(results) == 1
+        assert results[0][0] == "my_materialized_view_pk"
+        assert results[0][1] == "id"
