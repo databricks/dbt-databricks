@@ -20,9 +20,8 @@ DEFAULT_UNITY_CATALOG = SimpleNamespace(
     # requires the model to specify the external_volume (location_root) property
     external_volume=None,
     table_format=DEFAULT_TABLE_FORMAT,
-    adapter_properties={
-        "file_format": DELTA_FILE_FORMAT,
-    },
+    adapter_properties={},
+    file_format=DELTA_FILE_FORMAT,
 )
 DEFAULT_HIVE_METASTORE_CATALOG = SimpleNamespace(
     name="hive_metastore",
@@ -31,8 +30,7 @@ DEFAULT_HIVE_METASTORE_CATALOG = SimpleNamespace(
     # requires the model to specify the external_volume (location_root) property
     external_volume=None,
     table_format=DEFAULT_TABLE_FORMAT,
-    adapter_properties={
-        "file_format": DELTA_FILE_FORMAT,
-    },
+    adapter_properties={},
+    file_format=DELTA_FILE_FORMAT,
 )
 DEFAULT_CATALOG = DEFAULT_UNITY_CATALOG
