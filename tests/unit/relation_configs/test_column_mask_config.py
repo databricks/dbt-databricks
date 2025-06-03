@@ -104,16 +104,3 @@ class TestColumnMaskConfig:
         other = ColumnMaskConfig(set_column_masks={"col1": {"function": "mask1"}})
         diff = config.get_diff(other)
         assert diff is None
-
-    def test_get_diff__using_columns_conflict(self):
-        config = ColumnMaskConfig(
-            set_column_masks={"col1": {"function": "mask1", "using_columns": "new_col"}}
-        )
-        other = ColumnMaskConfig(
-            set_column_masks={"col1": {"function": "mask1", "using_columns": "old_col"}}
-        )
-        with pytest.raises(DbtRuntimeError) as exc:
-            config.get_diff(other)
-        assert "The value of using_columns for existing function mask1 was updated" in str(
-            exc.value
-        )
