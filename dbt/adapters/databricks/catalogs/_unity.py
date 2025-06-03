@@ -14,7 +14,7 @@ class UnityCatalogIntegration(CatalogIntegration):
         super().__init__(config)
         if location_root := config.adapter_properties.get("location_root"):
             self.external_volume: Optional[str] = location_root
-        self.file_format: str = config.adapter_properties.get("file_format")
+        self.file_format: str = config.file_format
 
     @property
     def location_root(self) -> Optional[str]:

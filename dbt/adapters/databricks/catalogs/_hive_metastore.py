@@ -12,7 +12,7 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        self.file_format: str = config.adapter_properties.get("file_format")
+        self.file_format: str = config.file_format
 
     @property
     def location_root(self) -> Optional[str]:
