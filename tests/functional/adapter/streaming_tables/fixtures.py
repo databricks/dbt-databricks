@@ -68,3 +68,14 @@ models:
         relation: true
         columns: true
 """
+
+
+# There is a single CSV file in the source directory. The contents exactly matches MY_SEED
+streaming_table_from_file = """
+{{ config(
+    materialized='streaming_table',
+) }}
+select * from stream read_files(
+    '{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}/test_inputs/streaming_table_test_sources'
+);
+"""

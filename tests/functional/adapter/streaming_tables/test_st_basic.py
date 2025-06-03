@@ -9,9 +9,7 @@ from dbt.tests.adapter.materialized_view.files import MY_SEED, MY_TABLE, MY_VIEW
 from tests.functional.adapter.streaming_tables import fixtures
 
 
-@pytest.mark.dlt
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTablesBasic:
+class TestStreamingTablesMixin:
     @staticmethod
     def insert_record(project, table: BaseRelation, record: tuple[int, int]):
         project.run_sql(f"insert into {table} values {record}")
@@ -123,6 +121,10 @@ class TestStreamingTablesBasic:
         util.set_model_file(project, my_streaming_table, initial_model)
         project.run_sql(f"drop schema if exists {project.test_schema} cascade")
 
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTablesBasic(TestStreamingTablesMixin):
     def test_streaming_table_create(self, project, my_streaming_table):
         # setup creates it; verify it's there
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
@@ -225,3 +227,34 @@ class TestStreamingTablesBasic:
         # view until it was refreshed
         assert table_start < table_mid == table_end
         assert view_start == view_mid < view_end
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTablesFromFiles(TestStreamingTablesMixin):
+    @pytest.fixture(scope="class", autouse=True)
+    def models(self):
+        yield {
+            "my_streaming_table.sql": fixtures.streaming_table_from_file,
+            "schema.yml": fixtures.streaming_table_schema,
+        }
+
+    def test_streaming_table_create_from_file(self, project, my_streaming_table):
+        # setup creates it; verify it's there
+        assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        # verify the non-null constraint and column comment are persisted on create
+        results = project.run_sql(
+            f"""
+            SELECT
+                is_nullable,
+                comment
+            FROM {project.database}.information_schema.columns
+            WHERE table_catalog = '{project.database}'
+                AND table_schema = '{project.test_schema}'
+                AND table_name = '{my_streaming_table.identifier}'
+                AND column_name = 'id'""",
+            fetch="all",
+        )
+        row = results[0]
+        assert row[0] == "NO"
+        assert row[1] == "The unique identifier for each record"
