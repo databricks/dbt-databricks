@@ -1,8 +1,6 @@
 from unittest.mock import Mock
 
-import pytest
 from agate import Table
-from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.column_mask import (
     ColumnMaskConfig,
