@@ -1,7 +1,7 @@
 {% macro databricks__get_create_materialized_view_as_sql(relation, sql) -%}
-  {# Column masks result in silent failure for materialized views, so throw custom compiler error #}
+  {# Column masks are supported in DBSQL, but not yet wired up to the adapter. Return a helpful error until supported. #}
   {% if column_mask_exists() %}
-    {% do exceptions.raise_compiler_error("Column masks are not supported for materialized views. Column '" ~ column_name ~ "' has a mask defined.") %}
+    {% do exceptions.raise_compiler_error("Column masks are not supported for materialized views.") %}
   {% endif %}
   {%- set materialized_view = adapter.get_config_from_model(config.model) -%}
   {%- set partition_by = materialized_view.config["partition_by"].partition_by -%}

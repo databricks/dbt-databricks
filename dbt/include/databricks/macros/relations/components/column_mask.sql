@@ -13,25 +13,10 @@
     column_name,
     mask_name,
     using_columns
-  FROM `{{ relation.database|lower }}`.information_schema.column_masks
+  FROM `system`.`information_schema`.`column_masks`
   WHERE table_catalog = '{{ relation.database|lower }}'
     AND table_schema = '{{ relation.schema|lower }}'
     AND table_name = '{{ relation.identifier|lower }}';
-{%- endmacro -%}
-
-{% macro apply_column_masks_from_model_columns(relation) -%}
-  {% if relation.is_hive_metastore() %}
-    {{ exceptions.raise_compiler_error("Column masks are not supported for Hive Metastore") }}
-  {%- endif %}
-  {{ log("Applying column masks from model to relation " ~ relation) }}
-  {% set columns = model.get('columns', {}) %}
-  {% for column_name, column_def in columns.items() %}
-    {% if column_def is mapping and column_def.get('column_mask') %}
-      {%- call statement('main') -%}
-        {{ alter_set_column_mask(relation, column_name, column_def.column_mask) }}
-      {%- endcall -%}
-    {% endif %}
-  {% endfor %}
 {%- endmacro -%}
 
 {% macro apply_column_masks(relation, column_masks) -%}
@@ -56,13 +41,13 @@
 {%- endmacro -%}
 
 {% macro alter_drop_column_mask(relation, column) -%}
-  ALTER TABLE {{ relation.render() }}
+  ALTER {{ relation.type }} {{ relation.render() }}
   ALTER COLUMN {{ column }}
   DROP MASK;
 {%- endmacro -%}
 
 {% macro alter_set_column_mask(relation, column, mask) -%}
-  ALTER TABLE {{ relation.render() }}
+  ALTER {{ relation.type }} {{ relation.render() }}
   ALTER COLUMN {{ column }}
   SET MASK {{ mask.function }}
   {%- if mask.using_columns %}
