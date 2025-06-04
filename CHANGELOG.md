@@ -6,6 +6,7 @@
 - Fix bug where incorrect insert overwrite exception was being thrown when overriding compute at model level ([1032](https://github.com/databricks/dbt-databricks/issues/1032))
 - Fix bug that was causing failures when multiple foreign key constraints are defined in a model ([1034](https://github.com/databricks/dbt-databricks/issues/1034))
 - Fix location_root config not being treated case sensitive ([1037](https://github.com/databricks/dbt-databricks/issues/1037))
+- Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
 
 ## dbt-databricks 1.10.2 (May 21, 2025)
 

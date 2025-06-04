@@ -51,3 +51,31 @@ complex_streaming_table = """
 ) }}
 select * from stream {{ ref('my_seed') }}
 """
+
+streaming_table_schema = """
+version: 2
+
+models:
+  - name: my_streaming_table
+    columns:
+      - name: id
+        description: "The unique identifier for each record"
+        constraints:
+          - type: not_null
+      - name: value
+    config:
+      persist_docs:
+        relation: true
+        columns: true
+"""
+
+
+# There is a single CSV file in the source directory. The contents exactly matches MY_SEED
+streaming_table_from_file = """
+{{ config(
+    materialized='streaming_table',
+) }}
+select * from stream read_files(
+    '{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}/test_inputs/streaming_table_test_sources'
+);
+"""
