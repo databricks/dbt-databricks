@@ -42,13 +42,13 @@
 
 {% macro alter_drop_column_mask(relation, column) -%}
   ALTER {{ relation.type }} {{ relation.render() }}
-  ALTER COLUMN {{ column }}
+  ALTER COLUMN `{{ column }}`
   DROP MASK;
 {%- endmacro -%}
 
 {% macro alter_set_column_mask(relation, column, mask) -%}
   ALTER {{ relation.type }} {{ relation.render() }}
-  ALTER COLUMN {{ column }}
+  ALTER COLUMN `{{ column }}`
   SET MASK {{ mask.function }}
   {%- if mask.using_columns %}
   USING COLUMNS ({{ mask.using_columns }})
