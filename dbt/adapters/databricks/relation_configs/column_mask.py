@@ -71,9 +71,9 @@ class ColumnMaskProcessor(DatabricksComponentProcessor[ColumnMaskConfig]):
                     column_mask["function"]
                     if "." in column_mask["function"]
                     else (
-                        f"{relation_config.database}."
-                        f"{relation_config.schema}."
-                        f"{column_mask['function']}"
+                        f"`{relation_config.database}`."
+                        f"`{relation_config.schema}`."
+                        f"`{column_mask['function']}`"
                     )
                 )
                 column_mask["function"] = fully_qualified_function_name
