@@ -25,15 +25,28 @@
     {{ return(get_insert_overwrite_sql(source, target)) }}
 {% endmacro %}
 
+{% macro get_common_columns(dest_columns, source_columns) %}
+    {%- set common_columns = [] -%}
+    {%- for dest_col in dest_columns -%}
+      {%- if dest_col in source_columns -%}
+        {%- do common_columns.append(dest_col) -%}
+      {%- else -%}
+        {%- do common_columns.append('DEFAULT') -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {% do log("Common columns: " ~ common_columns, info=True) %}
+    {{ return(common_columns) }}
+{% endmacro %}
 
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='quoted') | list -%}
+    {%- set common_columns = get_common_columns(dest_columns, source_columns) -%}
+    {%- set dest_cols_csv = dest_columns | join(', ') -%}
+    {%- set source_cols_csv = common_columns | join(', ') -%}
     insert overwrite table {{ target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ source_relation }}
-
+    select {{source_cols_csv}} from {{ source_relation }}
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}
@@ -58,18 +71,11 @@ TABLE {{ temp_relation.render() }}
 {% endmacro %}
 
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
-    {%- set common_columns = [] -%}
-    {%- for dest_col in dest_columns -%}
-      {%- if dest_col in source_columns -%}
-        {%- do common_columns.append(dest_col) -%}
-      {%- else -%}
-        {%- do common_columns.append('DEFAULT') -%}
-      {%- endif -%}
-    {%- endfor -%}
+    {%- set common_columns = get_common_columns(dest_columns, source_columns) -%}
     {%- set dest_cols_csv = dest_columns | join(', ') -%}
     {%- set source_cols_csv = common_columns | join(', ') -%}
-insert into table {{ target_relation }} ({{ dest_cols_csv }})
-select {{source_cols_csv}} from {{ source_relation }}
+    insert into table {{ target_relation }} ({{ dest_cols_csv }})
+    select {{source_cols_csv}} from {{ source_relation }}
 {%- endmacro %}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
