@@ -54,8 +54,8 @@ class TestColumnMaskProcessor:
         spec = ColumnMaskProcessor.from_relation_config(model)
         assert spec == ColumnMaskConfig(
             set_column_masks={
-                "col1": {"function": "db.schema.mask1"},
-                "col2": {"function": "db.schema.mask2", "using_columns": "col3"},
+                "col1": {"function": "`db`.`schema`.`mask1`"},
+                "col2": {"function": "`db`.`schema`.`mask2`", "using_columns": "col3"},
             }
         )
 
