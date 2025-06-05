@@ -34,7 +34,6 @@
         {%- do common_columns.append('DEFAULT') -%}
       {%- endif -%}
     {%- endfor -%}
-    {% do log("Common columns: " ~ common_columns, info=True) %}
     {{ return(common_columns) }}
 {% endmacro %}
 
