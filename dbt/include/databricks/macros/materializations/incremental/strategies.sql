@@ -25,15 +25,22 @@
     {{ return(get_insert_overwrite_sql(source, target)) }}
 {% endmacro %}
 
-
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='quoted') | list -%}
+    {%- set common_columns = [] -%}
+    {%- for dest_col in dest_columns -%}
+      {%- if dest_col in source_columns -%}
+        {%- do common_columns.append(dest_col) -%}
+      {%- else -%}
+        {%- do common_columns.append('DEFAULT') -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {%- set dest_cols_csv = dest_columns | join(', ') -%}
+    {%- set source_cols_csv = common_columns | join(', ') -%}
     insert overwrite table {{ target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ source_relation }}
-
+    select {{source_cols_csv}} from {{ source_relation }}
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}

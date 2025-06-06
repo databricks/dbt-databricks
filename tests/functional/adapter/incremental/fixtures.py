@@ -223,6 +223,12 @@ overwrite_expected = """id,msg
 3,anyway
 """
 
+upsert_expected_no_msg = """id,msg
+1,hello
+2,null
+3,null
+"""
+
 upsert_expected = """id,msg
 1,hello
 2,yo
@@ -299,6 +305,26 @@ select cast(2 as bigint) as id, 'goodbye' as msg
 select cast(2 as bigint) as id, 'yo' as msg
 union all
 select cast(3 as bigint) as id, 'anyway' as msg
+
+{% endif %}
+"""
+
+update_schema_model = """
+{{ config(
+    materialized = 'incremental'
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id
+union all
+select cast(3 as bigint) as id
 
 {% endif %}
 """
