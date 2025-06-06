@@ -22,6 +22,7 @@
 ### Fixes
 
 - Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
+- Fix ACL permissions not applied to notebook jobs created by DBT Python model ([1015](https://github.com/databricks/dbt-databricks/pull/1015))
 - Fix bug with temp tables not being dropped after python model is materialized ([1010](https://github.com/databricks/dbt-databricks/issues/1010))
 - Fix bug with alter view dispatch where dbt could not find the approprate macro ([1029](https://github.com/databricks/dbt-databricks/pull/1029))
 
