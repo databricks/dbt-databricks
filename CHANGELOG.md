@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.3 (TBD)
 
+### Features
+
+- Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
+
 ### Fixes
 
 - Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))

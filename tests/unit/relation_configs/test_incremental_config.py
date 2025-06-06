@@ -1,6 +1,7 @@
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
+from dbt.adapters.databricks.relation_configs.column_mask import ColumnMaskConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.constraints import (
     CheckConstraint,
@@ -69,6 +70,10 @@ class TestIncrementalConfig:
                     "to_column",
                 ],
             ),
+            "column_masks": Table(
+                rows=[["col1", "mask1", "col2"], ["col2", "mask2", "col1"]],
+                column_names=["column_name", "mask_name", "using_columns"],
+            ),
         }
 
         config = IncrementalTableConfig.from_results(results)
@@ -120,6 +125,13 @@ class TestIncrementalConfig:
                         ),
                     ],
                     unset_constraints=[],
+                ),
+                "column_masks": ColumnMaskConfig(
+                    set_column_masks={
+                        "col1": {"function": "mask1", "using_columns": "col2"},
+                        "col2": {"function": "mask2", "using_columns": "col1"},
+                    },
+                    unset_column_masks=[],
                 ),
             }
         )
