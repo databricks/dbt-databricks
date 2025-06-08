@@ -17,8 +17,7 @@ class TestNotebookPermissionsApi(ApiTestBase):
 
     @pytest.fixture
     def api(self, session, host, workspace_api):
-        api = NotebookPermissionsApi(session, host)
-        api.workspace_api = workspace_api
+        api = NotebookPermissionsApi(session, host, workspace_api)
         return api
 
     @pytest.fixture

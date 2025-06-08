@@ -566,7 +566,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         self.permission_builder = permission_builder
         self.workflow_creater = workflow_creater
         self.job_grants = job_grants
-        self.acls = acls or []
+        self.acls = acls
 
     @staticmethod
     def create(
@@ -583,9 +583,8 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             config_compiler,
             permission_builder,
             workflow_creater,
-            parsed_model.config.python_job_config.grants
-            if parsed_model.config.python_job_config
-            else {},
+            parsed_model.config.python_job_config.grants,
+            parsed_model.config.access_control_list,
         )
 
     @override
