@@ -110,9 +110,15 @@ class TestStreamingTableColumnMask(TestColumnMask):
             "schema.yml": model,
         }
 
-    def test_streaming_table_column_mask_with_extra_args(self, project):
+    @pytest.fixture(scope="class", autouse=True)
+    def setup_streaming_table_seed(self, project):
+        """Run seed once for the entire class to avoid Delta table ID conflicts."""
         run_dbt(["seed"])
-        super().test_column_mask_with_extra_args(project)
+
+    @pytest.fixture(scope="function", autouse=True)
+    def cleanup_streaming_table(self, project):
+        project.run_sql(f"DROP TABLE IF EXISTS {project.database}.{project.test_schema}.base_model")
+        yield
 
 
 @pytest.mark.skip_profile("databricks_cluster")
