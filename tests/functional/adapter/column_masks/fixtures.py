@@ -5,6 +5,17 @@ base_model_sql = """
 SELECT 'abc123' as id, 'password123' as password;
 """
 
+column_mask_seed = """
+id,password
+abc123,password123
+""".strip()
+
+base_model_streaming_table = """
+{{ config(
+    materialized='streaming_table',
+) }}
+SELECT * FROM stream {{ ref('base_model_seed') }}
+"""
 
 model = """
 version: 2

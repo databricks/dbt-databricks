@@ -3,6 +3,8 @@ import pytest
 from dbt.tests.util import run_dbt, write_file
 from tests.functional.adapter.column_masks.fixtures import (
     base_model_sql,
+    base_model_streaming_table,
+    column_mask_seed,
     model,
     model_with_extra_args,
 )
@@ -91,6 +93,26 @@ class TestIncrementalColumnMask(TestColumnMask):
             "base_model.sql": base_model_sql.replace("table", "incremental"),
             "schema.yml": model,
         }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestStreamingTableColumnMask(TestColumnMask):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "base_model_seed.csv": column_mask_seed,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_streaming_table,
+            "schema.yml": model,
+        }
+
+    def test_streaming_table_column_mask_with_extra_args(self, project):
+        run_dbt(["seed"])
+        super().test_column_mask_with_extra_args(project)
 
 
 @pytest.mark.skip_profile("databricks_cluster")
