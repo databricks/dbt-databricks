@@ -1,4 +1,10 @@
-## dbt-databricks 1.10.3 (TBD)
+## dbt-databricks 1.10.4 (TBD)
+
+### Fixes
+
+- Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
+
+## dbt-databricks 1.10.3 (June 4, 2025)
 
 ### Features
 
