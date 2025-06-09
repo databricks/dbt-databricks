@@ -11,6 +11,7 @@ class DatabricksColumn(SparkColumn):
     comment: Optional[str] = None
     not_null: Optional[bool] = None
     mask: Optional[dict[str, str]] = None
+    databricks_tags: Optional[dict[str, str]] = None
 
     TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
@@ -39,6 +40,8 @@ class DatabricksColumn(SparkColumn):
             enriched_column.comment = model_column["description"]
         if model_column.get("column_mask"):
             enriched_column.mask = model_column["column_mask"]
+        if model_column.get("databricks_tags"):
+            enriched_column.databricks_tags = model_column["databricks_tags"]
 
         enriched_column.not_null = not_null
         return enriched_column

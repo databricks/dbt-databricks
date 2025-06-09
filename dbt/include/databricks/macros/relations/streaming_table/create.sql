@@ -3,6 +3,9 @@
 {%- endmacro %}
 
 {% macro databricks__get_create_streaming_table_as_sql(relation, sql) -%}
+  {% if column_tags_exist() %}
+    {% do exceptions.raise_compiler_error("Column tags are not supported for streaming tables.") %}
+  {% endif %}
   {%- set streaming_table = adapter.get_config_from_model(config.model) -%}
   {%- set partition_by = streaming_table.config["partition_by"].partition_by -%}
   {%- set tblproperties = streaming_table.config["tblproperties"].tblproperties -%}

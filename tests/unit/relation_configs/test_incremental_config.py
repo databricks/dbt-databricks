@@ -2,6 +2,7 @@ from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
 from dbt.adapters.databricks.relation_configs.column_mask import ColumnMaskConfig
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.constraints import (
     CheckConstraint,
@@ -25,6 +26,12 @@ class TestIncrementalConfig:
                     ["tag2", "value2"],
                 ],
                 column_names=["tag_name", "tag_value"],
+            ),
+            "information_schema.column_tags": Table(
+                rows=[
+                    ["column", "sensitive", "true"],
+                ],
+                column_names=["column_name", "tag_name", "tag_value"],
             ),
             "show_tblproperties": Table(
                 rows=[
@@ -82,6 +89,9 @@ class TestIncrementalConfig:
             config={
                 "comment": CommentConfig(comment=None, persist=False),
                 "tags": TagsConfig(set_tags={"tag1": "value1", "tag2": "value2"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"column": {"sensitive": "True"}},
+                ),
                 "column_comments": ColumnCommentsConfig(
                     comments={"column": "test comment"}, quoted={}, persist=False
                 ),

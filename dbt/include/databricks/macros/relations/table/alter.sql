@@ -3,6 +3,7 @@
     {% if configuration_changes %}
       {% set comment = configuration_changes.changes.get("comment") %}
       {% set column_comments = configuration_changes.changes.get("column_comments") %}
+      {% set column_tags = configuration_changes.changes.get("column_tags") %}
       {% set tags = configuration_changes.changes.get("tags") %}
       {% set tblproperties = configuration_changes.changes.get("tblproperties") %}
       {% set liquid_clustering = configuration_changes.changes.get("liquid_clustering")%}
@@ -22,6 +23,10 @@
       {% endif %}
       {% if column_comments %}
         {{ alter_column_comments(target_relation, column_comments.comments) }}
+      {% endif %}
+      {{ log("column_tags: " ~ column_tags) }}
+      {% if column_tags %}
+        {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
       {% if constraints %}
         {{ apply_constraints(target_relation, constraints) }}

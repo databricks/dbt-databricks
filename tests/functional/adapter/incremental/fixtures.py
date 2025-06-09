@@ -964,3 +964,50 @@ models:
             function: full_mask
             using_columns: "id"
 """
+
+column_tags_a = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "system"
+        - name: msg
+        - name: color
+          databricks_tags:
+            pii: "false"
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_b = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "application"
+        - name: msg
+          databricks_tags:
+            pii: "true"
+        - name: color
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+    )
+    data = [[1, 'hello', 'blue']]
+    return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
+"""
