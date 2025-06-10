@@ -94,7 +94,7 @@ jobs:
       # Only run coverage comment once (not for all python versions)
       - name: Post Coverage Comment
         if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
-        uses: py-cov-action/python-coverage-comment-action@v4
+        uses: py-cov-action/python-coverage-comment-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
