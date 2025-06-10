@@ -95,7 +95,7 @@ class TestIncrementalColumnMask(TestColumnMask):
         }
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableColumnMask(TestColumnMask):
     @pytest.fixture(scope="class")
     def seeds(self):
