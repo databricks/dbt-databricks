@@ -89,8 +89,7 @@ jobs:
         uses: pypa/hatch@install
 
       - name: Run Unit Tests and Generate Coverage
-        run: |
-          hatch run -v +py=${{ matrix.python-version }} test:unit --cov-report=xml
+        run: hatch run -v +py=${{ matrix.python-version }} test:unit --cov-report=xml
 
       # Only run coverage comment once (not for all python versions)
       - name: Post Coverage Comment
