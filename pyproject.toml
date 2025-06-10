@@ -134,3 +134,8 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = ["databricks.*", "agate.*", "jinja2.*", "yaml.*"]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+relative_files = true
+branch = true
+source = ["dbt"]
