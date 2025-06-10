@@ -105,7 +105,7 @@ jobs:
         if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.CODE_COVERAGE_PAT }}
 
       - name: Store Pull Request comment to be posted
         uses: actions/upload-artifact@v4
