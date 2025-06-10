@@ -44,7 +44,7 @@ jobs:
   code-quality:
     name: Code Quality
 
-    runs-on: ubuntu-latest
+    runs-on: linux-ubuntu-latest
     timeout-minutes: 10
 
     strategy:
@@ -68,7 +68,7 @@ jobs:
   unit:
     name: unit test / python ${{ matrix.python-version }}
 
-    runs-on: ubuntu-latest
+    runs-on: linux-ubuntu-latest
     timeout-minutes: 15
 
     permissions:
@@ -105,7 +105,7 @@ jobs:
         if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
-          GITHUB_TOKEN: ${{ secrets.CODE_COVERAGE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Store Pull Request comment to be posted
         uses: actions/upload-artifact@v4
