@@ -81,6 +81,7 @@ dependencies = [
     "types-requests",
     "debugpy",
     "pydantic>=1.10.0, <2",
+    "pytest-cov",
 ]
 path = ".hatch"
 python = "3.9"
