@@ -855,15 +855,9 @@ class DatabricksAdapter(SparkAdapter):
             return catalog_integration.build_relation(model)
         return None
 
-    @available.parse(lambda *a, **k: None)
+    @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
-        column_tags_config = ColumnTagsProcessor.from_relation_config(model)
-
-        # Return None if no column tags are found
-        if not column_tags_config.set_column_tags:
-            return None
-
-        return column_tags_config
+        return ColumnTagsProcessor.from_relation_config(model)
 
 
 @dataclass(frozen=True)

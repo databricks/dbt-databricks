@@ -41,5 +41,5 @@ models:
         data_type: string
         column_mask:
           function: weird_mask
-          using_columns: 'id, "literal_string", 333, true, null, INTERVAL 2 DAYS'
+          using_columns: "id, 'literal_string', 333, true, null, INTERVAL 2 DAYS"
 """

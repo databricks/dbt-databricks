@@ -24,7 +24,6 @@
       {% if column_comments %}
         {{ alter_column_comments(target_relation, column_comments.comments) }}
       {% endif %}
-      {{ log("column_tags: " ~ column_tags) }}
       {% if column_tags %}
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
