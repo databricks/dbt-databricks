@@ -3,6 +3,8 @@ import pytest
 from dbt.tests.util import run_dbt, write_file
 from tests.functional.adapter.column_masks.fixtures import (
     base_model_sql,
+    base_model_streaming_table,
+    column_mask_seed,
     model,
     model_with_extra_args,
 )
@@ -93,6 +95,32 @@ class TestIncrementalColumnMask(TestColumnMask):
         }
 
 
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTableColumnMask(TestColumnMask):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "base_model_seed.csv": column_mask_seed,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_streaming_table,
+            "schema.yml": model,
+        }
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setup_streaming_table_seed(self, project):
+        """Run seed once for the entire class to avoid Delta table ID conflicts."""
+        run_dbt(["seed"])
+
+    @pytest.fixture(scope="function", autouse=True)
+    def cleanup_streaming_table(self, project):
+        project.run_sql(f"DROP TABLE IF EXISTS {project.database}.{project.test_schema}.base_model")
+        yield
+
+
 @pytest.mark.skip_profile("databricks_cluster")
 class TestViewColumnMaskFailure(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
@@ -108,10 +136,14 @@ class TestViewColumnMaskFailure(MaterializationV2Mixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestMaterializedViewColumnMaskFailure(TestViewColumnMaskFailure):
+class TestMaterializedViewColumnMaskFailure(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "base_model.sql": base_model_sql.replace("table", "materialized_view"),
             "schema.yml": model,
         }
+
+    def test_view_column_mask_failure(self, project):
+        result = run_dbt(["run"], expect_pass=False)
+        assert "Column masks are not yet supported" in result.results[0].message

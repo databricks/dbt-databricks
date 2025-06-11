@@ -81,6 +81,7 @@ dependencies = [
     "types-requests",
     "debugpy",
     "pydantic>=1.10.0, <2",
+    "pytest-cov",
 ]
 path = ".hatch"
 python = "3.9"
@@ -95,6 +96,7 @@ sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto -
 
 [tool.hatch.envs.test.scripts]
 unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
@@ -132,3 +134,8 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = ["databricks.*", "agate.*", "jinja2.*", "yaml.*"]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+relative_files = true
+branch = true
+source = ["dbt"]
