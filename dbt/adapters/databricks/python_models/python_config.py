@@ -44,7 +44,7 @@ class PythonModelConfig(BaseModel):
     environment_dependencies: list[str] = Field(default_factory=list)
 
     @validator("access_control_list")
-    def validate_job_permissions(cls, v):
+    def validate_job_permissions(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
         for acl in v:
             if "permission_level" not in acl:
                 raise ValueError("permission_level is required in access_control_list")
@@ -56,14 +56,14 @@ class PythonModelConfig(BaseModel):
         return v
 
     @validator("notebook_access_control_list")
-    def validate_notebook_permissions(cls, v):
+    def validate_notebook_permissions(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
         for acl in v:
             if "permission_level" not in acl:
                 raise ValueError("permission_level is required in notebook_access_control_list")
             if acl["permission_level"] not in NOTEBOOK_PERMISSIONS:
                 raise ValueError(
-                    f"Invalid permission_level in notebook_access_control_list: {acl['permission_level']}. "
-                    f"Must be one of {NOTEBOOK_PERMISSIONS}"
+                    f"Invalid permission_level in notebook_access_control_list: "
+                    f"{acl['permission_level']}. Must be one of {NOTEBOOK_PERMISSIONS}"
                 )
         return v
 

@@ -561,7 +561,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         permission_builder: PythonPermissionBuilder,
         workflow_creater: PythonWorkflowCreator,
         job_grants: dict[str, list[dict[str, str]]],
-        acls: Optional[list[dict[str, str]]] = None,
+        acls: list[dict[str, str]],
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
