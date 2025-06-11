@@ -1,10 +1,10 @@
 import pytest
 
-from dbt.tests.adapter.simple_snapshot.new_record_mode import (
+from dbt.tests.adapter.simple_snapshot.new_record_timestamp_mode import (
     _delete_sql,
-    _invalidate_sql,
+    _invalidate_sql_statements,
     _ref_snapshot_sql,
-    _seed_new_record_mode,
+    _seed_new_record_mode_statements,
     _snapshot_actual_sql,
     _snapshots_yml,
     _update_sql,
@@ -25,16 +25,21 @@ class TestDatabricksSnapshotNewRecordMode:
         }
 
     @pytest.fixture(scope="class")
-    def seed_new_record_mode(self):
-        return _seed_new_record_mode
+    def seed_new_record_modes(self):
+        return [
+            sql.replace("text", "string")
+            .replace("TEXT", "STRING")
+            .replace(" WITHOUT TIME ZONE", "")
+            for sql in _seed_new_record_mode_statements
+        ]
 
     @pytest.fixture(scope="class")
     def invalidate_sql_1(self):
-        return _invalidate_sql.split(";", 1)[0].replace("BEGIN", "")
+        return _invalidate_sql_statements[0]
 
     @pytest.fixture(scope="class")
     def invalidate_sql_2(self):
-        return _invalidate_sql.split(";", 1)[1].replace("END", "").replace(";", "")
+        return _invalidate_sql_statements[1]
 
     @pytest.fixture(scope="class")
     def update_sql(self):
@@ -45,17 +50,16 @@ class TestDatabricksSnapshotNewRecordMode:
         return _delete_sql
 
     def test_snapshot_new_record_mode(
-        self, project, seed_new_record_mode, invalidate_sql_1, invalidate_sql_2, update_sql
+        self,
+        project,
+        seed_new_record_modes,
+        invalidate_sql_1,
+        invalidate_sql_2,
+        update_sql,
     ):
-        for sql in (
-            seed_new_record_mode.replace("text", "string")
-            .replace("TEXT", "STRING")
-            .replace("BEGIN", "")
-            .replace("END;", "")
-            .replace(" WITHOUT TIME ZONE", "")
-            .split(";")
-        ):
+        for sql in seed_new_record_modes:
             project.run_sql(sql)
+
         results = run_dbt(["snapshot"])
         assert len(results) == 1
 

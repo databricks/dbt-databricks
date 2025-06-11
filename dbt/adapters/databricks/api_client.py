@@ -21,6 +21,7 @@ from dbt.adapters.databricks.logging import logger
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
 USER_AGENT = f"dbt-databricks/{version}"
+LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
 
 
 class PrefixSession:
@@ -57,10 +58,45 @@ class DatabricksApi(ABC):
         self.session = PrefixSession(session, host, api)
 
 
+class LibraryApi(DatabricksApi):
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.0/libraries")
+
+    def all_libraries_installed(self, cluster_id: str) -> bool:
+        status = self.get_cluster_libraries_status(cluster_id)
+        if "library_statuses" in status:
+            return all(
+                library["status"] in LIBRARY_VALID_STATUSES
+                for library in status["library_statuses"]
+            )
+        else:
+            return True
+
+    def get_cluster_libraries_status(self, cluster_id: str) -> dict[str, Any]:
+        response = self.session.get(
+            "/cluster-status",
+            json={"cluster_id": cluster_id},
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(
+                f"Error getting status of libraries of a cluster.\n {response.content!r}"
+            )
+
+        json_response = response.json()
+        return json_response
+
+
 class ClusterApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, max_cluster_start_time: int = 900):
+    def __init__(
+        self,
+        session: Session,
+        host: str,
+        libraries: LibraryApi,
+        max_cluster_start_time: int = 900,
+    ):
         super().__init__(session, host, "/api/2.0/clusters")
         self.max_cluster_start_time = max_cluster_start_time
+        self.libraries = libraries
 
     def status(self, cluster_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
@@ -78,10 +114,19 @@ class ClusterApi(DatabricksApi):
 
         while time.time() - start_time < self.max_cluster_start_time:
             status_response = self.status(cluster_id)
-            if status_response == "RUNNING":
-                return
-            else:
+
+            if status_response != "RUNNING":
+                logger.debug("Waiting for cluster to start")
                 time.sleep(5)
+                continue
+
+            libraries_status = self.libraries.get_cluster_libraries_status(cluster_id)
+            if not self.libraries.all_libraries_installed(cluster_id):
+                logger.debug(f"Waiting for all libraries to be installed: {libraries_status}")
+                time.sleep(5)
+                continue
+
+            return
 
         raise DbtRuntimeError(
             f"Cluster {cluster_id} restart timed out after {self.max_cluster_start_time} seconds"
@@ -106,9 +151,12 @@ class ClusterApi(DatabricksApi):
 
 
 class CommandContextApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, cluster_api: ClusterApi):
+    def __init__(
+        self, session: Session, host: str, cluster_api: ClusterApi, library_api: LibraryApi
+    ):
         super().__init__(session, host, "/api/1.2/contexts")
         self.cluster_api = cluster_api
+        self.library_api = library_api
 
     def create(self, cluster_id: str) -> str:
         current_status = self.cluster_api.status(cluster_id)
@@ -117,7 +165,9 @@ class CommandContextApi(DatabricksApi):
             logger.debug(f"Cluster {cluster_id} is not running. Attempting to restart.")
             self.cluster_api.start(cluster_id)
             logger.debug(f"Cluster {cluster_id} is now running.")
-        elif current_status != "RUNNING":
+        elif current_status != "RUNNING" or not self.library_api.all_libraries_installed(
+            cluster_id
+        ):
             self.cluster_api.wait_for_cluster(cluster_id)
 
         response = self.session.post(
@@ -402,7 +452,7 @@ class JobRunsApi(PollableApi):
         result_state = state.get("result_state")
         life_cycle_state = state["life_cycle_state"]
 
-        if result_state is not None and result_state != "SUCCESS":
+        if result_state == "CANCELED":
             raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
 
         if life_cycle_state != "TERMINATED":
@@ -639,8 +689,9 @@ class DatabricksApiClient:
         timeout: int,
         use_user_folder: bool,
     ):
-        self.clusters = ClusterApi(session, host)
-        self.command_contexts = CommandContextApi(session, host, self.clusters)
+        self.libraries = LibraryApi(session, host)
+        self.clusters = ClusterApi(session, host, self.libraries)
+        self.command_contexts = CommandContextApi(session, host, self.clusters, self.libraries)
         self.curr_user = CurrUserApi(session, host)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)

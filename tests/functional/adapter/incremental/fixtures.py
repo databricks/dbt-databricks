@@ -223,6 +223,12 @@ overwrite_expected = """id,msg
 3,anyway
 """
 
+upsert_expected_no_msg = """id,msg
+1,hello
+2,null
+3,null
+"""
+
 upsert_expected = """id,msg
 1,hello
 2,yo
@@ -299,6 +305,26 @@ select cast(2 as bigint) as id, 'goodbye' as msg
 select cast(2 as bigint) as id, 'yo' as msg
 union all
 select cast(3 as bigint) as id, 'anyway' as msg
+
+{% endif %}
+"""
+
+update_schema_model = """
+{{ config(
+    materialized = 'incremental'
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id
+union all
+select cast(3 as bigint) as id
 
 {% endif %}
 """
@@ -549,6 +575,7 @@ python_schema2 = """version: 2
 models:
   - name: tags
     config:
+      unique_tmp_table_suffix: true
       tags: ["python"]
       databricks_tags:
         c: e
@@ -619,4 +646,321 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 replace_expected = """id,msg,color
 1,hello,blue
 2,goodbye,red
+"""
+
+non_null_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id, cast(NULL as string) as msg
+
+{% endif %}
+"""
+
+
+schema_without_non_null_constraint = """
+version: 2
+
+models:
+  - name: non_null_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+"""
+
+schema_with_non_null_constraint = """
+version: 2
+
+models:
+  - name: non_null_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+        constraints:
+          - type: not_null
+"""
+
+check_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(6 as bigint) as id
+
+{% else %}
+
+select cast(3 as bigint) as id
+
+{% endif %}
+"""
+
+schema_without_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+"""
+
+schema_with_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+    constraints:
+      - type: check
+        name: id_greater_than_5
+        expression: id > 5
+"""
+
+primary_key_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+"""
+
+schema_with_single_column_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model
+        columns: [id]
+"""
+
+schema_with_composite_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model_updated
+        columns: [id, version]
+"""
+
+fk_referenced_from_table = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+
+{% else %}
+
+select
+    cast(2 as bigint) as id,
+    cast(2 as int) as version,
+    'world' as msg
+
+{% endif %}
+"""
+
+fk_referenced_to_table = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'parent' as type
+"""
+
+fk_referenced_to_table_2 = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    'hello' as name
+"""
+
+constraint_schema_without_fk_constraint = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_from_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+"""
+
+constraint_schema_with_fk_constraints = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    constraints:
+      - type: primary_key
+        columns: [id, version]
+        name: pk_parent
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_to_table_2
+    constraints:
+      - type: primary_key
+        columns: [id]
+        name: pk_parent_2
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: name
+        data_type: string
+
+  - name: fk_referenced_from_table
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: foreign_key
+        name: fk_to_parent
+        columns: [id, version]
+        to: ref('fk_referenced_to_table')
+        to_columns: [id, version]
+      - type: foreign_key
+        name: fk_to_parent_2
+        columns: [id]
+        to: ref('fk_referenced_to_table_2')
+        to_columns: [id]
+"""
+
+
+column_mask_sql = """
+{{ config(
+    materialized = 'incremental',
+    incremental_strategy = 'merge',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name, 'john.doe@example.com' as email,
+'password123' as password
+"""
+
+column_mask_base = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
+        - name: email
+          column_mask:
+            function: full_mask
+        - name: password
+"""
+
+column_mask_valid_mask_updates = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+        - name: email
+          column_mask:
+            function: email_mask
+        - name: password
+          column_mask:
+            function: full_mask
+"""
+
+column_mask_invalid_update = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+        - name: email
+        - name: password
+          column_mask:
+            function: full_mask
+            using_columns: "id"
 """

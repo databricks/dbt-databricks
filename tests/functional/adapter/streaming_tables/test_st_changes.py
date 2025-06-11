@@ -134,6 +134,10 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
     def test_change_is_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
+        # This tries to update column definitions (e.g. comment) but should be ignored for
+        # streaming tables. No explicit assertion needed, the job succeeding is sufficient
+        util.write_file(fixtures.streaming_table_schema, "models", "schema.yml")
+
         self.change_config_via_alter(project, my_streaming_table)
         _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
