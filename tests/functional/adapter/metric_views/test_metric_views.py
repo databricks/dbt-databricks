@@ -4,6 +4,7 @@ from dbt.tests.util import run_dbt
 
 
 # Extremely simple test to ensure model runs work in the presence of metric views
+@pytest.mark.skip_profile("databricks_cluster")
 class TestMetricViews:
     @pytest.fixture(scope="class")
     def models(self):
