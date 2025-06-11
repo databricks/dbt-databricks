@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
+- Fix bug where model run fails if catalog contains a metric view ([1045](https://github.com/databricks/dbt-databricks/issues/1045))
 
 ## dbt-databricks 1.10.3 (June 4, 2025)
 
