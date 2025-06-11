@@ -2,7 +2,6 @@ from dataclasses import asdict
 from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,

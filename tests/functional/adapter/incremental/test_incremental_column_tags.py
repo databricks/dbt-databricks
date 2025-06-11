@@ -21,9 +21,13 @@ class TestIncrementalColumnTags(MaterializationV2Mixin):
 
         # Check final column tags
         results = project.run_sql(
-            "select column_name, tag_name, tag_value from `system`.`information_schema`.`column_tags` "
-            "where schema_name = '{schema}' and table_name = 'merge_update_columns' "
-            "order by column_name, tag_name",
+            f"""
+            select column_name, tag_name, tag_value
+            from `system`.`information_schema`.`column_tags`
+            where schema_name = '{project.test_schema}'
+            and table_name = 'merge_update_columns'
+            order by column_name, tag_name
+            """,
             fetch="all",
         )
 

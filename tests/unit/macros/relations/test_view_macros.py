@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.unit.macros.base import MacroTestBase, TemplateBundle
+from tests.unit.macros.base import MacroTestBase
 
 
 class TestCreateViewAs(MacroTestBase):
