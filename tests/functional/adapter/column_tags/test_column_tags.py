@@ -5,15 +5,7 @@ from tests.functional.adapter.column_tags import fixtures
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestColumnTags(MaterializationV2Mixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.model_with_column_tags,
-        }
-
+class ColumnTagsMixin(MaterializationV2Mixin):
     def test_column_tags(self, project):
         util.run_dbt(["run"])
 
@@ -40,7 +32,17 @@ class TestColumnTags(MaterializationV2Mixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestColumnTagsIncremental(TestColumnTags):
+class TestColumnTagsTable(ColumnTagsMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": fixtures.base_model_sql,
+            "schema.yml": fixtures.model_with_column_tags,
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsIncremental(ColumnTagsMixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -51,8 +53,8 @@ class TestColumnTagsIncremental(TestColumnTags):
         }
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestColumnTagsMaterializedView(TestColumnTags):
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestColumnTagsMaterializedView(ColumnTagsMixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {
