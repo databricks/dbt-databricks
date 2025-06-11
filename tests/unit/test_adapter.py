@@ -435,6 +435,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "char_size": None,
             "comment": None,
             "not_null": None,
+            "databricks_tags": None,
         }
 
         default_col.update(real_vals)

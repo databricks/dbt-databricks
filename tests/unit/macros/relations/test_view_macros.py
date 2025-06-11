@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.unit.macros.base import MacroTestBase
+from tests.unit.macros.base import MacroTestBase, TemplateBundle
 
 
 class TestCreateViewAs(MacroTestBase):
@@ -26,6 +26,7 @@ class TestCreateViewAs(MacroTestBase):
         config["tblproperties"] = {"tblproperties_to_view": "true"}
         template_bundle.context["get_columns_in_query"] = Mock(return_value=[])
         template_bundle.context["column_mask_exists"] = Mock(return_value=False)
+        template_bundle.context["column_tags_exist"] = Mock(return_value=False)
 
         sql = self.render_create_view_as(template_bundle)
         expected = (
