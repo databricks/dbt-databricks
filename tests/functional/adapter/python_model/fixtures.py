@@ -231,9 +231,9 @@ models:
       user_folder_for_python: true
       access_control_list:
         - user_name: {TEST_USER_1}
-          permission_level: IS_OWNER
-        - user_name: {TEST_USER_2}
           permission_level: CAN_VIEW
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_MANAGE_RUN
         - user_name: {TEST_USER_3}
           permission_level: CAN_MANAGE
       notebook_access_control_list:

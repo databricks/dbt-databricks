@@ -56,7 +56,7 @@ class TestParsedPythonModel:
                 "user_folder_for_python": True,
                 "timeout": 100,
                 "job_cluster_config": {"key": "value"},
-                "access_control_list": [{"key": "value"}],
+                "access_control_list": [{"user_name": "user", "permission_level": "CAN_VIEW"}],
                 "packages": ["package"],
                 "index_url": "index_url",
                 "additional_libs": [{"key": "value"}],
@@ -72,7 +72,7 @@ class TestParsedPythonModel:
         assert config.user_folder_for_python is True
         assert config.timeout == 100
         assert config.job_cluster_config == {"key": "value"}
-        assert config.access_control_list == [{"key": "value"}]
+        assert config.access_control_list == [{"user_name": "user", "permission_level": "CAN_VIEW"}]
         assert config.packages == ["package"]
         assert config.index_url == "index_url"
         assert config.additional_libs == [{"key": "value"}]
@@ -112,6 +112,84 @@ class TestPythonModelConfig:
         config = {"timeout": -1}
         with pytest.raises(ValidationError):
             PythonModelConfig(**config)
+
+    def test_python_model_config__defaults(self):
+        config = PythonModelConfig()
+        assert config.user_folder_for_python is False
+        assert config.timeout == 86400
+        assert config.job_cluster_config == {}
+        assert config.access_control_list == []
+        assert config.notebook_access_control_list == []
+        assert config.packages == []
+        assert config.index_url is None
+        assert config.additional_libs == []
+        assert config.cluster_id is None
+        assert config.http_path is None
+        assert config.create_notebook is False
+        assert config.environment_key is None
+        assert config.environment_dependencies == []
+
+    def test_python_model_config__custom_values(self):
+        config = PythonModelConfig(
+            user_folder_for_python=True,
+            timeout=3600,
+            job_cluster_config={"foo": "bar"},
+            access_control_list=[{"user_name": "user", "permission_level": "CAN_VIEW"}],
+            notebook_access_control_list=[{"user_name": "user", "permission_level": "CAN_READ"}],
+            packages=["foo"],
+            index_url="https://pypi.org/simple",
+            additional_libs=[{"pypi": {"package": "bar"}}],
+            cluster_id="cluster_id",
+            http_path="http_path",
+            create_notebook=True,
+            environment_key="env_key",
+            environment_dependencies=["dep1", "dep2"],
+        )
+        assert config.user_folder_for_python is True
+        assert config.timeout == 3600
+        assert config.job_cluster_config == {"foo": "bar"}
+        assert config.access_control_list == [{"user_name": "user", "permission_level": "CAN_VIEW"}]
+        assert config.notebook_access_control_list == [{"user_name": "user", "permission_level": "CAN_READ"}]
+        assert config.packages == ["foo"]
+        assert config.index_url == "https://pypi.org/simple"
+        assert config.additional_libs == [{"pypi": {"package": "bar"}}]
+        assert config.cluster_id == "cluster_id"
+        assert config.http_path == "http_path"
+        assert config.create_notebook is True
+        assert config.environment_key == "env_key"
+        assert config.environment_dependencies == ["dep1", "dep2"]
+
+    def test_python_model_config__invalid_timeout(self):
+        with pytest.raises(ValidationError) as exc_info:
+            PythonModelConfig(timeout=0)
+        assert "timeout" in str(exc_info.value)
+
+    def test_python_model_config__invalid_job_permission(self):
+        with pytest.raises(ValidationError) as exc_info:
+            PythonModelConfig(
+                access_control_list=[{"user_name": "user", "permission_level": "INVALID_PERMISSION"}]
+            )
+        assert "Invalid permission_level in access_control_list" in str(exc_info.value)
+
+    def test_python_model_config__invalid_notebook_permission(self):
+        with pytest.raises(ValidationError) as exc_info:
+            PythonModelConfig(
+                notebook_access_control_list=[{"user_name": "user", "permission_level": "INVALID_PERMISSION"}]
+            )
+        assert "Invalid permission_level in notebook_access_control_list" in str(exc_info.value)
+
+    def test_python_model_config__missing_permission_level(self):
+        with pytest.raises(ValidationError) as exc_info:
+            PythonModelConfig(
+                access_control_list=[{"user_name": "user"}]
+            )
+        assert "permission_level is required in access_control_list" in str(exc_info.value)
+
+        with pytest.raises(ValidationError) as exc_info:
+            PythonModelConfig(
+                notebook_access_control_list=[{"user_name": "user"}]
+            )
+        assert "permission_level is required in notebook_access_control_list" in str(exc_info.value)
 
 
 class TestPythonJobConfig:

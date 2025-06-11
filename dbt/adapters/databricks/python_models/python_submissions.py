@@ -146,7 +146,7 @@ class PythonPermissionBuilder:
     """Class for building access control list for Python jobs."""
 
     JOB_PERMISSIONS = {"IS_OWNER", "CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
-    NOTEBOOK_PERMISSIONS = {"IS_OWNER", "CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
+    NOTEBOOK_PERMISSIONS = {"CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
 
     def __init__(
         self,
@@ -271,6 +271,7 @@ class PythonJobConfigCompiler:
     ) -> None:
         self.api_client = api_client
         self.permission_builder = permission_builder
+        self.access_control_list = parsed_model.config.access_control_list
         self.run_name = parsed_model.run_name
         packages = parsed_model.config.packages
         index_url = parsed_model.config.index_url
@@ -303,7 +304,9 @@ class PythonJobConfigCompiler:
                 ]
         job_spec.update(self.cluster_spec)
 
-        access_control_list = self.permission_builder.build_job_permissions(self.job_grants, [])
+        access_control_list = self.permission_builder.build_job_permissions(
+            self.job_grants, self.access_control_list
+        )
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
 
