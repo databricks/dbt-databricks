@@ -7,6 +7,7 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentProcessor,
 )
 from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt.exceptions import DbtRuntimeError
 
 
 class ColumnTagsConfig(DatabricksComponentConfig):
@@ -77,8 +78,12 @@ class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
         for col in columns:
             extra = col.get("_extra", {})
             databricks_tags = extra.get("databricks_tags") if extra else None
-            if databricks_tags and isinstance(databricks_tags, dict):
-                # Convert all values to strings
-                set_column_tags[col["name"]] = {str(k): str(v) for k, v in databricks_tags.items()}
+            if databricks_tags:
+                if isinstance(databricks_tags, dict):
+                    set_column_tags[col["name"]] = {
+                        str(k): str(v) for k, v in databricks_tags.items()
+                    }
+                else:
+                    raise DbtRuntimeError("databricks_tags must be a dictionary")
 
         return ColumnTagsConfig(set_column_tags=set_column_tags)

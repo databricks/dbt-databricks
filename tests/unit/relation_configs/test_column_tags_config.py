@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+import pytest
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_tags import (
@@ -7,6 +8,7 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsProcessor,
 )
 from dbt.artifacts.resources.v1.components import ColumnInfo
+from dbt.exceptions import DbtRuntimeError
 
 
 class TestColumnTagsProcessor:
@@ -80,15 +82,13 @@ class TestColumnTagsProcessor:
             }
         )
 
-    def test_from_relation_config__with_invalid_databricks_tags(self):
-        # Test when databricks_tags is not a dict
+    def test_from_relation_config__with_incorrect_tags(self):
         model = Mock()
         model.columns = {
             "column1": {"_extra": {"databricks_tags": ["not", "a", "dict"]}},
         }
-        spec = ColumnTagsProcessor.from_relation_config(model)
-        # Should ignore invalid tags
-        assert spec == ColumnTagsConfig(set_column_tags={})
+        with pytest.raises(DbtRuntimeError):
+            ColumnTagsProcessor.from_relation_config(model)
 
 
 class TestColumnTagsConfig:
