@@ -220,3 +220,27 @@ expected_complex = """date,name
 2,"Fang"
 3,"Elbert"
 """
+
+# Schema for testing access_control_list
+access_control_list_schema = f"""version: 2
+
+models:
+  - name: python_model_with_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: IS_OWNER
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_VIEW
+        - user_name: {TEST_USER_3}
+          permission_level: CAN_MANAGE
+      notebook_access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_READ
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_RUN
+        - user_name: {TEST_USER_3}
+          permission_level: CAN_MANAGE
+"""

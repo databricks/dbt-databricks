@@ -29,6 +29,7 @@ class PythonModelConfig(BaseModel):
     timeout: int = Field(DEFAULT_TIMEOUT, gt=0)
     job_cluster_config: dict[str, Any] = Field(default_factory=dict)
     access_control_list: list[dict[str, str]] = Field(default_factory=list)
+    notebook_access_control_list: list[dict[str, str]] = Field(default_factory=list)
     packages: list[str] = Field(default_factory=list)
     index_url: Optional[str] = None
     additional_libs: list[dict[str, Any]] = Field(default_factory=list)

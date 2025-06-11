@@ -46,6 +46,7 @@ class TestPythonNotebookUploader:
         client.workspace.create_python_model_dir.return_value = workdir
         uploader.set_notebook_permissions = Mock()
         uploader.job_grants = {}
+        uploader.notebook_access_control_list = []
 
         file_path = uploader.upload(compiled_code)
 
@@ -57,6 +58,7 @@ class TestPythonNotebookUploader:
         client.workspace.create_python_model_dir.return_value = workdir
         # job_grantsを直接設定
         uploader.job_grants = {"view": [{"group_name": "data-team"}]}
+        uploader.notebook_access_control_list = []
         uploader.set_notebook_permissions = Mock()
 
         file_path = uploader.upload(compiled_code)
@@ -72,11 +74,12 @@ class TestPythonNotebookUploader:
             {"user_name": "owner", "permission_level": "IS_OWNER"},
             {"group_name": "data-team", "permission_level": "CAN_READ"},
         ]
+        uploader.notebook_access_control_list = []
 
         uploader.set_notebook_permissions("/path/to/notebook")
 
         permission_builder.build_permissions.assert_called_once_with(
-            uploader.job_grants, [], target_type="notebook"
+            uploader.job_grants, uploader.notebook_access_control_list, target_type="notebook"
         )
         client.notebook_permissions.put.assert_called_once_with(
             "/path/to/notebook",
@@ -90,11 +93,12 @@ class TestPythonNotebookUploader:
         permission_builder = Mock()
         python_submissions.PythonPermissionBuilder = Mock(return_value=permission_builder)
         permission_builder.build_permissions.return_value = []
+        uploader.notebook_access_control_list = []
 
         uploader.set_notebook_permissions("/path/to/notebook")
 
         permission_builder.build_permissions.assert_called_once_with(
-            uploader.job_grants, [], target_type="notebook"
+            uploader.job_grants, uploader.notebook_access_control_list, target_type="notebook"
         )
         client.notebook_permissions.put.assert_not_called()
 

@@ -102,6 +102,7 @@ class PythonNotebookUploader:
             if parsed_model.config.python_job_config
             else {}
         )
+        self.notebook_access_control_list = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
@@ -110,7 +111,7 @@ class PythonNotebookUploader:
 
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
 
-        if self.job_grants:
+        if self.job_grants or self.notebook_access_control_list:
             self.set_notebook_permissions(file_path)
 
         return file_path
@@ -120,7 +121,7 @@ class PythonNotebookUploader:
             permission_builder = PythonPermissionBuilder(self.api_client)
 
             access_control_list = permission_builder.build_permissions(
-                self.job_grants, [], target_type="notebook"
+                self.job_grants, self.notebook_access_control_list, target_type="notebook"
             )
 
             if access_control_list:
