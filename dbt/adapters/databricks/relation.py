@@ -43,6 +43,7 @@ class DatabricksRelationType(StrEnum):
     External = "external"
     ManagedShallowClone = "managed_shallow_clone"
     ExternalShallowClone = "external_shallow_clone"
+    MetricView = "metric_view"
     Unknown = "unknown"
 
 
