@@ -15,3 +15,12 @@ models:
           pii: "true"
           sensitive: "true"
 """
+
+column_tags_seed = """
+id,account_number
+1,'1234567890'
+""".strip()
+
+base_model_streaming_table = """
+SELECT * FROM stream {{ ref('base_model_seed') }}
+"""

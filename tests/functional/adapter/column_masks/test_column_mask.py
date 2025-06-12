@@ -135,7 +135,7 @@ class TestViewColumnMaskFailure(MaterializationV2Mixin):
         assert "Column masks are not supported" in result.results[0].message
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewColumnMaskFailure(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
