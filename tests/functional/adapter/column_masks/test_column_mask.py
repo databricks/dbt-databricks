@@ -11,15 +11,7 @@ from tests.functional.adapter.column_masks.fixtures import (
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestColumnMask(MaterializationV2Mixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": base_model_sql,
-            "schema.yml": model,
-        }
-
+class ColumnMaskMixin(MaterializationV2Mixin):
     def test_column_mask_no_extra_args(self, project):
         # Create the mask function
         project.run_sql(
@@ -86,7 +78,17 @@ class TestColumnMask(MaterializationV2Mixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalColumnMask(TestColumnMask):
+class TestColumnMaskTable(ColumnMaskMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_sql,
+            "schema.yml": model,
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalColumnMask(ColumnMaskMixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -96,7 +98,7 @@ class TestIncrementalColumnMask(TestColumnMask):
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTableColumnMask(TestColumnMask):
+class TestStreamingTableColumnMask(ColumnMaskMixin):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
@@ -135,7 +137,7 @@ class TestViewColumnMaskFailure(MaterializationV2Mixin):
         assert "Column masks are not supported" in result.results[0].message
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewColumnMaskFailure(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):

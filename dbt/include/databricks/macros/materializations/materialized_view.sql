@@ -67,6 +67,11 @@
 
     {{ execute_multiple_statements(build_sql) }}
 
+    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+    {% if column_tags %}
+      {{ apply_column_tags(target_relation, column_tags) }}
+    {% endif %}
+
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 

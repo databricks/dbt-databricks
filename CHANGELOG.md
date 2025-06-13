@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.4 (TBD)
 
+### Features
+
+- Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
+
 ### Fixes
 
 - Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))

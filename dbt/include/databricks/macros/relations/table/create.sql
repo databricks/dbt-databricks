@@ -12,6 +12,10 @@
 
   {{ apply_alter_constraints(target_relation) }}
   {{ apply_tags(target_relation, tags) }}
+  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+  {% if column_tags and column_tags.set_column_tags %}
+    {{ apply_column_tags(target_relation, column_tags) }}
+  {% endif %}
 
   {% call statement('merge into target') %}
     insert into {{ target_relation }} select * from {{ intermediate_relation }}
