@@ -244,24 +244,29 @@ models:
           permission_level: CAN_RUN
         - user_name: {TEST_USER_3}
           permission_level: CAN_MANAGE
+"""
 
 simple_incremental_python_model = """
 import pandas
 
+
 def model(dbt, spark):
     dbt.config(
-        materialized='incremental',
+        materialized="incremental",
     )
-    data = [[1,2]] * 5
-    return spark.createDataFrame(data, schema=['test', 'test2'])
+    data = [[1, 2]] * 5
+    return spark.createDataFrame(data, schema=["test", "test2"])
+
+
 """
 
 simple_incremental_python_model_v2 = """
 import pandas
 
+
 def model(dbt, spark):
     dbt.config(
-        materialized='incremental',
+        materialized="incremental",
         unique_tmp_table_suffix=True,
     )
     data = [[1,2]] * 10

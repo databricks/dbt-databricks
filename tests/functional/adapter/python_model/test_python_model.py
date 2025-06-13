@@ -352,6 +352,7 @@ class TestPythonModelAccessControlList:
             print(f"Error getting permissions: {str(e)}")
             raise
 
+
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchemaV2(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
