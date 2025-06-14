@@ -56,7 +56,7 @@ class TestPythonNotebookUploader:
 
     def test_upload__with_grants(self, uploader, client, compiled_code, workdir, identifier):
         client.workspace.create_python_model_dir.return_value = workdir
-        # job_grantsを直接設定
+        
         uploader.job_grants = {"view": [{"group_name": "data-team"}]}
         uploader.notebook_access_control_list = []
         uploader.set_notebook_permissions = Mock()

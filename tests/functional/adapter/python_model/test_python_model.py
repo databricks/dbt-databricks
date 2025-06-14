@@ -208,7 +208,7 @@ class TestComplexConfigV2(TestComplexConfig):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint", "databricks_uc_cluster")
 class TestWorkflowJob:
     @pytest.fixture(scope="class")
     def models(self):
@@ -315,7 +315,6 @@ class TestPythonModelAccessControlList:
         )
 
         try:
-            # Run the test
             result = util.run_dbt(["run"])
             assert len(result) == 1
 
@@ -324,7 +323,6 @@ class TestPythonModelAccessControlList:
             )
             assert len(sql_results) == 10
 
-            # Verify notebook permissions
             permissions = api_client.notebook_permissions.get(notebook_path)
             acl_list = permissions.get("access_control_list", [])
 
