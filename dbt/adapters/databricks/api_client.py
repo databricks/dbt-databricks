@@ -1,6 +1,8 @@
 import base64
+import json
 import re
 import time
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -41,6 +43,14 @@ class PrefixSession:
         self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
+
+    def patch(
+        self,
+        suffix: str = "",
+        payload: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
+    ) -> Response:
+        return self.session.patch(f"{self.prefix}{suffix}", data=json.dumps(payload), params=params)
 
 
 class DatabricksApi(ABC):
@@ -233,7 +243,6 @@ class WorkspaceApi(DatabricksApi):
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
         folder = self.user_api.get_folder(catalog, schema)
 
-        # Add
         response = self.session.post("/mkdirs", json={"path": folder})
         if response.status_code != 200:
             raise DbtRuntimeError(
@@ -256,6 +265,28 @@ class WorkspaceApi(DatabricksApi):
         )
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
+
+    def get_object_id(self, path: str) -> int:
+        """
+        Get the workspace object ID for the specified path
+        """
+        response = self.session.get("/get-status", params={"path": path})
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(
+                f"Error getting workspace object ID for {path}.\n {response.content!r}"
+            )
+
+        try:
+            object_info = response.json()
+            object_id = object_info.get("object_id")
+
+            if not object_id:
+                raise DbtRuntimeError(f"No object_id found for path {path}")
+
+            return object_id
+        except Exception as e:
+            raise DbtRuntimeError(f"Error parsing workspace object info: {str(e)}")
 
 
 class PollableApi(DatabricksApi, ABC):
@@ -388,6 +419,23 @@ class JobRunsApi(PollableApi):
         logger.info(f"Job submission response={submit_response.content!r}")
         return submit_response.json()["run_id"]
 
+    def get_run_info(self, run_id: str) -> dict[str, Any]:
+        response = self.session.get("/get", params={"run_id": run_id})
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting run info.\n {response.content!r}")
+
+        return response.json()
+
+    def get_job_id_from_run_id(self, run_id: str) -> str:
+        run_info = self.get_run_info(run_id)
+        job_id = run_info.get("job_id")
+
+        if not job_id:
+            raise DbtRuntimeError(f"Could not get job_id from run_id {run_id}")
+
+        return str(job_id)
+
     def poll_for_completion(self, run_id: str) -> None:
         self._poll_api(
             url="/get",
@@ -452,6 +500,15 @@ class JobPermissionsApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
 
+    def patch(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
+        request_body = {"access_control_list": access_control_list}
+
+        response = self.session.patch(f"/{job_id}", payload=request_body)
+        logger.debug(f"Workflow permissions update response={response.json()}")
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+
     def get(self, job_id: str) -> dict[str, Any]:
         response = self.session.get(f"/{job_id}")
 
@@ -459,6 +516,56 @@ class JobPermissionsApi(DatabricksApi):
             raise DbtRuntimeError(
                 f"Error fetching Databricks workflow permissions.\n {response.content!r}"
             )
+
+        return response.json()
+
+
+class NotebookPermissionsApi(DatabricksApi):
+    def __init__(self, session: Session, host: str, workspace_api: "WorkspaceApi"):
+        super().__init__(session, host, "/api/2.0/permissions/notebooks")
+        self.workspace_api = workspace_api
+
+    def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
+        request_body = {"access_control_list": access_control_list}
+
+        object_id = self.workspace_api.get_object_id(notebook_path)
+        encoded_id = urllib.parse.quote(str(object_id))
+
+        logger.debug(
+            f"Setting notebook permissions for path={notebook_path}, object_id={object_id}"
+        )
+        logger.debug(f"Permission request body: {request_body}")
+
+        response = self.session.put(f"/{encoded_id}", json=request_body)
+
+        if response.status_code != 200:
+            error_msg = (
+                f"Error updating Databricks notebook permissions.\n"
+                f"path={notebook_path}, object_id={object_id}\n"
+                f"request_body={request_body}\n"
+                f"response={response.content!r}"
+            )
+            logger.error(error_msg)
+            raise DbtRuntimeError(error_msg)
+
+    def get(self, notebook_path: str) -> dict[str, Any]:
+        object_id = self.workspace_api.get_object_id(notebook_path)
+        encoded_id = urllib.parse.quote(str(object_id))
+
+        logger.debug(
+            f"Getting notebook permissions for path={notebook_path}, object_id={object_id}"
+        )
+
+        response = self.session.get(f"/{encoded_id}")
+
+        if response.status_code != 200:
+            error_msg = (
+                f"Error fetching Databricks notebook permissions.\n"
+                f"path={notebook_path}, object_id={object_id}\n"
+                f"response={response.content!r}"
+            )
+            logger.error(error_msg)
+            raise DbtRuntimeError(error_msg)
 
         return response.json()
 
@@ -595,6 +702,7 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
         self.workflow_permissions = JobPermissionsApi(session, host)
+        self.notebook_permissions = NotebookPermissionsApi(session, host, self.workspace)
         self.dlt_pipelines = DltPipelineApi(session, host, polling_interval)
 
     @staticmethod
