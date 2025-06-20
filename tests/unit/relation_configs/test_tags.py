@@ -54,7 +54,7 @@ class TestTagsConfig:
         config = TagsConfig(set_tags={})
         other = TagsConfig(set_tags={"tag": "value"})
         diff = config.get_diff(other)
-        assert diff is None  # No changes needed since we don't unset tags
+        assert diff == TagsConfig(set_tags={})  # No changes needed since we don't unset tags
 
     def test_get_diff__some_new_and_empty_existing(self):
         config = TagsConfig(set_tags={"tag": "value"})
