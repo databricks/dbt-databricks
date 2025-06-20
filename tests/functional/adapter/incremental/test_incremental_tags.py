@@ -22,11 +22,15 @@ class TestIncrementalTags:
             "where schema_name = '{schema}' and table_name='merge_update_columns_sql'",
             fetch="all",
         )
-        assert len(results) == 2
+        # With "set only" behavior, we should have all tags from both runs
+        assert len(results) == 3
         results_dict = {}
         results_dict[results[0].tag_name] = results[0].tag_value
         results_dict[results[1].tag_name] = results[1].tag_value
-        assert results_dict == {"c": "e", "d": "f"}
+        results_dict[results[2].tag_name] = results[2].tag_value
+        # Tags are "set only" - old ones persist, new ones are added/updated
+        expected_tags = {"a": "b", "c": "e", "d": "f"}
+        assert results_dict == expected_tags
 
 
 @pytest.mark.python
@@ -48,8 +52,12 @@ class TestIncrementalPythonTags:
             "where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
-        assert len(results) == 2
+        # With "set only" behavior, we should have all tags from both runs
+        assert len(results) == 3
         results_dict = {}
         results_dict[results[0].tag_name] = results[0].tag_value
         results_dict[results[1].tag_name] = results[1].tag_value
-        assert results_dict == {"c": "e", "d": "f"}
+        results_dict[results[2].tag_name] = results[2].tag_value
+        # Tags are "set only" - old ones persist, new ones are added/updated
+        expected_tags = {"a": "b", "c": "e", "d": "f"}
+        assert results_dict == expected_tags

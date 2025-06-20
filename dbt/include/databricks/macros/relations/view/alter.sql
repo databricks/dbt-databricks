@@ -9,7 +9,7 @@
   {% set query = changes.get("query") %}
   {% set column_comments = changes.get("column_comments") %}
   {% if tags %}
-    {{ apply_tags(target_relation, tags.set_tags, tags.unset_tags) }}
+    {{ apply_tags(target_relation, tags.set_tags) }}
   {% endif %}
   {% if tblproperties %}
     {{ apply_tblproperties(target_relation, tblproperties.tblproperties) }}

@@ -10,7 +10,7 @@
       {% set constraints = configuration_changes.changes.get("constraints") %}
       {% set column_masks = configuration_changes.changes.get("column_masks") %}
       {% if tags is not none %}
-        {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
+        {% do apply_tags(target_relation, tags.set_tags) %}
       {%- endif -%}
       {% if tblproperties is not none %}
         {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}

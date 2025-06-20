@@ -49,19 +49,28 @@ class TestTagsProcessor:
 
 class TestTagsConfig:
     def test_get_diff__empty_and_some_exist(self):
+        # Tags are "set only" - when config has no tags and relation has tags,
+        # we don't unset the existing tags
         config = TagsConfig(set_tags={})
         other = TagsConfig(set_tags={"tag": "value"})
         diff = config.get_diff(other)
-        assert diff == TagsConfig(set_tags={}, unset_tags=["tag"])
+        assert diff == TagsConfig(set_tags={})  # No changes needed since we don't unset tags
 
     def test_get_diff__some_new_and_empty_existing(self):
         config = TagsConfig(set_tags={"tag": "value"})
         other = TagsConfig(set_tags={})
         diff = config.get_diff(other)
-        assert diff == TagsConfig(set_tags={"tag": "value"}, unset_tags=[])
+        assert diff == TagsConfig(set_tags={"tag": "value"})
 
     def test_get_diff__mixed_case(self):
+        # Tags are "set only" - only the new/updated tags are included
         config = TagsConfig(set_tags={"a": "value", "b": "value"})
         other = TagsConfig(set_tags={"b": "other_value", "c": "value"})
         diff = config.get_diff(other)
-        assert diff == TagsConfig(set_tags={"a": "value", "b": "value"}, unset_tags=["c"])
+        assert diff == TagsConfig(set_tags={"a": "value", "b": "value"})
+
+    def test_get_diff__no_changes(self):
+        config = TagsConfig(set_tags={"tag": "value"})
+        other = TagsConfig(set_tags={"tag": "value"})
+        diff = config.get_diff(other)
+        assert diff is None
