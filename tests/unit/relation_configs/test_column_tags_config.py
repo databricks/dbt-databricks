@@ -93,12 +93,12 @@ class TestColumnTagsProcessor:
 
 class TestColumnTagsConfig:
     def test_get_diff__empty_and_some_exist(self):
+        # Column tags are "set only" - when config has no tags and relation has tags,
+        # we don't unset the existing tags
         config = ColumnTagsConfig(set_column_tags={})
         other = ColumnTagsConfig(set_column_tags={"col1": {"tag_a": "value_a", "tag_b": "value_b"}})
         diff = config.get_diff(other)
-        assert diff == ColumnTagsConfig(
-            set_column_tags={}, unset_column_tags={"col1": ["tag_a", "tag_b"]}
-        )
+        assert diff is None  # No changes needed since we don't unset tags
 
     def test_get_diff__some_new_and_empty_existing(self):
         config = ColumnTagsConfig(
@@ -107,11 +107,11 @@ class TestColumnTagsConfig:
         other = ColumnTagsConfig(set_column_tags={})
         diff = config.get_diff(other)
         assert diff == ColumnTagsConfig(
-            set_column_tags={"col1": {"tag_a": "value_a", "tag_b": "value_b"}},
-            unset_column_tags={},
+            set_column_tags={"col1": {"tag_a": "value_a", "tag_b": "value_b"}}
         )
 
     def test_get_diff__mixed_case(self):
+        # Column tags are "set only" - only the new/updated tags are included
         config = ColumnTagsConfig(
             set_column_tags={
                 "col1": {"tag_a": "new_value", "tag_b": "value_b"},
@@ -129,8 +129,7 @@ class TestColumnTagsConfig:
             set_column_tags={
                 "col1": {"tag_a": "new_value", "tag_b": "value_b"},
                 "col2": {"tag_c": "value_c"},
-            },
-            unset_column_tags={"col1": ["tag_d"], "col3": ["tag_e"]},
+            }
         )
 
     def test_get_diff__no_changes(self):

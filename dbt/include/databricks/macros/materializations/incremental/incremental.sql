@@ -158,7 +158,7 @@
         {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
         {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
         {% if tags is not none %}
-          {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
+          {% do apply_tags(target_relation, tags.set_tags) %}
         {%- endif -%}
         {% if tblproperties is not none %}
           {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}

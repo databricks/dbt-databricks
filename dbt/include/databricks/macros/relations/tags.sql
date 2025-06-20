@@ -16,19 +16,14 @@
     AND table_name = '{{ relation.identifier|lower }}'
 {%- endmacro -%}
 
-{% macro apply_tags(relation, set_tags, unset_tags=[]) -%}
-  {{ log("Applying tags to relation " ~ set_tags ~ " " ~ unset_tags) }}
-  {%- if (set_tags or unset_tags) and relation.is_hive_metastore() -%}
+{% macro apply_tags(relation, set_tags) -%}
+  {{ log("Applying tags to relation " ~ set_tags) }}
+  {%- if set_tags and relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}
   {%- endif -%}
   {%- if set_tags %}
     {%- call statement('main') -%}
        {{ alter_set_tags(relation, set_tags) }}
-    {%- endcall -%}
-  {%- endif %}
-  {%- if unset_tags %}
-    {%- call statement('main') -%}
-       {{ alter_unset_tags(relation, unset_tags) }}
     {%- endcall -%}
   {%- endif %}
 {%- endmacro -%}
@@ -37,14 +32,6 @@
   ALTER {{ relation.type }} {{ relation.render() }} SET TAGS (
     {% for tag in tags -%}
       '{{ tag }}' = '{{ tags[tag] }}' {%- if not loop.last %}, {% endif -%}
-    {%- endfor %}
-  )
-{%- endmacro -%}
-
-{% macro alter_unset_tags(relation, tags) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} UNSET TAGS (
-    {% for tag in tags -%}
-      '{{ tag }}' {%- if not loop.last %}, {%- endif %}
     {%- endfor %}
   )
 {%- endmacro -%}
