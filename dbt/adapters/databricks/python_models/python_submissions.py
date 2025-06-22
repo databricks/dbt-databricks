@@ -587,7 +587,9 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             config_compiler,
             permission_builder,
             workflow_creater,
-            parsed_model.config.python_job_config.grants if parsed_model.config.python_job_config else {},
+            parsed_model.config.python_job_config.grants
+            if parsed_model.config.python_job_config
+            else {},
             parsed_model.config.access_control_list,
         )
 
