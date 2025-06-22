@@ -10,7 +10,6 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     PythonNotebookSubmitter,
     PythonNotebookUploader,
     PythonNotebookWorkflowSubmitter,
-    PythonPermissionBuilder,
     PythonWorkflowConfigCompiler,
     PythonWorkflowCreator,
 )
@@ -215,6 +214,7 @@ class TestPythonNotebookWorkflowSubmitter:
 
     def test_create__golden_path(self, client, tracker):
         parsed_model = Mock()
+
         parsed_model.config.python_job_config.grants = {}
         parsed_model.config.access_control_list = []
         parsed_model.config.python_job_config.additional_task_settings = {}
@@ -224,5 +224,4 @@ class TestPythonNotebookWorkflowSubmitter:
         assert submitter.tracker == tracker
         assert isinstance(submitter.uploader, PythonNotebookUploader)
         assert isinstance(submitter.config_compiler, PythonWorkflowConfigCompiler)
-        assert isinstance(submitter.permission_builder, PythonPermissionBuilder)
         assert isinstance(submitter.workflow_creater, PythonWorkflowCreator)
