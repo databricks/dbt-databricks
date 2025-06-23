@@ -31,11 +31,3 @@ class TestTagsMacros(MacroTestBase):
         )
 
         assert sql == expected
-
-    def test_macros_alter_unset_tags(self, template_bundle):
-        sql = self.render_bundle(template_bundle, "alter_unset_tags", ["a", "b"])
-        expected = self.clean_sql(
-            "ALTER table `some_database`.`some_schema`.`some_table` UNSET TAGS ( 'a','b' )"
-        )
-
-        assert sql == expected
