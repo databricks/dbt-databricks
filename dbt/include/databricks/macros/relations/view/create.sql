@@ -1,4 +1,10 @@
 {% macro databricks__create_view_as(relation, sql) %}
+  {% if column_mask_exists() %}
+    {% do exceptions.raise_compiler_error("Column masks are not supported for views.") %}
+  {% endif %}
+  {% if column_tags_exist() %}
+    {% do exceptions.raise_compiler_error("Column tags are not supported for views.") %}
+  {% endif %}
   {{ log("Creating view " ~ relation) }}
   create or replace view {{ relation.render() }}
   {%- if config.persist_column_docs() -%}

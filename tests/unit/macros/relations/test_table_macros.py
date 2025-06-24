@@ -17,7 +17,7 @@ def unity_relation(
         catalog_type=catalog_integration.catalog_type,
         catalog_name=catalog_integration.catalog_name,
         table_format=table_format or catalog_integration.table_format,
-        file_format=file_format or catalog_integration.adapter_properties.get("file_format"),
+        file_format=file_format or catalog_integration.file_format,
         external_volume=location_root or catalog_integration.external_volume,
         location_path=location_path,
     )

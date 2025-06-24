@@ -1,6 +1,8 @@
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
+from dbt.adapters.databricks.relation_configs.column_mask import ColumnMaskConfig
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.constraints import (
     CheckConstraint,
@@ -24,6 +26,12 @@ class TestIncrementalConfig:
                     ["tag2", "value2"],
                 ],
                 column_names=["tag_name", "tag_value"],
+            ),
+            "information_schema.column_tags": Table(
+                rows=[
+                    ["column", "sensitive", "true"],
+                ],
+                column_names=["column_name", "tag_name", "tag_value"],
             ),
             "show_tblproperties": Table(
                 rows=[
@@ -69,6 +77,10 @@ class TestIncrementalConfig:
                     "to_column",
                 ],
             ),
+            "column_masks": Table(
+                rows=[["col1", "mask1", "col2"], ["col2", "mask2", "col1"]],
+                column_names=["column_name", "mask_name", "using_columns"],
+            ),
         }
 
         config = IncrementalTableConfig.from_results(results)
@@ -77,6 +89,9 @@ class TestIncrementalConfig:
             config={
                 "comment": CommentConfig(comment=None, persist=False),
                 "tags": TagsConfig(set_tags={"tag1": "value1", "tag2": "value2"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"column": {"sensitive": "True"}},
+                ),
                 "column_comments": ColumnCommentsConfig(
                     comments={"column": "test comment"}, quoted={}, persist=False
                 ),
@@ -120,6 +135,13 @@ class TestIncrementalConfig:
                         ),
                     ],
                     unset_constraints=[],
+                ),
+                "column_masks": ColumnMaskConfig(
+                    set_column_masks={
+                        "col1": {"function": "mask1", "using_columns": "col2"},
+                        "col2": {"function": "mask2", "using_columns": "col1"},
+                    },
+                    unset_column_masks=[],
                 ),
             }
         )

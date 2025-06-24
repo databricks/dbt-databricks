@@ -429,11 +429,13 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "column": "col1",
             "column_index": 0,
             "dtype": None,
+            "mask": None,
             "numeric_scale": None,
             "numeric_precision": None,
             "char_size": None,
             "comment": None,
             "not_null": None,
+            "databricks_tags": None,
         }
 
         default_col.update(real_vals)
@@ -652,6 +654,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 "column_index": 0,
                 "comment": "comment",
                 "dtype": "decimal(22,0)",
+                "mask": None,
                 "stats:bytes:description": "",
                 "stats:bytes:include": True,
                 "stats:bytes:label": "bytes",

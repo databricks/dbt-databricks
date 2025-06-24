@@ -56,6 +56,10 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationConfig,
     DatabricksRelationConfigBase,
 )
+from dbt.adapters.databricks.relation_configs.column_tags import (
+    ColumnTagsConfig,
+    ColumnTagsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -851,6 +855,10 @@ class DatabricksAdapter(SparkAdapter):
             return catalog_integration.build_relation(model)
         return None
 
+    @available
+    def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
+        return ColumnTagsProcessor.from_relation_config(model)
+
 
 @dataclass(frozen=True)
 class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
@@ -975,6 +983,9 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
         if not relation.is_hive_metastore():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
             results["non_null_constraint_columns"] = adapter.execute_macro(
                 "fetch_non_null_constraint_columns", kwargs=kwargs
             )
@@ -984,6 +995,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["foreign_key_constraints"] = adapter.execute_macro(
                 "fetch_foreign_key_constraints", kwargs=kwargs
             )
+            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}

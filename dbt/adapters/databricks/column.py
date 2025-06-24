@@ -10,6 +10,8 @@ class DatabricksColumn(SparkColumn):
     table_comment: Optional[str] = None
     comment: Optional[str] = None
     not_null: Optional[bool] = None
+    mask: Optional[dict[str, str]] = None
+    databricks_tags: Optional[dict[str, str]] = None
 
     TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
@@ -36,6 +38,10 @@ class DatabricksColumn(SparkColumn):
         enriched_column = DatabricksColumn.create(name, data_type)
         if model_column.get("description"):
             enriched_column.comment = model_column["description"]
+        if model_column.get("column_mask"):
+            enriched_column.mask = model_column["column_mask"]
+        if model_column.get("databricks_tags"):
+            enriched_column.databricks_tags = model_column["databricks_tags"]
 
         enriched_column.not_null = not_null
         return enriched_column
@@ -48,6 +54,10 @@ class DatabricksColumn(SparkColumn):
         if self.comment:
             comment = self.comment.replace("'", "\\'")
             column_str += f" COMMENT '{comment}'"
+        if self.mask:
+            column_str += f" MASK {self.mask['function']}"
+            if "using_columns" in self.mask:
+                column_str += f" USING COLUMNS ({self.mask['using_columns']})"
         return column_str
 
     def __repr__(self) -> str:

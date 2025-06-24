@@ -44,7 +44,7 @@ jobs:
   code-quality:
     name: Code Quality
 
-    runs-on: ubuntu-latest
+    runs-on: linux-ubuntu-latest
     timeout-minutes: 10
 
     strategy:
@@ -68,8 +68,17 @@ jobs:
   unit:
     name: unit test / python ${{ matrix.python-version }}
 
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: linux-ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      # Gives the action the necessary permissions for publishing new
+      # comments in pull requests.
+      pull-requests: write
+      # Gives the action the necessary permissions for pushing data to the
+      # python-coverage-comment-action branch, and for editing existing
+      # comments (to avoid publishing multiple comments in the same PR)
+      contents: write
 
     strategy:
       fail-fast: false
@@ -88,12 +97,26 @@ jobs:
       - name: Install Hatch
         uses: pypa/hatch@install
 
-      - name: Run Unit Tests
-        run: hatch run -v +py=${{ matrix.python-version }} test:unit
+      - name: Run Unit Tests and Generate Coverage
+        run: hatch run -v +py=${{ matrix.python-version }} test:unit-with-cov
+
+      # Only run coverage comment once (not for all python versions)
+      - name: Coverage Comment
+        if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Store Pull Request comment to be posted
+        uses: actions/upload-artifact@v4
+        if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
 
   build:
     name: Build and Verify Packages
-    runs-on: ubuntu-latest
+    runs-on: linux-ubuntu-latest
 
     steps:
       - name: Check out the repository

@@ -60,7 +60,7 @@ where id >= 10 and id <= 20
 invalidate_sql_2 = """
 -- invalidate records 11 - 21
 update {schema}.snapshot_expected set
-    test_valid_to   = updated_at + interval '1 hour'
+    TEST_VALID_TO   = updated_at + interval '1 hour'
 where id >= 10 and id <= 20;
 """
 
@@ -75,7 +75,7 @@ where id1 >= 10 and id1 <= 20;
 invalidate_multi_key_sql_2 = """
 -- invalidate records 11 - 21
 update {schema}.snapshot_expected set
-    test_valid_to   = updated_at + interval '1 hour'
+    TEST_VALID_TO   = updated_at + interval '1 hour'
 where id1 >= 10 and id1 <= 20;
 """
 
@@ -129,7 +129,7 @@ class BaseSnapshotColumnNamesFromDbtProject:
             "snapshots": {
                 "test": {
                     "+snapshot_meta_column_names": {
-                        "dbt_valid_to": "test_valid_to",
+                        "dbt_valid_to": "TEST_VALID_TO",
                         "dbt_valid_from": "test_valid_from",
                         "dbt_scd_id": "test_scd_id",
                         "dbt_updated_at": "test_updated_at",
@@ -175,7 +175,7 @@ class BaseSnapshotInvalidColumnNames:
             "snapshots": {
                 "test": {
                     "+snapshot_meta_column_names": {
-                        "dbt_valid_to": "test_valid_to",
+                        "dbt_valid_to": "TEST_VALID_TO",
                         "dbt_valid_from": "test_valid_from",
                         "dbt_scd_id": "test_scd_id",
                         "dbt_updated_at": "test_updated_at",
@@ -195,7 +195,7 @@ class BaseSnapshotInvalidColumnNames:
         manifest = get_manifest(project.project_root)
         snapshot_node = manifest.nodes["snapshot.test.snapshot_actual"]
         snapshot_node.config.snapshot_meta_column_names == {
-            "dbt_valid_to": "test_valid_to",
+            "dbt_valid_to": "TEST_VALID_TO",
             "dbt_valid_from": "test_valid_from",
             "dbt_scd_id": "test_scd_id",
             "dbt_updated_at": "test_updated_at",
@@ -210,7 +210,7 @@ class BaseSnapshotInvalidColumnNames:
             "snapshots": {
                 "test": {
                     "+snapshot_meta_column_names": {
-                        "dbt_valid_to": "test_valid_to",
+                        "dbt_valid_to": "TEST_VALID_TO",
                         "dbt_updated_at": "test_updated_at",
                     }
                 }
@@ -247,7 +247,7 @@ class BaseSnapshotDbtValidToCurrent:
 
         original_snapshot: Table = run_sql_with_adapter(
             project.adapter,
-            "select id, test_scd_id, test_valid_to from {schema}.snapshot_actual",
+            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual",
             "all",
         )
         assert original_snapshot[0][2] == datetime.datetime(
@@ -269,7 +269,7 @@ class BaseSnapshotDbtValidToCurrent:
 
         updated_snapshot: Table = run_sql_with_adapter(
             project.adapter,
-            "select id, test_scd_id, test_valid_to from {schema}.snapshot_actual",
+            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual",
             "all",
         )
         print(updated_snapshot)

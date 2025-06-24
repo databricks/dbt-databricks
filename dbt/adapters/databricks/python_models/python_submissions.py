@@ -81,7 +81,6 @@ class PythonCommandSubmitter(PythonSubmitter):
             )
 
             self.tracker.insert_command(command_exec)
-            # poll until job finish
             self.api_client.commands.poll_for_completion(command_exec)
 
         finally:
@@ -98,13 +97,41 @@ class PythonNotebookUploader:
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
         self.identifier = parsed_model.identifier
+        self.job_grants = (
+            parsed_model.config.python_job_config.grants
+            if parsed_model.config.python_job_config
+            else {}
+        )
+        self.notebook_access_control_list = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
+
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
+
+        if self.job_grants or self.notebook_access_control_list:
+            self.set_notebook_permissions(file_path)
+
         return file_path
+
+    def set_notebook_permissions(self, notebook_path: str) -> None:
+        try:
+            permission_builder = PythonPermissionBuilder(self.api_client)
+
+            access_control_list = permission_builder.build_permissions(
+                self.job_grants, self.notebook_access_control_list, target_type="notebook"
+            )
+
+            if access_control_list:
+                logger.debug(f"Setting permissions on notebook: {notebook_path}")
+                self.api_client.notebook_permissions.put(notebook_path, access_control_list)
+        except Exception as e:
+            logger.error(f"Failed to set permissions on notebook {notebook_path}: {str(e)}")
+            raise DbtRuntimeError(
+                f"Failed to set permissions on notebook: path={notebook_path}, error: {str(e)}"
+            )
 
 
 class PythonJobDetails(BaseModel):
@@ -117,6 +144,9 @@ class PythonJobDetails(BaseModel):
 
 class PythonPermissionBuilder:
     """Class for building access control list for Python jobs."""
+
+    JOB_PERMISSIONS = {"IS_OWNER", "CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
+    NOTEBOOK_PERMISSIONS = {"CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
 
     def __init__(
         self,
@@ -136,15 +166,24 @@ class PythonPermissionBuilder:
     def _build_job_permission(
         job_grants: list[dict[str, Any]], permission: str
     ) -> list[dict[str, Any]]:
+        """Build the access control list for the job."""
+
         return [{**grant, **{"permission_level": permission}} for grant in job_grants]
+
+    def _filter_permissions(
+        self, acls: list[dict[str, Any]], valid_permissions: set[str]
+    ) -> list[dict[str, Any]]:
+        return [
+            acl
+            for acl in acls
+            if "permission_level" in acl and acl["permission_level"] in valid_permissions
+        ]
 
     def build_job_permissions(
         self,
         job_grants: dict[str, list[dict[str, Any]]],
-        acls: list[dict[str, str]],
+        acls: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Build the access control list for the job."""
-
         access_control_list = []
         owner, permissions_attribute = self._get_job_owner_for_config()
         access_control_list.append(
@@ -164,7 +203,39 @@ class PythonPermissionBuilder:
             self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
         )
 
-        return access_control_list + acls
+        combined_acls = access_control_list + acls
+        return self._filter_permissions(combined_acls, self.JOB_PERMISSIONS)
+
+    def build_notebook_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
+        access_control_list = []
+
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("view", []), "CAN_READ")
+        )
+        access_control_list.extend(self._build_job_permission(job_grants.get("run", []), "CAN_RUN"))
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
+        )
+
+        combined_acls = access_control_list + acls
+        filtered_acls = self._filter_permissions(combined_acls, self.NOTEBOOK_PERMISSIONS)
+
+        return [acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"]
+
+    def build_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+        target_type: str = "job",
+    ) -> list[dict[str, Any]]:
+        if target_type == "notebook":
+            return self.build_notebook_permissions(job_grants, acls)
+        else:
+            return self.build_job_permissions(job_grants, acls)
 
 
 def get_library_config(
@@ -200,6 +271,7 @@ class PythonJobConfigCompiler:
     ) -> None:
         self.api_client = api_client
         self.permission_builder = permission_builder
+        self.access_control_list = parsed_model.config.access_control_list
         self.run_name = parsed_model.run_name
         packages = parsed_model.config.packages
         index_url = parsed_model.config.index_url
@@ -207,7 +279,6 @@ class PythonJobConfigCompiler:
         library_config = get_library_config(packages, index_url, additional_libraries)
         self.cluster_spec = {**cluster_spec, **library_config}
         self.job_grants = parsed_model.config.python_job_config.grants
-        self.acls = parsed_model.config.access_control_list
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
         self.environment_key = parsed_model.config.environment_key
         self.environment_deps = parsed_model.config.environment_dependencies
@@ -231,10 +302,10 @@ class PythonJobConfigCompiler:
                         "spec": {"client": "2", "dependencies": self.environment_deps},
                     }
                 ]
-        job_spec.update(self.cluster_spec)  # updates 'new_cluster' config
+        job_spec.update(self.cluster_spec)
 
         access_control_list = self.permission_builder.build_job_permissions(
-            self.job_grants, self.acls
+            self.job_grants, self.access_control_list
         )
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
@@ -284,12 +355,25 @@ class PythonNotebookSubmitter(PythonSubmitter):
         file_path = self.uploader.upload(compiled_code)
         job_config = self.config_compiler.compile(file_path)
 
-        # submit job
         run_id = self.api_client.job_runs.submit(
             job_config.run_name, job_config.job_spec, **job_config.additional_job_config
         )
         self.tracker.insert_run_id(run_id)
+
         try:
+            if "access_control_list" in job_config.job_spec:
+                try:
+                    job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
+                    logger.debug(f"Setting permissions on job: {job_id}")
+                    self.api_client.workflow_permissions.patch(
+                        job_id, job_config.job_spec["access_control_list"]
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
+                    raise DbtRuntimeError(
+                        f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}"
+                    )
+
             self.api_client.job_runs.poll_for_completion(run_id)
         finally:
             self.tracker.remove_run_id(run_id)
@@ -446,9 +530,6 @@ class PythonWorkflowCreator:
         workflow_spec: dict[str, Any],
         existing_job_id: Optional[str],
     ) -> str:
-        """
-        :return: tuple of job_id and whether the job is new
-        """
         if not existing_job_id:
             workflow_name = workflow_spec["name"]
             response_jobs = self.workflows.search_by_name(workflow_name)

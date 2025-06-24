@@ -1,4 +1,33 @@
-## dbt-databricks 1.10.3 (TBD)
+## dbt-databricks 1.10.5 (TBD)
+
+## dbt-databricks 1.10.4 (June 24, 2025)
+
+### Features
+
+- Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
+- Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
+
+### Fixes
+
+- Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
+- Fix ACL permissions not applied to notebook jobs created by DBT Python model ([1015](https://github.com/databricks/dbt-databricks/pull/1015))
+- Fix bug where model run fails if catalog contains a metric view ([1045](https://github.com/databricks/dbt-databricks/issues/1045))
+- Disable removing table tags and column tags to allow dbt tags to coexist with automatically added Databricks tags ([1069](https://github.com/databricks/dbt-databricks/issues/1069))
+- Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))
+- Fix bug where incorrect insert overwrite exception was being thrown when overriding compute at model level ([1032](https://github.com/databricks/dbt-databricks/issues/1032))
+- Fix bug that was causing failures when multiple foreign key constraints are defined in a model ([1034](https://github.com/databricks/dbt-databricks/issues/1034))
+- Fix location_root config not being treated case sensitive ([1037](https://github.com/databricks/dbt-databricks/issues/1037))
+- Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
+
+### Under the Hood
+- Update to dbt-core 1.10.1
+- Update to dbt-common 1.24.0
+
+## dbt-databricks 1.10.3 (June 4, 2025)
+
+### Fixes
+
+- Fix for breaking change in dbt-adapters
 
 ## dbt-databricks 1.10.2 (May 21, 2025)
 

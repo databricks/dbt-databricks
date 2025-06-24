@@ -1,6 +1,8 @@
 import base64
+import json
 import re
 import time
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ from dbt.adapters.databricks.logging import logger
 DEFAULT_POLLING_INTERVAL = 10
 SUBMISSION_LANGUAGE = "python"
 USER_AGENT = f"dbt-databricks/{version}"
+LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
 
 
 class PrefixSession:
@@ -41,16 +44,59 @@ class PrefixSession:
     ) -> Response:
         return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
 
+    def patch(
+        self,
+        suffix: str = "",
+        payload: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
+    ) -> Response:
+        return self.session.patch(f"{self.prefix}{suffix}", data=json.dumps(payload), params=params)
+
 
 class DatabricksApi(ABC):
     def __init__(self, session: Session, host: str, api: str):
         self.session = PrefixSession(session, host, api)
 
 
+class LibraryApi(DatabricksApi):
+    def __init__(self, session: Session, host: str):
+        super().__init__(session, host, "/api/2.0/libraries")
+
+    def all_libraries_installed(self, cluster_id: str) -> bool:
+        status = self.get_cluster_libraries_status(cluster_id)
+        if "library_statuses" in status:
+            return all(
+                library["status"] in LIBRARY_VALID_STATUSES
+                for library in status["library_statuses"]
+            )
+        else:
+            return True
+
+    def get_cluster_libraries_status(self, cluster_id: str) -> dict[str, Any]:
+        response = self.session.get(
+            "/cluster-status",
+            json={"cluster_id": cluster_id},
+        )
+        if response.status_code != 200:
+            raise DbtRuntimeError(
+                f"Error getting status of libraries of a cluster.\n {response.content!r}"
+            )
+
+        json_response = response.json()
+        return json_response
+
+
 class ClusterApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, max_cluster_start_time: int = 900):
+    def __init__(
+        self,
+        session: Session,
+        host: str,
+        libraries: LibraryApi,
+        max_cluster_start_time: int = 900,
+    ):
         super().__init__(session, host, "/api/2.0/clusters")
         self.max_cluster_start_time = max_cluster_start_time
+        self.libraries = libraries
 
     def status(self, cluster_id: str) -> str:
         # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
@@ -68,10 +114,19 @@ class ClusterApi(DatabricksApi):
 
         while time.time() - start_time < self.max_cluster_start_time:
             status_response = self.status(cluster_id)
-            if status_response == "RUNNING":
-                return
-            else:
+
+            if status_response != "RUNNING":
+                logger.debug("Waiting for cluster to start")
                 time.sleep(5)
+                continue
+
+            libraries_status = self.libraries.get_cluster_libraries_status(cluster_id)
+            if not self.libraries.all_libraries_installed(cluster_id):
+                logger.debug(f"Waiting for all libraries to be installed: {libraries_status}")
+                time.sleep(5)
+                continue
+
+            return
 
         raise DbtRuntimeError(
             f"Cluster {cluster_id} restart timed out after {self.max_cluster_start_time} seconds"
@@ -96,9 +151,12 @@ class ClusterApi(DatabricksApi):
 
 
 class CommandContextApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, cluster_api: ClusterApi):
+    def __init__(
+        self, session: Session, host: str, cluster_api: ClusterApi, library_api: LibraryApi
+    ):
         super().__init__(session, host, "/api/1.2/contexts")
         self.cluster_api = cluster_api
+        self.library_api = library_api
 
     def create(self, cluster_id: str) -> str:
         current_status = self.cluster_api.status(cluster_id)
@@ -107,7 +165,9 @@ class CommandContextApi(DatabricksApi):
             logger.debug(f"Cluster {cluster_id} is not running. Attempting to restart.")
             self.cluster_api.start(cluster_id)
             logger.debug(f"Cluster {cluster_id} is now running.")
-        elif current_status != "RUNNING":
+        elif current_status != "RUNNING" or not self.library_api.all_libraries_installed(
+            cluster_id
+        ):
             self.cluster_api.wait_for_cluster(cluster_id)
 
         response = self.session.post(
@@ -183,7 +243,6 @@ class WorkspaceApi(DatabricksApi):
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
         folder = self.user_api.get_folder(catalog, schema)
 
-        # Add
         response = self.session.post("/mkdirs", json={"path": folder})
         if response.status_code != 200:
             raise DbtRuntimeError(
@@ -206,6 +265,28 @@ class WorkspaceApi(DatabricksApi):
         )
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
+
+    def get_object_id(self, path: str) -> int:
+        """
+        Get the workspace object ID for the specified path
+        """
+        response = self.session.get("/get-status", params={"path": path})
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(
+                f"Error getting workspace object ID for {path}.\n {response.content!r}"
+            )
+
+        try:
+            object_info = response.json()
+            object_id = object_info.get("object_id")
+
+            if not object_id:
+                raise DbtRuntimeError(f"No object_id found for path {path}")
+
+            return object_id
+        except Exception as e:
+            raise DbtRuntimeError(f"Error parsing workspace object info: {str(e)}")
 
 
 class PollableApi(DatabricksApi, ABC):
@@ -338,6 +419,23 @@ class JobRunsApi(PollableApi):
         logger.info(f"Job submission response={submit_response.content!r}")
         return submit_response.json()["run_id"]
 
+    def get_run_info(self, run_id: str) -> dict[str, Any]:
+        response = self.session.get("/get", params={"run_id": run_id})
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error getting run info.\n {response.content!r}")
+
+        return response.json()
+
+    def get_job_id_from_run_id(self, run_id: str) -> str:
+        run_info = self.get_run_info(run_id)
+        job_id = run_info.get("job_id")
+
+        if not job_id:
+            raise DbtRuntimeError(f"Could not get job_id from run_id {run_id}")
+
+        return str(job_id)
+
     def poll_for_completion(self, run_id: str) -> None:
         self._poll_api(
             url="/get",
@@ -402,6 +500,15 @@ class JobPermissionsApi(DatabricksApi):
         if response.status_code != 200:
             raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
 
+    def patch(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
+        request_body = {"access_control_list": access_control_list}
+
+        response = self.session.patch(f"/{job_id}", payload=request_body)
+        logger.debug(f"Workflow permissions update response={response.json()}")
+
+        if response.status_code != 200:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+
     def get(self, job_id: str) -> dict[str, Any]:
         response = self.session.get(f"/{job_id}")
 
@@ -409,6 +516,56 @@ class JobPermissionsApi(DatabricksApi):
             raise DbtRuntimeError(
                 f"Error fetching Databricks workflow permissions.\n {response.content!r}"
             )
+
+        return response.json()
+
+
+class NotebookPermissionsApi(DatabricksApi):
+    def __init__(self, session: Session, host: str, workspace_api: "WorkspaceApi"):
+        super().__init__(session, host, "/api/2.0/permissions/notebooks")
+        self.workspace_api = workspace_api
+
+    def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
+        request_body = {"access_control_list": access_control_list}
+
+        object_id = self.workspace_api.get_object_id(notebook_path)
+        encoded_id = urllib.parse.quote(str(object_id))
+
+        logger.debug(
+            f"Setting notebook permissions for path={notebook_path}, object_id={object_id}"
+        )
+        logger.debug(f"Permission request body: {request_body}")
+
+        response = self.session.put(f"/{encoded_id}", json=request_body)
+
+        if response.status_code != 200:
+            error_msg = (
+                f"Error updating Databricks notebook permissions.\n"
+                f"path={notebook_path}, object_id={object_id}\n"
+                f"request_body={request_body}\n"
+                f"response={response.content!r}"
+            )
+            logger.error(error_msg)
+            raise DbtRuntimeError(error_msg)
+
+    def get(self, notebook_path: str) -> dict[str, Any]:
+        object_id = self.workspace_api.get_object_id(notebook_path)
+        encoded_id = urllib.parse.quote(str(object_id))
+
+        logger.debug(
+            f"Getting notebook permissions for path={notebook_path}, object_id={object_id}"
+        )
+
+        response = self.session.get(f"/{encoded_id}")
+
+        if response.status_code != 200:
+            error_msg = (
+                f"Error fetching Databricks notebook permissions.\n"
+                f"path={notebook_path}, object_id={object_id}\n"
+                f"response={response.content!r}"
+            )
+            logger.error(error_msg)
+            raise DbtRuntimeError(error_msg)
 
         return response.json()
 
@@ -532,8 +689,9 @@ class DatabricksApiClient:
         timeout: int,
         use_user_folder: bool,
     ):
-        self.clusters = ClusterApi(session, host)
-        self.command_contexts = CommandContextApi(session, host, self.clusters)
+        self.libraries = LibraryApi(session, host)
+        self.clusters = ClusterApi(session, host, self.libraries)
+        self.command_contexts = CommandContextApi(session, host, self.clusters, self.libraries)
         self.curr_user = CurrUserApi(session, host)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)
@@ -544,6 +702,7 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
         self.workflow_permissions = JobPermissionsApi(session, host)
+        self.notebook_permissions = NotebookPermissionsApi(session, host, self.workspace)
         self.dlt_pipelines = DltPipelineApi(session, host, polling_interval)
 
     @staticmethod

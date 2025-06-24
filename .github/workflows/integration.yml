@@ -45,6 +45,14 @@ jobs:
       - name: Run UC Cluster Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
 
+      - name: Upload UC Cluster Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc-cluster-test-logs
+          path: logs/
+          retention-days: 5
+
   run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
@@ -77,6 +85,14 @@ jobs:
       - name: Run Sql Endpoint Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
 
+      - name: Upload SQL Endpoint Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-endpoint-test-logs
+          path: logs/
+          retention-days: 5
+
   run-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
@@ -105,3 +121,11 @@ jobs:
 
       - name: Run Cluster Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e
+
+      - name: Upload Cluster Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-test-logs
+          path: logs/
+          retention-days: 5

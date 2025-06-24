@@ -223,6 +223,12 @@ overwrite_expected = """id,msg
 3,anyway
 """
 
+upsert_expected_no_msg = """id,msg
+1,hello
+2,null
+3,null
+"""
+
 upsert_expected = """id,msg
 1,hello
 2,yo
@@ -299,6 +305,26 @@ select cast(2 as bigint) as id, 'goodbye' as msg
 select cast(2 as bigint) as id, 'yo' as msg
 union all
 select cast(3 as bigint) as id, 'anyway' as msg
+
+{% endif %}
+"""
+
+update_schema_model = """
+{{ config(
+    materialized = 'incremental'
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id
+union all
+select cast(3 as bigint) as id
 
 {% endif %}
 """
@@ -791,6 +817,16 @@ select
     'parent' as type
 """
 
+fk_referenced_to_table_2 = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    'hello' as name
+"""
+
 constraint_schema_without_fk_constraint = """
 version: 2
 
@@ -814,7 +850,7 @@ models:
         data_type: string
 """
 
-constraint_schema_with_fk_constraint = """
+constraint_schema_with_fk_constraints = """
 version: 2
 
 models:
@@ -835,6 +871,19 @@ models:
       - name: type
         data_type: string
 
+  - name: fk_referenced_to_table_2
+    constraints:
+      - type: primary_key
+        columns: [id]
+        name: pk_parent_2
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: name
+        data_type: string
+
   - name: fk_referenced_from_table
     columns:
       - name: id
@@ -849,4 +898,116 @@ models:
         columns: [id, version]
         to: ref('fk_referenced_to_table')
         to_columns: [id, version]
+      - type: foreign_key
+        name: fk_to_parent_2
+        columns: [id]
+        to: ref('fk_referenced_to_table_2')
+        to_columns: [id]
+"""
+
+
+column_mask_sql = """
+{{ config(
+    materialized = 'incremental',
+    incremental_strategy = 'merge',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name, 'john.doe@example.com' as email,
+'password123' as password
+"""
+
+column_mask_base = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
+        - name: email
+          column_mask:
+            function: full_mask
+        - name: password
+"""
+
+column_mask_valid_mask_updates = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+        - name: email
+          column_mask:
+            function: email_mask
+        - name: password
+          column_mask:
+            function: full_mask
+"""
+
+column_mask_invalid_update = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+        - name: email
+        - name: password
+          column_mask:
+            function: full_mask
+            using_columns: "id"
+"""
+
+column_tags_a = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "system"
+        - name: msg
+        - name: color
+          databricks_tags:
+            pii: "false"
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_b = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "application"
+        - name: msg
+          databricks_tags:
+            pii: "true"
+        - name: color
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+    )
+    data = [[1, 'hello', 'blue']]
+    return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
 """
