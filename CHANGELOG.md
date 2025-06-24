@@ -19,6 +19,10 @@
 - Fix location_root config not being treated case sensitive ([1037](https://github.com/databricks/dbt-databricks/issues/1037))
 - Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
 
+### Under the Hood
+- Update to dbt-core 1.10.1
+- Update to dbt-common 1.24.0
+
 ## dbt-databricks 1.10.3 (June 4, 2025)
 
 ### Fixes
