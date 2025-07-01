@@ -9,7 +9,7 @@
   {%- set comment = materialized_view.config["comment"].comment -%}
   {%- set refresh = materialized_view.config["refresh"] -%}
 
-  {%- set columns = adapter.get_column_schema_from_query(sql) -%}
+  {%- set columns = get_column_schema_from_query(sql) -%}
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set model_constraints = model.get('constraints', []) -%}
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints) -%}

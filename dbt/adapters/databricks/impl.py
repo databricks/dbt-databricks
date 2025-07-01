@@ -406,9 +406,7 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
         """Get a list of the Columns with names and data types from the given sql."""
-        # Optimize by wrapping the query with LIMIT 0 to get schema without executing the full query
-        optimized_sql = f"{sql} LIMIT 0"
-        _, cursor = self.connections.add_select_query(optimized_sql)
+        _, cursor = self.connections.add_select_query(sql)
         try:
             columns: list[DatabricksColumn] = [
                 self.Column.create(

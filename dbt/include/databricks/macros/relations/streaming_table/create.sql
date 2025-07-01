@@ -10,7 +10,7 @@
   {%- set refresh = streaming_table.config["refresh"] -%}
 
   {%- set analysis_sql = sql | replace('STREAM ', '') | replace('stream ', '') -%}
-  {%- set columns = adapter.get_column_schema_from_query(analysis_sql) -%}
+  {%- set columns = get_column_schema_from_query(analysis_sql) -%}
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, []) -%}
 
