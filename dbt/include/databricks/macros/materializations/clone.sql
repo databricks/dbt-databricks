@@ -8,6 +8,13 @@
     shallow clone {{ defer_relation }}
 {% endmacro %}
 
+{% macro databricks__create_or_replace_clone_external(this_relation, defer_relation) %}
+    create or replace
+    table {{ this_relation }}
+    shallow clone {{ defer_relation }}
+    {{ location_clause(this_relation) }}
+{% endmacro %}
+
 {%- materialization clone, adapter='databricks' -%}
 
   {%- set relations = {'relations': []} -%}
@@ -43,9 +50,15 @@
       {% endif %}
 
       -- as a general rule, data platforms that can clone tables can also do atomic 'create or replace'
-      {% call statement('main') %}
-          {{ create_or_replace_clone(target_relation, defer_relation) }}
-      {% endcall %}
+      {% if other_existing_relation.is_external %}
+          {% call statement('main') %}
+              {{ create_or_replace_clone_external(target_relation, defer_relation) }}
+          {% endcall %}
+      {% else %}
+          {% call statement('main') %}
+              {{ create_or_replace_clone(target_relation, defer_relation) }}
+          {% endcall %}
+      {% endif %}
 
       {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
       {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
