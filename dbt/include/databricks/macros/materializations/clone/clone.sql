@@ -2,18 +2,6 @@
     {{ return(True) }}
 {% endmacro %}
 
-{% macro databricks__create_or_replace_clone(this_relation, defer_relation) %}
-    create or replace
-    table {{ this_relation }}
-    shallow clone {{ defer_relation }}
-{% endmacro %}
-
-{% macro databricks__create_or_replace_clone_external(this_relation, defer_relation) %}
-    create or replace
-    table {{ this_relation }}
-    shallow clone {{ defer_relation }}
-    {{ location_clause(this_relation) }}
-{% endmacro %}
 
 {%- materialization clone, adapter='databricks' -%}
 
