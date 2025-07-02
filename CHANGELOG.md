@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.5 (TBD)
 
+### Fixes
+
+- Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
+
 ## dbt-databricks 1.10.4 (June 24, 2025)
 
 ### Features
