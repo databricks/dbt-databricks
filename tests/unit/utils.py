@@ -1,6 +1,8 @@
 import os
 from copy import deepcopy
+from typing import Optional
 
+from dbt.adapters.databricks import catalogs, constants
 from dbt.config import Profile, Project, RuntimeConfig
 from dbt.config.project import PartialProject
 from dbt.config.renderer import DbtProjectYamlRenderer, ProfileRenderer
@@ -78,3 +80,22 @@ def config_from_parts_or_dicts(project, profile, packages=None, selectors=None, 
     args.vars = cli_vars
     args.profile_dir = "/dev/null"
     return RuntimeConfig.from_parts(project=project, profile=profile, args=args)
+
+
+def unity_relation(
+    table_format: Optional[str] = None,
+    file_format: Optional[str] = None,
+    location_root: Optional[str] = None,
+    location_path: Optional[str] = None,
+) -> catalogs.DatabricksCatalogRelation:
+
+    catalog_integration = constants.DEFAULT_UNITY_CATALOG
+
+    return catalogs.DatabricksCatalogRelation(
+        catalog_type=catalog_integration.catalog_type,
+        catalog_name=catalog_integration.catalog_name,
+        table_format=table_format or catalog_integration.table_format,
+        file_format=file_format or catalog_integration.file_format,
+        external_volume=location_root or catalog_integration.external_volume,
+        location_path=location_path,
+    )
