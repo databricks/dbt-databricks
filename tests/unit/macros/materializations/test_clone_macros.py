@@ -1,25 +1,16 @@
-from typing import Optional
 from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks import catalogs, constants
+from dbt.adapters.databricks import constants
 from tests.unit.macros.base import MacroTestBase
 from tests.unit.utils import unity_relation
 
 
 class TestCloneStrategies(MacroTestBase):
-
     t_location_root = "/mnt/root_dev/"
 
-    def render_clone_macro(
-        self,
-        template_bundle,
-        macro,
-        s_relation,
-        t_relation
-    ) -> str:
-
+    def render_clone_macro(self, template_bundle, macro, s_relation, t_relation) -> str:
         external_path = f"{self.t_location_root}{template_bundle.relation.identifier}"
         adapter_mock = template_bundle.template.globals["adapter"]
         adapter_mock.compute_external_path.return_value = external_path
