@@ -281,6 +281,7 @@ class TestConstraintsConfig:
                     type=ConstraintType.check,
                     name="check_name_length",
                     expression="LENGTH (name) >= 1",
+                    warn_unenforced=False,
                 ),
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,
@@ -296,6 +297,8 @@ class TestConstraintsConfig:
                     type=ConstraintType.check,
                     name="check_name_length",
                     expression="LENGTH (name) >= 1",
+                    # This should be ignored by the TypedConstraint equality check
+                    warn_unenforced=True,
                 ),
                 PrimaryKeyConstraint(
                     type=ConstraintType.primary_key,

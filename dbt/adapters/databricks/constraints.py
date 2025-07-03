@@ -76,6 +76,14 @@ class TypedConstraint(ModelLevelConstraint, ABC):
         )
         return hash(fields)
 
+    def __eq__(self, other: Any) -> bool:
+        """Override equality to only compare fields used in hash calculation.
+
+        This ensures hash/equality contract is maintained and prevents issues
+        with set operations when warn_unenforced/warn_unsupported differ.
+        """
+        return self.__hash__() == other.__hash__()
+
 
 class CustomConstraint(TypedConstraint):
     str_type = "custom"

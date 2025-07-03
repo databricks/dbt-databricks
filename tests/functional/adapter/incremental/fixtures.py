@@ -1011,3 +1011,43 @@ def model(dbt, spark):
     data = [[1, 'hello', 'blue']]
     return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
 """
+
+warn_unenforced_override_sql = """
+select "abc" as id
+"""
+
+warn_unenforced_override_model = """
+version: 2
+
+models:
+  - name: model_a
+    config:
+      materialized: incremental
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: string
+        constraints:
+          - type: not_null
+    constraints:
+      - type: primary_key
+        columns:
+          - id
+        name: model_a_pk
+        warn_unenforced: false
+
+  - name: model_b
+    config:
+        materialized: table
+    columns:
+      - name: id
+        data_type: string
+    constraints:
+      - type: foreign_key
+        columns:
+          - id
+        name: model_b_fk
+        to: ref('model_a')
+        to_columns: [id]
+        warn_unenforced: false
+"""
