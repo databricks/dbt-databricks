@@ -216,6 +216,24 @@ class TestIncrementalSetForeignKeyConstraint:
         expected_pairs = {("fk_to_parent", "pk_parent"), ("fk_to_parent_2", "pk_parent_2")}
         assert constraint_pairs == expected_pairs
 
+    # Specifically for testing bugs like https://github.com/databricks/dbt-databricks/issues/1081
+    # where the config diff between the existing relation and model definition incorrectly detected
+    # constraints that were not changed. This is because the TypedConstraint read from existing
+    # Databricks relations will just have a default value for warn_unenforced which should
+    # be ignored during the diff
+    def test_warn_unenforced_false(self, project):
+        util.run_dbt(["run"])
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 0
+
+        util.write_file(fixtures.warn_unenforced_override_sql, "models", "model_a.sql")
+        util.write_file(fixtures.warn_unenforced_override_sql, "models", "model_b.sql")
+        util.write_file(fixtures.warn_unenforced_override_model, "models", "schema.yml")
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 1
+
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalRemoveForeignKeyConstraint:
