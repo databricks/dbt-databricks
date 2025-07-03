@@ -10,7 +10,7 @@
 
 - Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
 - Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
-- Add cloning support for the the external tables ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
+- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
 
 ### Fixes
 
