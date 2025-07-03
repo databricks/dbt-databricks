@@ -88,7 +88,6 @@ def unity_relation(
     location_root: Optional[str] = None,
     location_path: Optional[str] = None,
 ) -> catalogs.DatabricksCatalogRelation:
-
     catalog_integration = constants.DEFAULT_UNITY_CATALOG
 
     return catalogs.DatabricksCatalogRelation(

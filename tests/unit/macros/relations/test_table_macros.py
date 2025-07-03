@@ -1,8 +1,6 @@
-from typing import Optional
-
 import pytest
 
-from dbt.adapters.databricks import catalogs, constants
+from dbt.adapters.databricks import constants
 from tests.unit.macros.base import MacroTestBase
 from tests.unit.utils import unity_relation
 
