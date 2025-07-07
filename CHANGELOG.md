@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
+- Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
 
 ## dbt-databricks 1.10.4 (June 24, 2025)
 

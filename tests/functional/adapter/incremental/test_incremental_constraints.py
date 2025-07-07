@@ -218,6 +218,36 @@ class TestIncrementalSetForeignKeyConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalDiff:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "model_a.sql": fixtures.warn_unenforced_override_sql,
+            "model_b.sql": fixtures.warn_unenforced_override_sql,
+            "schema.yml": fixtures.warn_unenforced_override_model,
+        }
+
+    # Specifically for testing bugs like https://github.com/databricks/dbt-databricks/issues/1081
+    # where the config diff between the existing relation and model definition incorrectly detected
+    # constraints that were not changed. This is because the TypedConstraint read from existing
+    # Databricks relations will just have a default value for warn_unenforced which should
+    # be ignored during the diff
+    def test_warn_unenforced_false(self, project):
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 0
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 1
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalRemoveForeignKeyConstraint:
     @pytest.fixture(scope="class")
     def project_config_update(self):
