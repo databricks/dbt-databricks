@@ -194,12 +194,14 @@ class TestCascadingConstraintDrop:
         # First run with single column primary key
         util.run_dbt(["run"])
 
+        # Create a table outside of dbt that has a FK to the PK created within dbt
         project.run_sql(
             f"""
             CREATE TABLE IF NOT EXISTS {project.database}.{project.test_schema}.ref_table (
                 id BIGINT,
                 name STRING,
-                CONSTRAINT fk_ref_table_pk_model FOREIGN KEY (id) REFERENCES {project.database}.{project.test_schema}.primary_key_constraint_sql (id)
+                CONSTRAINT fk_ref_table_pk_model FOREIGN KEY (id)
+                REFERENCES {project.database}.{project.test_schema}.primary_key_constraint_sql (id)
             )
             """,
             fetch="all",
@@ -208,6 +210,7 @@ class TestCascadingConstraintDrop:
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 1
 
+        # Remove PK constraint via dbt and verify that the FK constraint is removed via cascade
         util.write_file(
             fixtures.schema_with_single_column_primary_key_constraint_removed,
             "models",

@@ -4,6 +4,10 @@
 
 - Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
 
+### Under the Hood
+
+- Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
+
 ## dbt-databricks 1.10.4 (June 24, 2025)
 
 ### Features
