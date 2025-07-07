@@ -131,5 +131,5 @@
 {%- endmacro -%}
 
 {% macro alter_unset_constraint(relation, constraint) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }};
+  ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }} CASCADE;
 {%- endmacro -%}
