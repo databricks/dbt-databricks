@@ -94,6 +94,10 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.StreamingTable
 
     @property
+    def is_external_table(self) -> bool:
+        return self.type == DatabricksRelationType.External
+
+    @property
     def is_dlt(self) -> bool:
         return self.is_materialized_view or self.is_streaming_table
 
