@@ -26,6 +26,20 @@ models:
       - name: msg
 """
 
+no_tag_schema_yml = """
+version: 2
+models:
+  - name: initial_view
+    description: "This is a view"
+    config:
+      tblproperties:
+        key: value
+    columns:
+      - name: id
+        description: "This is the id column"
+      - name: msg
+"""
+
 hive_schema_yml = """
 version: 2
 models:

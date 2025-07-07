@@ -25,6 +25,8 @@
     {%- call statement('main') -%}
        {{ alter_set_tags(relation, set_tags) }}
     {%- endcall -%}
+  {%- else -%}
+    {{ execute_no_op(relation) }}
   {%- endif %}
 {%- endmacro -%}
 

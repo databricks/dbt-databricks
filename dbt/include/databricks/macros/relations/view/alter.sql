@@ -8,7 +8,7 @@
   {% set tblproperties = changes.get("tblproperties") %}
   {% set query = changes.get("query") %}
   {% set column_comments = changes.get("column_comments") %}
-  {% if tags %}
+  {% if tags and tags.set_tags %}
     {{ apply_tags(target_relation, tags.set_tags) }}
   {% endif %}
   {% if tblproperties %}
