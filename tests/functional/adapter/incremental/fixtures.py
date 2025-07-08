@@ -762,6 +762,22 @@ models:
         columns: [id]
 """
 
+schema_with_single_column_primary_key_constraint_removed = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+"""
+
 schema_with_composite_primary_key_constraint = """
 version: 2
 

@@ -175,6 +175,52 @@ class TestIncrementalUpdatePrimaryKeyConstraint:
         assert not any(constraint[0] == "pk_model" for constraint in primary_key_constraints)
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCascadingConstraintDrop:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "primary_key_constraint_sql.sql": fixtures.primary_key_constraint_sql,
+            "schema.yml": fixtures.schema_with_single_column_primary_key_constraint,
+        }
+
+    def test_cascading_constraint_drop(self, project):
+        # First run with single column primary key
+        util.run_dbt(["run"])
+
+        # Create a table outside of dbt that has a FK to the PK created within dbt
+        project.run_sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS {project.database}.{project.test_schema}.ref_table (
+                id BIGINT,
+                name STRING,
+                CONSTRAINT fk_ref_table_pk_model FOREIGN KEY (id)
+                REFERENCES {project.database}.{project.test_schema}.primary_key_constraint_sql (id)
+            )
+            """,
+            fetch="all",
+        )
+
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 1
+
+        # Remove PK constraint via dbt and verify that the FK constraint is removed via cascade
+        util.write_file(
+            fixtures.schema_with_single_column_primary_key_constraint_removed,
+            "models",
+            "schema.yml",
+        )
+        util.run_dbt(["run"])
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+        assert len(referential_constraints) == 0
+
+
 referential_constraint_sql = """
     SELECT constraint_name, unique_constraint_name
     FROM {database}.information_schema.referential_constraints

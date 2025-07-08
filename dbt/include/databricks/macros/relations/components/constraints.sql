@@ -131,5 +131,11 @@
 {%- endmacro -%}
 
 {% macro alter_unset_constraint(relation, constraint) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT {{ constraint.name }};
+  {% set constraint_type = constraint.type %}
+  {% if constraint_type == 'primary_key' %}
+    {# Need to only add CASCADE to PK constraints because dropping check constraints break when adding CASCADE #}
+    ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT {{ constraint.name }} CASCADE;
+  {% else %}
+    ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }};
+  {% endif %}
 {%- endmacro -%}

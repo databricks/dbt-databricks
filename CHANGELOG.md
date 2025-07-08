@@ -6,6 +6,10 @@
 - Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
 - Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
 
+### Under the Hood
+
+- Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
+
 ## dbt-databricks 1.10.4 (June 24, 2025)
 
 ### Features
