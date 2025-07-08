@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from dbt.adapters.databricks.column import DatabricksColumn
@@ -85,11 +87,6 @@ class TestColumnStatics:
     )
     def test_format_add_column_list(self, columns, expected):
         assert DatabricksColumn.format_add_column_list(columns) == expected
-
-
-import json
-
-from dbt.adapters.databricks.column import DatabricksColumn
 
 
 # Tests are based on possible JSON output from "DESCRIBE EXTENDED <table> AS JSON"
