@@ -88,7 +88,11 @@ class TestGetColumnsByDescribe:
 
     def test_parse_type_map(self):
         """Test _parse_type with map type"""
-        type_info = {"name": "map", "key_type": {"name": "string"}, "value_type": {"name": "int"}}
+        type_info = {
+            "name": "map",
+            "key_type": {"name": "string"},
+            "value_type": {"name": "int"},
+        }
 
         result = GetColumnsByDescribe._parse_type(type_info)
         assert result == "map<string, int>"

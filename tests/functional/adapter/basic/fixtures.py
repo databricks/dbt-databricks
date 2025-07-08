@@ -59,7 +59,8 @@ SELECT
   -- Complex types: Array, Map, Struct
   CAST(ARRAY(CAST(1 AS INT), CAST(2 AS INT), CAST(3 AS INT)) AS ARRAY<INT>) AS array_int_col,
 
-  CAST(MAP(CAST('key1' AS STRING), CAST('value1' AS STRING), CAST('key2' AS STRING), CAST('value2' AS STRING)) AS MAP<STRING,STRING>) AS map_col,
+  CAST(MAP(CAST('key1' AS STRING), CAST('value1' AS STRING), CAST('key2' AS STRING),
+    CAST('value2' AS STRING)) AS MAP<STRING,STRING>) AS map_col,
 
   -- Nested STRUCT up to depth 3
   CAST(NAMED_STRUCT(
@@ -72,7 +73,13 @@ SELECT
         ) AS STRUCT<level3_field: BOOLEAN>)
       ) AS ARRAY<STRUCT<level3_field: BOOLEAN>>)
     ) AS STRUCT<level2_field: STRING, level2_array: ARRAY<STRUCT<level3_field: BOOLEAN>>>)
-  ) AS STRUCT<level1_field: INT, level1_struct: STRUCT<level2_field: STRING, level2_array: ARRAY<STRUCT<level3_field: BOOLEAN>>>>) AS complex_struct
+  ) AS STRUCT<
+    level1_field: INT,
+    level1_struct: STRUCT<
+      level2_field: STRING,
+      level2_array: ARRAY<STRUCT<level3_field: BOOLEAN>>
+    >
+  >) AS complex_struct
 """
 
 # Create a flat struct with 30 fields to test cases where DESCRIBE TABLE returns truncated type info

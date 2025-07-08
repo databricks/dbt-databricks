@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from dbt.tests import util
@@ -67,7 +65,8 @@ class TestTruncatedStructV2(MaterializationV2Mixin):
         util.run_dbt(["run"])
         results = project.run_sql(
             """
-            SELECT COLUMN_NAME, FULL_DATA_TYPE FROM {database}.information_schema.columns WHERE table_schema = '{schema}' AND table_name = 'big_struct_model';
+            SELECT COLUMN_NAME, FULL_DATA_TYPE FROM {database}.information_schema.columns
+            WHERE table_schema = '{schema}' AND table_name = 'big_struct_model';
             """,
             fetch="all",
         )
