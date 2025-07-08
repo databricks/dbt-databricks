@@ -39,7 +39,7 @@ class DatabricksColumn(SparkColumn):
         """
         import json
 
-        data = json.loads(json_metadata)
+        data = json.loads(json_metadata.lower())
         columns = []
 
         for col_info in data.get("columns", []):
@@ -86,8 +86,8 @@ class DatabricksColumn(SparkColumn):
             for field in fields:
                 field_name = field.get("name")
                 field_type = cls._parse_type_from_json(field.get("type"))
-                field_strs.append(f"{field_name}: {field_type}")
-            return f"struct<{', '.join(field_strs)}>"
+                field_strs.append(f"{field_name}:{field_type}")
+            return f"struct<{','.join(field_strs)}>"
 
         elif type_name == "array":
             element_type = cls._parse_type_from_json(type_info.get("element_type"))
@@ -97,7 +97,7 @@ class DatabricksColumn(SparkColumn):
             # Handle map types with element_nullable
             key_type = cls._parse_type_from_json(type_info.get("key_type"))
             value_type = cls._parse_type_from_json(type_info.get("value_type"))
-            return f"map<{key_type}, {value_type}>"
+            return f"map<{key_type},{value_type}>"
 
         elif type_name == "decimal":
             # Handle decimal types with precision and scale
@@ -113,10 +113,10 @@ class DatabricksColumn(SparkColumn):
         elif type_name == "string":
             # Handle string types with collation
             collation = type_info.get("collation")
-            if collation is not None:
-                return f"string COLLATE {collation}"
-            else:
+            if collation is None or collation == "utf8_binary":
                 return "string"
+            else:
+                return f"string collate {collation}"
 
         elif type_name == "varchar":
             return "string"

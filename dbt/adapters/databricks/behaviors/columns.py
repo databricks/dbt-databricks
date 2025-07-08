@@ -34,9 +34,10 @@ class GetColumnsByDescribe(GetColumnsBehavior):
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        json_metadata = cls._get_columns_with_comments(
-            adapter, relation, "get_columns_comments_as_json"
-        )[0]["json_metadata"]
+        result = cls._get_columns_with_comments(adapter, relation, "get_columns_comments_as_json")
+        if not result:
+            return []
+        json_metadata = result[0]["json_metadata"]
         return DatabricksColumn.from_json_metadata(json_metadata)
 
 
