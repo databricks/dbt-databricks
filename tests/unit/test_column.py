@@ -210,10 +210,10 @@ class TestDatabricksColumn:
         assert result == "decimal"
 
     def test_parse_type_from_json_string_with_collation(self):
-        type_info = {"name": "string", "collation": "UTF8_BINARY"}
+        type_info = {"name": "string", "collation": "UTF8_LCASE"}
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        assert result == "string COLLATE UTF8_BINARY"
+        assert result == "string COLLATE UTF8_LCASE"
 
     def test_parse_type_from_json_string_without_collation(self):
         type_info = {"name": "string"}

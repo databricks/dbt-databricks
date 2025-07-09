@@ -111,8 +111,8 @@ class DatabricksColumn(SparkColumn):
                 return "decimal"
 
         elif type_name == "string":
-            # Handle string types with collation
             collation = type_info.get("collation")
+            # utf8_binary is the default collation for string types in Databricks
             if collation is None or collation.lower() == "utf8_binary":
                 return "string"
             else:
