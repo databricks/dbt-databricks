@@ -5,6 +5,7 @@
 - Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
 - Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
 - Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
+- Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
 
 ### Under the Hood
 

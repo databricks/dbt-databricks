@@ -14,10 +14,12 @@ class TestColumnsMacros(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/adapters"]
 
-    def test_get_columns_comments_sql(self, template_bundle, relation):
-        result = self.run_macro(template_bundle.template, "get_columns_comments_sql", relation)
+    def test_get_columns_comments_as_json_sql(self, template_bundle, relation):
+        result = self.run_macro(
+            template_bundle.template, "get_columns_comments_as_json_sql", relation
+        )
 
-        expected_sql = "DESCRIBE TABLE `some_database`.`some_schema`.`some_table`"
+        expected_sql = "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
         self.assert_sql_equal(result, expected_sql)
 
     def test_repair_table_sql(self, template_bundle, relation):

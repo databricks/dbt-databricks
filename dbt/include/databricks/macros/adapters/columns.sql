@@ -1,10 +1,10 @@
 
-{% macro get_columns_comments(relation) -%}
-  {{ return(run_query_as(get_columns_comments_sql(relation), 'get_columns_comments')) }}
+{% macro get_columns_comments_as_json(relation) -%}
+  {{ return(run_query_as(get_columns_comments_as_json_sql(relation), 'get_columns_comments_as_json')) }}
 {% endmacro %}
 
-{% macro get_columns_comments_sql(relation) %}
-DESCRIBE TABLE {{ relation.render() }}
+{% macro get_columns_comments_as_json_sql(relation) %}
+  DESCRIBE TABLE EXTENDED {{ relation.render() }} AS JSON
 {% endmacro %}
 
 {% macro get_columns_comments_via_information_schema(relation) -%}
