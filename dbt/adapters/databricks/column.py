@@ -113,10 +113,13 @@ class DatabricksColumn(SparkColumn):
         elif type_name == "string":
             # Handle string types with collation
             collation = type_info.get("collation")
-            if collation is None or collation == "utf8_binary":
+            if collation is None or collation.lower() == "utf8_binary":
                 return "string"
             else:
                 return f"string COLLATE {collation}"
+
+        elif type_name == "timestamp_ltz":
+            return "timestamp"
 
         elif type_name == "varchar":
             return "string"
