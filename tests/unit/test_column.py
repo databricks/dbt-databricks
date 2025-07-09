@@ -127,7 +127,7 @@ class TestDatabricksColumn:
         assert result[1].comment == "User name"
 
         assert result[2].column == "nested_data"
-        assert result[2].dtype == "struct<field1: string, field2: int>"
+        assert result[2].dtype == "struct<field1:string,field2:int>"
         assert result[2].comment is None
 
     def test_from_json_metadata_empty_columns(self):
@@ -157,7 +157,7 @@ class TestDatabricksColumn:
         }
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        assert result == "struct<field1: string, field2: int>"
+        assert result == "struct<field1:string,field2:int>"
 
     def test_parse_type_from_json_array(self):
         """Test _parse_type_from_json with array type"""
@@ -175,7 +175,7 @@ class TestDatabricksColumn:
         }
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        assert result == "map<string, int>"
+        assert result == "map<string,int>"
 
     def test_parse_type_from_json_map_nested(self):
         """Test _parse_type_from_json with nested map type"""
@@ -186,7 +186,7 @@ class TestDatabricksColumn:
         }
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        assert result == "map<string, array<double>>"
+        assert result == "map<string,array<double>>"
 
     def test_parse_type_from_json_decimal_with_precision_scale(self):
         """Test _parse_type_from_json with decimal type having precision and scale"""

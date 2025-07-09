@@ -39,7 +39,7 @@ class DatabricksColumn(SparkColumn):
         """
         import json
 
-        data = json.loads(json_metadata.lower())
+        data = json.loads(json_metadata)
         columns = []
 
         for col_info in data.get("columns", []):
@@ -116,7 +116,7 @@ class DatabricksColumn(SparkColumn):
             if collation is None or collation == "utf8_binary":
                 return "string"
             else:
-                return f"string collate {collation}"
+                return f"string COLLATE {collation}"
 
         elif type_name == "varchar":
             return "string"
