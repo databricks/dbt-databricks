@@ -222,3 +222,50 @@ select
   'blue' as color,
   '2019-01-01' as date_day
 """
+
+basic_constraint_model_sql = """
+{{
+  config(
+    materialized='table',
+    schema='my_schema'
+  )
+}}
+
+SELECT 1 AS col_id, 'value1' AS col_value
+UNION ALL
+SELECT 2 AS col_id, 'value2' AS col_value
+"""
+
+basic_constraint_model = """
+version: 2
+
+models:
+  - name: primary_table
+    description: "A test table with primary key constraint."
+    columns:
+      - name: col_id
+        description: "Primary key column."
+        tests:
+          - unique
+          - not_null
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: col_value
+        description: "A test value column."
+
+  - name: foreign_table
+    description: "A test table with a foreign key to primary_table."
+    columns:
+      - name: col_id
+        description: "Foreign key referencing primary_table.col_id."
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('primary_table')
+            to_columns: [col_id]
+      - name: col_value
+        description: "A test value column."
+"""

@@ -181,3 +181,31 @@ class TestTableConstraintsRollback(BaseDatabricksConstraintHandling):
             "my_model.sql": override_fixtures.my_model_sql,
             "constraints_schema.yml": override_fixtures.constraints_yml,
         }
+
+
+class TestTableConstraintSaferRelationOperations(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+use_safer_relation_operations": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "primary_table.sql": override_fixtures.basic_constraint_model_sql,
+            "foreign_table.sql": override_fixtures.basic_constraint_model_sql,
+            "my_schema.yml": override_fixtures.basic_constraint_model,
+        }
+
+    def test_safer_relation_operations(self, project):
+        util.run_dbt(["run", "--select", "primary_table"])
+        util.run_dbt(["run", "--select", "foreign_table"])
+        util.run_dbt(["run", "--select", "primary_table"])
