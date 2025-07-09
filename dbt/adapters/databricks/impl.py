@@ -333,16 +333,26 @@ class DatabricksAdapter(SparkAdapter):
 
         relations = []
         for row in results:
-            name, kind, file_format, owner = row
+            print(row)
+            name, kind, file_format, owner, table_type = row
             metadata = None
             if file_format:
                 metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
+
+            if table_type:
+                databricks_table_type = DatabricksRelation.get_databricks_table_type(
+                    table_type
+                )
+            else:
+                databricks_table_type = None
+
             relations.append(
                 DatabricksRelation.create(
                     database=schema_relation.database,
                     schema=schema_relation.schema,
                     identifier=name,
                     type=DatabricksRelation.get_relation_type(kind),
+                    databricks_table_type=databricks_table_type,
                     metadata=metadata,
                     is_delta=file_format == "delta",
                 )
@@ -363,7 +373,9 @@ class DatabricksAdapter(SparkAdapter):
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
-            (row["table_name"], row["table_type"], row["file_format"], row["table_owner"])
+            (row["table_name"], row["table_type"],
+             row["file_format"], row["table_owner"],
+             row["databricks_table_type"])
             for row in results
         ]
 
@@ -495,6 +507,7 @@ class DatabricksAdapter(SparkAdapter):
                 schema=relation.schema,
                 identifier=relation.identifier,
                 type=relation.type,  # type: ignore
+                databricks_table_type=relation.databricks_table_type,
                 metadata=metadata,
                 is_delta=metadata.get(KEY_TABLE_PROVIDER) == "delta",
             ),
