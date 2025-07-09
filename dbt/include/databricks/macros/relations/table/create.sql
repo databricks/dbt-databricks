@@ -25,11 +25,11 @@
 {% macro get_create_table_sql(target_relation, columns, compiled_code) %}
 
   {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
-
   {%- set contract = config.get('contract') -%}
   {%- set contract_enforced = contract and contract.enforced -%}
   {%- if contract_enforced -%}
     {{ get_assert_columns_equivalent(compiled_code) }}
+  
   {%- endif -%}
 
   {%- if catalog_relation.file_format == 'delta' %}
@@ -45,7 +45,7 @@
   {{ clustered_cols(label="clustered by") }}
   {{ location_clause(catalog_relation) }}
   {{ comment_clause() }}
-  {{ tblproperties_clause() }}
+  {{ tblproperties_clause(catalog_relation) }}
 {% endmacro %}
 
 {% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
@@ -56,8 +56,11 @@
     {%- if temporary -%}
       {{ create_temporary_view(relation, compiled_code) }}
     {%- else -%}
+      {% if not adapter.check_schema_exists(catalog_relation.catalog_name, catalog_relation.catalog_schema) %}
+        {% do create_schema(catalog_relation) %}
+      {% endif %}
       {% if catalog_relation.file_format == 'delta' %}
-        create or replace table {{ relation.render() }}
+        create or replace table {{ catalog_relation.render_model_relation(relation) }}
       {% else %}
         create table {{ relation.render() }}
       {% endif %}
@@ -73,7 +76,7 @@
       {{ clustered_cols(label="clustered by") }}
       {{ location_clause(catalog_relation) }}
       {{ comment_clause() }}
-      {{ tblproperties_clause() }}
+      {{ tblproperties_clause(catalog_relation) }}
       as
       {{ compiled_code }}
     {%- endif -%}

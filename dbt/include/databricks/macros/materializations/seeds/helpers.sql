@@ -94,7 +94,7 @@
     {{ clustered_cols(label="clustered by") }}
     {{ location_clause(catalog_relation) }}
     {{ comment_clause() }}
-    {{ tblproperties_clause() }}
+    {{ tblproperties_clause(catalog_relation) }}
   {% endset %}
 
   {% call statement('_') -%}

@@ -1,10 +1,12 @@
 import posixpath
+from dbt.adapters.base.relation import BaseRelation
 from dataclasses import dataclass
 from typing import Optional
 
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks import constants
+from ..relation import DatabricksRelation
 
 
 @dataclass
@@ -15,6 +17,7 @@ class DatabricksCatalogRelation:
     file_format: Optional[str] = constants.DEFAULT_CATALOG.file_format
     external_volume: Optional[str] = constants.DEFAULT_CATALOG.external_volume
     location_path: Optional[str] = None
+    catalog_schema: Optional[str] = None
 
     @property
     def location_root(self) -> Optional[str]:
@@ -47,3 +50,14 @@ class DatabricksCatalogRelation:
                 "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
             }
         return {}
+    
+    def render_model_relation(self, model_relation: DatabricksRelation) -> str:
+        if self.catalog_name != constants.DEFAULT_CATALOG.name:
+            model_relation.path.database = self.catalog_name
+        return model_relation.render()
+
+    def without_identifier(self) -> str:
+        return f"`{self.catalog_name}`.`{self.catalog_schema}`"
+
+    def __str__(self) -> str:
+        return self.without_identifier()

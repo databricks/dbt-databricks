@@ -12,7 +12,7 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        self.file_format: str = config.file_format
+        self.file_format: Optional[str] = config.file_format
 
     @property
     def location_root(self) -> Optional[str]:
@@ -34,9 +34,10 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
         """
         return DatabricksCatalogRelation(
             catalog_type=self.catalog_type,
-            catalog_name=self.catalog_name,
+            catalog_name=self.catalog_name if self.catalog_name != constants.DEFAULT_HIVE_METASTORE_CATALOG.catalog_name else model.database,
             table_format=parse_model.table_format(model) or self.table_format,
             file_format=parse_model.file_format(model) or self.file_format,
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
+            catalog_schema=model.schema,
         )
