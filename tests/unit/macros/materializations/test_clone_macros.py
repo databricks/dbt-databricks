@@ -73,7 +73,7 @@ class TestCloneStrategies(MacroTestBase):
     def test_create_or_replace_clone_external(self, template_bundle, catalog_relation, s_relation):
         sql = self.render_clone_macro(
             template_bundle,
-            "databricks__create_or_replace_clone_external",
+            "create_or_replace_clone_external",
             s_relation,
             template_bundle.relation,
         )

@@ -137,7 +137,8 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
             WHERE table_catalog = 'some_database'
               AND table_schema = 'some_schema'
@@ -155,9 +156,10 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
-            WHERE table_catalog = 'test_db' 
+            WHERE table_catalog = 'test_db'
               AND table_schema = 'test_schema'
         """  # noqa
         self.assert_sql_equal(result, expected_sql)
@@ -176,9 +178,10 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
-            WHERE table_catalog = 'test_db' 
+            WHERE table_catalog = 'test_db'
               AND table_schema = 'test_schema'
               AND table_name = 'test_table'
         """  # noqa
