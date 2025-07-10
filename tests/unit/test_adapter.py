@@ -382,9 +382,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [
-                DatabricksRelationInfo("name", "table", None, None, None)
-            ]
+            mocked.return_value = [DatabricksRelationInfo("name", "table", None, None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
