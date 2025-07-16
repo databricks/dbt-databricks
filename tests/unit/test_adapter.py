@@ -13,8 +13,15 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
-from dbt.adapters.databricks.impl import get_identifier_list_string
-from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
+from dbt.adapters.databricks.impl import (
+    DatabricksRelationInfo,
+    get_identifier_list_string,
+)
+from dbt.adapters.databricks.relation import (
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 from dbt.adapters.databricks.utils import check_not_found_error
 from dbt.config import RuntimeConfig
 from tests.unit.utils import config_from_parts_or_dicts
@@ -356,7 +363,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__some_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [("name", "table", "hudi", "owner")]
+            mocked.return_value = [
+                DatabricksRelationInfo("name", "table", "hudi", "owner", "external")
+            ]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
@@ -365,13 +374,15 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.database == "database"
             assert relation.schema == "schema"
             assert relation.type == DatabricksRelationType.Table
+            assert relation.databricks_table_type == DatabricksTableType.External
             assert relation.owner == "owner"
+            assert relation.is_external_table
             assert relation.is_hudi
 
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [("name", "table", None, None)]
+            mocked.return_value = [DatabricksRelationInfo("name", "table", None, None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1

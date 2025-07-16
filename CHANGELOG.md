@@ -1,11 +1,16 @@
 ## dbt-databricks 1.10.5 (TBD)
 
+### Features
+
+- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
+
 ### Fixes
 
 - Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
 - Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
 - Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
 - Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
+- Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
 
 ### Under the Hood
 
@@ -17,7 +22,6 @@
 
 - Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
 - Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
-- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
 
 ### Fixes
 

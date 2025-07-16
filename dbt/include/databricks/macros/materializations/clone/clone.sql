@@ -38,7 +38,7 @@
       {% endif %}
 
       -- as a general rule, data platforms that can clone tables can also do atomic 'create or replace'
-      {% if other_existing_relation.is_external %}
+      {% if other_existing_relation.is_external_table %}
           {% call statement('main') %}
               {{ create_or_replace_clone_external(target_relation, defer_relation) }}
           {% endcall %}
