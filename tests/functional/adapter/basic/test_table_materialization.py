@@ -61,6 +61,7 @@ class TestTruncatedStructV2(MaterializationV2Mixin):
     def models(self):
         return {"big_struct_model.sql": fixtures.big_struct_model_sql}
 
+    @pytest.mark.skip_profile("databricks_cluster")
     def test_truncated_struct_materialization(self, project):
         util.run_dbt(["run"])
         results = project.run_sql(

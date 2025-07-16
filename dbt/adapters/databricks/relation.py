@@ -74,6 +74,7 @@ class DatabricksRelation(BaseRelation):
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
     replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
     databricks_table_type: Optional[DatabricksTableType] = None
+    temporary: Optional[bool] = False
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -88,7 +89,7 @@ class DatabricksRelation(BaseRelation):
         return self.metadata is not None
 
     def is_hive_metastore(self) -> bool:
-        return is_hive_metastore(self.database)
+        return is_hive_metastore(self.database, self.temporary)
 
     @property
     def is_materialized_view(self) -> bool:
@@ -202,8 +203,8 @@ class DatabricksRelation(BaseRelation):
         return super().render().lower()
 
 
-def is_hive_metastore(database: Optional[str]) -> bool:
-    return database is None or database.lower() == "hive_metastore"
+def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
+    return (database is None or database.lower() == "hive_metastore") and not temporary
 
 
 def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:
