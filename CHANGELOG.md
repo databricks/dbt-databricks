@@ -4,6 +4,8 @@
 
 - Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
 
+- Add liquid clustering config for materialized views and streaming tables ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+
 ### Fixes
 
 - Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
