@@ -8,6 +8,9 @@ from dbt.adapters.databricks.relation_configs.base import (
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )
+from dbt.adapters.databricks.relation_configs.liquid_clustering import (
+    LiquidClusteringProcessor,
+)
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
@@ -19,9 +22,6 @@ from dbt.adapters.databricks.relation_configs.refresh import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
-)
-from dbt.adapters.databricks.relation_configs.liquid_clustering import (
-    LiquidClusteringProcessor,
 )
 
 
