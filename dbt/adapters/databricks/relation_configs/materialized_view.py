@@ -21,11 +21,15 @@ from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )
+from dbt.adapters.databricks.relation_configs.liquid_clustering import (
+    LiquidClusteringProcessor,
+)
 
 
 class MaterializedViewConfig(DatabricksRelationConfigBase):
     config_components = [
         PartitionedByProcessor,
+        LiquidClusteringProcessor,
         CommentProcessor,
         TblPropertiesProcessor,
         RefreshProcessor,
