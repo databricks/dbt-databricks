@@ -249,7 +249,8 @@ class TestStreamingTablesBasic(TestStreamingTablesMixin):
         results = project.run_sql(
             f"""
             SELECT COLUMN_NAME, FULL_DATA_TYPE FROM {project.database}.information_schema.columns
-            WHERE table_schema = '{project.test_schema}' AND table_name = 'complex_types_streaming_table';
+            WHERE table_schema = '{project.test_schema}'
+            AND table_name = 'complex_types_streaming_table';
             """,
             fetch="all",
         )
