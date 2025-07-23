@@ -79,3 +79,10 @@ select * from stream read_files(
     '{{ env_var('DBT_DATABRICKS_LOCATION_ROOT') }}/test_inputs/streaming_table_test_sources'
 );
 """
+
+complex_types_streaming_table = """
+{{ config(
+    materialized='streaming_table',
+) }}
+select * from stream complex_types_table
+"""

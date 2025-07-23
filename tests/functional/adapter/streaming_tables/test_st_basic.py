@@ -36,6 +36,7 @@ class TestStreamingTablesMixin:
             "my_table.sql": MY_TABLE,
             "my_view.sql": MY_VIEW,
             "my_streaming_table.sql": fixtures.streaming_table,
+            "complex_types_streaming_table.sql": fixtures.complex_types_streaming_table,
             "schema.yml": fixtures.streaming_table_schema,
         }
 
@@ -227,6 +228,33 @@ class TestStreamingTablesBasic(TestStreamingTablesMixin):
         # view until it was refreshed
         assert table_start < table_mid == table_end
         assert view_start == view_mid < view_end
+
+    def test_streaming_table_complex_types(self, project):
+        full_data_type = (
+            "struct<field1:map<string,int>,field2:array<int>,"
+            + ",".join([f"field{i}:int" for i in range(3, 31)])
+            + ">"
+        )
+        # Create the complex_types_table needed for the test. Doing this instead of
+        # using a seed file because complex types are tricky to represent in a CSV file
+        project.run_sql(
+            f"""
+            CREATE OR REPLACE TABLE complex_types_table (
+                my_struct {full_data_type}
+            )
+            """
+        )
+
+        util.run_dbt(["run", "--models", "complex_types_streaming_table"])
+        results = project.run_sql(
+            f"""
+            SELECT COLUMN_NAME, FULL_DATA_TYPE FROM {project.database}.information_schema.columns
+            WHERE table_schema = '{project.test_schema}' AND table_name = 'complex_types_streaming_table';
+            """,
+            fetch="all",
+        )
+        assert results[0][0] == "my_struct"
+        assert results[0][1] == full_data_type
 
 
 @pytest.mark.dlt
