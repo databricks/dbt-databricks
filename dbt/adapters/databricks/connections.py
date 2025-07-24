@@ -1,5 +1,4 @@
 import re
-import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -9,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtDatabaseError, DbtInternalError, DbtRuntimeError
+from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
 from dbt_common.utils import cast_to_str
 
 from databricks.sql import __version__ as dbsql_version
@@ -33,9 +32,7 @@ from dbt.adapters.databricks.credentials import (
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionCreate,
     ConnectionCreateError,
-    ConnectionIdleClose,
     ConnectionReset,
-    ConnectionReuse,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
@@ -44,8 +41,6 @@ from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import (
     ConnectionClosedInCleanup,
-    ConnectionLeftOpenInCleanup,
-    ConnectionReused,
     ConnectionUsed,
     NewConnection,
     SQLQuery,
@@ -61,12 +56,6 @@ mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.I
 st_refresh_regex = re.compile(
     r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
 )
-
-
-# Number of idle seconds before a connection is automatically closed. Only applicable if
-# USE_LONG_SESSIONS is true.
-# Updated when idle times of 180s were causing errors
-DEFAULT_MAX_IDLE_TIME = 60
 
 
 DATABRICKS_QUERY_COMMENT = f"""
@@ -100,8 +89,6 @@ class QueryContextWrapper:
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
     language: Optional[str] = None
-    model_unique_id: Optional[str] = None
-    model_name: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
@@ -110,27 +97,11 @@ class QueryContextWrapper:
         compute_name = None
         language = getattr(query_header_context, "language", None)
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-        model_unique_id = None
-        model_name = None
-
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
 
-        # Extract model identification from context
-        if hasattr(query_header_context, "unique_id"):
-            model_unique_id = query_header_context.unique_id
-        if hasattr(query_header_context, "name"):
-            model_name = query_header_context.name
-        # Fallback: try to extract from relation_name if it contains model info
-        elif relation_name and relation_name != "[unknown]":
-            model_name = relation_name
-
         return QueryContextWrapper(
-            compute_name=compute_name,
-            relation_name=relation_name,
-            language=language,
-            model_unique_id=model_unique_id,
-            model_name=model_name,
+            compute_name=compute_name, relation_name=relation_name, language=language
         )
 
 
@@ -144,70 +115,25 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 @dataclass(init=False)
 class DatabricksDBTConnection(Connection):
-    last_used_time: Optional[float] = None
-    acquire_release_count: int = 0
-    compute_name: str = ""
     http_path: str = ""
-    model_unique_id: Optional[str] = None
-    model_name: Optional[str] = None
-    max_idle_time: int = DEFAULT_MAX_IDLE_TIME
 
     # If the connection is being used for a model we want to track the model language.
     # We do this because we need special handling for python models.  Python models will
     # acquire a connection, but do not actually use it to run the model. This can lead to the
-    # session timing out on the back end.  However, when the connection is released we set the
-    # last_used_time, essentially indicating that the connection was in use while the python
-    # model was running. So the session is not refreshed by idle connection cleanup and errors
-    # the next time it is used.
+    # session timing out on the back end.
     language: Optional[str] = None
 
     session_id: Optional[str] = None
 
-    def _acquire(self, query_header_context: QueryContextWrapper) -> None:
-        """Indicate that this connection is in use."""
-
-        self.acquire_release_count += 1
-        if self.last_used_time is None:
-            self.last_used_time = time.time()
-        self.language = query_header_context.language
-        # Update model identification
-        if query_header_context.model_unique_id:
-            self.model_unique_id = query_header_context.model_unique_id
-        if query_header_context.model_name:
-            self.model_name = query_header_context.model_name
-
-    def _release(self) -> None:
-        """Indicate that this connection is not in use."""
-        # Need to check for > 0 because in some situations the dbt code will make an extra
-        # release call on a connection.
-        if self.acquire_release_count > 0:
-            self.acquire_release_count -= 1
-
-        # We don't update the last_used_time for python models because the python model
-        # is submitted through a different mechanism and doesn't actually use the connection.
-        if self.acquire_release_count == 0 and self.language != "python":
-            self.last_used_time = time.time()
-
-    def _get_idle_time(self) -> float:
-        return 0 if self.last_used_time is None else time.time() - self.last_used_time
-
-    def _idle_too_long(self) -> bool:
-        return self.max_idle_time > 0 and self._get_idle_time() > self.max_idle_time
-
     def __str__(self) -> str:
         return (
             f"DatabricksDBTConnection(session-id={self.session_id}, "
-            f"name={self.name}, model={self.model_name or self.model_unique_id or 'unknown'}, "
-            f"idle-time={self._get_idle_time()}s, language={self.language}, "
-            f"compute-name={self.compute_name})"
+            f"name={self.name}, language={self.language})"
         )
 
     def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
         self.handle = LazyHandle(open)
         self.session_id = None
-        # Reset last_used_time to None because by refreshing this connection becomes associated
-        # with a new session that hasn't been used yet.
-        self.last_used_time = None
         logger.debug(ConnectionReset(str(self)))
 
 
@@ -279,34 +205,44 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def set_connection_name(
         self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
-        """Called by 'acquire_connection' in DatabricksAdapter, which is called by
-        'connection_named', called by 'connection_for(node)'.
-        Creates a fresh connection per model, reusing within the same model execution."""
+        """Creates a fresh connection for each operation.
+        Simplified approach - no connection caching or reuse."""
 
         conn_name: str = "master" if name is None else name
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
-        # Check if we already have a connection for this thread
-        existing_conn = self.get_if_exists()
-
-        if existing_conn is not None:
-            # Reuse existing connection for the same model execution
-            # Cast to our specific connection type
-            databricks_conn = cast(DatabricksDBTConnection, existing_conn)
-            # Just update the name if needed and return
-            if databricks_conn.name != conn_name:
-                databricks_conn.name = conn_name
-            databricks_conn._acquire(wrapped)
-            return databricks_conn
-
-        # No existing connection, create a fresh one
+        # Create a fresh connection for this operation
         conn = self._create_fresh_connection(conn_name, wrapped)
 
-        # Store in thread-based storage (handled by parent SparkConnectionManager)
+        return conn
+
+    def _create_fresh_connection(
+        self, conn_name: str, query_header_context: QueryContextWrapper
+    ) -> DatabricksDBTConnection:
+        """Create a fresh connection for each operation - no caching or reuse."""
+
+        conn = DatabricksDBTConnection(
+            type=Identifier(self.TYPE),
+            name=conn_name,
+            state=ConnectionState.INIT,
+            transaction_open=False,
+            handle=None,
+            credentials=self.profile.credentials,
+        )
+        creds = cast(DatabricksCredentials, self.profile.credentials)
+        conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
+        conn.language = query_header_context.language
+
+        conn.handle = LazyHandle(self.open)
+
+        logger.debug(ConnectionCreate(str(conn)))
+
+        # Set as the current thread connection (no complex pool management)
         self.set_thread_connection(conn)
 
-        # Acquire the connection for immediate use
-        conn._acquire(wrapped)
+        fire_event(
+            NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
+        )
 
         return conn
 
@@ -448,12 +384,20 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if conn is None:
                 return
 
-        conn._release()
+            # Close the connection since we create fresh ones each time
+            self.close(conn)
+            self.clear_thread_connection()
 
     # override
     def cleanup_all(self) -> None:
         with self.lock:
-            # Clean up any remaining thread connections (for backward compatibility)
+            # Close the current thread connection if it exists
+            conn = cast(Optional[DatabricksDBTConnection], self.get_if_exists())
+            if conn:
+                fire_event(ConnectionClosedInCleanup(conn_name=cast_to_str(conn.name)))
+                self.close(conn)
+
+            # garbage collect these connections
             self.thread_connections.clear()
 
     @classmethod
@@ -479,7 +423,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
-                    databricks_connection.last_used_time = time.time()
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")
@@ -529,70 +472,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         """Noop."""
         pass
 
-    def get_thread_connection(self) -> Connection:
-        conn = super().get_thread_connection()
-        self._cleanup_idle_connections()
-
-        return conn
-
-    def _create_fresh_connection(
-        self, conn_name: str, query_header_context: QueryContextWrapper
-    ) -> DatabricksDBTConnection:
-        """Create a new connection for the combination of model and compute associated
-        with the given node."""
-
-        # Create a new connection
-        compute_name = query_header_context.compute_name or ""
-
-        conn = DatabricksDBTConnection(
-            type=Identifier(self.TYPE),
-            name=conn_name,
-            state=ConnectionState.INIT,
-            transaction_open=False,
-            handle=None,
-            credentials=self.profile.credentials,
-        )
-        conn.compute_name = compute_name
-        creds = cast(DatabricksCredentials, self.profile.credentials)
-        conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
-        # Set model identification from context
-        conn.model_unique_id = query_header_context.model_unique_id
-        conn.model_name = query_header_context.model_name
-        conn.max_idle_time = QueryConfigUtils.get_max_idle_time(query_header_context, creds)
-
-        conn.handle = LazyHandle(self.open)
-
-        logger.debug(ConnectionCreate(str(conn)))
-
-        return conn
-
-    def _cleanup_idle_connections(self) -> None:
-        """Simplified cleanup - just clear thread connections since we create fresh ones per model."""
-        # In the simplified model, we don't need complex idle cleanup
-        # since connections are created fresh per model and closed when done
-        pass
-
-    def cleanup_model_connections(self, model_unique_id: Optional[str]) -> None:
-        """Clean up connections for a specific model when it's complete."""
-        # In the simplified model, just clear the thread connection
-        with self.lock:
-            conn = self.get_if_exists()
-            if conn:
-                logger.debug(f"Cleaning up connection for completed model: {model_unique_id}")
-                self.close(conn)
-                self.clear_thread_connection()
-
-    def release_model_connection(self, model_unique_id: Optional[str]) -> None:
-        """Release a specific model connection."""
-        conn = self.get_if_exists()
-        if conn and isinstance(conn, DatabricksDBTConnection):
-            conn._release()
-            logger.debug(f"Released connection for model {model_unique_id}")
-
-    # Note: All connection methods now use simple thread-local storage
-    # This ensures that within a single model execution (single thread),
-    # all operations use the same connection that gets created fresh and closed when done.
-
 
 class QueryConfigUtils:
     """
@@ -622,28 +501,3 @@ class QueryConfigUtils:
             )
 
         return http_path
-
-    @staticmethod
-    def get_max_idle_time(context: QueryContextWrapper, creds: DatabricksCredentials) -> int:
-        """Get the http_path for the compute specified for the node.
-        If none is specified default will be used."""
-
-        max_idle_time = (
-            DEFAULT_MAX_IDLE_TIME if creds.connect_max_idle is None else creds.connect_max_idle
-        )
-
-        if context.compute_name and creds.compute:
-            max_idle_time = creds.compute.get(context.compute_name, {}).get(
-                "connect_max_idle", max_idle_time
-            )
-
-        if not isinstance(max_idle_time, int):
-            if isinstance(max_idle_time, str) and max_idle_time.strip().isnumeric():
-                return int(max_idle_time.strip())
-            else:
-                raise DbtRuntimeError(
-                    f"{max_idle_time} is not a valid value for connect_max_idle. "
-                    "Must be a number of seconds."
-                )
-
-        return max_idle_time
