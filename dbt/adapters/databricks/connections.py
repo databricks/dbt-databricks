@@ -1,4 +1,3 @@
-import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -32,7 +31,6 @@ from dbt.adapters.databricks.credentials import (
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionCreate,
     ConnectionCreateError,
-    ConnectionReset,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
@@ -50,12 +48,6 @@ from dbt.adapters.spark.connections import SparkConnectionManager
 
 if TYPE_CHECKING:
     from agate import Table
-
-
-mv_refresh_regex = re.compile(r"refresh\s+materialized\s+view\s+([`\w.]+)", re.IGNORECASE)
-st_refresh_regex = re.compile(
-    r"create\s+or\s+refresh\s+streaming\s+table\s+([`\w.]+)", re.IGNORECASE
-)
 
 
 DATABRICKS_QUERY_COMMENT = f"""
@@ -130,11 +122,6 @@ class DatabricksDBTConnection(Connection):
             f"DatabricksDBTConnection(session-id={self.session_id}, "
             f"name={self.name}, language={self.language})"
         )
-
-    def _reset_handle(self, open: Callable[[Connection], Connection]) -> None:
-        self.handle = LazyHandle(open)
-        self.session_id = None
-        logger.debug(ConnectionReset(str(self)))
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
