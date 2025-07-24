@@ -218,10 +218,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
         self._api_client: Optional[DatabricksApiClient] = None
-        # Model-based connection storage: {model_unique_id: connection}
-        # One connection per model since models use a single compute resource
-        self.model_connections: dict[str, DatabricksDBTConnection] = {}
-        self._model_connections_lock = threading.Lock()
 
     @property
     def api_client(self) -> DatabricksApiClient:
@@ -285,21 +281,31 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> Connection:
         """Called by 'acquire_connection' in DatabricksAdapter, which is called by
         'connection_named', called by 'connection_for(node)'.
-        Creates a connection for the model if one doesn't already
-        exist, and will rename an existing connection."""
-        self._cleanup_idle_connections()
+        Creates a fresh connection per model, reusing within the same model execution."""
 
         conn_name: str = "master" if name is None else name
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
-        # Get a connection for this model
-        conn = self._get_model_connection(wrapped.model_unique_id)
+        # Check if we already have a connection for this thread
+        existing_conn = self.get_if_exists()
 
-        if conn is None:
-            conn = self._create_compute_connection(conn_name, wrapped)
-        else:  # existing connection either wasn't open or didn't have the right name
-            conn = self._update_compute_connection(conn, conn_name)
+        if existing_conn is not None:
+            # Reuse existing connection for the same model execution
+            # Cast to our specific connection type
+            databricks_conn = cast(DatabricksDBTConnection, existing_conn)
+            # Just update the name if needed and return
+            if databricks_conn.name != conn_name:
+                databricks_conn.name = conn_name
+            databricks_conn._acquire(wrapped)
+            return databricks_conn
 
+        # No existing connection, create a fresh one
+        conn = self._create_fresh_connection(conn_name, wrapped)
+
+        # Store in thread-based storage (handled by parent SparkConnectionManager)
+        self.set_thread_connection(conn)
+
+        # Acquire the connection for immediate use
         conn._acquire(wrapped)
 
         return conn
@@ -447,23 +453,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
     # override
     def cleanup_all(self) -> None:
         with self.lock:
-            # Clean up model-based connections
-            with self._model_connections_lock:
-                for connection in self.model_connections.values():
-                    if connection.acquire_release_count > 0:
-                        fire_event(
-                            ConnectionLeftOpenInCleanup(conn_name=cast_to_str(connection.name))
-                        )
-                    else:
-                        fire_event(
-                            ConnectionClosedInCleanup(conn_name=cast_to_str(connection.name))
-                        )
-                    self.close(connection)
-
-                # garbage collect these connections
-                self.model_connections.clear()
-
-            # Also clean up any remaining thread connections (for backward compatibility)
+            # Clean up any remaining thread connections (for backward compatibility)
             self.thread_connections.clear()
 
     @classmethod
@@ -545,108 +535,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return conn
 
-    def _get_model_connection(
-        self, model_unique_id: Optional[str]
-    ) -> Optional[DatabricksDBTConnection]:
-        """Get connection for a specific model."""
-        if model_unique_id is not None:
-            key = model_unique_id
-        else:
-            # For non-model connections, we can't easily determine the right connection
-            # without additional context, so return None to trigger creation of new connection
-            return None
-
-        with self._model_connections_lock:
-            return self.model_connections.get(key)
-
-    def _add_model_connection(self, conn: DatabricksDBTConnection) -> None:
-        """Add a new model-based connection to storage."""
-        # Generate a key for the connection
-        if conn.model_unique_id is not None:
-            key = conn.model_unique_id
-        else:
-            # Fallback for non-model connections (tests, utility operations, etc.)
-            thread_id = self.get_thread_identifier()
-            key = f"thread_{thread_id}_{conn.name}"
-
-        with self._model_connections_lock:
-            # Check if connection already exists
-            existing_conn = self.model_connections.get(key)
-            if existing_conn is not None:
-                # For fallback connections (non-model), allow reuse/replacement
-                # This handles test framework scenarios where the same connection name is reused
-                if conn.model_unique_id is None:
-                    logger.debug(f"Replacing existing fallback connection for key: {key}")
-                    self.model_connections[key] = conn
-                else:
-                    # For model connections, this shouldn't happen in normal operation
-                    raise DbtInternalError(f"Model connection already exists for key `{key}`")
-            else:
-                self.model_connections[key] = conn
-
-    def _remove_model_connection(self, model_unique_id: Optional[str]) -> None:
-        """Remove a model-based connection from storage."""
-        if model_unique_id is None:
-            return
-        with self._model_connections_lock:
-            self.model_connections.pop(model_unique_id, None)
-
-    def _cleanup_idle_connections(self) -> None:
-        with self._model_connections_lock:
-            # Get all model-based connections and check for idle ones
-            connections_to_remove = []
-            for key, conn in self.model_connections.items():
-                # Generally speaking we only want to close/refresh the connection if the
-                # acquire_release_count is zero.  i.e. the connection is not currently in use.
-                # However python models acquire a connection then run the python model, which
-                # doesn't actually use the connection. If the python model takes long enough to
-                # run the connection can be idle long enough to timeout on the back end.
-                # If additional sql needs to be run after the python model, but before the
-                # connection is released, the connection needs to be refreshed or there will
-                # be a failure.  Making an exception when language is 'python' allows the
-                # the call to _cleanup_idle_connections from get_thread_connection to refresh the
-                # connection in this scenario.
-                if (
-                    conn.acquire_release_count == 0 or conn.language == "python"
-                ) and conn._idle_too_long():
-                    logger.debug(ConnectionIdleClose(str(conn)))
-                    self.close(conn)
-                    conn._reset_handle(self.open)
-                    # Mark for removal if not in use
-                    if conn.acquire_release_count == 0:
-                        connections_to_remove.append(key)
-
-            # Remove idle connections that are no longer in use
-            for key in connections_to_remove:
-                self.model_connections.pop(key, None)
-
-    def cleanup_model_connections(self, model_unique_id: Optional[str]) -> None:
-        """Clean up connections for a specific model when it's complete."""
-        if not model_unique_id:
-            return
-
-        with self._model_connections_lock:
-            conn = self.model_connections.get(model_unique_id)
-            if conn and conn.acquire_release_count == 0:
-                logger.debug(f"Cleaning up connection for completed model: {model_unique_id}")
-                self.close(conn)
-                self.model_connections.pop(model_unique_id, None)
-
-    def release_model_connection(self, model_unique_id: Optional[str]) -> None:
-        """Release a specific model connection, marking it as available for cleanup."""
-        if not model_unique_id:
-            return
-
-        conn = self._get_model_connection(model_unique_id)
-        if conn:
-            conn._release()
-            logger.debug(f"Released connection for model {model_unique_id}")
-
-    # Note: All model-based connection methods are thread-safe through the use of
-    # self._model_connections_lock. This ensures that concurrent access to the
-    # model_connections dictionary is properly synchronized.
-
-    def _create_compute_connection(
+    def _create_fresh_connection(
         self, conn_name: str, query_header_context: QueryContextWrapper
     ) -> DatabricksDBTConnection:
         """Create a new connection for the combination of model and compute associated
@@ -675,42 +564,34 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         logger.debug(ConnectionCreate(str(conn)))
 
-        # Add this connection to the model-based connection pool
-        self._add_model_connection(conn)
-        # Remove the connection currently in use by this thread from the thread connection pool
-        self.clear_thread_connection()
-        # Add the connection to thread connection pool for backward compatibility
-        self.set_thread_connection(conn)
-
-        fire_event(
-            NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
-        )
-
         return conn
 
-    def _update_compute_connection(
-        self, conn: DatabricksDBTConnection, new_name: str
-    ) -> DatabricksDBTConnection:
-        if conn.name == new_name and conn.state == ConnectionState.OPEN:
-            # Found a connection and nothing to do, so just return it
-            return conn
+    def _cleanup_idle_connections(self) -> None:
+        """Simplified cleanup - just clear thread connections since we create fresh ones per model."""
+        # In the simplified model, we don't need complex idle cleanup
+        # since connections are created fresh per model and closed when done
+        pass
 
-        orig_conn_name: str = conn.name or ""
+    def cleanup_model_connections(self, model_unique_id: Optional[str]) -> None:
+        """Clean up connections for a specific model when it's complete."""
+        # In the simplified model, just clear the thread connection
+        with self.lock:
+            conn = self.get_if_exists()
+            if conn:
+                logger.debug(f"Cleaning up connection for completed model: {model_unique_id}")
+                self.close(conn)
+                self.clear_thread_connection()
 
-        if conn.state != ConnectionState.OPEN:
-            conn.handle = LazyHandle(self.open)
-        if conn.name != new_name:
-            conn.name = new_name
-            fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=new_name))
+    def release_model_connection(self, model_unique_id: Optional[str]) -> None:
+        """Release a specific model connection."""
+        conn = self.get_if_exists()
+        if conn and isinstance(conn, DatabricksDBTConnection):
+            conn._release()
+            logger.debug(f"Released connection for model {model_unique_id}")
 
-        current_thread_conn = cast(Optional[DatabricksDBTConnection], self.get_if_exists())
-        if current_thread_conn and current_thread_conn.compute_name != conn.compute_name:
-            self.clear_thread_connection()
-            self.set_thread_connection(conn)
-
-        logger.debug(ConnectionReuse(str(conn), orig_conn_name))
-
-        return conn
+    # Note: All connection methods now use simple thread-local storage
+    # This ensures that within a single model execution (single thread),
+    # all operations use the same connection that gets created fresh and closed when done.
 
 
 class QueryConfigUtils:
