@@ -11,6 +11,7 @@
 - Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
 - Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
 - Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
+- Fix MV/ST materializations with complex data types ([1100](https://github.com/databricks/dbt-databricks/issues/1100))
 
 ### Under the Hood
 
