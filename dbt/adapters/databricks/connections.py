@@ -1,7 +1,7 @@
 import re
 import threading
 import time
-from collections.abc import Callable, Hashable, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
@@ -218,8 +218,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
         self._api_client: Optional[DatabricksApiClient] = None
-        # Model-based connection storage: {model_connection_key: connection}
-        # Key format: "{model_unique_id}::{compute_name}" for uniqueness
+        # Model-based connection storage: {model_unique_id: connection}
+        # One connection per model since models use a single compute resource
         self.model_connections: dict[str, DatabricksDBTConnection] = {}
         self._model_connections_lock = threading.Lock()
 
@@ -292,8 +292,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn_name: str = "master" if name is None else name
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
-        # Get a connection for this model + compute combination
-        conn = self._get_model_connection(wrapped.model_unique_id, wrapped.compute_name or "")
+        # Get a connection for this model
+        conn = self._get_model_connection(wrapped.model_unique_id)
 
         if conn is None:
             conn = self._create_compute_connection(conn_name, wrapped)
@@ -545,50 +545,51 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         return conn
 
-    def _get_model_connection_key(self, model_unique_id: Optional[str], compute_name: str) -> str:
-        """Generate a unique key for model-based connection storage."""
-        if model_unique_id:
-            return f"{model_unique_id}::{compute_name}"
-        else:
-            # Fallback for cases where model_unique_id is not available
-            # Use thread identifier as backup to maintain some isolation
-            thread_id = self.get_thread_identifier()
-            return f"thread_{thread_id}::{compute_name}"
-
     def _get_model_connection(
-        self, model_unique_id: Optional[str], compute_name: str
+        self, model_unique_id: Optional[str]
     ) -> Optional[DatabricksDBTConnection]:
-        """Get connection for a specific model and compute combination."""
-        key = self._get_model_connection_key(model_unique_id, compute_name)
+        """Get connection for a specific model."""
+        if model_unique_id is not None:
+            key = model_unique_id
+        else:
+            # For non-model connections, we can't easily determine the right connection
+            # without additional context, so return None to trigger creation of new connection
+            return None
+
         with self._model_connections_lock:
             return self.model_connections.get(key)
 
     def _add_model_connection(self, conn: DatabricksDBTConnection) -> None:
         """Add a new model-based connection to storage."""
-        key = self._get_model_connection_key(conn.model_unique_id, conn.compute_name)
-        with self._model_connections_lock:
-            if key in self.model_connections:
-                raise DbtInternalError(f"Model connection already exists for key `{key}`")
-            self.model_connections[key] = conn
+        # Generate a key for the connection
+        if conn.model_unique_id is not None:
+            key = conn.model_unique_id
+        else:
+            # Fallback for non-model connections (tests, utility operations, etc.)
+            thread_id = self.get_thread_identifier()
+            key = f"thread_{thread_id}_{conn.name}"
 
-    def _remove_model_connection(self, model_unique_id: Optional[str], compute_name: str) -> None:
+        with self._model_connections_lock:
+            # Check if connection already exists
+            existing_conn = self.model_connections.get(key)
+            if existing_conn is not None:
+                # For fallback connections (non-model), allow reuse/replacement
+                # This handles test framework scenarios where the same connection name is reused
+                if conn.model_unique_id is None:
+                    logger.debug(f"Replacing existing fallback connection for key: {key}")
+                    self.model_connections[key] = conn
+                else:
+                    # For model connections, this shouldn't happen in normal operation
+                    raise DbtInternalError(f"Model connection already exists for key `{key}`")
+            else:
+                self.model_connections[key] = conn
+
+    def _remove_model_connection(self, model_unique_id: Optional[str]) -> None:
         """Remove a model-based connection from storage."""
-        key = self._get_model_connection_key(model_unique_id, compute_name)
+        if model_unique_id is None:
+            return
         with self._model_connections_lock:
-            self.model_connections.pop(key, None)
-
-    def _add_compute_connection(self, conn: DatabricksDBTConnection) -> None:
-        """DEPRECATED: Add a new connection to the map of connection per thread per compute.
-        This method is kept for backward compatibility but is no longer used.
-        Use _add_model_connection instead."""
-
-        with self.lock:
-            thread_map = self._get_compute_connections()
-            if conn.compute_name in thread_map:
-                raise DbtInternalError(
-                    f"In set_thread_compute_connection, connection exists for `{conn.compute_name}`"
-                )
-            thread_map[conn.compute_name] = conn
+            self.model_connections.pop(model_unique_id, None)
 
     def _cleanup_idle_connections(self) -> None:
         with self._model_connections_lock:
@@ -625,31 +626,21 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return
 
         with self._model_connections_lock:
-            connections_to_remove = []
-            for key in self.model_connections:
-                if key.startswith(f"{model_unique_id}::"):
-                    conn = self.model_connections[key]
-                    if conn.acquire_release_count == 0:
-                        logger.debug(
-                            f"Cleaning up connection for completed model: {model_unique_id}"
-                        )
-                        self.close(conn)
-                        connections_to_remove.append(key)
+            conn = self.model_connections.get(model_unique_id)
+            if conn and conn.acquire_release_count == 0:
+                logger.debug(f"Cleaning up connection for completed model: {model_unique_id}")
+                self.close(conn)
+                self.model_connections.pop(model_unique_id, None)
 
-            for key in connections_to_remove:
-                self.model_connections.pop(key, None)
-
-    def release_model_connection(self, model_unique_id: Optional[str], compute_name: str) -> None:
+    def release_model_connection(self, model_unique_id: Optional[str]) -> None:
         """Release a specific model connection, marking it as available for cleanup."""
         if not model_unique_id:
             return
 
-        conn = self._get_model_connection(model_unique_id, compute_name)
+        conn = self._get_model_connection(model_unique_id)
         if conn:
             conn._release()
-            logger.debug(
-                f"Released connection for model {model_unique_id} on compute {compute_name}"
-            )
+            logger.debug(f"Released connection for model {model_unique_id}")
 
     # Note: All model-based connection methods are thread-safe through the use of
     # self._model_connections_lock. This ensures that concurrent access to the
@@ -696,35 +687,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         )
 
         return conn
-
-    def _get_if_exists_compute_connection(
-        self, compute_name: str
-    ) -> Optional[DatabricksDBTConnection]:
-        """Get the connection for the current thread and named compute, if it exists."""
-
-        with self.lock:
-            threads_map = self._get_compute_connections()
-            return threads_map.get(compute_name)
-
-    def _get_compute_connections(
-        self,
-    ) -> dict[Hashable, DatabricksDBTConnection]:
-        """Retrieve a map of compute name to connection for the current thread.
-        Note: This method is kept for backward compatibility but now returns
-        model-based connections that match the current thread context."""
-
-        thread_id = self.get_thread_identifier()
-        compute_connections: dict[Hashable, DatabricksDBTConnection] = {}
-
-        with self._model_connections_lock:
-            # Return model connections that match the current thread context
-            # This is a fallback mechanism for cases where model context isn't available
-            for key, connection in self.model_connections.items():
-                if key.startswith(f"thread_{thread_id}::"):
-                    compute_name = key.split("::", 1)[1]
-                    compute_connections[compute_name] = connection
-
-        return compute_connections
 
     def _update_compute_connection(
         self, conn: DatabricksDBTConnection, new_name: str
