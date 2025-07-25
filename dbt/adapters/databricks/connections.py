@@ -81,21 +81,17 @@ class QueryContextWrapper:
 
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
-    language: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
-        language = getattr(query_header_context, "language", None)
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
 
-        return QueryContextWrapper(
-            compute_name=compute_name, relation_name=relation_name, language=language
-        )
+        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -110,20 +106,10 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
-
-    # If the connection is being used for a model we want to track the model language.
-    # We do this because we need special handling for python models.  Python models will
-    # acquire a connection, but do not actually use it to run the model. This can lead to the
-    # session timing out on the back end.
-    language: Optional[str] = None
-
     session_id: Optional[str] = None
 
     def __str__(self) -> str:
-        return (
-            f"DatabricksDBTConnection(session-id={self.session_id}, "
-            f"name={self.name}, language={self.language})"
-        )
+        return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -194,9 +180,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def set_connection_name(
         self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
-        """Creates a fresh connection for each operation.
-        Simplified approach - no connection caching or reuse."""
-
         conn_name: str = "master" if name is None else name
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
@@ -208,8 +191,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return conn
 
         if conn is None:
-            # Create a new connection
-            logger.debug(f"Creating new connection for {conn_name}")
             conn = self._create_fresh_connection(conn_name, wrapped)
         else:  # existing connection either wasn't open or didn't have the right name
             if conn.state != "open":
@@ -224,8 +205,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def _create_fresh_connection(
         self, conn_name: str, query_header_context: QueryContextWrapper
     ) -> DatabricksDBTConnection:
-        """Create a fresh connection for each operation - no caching or reuse."""
-
         conn = DatabricksDBTConnection(
             type=Identifier(self.TYPE),
             name=conn_name,
@@ -237,7 +216,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-        conn.language = query_header_context.language
 
         conn.handle = LazyHandle(self.open)
 
@@ -390,7 +368,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if conn is None:
                 return
 
-            # Close the connection since we create fresh ones each time
             self.close(conn)
             self.clear_thread_connection()
 
