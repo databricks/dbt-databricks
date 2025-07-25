@@ -39,6 +39,7 @@ from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import redact_credentials
 from dbt.adapters.events.types import (
     ConnectionClosedInCleanup,
+    ConnectionReused,
     ConnectionUsed,
     NewConnection,
     SQLQuery,
@@ -199,8 +200,24 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn_name: str = "master" if name is None else name
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
-        # Create a fresh connection for this operation
-        conn = self._create_fresh_connection(conn_name, wrapped)
+        # Get a connection for this thread
+        conn = self.get_if_exists()
+
+        if conn and conn.name == conn_name and conn.state == "open":
+            # Found a connection and nothing to do, so just return it
+            return conn
+
+        if conn is None:
+            # Create a new connection
+            logger.debug(f"Creating new connection for {conn_name}")
+            conn = self._create_fresh_connection(conn_name, wrapped)
+        else:  # existing connection either wasn't open or didn't have the right name
+            if conn.state != "open":
+                conn.handle = LazyHandle(self.open)
+            if conn.name != conn_name:
+                orig_conn_name: str = conn.name or ""
+                conn.name = conn_name
+                fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=conn_name))
 
         return conn
 
