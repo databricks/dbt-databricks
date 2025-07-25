@@ -21,10 +21,11 @@ The `dbt-databricks` adapter contains all of the code enabling dbt to work with 
 
 - **Easy setup**. No need to install an ODBC driver as the adapter uses pure Python APIs.
 - **Open by default**. For example, it uses the the open and performant [Delta](https://delta.io/) table format by default. This has many benefits, including letting you use `MERGE` as the the default incremental materialization strategy.
-- **Support for Unity Catalog**. dbt-databricks>=1.1.1 supports the 3-level namespace of Unity Catalog (catalog / schema / relations) so you can organize and secure your data the way you like.
+- **Support for Unity Catalog**. dbt-databricks supports the 3-level namespace of Unity Catalog (catalog / schema / relations) so you can organize and secure your data the way you like.
 - **Performance**. The adapter generates SQL expressions that are automatically accelerated by the native, vectorized [Photon](https://databricks.com/product/photon) execution engine.
 
 ## Choosing between dbt-databricks and dbt-spark
+
 If you are developing a dbt project on Databricks, we recommend using `dbt-databricks` for the reasons noted above.
 
 `dbt-spark` is an actively developed adapter which works with Databricks as well as Apache Spark anywhere it is hosted e.g. on AWS EMR.
@@ -34,11 +35,13 @@ If you are developing a dbt project on Databricks, we recommend using `dbt-datab
 ### Installation
 
 Install using pip:
+
 ```nofmt
 pip install dbt-databricks
 ```
 
 Upgrade to the latest version
+
 ```nofmt
 pip install --upgrade dbt-databricks
 ```
@@ -51,21 +54,29 @@ your_profile_name:
   outputs:
     dev:
       type: databricks
-      catalog: [optional catalog name, if you are using Unity Catalog, only available in dbt-databricks>=1.1.1]
+      catalog: [optional catalog name, if you are using Unity Catalog]
       schema: [database/schema name]
       host: [your.databrickshost.com]
       http_path: [/sql/your/http/path]
       token: [dapiXXXXXXXXXXXXXXXXXXXXXXX]
 ```
 
+### Documentation
+
+For comprehensive documentation on Databricks-specific features, configurations, and capabilities:
+
+- **[Databricks configurations](https://docs.getdbt.com/reference/resource-configs/databricks-configs)** - Complete reference for all Databricks-specific model configurations, materializations, and incremental strategies
+- **[Connect to Databricks](https://docs.getdbt.com/docs/core/connect-data-platform/databricks-setup)** - Setup and authentication guide
+
 ### Quick Starts
 
 These following quick starts will get you up and running with the `dbt-databricks` adapter:
-- [Developing your first dbt project](https://github.com/databricks/dbt-databricks/blob/main/docs/local-dev.md)
+
+- [Set up your dbt project with Databricks](https://docs.getdbt.com/guides/set-up-your-databricks-dbt-project)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
 - [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
 - [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/uc.md)
-- [Using GitHub Actions for dbt CI/CD on Databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/github-actions.md)
+- [Continuous integration in dbt](https://docs.getdbt.com/docs/deploy/continuous-integration)
 - [Loading data from S3 into Delta using the databricks_copy_into macro](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-copy-into-macro-aws.md)
 - [Contribute to this repository](CONTRIBUTING.MD)
 
@@ -77,7 +88,9 @@ The `dbt-databricks` adapter has been tested:
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
 
 ### Tips and Tricks
+
 ## Choosing compute for a Python model
+
 You can override the compute used for a specific Python model by setting the `http_path` property in model configuration. This can be useful if, for example, you want to run a Python model on an All Purpose cluster, while running SQL models on a SQL Warehouse. Note that this capability is only available for Python models.
 
 ```
