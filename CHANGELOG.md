@@ -29,6 +29,7 @@
 ### Under the Hood
 
 - Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
+- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
 
 ## dbt-databricks 1.10.4 (June 24, 2025)
 
