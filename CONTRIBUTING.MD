@@ -42,7 +42,7 @@ Once all tests pass a maintainer will rebase and merge your change to `main` so 
 
 ## Developing this repository
 
-See [docs/local-dev.md](docs/local-dev.md).
+See [docs/dbt-databricks-dev.md](docs/dbt-databricks-dev.md).
 
 ## Code Style
 
