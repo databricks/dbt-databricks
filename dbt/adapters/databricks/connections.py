@@ -108,6 +108,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 @dataclass(init=False)
 class DatabricksDBTConnection(Connection):
     http_path: str = ""
+    thread_identifier: tuple[int, int] = (0, 0)
 
     # If the connection is being used for a model we want to track the model language.
     # We do this because we need special handling for python models.  Python models will
@@ -218,6 +219,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         )
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
+        conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
         conn.language = query_header_context.language
 
         conn.handle = LazyHandle(self.open)
