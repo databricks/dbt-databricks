@@ -27,6 +27,26 @@ hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
 ```
 
+### 3. VS Code Setup (Optional)
+
+Add to `.vscode/settings.json` for optimal development experience:
+
+```json
+{
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["--color=yes", "-n=auto", "--dist=loadscope"],
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  }
+}
+```
+
 ## Development Workflow
 
 ### Making Changes
@@ -82,26 +102,6 @@ dbt-databricks extends [dbt-spark](https://github.com/dbt-labs/dbt-spark) with D
 - **Unity Catalog**: 3-level namespace, governance, grants
 - **Python Models**: Execution on clusters, serverless, workflows
 - **Behavior Flags**: Feature toggles (see `behaviors/` directory)
-
-## VS Code Settings
-
-Recommended `.vscode/settings.json`:
-
-```json
-{
-  "mypy-type-checker.importStrategy": "fromEnvironment",
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["--color=yes", "-n=auto", "--dist=loadscope"],
-  "[python]": {
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit"
-    }
-  }
-}
-```
 
 ## Documentation
 
