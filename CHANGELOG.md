@@ -1,4 +1,23 @@
-## dbt-databricks 1.10.5 (TBD)
+## dbt-databricks 1.10.6 (TBD)
+
+## dbt-databricks 1.10.5 (July 25, 2025)
+
+### Features
+
+- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
+
+### Fixes
+
+- Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
+- Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
+- Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
+- Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
+- Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
+- Fix MV/ST materializations with complex data types ([1100](https://github.com/databricks/dbt-databricks/issues/1100))
+
+### Under the Hood
+
+- Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
 
 ## dbt-databricks 1.10.4 (June 24, 2025)
 

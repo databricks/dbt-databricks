@@ -33,8 +33,17 @@ class GetColumnsByDescribe(GetColumnsBehavior):
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
-        return cls._parse_columns(rows)
+        if relation.is_hive_metastore():
+            rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
+            return cls._parse_columns(rows)
+        else:
+            result = cls._get_columns_with_comments(
+                adapter, relation, "get_columns_comments_as_json"
+            )
+            if not result:
+                return []
+            json_metadata = result[0]["json_metadata"]
+            return DatabricksColumn.from_json_metadata(json_metadata)
 
     @classmethod
     def _parse_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
@@ -57,11 +66,7 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
     def get_columns_in_relation(
         cls, adapter: SQLAdapter, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        if (
-            relation.is_hive_metastore()
-            or relation.type == DatabricksRelation.View
-            or not relation.is_delta
-        ):
+        if relation.is_hive_metastore() or not relation.is_delta:
             return super().get_columns_in_relation(adapter, relation)
 
         rows = cls._get_columns_with_comments(

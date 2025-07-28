@@ -40,11 +40,15 @@ class DatabricksRelationType(StrEnum):
     MaterializedView = "materialized_view"
     Foreign = "foreign"
     StreamingTable = "streaming_table"
-    External = "external"
-    ManagedShallowClone = "managed_shallow_clone"
-    ExternalShallowClone = "external_shallow_clone"
     MetricView = "metric_view"
     Unknown = "unknown"
+
+
+class DatabricksTableType(StrEnum):
+    External = "external"
+    Managed = "managed"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -69,6 +73,8 @@ class DatabricksRelation(BaseRelation):
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
     replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    databricks_table_type: Optional[DatabricksTableType] = None
+    temporary: Optional[bool] = False
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -83,7 +89,7 @@ class DatabricksRelation(BaseRelation):
         return self.metadata is not None
 
     def is_hive_metastore(self) -> bool:
-        return is_hive_metastore(self.database)
+        return is_hive_metastore(self.database, self.temporary)
 
     @property
     def is_materialized_view(self) -> bool:
@@ -92,6 +98,10 @@ class DatabricksRelation(BaseRelation):
     @property
     def is_streaming_table(self) -> bool:
         return self.type == DatabricksRelationType.StreamingTable
+
+    @property
+    def is_external_table(self) -> bool:
+        return self.databricks_table_type == DatabricksTableType.External
 
     @property
     def is_dlt(self) -> bool:
@@ -154,6 +164,10 @@ class DatabricksRelation(BaseRelation):
     def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
+    @classproperty
+    def get_databricks_table_type(cls) -> Type[DatabricksTableType]:  # noqa
+        return DatabricksTableType
+
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
         # some of our data comes from jinja, where things can be `Undefined`.
         if not isinstance(view_name, str):
@@ -189,8 +203,8 @@ class DatabricksRelation(BaseRelation):
         return super().render().lower()
 
 
-def is_hive_metastore(database: Optional[str]) -> bool:
-    return database is None or database.lower() == "hive_metastore"
+def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
+    return (database is None or database.lower() == "hive_metastore") and not temporary
 
 
 def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:

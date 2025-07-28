@@ -96,7 +96,17 @@ SELECT
   table_name,
   if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
   lower(data_source_format) AS file_format,
-  table_owner
+  table_owner,
+  if(
+    table_type IN (
+      'EXTERNAL',
+      'MANAGED',
+      'MANAGED_SHALLOW_CLONE',
+      'EXTERNAL_SHALLOW_CLONE'
+    ),
+    lower(table_type),
+    NULL
+  ) AS databricks_table_type
 FROM `system`.`information_schema`.`tables`
 WHERE table_catalog = '{{ relation.database|lower }}' 
   AND table_schema = '{{ relation.schema|lower }}'
