@@ -1,153 +1,170 @@
-# Preparing to Develop dbt-databricks
+# Developing dbt-databricks
 
-## Install Hatch
+This guide covers the essential setup and workflow for developing the dbt-databricks adapter.
 
-For best experience, [Hatch](https://hatch.pypa.io/dev/)--a modern Python project manager--should be installed globally.
-Find installation instructions [here](https://hatch.pypa.io/dev/install/#installers).
+## Quick Start
 
-## Getting Hatch to Work with your IDE
+### 1. Environment Setup
 
-The main thing to getting our project and all expected functionality to work with your IDE is create the default environment for the project, and point your IDE at the interpreter in that project.
+**Install Hatch** (recommended):
 
-First execute
+```bash
+# Install Hatch globally - see https://hatch.pypa.io/dev/install/
+pip install hatch
 
-```
+# Create default environment
 hatch env create
 ```
 
-to create the default environment, populating the `.hatch` folder.
-This is where your virtual environments for this project will live.
-In your IDE, you should hopefully see an interpreter in this folder recommended when you enter the set interpreter prompt.
-If not, selecting `.hatch/dbt-databricks/bin/python` as the executable for your interpretor should get you IDE integration.
-If you have an existing `.venv` folder in `dbt-databricks` you should remove it to keep the tools from detecting multiple python virtual environments locally and getting confused.
+**IDE Integration**:
+Set your IDE's Python interpreter to `.hatch/dbt-databricks/bin/python`
 
-### VS Code Settings
+### 2. Development Commands
 
-If you are using VS Code, here are recommended settings (to be included in `.vscode/settings.json`):
-
-```
-{
-    "mypy-type-checker.importStrategy": "fromEnvironment",
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": [
-        "--color=yes",
-        "-n=auto",
-        "--dist=loadscope",
-    ],
-    "[python]": {
-        "editor.insertSpaces": true,
-        "editor.tabSize": 4,
-        "editor.formatOnSave": true,
-        "editor.formatOnType": true,
-        "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
-        },
-    },
-    "logViewer.watch": [
-        {
-            "title": "dbt logs",
-            "pattern": "${workspaceFolder}/logs/**/dbt.log"
-        }
-    ],
-    "logViewer.showStatusBarItemOnChange": true,
-    "editor.formatOnSave": true,
-}
-```
-
-To get all of these features to work, you will need to install 'Log Viewer', 'Mypy Type Checker', and 'Ruff'.
-
-When everything is working as intended you will get the following behaviors:
-
-- [mypy](https://mypy-lang.org/) type-checking
-- [ruff](https://docs.astral.sh/ruff/) formatting and linting (including import organization)
-- [pytest](https://docs.pytest.org/en/stable/) test running from the Test Explorer
-- The ability to quickly jump to test logs as they are produced with the Log Viewer extension
-
-To add test debugging capabilities, add the following to `.vscode/launch.json`:
-
-```
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Python: Debug Tests",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "purpose": ["debug-test"],
-            "console": "integratedTerminal",
-            "justMyCode": false,
-        }
-    ]
-}
-```
-
-## Hatch from the CLI
-
-There are a number of useful scripts to invoked from the CLI.
-While it is useful to learn about Hatch to understand environments and all of the functionalities, you can run the commands below to accomplish common developer activities:
-
-```
-hatch run setup-precommit
-```
-
-will install our precommit hooks.
-You can run the hooks without installing them with
-
-```
+```bash
+# Code quality (formatting, linting, type checking)
 hatch run code-quality
-```
 
-This runs `ruff` and `mypy` against the project.
-
-```
+# Run unit tests
 hatch run unit
-```
 
-will run the unit tests against Python 3.9, while
+# Run functional tests (requires Databricks connection)
+hatch run cluster-e2e            # HMS cluster
+hatch run uc-cluster-e2e         # Unity Catalog cluster
+hatch run sqlw-e2e               # SQL Warehouse
 
-```
-hatch run test:unit
-```
-
-will run the unit tests against all supported Python versions.
-
-```
-hatch run {cluster-e2e | uc-cluster-e2e | sqlw-e2e}
-```
-
-will run the functional tests against the HMS cluster, UC cluster, or SQL Warehouse respectively, assuming you have configured your `test.env` file correctly.
-
-```
+# Build package
 hatch build
 ```
 
-builds the `sdist` and `wheel` distributables.
+## Development Workflow
 
-If you ever need to install newer versions of a library into the default environment, but don't want to change the dependency version requirements, you can manage this by first entering the shell
+### Making Changes
 
+1. **Create a feature branch**:
+
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes** following established patterns
+
+3. **Run code quality checks**:
+
+   ```bash
+   hatch run code-quality
+   ```
+
+4. **Run relevant tests**:
+
+   ```bash
+   hatch run unit                    # Always run unit tests
+   hatch run cluster-e2e             # Run functional tests if adapter changes
+   ```
+
+5. **Update documentation** if needed (code comments, this guide)
+
+### Pull Request Process
+
+**Before submitting:**
+
+- [ ] All tests pass locally
+- [ ] Code quality checks pass
+- [ ] Code comments updated if needed
+
+**After PR creation:**
+
+- [ ] Update CHANGELOG.md for user-facing changes (requires PR link)
+
+**Breaking changes require:**
+
+- GitHub Issue for design discussion first
+- Implementation behind behavior flag (see existing flags in `behaviors/`)
+- Clear migration documentation
+
+## Key Architecture
+
+dbt-databricks extends [dbt-spark](https://github.com/dbt-labs/dbt-spark) with Databricks-specific features:
+
+- **Authentication**: OAuth (U2M/M2M), Personal Access Tokens, Azure Service Principal
+- **Materializations**: `table`, `view`, `incremental`, `materialized_view`, `streaming_table`
+- **Incremental Strategies**: `append`, `merge`, `insert_overwrite`, `replace_where`, `microbatch`
+- **Unity Catalog**: 3-level namespace, governance, grants
+- **Python Models**: Execution on clusters, serverless, workflows
+- **Behavior Flags**: Feature toggles (see `behaviors/` directory)
+
+## VS Code Settings
+
+Recommended `.vscode/settings.json`:
+
+```json
+{
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["--color=yes", "-n=auto", "--dist=loadscope"],
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  }
+}
 ```
-hatch shell
+
+## Documentation
+
+**Two types of documentation:**
+
+1. **Development docs** (this repo): Architecture, testing, contributing
+2. **User docs** ([docs.getdbt.com](https://docs.getdbt.com)): Features, configuration, usage
+
+**Process:**
+
+- Update development docs during development
+- User docs updated before release (coordinate with dbt Labs)
+- Changelog entries added after PR creation
+
+## Common Hatch Commands
+
+```bash
+# Environment management
+hatch env create                  # Create default environment
+hatch env remove                  # Remove environment
+hatch shell                       # Enter environment shell
+
+# Code quality
+hatch run ruff format             # Format code
+hatch run ruff check              # Lint code
+hatch run mypy                    # Type checking
+hatch run code-quality            # All quality checks
+
+# Testing
+hatch run unit                    # Unit tests
+hatch run test:unit               # Unit tests (all Python versions)
+hatch run cluster-e2e             # Functional tests (HMS)
+hatch run uc-cluster-e2e          # Functional tests (Unity Catalog)
+hatch run sqlw-e2e                # Functional tests (SQL Warehouse)
+
+# Building
+hatch build                       # Build wheel and sdist
+hatch version                     # Show current version
 ```
 
-and then pip installing as usual, e.g:
+## Getting Help
 
-```
-pip install dbt-core==1.8.9
-```
+- **Documentation**: [dbt-databricks docs](https://docs.getdbt.com/docs/core/connect-data-platform/databricks-setup)
+- **Issues**: [GitHub Issues](https://github.com/databricks/dbt-databricks/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/databricks/dbt-databricks/discussions)
+- **dbt Community**: [dbt Slack](https://www.getdbt.com/community/join-the-community/)
 
-## In Case of Emergency
+## Contributing
 
-If you are making changes to pyproject.toml, and for whatever reason Hatch isn't respecting your changes, you can blow away existing environments with
+See [CONTRIBUTING.MD](../CONTRIBUTING.MD) for detailed contribution guidelines.
 
-```
-hatch env prune
-```
+For breaking changes:
 
-and then recreate the default environment with:
-
-```
-hatch env create
-```
+1. Create GitHub Issue for design discussion
+2. Implement behind behavior flag
+3. Provide clear migration documentation
