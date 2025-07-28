@@ -27,7 +27,7 @@ hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
 ```
 
-### 3. VS Code Setup (Optional)
+### 3. VS Code/Cursor Setup (Optional)
 
 **Required Extensions**: Install these VS Code extensions:
 
