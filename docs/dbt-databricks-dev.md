@@ -144,7 +144,10 @@ dbt-databricks extends [dbt-spark](https://github.com/dbt-labs/dbt-spark) with D
 - **Incremental Strategies**: `append`, `merge`, `insert_overwrite`, `replace_where`, `microbatch`
 - **Unity Catalog**: 3-level namespace, governance, grants
 - **Python Models**: Execution on clusters, serverless, workflows
-- **Behavior Flags**: Feature toggles (see `behaviors/` directory)
+
+**Uses dbt-core features**:
+
+- **Behavior Flags**: Feature toggles for gradual rollouts (see `behaviors/` directory)
 
 ## Documentation
 
