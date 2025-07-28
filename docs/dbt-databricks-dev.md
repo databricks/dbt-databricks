@@ -19,22 +19,12 @@ hatch env create
 **IDE Integration**:
 Set your IDE's Python interpreter to `.hatch/dbt-databricks/bin/python`
 
-### 2. Development Commands
+### 2. Essential Commands
 
 ```bash
-# Code quality (formatting, linting, type checking)
-hatch run code-quality
-
-# Run unit tests
-hatch run unit
-
-# Run functional tests (requires Databricks connection)
-hatch run cluster-e2e            # HMS cluster
-hatch run uc-cluster-e2e         # Unity Catalog cluster
-hatch run sqlw-e2e               # SQL Warehouse
-
-# Build package
-hatch build
+hatch run code-quality           # Format, lint, type-check
+hatch run unit                   # Run unit tests
+hatch run cluster-e2e            # Run functional tests
 ```
 
 ## Development Workflow
@@ -126,7 +116,7 @@ Recommended `.vscode/settings.json`:
 - User docs updated before release (coordinate with dbt Labs)
 - Changelog entries added after PR creation
 
-## Common Hatch Commands
+## Hatch Commands Reference
 
 ```bash
 # Environment management
@@ -135,15 +125,15 @@ hatch env remove                  # Remove environment
 hatch shell                       # Enter environment shell
 
 # Code quality
-hatch run ruff format             # Format code
-hatch run ruff check              # Lint code
-hatch run mypy                    # Type checking
-hatch run code-quality            # All quality checks
+hatch run code-quality            # All checks (format, lint, type-check)
+hatch run ruff format             # Format code only
+hatch run ruff check              # Lint code only
+hatch run mypy                    # Type checking only
 
 # Testing
-hatch run unit                    # Unit tests
+hatch run unit                    # Unit tests (Python 3.9)
 hatch run test:unit               # Unit tests (all Python versions)
-hatch run cluster-e2e             # Functional tests (HMS)
+hatch run cluster-e2e             # Functional tests (HMS cluster)
 hatch run uc-cluster-e2e          # Functional tests (Unity Catalog)
 hatch run sqlw-e2e                # Functional tests (SQL Warehouse)
 
@@ -152,19 +142,16 @@ hatch build                       # Build wheel and sdist
 hatch version                     # Show current version
 ```
 
+### Troubleshooting
+
+If Hatch isn't respecting changes to `pyproject.toml`:
+
+```bash
+hatch env prune                   # Remove all environments
+hatch env create                  # Recreate default environment
+```
+
 ## Getting Help
 
-- **Documentation**: [dbt-databricks docs](https://docs.getdbt.com/docs/core/connect-data-platform/databricks-setup)
 - **Issues**: [GitHub Issues](https://github.com/databricks/dbt-databricks/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/databricks/dbt-databricks/discussions)
-- **dbt Community**: [dbt Slack](https://www.getdbt.com/community/join-the-community/)
-
-## Contributing
-
-See [CONTRIBUTING.MD](../CONTRIBUTING.MD) for detailed contribution guidelines.
-
-For breaking changes:
-
-1. Create GitHub Issue for design discussion
-2. Implement behind behavior flag
-3. Provide clear migration documentation
+- **Contributing**: See [CONTRIBUTING.MD](../CONTRIBUTING.MD) for guidelines
