@@ -29,7 +29,13 @@ hatch run cluster-e2e            # Run functional tests
 
 ### 3. VS Code Setup (Optional)
 
-Add to `.vscode/settings.json` for optimal development experience:
+**Required Extensions**: Install these VS Code extensions:
+
+- **Ruff** - Code formatting and linting
+- **Mypy Type Checker** - Type checking
+- **Log Viewer** - View dbt logs in real-time
+
+**Settings**: Add to `.vscode/settings.json`:
 
 ```json
 {
@@ -38,14 +44,51 @@ Add to `.vscode/settings.json` for optimal development experience:
   "python.testing.pytestEnabled": true,
   "python.testing.pytestArgs": ["--color=yes", "-n=auto", "--dist=loadscope"],
   "[python]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4,
     "editor.formatOnSave": true,
+    "editor.formatOnType": true,
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"
     }
-  }
+  },
+  "logViewer.watch": [
+    {
+      "title": "dbt logs",
+      "pattern": "${workspaceFolder}/logs/**/dbt.log"
+    }
+  ],
+  "logViewer.showStatusBarItemOnChange": true
 }
 ```
+
+**Test Debugging**: Add to `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Debug Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "purpose": ["debug-test"],
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
+```
+
+**Features you'll get**:
+
+- Automatic code formatting and linting with Ruff
+- Type checking with mypy
+- Test running from Test Explorer
+- Real-time dbt log viewing
+- Test debugging capabilities
 
 ## Development Workflow
 
