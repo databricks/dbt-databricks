@@ -135,20 +135,6 @@ hatch run cluster-e2e            # Run functional tests
 - Implementation behind behavior flag (see existing flags in `behaviors/`)
 - Clear migration documentation
 
-## Key Architecture
-
-dbt-databricks extends [dbt-spark](https://github.com/dbt-labs/dbt-spark) with Databricks-specific features:
-
-- **Authentication**: OAuth (U2M/M2M), Personal Access Tokens, Azure Service Principal
-- **Materializations**: `table`, `view`, `incremental`, `materialized_view`, `streaming_table`
-- **Incremental Strategies**: `append`, `merge`, `insert_overwrite`, `replace_where`, `microbatch`
-- **Unity Catalog**: 3-level namespace, governance, grants
-- **Python Models**: Execution on clusters, serverless, workflows
-
-**Uses dbt-core features**:
-
-- **Behavior Flags**: Feature toggles for gradual rollouts (see `behaviors/` directory)
-
 ## Documentation
 
 **Two types of documentation:**
