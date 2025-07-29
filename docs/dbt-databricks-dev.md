@@ -6,13 +6,18 @@ This guide covers the essential setup and workflow for developing the dbt-databr
 
 ### 1. Environment Setup
 
+**Prerequisites**: Python 3.9+ installed on your system
+
+- Hatch will manage development environment Python versions for you
+- You just need Python 3.9+ to install Hatch itself
+
 **Install Hatch** (recommended):
 
 ```bash
 # Install Hatch globally - see https://hatch.pypa.io/dev/install/
 pip install hatch
 
-# Create default environment
+# Create default environment (Hatch installs needed Python versions)
 hatch env create
 ```
 
