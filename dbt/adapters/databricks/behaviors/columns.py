@@ -12,7 +12,7 @@ class GetColumnsBehavior(ABC):
     @classmethod
     @abstractmethod
     def get_columns_in_relation(
-        cls, adapter: SQLAdapter, relation: DatabricksRelation
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
         pass
 
@@ -31,9 +31,9 @@ class GetColumnsBehavior(ABC):
 class GetColumnsByDescribe(GetColumnsBehavior):
     @classmethod
     def get_columns_in_relation(
-        cls, adapter: SQLAdapter, relation: DatabricksRelation
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
-        if relation.is_hive_metastore():
+        if use_legacy_logic:
             rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
             return cls._parse_columns(rows)
         else:
@@ -64,10 +64,10 @@ class GetColumnsByDescribe(GetColumnsBehavior):
 class GetColumnsByInformationSchema(GetColumnsByDescribe):
     @classmethod
     def get_columns_in_relation(
-        cls, adapter: SQLAdapter, relation: DatabricksRelation
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
-        if relation.is_hive_metastore() or not relation.is_delta:
-            return super().get_columns_in_relation(adapter, relation)
+        if use_legacy_logic or not relation.is_delta:
+            return super().get_columns_in_relation(adapter, relation, use_legacy_logic)
 
         rows = cls._get_columns_with_comments(
             adapter, relation, "get_columns_comments_via_information_schema"

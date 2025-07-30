@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.6 (TBD)
 
+### Fixes
+
+- Fix bug introduced by the fix for https://github.com/databricks/dbt-databricks/issues/1083. `DESCRIBE TABLE EXTENDED .. AS JSON` is now only used for DBR versions 16.2 and above
+
 ## dbt-databricks 1.10.5 (July 25, 2025)
 
 ### Features
