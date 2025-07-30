@@ -480,7 +480,9 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        return self.get_column_behavior.get_columns_in_relation(self, relation)
+        # Use legacy macros for hive metastore or DBR versions older than 16.2
+        use_legacy_logic = relation.is_hive_metastore() or self.compare_dbr_version(16, 2) < 0
+        return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
