@@ -1040,3 +1040,57 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
             "col1": {"name": "col1", "description": "comment2"},
         }
         assert adapter.get_persist_doc_columns(existing, column_dict) == expected
+
+
+class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self, setUp) -> DatabricksAdapter:
+        return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    @pytest.fixture
+    def unity_relation(self):
+        """Relation for Unity Catalog (not hive metastore)"""
+        return DatabricksRelation.create(
+            database="test_catalog",  # Unity catalog database
+            schema="test_schema",
+            identifier="test_table",
+            type=DatabricksRelation.Table,
+        )
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_legacy_logic(self, mock_get_columns, adapter, unity_relation):
+        # Return value less than 0 means version is older than 16.2
+        with patch.object(adapter, "compare_dbr_version", return_value=-1):
+            mock_get_columns.return_value = [
+                {"col_name": "col1", "data_type": "string", "comment": "comment1"},
+            ]
+
+            result = adapter.get_columns_in_relation(unity_relation)
+            mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
+
+            assert len(result) == 1
+            assert result[0].column == "col1"
+            assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_new_logic(self, mock_get_columns, adapter, unity_relation):
+        # Return value 0 means version is 16.2
+        with patch.object(adapter, "compare_dbr_version", return_value=0):
+            json_data = (
+                '{"columns": [{"name": "col1", "type": {"name": "string"}, "comment": "comment1"}]}'
+            )
+            mock_get_columns.return_value = [{"json_metadata": json_data}]
+            result = adapter.get_columns_in_relation(unity_relation)
+
+            mock_get_columns.assert_called_with(
+                adapter, unity_relation, "get_columns_comments_as_json"
+            )
+
+            assert len(result) == 1
+            assert result[0].column == "col1"
+            assert result[0].dtype == "string"
+            assert result[0].comment == "comment1"
