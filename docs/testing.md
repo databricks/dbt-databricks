@@ -28,7 +28,7 @@ tests/
 │       ├── python_model/     # Python model execution
 │       ├── streaming_tables/ # Streaming table features
 │       └── ...               # Feature-specific test suites
-├── conftest.py               # Global pytest configuration
+├── conftest.py               # Global pytest configuration, including the default compute used when running tests in your IDE
 └── profiles.py               # Test profile configurations
 ```
 
@@ -566,6 +566,63 @@ class TestIncrementalModel:
         # Compare actual vs expected results
         util.check_relations_equal(project.adapter,
                                  ["incremental_model", "expected_result"])
+```
+
+**Evaluating Metadata with Arbitrary SQL:**
+For tests that need to verify table properties, constraints, or other metadata, you can execute arbitrary SQL using `project.run_sql()`:
+
+```python
+class TestTableMetadata:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "my_table.sql": """
+                {{ config(
+                    materialized='table',
+                    tblproperties={'my_property': 'my_value'}
+                ) }}
+                select 1 as id, 'test' as name
+            """
+        }
+
+    def test_table_properties_are_set(self, project):
+        # Run the model
+        util.run_dbt(["run"])
+
+        # Query table properties to verify they were set correctly
+        results = project.run_sql(
+            f"""
+            SHOW TBLPROPERTIES {project.database}.{project.test_schema}.my_table
+            """,
+            fetch="all"
+        )
+
+        # Verify the property was set
+        property_values = {row[0]: row[1] for row in results}
+        assert property_values.get('my_property') == 'my_value'
+
+    def test_table_constraints(self, project):
+        # Create a table with constraints
+        project.run_sql("""
+            CREATE TABLE test_constraints (
+                id INT NOT NULL,
+                name STRING
+            ) USING DELTA
+        """)
+
+        # Query information schema to verify constraints
+        constraints = project.run_sql(
+            f"""
+            SELECT constraint_name, constraint_type
+            FROM information_schema.table_constraints
+            WHERE table_schema = '{project.test_schema}'
+            AND table_name = 'test_constraints'
+            """,
+            fetch="all"
+        )
+
+        assert len(constraints) > 0
+        assert any('NOT NULL' in str(constraint) for constraint in constraints)
 ```
 
 **Fixture Organization Pattern:**
