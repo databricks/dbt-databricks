@@ -145,7 +145,7 @@ class TestConstraintsProcessor:
                 CheckConstraint(
                     type=ConstraintType.check,
                     name="check_name_length",
-                    expression="(LENGTH (name) >= 1)",
+                    expression="LENGTH (name) >= 1",
                 )
             },
         )
@@ -326,3 +326,29 @@ class TestConstraintsConfig:
                 )
             },
         )
+
+    def test_get_diff__check_constraints_different_formatting(self):
+        config = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                CheckConstraint(
+                    type=ConstraintType.check,
+                    name="check_cause",
+                    expression="cause  is  null\n or   cause in ('ACCEPTED', 'USER_REFUSED')",
+                    warn_unenforced=False,
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                CheckConstraint(
+                    type=ConstraintType.check,
+                    name="check_cause",
+                    expression="cause is null or cause in ( 'ACCEPTED' , 'USER_REFUSED' )",
+                    warn_unenforced=False,
+                )
+            },
+        )
+        diff = config.get_diff(other)
+        assert diff is None
