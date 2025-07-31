@@ -1151,3 +1151,25 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             assert result[0].column == "stream_col"
             assert result[0].dtype == "int"
             assert result[0].comment == "streaming col"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_materialized_view(self, mock_get_columns, adapter, unity_relation):
+        mv_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelation.MaterializedView,
+        )
+        # For MVs, always use legacy logic, regardless of DBR version
+        with patch.object(adapter, "compare_dbr_version", return_value=1):
+            mock_get_columns.return_value = [
+                {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
+            ]
+            result = adapter.get_columns_in_relation(mv_relation)
+            mock_get_columns.assert_called_with(adapter, mv_relation, "get_columns_comments")
+            assert len(result) == 1
+            assert result[0].column == "mv_col"
+            assert result[0].dtype == "string"
+            assert result[0].comment == "mv col"

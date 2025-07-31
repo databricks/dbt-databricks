@@ -484,9 +484,9 @@ class DatabricksAdapter(SparkAdapter):
         use_legacy_logic = (
             relation.is_hive_metastore()
             or self.compare_dbr_version(16, 2) < 0
+            or relation.type == DatabricksRelationType.MaterializedView
             or (
-                relation.type
-                in (DatabricksRelationType.StreamingTable, DatabricksRelationType.MaterializedView)
+                relation.type == DatabricksRelationType.StreamingTable
                 and self.compare_dbr_version(17, 1) < 0
             )
         )
