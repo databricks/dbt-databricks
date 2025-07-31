@@ -1,4 +1,6 @@
-## dbt-databricks 1.10.7 (TBD)
+## dbt-databricks 1.10.8 (TBD)
+
+## dbt-databricks 1.10.7 (July 31, 2025)
 
 ### Fixes
 - Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
