@@ -38,9 +38,25 @@
     {%- endfor -%}
     {%- set dest_cols_csv = dest_columns | join(', ') -%}
     {%- set source_cols_csv = common_columns | join(', ') -%}
-    insert overwrite table {{ target_relation }}
-    {{ partition_cols(label="partition") }}
-    select {{source_cols_csv}} from {{ source_relation }}
+    
+    {{ get_insert_replace_using_sql(source_relation, target_relation, source_cols_csv) }}
+{% endmacro %}
+
+{% macro get_insert_replace_using_sql(source_relation, target_relation, source_cols_csv) %}
+    {%- set partition_by = config.get('partition_by') -%}
+    {%- if partition_by -%}
+        {%- if partition_by is string -%}
+            {%- set partition_by = [partition_by] -%}
+        {%- endif -%}
+        {%- set partition_cols_csv = partition_by | join(', ') -%}
+        insert into table {{ target_relation }}
+        replace using ({{ partition_cols_csv }})
+        select {{ source_cols_csv }} from {{ source_relation }}
+    {%- else -%}
+        {#-- Fallback to regular insert if no partitions defined --#}
+        insert overwrite table {{ target_relation }}
+        select {{ source_cols_csv }} from {{ source_relation }}
+    {%- endif -%}
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}
