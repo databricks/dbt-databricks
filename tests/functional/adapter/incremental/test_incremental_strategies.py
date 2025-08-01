@@ -70,7 +70,6 @@ class TestAppendParquetHive(AppendBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class InsertOverwriteBase(IncrementalBase):
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -93,12 +92,10 @@ class InsertOverwriteBase(IncrementalBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteDelta(InsertOverwriteBase):
     pass
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -120,7 +117,6 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteChangeSchema(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def models(self):
@@ -158,36 +154,6 @@ class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
                 "+incremental_strategy": "insert_overwrite",
                 "+partition_by": "id",
                 "+databricks_compute": "alternate_uc_cluster",
-            },
-        }
-
-    @pytest.fixture(scope="class")
-    def seeds(self):
-        return {
-            "upsert_expected.csv": fixtures.upsert_expected,
-        }
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "overwrite_model.sql": fixtures.base_model,
-        }
-
-    def test_incremental(self, project):
-        self.seed_and_run_twice()
-        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
-
-
-# Insert overwrite now works consistently across clusters and SQL warehouses using REPLACE USING syntax
-# This provides the same partition-level overwrite behavior on both execution environments
-@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
-class TestInsertOverwriteSqlWarehouse(IncrementalBase):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "models": {
-                "+incremental_strategy": "insert_overwrite",
-                "+partition_by": "id",
             },
         }
 
