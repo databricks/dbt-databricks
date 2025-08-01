@@ -52,7 +52,7 @@
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
-      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+      {%- if incremental_strategy == 'insert_overwrite' and partition_by and adapter.compare_dbr_version(16, 3) < 0 -%}
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
@@ -118,7 +118,7 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
-      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+      {%- if incremental_strategy == 'insert_overwrite' and partition_by and adapter.compare_dbr_version(16, 3) < 0 -%}
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
@@ -177,7 +177,7 @@
     {{ run_hooks(post_hooks) }}
   {%- endif -%}
 
-  {%- if incremental_strategy == 'insert_overwrite' and not full_refresh -%}
+  {%- if incremental_strategy == 'insert_overwrite' and not full_refresh and adapter.compare_dbr_version(16, 3) < 0 -%}
     {{ set_overwrite_mode('STATIC') }}
   {%- endif -%}
 
@@ -191,7 +191,7 @@
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.warn("INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.") }}
+    {{ exceptions.warn("INSERT OVERWRITE is supported on SQL warehouses with DBR 16.3+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
