@@ -39,7 +39,14 @@
     {%- set dest_cols_csv = dest_columns | join(', ') -%}
     {%- set source_cols_csv = common_columns | join(', ') -%}
     
-    {{ get_insert_replace_using_sql(source_relation, target_relation, source_cols_csv) }}
+    {%- if adapter.compare_dbr_version(16, 3) >= 0 -%}
+        {{ get_insert_replace_using_sql(source_relation, target_relation, source_cols_csv) }}
+    {%- else -%}
+        {#-- Use traditional INSERT OVERWRITE for older DBR versions --#}
+        insert overwrite table {{ target_relation }}
+        {{ partition_cols(label="partition") }}
+        select {{ source_cols_csv }} from {{ source_relation }}
+    {%- endif -%}
 {% endmacro %}
 
 {% macro get_insert_replace_using_sql(source_relation, target_relation, source_cols_csv) %}
