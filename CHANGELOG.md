@@ -26,6 +26,9 @@
 
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
+### Features
+- feat: add pr linting to enforce conventional commits [issue-1111](https://github.com/databricks/dbt-databricks/issues/1083)
+
 ### Fixes
 - Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
 
