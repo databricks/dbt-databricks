@@ -26,9 +26,9 @@ where id = 1
 
 ALT_CATALOG_NAME = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
 
+
 # @pytest.mark.skip_profile("databricks_cluster")
 class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
-
     @pytest.fixture(scope="class")
     def catalogs(self):
         return {
@@ -60,20 +60,20 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
         """Test that Unity Catalog can create and reference Iceberg tables"""
         # Run all models
         run_results = run_dbt(["run"])
-        
+
         # Verify all models ran successfully
-        assert len(run_results) == 3 # type: ignore
+        assert len(run_results) == 3  # type: ignore
 
         # Get the expected catalog name from environment variable
         expected_catalog = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
         assert expected_catalog, "DBT_DATABRICKS_ALT_CATALOG environment variable must be set"
-        
+
         # Verify tables were created in the expected catalog
         expected_tables = [
             "basic_iceberg_table",
-            "iceberg_table_with_location", 
+            "iceberg_table_with_location",
         ]
-        
+
         for table_name in expected_tables:
             # Query system information schema to verify table exists in expected catalog
             result = project.run_sql(
@@ -81,23 +81,24 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
                 f"where table_catalog = '{expected_catalog}' "
                 f"and table_schema = '{project.test_schema}' "
                 f"and table_name = '{table_name}'",
-                fetch="one"
+                fetch="one",
             )
-            
+
             # Assert table exists in expected catalog
             assert result is not None, f"Table {table_name} not found in catalog {expected_catalog}"
             actual_catalog, table_type = result
-            assert actual_catalog == expected_catalog, (
-                f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
-            )
-            
-            # For iceberg tables, verify they have the correct table type 
+            assert (
+                actual_catalog == expected_catalog
+            ), f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
+
+            # For iceberg tables, verify they have the correct table type
             if "iceberg" in table_name.lower() or table_name == "basic_iceberg_table":
                 # Note: Table type might be 'MANAGED' or 'EXTERNAL' for Iceberg tables in Unity Catalog
-                assert table_type in ['MANAGED', 'EXTERNAL'], (
-                    f"Expected table type MANAGED or EXTERNAL for {table_name}, got {table_type}"
-                )
-            
+                assert table_type in [
+                    "MANAGED",
+                    "EXTERNAL",
+                ], f"Expected table type MANAGED or EXTERNAL for {table_name}, got {table_type}"
+
         # Verify we can run again (idempotency)
-        run_results = run_dbt(["run"]) 
-        assert len(run_results) == 3 # type: ignore
+        run_results = run_dbt(["run"])
+        assert len(run_results) == 3  # type: ignore

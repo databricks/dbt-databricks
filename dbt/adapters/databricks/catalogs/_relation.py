@@ -50,7 +50,7 @@ class DatabricksCatalogRelation:
                 "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
             }
         return {}
-    
+
     def render_model_relation(self, model_relation: DatabricksRelation) -> str:
         if self.catalog_name != constants.DEFAULT_CATALOG.name:
             model_relation.path.database = self.catalog_name
