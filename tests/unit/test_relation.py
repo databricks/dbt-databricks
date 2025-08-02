@@ -184,6 +184,12 @@ class TestRelationsFunctions:
     def test_is_hive_metastore(self, database, expected):
         assert relation.is_hive_metastore(database) is expected
 
+    def test_is_external_table(self):
+        relation = DatabricksRelation.create(
+            identifier="external_table", databricks_table_type="external"
+        )
+        assert relation.is_external_table is True
+
     @pytest.mark.parametrize(
         "input, expected",
         [

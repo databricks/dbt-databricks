@@ -15,20 +15,9 @@ class ColumnTagsConfig(DatabricksComponentConfig):
 
     # column name -> tags config (dict of tag_name: tag_value)
     set_column_tags: dict[str, dict[str, str]]
-    unset_column_tags: dict[str, list[str]] = {}
 
     def get_diff(self, other: "ColumnTagsConfig") -> Optional["ColumnTagsConfig"]:
-        # Find tags that need to be unset
-        unset_column_tags = {}
-        for col, other_tags in other.set_column_tags.items():
-            current_tags = self.set_column_tags.get(col, {})
-            tags_to_unset = []
-            for tag_name in other_tags.keys():
-                if tag_name not in current_tags:
-                    tags_to_unset.append(tag_name)
-            if tags_to_unset:
-                unset_column_tags[col] = tags_to_unset
-
+        # Column tags are now "set only" - we never unset column tags, only add or update them
         # Find columns that need to be set or updated
         set_column_tags = {
             col: tags
@@ -36,11 +25,8 @@ class ColumnTagsConfig(DatabricksComponentConfig):
             if col not in other.set_column_tags or other.set_column_tags[col] != tags
         }
 
-        if set_column_tags or unset_column_tags:
-            return ColumnTagsConfig(
-                set_column_tags=set_column_tags,
-                unset_column_tags=unset_column_tags,
-            )
+        if set_column_tags:
+            return ColumnTagsConfig(set_column_tags=set_column_tags)
         return None
 
 

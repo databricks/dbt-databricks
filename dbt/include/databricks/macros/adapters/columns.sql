@@ -1,10 +1,17 @@
-
 {% macro get_columns_comments(relation) -%}
   {{ return(run_query_as(get_columns_comments_sql(relation), 'get_columns_comments')) }}
 {% endmacro %}
 
 {% macro get_columns_comments_sql(relation) %}
 DESCRIBE TABLE {{ relation.render() }}
+{% endmacro %}
+
+{% macro get_columns_comments_as_json(relation) -%}
+  {{ return(run_query_as(get_columns_comments_as_json_sql(relation), 'get_columns_comments_as_json')) }}
+{% endmacro %}
+
+{% macro get_columns_comments_as_json_sql(relation) %}
+  DESCRIBE TABLE EXTENDED {{ relation.render() }} AS JSON
 {% endmacro %}
 
 {% macro get_columns_comments_via_information_schema(relation) -%}
@@ -30,16 +37,10 @@ WHERE
 
 {% macro databricks__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
   {% if remove_columns %}
-    {% if not relation.is_delta %}
-      {{ exceptions.raise_compiler_error('Delta format required for dropping columns from tables') }}
-    {% endif %}
     {{ run_query_as(drop_columns_sql(relation, remove_columns), 'alter_relation_remove_columns', fetch_result=False) }}
   {% endif %}
 
   {% if add_columns %}
-    {% if not relation.is_delta %}
-      {{ exceptions.raise_compiler_error('Delta format required for dropping columns from tables') }}
-    {% endif %}
     {{ run_query_as(add_columns_sql(relation, add_columns), 'alter_relation_add_columns', fetch_result=False) }}
   {% endif %}
 {% endmacro %}

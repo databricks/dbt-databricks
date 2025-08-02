@@ -31,13 +31,6 @@
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
-  {%- if column_tags.unset_column_tags %}
-    {%- for column, tags in column_tags.unset_column_tags.items() -%}
-      {%- call statement('main') -%}
-        {{ alter_unset_column_tags(relation, column, tags) }}
-      {%- endcall -%}
-    {%- endfor -%}
-  {%- endif %}
 {%- endmacro -%}
 
 {% macro alter_set_column_tags(relation, column, tags) -%}
@@ -46,16 +39,6 @@
   SET TAGS (
     {%- for tag_name, tag_value in tags.items() -%}
       '{{ tag_name }}' = '{{ tag_value }}'{%- if not loop.last %}, {% endif -%}
-    {%- endfor -%}
-  )
-{%- endmacro -%}
-
-{% macro alter_unset_column_tags(relation, column, tags) -%}
-  ALTER {{ relation.type | replace('_', ' ') }} {{ relation.render() }}
-  ALTER COLUMN `{{ column }}`
-  UNSET TAGS (
-    {%- for tag in tags -%}
-      '{{ tag }}'{%- if not loop.last %}, {%- endif %}
     {%- endfor -%}
   )
 {%- endmacro -%}

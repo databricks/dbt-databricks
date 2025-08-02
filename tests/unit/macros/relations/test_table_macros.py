@@ -1,26 +1,8 @@
-from typing import Optional
-
 import pytest
 
-from dbt.adapters.databricks import catalogs, constants
+from dbt.adapters.databricks import constants
 from tests.unit.macros.base import MacroTestBase
-
-
-def unity_relation(
-    table_format: Optional[str] = None,
-    file_format: Optional[str] = None,
-    location_root: Optional[str] = None,
-    location_path: Optional[str] = None,
-) -> catalogs.DatabricksCatalogRelation:
-    catalog_integration = constants.DEFAULT_UNITY_CATALOG
-    return catalogs.DatabricksCatalogRelation(
-        catalog_type=catalog_integration.catalog_type,
-        catalog_name=catalog_integration.catalog_name,
-        table_format=table_format or catalog_integration.table_format,
-        file_format=file_format or catalog_integration.file_format,
-        external_volume=location_root or catalog_integration.external_volume,
-        location_path=location_path,
-    )
+from tests.unit.utils import unity_relation
 
 
 class TestCreateTableAs(MacroTestBase):

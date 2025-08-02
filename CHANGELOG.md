@@ -1,27 +1,63 @@
-## dbt-databricks 1.10.4 (TBD)
+## dbt-databricks 1.10.8 (TBD)
+
+## dbt-databricks 1.10.7 (July 31, 2025)
+
+### Fixes
+- Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
+
+## dbt-databricks 1.10.6 (July 30, 2025)
+
+### Fixes
+
+- Fix bug introduced by the fix for https://github.com/databricks/dbt-databricks/issues/1083. `DESCRIBE TABLE EXTENDED .. AS JSON` is now only used for DBR versions 16.2 and above
+
+## dbt-databricks 1.10.5 (July 25, 2025)
+
+### Features
+
+- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
+
+### Fixes
+
+- Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
+- Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
+- Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
+- Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
+- Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
+- Fix MV/ST materializations with complex data types ([1100](https://github.com/databricks/dbt-databricks/issues/1100))
+
+### Under the Hood
+
+- Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
+
+## dbt-databricks 1.10.4 (June 24, 2025)
 
 ### Features
 
 - Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
-
-### Fixes
-
-- Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
-- Fix bug where model run fails if catalog contains a metric view ([1045](https://github.com/databricks/dbt-databricks/issues/1045))
-
-## dbt-databricks 1.10.3 (June 4, 2025)
-
-### Features
-
 - Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
 
 ### Fixes
 
+- Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
+- Fix ACL permissions not applied to notebook jobs created by DBT Python model ([1015](https://github.com/databricks/dbt-databricks/pull/1015))
+- Fix bug where model run fails if catalog contains a metric view ([1045](https://github.com/databricks/dbt-databricks/issues/1045))
+- Disable removing table tags and column tags to allow dbt tags to coexist with automatically added Databricks tags ([1069](https://github.com/databricks/dbt-databricks/issues/1069))
 - Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))
 - Fix bug where incorrect insert overwrite exception was being thrown when overriding compute at model level ([1032](https://github.com/databricks/dbt-databricks/issues/1032))
 - Fix bug that was causing failures when multiple foreign key constraints are defined in a model ([1034](https://github.com/databricks/dbt-databricks/issues/1034))
 - Fix location_root config not being treated case sensitive ([1037](https://github.com/databricks/dbt-databricks/issues/1037))
 - Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
+
+### Under the Hood
+- Update to dbt-core 1.10.1
+- Update to dbt-common 1.24.0
+
+## dbt-databricks 1.10.3 (June 4, 2025)
+
+### Fixes
+
+- Fix for breaking change in dbt-adapters
 
 ## dbt-databricks 1.10.2 (May 21, 2025)
 

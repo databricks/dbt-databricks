@@ -89,6 +89,28 @@ class BaseUpdateColumnComments(BaseUpdateView):
         assert results[0][2] == "This is an id column"
 
 
+class BaseRemoveTags(BaseUpdateView):
+    def test_view_update_remove_tags(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.no_tag_schema_yml, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            f"""
+            SELECT TAG_NAME, TAG_VALUE FROM {project.database}.information_schema.table_tags
+            WHERE schema_name = '{project.test_schema}' AND table_name = 'initial_view'
+            """,
+            fetch="all",
+        )
+
+        # We remove the tag from the schema.yml, but this is an "add only" config so
+        # we don't expect Databricks state to be updated. We still test this path
+        # to ensure we don't get a "main is not being called during running model" error.
+        assert len(results) == 1
+        assert results[0][0] == "tag1"
+        assert results[0][1] == "value1"
+
+
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterDescription(BaseUpdateDescription):
     @pytest.fixture(scope="class")
@@ -155,6 +177,22 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterRemoveTags(BaseRemoveTags):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

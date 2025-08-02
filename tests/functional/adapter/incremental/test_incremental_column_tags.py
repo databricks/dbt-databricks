@@ -31,7 +31,7 @@ class TestIncrementalColumnTags(MaterializationV2Mixin):
             fetch="all",
         )
 
-        assert len(results) == 3
+        assert len(results) == 4
 
         # Convert to dict for easier assertions
         tags_dict = {}
@@ -41,9 +41,13 @@ class TestIncrementalColumnTags(MaterializationV2Mixin):
                 tags_dict[col] = {}
             tags_dict[col][row.tag_name] = row.tag_value
 
-        # Verify expected final state
-        assert tags_dict["id"] == {"pii": "false", "source": "application"}
-        assert tags_dict["msg"] == {"pii": "true"}
+        # Verify expected final state with "set only" behavior
+        expected_tags = {
+            "id": {"pii": "false", "source": "application"},  # source updated
+            "msg": {"pii": "true"},  # new column tag
+            "color": {"pii": "false"},  # persisted from original
+        }
+        assert tags_dict == expected_tags
 
 
 @pytest.mark.python

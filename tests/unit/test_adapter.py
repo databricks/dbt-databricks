@@ -13,8 +13,15 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
-from dbt.adapters.databricks.impl import get_identifier_list_string
-from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
+from dbt.adapters.databricks.impl import (
+    DatabricksRelationInfo,
+    get_identifier_list_string,
+)
+from dbt.adapters.databricks.relation import (
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 from dbt.adapters.databricks.utils import check_not_found_error
 from dbt.config import RuntimeConfig
 from tests.unit.utils import config_from_parts_or_dicts
@@ -356,7 +363,9 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__some_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [("name", "table", "hudi", "owner")]
+            mocked.return_value = [
+                DatabricksRelationInfo("name", "table", "hudi", "owner", "external")
+            ]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
@@ -365,13 +374,15 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             assert relation.database == "database"
             assert relation.schema == "schema"
             assert relation.type == DatabricksRelationType.Table
+            assert relation.databricks_table_type == DatabricksTableType.External
             assert relation.owner == "owner"
+            assert relation.is_external_table
             assert relation.is_hudi
 
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [("name", "table", None, None)]
+            mocked.return_value = [DatabricksRelationInfo("name", "table", None, None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
@@ -1029,3 +1040,136 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
             "col1": {"name": "col1", "description": "comment2"},
         }
         assert adapter.get_persist_doc_columns(existing, column_dict) == expected
+
+
+class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self, setUp) -> DatabricksAdapter:
+        return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    @pytest.fixture
+    def unity_relation(self):
+        """Relation for Unity Catalog (not hive metastore)"""
+        return DatabricksRelation.create(
+            database="test_catalog",  # Unity catalog database
+            schema="test_schema",
+            identifier="test_table",
+            type=DatabricksRelation.Table,
+        )
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_legacy_logic(self, mock_get_columns, adapter, unity_relation):
+        # Return value less than 0 means version is older than 16.2
+        with patch.object(adapter, "compare_dbr_version", return_value=-1):
+            mock_get_columns.return_value = [
+                {"col_name": "col1", "data_type": "string", "comment": "comment1"},
+            ]
+
+            result = adapter.get_columns_in_relation(unity_relation)
+            mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
+
+            assert len(result) == 1
+            assert result[0].column == "col1"
+            assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_new_logic(self, mock_get_columns, adapter, unity_relation):
+        # Return value 0 means version is 16.2
+        with patch.object(adapter, "compare_dbr_version", return_value=0):
+            json_data = (
+                '{"columns": [{"name": "col1", "type": {"name": "string"}, "comment": "comment1"}]}'
+            )
+            mock_get_columns.return_value = [{"json_metadata": json_data}]
+            result = adapter.get_columns_in_relation(unity_relation)
+
+            mock_get_columns.assert_called_with(
+                adapter, unity_relation, "get_columns_comments_as_json"
+            )
+
+            assert len(result) == 1
+            assert result[0].column == "col1"
+            assert result[0].dtype == "string"
+            assert result[0].comment == "comment1"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_streaming_table_legacy_logic(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        streaming_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelation.StreamingTable,
+        )
+        # Return value less than 0 means version is older than 17.1
+        with patch.object(adapter, "compare_dbr_version", return_value=-1):
+            mock_get_columns.return_value = [
+                {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
+            ]
+            result = adapter.get_columns_in_relation(streaming_relation)
+            mock_get_columns.assert_called_with(adapter, streaming_relation, "get_columns_comments")
+            assert len(result) == 1
+            assert result[0].column == "stream_col"
+            assert result[0].dtype == "int"
+            assert result[0].comment == "streaming col"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_streaming_table_new_logic(self, mock_get_columns, adapter, unity_relation):
+        streaming_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelation.StreamingTable,
+        )
+        # Return value 0 means version is 17.1
+        with patch.object(adapter, "compare_dbr_version", return_value=0):
+            json_data = """
+                {
+                  "columns": [
+                    {
+                      "name": "stream_col",
+                      "type": {"name": "int"},
+                      "comment": "streaming col"
+                    }
+                  ]
+                }
+                """
+            mock_get_columns.return_value = [{"json_metadata": json_data}]
+            result = adapter.get_columns_in_relation(streaming_relation)
+            mock_get_columns.assert_called_with(
+                adapter, streaming_relation, "get_columns_comments_as_json"
+            )
+            assert len(result) == 1
+            assert result[0].column == "stream_col"
+            assert result[0].dtype == "int"
+            assert result[0].comment == "streaming col"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_materialized_view(self, mock_get_columns, adapter, unity_relation):
+        mv_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelation.MaterializedView,
+        )
+        # For MVs, always use legacy logic, regardless of DBR version
+        with patch.object(adapter, "compare_dbr_version", return_value=1):
+            mock_get_columns.return_value = [
+                {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
+            ]
+            result = adapter.get_columns_in_relation(mv_relation)
+            mock_get_columns.assert_called_with(adapter, mv_relation, "get_columns_comments")
+            assert len(result) == 1
+            assert result[0].column == "mv_col"
+            assert result[0].dtype == "string"
+            assert result[0].comment == "mv col"

@@ -11,6 +11,11 @@ from dbt.tests.adapter.python_model.test_python_model import (
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
+# Check if ACL tests should be enabled
+# Set DBT_ENABLE_ACL_TESTS=1 to enable ACL tests
+# Users for tests are set via DBT_TEST_USER_1/2/3 environment variables
+pytest.acl_tests_enabled = os.environ.get("DBT_ENABLE_ACL_TESTS") == "1"
+
 
 def verify_temp_tables_cleaned(project):
     verify_temp_table_cleaned(project, "*__dbt_stg")
@@ -73,7 +78,6 @@ class TestChangingSchema:
         log_file = os.path.join(logs_dir, "dbt.log")
         with open(log_file) as f:
             log = f.read()
-            # validate #5510 log_code_execution works
             assert "On model.test.simple_python_model:" in log
             assert "spark.createDataFrame(data, schema=['test1', 'test3'])" in log
             assert "Execution status: OK in" in log
@@ -204,7 +208,9 @@ class TestComplexConfigV2(TestComplexConfig):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile(
+    "databricks_cluster", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
+)
 class TestWorkflowJob:
     @pytest.fixture(scope="class")
     def models(self):
@@ -223,6 +229,130 @@ class TestWorkflowJob:
 
 
 @pytest.mark.python
+@pytest.mark.acl
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonModelNotebookACL:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "python_model_with_notebook_acl.py": override_fixtures.simple_python_model,
+            "schema.yml": override_fixtures.notebook_acl_schema,
+        }
+
+    def test_python_model_with_notebook_acl(self, project):
+        if not pytest.acl_tests_enabled:
+            pytest.skip("ACL tests are not enabled")
+
+        result = util.run_dbt(["run"])
+        assert len(result) == 1
+
+        sql_results = project.run_sql(
+            "SELECT * FROM {database}.{schema}.python_model_with_notebook_acl", fetch="all"
+        )
+        assert len(sql_results) == 10
+
+        adapter = project.adapter
+        conn_mgr = adapter.connections
+        api_client = conn_mgr.api_client
+        curr_user = api_client.curr_user.get_username()
+
+        username = curr_user
+        notebook_path = (
+            f"/Users/{username}/dbt_python_models/"
+            f"{project.database}/{project.test_schema}/python_model_with_notebook_acl"
+        )
+
+        try:
+            permissions = api_client.notebook_permissions.get(notebook_path)
+            acl_list = permissions.get("access_control_list", [])
+
+            print(f"Notebook ACL list for {notebook_path}: {acl_list}")
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_1
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_READ"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_1} CAN_READ permission not found"
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_2
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_RUN"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_2} CAN_RUN permission not found"
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_3
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_MANAGE"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_3} CAN_MANAGE permission not found"
+        except Exception as e:
+            print(f"Error getting permissions: {str(e)}")
+            raise
+
+
+@pytest.mark.python
+@pytest.mark.acl
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestPythonModelAccessControlList:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "python_model_with_acl.py": override_fixtures.simple_python_model,
+            "schema.yml": override_fixtures.access_control_list_schema,
+        }
+
+    def test_python_model_with_access_control_list(self, project):
+        if not pytest.acl_tests_enabled:
+            pytest.skip("ACL tests are not enabled")
+
+        adapter = project.adapter
+        conn_mgr = adapter.connections
+        api_client = conn_mgr.api_client
+        curr_user = api_client.curr_user.get_username()
+
+        username = curr_user
+        notebook_path = (
+            f"/Users/{username}/dbt_python_models/"
+            f"{project.database}/{project.test_schema}/python_model_with_acl"
+        )
+
+        try:
+            result = util.run_dbt(["run"])
+            assert len(result) == 1
+
+            sql_results = project.run_sql(
+                "SELECT * FROM {database}.{schema}.python_model_with_acl", fetch="all"
+            )
+            assert len(sql_results) == 10
+
+            permissions = api_client.notebook_permissions.get(notebook_path)
+            acl_list = permissions.get("access_control_list", [])
+
+            print(f"Notebook ACL list for {notebook_path}: {acl_list}")
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_1
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_READ"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_1} CAN_READ permission not found"
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_2
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_RUN"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_2} CAN_RUN permission not found"
+
+            assert any(
+                acl.get("user_name") == override_fixtures.TEST_USER_3
+                and acl.get("all_permissions")[0]["permission_level"] == "CAN_MANAGE"
+                for acl in acl_list
+            ), f"{override_fixtures.TEST_USER_3} CAN_MANAGE permission not found"
+
+        except Exception as e:
+            print(f"Error getting permissions: {str(e)}")
+            raise
+
+
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestChangingSchemaV2(MaterializationV2Mixin):
     @pytest.fixture(scope="class")

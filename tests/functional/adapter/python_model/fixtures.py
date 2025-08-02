@@ -1,3 +1,15 @@
+import os
+
+# Use separate test users for ACL testing
+TEST_USER_1 = os.environ.get("DBT_TEST_USER_1", "test_user_1")
+TEST_USER_2 = os.environ.get("DBT_TEST_USER_2", "test_user_2")
+TEST_USER_3 = os.environ.get("DBT_TEST_USER_3", "test_user_3")
+
+# Keep these for backward compatibility
+TEST_USER_ACL = TEST_USER_1
+TEST_USER_GRANT = TEST_USER_2
+TEST_USER_GRANT2 = TEST_USER_3
+
 simple_python_model = """
 import pandas
 
@@ -16,6 +28,24 @@ def model(dbt, spark):
     raise Exception("This is an error")
 
     return pd.DataFrame()
+"""
+
+# New test case for notebook specific ACL
+notebook_acl_schema = f"""version: 2
+
+models:
+  - name: python_model_with_notebook_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      python_job_config:
+        grants:
+          view:
+            - user_name: {TEST_USER_1}
+          run:
+            - user_name: {TEST_USER_2}
+          manage:
+            - user_name: {TEST_USER_3}
 """
 
 serverless_schema = """version: 2
@@ -192,23 +222,51 @@ expected_complex = """date,name
 3,"Elbert"
 """
 
+# Schema for testing access_control_list
+access_control_list_schema = f"""version: 2
+
+models:
+  - name: python_model_with_acl
+    config:
+      create_notebook: true
+      user_folder_for_python: true
+      access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_VIEW
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_MANAGE_RUN
+        - user_name: {TEST_USER_3}
+          permission_level: CAN_MANAGE
+      notebook_access_control_list:
+        - user_name: {TEST_USER_1}
+          permission_level: CAN_READ
+        - user_name: {TEST_USER_2}
+          permission_level: CAN_RUN
+        - user_name: {TEST_USER_3}
+          permission_level: CAN_MANAGE
+"""
+
 simple_incremental_python_model = """
 import pandas
 
+
 def model(dbt, spark):
     dbt.config(
-        materialized='incremental',
+        materialized="incremental",
     )
-    data = [[1,2]] * 5
-    return spark.createDataFrame(data, schema=['test', 'test2'])
+    data = [[1, 2]] * 5
+    return spark.createDataFrame(data, schema=["test", "test2"])
+
+
 """
 
 simple_incremental_python_model_v2 = """
 import pandas
 
+
 def model(dbt, spark):
     dbt.config(
-        materialized='incremental',
+        materialized="incremental",
         unique_tmp_table_suffix=True,
     )
     data = [[1,2]] * 10
