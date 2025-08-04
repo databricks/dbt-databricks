@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from agate import Row
-from dbt_common.exceptions import DbtConfigError, DbtValidationError
+from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
 import dbt.flags as flags
 from dbt.adapters.databricks import DatabricksAdapter, __version__
@@ -1173,3 +1173,62 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             assert result[0].column == "mv_col"
             assert result[0].dtype == "string"
             assert result[0].comment == "mv col"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
+        """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
+        with patch.object(adapter, "compare_dbr_version", return_value=1):
+            # Mock the first call to raise PARSE_SYNTAX_ERROR
+            # Mock the second call (fallback) to return legacy data
+            mock_get_columns.side_effect = [
+                DbtDatabaseError(
+                    "[UNSUPPORTED_FEATURE.DESC_JSON_TABLE_TYPE] The feature is not supported: "
+                    "DESCRIBE AS JSON not supported for table type of [table_name]. "
+                    "Please try again without the AS JSON clause."
+                ),
+                [
+                    {
+                        "col_name": "fallback_col",
+                        "data_type": "string",
+                        "comment": "fallback comment",
+                    }
+                ],
+            ]
+
+            result = adapter.get_columns_in_relation(unity_relation)
+
+            # Verify two calls were made: first with AS JSON, then with legacy
+            assert mock_get_columns.call_count == 2
+            mock_get_columns.assert_any_call(
+                adapter, unity_relation, "get_columns_comments_as_json"
+            )
+            mock_get_columns.assert_any_call(adapter, unity_relation, "get_columns_comments")
+
+            # Verify the result comes from the fallback (legacy) logic
+            assert len(result) == 1
+            assert result[0].column == "fallback_col"
+            assert result[0].dtype == "string"
+            assert result[0].comment == "fallback comment"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
+    def test_get_columns_reraises_other_database_errors(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        """Test that unknown types of DbtDatabaseError is re-raised"""
+        with patch.object(adapter, "compare_dbr_version", return_value=1):
+            # Mock to raise a different database error that should be re-raised
+            mock_get_columns.side_effect = DbtDatabaseError("Some other database error")
+
+            # Verify the exception is re-raised
+            with pytest.raises(DbtDatabaseError, match="Some other database error"):
+                adapter.get_columns_in_relation(unity_relation)
+
+            # Verify only one call was made (no fallback)
+            assert mock_get_columns.call_count == 1
+            mock_get_columns.assert_called_with(
+                adapter, unity_relation, "get_columns_comments_as_json"
+            )
