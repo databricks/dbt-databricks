@@ -64,7 +64,7 @@ class TestCheckConstraint:
     def test_check_constraint_from_dict__valid(self):
         raw = {"name": "chk_raw", "type": "check", "expression": "1 = 1"}
         assert CheckConstraint(
-            name="chk_raw", type=ConstraintType.check, expression="(1 = 1)"
+            name="chk_raw", type=ConstraintType.check, expression="1 = 1"
         ) == CheckConstraint.from_dict(raw)
 
     def test_check_constraint_validate__invalid(self):

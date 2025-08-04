@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from typing import ClassVar, Optional
 
+import sqlparse
 from agate import Table
 
 from dbt.adapters.contracts.relation import RelationConfig
@@ -27,14 +28,51 @@ class ConstraintsConfig(DatabricksComponentConfig):
     set_constraints: set[TypedConstraint]
     unset_constraints: set[TypedConstraint] = set()
 
+    def normalize_expression(self, expression: str) -> str:
+        if expression:
+            return sqlparse.format(
+                expression, reindent=True, keyword_case="lower", identifier_case="lower"
+            )
+        else:
+            return expression
+
+    def normalize_constraint(self, constraint: TypedConstraint) -> TypedConstraint:
+        """
+        Normalize a constraint for comparison by standardizing format
+        and removing irrelevant fields when necessary.
+        This is necessary because Databricks :
+        - Reformats expressions for check constraints
+        - Does not persist the `columns` in check constraints
+        """
+        if isinstance(constraint, CheckConstraint):
+            return CheckConstraint(
+                type=constraint.type,
+                name=constraint.name,
+                expression=self.normalize_expression(constraint.expression),
+                warn_unenforced=constraint.warn_unenforced,
+                warn_unsupported=constraint.warn_unsupported,
+                to=constraint.to,
+                to_columns=constraint.to_columns,
+                columns=[],
+            )
+        else:
+            return constraint
+
     def get_diff(self, other: "ConstraintsConfig") -> Optional["ConstraintsConfig"]:
+        self_set_constraints_normalized = {
+            self.normalize_constraint(c) for c in self.set_constraints
+        }
+        other_set_constraints_normalized = {
+            self.normalize_constraint(c) for c in other.set_constraints
+        }
+
         # Find constraints that need to be unset
-        constraints_to_unset = other.set_constraints - self.set_constraints
+        constraints_to_unset = other_set_constraints_normalized - self_set_constraints_normalized
         # Find non-nulls that need to be unset
         non_nulls_to_unset = other.set_non_nulls - self.set_non_nulls
 
         # Set constraints that exist in self but not in other
-        set_constraints = self.set_constraints - other.set_constraints
+        set_constraints = self_set_constraints_normalized - other_set_constraints_normalized
         set_non_nulls = self.set_non_nulls - other.set_non_nulls
 
         if set_constraints or set_non_nulls or constraints_to_unset or non_nulls_to_unset:
