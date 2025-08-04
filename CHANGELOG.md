@@ -10,9 +10,6 @@
 ### Under the Hood
 - Simplify connection management to align with base adapter. Connections are no longer cached per-thread
 
-### Under the Hood
-- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
-
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
 ### Fixes
