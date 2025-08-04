@@ -1,4 +1,6 @@
-## dbt-databricks 1.10.8 (TBD)
+## dbt-databricks 1.10.9 (TBD)
+
+## dbt-databricks 1.10.8 (August 4, 2025)
 
 ### Features
 - Support insert_overwrite incremental strategy for SQL warehouses ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
