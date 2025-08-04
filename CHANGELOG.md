@@ -6,6 +6,9 @@
 ### Fixes
 - Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
 
+### Under the Hood
+- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
+
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
 ### Fixes
