@@ -1,5 +1,8 @@
 ## dbt-databricks 1.10.8 (TBD)
 
+### Features
+- Support insert_overwrite incremental strategy for SQL warehouses ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+
 ### Fixes
 - Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
 
