@@ -1,12 +1,12 @@
 ## dbt-databricks 1.10.8 (TBD)
 
+### Under the Hood
+- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
+
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
 ### Fixes
 - Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
-
-### Under the Hood
-- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
 
 ## dbt-databricks 1.10.6 (July 30, 2025)
 
