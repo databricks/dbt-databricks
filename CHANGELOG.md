@@ -1,5 +1,8 @@
 ## dbt-databricks 1.10.8 (TBD)
 
+### Fixes
+- Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability
+
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
 ### Fixes
