@@ -10,7 +10,19 @@
   {%- set refresh = streaming_table.config["refresh"] -%}
 
   {%- set analysis_sql = sql | replace('STREAM ', '') | replace('stream ', '') -%}
-  {%- set columns = get_column_schema_from_query(analysis_sql) -%}
+
+  {#
+    TODO: When DESCRIBE QUERY EXTENDED is supported, this implementation should be simplified
+    to use that instead. For now, we work around this limitation by writing results to a
+    temporary view and using DESCRIBE TABLE EXTENDED on the temporary view.
+  #}
+  {%- set temp_relation = make_temp_relation(relation) -%}
+  {% call statement('create_temp_view') -%}
+    {%- set sql_with_limit = analysis_sql.rstrip('; \n\t') ~ ' LIMIT 10' -%}
+    {{ create_temporary_view(temp_relation, sql_with_limit) }}
+  {%- endcall %}
+
+  {%- set columns = adapter.get_columns_in_relation(temp_relation) -%}
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, []) -%}
 

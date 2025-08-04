@@ -26,6 +26,111 @@ class DatabricksColumn(SparkColumn):
         column_type = cls.translate_type(label_or_dtype)
         return cls(name, column_type)
 
+    @classmethod
+    def from_json_metadata(cls, json_metadata: str) -> list["DatabricksColumn"]:
+        """
+        Parse JSON metadata from DESCRIBE EXTENDED <table> AS JSON into DatabricksColumn objects.
+
+        Args:
+            json_metadata: JSON string containing column metadata
+
+        Returns:
+            List of DatabricksColumn objects
+        """
+        import json
+
+        data = json.loads(json_metadata)
+        columns = []
+
+        for col_info in data.get("columns", []):
+            col_name = col_info.get("name")
+            col_type = cls._parse_type_from_json(col_info.get("type"))
+            comment = col_info.get("comment")
+            columns.append(cls(column=col_name, dtype=col_type, comment=comment))
+
+        return columns
+
+    @classmethod
+    def _parse_type_from_json(cls, type_info: Any) -> str:
+        """
+        Convert type information from JSON format to Databricks DDL.
+
+        This handles complex types from Databricks JSON schema:
+        https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-table#json-formatted-output
+
+        Complex types with properties other than type name in JSON schema:
+          - struct: nested types handled
+          - array: nested types handled
+          - map: nested types handled
+          - decimal: precision, scale handled
+          - string: collation handled
+          - varchar: Handled just in case, but the JSON should never contain a varchar type as
+                     these are just STRING types under the hood in Databricks.
+          - char: Handled just in case, but the JSON should never contain a char type as these are
+                  just STRING types under the hood in Databricks.
+
+        Complex types can have other properties in the JSON schema such as nullable, defaults, etc.
+        but those are ignored as they are not part of data type DDL
+
+        Args:
+            type_info: Dictionary containing type information from JSON
+
+        Returns:
+            String representation of the data type in Databricks DDL format
+        """
+        type_name = type_info.get("name")
+
+        if type_name == "struct":
+            fields = type_info.get("fields", [])
+            field_strs = []
+            for field in fields:
+                field_name = field.get("name")
+                field_type = cls._parse_type_from_json(field.get("type"))
+                field_strs.append(f"{field_name}:{field_type}")
+            return f"struct<{','.join(field_strs)}>"
+
+        elif type_name == "array":
+            element_type = cls._parse_type_from_json(type_info.get("element_type"))
+            return f"array<{element_type}>"
+
+        elif type_name == "map":
+            # Handle map types with element_nullable
+            key_type = cls._parse_type_from_json(type_info.get("key_type"))
+            value_type = cls._parse_type_from_json(type_info.get("value_type"))
+            return f"map<{key_type},{value_type}>"
+
+        elif type_name == "decimal":
+            # Handle decimal types with precision and scale
+            precision = type_info.get("precision")
+            scale = type_info.get("scale")
+            if precision is not None and scale is not None:
+                return f"decimal({precision}, {scale})"
+            elif precision is not None:
+                return f"decimal({precision})"
+            else:
+                return "decimal"
+
+        elif type_name == "string":
+            collation = type_info.get("collation")
+            # utf8_binary is the default collation for string types in Databricks
+            if collation is None or collation.lower() == "utf8_binary":
+                return "string"
+            else:
+                return f"string COLLATE {collation}"
+
+        elif type_name == "timestamp_ltz":
+            return "timestamp"
+
+        elif type_name == "varchar":
+            return "string"
+
+        elif type_name == "char":
+            return "string"
+
+        else:
+            # Handle primitive types and any other types
+            return str(type_name)
+
     @property
     def data_type(self) -> str:
         return self.translate_type(self.dtype)

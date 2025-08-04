@@ -36,6 +36,7 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
             "my_table.sql": files.MY_TABLE,
             "my_view.sql": files.MY_VIEW,
             "my_materialized_view.sql": files.MY_MATERIALIZED_VIEW,
+            "complex_types_materialized_view.sql": fixtures.complex_types_materialized_view,
             "schema.yml": fixtures.materialized_view_schema,
         }
 
@@ -119,3 +120,20 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         assert len(results) == 1
         assert results[0][0] == "my_materialized_view_pk"
         assert results[0][1] == "id"
+
+    def test_materialized_view_complex_types(self, project):
+        util.run_dbt(["run", "--models", "complex_types_materialized_view"])
+        results = project.run_sql(
+            """
+            SELECT COLUMN_NAME, FULL_DATA_TYPE FROM {database}.information_schema.columns
+            WHERE table_schema = '{schema}' AND table_name = 'complex_types_materialized_view';
+            """,
+            fetch="all",
+        )
+        assert results[0][0] == "my_struct"
+        expected_struct_type = (
+            "struct<field1:map<string,int>,field2:array<int>,"
+            + ",".join([f"field{i}:int" for i in range(3, 31)])
+            + ">"
+        )
+        assert results[0][1] == expected_struct_type

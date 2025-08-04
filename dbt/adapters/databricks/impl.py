@@ -429,22 +429,6 @@ class DatabricksAdapter(SparkAdapter):
             for row in new_rows
         ]
 
-    @available.parse(lambda *a, **k: [])
-    def get_column_schema_from_query(self, sql: str) -> list[DatabricksColumn]:
-        """Get a list of the Columns with names and data types from the given sql."""
-        _, cursor = self.connections.add_select_query(sql)
-        try:
-            columns: list[DatabricksColumn] = [
-                self.Column.create(
-                    column_name, self.connections.data_type_code_to_name(column_type_code)
-                )
-                # https://peps.python.org/pep-0249/#description
-                for column_name, column_type_code, *_ in cursor.description
-            ]
-        finally:
-            cursor.close()
-        return columns
-
     def get_relation(
         self,
         database: Optional[str],
@@ -496,7 +480,17 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        return self.get_column_behavior.get_columns_in_relation(self, relation)
+        # Use legacy macros for hive metastore or DBR versions older than 16.2
+        use_legacy_logic = (
+            relation.is_hive_metastore()
+            or self.compare_dbr_version(16, 2) < 0
+            or relation.type == DatabricksRelationType.MaterializedView
+            or (
+                relation.type == DatabricksRelationType.StreamingTable
+                and self.compare_dbr_version(17, 1) < 0
+            )
+        )
+        return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
