@@ -5,9 +5,16 @@
 
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- if custom_database_name is none -%}
-        {{ return(default_database) }}
+         {%- if node is not none -%}
+            {%- set catalog_relation = adapter.build_catalog_relation(node) -%}
+            {{ return(catalog_relation.catalog_name) }}
+        {%- elif 'config' in target -%}
+            {%- set catalog_relation = adapter.build_catalog_relation(target) -%}
+            {{ return(catalog_relation.catalog_name) }}
+        {%- else -%}
+            {{ return(target.database) }}
+        {%- endif -%}
     {%- else -%}
-        {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
-        {{ return(catalog_relation.catalog_name) }}
+       {{ return(custom_database_name) }}
     {%- endif -%}
 {%- endmacro %}
