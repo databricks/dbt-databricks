@@ -5,6 +5,7 @@
 
 ### Fixes
 - Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
+- Fix no-op logic for views that is causing some incremental materializations to be skipped ([1122](https://github.com/databricks/dbt-databricks/issues/1122))
 
 ### Under the Hood
 - Simplify connection management to align with base adapter. Connections are no longer cached per-thread
