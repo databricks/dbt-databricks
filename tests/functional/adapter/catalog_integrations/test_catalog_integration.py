@@ -59,7 +59,7 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
     def test_unity_catalog_iceberg_integration(self, project):
         """Test that Unity Catalog can create and reference Iceberg tables"""
         # Run all models
-        run_results = run_dbt(["run"])
+        run_results = run_dbt(["run", "--log-level", "debug"])
 
         # Verify all models ran successfully
         assert len(run_results) == 3  # type: ignore

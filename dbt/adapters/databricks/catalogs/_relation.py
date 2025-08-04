@@ -6,7 +6,7 @@ from typing import Optional
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks import constants
-from ..relation import DatabricksRelation
+from dbt.adapters.databricks.relation import DatabricksRelation
 
 
 @dataclass
