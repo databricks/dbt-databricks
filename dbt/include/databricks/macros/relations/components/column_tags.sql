@@ -34,7 +34,12 @@
 {%- endmacro -%}
 
 {% macro alter_set_column_tags(relation, column, tags) -%}
-  ALTER {{ relation.type | replace('_', ' ') }} {{ relation.render() }}
+  {# ALTER VIEW does not support setting column tags, but ALTER TABLE works for views #}
+  {%- if relation.type == 'view' -%}
+    ALTER TABLE {{ relation.render() }}
+  {%- else -%}
+    ALTER {{ relation.type | replace('_', ' ') }} {{ relation.render() }}
+  {%- endif -%}
   ALTER COLUMN `{{ column }}`
   SET TAGS (
     {%- for tag_name, tag_value in tags.items() -%}
