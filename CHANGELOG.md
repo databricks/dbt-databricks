@@ -1,4 +1,6 @@
-## dbt-databricks 1.10.8 (TBD)
+## dbt-databricks 1.10.9 (TBD)
+
+## dbt-databricks 1.10.8 (August 4, 2025)
 
 ### Features
 - Support insert_overwrite incremental strategy for SQL warehouses ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
@@ -6,6 +8,7 @@
 ### Fixes
 - Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
 - Fix no-op logic for views that is causing some incremental materializations to be skipped ([1122](https://github.com/databricks/dbt-databricks/issues/1122))
+- Fix check constraints keep getting replaced [issue-1109](https://github.com/databricks/dbt-databricks/issues/1109)
 
 ### Under the Hood
 - Simplify connection management to align with base adapter. Connections are no longer cached per-thread
@@ -35,7 +38,6 @@
 - Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
 - Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
 - Fix MV/ST materializations with complex data types ([1100](https://github.com/databricks/dbt-databricks/issues/1100))
-- fix: check constraints keep getting replaced [issue-1109](https://github.com/databricks/dbt-databricks/issues/1109)
 
 ### Under the Hood
 
