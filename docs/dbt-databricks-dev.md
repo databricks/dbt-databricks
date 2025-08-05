@@ -32,6 +32,8 @@ hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
 ```
 
+> 📖 **See [Testing Guide](testing.md)** for comprehensive testing documentation
+
 ### 3. VS Code/Cursor Setup (Optional)
 
 **Required Extensions**: Install these VS Code extensions:
@@ -146,6 +148,11 @@ hatch run cluster-e2e            # Run functional tests
 
 1. **Development docs** (this repo): Architecture, testing, contributing
 2. **User docs** ([docs.getdbt.com](https://docs.getdbt.com)): Features, configuration, usage
+
+**Additional Development Documentation:**
+
+- **[Testing Guide](testing.md)**: Comprehensive testing strategy, environments, and best practices
+- **[Contributing Guidelines](../CONTRIBUTING.MD)**: Code standards and contribution process
 
 **Process:**
 
