@@ -1,5 +1,8 @@
 ## dbt-databricks 1.10.9 (TBD)
 
+### Features
+- Support column tags for views using `ALTER TABLE`
+
 ## dbt-databricks 1.10.8 (August 4, 2025)
 
 ### Features
