@@ -38,9 +38,54 @@
     {%- endfor -%}
     {%- set dest_cols_csv = dest_columns | join(', ') -%}
     {%- set source_cols_csv = common_columns | join(', ') -%}
-    insert overwrite table {{ target_relation }}
-    {{ partition_cols(label="partition") }}
-    select {{source_cols_csv}} from {{ source_relation }}
+    
+    {%- if adapter.compare_dbr_version(17, 1) >= 0 and adapter.is_cluster() -%}
+        {{ get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) }}
+    {%- else -%}
+        {#-- Use traditional INSERT OVERWRITE for older DBR versions or SQL warehouses --#}
+        insert overwrite table {{ target_relation }}
+        {{ partition_cols(label="partition") }}
+        select {{ source_cols_csv }} from {{ source_relation }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) %}
+    {%- set partition_by = config.get('partition_by') -%}
+    {%- set liquid_clustered_by = config.get('liquid_clustered_by') -%}
+    {%- set replace_columns = [] -%}
+    
+    {#-- Use partition columns if defined (takes precedence) --#}
+    {%- if partition_by -%}
+        {%- if partition_by is string -%}
+            {%- set partition_by = [partition_by] -%}
+        {%- endif -%}
+        {%- for partition_col in partition_by -%}
+            {%- do replace_columns.append(partition_col) -%}
+        {%- endfor -%}
+    {#-- Otherwise use liquid clustering columns if defined --#}
+    {%- elif liquid_clustered_by -%}
+        {%- if liquid_clustered_by is string -%}
+            {%- set liquid_clustered_by = [liquid_clustered_by] -%}
+        {%- endif -%}
+        {%- for cluster_col in liquid_clustered_by -%}
+            {%- do replace_columns.append(cluster_col) -%}
+        {%- endfor -%}
+    {%- endif -%}
+    
+    {%- if replace_columns -%}
+        {%- set replace_conditions = [] -%}
+        {%- for col in replace_columns -%}
+            {%- do replace_conditions.append('t.' ~ col ~ ' <=> s.' ~ col) -%}
+        {%- endfor -%}
+        {%- set replace_conditions_csv = replace_conditions | join(' AND ') -%}
+        insert into table {{ target_relation }} AS t
+        replace on ({{ replace_conditions_csv }})
+        (select {{ source_cols_csv }} from {{ source_relation }}) AS s
+    {%- else -%}
+        {#-- Fallback to regular insert if no partitions or liquid clustering defined --#}
+        insert overwrite table {{ target_relation }}
+        select {{ source_cols_csv }} from {{ source_relation }}
+    {%- endif -%}
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}
