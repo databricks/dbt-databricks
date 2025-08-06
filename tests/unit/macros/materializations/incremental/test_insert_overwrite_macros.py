@@ -74,13 +74,15 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax
-        expected_sql = """insert into table target_table t
-        replace on (t.partition_col <==> s.partition_col)
-        select a, b from source_table s"""
+        expected_sql = """insert into table target_table as t
+        replace on (t.partition_col <=> s.partition_col)
+        (select a, b from source_table) as s"""
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__modern_dbr_version_multiple_partitions(self, template, context, config):
+    def test_get_insert_overwrite_sql__modern_dbr_version_multiple_partitions(
+        self, template, context, config
+    ):
         """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple partition columns"""
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
@@ -99,14 +101,19 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax with multiple conditions
-        expected_sql = """insert into table target_table t
-        replace on (t.country <==> s.country AND t.name <==> s.name)
-        select a, b from source_table s"""
+        expected_sql = """insert into table target_table as t
+        replace on (t.country <=> s.country AND t.name <=> s.name)
+        (select a, b from source_table) as s"""
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__modern_dbr_version_only_clustering(self, template, context, config):
-        """Test that DBR >= 17.1 uses REPLACE ON syntax with liquid clustering columns when no partitioning is defined"""
+    def test_get_insert_overwrite_sql__modern_dbr_version_only_clustering(
+        self, template, context, config
+    ):
+        """
+        Test that DBR >= 17.1 uses REPLACE ON syntax with liquid clustering columns when no
+        partitioning is defined
+        """
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
         config["liquid_clustered_by"] = ["msg"]
@@ -124,14 +131,19 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax with clustering columns only
-        expected_sql = """insert into table target_table t
-        replace on (t.msg <==> s.msg)
-        select a, b from source_table s"""
+        expected_sql = """insert into table target_table as t
+        replace on (t.msg <=> s.msg)
+        (select a, b from source_table) as s"""
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__modern_dbr_version_partition_takes_precedence(self, template, context, config):
-        """Test that DBR >= 17.1 uses partition columns when both partition_by and liquid_clustered_by are defined (partition takes precedence)"""
+    def test_get_insert_overwrite_sql__modern_dbr_version_partition_takes_precedence(
+        self, template, context, config
+    ):
+        """
+        Test that DBR >= 17.1 uses partition columns when both partition_by and
+        liquid_clustered_by are defined (partition takes precedence)
+        """
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
         config["partition_by"] = ["id", "msg"]
@@ -150,9 +162,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it only uses partition columns, not clustering columns
-        expected_sql = """insert into table target_table t
-        replace on (t.id <==> s.id AND t.msg <==> s.msg)
-        select a, b from source_table s"""
+        expected_sql = """insert into table target_table as t
+        replace on (t.id <=> s.id AND t.msg <=> s.msg)
+        (select a, b from source_table) as s"""
 
         self.assert_sql_equal(result, expected_sql)
 
