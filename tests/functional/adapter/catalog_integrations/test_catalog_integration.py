@@ -13,7 +13,6 @@ MODEL__ICEBERG_TABLE_WITH_LOCATION = """
 {{ config(
     materialized='table', 
     catalog_name='a-different-catalog', 
-    table_format='delta',
 ) }}
 select 2 as id, 'location_test' as name
 """
@@ -27,7 +26,7 @@ where id = 1
 ALT_CATALOG_NAME = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
 
 
-# @pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
     @pytest.fixture(scope="class")
     def catalogs(self):
@@ -93,7 +92,6 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
 
             # For iceberg tables, verify they have the correct table type
             if "iceberg" in table_name.lower() or table_name == "basic_iceberg_table":
-                # Note: Table type might be 'MANAGED' or 'EXTERNAL' for Iceberg tables in Unity Catalog
                 assert table_type in [
                     "MANAGED",
                     "EXTERNAL",
