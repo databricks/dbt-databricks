@@ -6,67 +6,76 @@ from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
 class ColumnTagsMixin(MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": fixtures.base_model_sql,
+            "schema.yml": fixtures.initial_column_tag_model.replace(
+                "materialized: table", f"materialized: {self.relation_type}"
+            ),
+        }
+
     def test_column_tags(self, project):
         util.run_dbt(["run"])
 
-        # Check that column tags were applied
-        tags = project.run_sql(
-            f"""
+        column_tags_query = f"""
             SELECT column_name, tag_name, tag_value
             FROM `system`.`information_schema`.`column_tags`
             WHERE catalog_name = '{project.database}'
               AND schema_name = '{project.test_schema}'
               AND table_name = 'base_model'
             ORDER BY column_name, tag_name
-            """,
-            fetch="all",
-        )
+            """
 
+        # Check that column tags were applied
+        tags = project.run_sql(column_tags_query, fetch="all")
         expected_tags = {
             ("account_number", "pii", "true"),
             ("account_number", "sensitive", "true"),
         }
+        actual_tags = {(row[0], row[1], row[2]) for row in tags}
+        assert actual_tags == expected_tags
 
+        # Run a second time with an updated model
+        util.write_file(
+            fixtures.updated_column_tag_model.replace(
+                "materialized: table", f"materialized: {self.relation_type}"
+            ),
+            "models",
+            "schema.yml",
+        )
+        util.run_dbt(["run"])
+
+        # Check that column tags were updated
+        tags = project.run_sql(column_tags_query, fetch="all")
+        expected_tags = {
+            ("id", "pii", "false"),
+            ("account_number", "pii", "true"),
+            ("account_number", "sensitive", "true"),
+        }
         actual_tags = {(row[0], row[1], row[2]) for row in tags}
         assert actual_tags == expected_tags
 
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsTable(ColumnTagsMixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.model_with_column_tags,
-        }
+    relation_type = "table"
 
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsIncremental(ColumnTagsMixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.model_with_column_tags.replace(
-                "materialized: table", "materialized: incremental"
-            ),
-        }
+    relation_type = "incremental"
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestColumnTagsMaterializedView(ColumnTagsMixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.model_with_column_tags.replace(
-                "materialized: table", "materialized: materialized_view"
-            ),
-        }
+    relation_type = "materialized_view"
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableColumnTags(ColumnTagsMixin):
+    relation_type = "streaming_table"
+
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
@@ -77,7 +86,7 @@ class TestStreamingTableColumnTags(ColumnTagsMixin):
     def models(self):
         return {
             "base_model.sql": fixtures.base_model_streaming_table,
-            "schema.yml": fixtures.model_with_column_tags.replace(
+            "schema.yml": fixtures.initial_column_tag_model.replace(
                 "materialized: table", "materialized: streaming_table"
             ),
         }
@@ -88,16 +97,5 @@ class TestStreamingTableColumnTags(ColumnTagsMixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestViewColumnTagsFailure(MaterializationV2Mixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.model_with_column_tags.replace(
-                "materialized: table", "materialized: view"
-            ),
-        }
-
-    def test_view_column_tags_failure(self, project):
-        result = util.run_dbt(["run"], expect_pass=False)
-        assert "Column tags are not supported" in result.results[0].message
+class TestColumnTagsView(ColumnTagsMixin):
+    relation_type = "view"
