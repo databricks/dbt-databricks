@@ -186,12 +186,12 @@
 {%- endmaterialization %}
 
 {% macro set_overwrite_mode(value) %}
-  {% if adapter.is_cluster() %}
+  {% if adapter.is_cluster() and adapter.compare_dbr_version(17, 1) < 0 %}
     {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.warn("INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.") }}
+    {{ exceptions.warn("INSERT OVERWRITE is supported on SQL warehouses with DBR 17.1+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
