@@ -1,4 +1,7 @@
-import pytest, os
+import os
+
+import pytest
+
 from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
     BaseCatalogIntegrationValidation,
 )
@@ -11,8 +14,8 @@ select 1 as id, 'test' as name
 
 MODEL__ICEBERG_TABLE_WITH_LOCATION = """
 {{ config(
-    materialized='table', 
-    catalog_name='a-different-catalog', 
+    materialized='table',
+    catalog_name='a-different-catalog',
 ) }}
 select 2 as id, 'location_test' as name
 """

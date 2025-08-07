@@ -1,5 +1,4 @@
 import posixpath
-from dbt.adapters.base.relation import BaseRelation
 from dataclasses import dataclass
 from typing import Optional
 
