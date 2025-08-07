@@ -26,7 +26,7 @@
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
-  create materialized view {{ target_relation.render() }}
+  create or replace materialized view {{ target_relation.render() }}
     {{ get_column_and_constraints_sql(target_relation, columns_and_constraints[0]) }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ get_create_sql_comment(comment) }}
