@@ -3,6 +3,9 @@
 ### Features
 - Support databricks_tags for MV/STs
 
+### Under the Hood
+- Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+
 ## dbt-databricks 1.10.10 (TBD)
 
 ### Documentation
