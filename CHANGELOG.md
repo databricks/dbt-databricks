@@ -1,4 +1,12 @@
-## dbt-databricks 1.10.9 (TBD)
+## dbt-databricks 1.10.10 (TBD)
+
+## dbt-databricks 1.10.9 (August 7, 2025)
+
+### Features
+- Support column tags for views using `ALTER TABLE`
+
+### Under the hood
+- Revert `REPLACE USING` syntax being used for insert overwrite ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ## dbt-databricks 1.10.8 (August 4, 2025)
 
