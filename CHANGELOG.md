@@ -1,3 +1,8 @@
+## dbt-databricks 1.11.0 (TBD)
+
+### Under the Hood
+- Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+
 ## dbt-databricks 1.10.9 (TBD)
 
 ### Features
