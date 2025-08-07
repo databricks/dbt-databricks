@@ -52,11 +52,7 @@
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
-<<<<<<< HEAD
-      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-=======
       {%- if incremental_strategy == 'insert_overwrite' and partition_by and adapter.compare_dbr_version(17, 1) < 0 -%}
->>>>>>> e8806177 (Fix DBR version comparison)
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
@@ -122,11 +118,7 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
-<<<<<<< HEAD
-      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
-=======
       {%- if incremental_strategy == 'insert_overwrite' and partition_by and adapter.compare_dbr_version(17, 1) < 0 -%}
->>>>>>> e8806177 (Fix DBR version comparison)
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
