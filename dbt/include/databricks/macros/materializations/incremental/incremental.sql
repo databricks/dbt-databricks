@@ -51,6 +51,10 @@
       {% endif %}
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
+      {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
+      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+        {{ set_overwrite_mode('DYNAMIC') }}
+      {%- endif -%}
       {#-- Relation must be merged --#}
       {%- do process_schema_changes(on_schema_change, intermediate_relation, existing_relation) -%}
       {{ process_config_changes(target_relation) }}
@@ -113,6 +117,10 @@
       {% do apply_tags(target_relation, tags) %}
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
+      {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
+      {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
+        {{ set_overwrite_mode('DYNAMIC') }}
+      {%- endif -%}
       {#-- Relation must be merged --#}
       {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
       {%- set model_config = adapter.get_config_from_model(config.model) -%}
@@ -169,9 +177,23 @@
     {{ run_hooks(post_hooks) }}
   {%- endif -%}
 
+  {%- if incremental_strategy == 'insert_overwrite' and not full_refresh -%}
+    {{ set_overwrite_mode('STATIC') }}
+  {%- endif -%}
+
   {{ return({'relations': [target_relation]}) }}
 
 {%- endmaterialization %}
+
+{% macro set_overwrite_mode(value) %}
+  {% if adapter.is_cluster() %}
+    {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
+      set spark.sql.sources.partitionOverwriteMode = {{ value }}
+    {%- endcall -%}
+  {% else %}
+    {{ exceptions.warn("INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.") }}
+  {% endif %}
+{% endmacro %}
 
 {% macro get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
   {%- set unique_key = config.get('unique_key') -%}

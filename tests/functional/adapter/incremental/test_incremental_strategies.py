@@ -178,8 +178,9 @@ class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
-# Insert overwrite now works consistently across clusters and SQL warehouses using REPLACE USING syntax
-# This provides the same partition-level overwrite behavior on both execution environments
+# Insert overwrite in SQL warehouse is expected to behave like a table materialization
+# We support this as a short term hack for customers who want the side effect of reusing
+# the same table on subsequent runs
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestInsertOverwriteSqlWarehouse(IncrementalBase):
     @pytest.fixture(scope="class")
@@ -194,7 +195,7 @@ class TestInsertOverwriteSqlWarehouse(IncrementalBase):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
-            "upsert_expected.csv": fixtures.upsert_expected,
+            "overwrite_expected.csv": fixtures.overwrite_expected,
         }
 
     @pytest.fixture(scope="class")
@@ -205,7 +206,7 @@ class TestInsertOverwriteSqlWarehouse(IncrementalBase):
 
     def test_incremental(self, project):
         self.seed_and_run_twice()
-        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
+        util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
 
 @pytest.mark.external
