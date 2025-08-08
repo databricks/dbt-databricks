@@ -39,7 +39,7 @@
     {%- set dest_cols_csv = dest_columns | join(', ') -%}
     {%- set source_cols_csv = common_columns | join(', ') -%}
     
-    {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_insert_replace_on) -%}
+    {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_replace_on_for_insert_overwrite) -%}
         {{ get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) }}
     {%- else -%}
         {#-- Use traditional INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
