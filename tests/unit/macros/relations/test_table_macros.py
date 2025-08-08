@@ -231,7 +231,7 @@ class TestCreateTableAs(MacroTestBase):
             "using delta comment 'Description Test' as select 1"
         )
 
-        assert sql == expected
+        assert expected == sql
 
     def test_macros_create_table_as_all_delta(self, config, template_bundle):
         catalog_relation = unity_relation(
@@ -265,7 +265,7 @@ class TestCreateTableAs(MacroTestBase):
             "as select 1"
         )
 
-        assert sql == expected
+        assert expected == sql
 
     def test_macros_create_table_as_all_hudi(self, config, template_bundle):
         catalog_relation = unity_relation(
@@ -297,4 +297,4 @@ class TestCreateTableAs(MacroTestBase):
             "as select 1"
         )
 
-        assert sql == expected
+        assert expected == sql
