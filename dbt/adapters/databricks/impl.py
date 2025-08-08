@@ -122,6 +122,15 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
+    name="use_replace_on_for_insert_overwrite",
+    default=False,
+    description=(
+        "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
+        "  When disabled, falls back to traditional INSERT OVERWRITE syntax."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -223,7 +232,12 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_INFO_SCHEMA_FOR_COLUMNS,
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+        ]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(

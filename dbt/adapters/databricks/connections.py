@@ -128,14 +128,19 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
         return self._api_client
 
-    def is_cluster(self) -> bool:
-        conn = self.get_thread_connection()
+    @staticmethod
+    def _is_cluster_http_path(cluster_id: Optional[str], http_path: str) -> bool:
         return (
-            conn.credentials.cluster_id is not None
+            cluster_id is not None
             # Credentials field is not updated when overriding the compute at model level.
             # This secondary check is a workaround for that case
-            or "/warehouses/" not in cast(DatabricksDBTConnection, conn).http_path
+            or "/warehouses/" not in http_path
         )
+
+    def is_cluster(self) -> bool:
+        conn = self.get_thread_connection()
+        databricks_conn = cast(DatabricksDBTConnection, conn)
+        return self._is_cluster_http_path(conn.credentials.cluster_id, databricks_conn.http_path)
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
@@ -402,7 +407,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
             try:
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn = DatabricksHandle.from_connection_args(
-                    conn_args, creds.cluster_id is not None
+                    conn_args,
+                    cls._is_cluster_http_path(creds.cluster_id, databricks_connection.http_path),
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
