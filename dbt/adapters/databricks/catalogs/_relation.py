@@ -5,7 +5,6 @@ from typing import Optional
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks import constants
-from dbt.adapters.databricks.relation import DatabricksRelation
 
 
 @dataclass
@@ -49,14 +48,3 @@ class DatabricksCatalogRelation:
                 "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
             }
         return {}
-
-    def render_model_relation(self, model_relation: DatabricksRelation) -> str:
-        if self.catalog_name != constants.DEFAULT_CATALOG.name:
-            model_relation.path.database = self.catalog_name
-        return model_relation.render()
-
-    def without_identifier(self) -> str:
-        return f"`{self.catalog_name}`.`{self.catalog_schema}`"
-
-    def __str__(self) -> str:
-        return self.without_identifier()
