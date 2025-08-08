@@ -273,7 +273,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # SQL warehouse (not cluster)
         context["adapter"].is_cluster.return_value = False
         # Disable the behavior flag
-        context["adapter"].behavior.use_insert_replace_on = False
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
         config["partition_by"] = ["partition_col"]
 
         source_relation = Mock()
