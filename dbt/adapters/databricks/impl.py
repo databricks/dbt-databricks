@@ -128,7 +128,7 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
 )  # type: ignore[typeddict-item]
 
 USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
-    name="use_insert_replace_on",
+    name="use_replace_on_for_insert_overwrite",
     default=False,
     description=(
         "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
