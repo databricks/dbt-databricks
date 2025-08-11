@@ -28,7 +28,7 @@ COMMENT ON COLUMN {{ column_path }} IS '{{ escaped_comment }}'
 {% endmacro %}
 
 {% macro alter_relation_comment_sql(relation, description) %}
-COMMENT ON {{ relation.type.upper() }} {{ relation.render() }} IS '{{ description | replace("'", "\\'") }}'
+COMMENT ON {{ relation.type.render().upper() }} {{ relation.render() }} IS '{{ description | replace("'", "\\'") }}'
 {% endmacro %}
 
 {% macro alter_column_comments(relation, column_dict) %}

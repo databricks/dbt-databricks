@@ -8,7 +8,7 @@
 {% endmacro %}
 
 {% macro get_alter_query_sql(target_relation, query) -%}
-  ALTER {{ target_relation.type|upper }} {{ target_relation.render() }} AS (
+  ALTER {{ target_relation.type.render()|upper }} {{ target_relation.render() }} AS (
     {{ query }}
   )
 {%- endmacro %}
