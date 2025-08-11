@@ -38,7 +38,7 @@
   {%- if relation.type == 'view' -%}
     ALTER TABLE {{ relation.render() }}
   {%- else -%}
-    ALTER {{ relation.type | replace('_', ' ') }} {{ relation.render() }}
+    ALTER {{ relation.type.render() }} {{ relation.render() }}
   {%- endif -%}
   ALTER COLUMN `{{ column }}`
   SET TAGS (

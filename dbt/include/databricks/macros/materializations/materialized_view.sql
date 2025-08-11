@@ -64,8 +64,11 @@
     {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
     {% set grant_config = config.get('grants') %}
+    {% set tags = config.get('databricks_tags') %}
 
     {{ execute_multiple_statements(build_sql) }}
+
+    {%- do apply_tags(target_relation, tags) -%}
 
     {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
     {% if column_tags %}
