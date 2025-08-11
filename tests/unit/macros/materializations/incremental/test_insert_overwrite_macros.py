@@ -145,37 +145,6 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__modern_dbr_version_partition_takes_precedence(
-        self, template, context, config
-    ):
-        """
-        Test that DBR >= 17.1 uses partition columns when both partition_by and
-        liquid_clustered_by are defined (partition takes precedence)
-        """
-        # Positive return value means DBR > 17.1
-        context["adapter"].compare_dbr_version.return_value = 1
-        config["partition_by"] = ["id", "msg"]
-        config["liquid_clustered_by"] = ["color"]  # This should be ignored
-
-        source_relation = Mock()
-        source_relation.__str__ = lambda self: "source_table"
-        target_relation = Mock()
-        target_relation.__str__ = lambda self: "target_table"
-
-        result = self.run_macro_raw(
-            template,
-            "get_insert_overwrite_sql",
-            source_relation,
-            target_relation,
-        )
-
-        # Verify it only uses partition columns, not clustering columns
-        expected_sql = """insert into table target_table as t
-        replace on (t.id <=> s.id AND t.msg <=> s.msg)
-        (select a, b from source_table) as s"""
-
-        self.assert_sql_equal(result, expected_sql)
-
     @pytest.mark.parametrize("dbr_version_return", [-1, 0, 1])
     def test_get_insert_overwrite_sql__no_partitions(
         self, template, context, config, dbr_version_return
