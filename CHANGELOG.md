@@ -1,3 +1,8 @@
+## dbt-databricks 1.11.0 (TBD)
+
+### Features
+- Support databricks_tags for MV/STs
+
 ## dbt-databricks 1.10.10 (TBD)
 
 ### Documentation
