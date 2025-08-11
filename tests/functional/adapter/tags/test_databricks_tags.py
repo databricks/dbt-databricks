@@ -1,6 +1,7 @@
 import pytest
 
 from dbt.tests import util
+from dbt.tests.adapter.materialized_view.files import MY_SEED
 from tests.functional.adapter.tags import fixtures
 
 
@@ -35,6 +36,34 @@ class TestIncrementalTags(TestTags):
     @pytest.fixture(scope="class")
     def models(self):
         return {"tags.sql": fixtures.tags_sql.replace("table", "incremental")}
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewTags(TestTags):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "tags.sql": fixtures.tags_sql.replace("table", "materialized_view"),
+        }
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTableTags(TestTags):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"my_seed.csv": MY_SEED}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "tags.sql": fixtures.streaming_table_tags_sql,
+        }
+
+    def test_tags(self, project):
+        util.run_dbt(["seed"])
+        super().test_tags(project)
 
 
 @pytest.mark.python

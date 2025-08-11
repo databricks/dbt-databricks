@@ -43,6 +43,10 @@ class DatabricksRelationType(StrEnum):
     MetricView = "metric_view"
     Unknown = "unknown"
 
+    def render(self) -> str:
+        """Return the type formatted for SQL statements (replace underscores with spaces)"""
+        return self.value.replace("_", " ")
+
 
 class DatabricksTableType(StrEnum):
     External = "external"
