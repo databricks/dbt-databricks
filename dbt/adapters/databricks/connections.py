@@ -36,7 +36,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from dbt.adapters.databricks.utils import redact_credentials
+from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
 from dbt.adapters.events.types import (
     ConnectionClosedInCleanup,
     ConnectionReused,
@@ -128,19 +128,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
             )
         return self._api_client
 
-    @staticmethod
-    def _is_cluster_http_path(cluster_id: Optional[str], http_path: str) -> bool:
-        return (
-            cluster_id is not None
-            # Credentials field is not updated when overriding the compute at model level.
-            # This secondary check is a workaround for that case
-            or "/warehouses/" not in http_path
-        )
-
     def is_cluster(self) -> bool:
         conn = self.get_thread_connection()
         databricks_conn = cast(DatabricksDBTConnection, conn)
-        return self._is_cluster_http_path(conn.credentials.cluster_id, databricks_conn.http_path)
+        return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
@@ -408,7 +399,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn = DatabricksHandle.from_connection_args(
                     conn_args,
-                    cls._is_cluster_http_path(creds.cluster_id, databricks_connection.http_path),
+                    is_cluster_http_path(databricks_connection.http_path, creds.cluster_id),
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
