@@ -54,7 +54,7 @@
     {%- set liquid_clustered_by = config.get('liquid_clustered_by') -%}
     {%- set replace_columns = [] -%}
     
-    {#-- Use partition columns if defined (takes precedence) --#}
+    {#-- If both partition_by and liquid_clustered_by are defined, it will fail before this point with a SPECIFY_CLUSTER_BY_WITH_PARTITIONED_BY_IS_NOT_ALLOWED error from Databricks --#}
     {%- if partition_by -%}
         {%- if partition_by is string -%}
             {%- set partition_by = [partition_by] -%}
@@ -62,8 +62,9 @@
         {%- for partition_col in partition_by -%}
             {%- do replace_columns.append(partition_col) -%}
         {%- endfor -%}
-    {#-- Otherwise use liquid clustering columns if defined --#}
-    {%- elif liquid_clustered_by -%}
+    {%- endif -%}
+
+    {%- if liquid_clustered_by -%}
         {%- if liquid_clustered_by is string -%}
             {%- set liquid_clustered_by = [liquid_clustered_by] -%}
         {%- endif -%}
