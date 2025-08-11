@@ -7,6 +7,15 @@ tags_sql = """
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
 """
 
+streaming_table_tags_sql = """
+{{ config(
+    materialized='streaming_table',
+    databricks_tags = {'a': 'b', 'c': 'd'},
+) }}
+
+select * from stream {{ ref('my_seed') }}
+"""
+
 simple_python_model = """
 import pandas
 
