@@ -6,6 +6,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
 
 from dbt.adapters.databricks.column import DatabricksColumn
+from dbt.adapters.databricks.relation import DatabricksRelationType
 
 
 class TemplateBundle:
@@ -180,7 +181,7 @@ class MacroTestBase:
         relation.identifier = "some_table"
         relation.render = Mock(return_value="`some_database`.`some_schema`.`some_table`")
         relation.without_identifier = Mock(return_value="`some_database`.`some_schema`")
-        relation.type = "table"
+        relation.type = DatabricksRelationType.Table
         return relation
 
     @pytest.fixture

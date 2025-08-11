@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from dbt.adapters.databricks.relation import DatabricksRelationType
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -131,7 +132,7 @@ class TestPersistDocsMacros(MacroTestBase):
         view_relation.schema = "test_schema"
         view_relation.identifier = "test_view"
         view_relation.render = Mock(return_value="`test_db`.`test_schema`.`test_view`")
-        view_relation.type = "view"
+        view_relation.type = DatabricksRelationType.View
 
         result = self.run_macro(
             template_bundle.template,
