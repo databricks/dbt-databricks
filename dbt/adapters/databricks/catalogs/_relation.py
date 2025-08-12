@@ -15,7 +15,6 @@ class DatabricksCatalogRelation:
     file_format: Optional[str] = constants.DEFAULT_CATALOG.file_format
     external_volume: Optional[str] = constants.DEFAULT_CATALOG.external_volume
     location_path: Optional[str] = None
-    catalog_schema: Optional[str] = None
 
     @property
     def location_root(self) -> Optional[str]:

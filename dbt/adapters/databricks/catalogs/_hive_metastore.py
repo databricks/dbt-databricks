@@ -41,5 +41,4 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
             file_format=parse_model.file_format(model) or self.file_format,
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
-            catalog_schema=model.schema,
         )
