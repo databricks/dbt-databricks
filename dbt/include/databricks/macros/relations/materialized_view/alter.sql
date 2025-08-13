@@ -31,13 +31,24 @@
 
     -- otherwise apply individual changes as needed
     {% else %}
-        {% do return(get_alter_mv_internal(relation, configuration_changes)) %}
+        {%- set alter_statement = get_alter_mv_internal(relation, configuration_changes) -%}
+        {%- set return_statements = [] -%}
+        {%- if alter_statement -%}
+            {{ return_statements.append(alter_statement) }}
+        {%- endif -%}
+        {%- set tags = configuration_changes.changes["tags"] -%}
+        {%- if tags -%}
+            {{ return_statements.append(alter_set_tags(relation, tags.set_tags)) }}
+        {%- endif -%}
+        {% do return(return_statements) %}
     {%- endif -%}
 {% endmacro %}
 
 {% macro get_alter_mv_internal(relation, configuration_changes) %}
     {%- set refresh = configuration_changes.changes["refresh"] -%}
-    -- Currently only schedule can be altered
-    ALTER MATERIALIZED VIEW {{ relation.render() }}
-        {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, refresh.is_altered) -}}
+    {%- if refresh -%}
+        -- Currently only schedule can be altered
+        ALTER MATERIALIZED VIEW {{ relation.render() }}
+            {{ get_alter_sql_refresh_schedule(refresh.cron, refresh.time_zone_value, refresh.is_altered) -}}
+    {%- endif -%}
 {% endmacro %}
