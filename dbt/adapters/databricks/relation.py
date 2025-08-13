@@ -45,7 +45,7 @@ class DatabricksRelationType(StrEnum):
 
     def render(self) -> str:
         """Return the type formatted for SQL statements (replace underscores with spaces)"""
-        return self.value.replace("_", " ")
+        return self.value.replace("_", " ").upper()
 
 
 class DatabricksTableType(StrEnum):
