@@ -128,6 +128,7 @@ class DatabricksRelation(BaseRelation):
     def can_be_replaced(self) -> bool:
         return (
             self.type == DatabricksRelationType.View
+            or self.type == DatabricksRelationType.MaterializedView
             or self.is_delta is True
             and self.type == DatabricksRelationType.Table
         )
