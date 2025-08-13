@@ -17,6 +17,7 @@ from dbt.adapters.databricks.relation_configs.query import (
 from dbt.adapters.databricks.relation_configs.refresh import (
     RefreshProcessor,
 )
+from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )
@@ -29,6 +30,7 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
         TblPropertiesProcessor,
         RefreshProcessor,
         QueryProcessor,
+        TagsProcessor,
     ]
 
     def get_changeset(
@@ -36,13 +38,14 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
     ) -> Optional[DatabricksRelationChangeSet]:
         changes: dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
+        updateable_component_keys = ["refresh", "tags"]
 
         for component in self.config_components:
             key = component.name
             value = self.config[key]
             diff = value.get_diff(existing.config[key])
             if diff:
-                requires_refresh = requires_refresh or key != "refresh"
+                requires_refresh = requires_refresh or key not in updateable_component_keys
                 changes[key] = diff
 
         if len(changes) > 0:
