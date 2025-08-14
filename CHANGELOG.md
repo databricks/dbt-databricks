@@ -1,5 +1,8 @@
 ## dbt-databricks 1.10.10 (TBD)
 
+### Documentation
+- Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
+
 ## dbt-databricks 1.10.9 (August 7, 2025)
 
 ### Features
