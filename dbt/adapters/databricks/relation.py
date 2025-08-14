@@ -76,7 +76,11 @@ class DatabricksRelation(BaseRelation):
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
-    replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    replaceable_relations = (
+        DatabricksRelationType.Table,
+        DatabricksRelationType.View,
+        DatabricksRelationType.MaterializedView,
+    )
     databricks_table_type: Optional[DatabricksTableType] = None
     temporary: Optional[bool] = False
 
@@ -128,8 +132,8 @@ class DatabricksRelation(BaseRelation):
     def can_be_replaced(self) -> bool:
         return (
             self.type == DatabricksRelationType.View
-            or self.is_delta is True
-            and self.type == DatabricksRelationType.Table
+            or self.type == DatabricksRelationType.MaterializedView
+            or (self.is_delta is True and self.type == DatabricksRelationType.Table)
         )
 
     @property
