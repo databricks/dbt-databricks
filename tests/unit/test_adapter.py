@@ -1200,3 +1200,86 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             mock_get_columns.assert_called_with(
                 adapter, unity_relation, "get_columns_comments_as_json"
             )
+
+
+class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            adapter.get_relation = Mock()
+            adapter.get_relation.return_value = None
+            adapter.compare_dbr_version = Mock(return_value=1)  # DBR 14.3+
+            return adapter
+
+    @pytest.fixture
+    def mock_config(self):
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            "tblproperties": {},
+            "materialized": "table",
+        }.get(key, default)
+        config.model = Mock()
+        return config
+
+    @pytest.fixture
+    def unity_catalog_relation(self):
+        from dbt.adapters.databricks import constants
+        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+
+        return DatabricksCatalogRelation(
+            catalog_type=constants.UNITY_CATALOG_TYPE,
+            catalog_name="test_catalog",
+            table_format=constants.ICEBERG_TABLE_FORMAT,
+            file_format=constants.DELTA_FILE_FORMAT,
+        )
+
+    @pytest.fixture
+    def hive_catalog_relation(self):
+        from dbt.adapters.databricks import constants
+        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+
+        return DatabricksCatalogRelation(
+            catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
+            catalog_name="hive_metastore",
+            table_format=constants.ICEBERG_TABLE_FORMAT,
+            file_format=constants.DELTA_FILE_FORMAT,
+        )
+
+    def test_update_tblproperties_for_iceberg_with_uniform_disabled_flag(
+        self, adapter, mock_config, unity_catalog_relation
+    ):
+        """Test that UniForm properties are not added when managed Iceberg flag is enabled"""
+        adapter.behavior.use_managed_iceberg = True
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+
+        result = adapter.update_tblproperties_for_iceberg(mock_config, {})
+
+        # Should not contain UniForm properties
+        assert "delta.enableIcebergCompatV2" not in result
+        assert "delta.universalFormat.enabledFormats" not in result
+
+    def test_update_tblproperties_for_iceberg_with_uniform_enabled_flag(
+        self, adapter, mock_config, unity_catalog_relation
+    ):
+        """Test that UniForm properties are added when managed Iceberg flag is disabled (default)"""
+        adapter.behavior.use_managed_iceberg = False  # Default
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+
+        result = adapter.update_tblproperties_for_iceberg(mock_config, {})
+
+        # Should contain UniForm properties
+        assert result["delta.enableIcebergCompatV2"] == "true"
+        assert result["delta.universalFormat.enabledFormats"] == "iceberg"
+
+    def test_update_tblproperties_for_managed_iceberg_with_hive_metastore_error(
+        self, adapter, mock_config, hive_catalog_relation
+    ):
+        """Test that managed Iceberg with Hive Metastore raises an error"""
+        adapter.behavior.use_managed_iceberg = True
+        adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
+
+        with pytest.raises(
+            DbtConfigError, match="Managed Iceberg tables are only supported in Unity Catalog"
+        ):
+            adapter.update_tblproperties_for_iceberg(mock_config, {})

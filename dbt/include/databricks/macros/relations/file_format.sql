@@ -5,11 +5,19 @@
     Hence, we need to support the old code still, which is covered by the second condition.
   --#}
   {% if catalog_relation is not none %}
+    {%- set table_format = catalog_relation.table_format -%}
     {%- set file_format = catalog_relation.file_format -%}
   {% else %}
+    {%- set table_format = config.get('table_format', default='default') -%}
     {%- set file_format = config.get('file_format', default='delta') -%}
   {% endif %}
-  using {{ file_format }}
+  
+  {#-- Use managed Iceberg if behavior flag is enabled and table_format is iceberg --#}
+  {% if adapter.behavior.use_managed_iceberg and table_format == 'iceberg' %}
+    using iceberg
+  {% else %}
+    using {{ file_format }}
+  {% endif %}
 {%- endmacro -%}
 
 

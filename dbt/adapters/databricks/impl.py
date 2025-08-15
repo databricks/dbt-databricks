@@ -139,6 +139,15 @@ USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_MANAGED_ICEBERG = BehaviorFlag(
+    name="use_managed_iceberg",
+    default=False,
+    description=(
+        "Use managed Iceberg tables when table_format is iceberg. Always uses Parquet as the file"
+        " format. When this flag is disabled, UniForm with Delta is used instead."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -246,6 +255,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_USER_FOLDER_FOR_PYTHON,
             USE_MATERIALIZATION_V2,
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+            USE_MANAGED_ICEBERG,
         ]
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
@@ -267,7 +277,17 @@ class DatabricksAdapter(SparkAdapter):
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result.update(catalog_relation.iceberg_table_properties)
+            # Only add UniForm properties if not using managed Iceberg tables
+            if not self.behavior.use_managed_iceberg:
+                result.update(catalog_relation.iceberg_table_properties)
+            elif (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
 
         return result
 
