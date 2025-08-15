@@ -4,9 +4,6 @@ from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 from tests.functional.adapter.fixtures import ManagedIcebergMixin
 from tests.functional.adapter.iceberg import fixtures
-from tests.functional.adapter.incremental.test_incremental_tblproperties import (
-    TestIncrementalTblproperties,
-)
 
 
 @pytest.mark.skip_profile("databricks_cluster")
