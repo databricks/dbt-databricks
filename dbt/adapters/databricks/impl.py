@@ -122,6 +122,15 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_MANAGED_ICEBERG = BehaviorFlag(
+    name="use_managed_iceberg",
+    default=False,
+    description=(
+        "Use managed Iceberg tables when table_format is iceberg. Always uses Parquet as the file"
+        " format. When this flag is disabled, UniForm with Delta is used instead."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -223,7 +232,12 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_INFO_SCHEMA_FOR_COLUMNS,
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_MANAGED_ICEBERG,
+        ]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -240,7 +254,17 @@ class DatabricksAdapter(SparkAdapter):
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result.update(catalog_relation.iceberg_table_properties)
+            # Only add UniForm properties if not using managed Iceberg tables
+            if not self.behavior.use_managed_iceberg:
+                result.update(catalog_relation.iceberg_table_properties)
+            elif (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
 
         return result
 
