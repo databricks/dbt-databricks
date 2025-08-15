@@ -143,8 +143,8 @@ USE_MANAGED_ICEBERG = BehaviorFlag(
     name="use_managed_iceberg",
     default=False,
     description=(
-        "Use managed Iceberg tables when table_format is iceberg. Always uses Parquet as the file"
-        " format. When this flag is disabled, UniForm with Delta is used instead."
+        "Use managed Iceberg tables when table_format is iceberg. Only works with Parquet as the"
+        " file_format. When this flag is disabled, UniForm with Delta is used instead."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -288,6 +288,11 @@ class DatabricksAdapter(SparkAdapter):
                     "Managed Iceberg tables are only supported in Unity Catalog. "
                     "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
                 )
+            elif (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.file_format != constants.PARQUET_FILE_FORMAT
+            ):
+                raise DbtConfigError("Managed Iceberg tables must use Parquet as the file format.")
 
         return result
 
