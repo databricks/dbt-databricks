@@ -2,7 +2,11 @@ import pytest
 
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
+from tests.functional.adapter.fixtures import ManagedIcebergMixin
 from tests.functional.adapter.iceberg import fixtures
+from tests.functional.adapter.incremental.test_incremental_tblproperties import (
+    TestIncrementalTblproperties,
+)
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -54,3 +58,11 @@ class TestIcebergWithParquet(InvalidIcebergConfig):
     @pytest.fixture(scope="class")
     def models(self):
         return {"first_model.sql": fixtures.invalid_iceberg_format}
+
+
+class TestManagedIcebergTables(TestIcebergTables, ManagedIcebergMixin):
+    pass
+
+
+class TestManagedIcebergSwap(TestIcebergSwap, ManagedIcebergMixin):
+    pass
