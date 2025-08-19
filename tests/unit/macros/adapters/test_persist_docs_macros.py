@@ -57,7 +57,8 @@ class TestPersistDocsMacros(MacroTestBase):
         )
 
         expected_sql = """
-            ALTER TABLE `test_db`.`test_schema`.`test_table` ALTER COLUMN id COMMENT 'This is a column comment'
+            ALTER TABLE `test_db`.`test_schema`.`test_table`
+            ALTER COLUMN id COMMENT 'This is a column comment'
         """
         self.assert_sql_equal(result, expected_sql)
 
@@ -74,7 +75,8 @@ class TestPersistDocsMacros(MacroTestBase):
         )
 
         expected_sql = """
-            ALTER TABLE `test_db`.`test_schema`.`test_table` ALTER COLUMN id COMMENT 'This is a column comment'
+            ALTER TABLE `test_db`.`test_schema`.`test_table`
+            ALTER COLUMN id COMMENT 'This is a column comment'
         """
         self.assert_sql_equal(result, expected_sql)
 
@@ -207,11 +209,17 @@ class TestPersistDocsMacros(MacroTestBase):
         call_args_list = context["run_query_as"].call_args_list
 
         first_call = call_args_list[0][0][0]
-        expected_first_sql = "ALTER TABLE `some_database`.`some_schema`.`some_table` ALTER COLUMN id COMMENT 'Primary key'"
+        expected_first_sql = (
+            "ALTER TABLE `some_database`.`some_schema`.`some_table` "
+            "ALTER COLUMN id COMMENT 'Primary key'"
+        )
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
-        expected_second_sql = "ALTER TABLE `some_database`.`some_schema`.`some_table` ALTER COLUMN value COMMENT 'Contains \\'quoted\\' text'"
+        expected_second_sql = (
+            "ALTER TABLE `some_database`.`some_schema`.`some_table` "
+            "ALTER COLUMN value COMMENT 'Contains \\'quoted\\' text'"
+        )
         self.assert_sql_equal(second_call, expected_second_sql)
 
     def test_databricks__alter_column_comment_unsupported_format(
