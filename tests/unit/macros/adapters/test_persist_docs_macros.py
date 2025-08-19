@@ -25,9 +25,14 @@ class TestPersistDocsMacros(MacroTestBase):
 
         return model
 
-    def test_comment_on_column_sql(self, template_bundle):
+    def test_comment_on_column_sql_dbr_16_1_or_newer(self, template_bundle, context):
+        """Test COMMENT ON COLUMN syntax for DBR 16.1+"""
         column_path = "`test_db`.`test_schema`.`test_table`.id"
         escaped_comment = "This is a column comment"
+
+        # Mock adapter to return DBR 16.1+
+        context["adapter"] = Mock()
+        context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
 
         result = self.run_macro(
             template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
@@ -37,6 +42,62 @@ class TestPersistDocsMacros(MacroTestBase):
             COMMENT ON COLUMN `test_db`.`test_schema`.`test_table`.id IS 'This is a column comment'
         """
         self.assert_sql_equal(result, expected_sql)
+
+    def test_comment_on_column_sql_dbr_older_than_16_1(self, template_bundle, context):
+        """Test ALTER TABLE syntax for DBR < 16.1"""
+        column_path = "`test_db`.`test_schema`.`test_table`.id"
+        escaped_comment = "This is a column comment"
+
+        # Mock adapter to return DBR < 16.1
+        context["adapter"] = Mock()
+        context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+
+        result = self.run_macro(
+            template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
+        )
+
+        expected_sql = """
+            ALTER TABLE `test_db`.`test_schema`.`test_table` ALTER COLUMN id COMMENT 'This is a column comment'
+        """
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_alter_table_change_column_comment_sql(self, template_bundle):
+        """Test the legacy ALTER TABLE CHANGE COLUMN syntax"""
+        column_path = "`test_db`.`test_schema`.`test_table`.id"
+        escaped_comment = "This is a column comment"
+
+        result = self.run_macro(
+            template_bundle.template,
+            "alter_table_change_column_comment_sql",
+            column_path,
+            escaped_comment,
+        )
+
+        expected_sql = """
+            ALTER TABLE `test_db`.`test_schema`.`test_table` ALTER COLUMN id COMMENT 'This is a column comment'
+        """
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_alter_table_change_column_comment_sql_invalid_path(self, template_bundle, context):
+        """Test error handling for invalid column path"""
+        column_path = "invalid_path"
+        escaped_comment = "This is a column comment"
+
+        # Mock exceptions module
+        context["exceptions"] = Mock()
+        context["exceptions"].raise_compiler_error = Mock(side_effect=Exception("Test error"))
+
+        with pytest.raises(Exception, match="Test error"):
+            self.run_macro(
+                template_bundle.template,
+                "alter_table_change_column_comment_sql",
+                column_path,
+                escaped_comment,
+            )
+
+        context["exceptions"].raise_compiler_error.assert_called_once_with(
+            "Invalid column path: invalid_path. Expected format: database.schema.table.column"
+        )
 
     def test_alter_relation_comment_sql(self, template_bundle, relation):
         result = self.run_macro(
@@ -82,7 +143,7 @@ class TestPersistDocsMacros(MacroTestBase):
         )
         self.assert_sql_equal(result, expected_sql)
 
-    def test_databricks__alter_column_comment_delta(
+    def test_databricks__alter_column_comment_delta_dbr_16_1_plus(
         self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
@@ -90,6 +151,9 @@ class TestPersistDocsMacros(MacroTestBase):
 
         context["api"] = MagicMock()
         context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
+
+        context["adapter"] = Mock()
+        context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
 
         context["run_query_as"] = Mock()
 
@@ -115,6 +179,39 @@ class TestPersistDocsMacros(MacroTestBase):
             "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.value"
             " IS 'Contains \\'quoted\\' text'"
         )
+        self.assert_sql_equal(second_call, expected_second_sql)
+
+    def test_databricks__alter_column_comment_delta_dbr_older_than_16_1(
+        self, template_bundle, context, relation, mock_model_with_columns
+    ):
+        context["config"] = Mock()
+        context["config"].get = Mock(return_value="delta")
+
+        context["api"] = MagicMock()
+        context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
+
+        context["adapter"] = Mock()
+        context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+
+        context["run_query_as"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "databricks__alter_column_comment",
+            relation,
+            mock_model_with_columns.columns,
+        )
+
+        assert context["run_query_as"].call_count == 2
+
+        call_args_list = context["run_query_as"].call_args_list
+
+        first_call = call_args_list[0][0][0]
+        expected_first_sql = "ALTER TABLE `some_database`.`some_schema`.`some_table` ALTER COLUMN id COMMENT 'Primary key'"
+        self.assert_sql_equal(first_call, expected_first_sql)
+
+        second_call = call_args_list[1][0][0]
+        expected_second_sql = "ALTER TABLE `some_database`.`some_schema`.`some_table` ALTER COLUMN value COMMENT 'Contains \\'quoted\\' text'"
         self.assert_sql_equal(second_call, expected_second_sql)
 
     def test_databricks__alter_column_comment_unsupported_format(
