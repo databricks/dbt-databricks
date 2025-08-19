@@ -22,12 +22,12 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "databricks-sdk>=0.41, <0.48.0",
-    "databricks-sql-connector[pyarrow]>=4.0.0, <5.0.0",
-    "dbt-adapters>=1.16.0, <2.0",
-    "dbt-common>=1.24.0, <2.0",
-    "dbt-core>=1.10.1, <2.0",
-    "dbt-spark>=1.9.0, <2.0",
+    "databricks-sdk>=0.41, <0.64.0",
+    "databricks-sql-connector[pyarrow]>=4.0.0, <4.0.6",
+    "dbt-adapters>=1.16.0, <1.16.5",
+    "dbt-common>=1.24.0, <1.29.0",
+    "dbt-core>=1.10.1, <1.10.10",
+    "dbt-spark>=1.9.0, <1.9.4",
     "keyring>=23.13.0",
     "pydantic>=1.10.0",
 ]
