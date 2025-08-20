@@ -1,7 +1,7 @@
 ## dbt-databricks 1.10.10 (TBD)
 
 ### Features
-- Support insert_overwrite incremental strategy for SQL warehouses using `REPLACE ON` for null tolerance, gated behind behavior flag ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+- Support `insert_overwrite` incremental strategy for SQL warehouses using `REPLACE ON` for null tolerance, gated behind behavior flag ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ### Documentation
 - Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
