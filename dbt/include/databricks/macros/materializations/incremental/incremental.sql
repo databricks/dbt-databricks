@@ -191,7 +191,7 @@
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.warn("INSERT OVERWRITE is supported on SQL warehouses with DBR 17.1+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
+    {{ exceptions.warn("insert_overwrite is supported on SQL warehouses with DBR 17.1+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
