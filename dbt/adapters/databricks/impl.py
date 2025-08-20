@@ -262,12 +262,7 @@ class DatabricksAdapter(SparkAdapter):
         """Override base adapter's quote method to prevent double quoting."""
         return quote(identifier)
 
-    @available.parse(lambda *a, **k: 0)
-    def update_tblproperties_for_iceberg(
-        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
-    ) -> dict[str, str]:
-        result = tblproperties or config.get("tblproperties", {})
-
+    def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
@@ -277,10 +272,7 @@ class DatabricksAdapter(SparkAdapter):
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            # Only add UniForm properties if not using managed Iceberg tables
-            if not self.behavior.use_managed_iceberg:
-                result.update(catalog_relation.iceberg_table_properties)
-            elif (
+            if (
                 self.behavior.use_managed_iceberg
                 and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
             ):
@@ -288,12 +280,17 @@ class DatabricksAdapter(SparkAdapter):
                     "Managed Iceberg tables are only supported in Unity Catalog. "
                     "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
                 )
-            elif (
-                self.behavior.use_managed_iceberg
-                and catalog_relation.file_format != constants.PARQUET_FILE_FORMAT
-            ):
-                raise DbtConfigError("Managed Iceberg tables must use Parquet as the file format.")
+            return True
+        else:
+            return False
 
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_uniform_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        result.update(catalog_relation.iceberg_table_properties)
         return result
 
     @available.parse(lambda *a, **k: 0)

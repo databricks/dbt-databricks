@@ -1258,53 +1258,77 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             file_format=constants.DELTA_FILE_FORMAT,
         )
 
-    def test_iceberg_with_managed_iceberg_flag_enabled(
+    def test_is_uniform_with_managed_iceberg_returns_true(
         self, adapter, mock_config, unity_catalog_relation_managed_iceberg_relation
     ):
-        """Test that UniForm properties are not added when managed Iceberg flag is enabled"""
+        """Test that is_uniform returns True for managed Iceberg tables in Unity Catalog"""
         adapter.behavior.use_managed_iceberg = True
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
 
-        result = adapter.update_tblproperties_for_iceberg(mock_config, {})
+        result = adapter.is_uniform(mock_config)
+        assert result is True
 
-        # Should not contain UniForm properties
-        assert "delta.enableIcebergCompatV2" not in result
-        assert "delta.universalFormat.enabledFormats" not in result
-
-    def test_iceberg_with_managed_iceberg_flag_disabled(
+    def test_is_uniform_with_uniform_iceberg_returns_true(
         self, adapter, mock_config, unity_catalog_relation
     ):
-        """Test that UniForm properties are added when managed Iceberg flag is disabled (default)"""
+        """Test that is_uniform returns True for UniForm Iceberg tables"""
         adapter.behavior.use_managed_iceberg = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
 
-        result = adapter.update_tblproperties_for_iceberg(mock_config, {})
+        result = adapter.is_uniform(mock_config)
+        assert result is True
 
-        # Should contain UniForm properties
-        assert result["delta.enableIcebergCompatV2"] == "true"
-        assert result["delta.universalFormat.enabledFormats"] == "iceberg"
+    def test_is_uniform_with_non_iceberg_returns_false(self, adapter, mock_config):
+        """Test that is_uniform returns False for non-Iceberg tables"""
+        from dbt.adapters.databricks import constants
+        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 
-    def test_managed_iceberg_with_hive_metastore_error(
+        non_iceberg_relation = DatabricksCatalogRelation(
+            catalog_type=constants.UNITY_CATALOG_TYPE,
+            table_format=constants.DEFAULT_TABLE_FORMAT,  # Not Iceberg
+            file_format=constants.DELTA_FILE_FORMAT,
+        )
+        adapter.build_catalog_relation = Mock(return_value=non_iceberg_relation)
+
+        result = adapter.is_uniform(mock_config)
+        assert result is False
+
+    def test_is_uniform_with_managed_iceberg_hive_metastore_error(
         self, adapter, mock_config, hive_catalog_relation
     ):
-        """Test that managed Iceberg with Hive Metastore raises an error"""
+        """Test that is_uniform raises error for managed Iceberg with Hive Metastore"""
         adapter.behavior.use_managed_iceberg = True
         adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
 
         with pytest.raises(
             DbtConfigError, match="Managed Iceberg tables are only supported in Unity Catalog"
         ):
-            adapter.update_tblproperties_for_iceberg(mock_config, {})
+            adapter.is_uniform(mock_config)
 
-    def test_managed_iceberg_with_delta_file_format_error(
+    def test_is_uniform_with_old_dbr_version_error(
         self, adapter, mock_config, unity_catalog_relation
     ):
-        adapter.behavior.use_managed_iceberg = True
+        """Test that is_uniform raises error for insufficient DBR version"""
+        adapter.behavior.use_managed_iceberg = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        adapter.compare_dbr_version = Mock(return_value=-1)  # DBR version too old
 
         with pytest.raises(
-            DbtConfigError, match="Managed Iceberg tables must use Parquet as the file format."
+            DbtConfigError, match="Iceberg support requires Databricks Runtime 14.3 or later"
         ):
-            adapter.update_tblproperties_for_iceberg(mock_config, {})
+            adapter.is_uniform(mock_config)
+
+    def test_is_uniform_with_invalid_materialization_error(
+        self, adapter, mock_config, unity_catalog_relation
+    ):
+        """Test that is_uniform raises error for invalid materialization"""
+        adapter.behavior.use_managed_iceberg = False
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        mock_config.get.side_effect = lambda key: "view" if key == "materialized" else None
+
+        with pytest.raises(
+            DbtConfigError, match="When table_format is 'iceberg', materialized must be"
+        ):
+            adapter.is_uniform(mock_config)
