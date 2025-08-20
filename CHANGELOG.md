@@ -1,5 +1,8 @@
 ## dbt-databricks 1.10.10 (TBD)
 
+### Fixes
+- Gate column comment syntax on DBR version for better compatibility ([1151](https://github.com/databricks/dbt-databricks/pull/1151))
+
 ### Documentation
 - Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
 
