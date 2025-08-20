@@ -143,8 +143,8 @@ USE_MANAGED_ICEBERG = BehaviorFlag(
     name="use_managed_iceberg",
     default=False,
     description=(
-        "Use managed Iceberg tables when table_format is iceberg. Only works with Parquet as the"
-        " file_format. When this flag is disabled, UniForm with Delta is used instead."
+        "Use managed Iceberg tables when table_format is iceberg. When this flag is disabled, "
+        "UniForm is used instead."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -938,6 +938,15 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
+
+    @available
+    def resolve_file_format(self, config: BaseConfig) -> str:
+        if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
+            if self.behavior.use_managed_iceberg:
+                return constants.PARQUET_FILE_FORMAT
+            else:
+                return constants.DELTA_FILE_FORMAT
+        return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
 
 
 @dataclass(frozen=True)
