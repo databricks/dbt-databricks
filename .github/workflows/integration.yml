@@ -1,6 +1,18 @@
 name: Integration Tests
 on:
   push:
+    branches-ignore:
+      - main
+      - "*.latest"
+      - "releases/*"
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
+      - "adapters/databricks/__version__.py"
+      - "tests/unit/**"
+      - ".github/workflows/main.yml"
+      - ".github/workflows/stale.yml"
+  pull_request:
     paths-ignore:
       - "**.MD"
       - "**.md"
