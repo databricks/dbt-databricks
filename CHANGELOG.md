@@ -1,29 +1,49 @@
-## dbt-databricks 1.10.10 (TBD)
+## dbt-databricks 1.10.11 (TBD)
+
+## dbt-databricks 1.10.10 (August 20, 2025)
+
+### Fixes
+
+- Gate column comment syntax on DBR version for better compatibility ([1151](https://github.com/databricks/dbt-databricks/pull/1151))
+
+### Documentation
+
+- Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
 
 ## dbt-databricks 1.10.9 (August 7, 2025)
 
 ### Features
+
 - Support column tags for views using `ALTER TABLE`
 
 ### Under the hood
+
 - Revert `REPLACE USING` syntax being used for insert overwrite ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ## dbt-databricks 1.10.8 (August 4, 2025)
 
 ### Features
+
 - Support insert_overwrite incremental strategy for SQL warehouses ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ### Fixes
+
 - Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
 - Fix no-op logic for views that is causing some incremental materializations to be skipped ([1122](https://github.com/databricks/dbt-databricks/issues/1122))
 - Fix check constraints keep getting replaced [issue-1109](https://github.com/databricks/dbt-databricks/issues/1109)
 
 ### Under the Hood
+
 - Simplify connection management to align with base adapter. Connections are no longer cached per-thread
 
 ## dbt-databricks 1.10.7 (July 31, 2025)
 
+### Features
+
+- feat: add pr linting to enforce conventional commits [issue-1111](https://github.com/databricks/dbt-databricks/issues/1083)
+
 ### Fixes
+
 - Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
 
 ## dbt-databricks 1.10.6 (July 30, 2025)
@@ -71,6 +91,7 @@
 - Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
 
 ### Under the Hood
+
 - Update to dbt-core 1.10.1
 - Update to dbt-common 1.24.0
 
