@@ -829,13 +829,19 @@ For debugging, use your IDE's test runner rather than pytest directly:
 3. **Use "Python: Debug Tests"** configuration for detailed debugging
 
 **Switching Test Environments:**
-To test against different Databricks environments during IDE debugging, modify the default profile in `tests/conftest.py`:
 
-```python
-def pytest_addoption(parser):
-    parser.addoption("--profile", action="store", default="databricks_cluster", type=str)
-    # Change default to: "databricks_uc_cluster" or "databricks_uc_sql_endpoint"
+For **CLI testing**, use the hatch commands which specify the correct profile:
+```bash
+hatch run cluster-e2e        # Tests with databricks_cluster
+hatch run uc-cluster-e2e     # Tests with databricks_uc_cluster  
+hatch run sqlw-e2e           # Tests with databricks_uc_sql_endpoint
 ```
+
+For **IDE test runners** (VS Code, PyCharm, etc.), you can override the default test profile by adding to your `test.env` file:
+```bash
+DBT_DATABRICKS_PROFILE=databricks_cluster  # or databricks_uc_cluster, databricks_uc_sql_endpoint
+```
+Note: The default is `databricks_uc_sql_endpoint` if not specified.
 
 ### Log Analysis
 

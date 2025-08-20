@@ -1,3 +1,4 @@
+import os
 import pytest
 
 from tests.profiles import get_databricks_cluster_target
@@ -6,7 +7,9 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 
 
 def pytest_addoption(parser):
-    parser.addoption("--profile", action="store", default="databricks_cluster", type=str)
+    # Use DBT_DATABRICKS_PROFILE env var if set, otherwise default to databricks_uc_sql_endpoint
+    default_profile = os.environ.get("DBT_DATABRICKS_PROFILE", "databricks_uc_sql_endpoint")
+    parser.addoption("--profile", action="store", default=default_profile, type=str)
 
 
 # Using @pytest.mark.skip_profile('databricks_cluster') uses the 'skip_by_adapter_type'
