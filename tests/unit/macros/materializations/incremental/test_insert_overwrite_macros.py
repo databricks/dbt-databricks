@@ -35,7 +35,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock behavior flags
         mock_behavior = Mock()
-        mock_behavior.use_insert_replace_on = True  # Default to True for behavior flag
+        mock_behavior.use_replace_on_for_insert_overwrite = (
+            True  # Default to True for behavior flag
+        )
         context["adapter"].behavior = mock_behavior
 
     def test_get_insert_overwrite_sql__legacy_dbr_version(self, template, context, config):
@@ -190,7 +192,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Cluster environment (default from setup)
         context["adapter"].is_cluster.return_value = True
         # Disable the behavior flag
-        context["adapter"].behavior.use_insert_replace_on = False
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
         config["partition_by"] = ["partition_col"]
 
         source_relation = Mock()
@@ -223,7 +225,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Cluster environment
         context["adapter"].is_cluster.return_value = True
         # Disable the behavior flag
-        context["adapter"].behavior.use_insert_replace_on = False
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
         config["partition_by"] = ["partition_col"]
 
         source_relation = Mock()
@@ -289,7 +291,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # SQL warehouse (not cluster)
         context["adapter"].is_cluster.return_value = False
         # Enable the behavior flag
-        context["adapter"].behavior.use_insert_replace_on = True
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = True
         config["partition_by"] = ["partition_col"]
 
         source_relation = Mock()
