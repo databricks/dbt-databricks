@@ -204,7 +204,7 @@ class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
 # Insert overwrite in SQL warehouse is expected to behave like a table materialization
 # We support this as a short term hack for customers who want the side effect of reusing
 # the same table on subsequent runs
-# TODO: Remove this once 17.1 is current version for SQL warehouses
+# TODO: Remove this once use_insert_replace_on behavior flag is removed
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestInsertOverwriteSqlWarehouse(IncrementalBase):
     @pytest.fixture(scope="class")

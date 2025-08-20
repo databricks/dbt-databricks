@@ -57,9 +57,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses legacy INSERT OVERWRITE syntax
-        expected_sql = """insert overwrite table target_table
-        partition (partition_col)
-        select a, b from source_table"""
+        expected_sql = """
+            insert overwrite table target_table
+            partition (partition_col)
+            select a, b from source_table
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -82,9 +84,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax
-        expected_sql = """insert into table target_table as t
-        replace on (t.partition_col <=> s.partition_col)
-        (select a, b from source_table) as s"""
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.partition_col <=> s.partition_col)
+            (select a, b from source_table) as s
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -109,9 +113,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax with multiple conditions
-        expected_sql = """insert into table target_table as t
-        replace on (t.country <=> s.country AND t.name <=> s.name)
-        (select a, b from source_table) as s"""
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.country <=> s.country AND t.name <=> s.name)
+            (select a, b from source_table) as s
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -139,9 +145,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax with clustering columns only
-        expected_sql = """insert into table target_table as t
-        replace on (t.msg <=> s.msg)
-        (select a, b from source_table) as s"""
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.msg <=> s.msg)
+            (select a, b from source_table) as s
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -167,7 +175,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses regular INSERT OVERWRITE syntax
-        expected_sql = """insert overwrite table target_table select a, b from source_table"""
+        expected_sql = """
+            insert overwrite table target_table select a, b from source_table
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -196,9 +206,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax because cluster with DBR 17.1+ always uses new syntax
-        expected_sql = """insert into table target_table as t
-        replace on (t.partition_col <=> s.partition_col)
-        (select a, b from source_table) as s"""
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.partition_col <=> s.partition_col)
+            (select a, b from source_table) as s
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -227,9 +239,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses traditional INSERT OVERWRITE syntax for old DBR cluster
-        expected_sql = """insert overwrite table target_table
-        partition (partition_col)
-        select a, b from source_table"""
+        expected_sql = """
+            insert overwrite table target_table
+            partition (partition_col)
+            select a, b from source_table
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -258,9 +272,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses traditional INSERT OVERWRITE syntax for SQL warehouse without behavior flag
-        expected_sql = """insert overwrite table target_table
-        partition (partition_col)
-        select a, b from source_table"""
+        expected_sql = """
+            insert overwrite table target_table
+            partition (partition_col)
+            select a, b from source_table
+        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -289,8 +305,10 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax for SQL warehouse with behavior flag enabled
-        expected_sql = """insert into table target_table as t
-        replace on (t.partition_col <=> s.partition_col)
-        (select a, b from source_table) as s"""
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.partition_col <=> s.partition_col)
+            (select a, b from source_table) as s
+        """
 
         self.assert_sql_equal(result, expected_sql)
