@@ -9,7 +9,7 @@
     {%- set file_format = catalog_relation.file_format -%}
   {% else %}
     {%- set table_format = config.get('table_format', default='default') -%}
-    {%- set file_format = config.get('file_format', default='delta') -%}
+    {%- set file_format = adapter.resolve_file_format(config) -%}
   {% endif %}
   
   {#-- Use managed Iceberg if behavior flag is enabled and table_format is iceberg --#}
@@ -30,7 +30,7 @@
   {% if catalog_relation is not none %}
     {%- set raw_file_format = catalog_relation.file_format -%}
   {% else %}
-    {%- set raw_file_format = config.get('file_format', default='delta') -%}
+    {%- set raw_file_format = adapter.resolve_file_format(config) -%}
   {% endif %}
   {% do return(dbt_databricks_validate_get_file_format(raw_file_format)) %}
 {% endmacro %}
