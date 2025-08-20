@@ -11,6 +11,7 @@ class TestPythonMacros(MacroTestBase):
         default_context["model"] = MagicMock()
         d = {"alias": "schema"}
         default_context["model"].__getitem__.side_effect = d.__getitem__
+        default_context["adapter"].resolve_file_format.return_value = "delta"
 
     @pytest.fixture
     def macro_folders_to_load(self) -> list:
@@ -26,7 +27,7 @@ class TestPythonMacros(MacroTestBase):
         assert result == '.format("delta")'
 
     def test_py_get_writer__specified_file_format(self, config, template):
-        config["file_format"] = "parquet"
+        template.globals["adapter"].resolve_file_format.return_value = "parquet"
         result = self.run_macro_raw(template, "py_get_writer_options")
 
         assert result == '.format("parquet")'
