@@ -39,7 +39,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].behavior = mock_behavior
 
     def test_get_insert_overwrite_sql__legacy_dbr_version(self, template, context, config):
-        """Test that DBR < 17.1 uses traditional INSERT OVERWRITE syntax"""
+        """Test that DBR < 17.1 uses the legacy DPO INSERT OVERWRITE syntax"""
         # Negative return value means DBR < 17.1
         context["adapter"].compare_dbr_version.return_value = -1
         config["partition_by"] = ["partition_col"]
