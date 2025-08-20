@@ -17,7 +17,15 @@ import pyspark
 
 if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
     if pyspark_pandas_api_available:
-        df = pyspark.pandas.frame.DataFrame(df)
+        try:
+            df = pyspark.pandas.frame.DataFrame(df)
+        except Exception as e:
+            # If ANSI mode causes issues, fall back to spark.createDataFrame
+            # This preserves the original pandas DataFrame for later conversion
+            if "PANDAS_API_ON_SPARK_FAIL_ON_ANSI_MODE" in str(e):
+                pass  # Will use spark.createDataFrame below
+            else:
+                raise e
     elif koalas_available:
         df = databricks.koalas.frame.DataFrame(df)
 
@@ -115,7 +123,15 @@ import pyspark
 
 if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
     if pyspark_pandas_api_available:
-        df = pyspark.pandas.frame.DataFrame(df)
+        try:
+            df = pyspark.pandas.frame.DataFrame(df)
+        except Exception as e:
+            # If ANSI mode causes issues, fall back to spark.createDataFrame
+            # This preserves the original pandas DataFrame for later conversion
+            if "PANDAS_API_ON_SPARK_FAIL_ON_ANSI_MODE" in str(e):
+                pass  # Will use spark.createDataFrame below
+            else:
+                raise e
     elif koalas_available:
         df = databricks.koalas.frame.DataFrame(df)
 
