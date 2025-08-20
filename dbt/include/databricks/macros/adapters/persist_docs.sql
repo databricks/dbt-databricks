@@ -1,5 +1,5 @@
 {% macro databricks__alter_column_comment(relation, column_dict) %}
-  {% set file_format = config.get('file_format', default='delta') %}
+  {% set file_format = adapter.resolve_file_format(config) %}
   {% if file_format in ['delta', 'hudi'] %}
     {% for column in column_dict.values() %}
       {% set comment = column['description'] %}

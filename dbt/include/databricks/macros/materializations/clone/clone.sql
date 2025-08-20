@@ -22,7 +22,7 @@
   {%- endif -%}
 
   {%- set other_existing_relation = load_cached_relation(defer_relation) -%}
-  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set file_format = adapter.resolve_file_format(config) -%}
 
   -- If this is a database that can do zero-copy cloning of tables, and the other relation is a table, then this will be a table
   -- Otherwise, this will be a view
