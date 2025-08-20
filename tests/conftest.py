@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from tests.profiles import get_databricks_cluster_target
