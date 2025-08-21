@@ -452,31 +452,65 @@ class JobRunsApi(PollableApi):
         result_state = state.get("result_state")
         life_cycle_state = state["life_cycle_state"]
 
+        # Add detailed logging for debugging
+        logger.debug(f"[Python Model Debug] Full response state: {state}")
+        logger.debug(f"[Python Model Debug] Life cycle state: {life_cycle_state}")
+        logger.debug(f"[Python Model Debug] Result state: {result_state}")
+
         if result_state == "CANCELED":
             raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
 
         if life_cycle_state != "TERMINATED":
             try:
+                # Log task information for debugging
+                tasks = response_json.get("tasks", [])
+                logger.debug(f"[Python Model Debug] Tasks in response: {len(tasks)}")
+                for i, task in enumerate(tasks):
+                    logger.debug(f"[Python Model Debug] Task {i}: {task}")
+                
                 task_id = response_json["tasks"][0]["run_id"]
+                logger.debug(f"[Python Model Debug] Getting output for task_id: {task_id}")
+                
                 # get end state to return to user
                 run_output = self.session.get("/get-output", params={"run_id": task_id})
                 json_run_output = run_output.json()
+                
+                # Log the full output for debugging
+                logger.debug(f"[Python Model Debug] Run output status: {run_output.status_code}")
+                logger.debug(f"[Python Model Debug] Run output keys: {list(json_run_output.keys())}")
+                
+                # Extract more detailed error information
+                error_msg = json_run_output.get('error', 'No error message available')
+                error_trace = utils.remove_ansi(json_run_output.get('error_trace', ''))
+                
+                # Check for specific Python model issues
+                if 'error_trace' in json_run_output:
+                    logger.debug(f"[Python Model Debug] Error trace found: {error_trace[:500]}...")
+                
+                # Include run ID and task information in error
                 raise DbtRuntimeError(
-                    "Python model failed with traceback as:\n"
+                    f"Python model failed (run_id: {response_json.get('run_id')}, task_id: {task_id})\n"
+                    "Traceback:\n"
                     "(Note that the line number here does not "
                     "match the line number in your code due to dbt templating)\n"
-                    f"{json_run_output['error']}\n"
-                    f"{utils.remove_ansi(json_run_output.get('error_trace', ''))}"
+                    f"{error_msg}\n"
+                    f"{error_trace}"
                 )
 
             except Exception as e:
                 if isinstance(e, DbtRuntimeError):
                     raise e
                 else:
+                    # Log the exception for debugging
+                    logger.debug(f"[Python Model Debug] Exception during error extraction: {e}")
                     state_message = response.json()["state"]["state_message"]
+                    
+                    # Include more context in error
                     raise DbtRuntimeError(
-                        f"Python model run ended in state {life_cycle_state}"
-                        f"with state_message\n{state_message}"
+                        f"Python model run ended in state {life_cycle_state} "
+                        f"(run_id: {response_json.get('run_id')})\n"
+                        f"State message: {state_message}\n"
+                        f"Result state: {result_state}"
                     )
 
     def cancel(self, run_id: str) -> None:

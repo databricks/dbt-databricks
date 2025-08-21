@@ -22,7 +22,15 @@ if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
         except Exception as e:
             # If ANSI mode causes issues, fall back to spark.createDataFrame
             # This preserves the original pandas DataFrame for later conversion
-            if "PANDAS_API_ON_SPARK_FAIL_ON_ANSI_MODE" in str(e):
+            # Check for various ANSI mode related error messages
+            error_str = str(e).lower()
+            if any(ansi_error in error_str for ansi_error in [
+                "pandas_api_on_spark_fail_on_ansi_mode",
+                "ansi mode",
+                "ansimode",
+                "sql_mode",
+                "strict mode"
+            ]):
                 pass  # Will use spark.createDataFrame below
             else:
                 raise e
@@ -128,7 +136,15 @@ if pandas_available and isinstance(df, pandas.core.frame.DataFrame):
         except Exception as e:
             # If ANSI mode causes issues, fall back to spark.createDataFrame
             # This preserves the original pandas DataFrame for later conversion
-            if "PANDAS_API_ON_SPARK_FAIL_ON_ANSI_MODE" in str(e):
+            # Check for various ANSI mode related error messages
+            error_str = str(e).lower()
+            if any(ansi_error in error_str for ansi_error in [
+                "pandas_api_on_spark_fail_on_ansi_mode",
+                "ansi mode",
+                "ansimode",
+                "sql_mode",
+                "strict mode"
+            ]):
                 pass  # Will use spark.createDataFrame below
             else:
                 raise e

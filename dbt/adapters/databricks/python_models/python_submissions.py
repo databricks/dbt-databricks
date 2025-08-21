@@ -106,12 +106,19 @@ class PythonNotebookUploader:
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
+        logger.debug(f"[Notebook Upload Debug] Creating workspace dir for catalog={self.catalog}, schema={self.schema}")
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
+        logger.debug(f"[Notebook Upload Debug] Uploading notebook to path: {file_path}")
+        
+        # Log notebook content length
+        logger.debug(f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars")
 
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
+        logger.debug(f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}")
 
         if self.job_grants or self.notebook_access_control_list:
+            logger.debug(f"[Notebook Upload Debug] Setting permissions for notebook")
             self.set_notebook_permissions(file_path)
 
         return file_path
@@ -594,22 +601,44 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Workflow API.")
+        
+        # Log the compiled code for debugging (first 500 chars)
+        logger.debug(f"[Workflow Debug] Compiled code preview: {compiled_code[:500]}...")
 
         file_path = self.uploader.upload(compiled_code)
+        logger.debug(f"[Workflow Debug] Uploaded notebook to: {file_path}")
 
         workflow_config, existing_job_id = self.config_compiler.compile(file_path)
+        logger.debug(f"[Workflow Debug] Workflow config: {workflow_config}")
+        logger.debug(f"[Workflow Debug] Existing job ID: {existing_job_id}")
+        
         job_id = self.workflow_creater.create_or_update(workflow_config, existing_job_id)
+        logger.debug(f"[Workflow Debug] Created/updated job ID: {job_id}")
 
         access_control_list = self.permission_builder.build_job_permissions(
             self.job_grants, self.acls
         )
+        logger.debug(f"[Workflow Debug] Setting ACL: {access_control_list}")
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
+        logger.debug(f"[Workflow Debug] Running job {job_id} with queueing enabled")
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
+        logger.debug(f"[Workflow Debug] Started workflow run with ID: {run_id}")
         self.tracker.insert_run_id(run_id)
 
         try:
+            logger.debug(f"[Workflow Debug] Polling for completion of run {run_id}")
             self.api_client.job_runs.poll_for_completion(run_id)
+            logger.debug(f"[Workflow Debug] Workflow run {run_id} completed successfully")
+        except Exception as e:
+            logger.error(f"[Workflow Debug] Workflow run {run_id} failed with error: {e}")
+            # Try to get more info about the failure
+            try:
+                run_info = self.api_client.job_runs.get_run_info(run_id)
+                logger.error(f"[Workflow Debug] Run info for failed run: {run_info}")
+            except:
+                pass
+            raise
         finally:
             self.tracker.remove_run_id(run_id)
 
