@@ -608,7 +608,9 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         # Log the compiled code for debugging (first 500 chars)
         if compiled_code:
             preview_len = min(500, len(compiled_code))
-            logger.debug(f"[Workflow Debug] Compiled code preview: {compiled_code[:preview_len]}...")
+            logger.debug(
+                f"[Workflow Debug] Compiled code preview: {compiled_code[:preview_len]}..."
+            )
 
         file_path = self.uploader.upload(compiled_code)
         logger.debug(f"[Workflow Debug] Uploaded notebook to: {file_path}")
