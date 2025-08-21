@@ -99,3 +99,20 @@ def model(dbt, session):
       http_path="sql/protocolv1/..."
     )
 ```
+
+## Python models and ANSI mode
+
+When ANSI mode is enabled (`spark.sql.ansi.enabled=true`), there are limitations when using pandas DataFrames in Python models:
+
+1. **Regular pandas DataFrames**: dbt-databricks will automatically handle conversion even when ANSI mode is enabled, falling back to `spark.createDataFrame()` if needed.
+
+2. **pandas-on-Spark DataFrames**: If you create pandas-on-Spark DataFrames directly in your model (using `pyspark.pandas` or `databricks.koalas`), you may encounter errors with ANSI mode enabled. In this case, you have two options:
+   - Disable ANSI mode for your session: Set `spark.sql.ansi.enabled=false` in your cluster or SQL warehouse configuration
+   - Set the pandas-on-Spark option in your model code:
+     ```python
+     import pyspark.pandas as ps
+     ps.set_option('compute.fail_on_ansi_mode', False)
+     ```
+     Note: This may cause unexpected behavior as pandas-on-Spark follows pandas semantics (returning null/NaN for invalid operations) rather than ANSI SQL semantics (raising errors).
+
+For more information about ANSI mode and its implications, see the [Spark documentation on ANSI compliance](https://spark.apache.org/docs/latest/sql-ref-ansi-compliance.html).

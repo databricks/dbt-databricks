@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.11 (TBD)
 
+### Fixes
+
+- Improve ANSI mode error handling for Python models and add debug instrumentation ([1157](https://github.com/databricks/dbt-databricks/pull/1157))
+
 ## dbt-databricks 1.10.10 (August 20, 2025)
 
 ### Fixes

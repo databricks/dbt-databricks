@@ -190,7 +190,7 @@ class TestPythonNotebookWorkflowSubmitter:
             client, tracker, uploader, config_compiler, permission_builder, workflow_creater, {}, []
         )
 
-    def test_submit__golden_path(self, submitter):
+    def test_submit__golden_path(self, submitter, compiled_code):
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
@@ -201,7 +201,7 @@ class TestPythonNotebookWorkflowSubmitter:
         submitter.api_client.job_runs.poll_for_completion.assert_called_once_with("run_id")
         submitter.tracker.remove_run_id.assert_called_once_with("run_id")
 
-    def test_submit__poll_fails__cleans_up(self, submitter):
+    def test_submit__poll_fails__cleans_up(self, submitter, compiled_code):
         submitter.uploader.upload.return_value = "upload_path"
         submitter.config_compiler.compile.return_value = ({}, "existing_job_id")
         submitter.workflow_creater.create_or_update.return_value = "existing_job_id"
