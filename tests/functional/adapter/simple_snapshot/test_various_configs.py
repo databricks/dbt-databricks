@@ -254,7 +254,7 @@ class BaseSnapshotDbtValidToCurrent:
         # Convert timezone to UTC for comparison to handle timezone object differences
         expected_date = datetime.datetime(2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc)
         actual_first_date = original_snapshot[0][2]
-        if hasattr(actual_first_date, 'astimezone'):
+        if hasattr(actual_first_date, "astimezone"):
             actual_first_date = actual_first_date.astimezone(datetime.timezone.utc)
 
         assert actual_first_date == expected_date
@@ -263,7 +263,7 @@ class BaseSnapshotDbtValidToCurrent:
             filter(lambda x: x[1] == "61ecd07d17b8a4acb57d115eebb0e2c9", original_snapshot)
         )
         actual_row_date = original_row[0][2]
-        if hasattr(actual_row_date, 'astimezone'):
+        if hasattr(actual_row_date, "astimezone"):
             actual_row_date = actual_row_date.astimezone(datetime.timezone.utc)
 
         assert actual_row_date == expected_date
@@ -285,7 +285,7 @@ class BaseSnapshotDbtValidToCurrent:
         # Convert timezone to UTC for comparison to handle timezone object differences
         expected_future_date = datetime.datetime(2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc)
         actual_date = updated_snapshot[0][2]
-        if hasattr(actual_date, 'astimezone'):
+        if hasattr(actual_date, "astimezone"):
             actual_date = actual_date.astimezone(datetime.timezone.utc)
 
         assert actual_date == expected_future_date
@@ -297,7 +297,7 @@ class BaseSnapshotDbtValidToCurrent:
             2016, 8, 20, 16, 44, 49, tzinfo=datetime.timezone.utc
         )
         actual_historical_date = original_row[0][2]
-        if hasattr(actual_historical_date, 'astimezone'):
+        if hasattr(actual_historical_date, "astimezone"):
             actual_historical_date = actual_historical_date.astimezone(datetime.timezone.utc)
 
         assert actual_historical_date == expected_historical_date
