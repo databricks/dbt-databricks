@@ -1,4 +1,3 @@
-import os
 from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
