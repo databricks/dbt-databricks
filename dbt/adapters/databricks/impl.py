@@ -239,6 +239,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_MANAGED_ICEBERG,
         ]
 
+    @available.parse(lambda *a, **k: 0)
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
