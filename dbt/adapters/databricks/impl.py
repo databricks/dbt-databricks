@@ -132,7 +132,8 @@ USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
     default=False,
     description=(
         "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
-        "  When disabled, falls back to legacy INSERT OVERWRITE syntax."
+        "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
+        "  overwrite."
     ),
 )  # type: ignore[typeddict-item]
 
