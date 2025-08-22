@@ -247,18 +247,26 @@ class BaseSnapshotDbtValidToCurrent:
 
         original_snapshot: Table = run_sql_with_adapter(
             project.adapter,
-            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual",
+            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual order by id",
             "all",
         )
-        assert original_snapshot[0][2] == datetime.datetime(
-            2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc
-        )
+
+        # Convert timezone to UTC for comparison to handle timezone object differences
+        expected_date = datetime.datetime(2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc)
+        actual_first_date = original_snapshot[0][2]
+        if hasattr(actual_first_date, "astimezone"):
+            actual_first_date = actual_first_date.astimezone(datetime.timezone.utc)
+
+        assert actual_first_date == expected_date
+
         original_row = list(
             filter(lambda x: x[1] == "61ecd07d17b8a4acb57d115eebb0e2c9", original_snapshot)
         )
-        assert original_row[0][2] == datetime.datetime(
-            2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc
-        )
+        actual_row_date = original_row[0][2]
+        if hasattr(actual_row_date, "astimezone"):
+            actual_row_date = actual_row_date.astimezone(datetime.timezone.utc)
+
+        assert actual_row_date == expected_date
 
         project.run_sql(invalidate_sql_1)
         project.run_sql(invalidate_sql_2)
@@ -269,20 +277,30 @@ class BaseSnapshotDbtValidToCurrent:
 
         updated_snapshot: Table = run_sql_with_adapter(
             project.adapter,
-            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual",
+            "select id, test_scd_id, TEST_VALID_TO from {schema}.snapshot_actual order by id",
             "all",
         )
         print(updated_snapshot)
-        assert updated_snapshot[0][2] == datetime.datetime(
-            2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc
-        )
+
+        # Convert timezone to UTC for comparison to handle timezone object differences
+        expected_future_date = datetime.datetime(2099, 12, 31, 0, 0, tzinfo=datetime.timezone.utc)
+        actual_date = updated_snapshot[0][2]
+        if hasattr(actual_date, "astimezone"):
+            actual_date = actual_date.astimezone(datetime.timezone.utc)
+
+        assert actual_date == expected_future_date
         # Original row that was updated now has a non-current (2099/12/31) date
         original_row = list(
             filter(lambda x: x[1] == "61ecd07d17b8a4acb57d115eebb0e2c9", updated_snapshot)
         )
-        assert original_row[0][2] == datetime.datetime(
+        expected_historical_date = datetime.datetime(
             2016, 8, 20, 16, 44, 49, tzinfo=datetime.timezone.utc
         )
+        actual_historical_date = original_row[0][2]
+        if hasattr(actual_historical_date, "astimezone"):
+            actual_historical_date = actual_historical_date.astimezone(datetime.timezone.utc)
+
+        assert actual_historical_date == expected_historical_date
         updated_row = list(
             filter(lambda x: x[1] == "af1f803f2179869aeacb1bfe2b23c1df", updated_snapshot)
         )
