@@ -120,6 +120,29 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
+# TODO: Enable for SQL warehouses once 17.1+ is current version
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestInsertOverwriteWithLiquidClusteringDelta(InsertOverwriteBase):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+liquid_clustered_by": "id",
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "upsert_expected.csv": fixtures.upsert_expected,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
+
+
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteChangeSchema(InsertOverwriteBase):
     @pytest.fixture(scope="class")
@@ -181,6 +204,7 @@ class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
 # Insert overwrite in SQL warehouse is expected to behave like a table materialization
 # We support this as a short term hack for customers who want the side effect of reusing
 # the same table on subsequent runs
+# TODO: Remove this once use_replace_on_for_insert_overwrite behavior flag is removed
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestInsertOverwriteSqlWarehouse(IncrementalBase):
     @pytest.fixture(scope="class")
