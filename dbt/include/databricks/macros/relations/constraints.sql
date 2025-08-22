@@ -9,9 +9,9 @@
   {% set has_databricks_constraints = config.get('persist_constraints', False) %}
 
   {% if (has_model_contract or has_databricks_constraints) %}
-    {% if config.get('file_format', 'delta') != 'delta' %}
+    {% if adapter.resolve_file_format(config) != 'delta' %}
       {# Constraints are only supported for delta tables #}
-      {{ exceptions.warn("Constraints not supported for file format: " ~ config.get('file_format')) }}
+      {{ exceptions.warn("Constraints not supported for file format: " ~ adapter.resolve_file_format(config)) }}
     {% elif relation.is_view %}
       {# Constraints are not supported for views. This point in the code should not have been reached. #}
       {{ exceptions.raise_compiler_error("Constraints not supported for views.") }}
