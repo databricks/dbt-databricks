@@ -81,7 +81,7 @@
         replace on ({{ replace_conditions_csv }})
         (select {{ source_cols_csv }} from {{ source_relation }}) AS s
     {%- else -%}
-        {#-- Fallback to regular insert if no partitions or liquid clustering defined --#}
+        {#-- Fallback to regular insert if no partitions or liquid clustered columns defined --#}
         insert overwrite table {{ target_relation }}
         select {{ source_cols_csv }} from {{ source_relation }}
     {%- endif -%}
