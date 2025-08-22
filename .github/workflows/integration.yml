@@ -1,6 +1,15 @@
+# Integration Tests for dbt-databricks
+#
+# This workflow runs integration tests that require Databricks secrets.
+#
+# Uses pull_request_target to run on PRs from forks with access to secrets.
+# Repository settings require owner approval before external PRs can run workflows,
+# providing a security gate while maintaining automatic execution after approval.
 name: Integration Tests
 on:
-  pull_request:
+  pull_request_target:
+    # Runs in the context of the target repo (databricks) with access to secrets
+    # but can checkout code from the forked PR
     paths-ignore:
       - "**.MD"
       - "**.md"
@@ -27,6 +36,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # Checkout the PR head commit to test the forked code
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python
@@ -67,6 +81,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # Checkout the PR head commit to test the forked code
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python
@@ -104,6 +123,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # Checkout the PR head commit to test the forked code
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python
