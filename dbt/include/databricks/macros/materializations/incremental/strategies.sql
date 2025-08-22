@@ -49,29 +49,27 @@
     {%- endif -%}
 {% endmacro %}
 
+{% macro add_columns_to_list(target_list, columns) %}
+    {#-- Local helper to add columns to the target list, converting string to list if needed --#}
+    {%- if columns -%}
+        {%- if columns is string -%}
+            {%- do target_list.append(columns) -%}
+        {%- else -%}
+            {%- for col in columns -%}
+                {%- do target_list.append(col) -%}
+            {%- endfor -%}
+        {%- endif -%}
+    {%- endif -%}
+{% endmacro %}
+
 {% macro get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) %}
     {%- set partition_by = config.get('partition_by') -%}
     {%- set liquid_clustered_by = config.get('liquid_clustered_by') -%}
     {%- set replace_columns = [] -%}
     
     {#-- If both partition_by and liquid_clustered_by are defined, it will fail before this point with a SPECIFY_CLUSTER_BY_WITH_PARTITIONED_BY_IS_NOT_ALLOWED error from Databricks --#}
-    {%- if partition_by -%}
-        {%- if partition_by is string -%}
-            {%- set partition_by = [partition_by] -%}
-        {%- endif -%}
-        {%- for partition_col in partition_by -%}
-            {%- do replace_columns.append(partition_col) -%}
-        {%- endfor -%}
-    {%- endif -%}
-
-    {%- if liquid_clustered_by -%}
-        {%- if liquid_clustered_by is string -%}
-            {%- set liquid_clustered_by = [liquid_clustered_by] -%}
-        {%- endif -%}
-        {%- for cluster_col in liquid_clustered_by -%}
-            {%- do replace_columns.append(cluster_col) -%}
-        {%- endfor -%}
-    {%- endif -%}
+    {%- do add_columns_to_list(replace_columns, partition_by) -%}
+    {%- do add_columns_to_list(replace_columns, liquid_clustered_by) -%}
     
     {%- if replace_columns -%}
         {%- set replace_conditions = [] -%}
