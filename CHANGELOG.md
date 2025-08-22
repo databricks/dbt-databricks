@@ -3,7 +3,7 @@
 ### Fixes
 
 - Improve ANSI mode error handling for Python models and add debug instrumentation ([1157](https://github.com/databricks/dbt-databricks/pull/1157))
-- Remove external path on intermediate tables for incremental models
+- Remove external path on intermediate tables for incremental models ([1161](https://github.com/databricks/dbt-databricks/pull/1161))
 
 ## dbt-databricks 1.10.10 (August 20, 2025)
 
