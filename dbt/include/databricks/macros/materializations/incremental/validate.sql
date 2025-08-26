@@ -24,6 +24,12 @@
     You can only choose this strategy when file_format is set to 'delta'
   {%- endset %}
 
+  {% set invalid_insert_overwrite_endpoint_msg -%}
+    Invalid incremental strategy provided: {{ raw_strategy }}
+    You cannot use this strategy when connecting via warehouse
+    Use the 'merge' or 'replace_where' strategy instead
+  {%- endset %}
+
   {% if raw_strategy not in adapter.valid_incremental_strategies() %}
     {{ log("WARNING - You are using an unsupported incremental strategy: " ~ raw_strategy) }}
     {{ log("You can ignore this warning if you are using a custom incremental strategy") }}

@@ -31,6 +31,10 @@
         {{ get_create_view_as_sql(target_relation, sql) }}
       {%- endcall %}
       {{ apply_tags(target_relation, tags) }}
+      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+      {% if column_tags and column_tags.set_column_tags %}
+        {{ apply_column_tags(target_relation, column_tags) }}
+      {% endif %}
     {% endif %}
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
@@ -57,6 +61,11 @@
 
     {%- do apply_tags(target_relation, tags) -%}
 
+    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+    {% if column_tags and column_tags.set_column_tags %}
+      {{ apply_column_tags(target_relation, column_tags) }}
+    {% endif %}
+
     {{ run_hooks(post_hooks) }}
   {% endif %}
 
@@ -69,6 +78,11 @@
   {% set tags = config.get('databricks_tags') %}
   {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
   {%- do apply_tags(target_relation, tags) -%}
+  
+  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+  {% if column_tags and column_tags.set_column_tags %}
+    {{ apply_column_tags(target_relation, column_tags) }}
+  {% endif %}
 {% endmacro %}
 
 {% macro relation_should_be_altered(existing_relation) %}

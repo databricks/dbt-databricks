@@ -1,6 +1,20 @@
+# Integration Tests for dbt-databricks
+#
+# This workflow runs integration tests that require Databricks secrets.
+#
+# For testing external contributions (PRs from forks):
+# 1. Go to Actions tab -> Integration Tests -> Run workflow
+# 2. Enter the PR number in the 'pr_number' field
+# 3. Click "Run workflow"
+#
+# This approach is secure because:
+# - The workflow runs in the databricks repository context (access to secrets)
+# - The code to test is explicitly specified by maintainers
+# - No automatic execution of untrusted code with secrets
 name: Integration Tests
 on:
-  push:
+  pull_request:
+    # Run on PRs to the same repository (internal contributors)
     paths-ignore:
       - "**.MD"
       - "**.md"
@@ -8,6 +22,18 @@ on:
       - "tests/unit/**"
       - ".github/workflows/main.yml"
       - ".github/workflows/stale.yml"
+
+  workflow_dispatch:
+    # Manual triggering for external contributions and ad-hoc testing
+    inputs:
+      pr_number:
+        description: "PR number to test (for external contributions)"
+        required: false
+        type: string
+      git_ref:
+        description: "Git ref (branch/tag/commit) to test"
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +43,8 @@ jobs:
   run-uc-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -27,6 +55,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python
@@ -56,6 +92,8 @@ jobs:
   run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -67,6 +105,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python
@@ -96,6 +142,8 @@ jobs:
   run-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
@@ -104,6 +152,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
 
       - name: Set up python
         id: setup-python

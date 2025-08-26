@@ -1,0 +1,68 @@
+name: Check PR title format
+description: Check if PR title follows conventional-commits format
+
+permissions:
+  pull-requests: write
+
+on:
+  pull_request:
+    types:
+      - opened      # A pull request was created
+      - edited      # The title or body of a pull request was edited.
+      - synchronize # A pull request's head branch was updated. For example, the head branch was updated from the base branch or new commits were pushed to the head branch.
+
+jobs:
+  pr-title:
+    runs-on: linux-ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install conventional commit parser
+        shell: bash
+        run: npm install --global conventional-commits-parser
+
+      - name: Validate PR title
+        id: pr-format
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        # language=bash
+        run: |
+          echo "PR title: ${PR_TITLE}"
+                    
+          # check if PR title follows conventional commits format
+          # issue on parser does not support "!" for breaking change (https://github.com/conventional-changelog/conventional-changelog/issues/648)
+          # so we override the regex to support it
+          conventionalCommitResult=$(echo "${PR_TITLE}" | conventional-commits-parser -p "^(\w*)!?(?:\(([\w\$\.\-\* ]*)\))?\: (.*)$" | jq ".[].type")
+          if [[ "${conventionalCommitResult}" != "null" ]]; then
+            echo "Conventional commit type: ${conventionalCommitResult}"
+            exit 0
+          fi
+          
+          echo "Invalid PR title"
+          exit 1
+
+      - name: Add comment to warn user
+        uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd  # v2.8.0
+        if: failure()
+        with:
+          header: pr-title-lint-error
+          message: |
+            Hey there and thank you for opening this pull request! :wave:
+            We require pull request titles to follow the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
+            
+            Examples:
+            - `feat(JIRA-123): My awesome feature`
+            - `fix: My awesome fix`
+            - `fix(name-of-impacted-package): My awesome fix`
+
+      - name: Delete a previous comment when the issue has been resolved
+        uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd  # v2.8.0
+        if: success()
+        with:
+          header: pr-title-lint-error
+          delete: true

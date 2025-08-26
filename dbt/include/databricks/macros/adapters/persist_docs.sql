@@ -13,7 +13,22 @@
 {% endmacro %}
 
 {% macro comment_on_column_sql(column_path, escaped_comment) %}
-COMMENT ON COLUMN {{ column_path }} IS '{{ escaped_comment }}'
+  {%- if adapter.compare_dbr_version(16, 1) >= 0 -%}
+    COMMENT ON COLUMN {{ column_path }} IS '{{ escaped_comment }}'
+  {%- else -%}
+    {{ alter_table_change_column_comment_sql(column_path, escaped_comment) }}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro alter_table_change_column_comment_sql(column_path, escaped_comment) %}
+  {%- set parts = column_path.split('.') -%}
+  {%- if parts|length >= 4 -%}
+    {%- set table_path = parts[:-1] | join('.') -%}
+    {%- set column_name = parts[-1] -%}
+    ALTER TABLE {{ table_path }} ALTER COLUMN {{ column_name }} COMMENT '{{ escaped_comment }}'
+  {%- else -%}
+    {{ exceptions.raise_compiler_error("Invalid column path: " ~ column_path ~ ". Expected format: database.schema.table.column") }}
+  {%- endif -%}
 {% endmacro %}
 
 {% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
