@@ -1,8 +1,7 @@
 from unittest.mock import Mock
 
+from dbt.adapters.databricks.parse_model import catalog_name, location_root
 from dbt.artifacts.resources.v1.saved_query import ExportConfig, ExportDestinationType
-
-from dbt.adapters.databricks.parse_model import location_root, catalog_name
 
 
 class TestLocationRoot:
