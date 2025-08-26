@@ -5,14 +5,16 @@
 {% macro databricks__tblproperties_clause(tblproperties=None) -%}
   {%- if adapter.is_uniform(config) -%}
     {%- set tblproperties = adapter.update_tblproperties_for_uniform_iceberg(config, tblproperties) -%}
-    {%- if tblproperties != {} %}
+  {%- else -%}
+    {%- set tblproperties = tblproperties or config.get("tblproperties", {}) -%}
+  {%- endif -%}
+  {%- if tblproperties != {} %}
     tblproperties (
       {%- for prop in tblproperties -%}
       '{{ prop }}' = '{{ tblproperties[prop] }}' {% if not loop.last %}, {% endif %}
       {%- endfor %}
     )
-    {%- endif -%}
-  {%- endif -%}
+  {%- endif %}
 {%- endmacro -%}
 
 {% macro apply_tblproperties(relation, tblproperties) -%}
