@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 
-from dbt.adapters.databricks.parse_model import location_root
+from dbt.artifacts.resources.v1.saved_query import ExportConfig, ExportDestinationType
+
+from dbt.adapters.databricks.parse_model import location_root, catalog_name
 
 
 class TestLocationRoot:
@@ -10,3 +12,19 @@ class TestLocationRoot:
 
         result = location_root(model)
         assert result == "abfss://something.next/TEST/folder"
+
+
+class TestGetCatalog:
+    def test_get_with_non_model_config(self):
+        model = Mock()
+        model.config = ExportConfig(export_as=ExportDestinationType.TABLE)
+
+        result = catalog_name(model)
+        assert result == "unity"
+
+    def test_get_with_model_config(self):
+        model = Mock()
+        model.config = {"catalog_name": "my_catalog"}
+
+        result = catalog_name(model)
+        assert result == "my_catalog"
