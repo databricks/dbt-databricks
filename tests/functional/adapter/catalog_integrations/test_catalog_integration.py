@@ -26,7 +26,7 @@ select * from {{ ref('basic_iceberg_table') }}
 where id = 1
 """
 
-ALT_CATALOG_NAME = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
+ALT_CATALOG_NAME = os.getenv("DBT_DATABRICKS_ALT_CATALOG", "test_catalog")
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -60,6 +60,9 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
 
     def test_unity_catalog_iceberg_integration(self, project):
         """Test that Unity Catalog can create and reference Iceberg tables"""
+        # Ensure the alternate catalog environment variable is set
+        if os.getenv("DBT_DATABRICKS_ALT_CATALOG") is None:
+            pytest.skip("DBT_DATABRICKS_ALT_CATALOG environment variable is not set")
         # Run all models
         run_results = run_dbt(["run", "--log-level", "debug"])
 
