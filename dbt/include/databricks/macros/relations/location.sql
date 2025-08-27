@@ -13,7 +13,7 @@
   {%- else -%}
 
   {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
-  {%- set file_format = config.get('file_format', default='delta') -%}
+  {%- set file_format = adapter.resolve_file_format(config) -%}
   {%- set identifier = model['alias'] -%}
   {%- if location_root is not none %}
   {%- set model_path = adapter.compute_external_path(config, model, is_incremental()) %}
