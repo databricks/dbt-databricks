@@ -10,6 +10,7 @@
 ### Fixes
 
 - Gate column comment syntax on DBR version for better compatibility ([1151](https://github.com/databricks/dbt-databricks/pull/1151))
+- Fix get_columns_in_relation branching logic for streaming tables to prevent it from running `AS JSON`
 
 ### Documentation
 
