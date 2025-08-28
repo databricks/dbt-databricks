@@ -314,7 +314,9 @@ class DatabricksAdapter(SparkAdapter):
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
-        return schema.lower() in set(s.lower() for s in self.list_schemas(database=database))
+        return schema.lower() in set(
+            s.lower() for s in self.connections.list_schemas(database or "hive_metastore", schema)
+        )
 
     def execute(
         self,
