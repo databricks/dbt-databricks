@@ -485,10 +485,9 @@ class DatabricksAdapter(SparkAdapter):
             relation.is_hive_metastore()
             or self.compare_dbr_version(16, 2) < 0
             or relation.type == DatabricksRelationType.MaterializedView
-            or (
-                relation.type == DatabricksRelationType.StreamingTable
-                and self.compare_dbr_version(17, 1) < 0
-            )
+            # TODO: Replace with self.compare_dbr_version(17, 1) < 0 when 17.1 is current version
+            #       for SQL warehouses
+            or relation.type == DatabricksRelationType.StreamingTable
         )
         return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
