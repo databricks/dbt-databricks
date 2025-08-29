@@ -5,7 +5,7 @@
 
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- if custom_database_name is none -%}
-         {%- if node is not none and node is not instanceof Export -%}
+         {%- if node is not none and 'Export' not in node.__class__.__name__ -%}
             {%- set catalog_relation = adapter.build_catalog_relation(node) -%}
             {{ return(catalog_relation.catalog_name) }}
         {%- elif 'config' in target -%}
