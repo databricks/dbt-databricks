@@ -5,7 +5,7 @@
 
 {% macro databricks__generate_database_name(custom_database_name=none, node=none) -%}
     {%- if custom_database_name is none -%}
-         {%- if node is not none and node.resource_type != 'SavedQuery' -%}
+         {%- if node is not none and node.resource_type != 'saved_query' -%}
             {%- set catalog_relation = adapter.build_catalog_relation(node) -%}
             {{ return(catalog_relation.catalog_name) }}
         {%- elif 'config' in target -%}
