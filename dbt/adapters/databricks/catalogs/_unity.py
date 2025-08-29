@@ -34,6 +34,9 @@ class UnityCatalogIntegration(CatalogIntegration):
         Args:
             model: `config.model` (not `model`) from the jinja context
         """
+        if not hasattr(model, 'database'):
+            raise ValueError(f"model.database not present in model {model}, instance of {type(model)}")
+            
         return DatabricksCatalogRelation(
             catalog_type=self.catalog_type,
             catalog_name=self.catalog_name
