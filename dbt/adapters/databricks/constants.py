@@ -34,3 +34,8 @@ DEFAULT_HIVE_METASTORE_CATALOG = SimpleNamespace(
     file_format=DELTA_FILE_FORMAT,
 )
 DEFAULT_CATALOG = DEFAULT_UNITY_CATALOG
+
+
+# Metadata keys used when parsing table/relation metadata
+KEY_TABLE_OWNER = "Owner"
+KEY_TABLE_STATISTICS = "Statistics"

@@ -26,12 +26,12 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constants, constraints, parse_model
+from dbt.adapters.databricks import constants, constraints, macros, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
-    GetColumnsByDescribe,
-    GetColumnsByInformationSchema,
+    create_get_columns_behavior,
 )
+from dbt.adapters.databricks.behaviors.flags import ALL_BEHAVIOR_FLAGS
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
     HiveMetastoreCatalogIntegration,
@@ -72,55 +72,13 @@ from dbt.adapters.databricks.relation_configs.tblproperties import TblProperties
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
 from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.spark.impl import (
-    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-    KEY_TABLE_OWNER,
-    KEY_TABLE_STATISTICS,
-    LIST_SCHEMAS_MACRO_NAME,
-    SparkAdapter,
-)
+from dbt.adapters.spark.impl import SparkAdapter
 
 if TYPE_CHECKING:
     from agate import Row, Table
 
 dbt_version = metadata.version("dbt-core")
 SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
-
-CURRENT_CATALOG_MACRO_NAME = "current_catalog"
-USE_CATALOG_MACRO_NAME = "use_catalog"
-GET_CATALOG_MACRO_NAME = "get_catalog"
-SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
-SHOW_TABLES_MACRO_NAME = "show_tables"
-SHOW_VIEWS_MACRO_NAME = "show_views"
-
-
-USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
-    name="use_info_schema_for_columns",
-    default=False,
-    description=(
-        "Use info schema to gather column information to ensure complex types are not truncated."
-        "  Incurs some overhead, so disabled by default."
-    ),
-)  # type: ignore[typeddict-item]
-
-USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
-    name="use_user_folder_for_python",
-    default=False,
-    description=(
-        "Use the user's home folder for uploading python notebooks."
-        "  Shared folder use is deprecated due to governance concerns."
-    ),
-)  # type: ignore[typeddict-item]
-
-USE_MATERIALIZATION_V2 = BehaviorFlag(
-    name="use_materialization_v2",
-    default=False,
-    description=(
-        "Use revamped materializations based on separating create and insert."
-        "  This allows more performant column comments, as well as new column features."
-    ),
-)  # type: ignore[typeddict-item]
 
 
 class DatabricksRelationInfo(NamedTuple):
@@ -211,19 +169,20 @@ class DatabricksAdapter(SparkAdapter):
 
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
-        self.get_column_behavior = GetColumnsByDescribe()
+        use_info_schema = False
         try:
-            if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
-                self.get_column_behavior = GetColumnsByInformationSchema()
+            use_info_schema = self.behavior.use_info_schema_for_columns.no_warn  # type: ignore[attr-defined]
         except CompilationError:
             pass
+
+        self.get_column_behavior = create_get_columns_behavior(use_info_schema)
 
         self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return ALL_BEHAVIOR_FLAGS
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -309,7 +268,9 @@ class DatabricksAdapter(SparkAdapter):
         if database is not None:
             results = self.connections.list_schemas(database=database)
         else:
-            results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
+            results = self.execute_macro(
+                macros.LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database}
+            )
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
@@ -344,7 +305,7 @@ class DatabricksAdapter(SparkAdapter):
             name, kind, file_format, owner, table_type = row
             metadata = None
             if file_format:
-                metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
+                metadata = {constants.KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
 
             if table_type:
                 databricks_table_type = DatabricksRelation.get_databricks_table_type(table_type)
@@ -405,13 +366,13 @@ class DatabricksAdapter(SparkAdapter):
                 new_rows.append(row)
 
         else:
-            tables = self.execute_macro(SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
+            tables = self.execute_macro(macros.SHOW_TABLES_MACRO_NAME, kwargs=kwargs)
             new_rows = [(row["tableName"], None) for row in tables]
 
         # if there are any table types to be resolved
         if any(not row[1] for row in new_rows):
             with self._catalog(relation.database):
-                views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
+                views = self.execute_macro(macros.SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
                 view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
                 new_rows = [
                     (row[0], str(RelationType.View if row[0] in view_names else RelationType.Table))
@@ -458,7 +419,7 @@ class DatabricksAdapter(SparkAdapter):
         rows = [row for row in raw_rows[0:pos] if not row["col_name"].startswith("#")]
         metadata = {col["col_name"]: col["data_type"] for col in raw_rows[pos + 1 :]}
 
-        raw_table_stats = metadata.get(KEY_TABLE_STATISTICS)
+        raw_table_stats = metadata.get(constants.KEY_TABLE_STATISTICS)
         table_stats = DatabricksColumn.convert_table_stats(raw_table_stats)
         return metadata, [
             DatabricksColumn(
@@ -466,7 +427,7 @@ class DatabricksAdapter(SparkAdapter):
                 table_schema=relation.schema,
                 table_name=relation.name,
                 table_type=relation.type,
-                table_owner=str(metadata.get(KEY_TABLE_OWNER)),
+                table_owner=str(metadata.get(constants.KEY_TABLE_OWNER)),
                 table_stats=table_stats,
                 table_comment=metadata.get("Comment"),
                 column=column["col_name"],
@@ -498,7 +459,7 @@ class DatabricksAdapter(SparkAdapter):
         rows = list(
             handle_missing_objects(
                 lambda: self.execute_macro(
-                    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+                    macros.GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
                     kwargs={"relation": relation},
                 ),
                 AttrDict(),
@@ -642,7 +603,7 @@ class DatabricksAdapter(SparkAdapter):
 
         def exec() -> AttrDict:
             with self._catalog(schema_relation.database):
-                return self.execute_macro(SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
+                return self.execute_macro(macros.SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
 
         return handle_missing_objects(exec, None)
 
@@ -750,16 +711,20 @@ class DatabricksAdapter(SparkAdapter):
         current_catalog: Optional[str] = None
         try:
             if catalog is not None:
-                current_catalog = self.execute_macro(CURRENT_CATALOG_MACRO_NAME)[0][0]
+                current_catalog = self.execute_macro(macros.CURRENT_CATALOG_MACRO_NAME)[0][0]
                 if current_catalog is not None:
                     if current_catalog != catalog:
-                        self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog))
+                        self.execute_macro(
+                            macros.USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog)
+                        )
                     else:
                         current_catalog = None
             yield
         finally:
             if current_catalog is not None:
-                self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
+                self.execute_macro(
+                    macros.USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog)
+                )
 
     @available.parse(lambda *a, **k: {})
     def get_persist_doc_columns(
@@ -954,7 +919,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
         results["describe_extended"] = adapter.execute_macro(
-            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
 
         kwargs = {"relation": relation}
@@ -979,7 +944,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
         results["describe_extended"] = adapter.execute_macro(
-            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
 
         kwargs = {"relation": relation}
@@ -1021,7 +986,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
-            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
 
@@ -1048,6 +1013,6 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
-            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results

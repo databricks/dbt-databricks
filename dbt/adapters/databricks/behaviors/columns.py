@@ -85,3 +85,18 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
     @classmethod
     def _parse_info_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
         return [DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]) for row in rows]
+
+
+def create_get_columns_behavior(use_info_schema: bool = False) -> GetColumnsBehavior:
+    """Factory function to create the appropriate columns behavior instance.
+
+    Args:
+        use_info_schema: If True, returns GetColumnsByInformationSchema,
+                        otherwise returns GetColumnsByDescribe
+
+    Returns:
+        Instance of the appropriate GetColumnsBehavior implementation
+    """
+    if use_info_schema:
+        return GetColumnsByInformationSchema()
+    return GetColumnsByDescribe()
