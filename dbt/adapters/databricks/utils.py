@@ -6,6 +6,7 @@ from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
 
 from dbt.adapters.base import BaseAdapter
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
@@ -97,3 +98,18 @@ def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
         # This secondary check is a workaround for that case
         or "/warehouses/" not in http_path
     )
+
+
+def get_identifier_list_string(table_names: set[str]) -> str:
+    """Returns `"|".join(table_names)` by default.
+
+    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
+    and the joined string exceeds 2048 characters
+
+    This is for AWS Glue Catalog users. See issue #325.
+    """
+    _identifier = "|".join(table_names)
+    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
+    if bypass_2048_char_limit:
+        _identifier = _identifier if len(_identifier) < 2048 else "*"
+    return _identifier

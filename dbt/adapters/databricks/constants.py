@@ -1,4 +1,7 @@
+from importlib import metadata
 from types import SimpleNamespace
+
+from packaging import version
 
 DEFAULT_TABLE_FORMAT = "default"
 ICEBERG_TABLE_FORMAT = "iceberg"
@@ -35,6 +38,10 @@ DEFAULT_HIVE_METASTORE_CATALOG = SimpleNamespace(
 )
 DEFAULT_CATALOG = DEFAULT_UNITY_CATALOG
 
+
+# Version-dependent feature support
+dbt_version = metadata.version("dbt-core")
+SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
 
 # Metadata keys used when parsing table/relation metadata
 KEY_TABLE_OWNER = "Owner"

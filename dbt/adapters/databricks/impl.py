@@ -1,14 +1,11 @@
 import posixpath
 import re
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass
-from importlib import metadata
 from multiprocessing.context import SpawnContext
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union
 from uuid import uuid4
 
 from dbt_common.behavior_flags import BehaviorFlag
@@ -16,7 +13,6 @@ from dbt_common.contracts.config.base import BaseConfig
 from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
-from packaging import version
 
 from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
@@ -26,7 +22,7 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.databricks import constants, constraints, macros, parse_model
+from dbt.adapters.databricks import constants, constraints, macros, parse_model, utils
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     create_get_columns_behavior,
@@ -39,7 +35,6 @@ from dbt.adapters.databricks.catalogs import (
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
-from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.models import DatabricksConfig, DatabricksRelationInfo
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -53,48 +48,21 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
 )
-from dbt.adapters.databricks.relation_configs.base import (
-    DatabricksRelationConfig,
-    DatabricksRelationConfigBase,
+from dbt.adapters.databricks.relation_apis import (
+    IncrementalTableConfigFactory,
+    MaterializedViewConfigFactory,
+    StreamingTableConfigFactory,
+    ViewConfigFactory,
 )
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
-from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
-from dbt.adapters.databricks.relation_configs.materialized_view import (
-    MaterializedViewConfig,
-)
-from dbt.adapters.databricks.relation_configs.streaming_table import (
-    StreamingTableConfig,
-)
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.adapters.databricks.relation_configs.view import ViewConfig
-from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
-from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import SparkAdapter
 
 if TYPE_CHECKING:
     from agate import Row, Table
-
-dbt_version = metadata.version("dbt-core")
-SUPPORT_MICROBATCH = version.parse(dbt_version) >= version.parse("1.9.0b1")
-
-
-def get_identifier_list_string(table_names: set[str]) -> str:
-    """Returns `"|".join(table_names)` by default.
-
-    Returns `"*"` if `DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS` == `"true"`
-    and the joined string exceeds 2048 characters
-
-    This is for AWS Glue Catalog users. See issue #325.
-    """
-
-    _identifier = "|".join(table_names)
-    bypass_2048_char_limit = GlobalState.get_char_limit_bypass()
-    if bypass_2048_char_limit:
-        _identifier = _identifier if len(_identifier) < 2048 else "*"
-    return _identifier
 
 
 class DatabricksAdapter(SparkAdapter):
@@ -256,7 +224,7 @@ class DatabricksAdapter(SparkAdapter):
         self, schema_relation: DatabricksRelation
     ) -> list[DatabricksRelation]:
         empty: list[DatabricksRelationInfo] = []
-        results = handle_missing_objects(
+        results = utils.handle_missing_objects(
             lambda: self.get_relations_without_caching(schema_relation), empty
         )
 
@@ -417,7 +385,7 @@ class DatabricksAdapter(SparkAdapter):
         self, relation: DatabricksRelation
     ) -> tuple[DatabricksRelation, list[DatabricksColumn]]:
         rows = list(
-            handle_missing_objects(
+            utils.handle_missing_objects(
                 lambda: self.execute_macro(
                     macros.GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
                     kwargs={"relation": relation},
@@ -514,7 +482,7 @@ class DatabricksAdapter(SparkAdapter):
             futures: list[Future[Table]] = []
             for schema, relations in relation_map.items():
                 if schema in used_schemas:
-                    identifier = get_identifier_list_string(relations)
+                    identifier = utils.get_identifier_list_string(relations)
                     if identifier:
                         futures.append(
                             tpe.submit_connected(
@@ -565,7 +533,7 @@ class DatabricksAdapter(SparkAdapter):
             with self._catalog(schema_relation.database):
                 return self.execute_macro(macros.SHOW_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs)
 
-        return handle_missing_objects(exec, None)
+        return utils.handle_missing_objects(exec, None)
 
     def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
         # Lazy load to improve startup time
@@ -623,7 +591,7 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 return None
         except BaseException as e:
-            print(redact_credentials(sql))
+            print(utils.redact_credentials(sql))
             print(e)
             raise
         finally:
@@ -634,7 +602,7 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def valid_incremental_strategies(self) -> list[str]:
         valid_strategies = ["append", "merge", "insert_overwrite", "replace_where"]
-        if SUPPORT_MICROBATCH:
+        if constants.SUPPORT_MICROBATCH:
             valid_strategies.append("microbatch")
 
         return valid_strategies
@@ -658,7 +626,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     def redact_credentials(self, sql: str) -> str:
-        return redact_credentials(sql)
+        return utils.redact_credentials(sql)
 
     @contextmanager
     def _catalog(self, catalog: Optional[str]) -> Iterator[None]:
@@ -745,14 +713,16 @@ class DatabricksAdapter(SparkAdapter):
 
     @available.parse(lambda *a, **k: {})
     def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+        api_client = self.connections.api_client
+
         if relation.type == DatabricksRelationType.MaterializedView:
-            return MaterializedViewAPI.get_from_relation(self, relation)
+            return MaterializedViewConfigFactory.get_from_relation(self, relation, api_client)
         elif relation.type == DatabricksRelationType.StreamingTable:
-            return StreamingTableAPI.get_from_relation(self, relation)
+            return StreamingTableConfigFactory.get_from_relation(self, relation, api_client)
         elif relation.type == DatabricksRelationType.Table:
-            return IncrementalTableAPI.get_from_relation(self, relation)
+            return IncrementalTableConfigFactory.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.View:
-            return ViewAPI.get_from_relation(self, relation)
+            return ViewConfigFactory.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -760,13 +730,13 @@ class DatabricksAdapter(SparkAdapter):
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
         if model.config.materialized == "materialized_view":
-            return MaterializedViewAPI.get_from_relation_config(model)
+            return MaterializedViewConfigFactory.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":
-            return StreamingTableAPI.get_from_relation_config(model)
+            return StreamingTableConfigFactory.get_from_relation_config(model)
         elif model.config.materialized == "incremental":
-            return IncrementalTableAPI.get_from_relation_config(model)
+            return IncrementalTableConfigFactory.get_from_relation_config(model)
         elif model.config.materialized == "view":
-            return ViewAPI.get_from_relation_config(model)
+            return ViewConfigFactory.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -804,175 +774,3 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
-
-
-@dataclass(frozen=True)
-class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
-    """Base class for the relation API, so as to provide some encapsulation from the adapter.
-    For the most part, these are just namespaces to group related methods together.
-    """
-
-    relation_type: ClassVar[str]
-
-    @classmethod
-    @abstractmethod
-    def config_type(cls) -> type[DatabricksRelationConfig]:
-        """Get the config class for delegating calls."""
-
-        raise NotImplementedError("Must be implemented by subclass")
-
-    @classmethod
-    def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> DatabricksRelationConfig:
-        """Get the relation config from the relation."""
-
-        assert relation.type == cls.relation_type
-        results = cls._describe_relation(adapter, relation)
-        return cls.config_type().from_results(results)
-
-    @classmethod
-    def get_from_relation_config(cls, relation_config: RelationConfig) -> DatabricksRelationConfig:
-        """Get the relation config from the model node."""
-
-        return cls.config_type().from_relation_config(relation_config)
-
-    @classmethod
-    @abstractmethod
-    def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> RelationResults:
-        """Describe the relation and return the results."""
-
-        raise NotImplementedError("Must be implemented by subclass")
-
-
-class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
-    @classmethod
-    def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> DatabricksRelationConfig:
-        """Get the relation config from the relation."""
-
-        relation_config = super().get_from_relation(adapter, relation)
-
-        # Ensure any current refreshes are completed before returning the relation config
-        tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
-        if tblproperties.pipeline_id:
-            adapter.connections.api_client.dlt_pipelines.poll_for_completion(
-                tblproperties.pipeline_id
-            )
-        return relation_config
-
-
-class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
-    relation_type = DatabricksRelationType.MaterializedView
-
-    @classmethod
-    def config_type(cls) -> type[MaterializedViewConfig]:
-        return MaterializedViewConfig
-
-    @classmethod
-    def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> RelationResults:
-        kwargs = {"table_name": relation}
-        results: RelationResults = dict()
-        results["describe_extended"] = adapter.execute_macro(
-            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
-        )
-
-        kwargs = {"relation": relation}
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
-        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-        return results
-
-
-class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
-    relation_type = DatabricksRelationType.StreamingTable
-
-    @classmethod
-    def config_type(cls) -> type[StreamingTableConfig]:
-        return StreamingTableConfig
-
-    @classmethod
-    def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> RelationResults:
-        kwargs = {"table_name": relation}
-        results: RelationResults = dict()
-        results["describe_extended"] = adapter.execute_macro(
-            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
-        )
-
-        kwargs = {"relation": relation}
-
-        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-        return results
-
-
-class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
-    relation_type = DatabricksRelationType.Table
-
-    @classmethod
-    def config_type(cls) -> type[IncrementalTableConfig]:
-        return IncrementalTableConfig
-
-    @classmethod
-    def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> RelationResults:
-        results = {}
-        kwargs = {"relation": relation}
-
-        if not relation.is_hive_metastore():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
-            results["information_schema.column_tags"] = adapter.execute_macro(
-                "fetch_column_tags", kwargs=kwargs
-            )
-            results["non_null_constraint_columns"] = adapter.execute_macro(
-                "fetch_non_null_constraint_columns", kwargs=kwargs
-            )
-            results["primary_key_constraints"] = adapter.execute_macro(
-                "fetch_primary_key_constraints", kwargs=kwargs
-            )
-            results["foreign_key_constraints"] = adapter.execute_macro(
-                "fetch_foreign_key_constraints", kwargs=kwargs
-            )
-            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
-        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-
-        kwargs = {"table_name": relation}
-        results["describe_extended"] = adapter.execute_macro(
-            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
-        )
-        return results
-
-
-class ViewAPI(RelationAPIBase[ViewConfig]):
-    relation_type = DatabricksRelationType.View
-
-    @classmethod
-    def config_type(cls) -> type[ViewConfig]:
-        return ViewConfig
-
-    @classmethod
-    def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
-    ) -> RelationResults:
-        results = {}
-        kwargs = {"relation": relation}
-
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
-        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-
-        kwargs = {"table_name": relation}
-        results["describe_extended"] = adapter.execute_macro(
-            macros.DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
-        )
-        return results

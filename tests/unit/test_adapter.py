@@ -13,16 +13,13 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
-from dbt.adapters.databricks.impl import (
-    DatabricksRelationInfo,
-    get_identifier_list_string,
-)
+from dbt.adapters.databricks.impl import DatabricksRelationInfo
 from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
     DatabricksTableType,
 )
-from dbt.adapters.databricks.utils import check_not_found_error
+from dbt.adapters.databricks.utils import check_not_found_error, get_identifier_list_string
 from dbt.config import RuntimeConfig
 from tests.unit.utils import config_from_parts_or_dicts
 

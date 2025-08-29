@@ -89,14 +89,14 @@ python = "3.9"
 [tool.hatch.envs.default.scripts]
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
-unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadscope tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadscope tests/functional"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/unit"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
@@ -120,6 +120,7 @@ markers = [
     "external: mark test as requiring an external location",
     "python: mark test as running a python model",
     "dlt: mark test as running a DLT model",
+    "acl: mark test as needing additional users to test acls",
 ]
 
 [tool.mypy]
