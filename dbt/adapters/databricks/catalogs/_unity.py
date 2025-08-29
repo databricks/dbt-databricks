@@ -34,6 +34,7 @@ class UnityCatalogIntegration(CatalogIntegration):
         Args:
             model: `config.model` (not `model`) from the jinja context
         """
+
         return DatabricksCatalogRelation(
             catalog_type=self.catalog_type,
             catalog_name=self.catalog_name
