@@ -300,21 +300,14 @@ class DatabricksAdapter(SparkAdapter):
         return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
-        """
-        Get a list of existing schemas in database.
-
-        If `database` is `None`, fallback to executing `show databases` because
-        `list_schemas` tries to collect schemas from all catalogs when `database` is `None`.
-        """
-        if database is not None:
-            results = self.connections.list_schemas(database=database)
-        else:
-            results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
+        results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
-        return schema.lower() in set(s.lower() for s in self.list_schemas(database=database))
+        return schema.lower() in set(
+            s.lower() for s in self.connections.list_schemas(database or "hive_metastore", schema)
+        )
 
     def execute(
         self,
