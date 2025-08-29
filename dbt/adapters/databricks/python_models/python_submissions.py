@@ -658,3 +658,12 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         return PythonNotebookWorkflowSubmitter.create(
             self.api_client, self.tracker, self.parsed_model
         )
+
+
+# Dictionary of available Python submission helpers
+PYTHON_SUBMISSION_HELPERS: dict[str, type[PythonJobHelper]] = {
+    "job_cluster": JobClusterPythonJobHelper,
+    "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
+    "serverless_cluster": ServerlessClusterPythonJobHelper,
+    "workflow_job": WorkflowPythonJobHelper,
+}

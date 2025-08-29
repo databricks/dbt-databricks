@@ -37,12 +37,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.models import DatabricksConfig, DatabricksRelationInfo
-from dbt.adapters.databricks.python_models.python_submissions import (
-    AllPurposeClusterPythonJobHelper,
-    JobClusterPythonJobHelper,
-    ServerlessClusterPythonJobHelper,
-    WorkflowPythonJobHelper,
-)
+from dbt.adapters.databricks.python_models.python_submissions import PYTHON_SUBMISSION_HELPERS
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,
     DatabricksRelation,
@@ -609,12 +604,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def python_submission_helpers(self) -> dict[str, type[PythonJobHelper]]:
-        return {
-            "job_cluster": JobClusterPythonJobHelper,
-            "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
-            "serverless_cluster": ServerlessClusterPythonJobHelper,
-            "workflow_job": WorkflowPythonJobHelper,
-        }
+        return PYTHON_SUBMISSION_HELPERS
 
     @log_code_execution
     def submit_python_job(self, parsed_model: dict, compiled_code: str) -> AdapterResponse:
