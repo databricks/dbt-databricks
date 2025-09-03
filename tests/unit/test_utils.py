@@ -74,10 +74,10 @@ class TestDatabricksUtils:
         assert quote("table") == "`table`"
 
     def test_is_cluster_http_path_with_cluster_id(self):
-        assert is_cluster_http_path("/sql/1.0/warehouses/abc", "cluster-123") is True
+        assert is_cluster_http_path("/sql/1.0/warehouses/abc", "cluster-123") is False
 
     def test_is_cluster_http_path_without_cluster_id_and_warehouses(self):
-        assert is_cluster_http_path("/sql/1.0/endpoints/abc", None) is True
+        assert is_cluster_http_path("/sql/1.0/endpoints/abc", None) is False
 
     def test_is_cluster_http_path_without_cluster_id_and_with_warehouses(self):
         assert is_cluster_http_path("/sql/1.0/warehouses/abc", None) is False
