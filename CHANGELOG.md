@@ -5,6 +5,7 @@
 - Improve ANSI mode error handling for Python models and add debug instrumentation ([1157](https://github.com/databricks/dbt-databricks/pull/1157))
 - Remove external path on intermediate tables for incremental models (with Materialization V2) ([1161](https://github.com/databricks/dbt-databricks/pull/1161))
 - Fix get_columns_in_relation branching logic for streaming tables to prevent it from running `AS JSON`
+- Fix model-level compute override connection logic that was causing invalid spark configs to be set on SQL warehouses
 
 ### Under the hood
 
