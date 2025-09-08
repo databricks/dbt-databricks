@@ -182,7 +182,7 @@ hatch run uc-cluster-e2e          # Functional tests (Unity Catalog)
 hatch run sqlw-e2e                # Functional tests (SQL Warehouse)
 
 # Building
-hatch build                       # Build wheel and sdist
+hatch build -c                    # Build wheel and sdist (cleans dist folder first)
 hatch version                     # Show current version
 ```
 

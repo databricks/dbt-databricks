@@ -1,6 +1,6 @@
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
@@ -88,3 +88,11 @@ def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStr
         op()
     except Exception as e:
         logger.warning(log_gen(e))
+
+
+def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
+    if "/warehouses/" in http_path:
+        return False
+    if "/protocolv1/" in http_path:
+        return True
+    return cluster_id is not None

@@ -40,7 +40,8 @@ def table_format(model: RelationConfig) -> Optional[str]:
 def _get(
     model: RelationConfig, setting: str, case_sensitive: Optional[bool] = False
 ) -> Optional[str]:
-    if not model.config:
+    # dbt-core can sometimes pass in non-model configs that don't have "get" defined
+    if not model.config or not hasattr(model.config, "get"):
         return None
 
     if value := model.config.get(setting):

@@ -24,9 +24,9 @@ classifiers = [
 dependencies = [
     "databricks-sdk>=0.41, <0.64.0",
     "databricks-sql-connector[pyarrow]>=4.0.0, <4.0.6",
-    "dbt-adapters>=1.16.0, <1.16.5",
-    "dbt-common>=1.24.0, <1.29.0",
-    "dbt-core>=1.10.1, <1.10.10",
+    "dbt-adapters>=1.16.0, <1.16.7",
+    "dbt-common>=1.24.0, <1.30.0",
+    "dbt-core>=1.10.1, <1.10.12",
     "dbt-spark>=1.9.0, <1.9.4",
     "keyring>=23.13.0",
     "pydantic>=1.10.0",
@@ -89,14 +89,14 @@ python = "3.9"
 [tool.hatch.envs.default.scripts]
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
-unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n auto --dist=loadscope tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto --dist=loadscope tests/functional"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/functional"
+uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadscope tests/functional"
+sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadscope tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
-unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit --cov=dbt"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
