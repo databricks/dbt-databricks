@@ -243,3 +243,9 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
         )
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
+
+    def test_idempotent_run_does_not_fail(self, project, my_streaming_table):
+        assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        _, logs = util.run_dbt_and_capture(["run", "--models", my_streaming_table.identifier])
+        assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        util.assert_message_in_logs("REFRESHING STREAMING TABLE", logs)

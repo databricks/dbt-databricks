@@ -43,7 +43,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
             diff = value.get_diff(existing.config[key])
             if key == "partition_by" and diff is not None:
                 requires_refresh = True
-            if diff:
+            if diff and diff != RefreshConfig():
                 requires_replace = True
             diff = diff or value
             if diff != RefreshConfig():
