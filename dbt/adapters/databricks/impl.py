@@ -4,6 +4,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
+from dataclasses import dataclass
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, Union
 from uuid import uuid4
@@ -14,7 +15,7 @@ from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalE
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 
-from dbt.adapters.base import PythonJobHelper
+from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
@@ -36,7 +37,6 @@ from dbt.adapters.databricks.catalogs import (
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.handle import SqlUtils
-from dbt.adapters.databricks.models import DatabricksConfig, DatabricksRelationInfo
 from dbt.adapters.databricks.python_models.python_submissions import PYTHON_SUBMISSION_HELPERS
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,
@@ -54,10 +54,45 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
+from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.spark.impl import SparkAdapter
 
 if TYPE_CHECKING:
     from agate import Row, Table
+
+
+@dataclass
+class DatabricksConfig(AdapterConfig):
+    """Configuration model for Databricks-specific adapter settings."""
+
+    file_format: str = "delta"
+    table_format: str = TableFormat.DEFAULT
+    location_root: Optional[str] = None
+    include_full_name_in_path: bool = False
+    partition_by: Optional[Union[list[str], str]] = None
+    clustered_by: Optional[Union[list[str], str]] = None
+    liquid_clustered_by: Optional[Union[list[str], str]] = None
+    auto_liquid_cluster: Optional[bool] = None
+    buckets: Optional[int] = None
+    options: Optional[dict[str, str]] = None
+    merge_update_columns: Optional[str] = None
+    merge_exclude_columns: Optional[str] = None
+    databricks_tags: Optional[dict[str, str]] = None
+    tblproperties: Optional[dict[str, str]] = None
+    zorder: Optional[Union[list[str], str]] = None
+    unique_tmp_table_suffix: bool = False
+    skip_non_matched_step: Optional[bool] = None
+    skip_matched_step: Optional[bool] = None
+    matched_condition: Optional[str] = None
+    not_matched_condition: Optional[str] = None
+    not_matched_by_source_action: Optional[str] = None
+    not_matched_by_source_condition: Optional[str] = None
+    target_alias: Optional[str] = None
+    source_alias: Optional[str] = None
+    merge_with_schema_evolution: Optional[bool] = None
+    use_safer_relation_operations: Optional[bool] = None
+    incremental_apply_config_changes: Optional[bool] = None
+    view_update_via_alter: Optional[bool] = None
 
 
 class DatabricksAdapter(SparkAdapter):
@@ -218,7 +253,7 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> list[DatabricksRelation]:
-        empty: list[DatabricksRelationInfo] = []
+        empty: list[tuple[str, str, Optional[str], Optional[str], Optional[str]]] = []
         results = utils.handle_missing_objects(
             lambda: self.get_relations_without_caching(schema_relation), empty
         )
@@ -226,41 +261,34 @@ class DatabricksAdapter(SparkAdapter):
         relations = []
         for row in results:
             name, kind, file_format, owner, table_type = row
-            metadata = None
-            if file_format:
-                metadata = {constants.KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
-
-            if table_type:
-                databricks_table_type = DatabricksRelation.get_databricks_table_type(table_type)
-            else:
-                databricks_table_type = None
-
-            relations.append(
-                DatabricksRelation.create(
-                    database=schema_relation.database,
-                    schema=schema_relation.schema,
-                    identifier=name,
-                    type=DatabricksRelation.get_relation_type(kind),
-                    databricks_table_type=databricks_table_type,
-                    metadata=metadata,
-                    is_delta=file_format == "delta",
-                )
+            # Use the new constructor method to create relations directly
+            relation = DatabricksRelation.create_from_relation_info(
+                name=name,
+                kind=kind,
+                file_format=file_format,
+                owner=owner,
+                table_type=table_type,
+                schema_relation=schema_relation,
             )
+            relations.append(relation)
 
         return relations
 
     def get_relations_without_caching(
         self, relation: DatabricksRelation
-    ) -> list[DatabricksRelationInfo]:
+    ) -> list[tuple[str, str, Optional[str], Optional[str], Optional[str]]]:
+        """Return raw relation data as tuples: (name, kind, file_format, owner, table_type)"""
         if relation.is_hive_metastore():
             return self._get_hive_relations(relation)
         return self._get_uc_relations(relation)
 
-    def _get_uc_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
+    def _get_uc_relations(
+        self, relation: DatabricksRelation
+    ) -> list[tuple[str, str, Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
-            DatabricksRelationInfo(
+            (
                 row["table_name"],
                 row["table_type"],
                 row["file_format"],
@@ -270,7 +298,9 @@ class DatabricksAdapter(SparkAdapter):
             for row in results
         ]
 
-    def _get_hive_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
+    def _get_hive_relations(
+        self, relation: DatabricksRelation
+    ) -> list[tuple[str, str, Optional[str], Optional[str], Optional[str]]]:
         kwargs = {"relation": relation}
 
         new_rows: list[tuple[str, Optional[str]]]
@@ -302,13 +332,15 @@ class DatabricksAdapter(SparkAdapter):
                     for row in new_rows
                 ]
 
+        # Return tuples in format: (name, kind, file_format, owner, table_type)
+        # For Hive metastore, file_format, owner, and table_type are not available
         return [
-            DatabricksRelationInfo(
-                row[0],
-                row[1],  # type: ignore[arg-type]
-                None,
-                None,
-                None,
+            (
+                row[0],  # name
+                row[1] or "unknown",  # kind (type)
+                None,  # file_format (not available in Hive)
+                None,  # owner (not available in Hive)
+                None,  # table_type (not available in Hive)
             )
             for row in new_rows
         ]

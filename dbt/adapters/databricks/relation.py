@@ -10,7 +10,9 @@ from dbt_common.utils import filter_null_values
 from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
+    RelationType,
 )
+from dbt.adapters.databricks import constants
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
 from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
@@ -170,11 +172,8 @@ class DatabricksRelation(BaseRelation):
 
     @classproperty
     def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
+        """Return the DatabricksRelationType class for use in tests and external code."""
         return DatabricksRelationType
-
-    @classproperty
-    def get_databricks_table_type(cls) -> Type[DatabricksTableType]:  # noqa
-        return DatabricksTableType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
         # some of our data comes from jinja, where things can be `Undefined`.
@@ -209,6 +208,67 @@ class DatabricksRelation(BaseRelation):
 
     def render(self) -> str:
         return super().render().lower()
+
+    @classmethod
+    def create_from_relation_info(
+        cls,
+        name: str,
+        kind: str,
+        file_format: Optional[str],
+        owner: Optional[str],
+        table_type: Optional[str],
+        schema_relation: "DatabricksRelation",
+    ) -> "DatabricksRelation":
+        """
+        Create a DatabricksRelation directly from relation information data.
+        This streamlined approach eliminates intermediate data representations.
+        """
+        # Build metadata if we have file format info
+        metadata = None
+        if file_format:
+            metadata = {constants.KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
+
+        # Convert table_type to DatabricksTableType if available
+        databricks_table_type = None
+        if table_type:
+            try:
+                databricks_table_type = DatabricksTableType(table_type)
+            except (ValueError, AttributeError):
+                databricks_table_type = None
+
+        # Convert kind to relation type - handle the conversion here
+        try:
+            relation_type = cls._convert_kind_to_relation_type(kind)
+        except (ValueError, AttributeError):
+            relation_type = DatabricksRelationType.Unknown
+
+        return cls.create(
+            database=schema_relation.database,
+            schema=schema_relation.schema,
+            identifier=name,
+            type=RelationType(relation_type.value),
+            databricks_table_type=databricks_table_type,
+            metadata=metadata,
+            is_delta=file_format == "delta",
+        )
+
+    @classmethod
+    def _convert_kind_to_relation_type(cls, kind: str) -> DatabricksRelationType:
+        """Convert a string kind to DatabricksRelationType."""
+        if not kind:
+            return DatabricksRelationType.Unknown
+
+        kind_lower = kind.lower()
+        if kind_lower == "view":
+            return DatabricksRelationType.View
+        elif kind_lower == "table":
+            return DatabricksRelationType.Table
+        elif kind_lower == "materialized_view":
+            return DatabricksRelationType.MaterializedView
+        elif kind_lower == "streaming_table":
+            return DatabricksRelationType.StreamingTable
+        else:
+            return DatabricksRelationType.Unknown
 
 
 def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:

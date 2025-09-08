@@ -13,7 +13,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
-from dbt.adapters.databricks.impl import DatabricksRelationInfo
 from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
@@ -360,9 +359,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__some_relations(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [
-                DatabricksRelationInfo("name", "table", "hudi", "owner", "external")
-            ]
+            mocked.return_value = [("name", "table", "hudi", "owner", "external")]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
@@ -379,7 +376,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient.create")
     def test_list_relations_without_caching__hive_relation(self, _):
         with patch.object(DatabricksAdapter, "get_relations_without_caching") as mocked:
-            mocked.return_value = [DatabricksRelationInfo("name", "table", None, None, None)]
+            mocked.return_value = [("name", "table", None, None, None)]
             adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
             relations = adapter.list_relations("database", "schema")
             assert len(relations) == 1
@@ -751,7 +748,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
 
     def test_parse_columns_from_information_with_view_type(self):
         self.maxDiff = None
-        rel_type = DatabricksRelation.get_relation_type.View
+        rel_type = DatabricksRelationType.View
         information = (
             "Database: default_schema\n"
             "Table: myview\n"
