@@ -11,6 +11,7 @@ from dbt.adapters.databricks.relation_configs.comment import (
 from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
+from dbt.adapters.databricks.relation_configs.query import DescribeQueryProcessor
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
@@ -23,6 +24,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         CommentProcessor,
         TblPropertiesProcessor,
         RefreshProcessor,
+        DescribeQueryProcessor,
     ]
 
     def get_changeset(
@@ -33,6 +35,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         """
         changes: dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
+        requires_replace = False
 
         for component in self.config_components:
             key = component.name
@@ -40,9 +43,13 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
             diff = value.get_diff(existing.config[key])
             if key == "partition_by" and diff is not None:
                 requires_refresh = True
+            if diff:
+                requires_replace = True
             diff = diff or value
-
             if diff != RefreshConfig():
                 changes[key] = diff
-
-        return DatabricksRelationChangeSet(changes=changes, requires_full_refresh=requires_refresh)
+        if requires_replace:
+            return DatabricksRelationChangeSet(
+                changes=changes, requires_full_refresh=requires_refresh
+            )
+        return None
