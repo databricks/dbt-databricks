@@ -53,6 +53,24 @@ hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
 ```
 
+**Running specific tests**:
+
+The predefined scripts (`cluster-e2e`, `uc-cluster-e2e`, etc.) are hardcoded and don't accept additional arguments. To run specific tests, use pytest directly:
+
+```bash
+# Run a specific test file
+hatch run pytest --color=yes -v --profile databricks_cluster tests/functional/adapter/basic/test_incremental.py
+
+# Run a specific test method
+hatch run pytest --color=yes -v --profile databricks_cluster tests/functional/adapter/basic/test_incremental.py::TestIncrementalDelta::test_incremental
+
+# Run tests matching a keyword (use -k option)
+hatch run pytest --color=yes -v --profile databricks_cluster -k "incremental" tests/functional/
+
+# Run unit tests for a specific file
+hatch run pytest --color=yes -v --profile databricks_cluster tests/unit/test_relation.py
+```
+
 > 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for comprehensive setup documentation
 > 📖 **See [Testing Guide](docs/testing.md)** for comprehensive testing documentation
 
