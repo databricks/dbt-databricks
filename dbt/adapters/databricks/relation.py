@@ -10,7 +10,6 @@ from dbt_common.utils import filter_null_values
 from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
-    RelationType,
 )
 from dbt.adapters.databricks import constants
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
@@ -242,14 +241,19 @@ class DatabricksRelation(BaseRelation):
         except (ValueError, AttributeError):
             relation_type = DatabricksRelationType("unknown")
 
-        return cls.create(
-            database=schema_relation.database,
-            schema=schema_relation.schema,
-            identifier=name,
-            type=RelationType(relation_type.value),
-            databricks_table_type=databricks_table_type,
-            metadata=metadata,
-            is_delta=file_format == "delta",
+        # Create the relation using from_dict to properly handle DatabricksRelationType
+        return cls.from_dict(
+            {
+                "path": {
+                    "database": schema_relation.database,
+                    "schema": schema_relation.schema,
+                    "identifier": name,
+                },
+                "type": relation_type,
+                "databricks_table_type": databricks_table_type,
+                "metadata": metadata,
+                "is_delta": file_format == "delta",
+            }
         )
 
     @classmethod
