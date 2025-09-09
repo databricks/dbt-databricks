@@ -42,3 +42,11 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
             raise DbtRuntimeError(
                 f"Cannot compile model {relation_config.identifier} with no SQL query"
             )
+
+
+class DescribeQueryProcessor(QueryProcessor):
+    @classmethod
+    def from_relation_results(cls, result: RelationResults) -> QueryConfig:
+        table = result["describe_extended"]
+        row = next(x for x in table if x[0] == "View Text")
+        return QueryConfig(query=SqlUtils.clean_sql(row[1]))

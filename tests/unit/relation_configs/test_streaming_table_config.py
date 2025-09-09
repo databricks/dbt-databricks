@@ -4,6 +4,7 @@ from agate import Table
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
+from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
@@ -25,6 +26,7 @@ class TestStreamingTableConfig:
                     ["Catalog:", "default", None],
                     ["Comment", "This is the table comment", None],
                     ["Refresh Schedule", "MANUAL", None],
+                    ["View Text", "select * from foo", None],
                 ],
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
@@ -42,6 +44,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -68,6 +71,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -79,6 +83,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
@@ -88,17 +93,13 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
         changeset = new.get_changeset(old)
-        assert not changeset.requires_full_refresh
-        assert changeset.changes == {
-            "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
-            "comment": CommentConfig(comment="This is the table comment"),
-            "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
-            "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
-        }
+        # Based on the new logic, when there are no changes, get_changeset returns None
+        assert changeset is None
 
     def test_get_changeset__some_changes(self):
         old = StreamingTableConfig(
@@ -108,6 +109,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
@@ -117,10 +119,12 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
         changeset = new.get_changeset(old)
+        assert changeset is not None
         assert changeset.has_changes
         assert changeset.requires_full_refresh
         assert changeset.changes == {
@@ -129,4 +133,5 @@ class TestStreamingTableConfig:
             "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+            "query": QueryConfig(query="select * from foo"),
         }
