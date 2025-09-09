@@ -92,12 +92,11 @@ def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStr
 
 
 def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
-    return (
-        cluster_id is not None
-        # Credentials field is not updated when overriding the compute at model level.
-        # This secondary check is a workaround for that case
-        or "/warehouses/" not in http_path
-    )
+    if "/warehouses/" in http_path:
+        return False
+    if "/protocolv1/" in http_path:
+        return True
+    return cluster_id is not None
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
