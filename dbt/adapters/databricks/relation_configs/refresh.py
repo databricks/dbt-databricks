@@ -1,5 +1,5 @@
 import re
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -24,6 +24,18 @@ class RefreshConfig(DatabricksComponentConfig):
     # vs an ALTER SCHEDULE. This is only True when modifying an existing schedule, rather than
     # switching from manual refresh to scheduled or vice versa.
     is_altered: bool = False
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, RefreshConfig):
+            return False
+        return self.cron == other.cron and (
+            (
+                self.time_zone_value is None
+                and other.time_zone_value
+                and "utc" in other.time_zone_value.lower()
+            )
+            or (other.time_zone_value == other.time_zone_value)
+        )
 
     def get_diff(self, other: "RefreshConfig") -> Optional["RefreshConfig"]:
         if self != other:
