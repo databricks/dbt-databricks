@@ -249,7 +249,7 @@ class DatabricksRelation(BaseRelation):
                     "schema": schema_relation.schema,
                     "identifier": name,
                 },
-                "type": relation_type,
+                "type": relation_type.value if relation_type else None,
                 "databricks_table_type": databricks_table_type,
                 "metadata": metadata,
                 "is_delta": file_format == "delta",

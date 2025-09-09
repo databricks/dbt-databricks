@@ -139,7 +139,7 @@ class IncrementalTableConfigFactory(RelationConfigFactoryBase[IncrementalTableCo
 
         # DLT incremental tables don't have tags, column tags, constraints,  etc.
         # TODO: Add is_delta_live_table property to DatabricksRelation
-        if True:  # not relation.is_delta_live_table:
+        if not relation.is_hive_metastore():  # Only fetch Unity Catalog features for UC relations
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
@@ -179,7 +179,8 @@ class ViewConfigFactory(RelationConfigFactoryBase[ViewConfig]):
         results["information_schema.views"] = utils.get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        if not relation.is_hive_metastore():  # Only fetch tags for Unity Catalog relations
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         results["describe_extended"] = adapter.execute_macro(
