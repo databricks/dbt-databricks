@@ -1095,11 +1095,12 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             assert result[0].dtype == "string"
             assert result[0].comment == "comment1"
 
+    @pytest.mark.parametrize("compare_dbr_version", [-1, 1])
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
     def test_get_columns_streaming_table_legacy_logic(
-        self, mock_get_columns, adapter, unity_relation
+        self, mock_get_columns, adapter, unity_relation, compare_dbr_version
     ):
         streaming_relation = DatabricksRelation.create(
             database=unity_relation.database,
@@ -1108,45 +1109,12 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             type=DatabricksRelation.StreamingTable,
         )
         # Return value less than 0 means version is older than 17.1
-        with patch.object(adapter, "compare_dbr_version", return_value=-1):
+        with patch.object(adapter, "compare_dbr_version", return_value=compare_dbr_version):
             mock_get_columns.return_value = [
                 {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
             ]
             result = adapter.get_columns_in_relation(streaming_relation)
             mock_get_columns.assert_called_with(adapter, streaming_relation, "get_columns_comments")
-            assert len(result) == 1
-            assert result[0].column == "stream_col"
-            assert result[0].dtype == "int"
-            assert result[0].comment == "streaming col"
-
-    @patch(
-        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
-    )
-    def test_get_columns_streaming_table_new_logic(self, mock_get_columns, adapter, unity_relation):
-        streaming_relation = DatabricksRelation.create(
-            database=unity_relation.database,
-            schema=unity_relation.schema,
-            identifier=unity_relation.identifier,
-            type=DatabricksRelation.StreamingTable,
-        )
-        # Return value 0 means version is 17.1
-        with patch.object(adapter, "compare_dbr_version", return_value=0):
-            json_data = """
-                {
-                  "columns": [
-                    {
-                      "name": "stream_col",
-                      "type": {"name": "int"},
-                      "comment": "streaming col"
-                    }
-                  ]
-                }
-                """
-            mock_get_columns.return_value = [{"json_metadata": json_data}]
-            result = adapter.get_columns_in_relation(streaming_relation)
-            mock_get_columns.assert_called_with(
-                adapter, streaming_relation, "get_columns_comments_as_json"
-            )
             assert len(result) == 1
             assert result[0].column == "stream_col"
             assert result[0].dtype == "int"

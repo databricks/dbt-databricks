@@ -25,7 +25,7 @@ class TestDatabricksConnectionManager:
             assert connection_manager.is_cluster() is False
 
     def test_is_cluster_with_cluster_id_overrides_path(self):
-        """Test is_cluster() returns True when cluster_id is provided, regardless of path"""
+        """Test is_cluster() returns False even when cluster_id is provided"""
         # Create a minimal connection manager with mock config
         mock_config = Mock()
         connection_manager = DatabricksConnectionManager(mock_config, get_context("spawn"))
@@ -39,7 +39,7 @@ class TestDatabricksConnectionManager:
         with patch.object(
             connection_manager, "get_thread_connection", return_value=mock_connection
         ):
-            assert connection_manager.is_cluster() is True
+            assert connection_manager.is_cluster() is False
 
     def test_is_cluster_http_path_function_warehouse_path(self):
         assert is_cluster_http_path("sql/1.0/warehouses/abc123def456", None) is False
@@ -48,7 +48,7 @@ class TestDatabricksConnectionManager:
         assert is_cluster_http_path("sql/protocolv1/o/1234567890123456/", None) is True
 
     def test_is_cluster_http_path_function_cluster_id_overrides(self):
-        assert is_cluster_http_path("sql/1.0/warehouses/abc123def456", "cluster-123") is True
+        assert is_cluster_http_path("sql/1.0/warehouses/abc123def456", "cluster-123") is False
 
     @patch("dbt.adapters.databricks.connections.DatabricksHandle.from_connection_args")
     @patch("dbt.adapters.databricks.connections.SqlUtils.prepare_connection_arguments")

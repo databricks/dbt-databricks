@@ -8,12 +8,26 @@
 
 - Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
 
-## dbt-databricks 1.10.11 (TBD)
+## dbt-databricks 1.10.13 (TBD)
+
+## dbt-databricks 1.10.12 (September 8, 2025)
+
+### Under the hood
+
+- Update dependency versions ([1178](https://github.com/databricks/dbt-databricks/pull/1178))
+
+## dbt-databricks 1.10.11 (September 2, 2025)
 
 ### Fixes
 
 - Improve ANSI mode error handling for Python models and add debug instrumentation ([1157](https://github.com/databricks/dbt-databricks/pull/1157))
 - Remove external path on intermediate tables for incremental models (with Materialization V2) ([1161](https://github.com/databricks/dbt-databricks/pull/1161))
+- Fix get_columns_in_relation branching logic for streaming tables to prevent it from running `AS JSON`
+- Fix model-level compute override connection logic that was causing invalid spark configs to be set on SQL warehouses
+
+### Under the hood
+
+- Improve performance of schema enumeration/validation ([1168](https://github.com/databricks/dbt-databricks/pull/1168))
 
 ## dbt-databricks 1.10.10 (August 20, 2025)
 
