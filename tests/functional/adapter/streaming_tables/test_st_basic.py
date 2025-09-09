@@ -149,7 +149,9 @@ class TestStreamingTablesBasic(TestStreamingTablesMixin):
     def test_streaming_table_create_idempotent(self, project, my_streaming_table):
         # setup creates it once; verify it's there and run once
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
-        _, logs = util.run_dbt_and_capture(["run", "--models", my_streaming_table.identifier])
+        _, logs = util.run_dbt_and_capture(
+            ["--debug", "run", "--models", my_streaming_table.identifier]
+        )
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
         util.assert_message_in_logs("REFRESHING STREAMING TABLE", logs)
 
