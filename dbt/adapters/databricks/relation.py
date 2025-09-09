@@ -240,7 +240,7 @@ class DatabricksRelation(BaseRelation):
         try:
             relation_type = cls._convert_kind_to_relation_type(kind)
         except (ValueError, AttributeError):
-            relation_type = DatabricksRelationType.Unknown
+            relation_type = DatabricksRelationType("unknown")
 
         return cls.create(
             database=schema_relation.database,
@@ -256,19 +256,14 @@ class DatabricksRelation(BaseRelation):
     def _convert_kind_to_relation_type(cls, kind: str) -> DatabricksRelationType:
         """Convert a string kind to DatabricksRelationType."""
         if not kind:
-            return DatabricksRelationType.Unknown
+            return DatabricksRelationType("unknown")
 
+        # Get all valid enum values directly from the enum class
         kind_lower = kind.lower()
-        if kind_lower == "view":
-            return DatabricksRelationType.View
-        elif kind_lower == "table":
-            return DatabricksRelationType.Table
-        elif kind_lower == "materialized_view":
-            return DatabricksRelationType.MaterializedView
-        elif kind_lower == "streaming_table":
-            return DatabricksRelationType.StreamingTable
-        else:
-            return DatabricksRelationType.Unknown
+        try:
+            return DatabricksRelationType(kind_lower)
+        except ValueError:
+            return DatabricksRelationType("unknown")
 
 
 def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
