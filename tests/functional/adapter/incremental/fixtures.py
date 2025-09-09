@@ -564,6 +564,7 @@ python_schema = """version: 2
 models:
   - name: tags
     config:
+      use_notebook: true
       tags: ["python"]
       databricks_tags:
         a: b
@@ -587,6 +588,7 @@ python_tblproperties_schema = """version: 2
 models:
   - name: tblproperties
     config:
+      use_notebook: true
       tags: ["python"]
       tblproperties:
         a: b

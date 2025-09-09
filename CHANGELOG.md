@@ -10,6 +10,10 @@
 
 ## dbt-databricks 1.10.13 (TBD)
 
+### Fixes
+
+- Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
+
 ## dbt-databricks 1.10.12 (September 8, 2025)
 
 ### Under the hood
