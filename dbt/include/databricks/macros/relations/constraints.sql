@@ -141,7 +141,7 @@
     {% for column_name in column_names %}
       {% set column = model.get('columns', {}).get(column_name) %}
       {% if column %}
-        {% set quoted_name = '`' ~ column['name'] ~ '`' %}
+        {% set quoted_name = column['name'] %}
         {% set stmt = "alter table " ~ relation.render() ~ " change column " ~ quoted_name ~ " set not null " ~ (constraint.expression or "") ~ ";" %}
         {% do statements.append(stmt) %}
       {% else %}
@@ -162,7 +162,7 @@
       {% if not column %}
         {{ exceptions.warn('Invalid primary key column: ' ~ column_name) }}
       {% else %}
-        {% set quoted_name = '`' ~ column['name'] ~ '`' %}
+        {% set quoted_name = column['name'] %}
         {% do quoted_names.append(quoted_name) %}
       {% endif %}
     {% endfor %}
@@ -211,7 +211,7 @@
         {% if not column %}
           {{ exceptions.warn('Invalid foreign key column: ' ~ column_name) }}
         {% else %}
-          {% set quoted_name = '`' ~ column['name'] ~ '`' %}
+          {% set quoted_name = column['name'] %}
           {% do quoted_names.append(quoted_name) %}
         {% endif %}
       {% endfor %}

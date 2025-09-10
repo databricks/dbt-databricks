@@ -52,13 +52,15 @@ class TestRenderForCreate:
 
 
 class TestColumnStatics:
-
     @pytest.mark.parametrize(
         "columns, expected",
         [
             ([], ""),
             ([DatabricksColumn("`foo`", "string")], "`foo`"),
-            ([DatabricksColumn("`foo`", "string"), DatabricksColumn("`bar`", "int")], "`foo`, `bar`"),
+            (
+                [DatabricksColumn("`foo`", "string"), DatabricksColumn("`bar`", "int")],
+                "`foo`, `bar`",
+            ),
         ],
     )
     def test_format_remove_column_list(self, columns, expected):

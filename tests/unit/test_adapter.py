@@ -1091,7 +1091,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             )
 
             assert len(result) == 1
-            assert result[0].column == "col1"
+            assert result[0].column == "`col1`"
             assert result[0].dtype == "string"
             assert result[0].comment == "comment1"
 
