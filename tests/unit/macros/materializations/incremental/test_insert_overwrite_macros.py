@@ -40,10 +40,32 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
         context["adapter"].behavior = mock_behavior
 
-    def test_get_insert_overwrite_sql__legacy_dbr_version(self, template, context, config):
-        """Test that DBR < 17.1 uses the legacy DPO INSERT OVERWRITE syntax"""
-        # Negative return value means DBR < 17.1
-        context["adapter"].compare_dbr_version.return_value = -1
+    @pytest.mark.parametrize(
+        "dbr_version_comparison,expected_sql",
+        [
+            (
+                -1,  # DBR < 17.1
+                """
+                insert overwrite table target_table
+                partition (a)
+                select a, b from source_table
+                """,
+            ),
+            (
+                1,  # DBR > 17.1
+                """
+                insert into table target_table as t
+                replace on (t.a <=> s.a)
+                (select a, b from source_table) as s
+                """,
+            ),
+        ],
+    )
+    def test_get_insert_overwrite_sql__dbr_version_syntax(
+        self, template, context, config, dbr_version_comparison, expected_sql
+    ):
+        """Test that different DBR versions use appropriate INSERT OVERWRITE syntax"""
+        context["adapter"].compare_dbr_version.return_value = dbr_version_comparison
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -57,40 +79,6 @@ class TestInsertOverwriteMacros(MacroTestBase):
             source_relation,
             target_relation,
         )
-
-        # Verify it uses legacy INSERT OVERWRITE syntax
-        expected_sql = """
-            insert overwrite table target_table
-            partition (a)
-            select a, b from source_table
-        """
-
-        self.assert_sql_equal(result, expected_sql)
-
-    def test_get_insert_overwrite_sql__modern_dbr_version(self, template, context, config):
-        """Test that DBR >= 17.1 uses REPLACE ON syntax"""
-        # Positive return value means DBR > 17.1
-        context["adapter"].compare_dbr_version.return_value = 1
-        config["partition_by"] = ["a"]
-
-        source_relation = Mock()
-        source_relation.__str__ = lambda self: "source_table"
-        target_relation = Mock()
-        target_relation.__str__ = lambda self: "target_table"
-
-        result = self.run_macro_raw(
-            template,
-            "get_insert_overwrite_sql",
-            source_relation,
-            target_relation,
-        )
-
-        # Verify it uses REPLACE ON syntax
-        expected_sql = """
-            insert into table target_table as t
-            replace on (t.a <=> s.a)
-            (select a, b from source_table) as s
-        """
 
         self.assert_sql_equal(result, expected_sql)
 
@@ -187,7 +175,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         self, template, context, config
     ):
         """Test that behavior flag disabled on cluster still uses REPLACE ON"""
-        # Positive return value means DBR >= 17.1
+        # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
         # Cluster environment (default from setup)
         context["adapter"].is_cluster.return_value = True
@@ -249,16 +237,37 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__behavior_flag_disabled_sql_warehouse(
-        self, template, context, config
+    @pytest.mark.parametrize(
+        "use_replace_on_flag,expected_sql",
+        [
+            (
+                False,  # Behavior flag disabled
+                """
+                insert overwrite table target_table
+                partition (a)
+                select a, b from source_table
+                """,
+            ),
+            (
+                True,  # Behavior flag enabled
+                """
+                insert into table target_table as t
+                replace on (t.a <=> s.a)
+                (select a, b from source_table) as s
+                """,
+            ),
+        ],
+    )
+    def test_get_insert_overwrite_sql__sql_warehouse_behavior_flag(
+        self, template, context, config, use_replace_on_flag, expected_sql
     ):
-        """Test that behavior flag disabled on SQL warehouse uses traditional INSERT OVERWRITE"""
-        # Positive return value means DBR >= 17.1
+        """Test that SQL warehouse behavior flag controls INSERT OVERWRITE syntax"""
+        # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
         # SQL warehouse (not cluster)
         context["adapter"].is_cluster.return_value = False
-        # Disable the behavior flag
-        context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
+        # Set the behavior flag
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = use_replace_on_flag
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -272,45 +281,5 @@ class TestInsertOverwriteMacros(MacroTestBase):
             source_relation,
             target_relation,
         )
-
-        # Verify it uses traditional INSERT OVERWRITE syntax for SQL warehouse without behavior flag
-        expected_sql = """
-            insert overwrite table target_table
-            partition (a)
-            select a, b from source_table
-        """
-
-        self.assert_sql_equal(result, expected_sql)
-
-    def test_get_insert_overwrite_sql__behavior_flag_enabled_sql_warehouse(
-        self, template, context, config
-    ):
-        """Test that behavior flag enabled on SQL warehouse uses REPLACE ON syntax"""
-        # Positive return value means DBR >= 17.1
-        context["adapter"].compare_dbr_version.return_value = 1
-        # SQL warehouse (not cluster)
-        context["adapter"].is_cluster.return_value = False
-        # Enable the behavior flag
-        context["adapter"].behavior.use_replace_on_for_insert_overwrite = True
-        config["partition_by"] = ["a"]
-
-        source_relation = Mock()
-        source_relation.__str__ = lambda self: "source_table"
-        target_relation = Mock()
-        target_relation.__str__ = lambda self: "target_table"
-
-        result = self.run_macro_raw(
-            template,
-            "get_insert_overwrite_sql",
-            source_relation,
-            target_relation,
-        )
-
-        # Verify it uses REPLACE ON syntax for SQL warehouse with behavior flag enabled
-        expected_sql = """
-            insert into table target_table as t
-            replace on (t.a <=> s.a)
-            (select a, b from source_table) as s
-        """
 
         self.assert_sql_equal(result, expected_sql)
