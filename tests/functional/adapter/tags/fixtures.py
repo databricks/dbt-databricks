@@ -50,6 +50,7 @@ models:
   - name: tags
     config:
       tags: ["python"]
+      create_notebook: true
       databricks_tags:
         a: b
         c: d

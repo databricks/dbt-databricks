@@ -57,7 +57,9 @@ class TestPythonFailureModelNotebook(TestPythonFailureModel):
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
-    pass
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
