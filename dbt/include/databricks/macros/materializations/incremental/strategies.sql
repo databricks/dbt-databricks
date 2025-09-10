@@ -42,7 +42,7 @@
     {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_replace_on_for_insert_overwrite) -%}
         {{ get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) }}
     {%- else -%}
-        {#-- Use traditional INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
+        {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
         insert overwrite table {{ target_relation }}
         {{ partition_cols(label="partition") }}
         select {{ source_cols_csv }} from {{ source_relation }}
@@ -81,7 +81,7 @@
         replace on ({{ replace_conditions_csv }})
         (select {{ source_cols_csv }} from {{ source_relation }}) AS s
     {%- else -%}
-        {#-- Fallback to regular insert if no partitions or liquid clustering defined --#}
+        {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
         insert overwrite table {{ target_relation }}
         select {{ source_cols_csv }} from {{ source_relation }}
     {%- endif -%}
