@@ -33,42 +33,32 @@ class TestSparkColumn:
 class TestRenderForCreate:
     @pytest.fixture
     def column(self):
-        return DatabricksColumn("id", "INT")
+        return DatabricksColumn("`id`", "INT")
 
     def test_render_for_create__base(self, column):
-        assert column.render_for_create() == "id INT"
+        assert column.render_for_create() == "`id` INT"
 
     def test_render_for_create__not_null(self, column):
         column.not_null = True
-        assert column.render_for_create() == "id INT NOT NULL"
+        assert column.render_for_create() == "`id` INT NOT NULL"
 
     def test_render_for_create__comment(self, column):
         column.comment = "this is a column"
-        assert column.render_for_create() == "id INT COMMENT 'this is a column'"
+        assert column.render_for_create() == "`id` INT COMMENT 'this is a column'"
 
     def test_render_for_create__escaping(self, column):
         column.comment = "this is a 'column'"
-        assert column.render_for_create() == "id INT COMMENT 'this is a \\'column\\''"
+        assert column.render_for_create() == "`id` INT COMMENT 'this is a \\'column\\''"
 
 
 class TestColumnStatics:
-    @pytest.mark.parametrize(
-        "column, expected",
-        [
-            ({"name": "foo", "quote": True}, "`foo`"),
-            ({"name": "foo", "quote": False}, "foo"),
-            ({"name": "foo"}, "foo"),
-        ],
-    )
-    def test_get_name(self, column, expected):
-        assert DatabricksColumn.get_name(column) == expected
 
     @pytest.mark.parametrize(
         "columns, expected",
         [
             ([], ""),
-            ([DatabricksColumn("foo", "string")], "`foo`"),
-            ([DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")], "`foo`, `bar`"),
+            ([DatabricksColumn("`foo`", "string")], "`foo`"),
+            ([DatabricksColumn("`foo`", "string"), DatabricksColumn("`bar`", "int")], "`foo`, `bar`"),
         ],
     )
     def test_format_remove_column_list(self, columns, expected):
@@ -78,9 +68,9 @@ class TestColumnStatics:
         "columns, expected",
         [
             ([], ""),
-            ([DatabricksColumn("foo", "string")], "`foo` string"),
+            ([DatabricksColumn("`foo`", "string")], "`foo` string"),
             (
-                [DatabricksColumn("foo", "string"), DatabricksColumn("bar", "int")],
+                [DatabricksColumn("`foo`", "string"), DatabricksColumn("`bar`", "int")],
                 "`foo` string, `bar` int",
             ),
         ],
@@ -118,15 +108,15 @@ class TestDatabricksColumn:
 
         assert len(result) == 3
         assert isinstance(result[0], DatabricksColumn)
-        assert result[0].column == "id"
+        assert result[0].column == "`id`"
         assert result[0].dtype == "bigint"
         assert result[0].comment == "Primary key"
 
-        assert result[1].column == "name"
+        assert result[1].column == "`name`"
         assert result[1].dtype == "string"
         assert result[1].comment == "User name"
 
-        assert result[2].column == "nested_data"
+        assert result[2].column == "`nested_data`"
         assert result[2].dtype == "struct<field1:string,field2:int>"
         assert result[2].comment is None
 

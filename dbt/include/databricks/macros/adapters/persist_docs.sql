@@ -4,7 +4,7 @@
     {% for column in column_dict.values() %}
       {% set comment = column['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}
-      {% set column_path = relation.render() ~ '.' ~ api.Column.get_name(column) %}
+      {% set column_path = relation.render() ~ '.' ~ column['name'] %}
       {{ run_query_as(comment_on_column_sql(column_path, escaped_comment), 'alter_column_comment', fetch_result=False) }}
     {% endfor %}
   {% else %}
