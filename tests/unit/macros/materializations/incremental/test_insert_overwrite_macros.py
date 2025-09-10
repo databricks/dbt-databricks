@@ -204,16 +204,23 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__behavior_flag_disabled_old_dbr_cluster(
-        self, template, context, config
+    @pytest.mark.parametrize(
+        "use_replace_on_flag",
+        [
+            False,  # Behavior flag disabled
+            True,  # Behavior flag enabled
+        ],
+    )
+    def test_get_insert_overwrite_sql__old_dbr_cluster_behavior_flag(
+        self, template, context, config, use_replace_on_flag
     ):
-        """Test that behavior flag disabled on old DBR cluster uses traditional INSERT OVERWRITE"""
+        """Old DBR cluster always uses traditional INSERT OVERWRITE regardless of behavior flag"""
         # Negative return value means DBR < 17.1
         context["adapter"].compare_dbr_version.return_value = -1
         # Cluster environment
         context["adapter"].is_cluster.return_value = True
-        # Disable the behavior flag
-        context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
+        # Set the behavior flag (should not affect old DBR clusters)
+        context["adapter"].behavior.use_replace_on_for_insert_overwrite = use_replace_on_flag
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -228,7 +235,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
             target_relation,
         )
 
-        # Verify it uses traditional INSERT OVERWRITE syntax for old DBR cluster
+        # Verify it always uses traditional INSERT OVERWRITE syntax for old DBR cluster
         expected_sql = """
             insert overwrite table target_table
             partition (a)
