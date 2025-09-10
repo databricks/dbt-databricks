@@ -13,9 +13,15 @@ from requests import Response, Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.workspace import ImportFormat, Language
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
-from dbt.adapters.databricks.credentials import BearerAuth, DatabricksCredentials
+from dbt.adapters.databricks.credentials import (
+    BearerAuth,
+    DatabricksCredentialManager,
+    DatabricksCredentials,
+)
 from dbt.adapters.databricks.logging import logger
 
 DEFAULT_POLLING_INTERVAL = 10
@@ -86,28 +92,24 @@ class LibraryApi(DatabricksApi):
         return json_response
 
 
-class ClusterApi(DatabricksApi):
+class ClusterApi:
     def __init__(
         self,
-        session: Session,
-        host: str,
+        workspace_client: WorkspaceClient,
         libraries: LibraryApi,
         max_cluster_start_time: int = 900,
     ):
-        super().__init__(session, host, "/api/2.0/clusters")
+        self.workspace_client = workspace_client
         self.max_cluster_start_time = max_cluster_start_time
         self.libraries = libraries
 
     def status(self, cluster_id: str) -> str:
-        # https://docs.databricks.com/dev-tools/api/latest/clusters.html#get
-
-        response = self.session.get("/get", json={"cluster_id": cluster_id})
-        logger.debug(f"Cluster status response={response.content!r}")
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting status of cluster.\n {response.content!r}")
-
-        json_response = response.json()
-        return json_response.get("state", "").upper()
+        try:
+            cluster = self.workspace_client.clusters.get(cluster_id=cluster_id)
+            logger.debug(f"Cluster status: {cluster.state}")
+            return cluster.state.value if cluster.state else ""
+        except Exception as e:
+            raise DbtRuntimeError(f"Error getting status of cluster: {e}")
 
     def wait_for_cluster(self, cluster_id: str) -> None:
         start_time = time.time()
@@ -137,17 +139,24 @@ class ClusterApi(DatabricksApi):
 
         Raise an exception if the restart exceeds our timeout.
         """
+        try:
+            # Check current status first
+            current_status = self.status(cluster_id)
+            if current_status in ["RUNNING", "PENDING"]:
+                logger.debug("Cluster already running or pending, waiting for it to be ready")
+            else:
+                # Start the cluster
+                self.workspace_client.clusters.start(cluster_id=cluster_id)
+                logger.debug(f"Started cluster {cluster_id}")
 
-        # https://docs.databricks.com/dev-tools/api/latest/clusters.html#start
-
-        response = self.session.post("/start", json={"cluster_id": cluster_id})
-        if response.status_code != 200:
+            self.wait_for_cluster(cluster_id)
+        except Exception as e:
+            # Check if it's already running due to race condition
             if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
-                raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+                raise DbtRuntimeError(f"Error starting cluster: {e}")
             else:
                 logger.debug("Presuming race condition, waiting for cluster to start")
-
-        self.wait_for_cluster(cluster_id)
+                self.wait_for_cluster(cluster_id)
 
 
 class CommandContextApi(DatabricksApi):
@@ -199,22 +208,22 @@ class SharedFolderApi(FolderApi):
         return f"/Shared/dbt_python_models/{schema}/"
 
 
-class CurrUserApi(DatabricksApi):
-    def __init__(self, session: Session, host: str):
-        super().__init__(session, host, "/api/2.0/preview/scim/v2")
-        self._user = ""
+class CurrUserApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
+        self._user: Optional[str] = None
 
     def get_username(self) -> str:
         if self._user:
             return self._user
 
-        response = self.session.get("/Me")
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting current user.\n {response.content!r}")
-
-        username = response.json()["userName"]
-        self._user = username
-        return username
+        try:
+            current_user = self.workspace_client.current_user.me()
+            username = current_user.user_name
+            self._user = username
+            return username or ""
+        except Exception as e:
+            raise DbtRuntimeError(f"Error getting current user: {e}")
 
     def is_service_principal(self, username: str) -> bool:
         uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -235,58 +244,47 @@ class UserFolderApi(DatabricksApi, FolderApi):
         return folder
 
 
-class WorkspaceApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, folder_api: FolderApi):
-        super().__init__(session, host, "/api/2.0/workspace")
+class WorkspaceApi:
+    def __init__(self, workspace_client: WorkspaceClient, folder_api: FolderApi):
+        self.workspace_client = workspace_client
         self.user_api = folder_api
 
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
         folder = self.user_api.get_folder(catalog, schema)
 
-        response = self.session.post("/mkdirs", json={"path": folder})
-        if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error creating work_dir for python notebooks\n {response.content!r}"
-            )
-
-        return folder
+        try:
+            self.workspace_client.workspace.mkdirs(path=folder)
+            return folder
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating work_dir for python notebooks: {e}")
 
     def upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
-        response = self.session.post(
-            "/import",
-            json={
-                "path": path,
-                "content": b64_encoded_content,
-                "language": "PYTHON",
-                "overwrite": True,
-                "format": "SOURCE",
-            },
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
+        try:
+            self.workspace_client.workspace.import_(
+                path=path,
+                content=b64_encoded_content,
+                language=Language.PYTHON,
+                overwrite=True,
+                format=ImportFormat.SOURCE,
+            )
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating python notebook: {e}")
 
     def get_object_id(self, path: str) -> int:
         """
         Get the workspace object ID for the specified path
         """
-        response = self.session.get("/get-status", params={"path": path})
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error getting workspace object ID for {path}.\n {response.content!r}"
-            )
-
         try:
-            object_info = response.json()
-            object_id = object_info.get("object_id")
+            object_info = self.workspace_client.workspace.get_status(path=path)
+            object_id = object_info.object_id
 
             if not object_id:
                 raise DbtRuntimeError(f"No object_id found for path {path}")
 
             return object_id
         except Exception as e:
-            raise DbtRuntimeError(f"Error parsing workspace object info: {str(e)}")
+            raise DbtRuntimeError(f"Error getting workspace object ID for {path}: {e}")
 
 
 class PollableApi(DatabricksApi, ABC):
@@ -725,16 +723,18 @@ class DatabricksApiClient:
         polling_interval: int,
         timeout: int,
         use_user_folder: bool,
+        credentials: DatabricksCredentials,
     ):
+        workspace_client = DatabricksCredentialManager.create_from(credentials).api_client
         self.libraries = LibraryApi(session, host)
-        self.clusters = ClusterApi(session, host, self.libraries)
+        self.clusters = ClusterApi(workspace_client, self.libraries)
         self.command_contexts = CommandContextApi(session, host, self.clusters, self.libraries)
-        self.curr_user = CurrUserApi(session, host)
+        self.curr_user = CurrUserApi(workspace_client)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)
         else:
             self.folders = SharedFolderApi()
-        self.workspace = WorkspaceApi(session, host, self.folders)
+        self.workspace = WorkspaceApi(workspace_client, self.folders)
         self.commands = CommandApi(session, host, polling_interval, timeout)
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
@@ -744,7 +744,9 @@ class DatabricksApiClient:
 
     @staticmethod
     def create(
-        credentials: DatabricksCredentials, timeout: int, use_user_folder: bool = False
+        credentials: DatabricksCredentials,
+        timeout: int,
+        use_user_folder: bool = False,
     ) -> "DatabricksApiClient":
         polling_interval = DEFAULT_POLLING_INTERVAL
         retry_strategy = Retry(total=4, backoff_factor=0.5)
@@ -769,4 +771,7 @@ class DatabricksApiClient:
         host = credentials.host
 
         assert host is not None, "Host must be set in the credentials"
-        return DatabricksApiClient(session, host, polling_interval, timeout, use_user_folder)
+
+        return DatabricksApiClient(
+            session, host, polling_interval, timeout, use_user_folder, credentials
+        )
