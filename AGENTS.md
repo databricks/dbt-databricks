@@ -37,13 +37,22 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 
 **Install Hatch** (recommended):
 
+For Linux:
 ```bash
-# Install Hatch globally - see https://hatch.pypa.io/dev/install/
-pip install hatch
+# Download and install standalone binary
+curl -Lo hatch.tar.gz https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf hatch.tar.gz
+mkdir -p $HOME/bin
+mv hatch $HOME/bin/hatch
+chmod +x $HOME/bin/hatch
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+export PATH="$HOME/bin:$PATH"
 
 # Create default environment (Hatch installs needed Python versions)
 hatch env create
 ```
+
+For other platforms: see https://hatch.pypa.io/latest/install/
 
 **Essential commands**:
 
@@ -51,6 +60,9 @@ hatch env create
 hatch run code-quality           # Format, lint, type-check
 hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
+
+# For specific tests, use pytest directly:
+hatch run pytest path/to/test_file.py::TestClass::test_method -v
 ```
 
 > 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for comprehensive setup documentation

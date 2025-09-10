@@ -209,7 +209,7 @@ def parse_column_constraints(
                 column_names.add(column["name"])
             else:
                 constraint["columns"] = [
-                    f"`{column['name']}`" if column.get("quote") else column["name"]
+                    f"`{column['name']}`"
                 ]
                 constraints.append(parse_constraint(constraint))
 

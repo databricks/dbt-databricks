@@ -24,7 +24,7 @@ class DatabricksColumn(SparkColumn):
     @classmethod
     def create(cls, name: str, label_or_dtype: str) -> "DatabricksColumn":
         column_type = cls.translate_type(label_or_dtype)
-        return cls(name, column_type)
+        return cls(quote(name), column_type)
 
     @classmethod
     def from_json_metadata(cls, json_metadata: str) -> list["DatabricksColumn"]:
@@ -46,7 +46,7 @@ class DatabricksColumn(SparkColumn):
             col_name = col_info.get("name")
             col_type = cls._parse_type_from_json(col_info.get("type"))
             comment = col_info.get("comment")
-            columns.append(cls(column=col_name, dtype=col_type, comment=comment))
+            columns.append(cls(column=quote(col_name), dtype=col_type, comment=comment))
 
         return columns
 
@@ -139,7 +139,7 @@ class DatabricksColumn(SparkColumn):
         """Create a copy that incorporates model column metadata, including constraints."""
 
         data_type = model_column.get("data_type") or self.dtype
-        name = self.get_name(model_column)
+        name = model_column["name"]
         enriched_column = DatabricksColumn.create(name, data_type)
         if model_column.get("description"):
             enriched_column.comment = model_column["description"]
@@ -168,10 +168,6 @@ class DatabricksColumn(SparkColumn):
     def __repr__(self) -> str:
         return f"<DatabricksColumn {self.name} ({self.data_type})>"
 
-    @staticmethod
-    def get_name(column: dict[str, Any]) -> str:
-        name = column["name"]
-        return quote(name) if column.get("quote", False) else name
 
     @staticmethod
     def format_remove_column_list(columns: list["DatabricksColumn"]) -> str:
