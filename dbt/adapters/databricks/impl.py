@@ -70,7 +70,12 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
-from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
+from dbt.adapters.databricks.utils import (
+    get_first_row,
+    handle_missing_objects,
+    quote,
+    redact_credentials,
+)
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
@@ -224,6 +229,10 @@ class DatabricksAdapter(SparkAdapter):
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+
+    def quote(self, identifier):  # type: ignore[override,no-untyped-def]
+        """Override base adapter's quote method to prevent double quoting."""
+        return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(

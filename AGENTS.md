@@ -38,6 +38,7 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 **Install Hatch** (recommended):
 
 For Linux:
+
 ```bash
 # Download and install standalone binary
 curl -Lo hatch.tar.gz https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz
@@ -285,6 +286,7 @@ Models can be configured with Databricks-specific options:
 3. **SQL Generation**: Prefer macros over Python string manipulation
 4. **Testing**: Write both unit and functional tests for new features
 5. **Configuration**: Use dataclasses with validation for new config options
+6. **Imports**: Always import at the top of the file, never use local imports within functions or methods
 
 ## 🚨 Common Pitfalls for Agents
 

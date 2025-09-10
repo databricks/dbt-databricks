@@ -26,8 +26,8 @@
 {% endmacro %}
 
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list -%}
-    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='quoted') | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='name') | list -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='name') | list -%}
     {%- set common_columns = [] -%}
     {%- for dest_col in dest_columns -%}
       {%- if dest_col in source_columns -%}
@@ -59,8 +59,8 @@ TABLE {{ temp_relation.render() }}
 {% endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
-    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="quoted") | list -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
     {{ insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) }}
 {% endmacro %}
 
@@ -87,7 +87,7 @@ select {{source_cols_csv}} from {{ source_relation }}
 
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
-  {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='quoted') | list)-%}
+  {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='name') | list)-%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set merge_with_schema_evolution = (config.get('merge_with_schema_evolution') | lower == 'true') -%}

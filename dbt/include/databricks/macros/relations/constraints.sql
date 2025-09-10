@@ -223,7 +223,8 @@
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}
       {% endif %}
       {% if not "." in parent %}
-        {% set parent = relation.schema ~ "." ~ parent%}
+        {% set parent_relation = api.Relation.create(database=relation.database, schema=relation.schema, identifier=parent, type='table') %}
+        {% set parent = parent_relation.render() %}
       {% endif %}
 
       {% if not name %}
