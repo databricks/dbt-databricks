@@ -6,8 +6,7 @@ from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.tags import fixtures
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestTags:
+class BaseTestTags:
     materialized = "table"
 
     @pytest.fixture(scope="class")
@@ -31,7 +30,11 @@ class TestTags:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestTagsUpdateViaAlter(MaterializationV2Mixin):
+class TestTableTags(BaseTestTags):
+    pass
+
+
+class BaseTestTagsUpdateViaAlter(MaterializationV2Mixin):
     materialized = "table"
 
     @pytest.fixture(scope="class")
@@ -60,12 +63,17 @@ class TestTagsUpdateViaAlter(MaterializationV2Mixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestViewTags(TestTags):
+class TestTableTagsUpdateViaAlter(BaseTestTagsUpdateViaAlter):
+    pass
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestViewTags(BaseTestTags):
     materialized = "view"
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestViewTagsUpdateViaAlter(TestTagsUpdateViaAlter):
+class TestViewTagsUpdateViaAlter(BaseTestTagsUpdateViaAlter):
     materialized = "view"
 
     @pytest.fixture(scope="class")
@@ -79,29 +87,29 @@ class TestViewTagsUpdateViaAlter(TestTagsUpdateViaAlter):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalTags(TestTags):
+class TestIncrementalTags(BaseTestTags):
     materialized = "incremental"
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalTagsUpdateViaAlter(TestTagsUpdateViaAlter):
+class TestIncrementalTagsUpdateViaAlter(BaseTestTagsUpdateViaAlter):
     materialized = "incremental"
 
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestMaterializedViewTags(TestTags):
+class TestMaterializedViewTags(BaseTestTags):
     materialized = "materialized_view"
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestMaterializedViewTagsUpdateViaAlter(TestTagsUpdateViaAlter):
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewTagsUpdateViaAlter(BaseTestTagsUpdateViaAlter):
     materialized = "materialized_view"
 
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTableTags(TestTags):
+class TestStreamingTableTags(BaseTestTags):
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"my_seed.csv": MY_SEED}
@@ -117,7 +125,7 @@ class TestStreamingTableTags(TestTags):
         super().test_tags(project)
 
 
-@pytest.mark.skip_profile("databricks_cluster")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableTagsUpdateViaAlter:
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -147,8 +155,8 @@ class TestStreamingTableTagsUpdateViaAlter:
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_cluster")
-class TestPythonTags(TestTags):
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
+class TestPythonTags(BaseTestTags):
     @pytest.fixture(scope="class")
     def models(self):
         return {
