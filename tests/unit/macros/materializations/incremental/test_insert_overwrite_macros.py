@@ -44,7 +44,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that DBR < 17.1 uses the legacy DPO INSERT OVERWRITE syntax"""
         # Negative return value means DBR < 17.1
         context["adapter"].compare_dbr_version.return_value = -1
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -61,7 +61,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses legacy INSERT OVERWRITE syntax
         expected_sql = """
             insert overwrite table target_table
-            partition (partition_col)
+            partition (a)
             select a, b from source_table
         """
 
@@ -71,7 +71,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that DBR >= 17.1 uses REPLACE ON syntax"""
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -88,7 +88,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax
         expected_sql = """
             insert into table target_table as t
-            replace on (t.partition_col <=> s.partition_col)
+            replace on (t.a <=> s.a)
             (select a, b from source_table) as s
         """
 
@@ -100,7 +100,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple partition columns"""
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config["partition_by"] = ["country", "name"]
+        config["partition_by"] = ["a", "b"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -117,7 +117,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax with multiple conditions
         expected_sql = """
             insert into table target_table as t
-            replace on (t.country <=> s.country AND t.name <=> s.name)
+            replace on (t.a <=> s.a AND t.b <=> s.b)
             (select a, b from source_table) as s
         """
 
@@ -132,7 +132,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config["liquid_clustered_by"] = ["msg"]
+        config["liquid_clustered_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -149,7 +149,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax with clustering columns only
         expected_sql = """
             insert into table target_table as t
-            replace on (t.msg <=> s.msg)
+            replace on (t.a <=> s.a)
             (select a, b from source_table) as s
         """
 
@@ -193,7 +193,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = True
         # Disable the behavior flag
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -210,7 +210,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax because cluster with DBR 17.1+ always uses new syntax
         expected_sql = """
             insert into table target_table as t
-            replace on (t.partition_col <=> s.partition_col)
+            replace on (t.a <=> s.a)
             (select a, b from source_table) as s
         """
 
@@ -226,7 +226,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = True
         # Disable the behavior flag
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -243,7 +243,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses traditional INSERT OVERWRITE syntax for old DBR cluster
         expected_sql = """
             insert overwrite table target_table
-            partition (partition_col)
+            partition (a)
             select a, b from source_table
         """
 
@@ -259,7 +259,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = False
         # Disable the behavior flag
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = False
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -276,7 +276,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses traditional INSERT OVERWRITE syntax for SQL warehouse without behavior flag
         expected_sql = """
             insert overwrite table target_table
-            partition (partition_col)
+            partition (a)
             select a, b from source_table
         """
 
@@ -292,7 +292,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = False
         # Enable the behavior flag
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = True
-        config["partition_by"] = ["partition_col"]
+        config["partition_by"] = ["a"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -309,7 +309,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax for SQL warehouse with behavior flag enabled
         expected_sql = """
             insert into table target_table as t
-            replace on (t.partition_col <=> s.partition_col)
+            replace on (t.a <=> s.a)
             (select a, b from source_table) as s
         """
 
