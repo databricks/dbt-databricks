@@ -134,7 +134,10 @@ class TestInsertOverwriteMacros(MacroTestBase):
     def test_get_insert_overwrite_sql__no_partitions_and_liquid_clustered(
         self, template, context, config, dbr_version_return
     ):
-        """Test that empty partition_by and liquid_clustered_by falls back to INSERT OVERWRITE regardless of DBR version"""
+        """
+        Test that empty partition_by and liquid_clustered_by falls back to INSERT OVERWRITE
+        regardless of DBR version
+        """
         context["adapter"].compare_dbr_version.return_value = dbr_version_return
         # No partition_by set in config
 
