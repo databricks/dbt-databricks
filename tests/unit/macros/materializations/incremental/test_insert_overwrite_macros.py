@@ -64,7 +64,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
     def test_get_dynamic_insert_overwrite_sql__dbr_version_syntax(
         self, template, context, config, dbr_version_comparison, expected_sql
     ):
-        """Test that different DBR versions use appropriate INSERT OVERWRITE syntax"""
+        """Test that different DBR versions use appropriate dynamic insert overwrite syntax"""
         context["adapter"].compare_dbr_version.return_value = dbr_version_comparison
         config["partition_by"] = ["a"]
 
@@ -120,7 +120,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config["liquid_clustered_by"] = ["a"]
+        config["liquid_clustered_by"] = ["a", "b"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -144,10 +144,10 @@ class TestInsertOverwriteMacros(MacroTestBase):
         self.assert_sql_equal(result, expected_sql)
 
     @pytest.mark.parametrize("dbr_version_return", [-1, 0, 1])
-    def test_get_insert_overwrite_sql__no_partitions(
+    def test_get_insert_overwrite_sql__no_partitions_and_liquid_clustered(
         self, template, context, config, dbr_version_return
     ):
-        """Test that empty partition_by falls back to INSERT OVERWRITE regardless of DBR version"""
+        """Test that empty partition_by and liquid_clustered_by falls back to INSERT OVERWRITE regardless of DBR version"""
         context["adapter"].compare_dbr_version.return_value = dbr_version_return
         # No partition_by set in config
 
