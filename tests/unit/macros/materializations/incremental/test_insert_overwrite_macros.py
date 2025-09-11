@@ -61,7 +61,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
             ),
         ],
     )
-    def test_get_insert_overwrite_sql__dbr_version_syntax(
+    def test_get_dynamic_insert_overwrite_sql__dbr_version_syntax(
         self, template, context, config, dbr_version_comparison, expected_sql
     ):
         """Test that different DBR versions use appropriate INSERT OVERWRITE syntax"""
