@@ -82,13 +82,24 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_insert_overwrite_sql__modern_dbr_version_multiple_partitions(
-        self, template, context, config
+    @pytest.mark.parametrize(
+        "config_key,config_value,test_description",
+        [
+            ("partition_by", ["a", "b"], "multiple partition columns"),
+            (
+                "liquid_clustered_by",
+                ["a", "b"],
+                "liquid clustering columns when no partitioning is defined",
+            ),
+        ],
+    )
+    def test_get_insert_overwrite_sql__modern_dbr_version_multiple_columns(
+        self, template, context, config, config_key, config_value, test_description
     ):
-        """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple partition columns"""
+        """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple columns"""
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config["partition_by"] = ["a", "b"]
+        config[config_key] = config_value
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
@@ -103,38 +114,6 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         # Verify it uses REPLACE ON syntax with multiple conditions
-        expected_sql = """
-            insert into table target_table as t
-            replace on (t.a <=> s.a AND t.b <=> s.b)
-            (select a, b from source_table) as s
-        """
-
-        self.assert_sql_equal(result, expected_sql)
-
-    def test_get_insert_overwrite_sql__modern_dbr_version_only_clustering(
-        self, template, context, config
-    ):
-        """
-        Test that DBR >= 17.1 uses REPLACE ON syntax with liquid clustering columns when no
-        partitioning is defined
-        """
-        # Positive return value means DBR > 17.1
-        context["adapter"].compare_dbr_version.return_value = 1
-        config["liquid_clustered_by"] = ["a", "b"]
-
-        source_relation = Mock()
-        source_relation.__str__ = lambda self: "source_table"
-        target_relation = Mock()
-        target_relation.__str__ = lambda self: "target_table"
-
-        result = self.run_macro_raw(
-            template,
-            "get_insert_overwrite_sql",
-            source_relation,
-            target_relation,
-        )
-
-        # Verify it uses REPLACE ON syntax with clustering columns only
         expected_sql = """
             insert into table target_table as t
             replace on (t.a <=> s.a AND t.b <=> s.b)
