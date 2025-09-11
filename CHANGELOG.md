@@ -5,6 +5,7 @@
 - Support databricks_tags for MV/STs
 - Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
 - Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Support `insert_overwrite` incremental strategy for SQL warehouses using `REPLACE ON` for null tolerance, gated behind behavior flag ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ### Fixes
 
@@ -53,9 +54,6 @@
 ### Documentation
 
 - Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
-
-### Features
-- Support `insert_overwrite` incremental strategy for SQL warehouses using `REPLACE ON` for null tolerance, gated behind behavior flag ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ## dbt-databricks 1.10.9 (August 7, 2025)
 
