@@ -137,7 +137,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax with clustering columns only
         expected_sql = """
             insert into table target_table as t
-            replace on (t.a <=> s.a)
+            replace on (t.a <=> s.a AND t.b <=> s.b)
             (select a, b from source_table) as s
         """
 
