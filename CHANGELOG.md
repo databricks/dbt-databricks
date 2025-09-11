@@ -4,6 +4,7 @@
 ### Features
 
 - Support databricks_tags for MV/STs
+- Support `insert_overwrite` incremental strategy for SQL warehouses using `REPLACE ON` for null tolerance, gated behind behavior flag ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ### Under the Hood
 
