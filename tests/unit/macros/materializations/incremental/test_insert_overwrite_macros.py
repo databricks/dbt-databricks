@@ -52,6 +52,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
                 """,
             ),
             (
+                0,  # DBR = 17.1
+                """
+                insert into table target_table as t
+                replace on (t.a <=> s.a)
+                (select a, b from source_table) as s
+                """,
+            ),
+            (
                 1,  # DBR > 17.1
                 """
                 insert into table target_table as t
