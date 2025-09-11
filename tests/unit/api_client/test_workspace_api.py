@@ -2,6 +2,7 @@ import base64
 from unittest.mock import Mock
 
 import pytest
+from databricks.sdk.service.workspace import ImportFormat, Language
 
 from dbt.adapters.databricks.api_client import WorkspaceApi
 
@@ -38,8 +39,6 @@ class TestWorkspaceApi:
             api.upload_notebook("path", "code")
 
     def test_upload_notebook__success(self, api, workspace_client):
-        from databricks.sdk.service.workspace import ImportFormat, Language
-
         encoded = base64.b64encode(b"code").decode()
         api.upload_notebook("path", "code")
         workspace_client.workspace.import_.assert_called_once_with(

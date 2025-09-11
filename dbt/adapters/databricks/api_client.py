@@ -1,24 +1,32 @@
 import base64
-import json
 import re
 import time
-import urllib.parse
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Optional
 
 from dbt_common.exceptions import DbtRuntimeError
-from requests import Response, Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.compute import (
+    CommandStatus,
+    CommandStatusResponse,
+)
+from databricks.sdk.service.compute import Language as ComputeLanguage
+from databricks.sdk.service.iam import AccessControlRequest
+from databricks.sdk.service.jobs import (
+    JobAccessControlRequest,
+    JobSettings,
+    QueueSettings,
+    Run,
+    SubmitTask,
+)
+from databricks.sdk.service.pipelines import PipelineState
 from databricks.sdk.service.workspace import ImportFormat, Language
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.credentials import (
-    BearerAuth,
     DatabricksCredentialManager,
     DatabricksCredentials,
 )
@@ -30,43 +38,9 @@ USER_AGENT = f"dbt-databricks/{version}"
 LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
 
 
-class PrefixSession:
-    def __init__(self, session: Session, host: str, api: str):
-        self.prefix = f"https://{host}{api}"
-        self.session = session
-
-    def get(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
-    ) -> Response:
-        return self.session.get(f"{self.prefix}{suffix}", json=json, params=params)
-
-    def post(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
-    ) -> Response:
-        return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
-
-    def put(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
-    ) -> Response:
-        return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
-
-    def patch(
-        self,
-        suffix: str = "",
-        payload: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
-    ) -> Response:
-        return self.session.patch(f"{self.prefix}{suffix}", data=json.dumps(payload), params=params)
-
-
-class DatabricksApi(ABC):
-    def __init__(self, session: Session, host: str, api: str):
-        self.session = PrefixSession(session, host, api)
-
-
-class LibraryApi(DatabricksApi):
-    def __init__(self, session: Session, host: str):
-        super().__init__(session, host, "/api/2.0/libraries")
+class LibraryApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
 
     def all_libraries_installed(self, cluster_id: str) -> bool:
         status = self.get_cluster_libraries_status(cluster_id)
@@ -79,17 +53,21 @@ class LibraryApi(DatabricksApi):
             return True
 
     def get_cluster_libraries_status(self, cluster_id: str) -> dict[str, Any]:
-        response = self.session.get(
-            "/cluster-status",
-            json={"cluster_id": cluster_id},
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error getting status of libraries of a cluster.\n {response.content!r}"
+        try:
+            library_statuses = list(
+                self.workspace_client.libraries.cluster_status(cluster_id=cluster_id)
             )
+            return self._convert_library_statuses_to_legacy_format(library_statuses)
+        except Exception as e:
+            raise DbtRuntimeError(f"Error getting status of libraries of a cluster.\n {e}")
 
-        json_response = response.json()
-        return json_response
+    def _convert_library_statuses_to_legacy_format(self, library_statuses: list) -> dict[str, Any]:
+        return {
+            "library_statuses": [
+                {"status": lib_status.status.value if lib_status.status else "UNKNOWN"}
+                for lib_status in library_statuses
+            ]
+        }
 
 
 class ClusterApi:
@@ -140,34 +118,39 @@ class ClusterApi:
         Raise an exception if the restart exceeds our timeout.
         """
         try:
-            # Check current status first
-            current_status = self.status(cluster_id)
-            if current_status in ["RUNNING", "PENDING"]:
-                logger.debug("Cluster already running or pending, waiting for it to be ready")
-            else:
-                # Start the cluster
-                self.workspace_client.clusters.start(cluster_id=cluster_id)
-                logger.debug(f"Started cluster {cluster_id}")
-
+            self._start_cluster_if_needed(cluster_id)
             self.wait_for_cluster(cluster_id)
         except Exception as e:
-            # Check if it's already running due to race condition
-            if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
-                raise DbtRuntimeError(f"Error starting cluster: {e}")
-            else:
-                logger.debug("Presuming race condition, waiting for cluster to start")
-                self.wait_for_cluster(cluster_id)
+            self._handle_start_cluster_error(cluster_id, e)
+
+    def _start_cluster_if_needed(self, cluster_id: str) -> None:
+        current_status = self.status(cluster_id)
+        if current_status in ["RUNNING", "PENDING"]:
+            logger.debug("Cluster already running or pending, waiting for it to be ready")
+        else:
+            self.workspace_client.clusters.start(cluster_id=cluster_id)
+            logger.debug(f"Started cluster {cluster_id}")
+
+    def _handle_start_cluster_error(self, cluster_id: str, error: Exception) -> None:
+        if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
+            raise DbtRuntimeError(f"Error starting cluster: {error}")
+        else:
+            logger.debug("Presuming race condition, waiting for cluster to start")
 
 
-class CommandContextApi(DatabricksApi):
+class CommandContextApi:
     def __init__(
-        self, session: Session, host: str, cluster_api: ClusterApi, library_api: LibraryApi
+        self, workspace_client: WorkspaceClient, cluster_api: ClusterApi, library_api: LibraryApi
     ):
-        super().__init__(session, host, "/api/1.2/contexts")
+        self.workspace_client = workspace_client
         self.cluster_api = cluster_api
         self.library_api = library_api
 
     def create(self, cluster_id: str) -> str:
+        self._ensure_cluster_ready(cluster_id)
+        return self._create_execution_context(cluster_id)
+
+    def _ensure_cluster_ready(self, cluster_id: str) -> None:
         current_status = self.cluster_api.status(cluster_id)
 
         if current_status in ["TERMINATED", "TERMINATING"]:
@@ -179,21 +162,30 @@ class CommandContextApi(DatabricksApi):
         ):
             self.cluster_api.wait_for_cluster(cluster_id)
 
-        response = self.session.post(
-            "/create", json={"clusterId": cluster_id, "language": SUBMISSION_LANGUAGE}
-        )
-        logger.info(f"Creating execution context response={response}")
+    def _create_execution_context(self, cluster_id: str) -> str:
+        try:
+            result = self.workspace_client.command_execution.create(
+                cluster_id=cluster_id,
+                language=ComputeLanguage.PYTHON,
+            )
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating an execution context.\n {response.content!r}")
-        return response.json()["id"]
+            context_response = result.result()
+            context_id = context_response.id
+            if context_id is None:
+                raise DbtRuntimeError("Failed to create execution context: no context ID returned")
+            logger.info(f"Created execution context with id={context_id}")
+            return context_id
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating an execution context.\n {e}")
 
     def destroy(self, cluster_id: str, context_id: str) -> None:
-        response = self.session.post(
-            "/destroy", json={"clusterId": cluster_id, "contextId": context_id}
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
+        try:
+            self.workspace_client.command_execution.destroy(
+                cluster_id=cluster_id, context_id=context_id
+            )
+            logger.debug(f"Destroyed execution context {context_id} on cluster {cluster_id}")
+        except Exception as e:
+            raise DbtRuntimeError(f"Error deleting an execution context.\n {e}")
 
 
 class FolderApi(ABC):
@@ -231,9 +223,8 @@ class CurrUserApi:
 
 
 # Switch to this as part of 2.0.0 release
-class UserFolderApi(DatabricksApi, FolderApi):
-    def __init__(self, session: Session, host: str, user_api: CurrUserApi):
-        super().__init__(session, host, "/api/2.0/preview/scim/v2")
+class UserFolderApi(FolderApi):
+    def __init__(self, user_api: CurrUserApi):
         self.user_api = user_api
 
     def get_folder(self, catalog: str, schema: str) -> str:
@@ -287,42 +278,6 @@ class WorkspaceApi:
             raise DbtRuntimeError(f"Error getting workspace object ID for {path}: {e}")
 
 
-class PollableApi(DatabricksApi, ABC):
-    def __init__(self, session: Session, host: str, api: str, polling_interval: int, timeout: int):
-        super().__init__(session, host, api)
-        self.timeout = timeout
-        self.polling_interval = polling_interval
-
-    def _poll_api(
-        self,
-        url: str,
-        params: dict,
-        get_state_func: Callable[[Response], str],
-        terminal_states: set[str],
-        expected_end_state: Optional[str],
-        unexpected_end_state_func: Callable[[Response], None],
-    ) -> Response:
-        state = None
-        start = time.time()
-        exceeded_timeout = False
-        while state not in terminal_states:
-            if time.time() - start > self.timeout:
-                exceeded_timeout = True
-                break
-            # should we do exponential backoff?
-            time.sleep(self.polling_interval)
-            response = self.session.get(url, params=params)
-            if response.status_code != 200:
-                raise DbtRuntimeError(f"Error polling for completion.\n {response.content!r}")
-            state = get_state_func(response)
-        if exceeded_timeout:
-            raise DbtRuntimeError("Python model run timed out")
-        if state != expected_end_state:
-            unexpected_end_state_func(response)
-
-        return response
-
-
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class CommandExecution:
     command_id: str
@@ -337,69 +292,104 @@ class CommandExecution:
         }
 
 
-class CommandApi(PollableApi):
-    def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
-        super().__init__(session, host, "/api/1.2/commands", polling_interval, timeout)
+class CommandApi:
+    def __init__(self, workspace_client: WorkspaceClient, polling_interval: int, timeout: int):
+        self.workspace_client = workspace_client
+        self.polling_interval = polling_interval
+        self.timeout = timeout
 
     def execute(self, cluster_id: str, context_id: str, command: str) -> CommandExecution:
-        # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
-        response = self.session.post(
-            "/execute",
-            json={
-                "clusterId": cluster_id,
-                "contextId": context_id,
-                "language": SUBMISSION_LANGUAGE,
-                "command": command,
-            },
-        )
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating a command.\n {response.content!r}")
+        try:
+            # Use SDK to execute command
+            result = self.workspace_client.command_execution.execute(
+                cluster_id=cluster_id,
+                context_id=context_id,
+                language=ComputeLanguage.PYTHON,  # SUBMISSION_LANGUAGE was "python"
+                command=command,
+            )
 
-        response_json = response.json()
-        logger.debug(f"Command execution response={response_json}")
-        return CommandExecution(
-            command_id=response_json["id"], cluster_id=cluster_id, context_id=context_id
-        )
+            command_id = result.result().id
+            if command_id is None:
+                raise DbtRuntimeError("Failed to execute command: no command ID returned")
+            logger.debug(f"Command executed with id={command_id}")
+            return CommandExecution(
+                command_id=command_id, cluster_id=cluster_id, context_id=context_id
+            )
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating a command.\n {e}")
 
     def cancel(self, command: CommandExecution) -> None:
         logger.debug(f"Cancelling command {command}")
-        response = self.session.post("/cancel", json=command.model_dump())
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Cancel command {command} failed.\n {response.content!r}")
+        try:
+            self.workspace_client.command_execution.cancel(
+                cluster_id=command.cluster_id,
+                context_id=command.context_id,
+                command_id=command.command_id,
+            )
+        except Exception as e:
+            raise DbtRuntimeError(f"Cancel command {command} failed.\n {e}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
-        response = self._poll_api(
-            url="/status",
-            params={
-                "clusterId": command.cluster_id,
-                "contextId": command.context_id,
-                "commandId": command.command_id,
-            },
-            get_state_func=lambda response: response.json()["status"],
-            terminal_states={"Finished", "Error", "Cancelled"},
-            expected_end_state="Finished",
-            unexpected_end_state_func=self._get_exception,
-        ).json()
+        import time
 
-        if response["results"]["resultType"] == "error":
+        start = time.time()
+        terminal_states = {CommandStatus.FINISHED, CommandStatus.ERROR, CommandStatus.CANCELLED}
+
+        while True:
+            if time.time() - start > self.timeout:
+                raise DbtRuntimeError("Command execution timed out")
+
+            try:
+                status_response = self.workspace_client.command_execution.command_status(
+                    cluster_id=command.cluster_id,
+                    context_id=command.context_id,
+                    command_id=command.command_id,
+                )
+
+                if status_response.status in terminal_states:
+                    self._handle_terminal_state(status_response)
+                    break
+
+                time.sleep(self.polling_interval)
+
+            except Exception as e:
+                raise DbtRuntimeError(f"Error polling for command completion.\n {e}")
+
+    def _handle_terminal_state(self, status_response: CommandStatusResponse) -> None:
+        if status_response.status == CommandStatus.CANCELLED:
+            raise DbtRuntimeError("Command was cancelled")
+        elif status_response.status == CommandStatus.ERROR:
+            error_msg = self._extract_error_message(status_response)
             raise DbtRuntimeError(
-                f"Python model failed with traceback as:\n"
-                f"{utils.remove_ansi(response['results']['cause'])}"
+                f"Python model run ended in state {status_response.status.value} "
+                f"with state_message\n{error_msg}"
+            )
+        elif status_response.status == CommandStatus.FINISHED:
+            self._check_for_execution_error(status_response)
+
+    def _extract_error_message(self, status_response: CommandStatusResponse) -> str:
+        if status_response.results and hasattr(status_response.results, "data"):
+            data = status_response.results.data
+            return str(data) if data is not None else "Unknown error"
+        return "Unknown error"
+
+    def _check_for_execution_error(self, status_response: CommandStatusResponse) -> None:
+        if (
+            status_response.results
+            and hasattr(status_response.results, "result_type")
+            and status_response.results.result_type == "error"
+        ):
+            error_cause = getattr(status_response.results, "cause", "Unknown error")
+            raise DbtRuntimeError(
+                f"Python model failed with traceback as:\n{utils.remove_ansi(error_cause)}"
             )
 
-    def _get_exception(self, response: Response) -> None:
-        response_json = response.json()
-        state = response_json["status"]
-        state_message = response_json["results"]["data"]
-        raise DbtRuntimeError(
-            f"Python model run ended in state {state} with state_message\n{state_message}"
-        )
 
-
-class JobRunsApi(PollableApi):
-    def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
-        super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
+class JobRunsApi:
+    def __init__(self, workspace_client: WorkspaceClient, polling_interval: int, timeout: int):
+        self.workspace_client = workspace_client
+        self.timeout = timeout
+        self.polling_interval = polling_interval
 
     def submit(
         self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
@@ -408,22 +398,68 @@ class JobRunsApi(PollableApi):
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
             " and additional_job_settings={additional_job_settings}"
         )
-        submit_response = self.session.post(
-            "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
-        )
-        if submit_response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
+        try:
+            tasks = self._convert_job_spec_to_tasks(job_spec)
+            submit_result = self._submit_job_to_databricks(
+                run_name, tasks, job_spec, additional_job_settings
+            )
+            return self._extract_run_id(submit_result)
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating python run.\n {e}")
 
-        logger.info(f"Job submission response={submit_response.content!r}")
-        return submit_response.json()["run_id"]
+    def _convert_job_spec_to_tasks(self, job_spec: dict[str, Any]) -> list:
+        # Convert job_spec to be compatible with SubmitTask
+        task_spec = job_spec.copy()
+
+        # Convert cluster_id to existing_cluster_id if present
+        if "cluster_id" in task_spec:
+            task_spec["existing_cluster_id"] = task_spec.pop("cluster_id")
+
+        # Remove fields that are not part of SubmitTask and should be handled separately
+        task_spec.pop("access_control_list", None)  # Handled via permissions API
+        task_spec.pop("queue", None)  # Handled in submission parameters
+
+        return [SubmitTask.from_dict(task_spec)]
+
+    def _submit_job_to_databricks(
+        self,
+        run_name: str,
+        tasks: list,
+        job_spec: dict[str, Any],
+        additional_job_settings: dict[str, Any],
+    ) -> Any:
+        # Extract submission-level parameters from job_spec
+        submission_params = {"run_name": run_name, "tasks": tasks}
+
+        # Handle queue settings
+        if "queue" in job_spec:
+            submission_params["queue"] = QueueSettings.from_dict(job_spec["queue"])
+
+        # Handle access control list
+        if "access_control_list" in job_spec:
+            submission_params["access_control_list"] = [
+                JobAccessControlRequest.from_dict(acl) for acl in job_spec["access_control_list"]
+            ]
+
+        # Add any additional job settings
+        submission_params.update(additional_job_settings)
+
+        return self.workspace_client.jobs.submit(**submission_params)
+
+    def _extract_run_id(self, submit_result: Any) -> str:
+        run_id = str(submit_result.run_id)
+        logger.info(f"Job submitted successfully with run_id={run_id}")
+        return run_id
 
     def get_run_info(self, run_id: str) -> dict[str, Any]:
-        response = self.session.get("/get", params={"run_id": run_id})
+        try:
+            run = self.workspace_client.jobs.get_run(run_id=int(run_id))
+            return self._convert_run_to_legacy_format(run)
+        except Exception as e:
+            raise DbtRuntimeError(f"Error getting run info.\n {e}")
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting run info.\n {response.content!r}")
-
-        return response.json()
+    def _convert_run_to_legacy_format(self, run: Any) -> dict[str, Any]:
+        return run.as_dict()
 
     def get_job_id_from_run_id(self, run_id: str) -> str:
         run_info = self.get_run_info(run_id)
@@ -435,23 +471,45 @@ class JobRunsApi(PollableApi):
         return str(job_id)
 
     def poll_for_completion(self, run_id: str) -> None:
-        self._poll_api(
-            url="/get",
-            params={"run_id": run_id},
-            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
-            terminal_states={"TERMINATED", "SKIPPED", "INTERNAL_ERROR"},
-            expected_end_state=None,
-            unexpected_end_state_func=self._get_exception,
-        )
+        import time
 
-    def _get_exception(self, response: Response) -> None:
-        response_json = response.json()
-        state = response_json["state"]
-        result_state = state.get("result_state")
-        life_cycle_state = state["life_cycle_state"]
+        start = time.time()
+        terminal_states = {"TERMINATED", "SKIPPED", "INTERNAL_ERROR"}
+
+        while True:
+            if time.time() - start > self.timeout:
+                raise DbtRuntimeError("Python model run timed out")
+
+            try:
+                run = self.workspace_client.jobs.get_run(run_id=int(run_id))
+                state = run.state
+
+                if not state:
+                    time.sleep(self.polling_interval)
+                    continue
+
+                life_cycle_state = state.life_cycle_state.value if state.life_cycle_state else ""
+
+                if life_cycle_state in terminal_states:
+                    # Handle the terminal state
+                    self._handle_terminal_state(run)
+                    break
+
+                time.sleep(self.polling_interval)
+
+            except Exception as e:
+                raise DbtRuntimeError(f"Error polling for completion.\n {e}")
+
+    def _handle_terminal_state(self, run: Run) -> None:
+        state = run.state
+        if not state:
+            return
+
+        result_state = state.result_state.value if state.result_state else None
+        life_cycle_state = state.life_cycle_state.value if state.life_cycle_state else ""
+        state_message = state.state_message or ""
 
         # Add detailed logging for debugging
-        logger.debug(f"[Python Model Debug] Full response state: {state}")
         logger.debug(f"[Python Model Debug] Life cycle state: {life_cycle_state}")
         logger.debug(f"[Python Model Debug] Result state: {result_state}")
 
@@ -459,319 +517,347 @@ class JobRunsApi(PollableApi):
             raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
 
         if life_cycle_state != "TERMINATED":
-            try:
-                # Log task information for debugging
-                tasks = response_json.get("tasks", [])
-                logger.debug(f"[Python Model Debug] Tasks in response: {len(tasks)}")
-                for i, task in enumerate(tasks):
-                    logger.debug(f"[Python Model Debug] Task {i}: {task}")
-
-                task_id = response_json["tasks"][0]["run_id"]
-                logger.debug(f"[Python Model Debug] Getting output for task_id: {task_id}")
-
-                # get end state to return to user
-                run_output = self.session.get("/get-output", params={"run_id": task_id})
-                json_run_output = run_output.json()
-
-                # Log the full output for debugging
-                logger.debug(f"[Python Model Debug] Run output status: {run_output.status_code}")
-                logger.debug(
-                    f"[Python Model Debug] Run output keys: {list(json_run_output.keys())}"
-                )
-
-                # Extract more detailed error information
-                error_msg = json_run_output.get("error", "No error message available")
-                error_trace = utils.remove_ansi(json_run_output.get("error_trace", ""))
-
-                # Check for specific Python model issues
-                if "error_trace" in json_run_output:
-                    logger.debug(f"[Python Model Debug] Error trace found: {error_trace[:500]}...")
-
-                # Include run ID and task information in error
-                run_id = response_json.get("run_id")
-                raise DbtRuntimeError(
-                    f"Python model failed (run_id: {run_id}, task_id: {task_id})\n"
-                    "Traceback:\n"
-                    "(Note that the line number here does not "
-                    "match the line number in your code due to dbt templating)\n"
-                    f"{error_msg}\n"
-                    f"{error_trace}"
-                )
-
-            except Exception as e:
-                if isinstance(e, DbtRuntimeError):
-                    raise e
-                else:
-                    # Log the exception for debugging
-                    logger.debug(f"[Python Model Debug] Exception during error extraction: {e}")
-                    state_message = response.json()["state"]["state_message"]
-
-                    # Include more context in error
-                    raise DbtRuntimeError(
-                        f"Python model run ended in state {life_cycle_state} "
-                        f"(run_id: {response_json.get('run_id')})\n"
-                        f"State message: {state_message}\n"
-                        f"Result state: {result_state}"
-                    )
+            self._handle_non_terminated_failure(
+                run, life_cycle_state, state_message, result_state or ""
+            )
 
     def cancel(self, run_id: str) -> None:
         logger.debug(f"Cancelling run id {run_id}")
-        response = self.session.post("/cancel", json={"run_id": run_id})
+        try:
+            self.workspace_client.jobs.cancel_run(run_id=int(run_id))
+        except Exception as e:
+            raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {e}")
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Cancel run {run_id} failed.\n {response.content!r}")
+    def _handle_non_terminated_failure(
+        self, run: Any, life_cycle_state: str, state_message: str, result_state: str
+    ) -> None:
+        try:
+            tasks = run.tasks or []
+            self._log_task_debug_info(tasks)
+
+            if tasks:
+                task_id = tasks[0].run_id
+                error_msg, error_trace = self._extract_task_error_details(task_id)
+                self._raise_detailed_python_model_error(run.run_id, task_id, error_msg, error_trace)
+
+        except Exception as e:
+            if isinstance(e, DbtRuntimeError):
+                raise e
+            else:
+                logger.debug(f"[Python Model Debug] Exception during error extraction: {e}")
+                raise DbtRuntimeError(
+                    f"Python model run ended in state {life_cycle_state} "
+                    f"(run_id: {run.run_id})\n"
+                    f"State message: {state_message}\n"
+                    f"Result state: {result_state}"
+                )
+
+    def _log_task_debug_info(self, tasks: list) -> None:
+        logger.debug(f"[Python Model Debug] Tasks in response: {len(tasks)}")
+        for i, task in enumerate(tasks):
+            logger.debug(f"[Python Model Debug] Task {i}: {task}")
+
+    def _extract_task_error_details(self, task_id: Any) -> tuple[str, str]:
+        if task_id:
+            logger.debug(f"[Python Model Debug] Getting output for task_id: {task_id}")
+            run_output = self.workspace_client.jobs.get_run_output(run_id=task_id)
+            error_msg = run_output.error or "No error message available"
+            error_trace = utils.remove_ansi(run_output.error_trace or "")
+
+            if error_trace:
+                logger.debug(f"[Python Model Debug] Error trace found: {error_trace[:500]}...")
+
+            return error_msg, error_trace
+        else:
+            return "No error message available", ""
+
+    def _raise_detailed_python_model_error(
+        self, run_id: Any, task_id: Any, error_msg: str, error_trace: str
+    ) -> None:
+        raise DbtRuntimeError(
+            f"Python model failed (run_id: {run_id}, task_id: {task_id})\n"
+            "Traceback:\n"
+            "(Note that the line number here does not "
+            "match the line number in your code due to dbt templating)\n"
+            f"{error_msg}\n"
+            f"{error_trace}"
+        )
 
 
-class JobPermissionsApi(DatabricksApi):
-    def __init__(self, session: Session, host: str):
-        super().__init__(session, host, "/api/2.0/permissions/jobs")
+class JobPermissionsApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
 
     def put(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
-        request_body = {"access_control_list": access_control_list}
+        try:
+            # Convert dict access control list to SDK AccessControlRequest objects
+            access_control_requests = [
+                AccessControlRequest.from_dict(acl) for acl in access_control_list
+            ]
 
-        response = self.session.put(f"/{job_id}", json=request_body)
-        logger.debug(f"Workflow permissions update response={response.json()}")
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+            result = self.workspace_client.permissions.set(
+                request_object_type="jobs",
+                request_object_id=job_id,
+                access_control_list=access_control_requests,
+            )
+            logger.debug(f"Workflow permissions update response={result}")
+        except Exception as e:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {e}")
 
     def patch(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
-        request_body = {"access_control_list": access_control_list}
+        try:
+            # Convert dict access control list to SDK AccessControlRequest objects
+            access_control_requests = [
+                AccessControlRequest.from_dict(acl) for acl in access_control_list
+            ]
 
-        response = self.session.patch(f"/{job_id}", payload=request_body)
-        logger.debug(f"Workflow permissions update response={response.json()}")
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+            result = self.workspace_client.permissions.update(
+                request_object_type="jobs",
+                request_object_id=job_id,
+                access_control_list=access_control_requests,
+            )
+            logger.debug(f"Workflow permissions update response={result}")
+        except Exception as e:
+            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {e}")
 
     def get(self, job_id: str) -> dict[str, Any]:
-        response = self.session.get(f"/{job_id}")
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error fetching Databricks workflow permissions.\n {response.content!r}"
+        try:
+            result = self.workspace_client.permissions.get(
+                request_object_type="jobs", request_object_id=job_id
             )
+            # Convert SDK ObjectPermissions to dict for backward compatibility
+            return result.as_dict()
+        except Exception as e:
+            raise DbtRuntimeError(f"Error fetching Databricks workflow permissions.\n {e}")
 
-        return response.json()
 
-
-class NotebookPermissionsApi(DatabricksApi):
-    def __init__(self, session: Session, host: str, workspace_api: "WorkspaceApi"):
-        super().__init__(session, host, "/api/2.0/permissions/notebooks")
+class NotebookPermissionsApi:
+    def __init__(self, workspace_client: WorkspaceClient, workspace_api: "WorkspaceApi"):
+        self.workspace_client = workspace_client
         self.workspace_api = workspace_api
 
     def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
-        request_body = {"access_control_list": access_control_list}
+        try:
+            # Get the notebook's object ID from workspace API
+            object_id = self.workspace_api.get_object_id(notebook_path)
 
-        object_id = self.workspace_api.get_object_id(notebook_path)
-        encoded_id = urllib.parse.quote(str(object_id))
+            # Convert dict access control list to SDK AccessControlRequest objects
+            access_control_requests = [
+                AccessControlRequest.from_dict(acl) for acl in access_control_list
+            ]
 
-        logger.debug(
-            f"Setting notebook permissions for path={notebook_path}, object_id={object_id}"
-        )
-        logger.debug(f"Permission request body: {request_body}")
-
-        response = self.session.put(f"/{encoded_id}", json=request_body)
-
-        if response.status_code != 200:
-            error_msg = (
-                f"Error updating Databricks notebook permissions.\n"
-                f"path={notebook_path}, object_id={object_id}\n"
-                f"request_body={request_body}\n"
-                f"response={response.content!r}"
+            logger.debug(
+                f"Setting notebook permissions for path={notebook_path}, object_id={object_id}"
             )
-            logger.error(error_msg)
-            raise DbtRuntimeError(error_msg)
+            logger.debug(f"Permission request: {access_control_list}")
+
+            result = self.workspace_client.permissions.set(
+                request_object_type="notebooks",
+                request_object_id=str(object_id),
+                access_control_list=access_control_requests,
+            )
+            logger.debug(f"Notebook permissions update response={result}")
+        except Exception as e:
+            raise DbtRuntimeError(
+                f"Error updating Databricks notebook permissions.\npath={notebook_path}, error: {e}"
+            )
 
     def get(self, notebook_path: str) -> dict[str, Any]:
-        object_id = self.workspace_api.get_object_id(notebook_path)
-        encoded_id = urllib.parse.quote(str(object_id))
+        try:
+            # Get the notebook's object ID from workspace API
+            object_id = self.workspace_api.get_object_id(notebook_path)
 
-        logger.debug(
-            f"Getting notebook permissions for path={notebook_path}, object_id={object_id}"
-        )
-
-        response = self.session.get(f"/{encoded_id}")
-
-        if response.status_code != 200:
-            error_msg = (
-                f"Error fetching Databricks notebook permissions.\n"
-                f"path={notebook_path}, object_id={object_id}\n"
-                f"response={response.content!r}"
+            logger.debug(
+                f"Getting notebook permissions for path={notebook_path}, object_id={object_id}"
             )
-            logger.error(error_msg)
-            raise DbtRuntimeError(error_msg)
 
-        return response.json()
+            result = self.workspace_client.permissions.get(
+                request_object_type="notebooks",
+                request_object_id=str(object_id),
+            )
+
+            # Convert SDK response back to dict format for backward compatibility
+            return result.as_dict()
+        except Exception as e:
+            raise DbtRuntimeError(
+                f"Error fetching Databricks notebook permissions.\npath={notebook_path}, error: {e}"
+            )
 
 
-class WorkflowJobApi(DatabricksApi):
-    def __init__(self, session: Session, host: str):
-        super().__init__(session, host, "/api/2.1/jobs")
+class WorkflowJobApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
 
     def search_by_name(self, job_name: str) -> list[dict[str, Any]]:
-        response = self.session.get("/list", json={"name": job_name})
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error fetching job by name.\n {response.content!r}")
-
-        return response.json().get("jobs", [])
+        try:
+            # Use SDK to list jobs by name
+            jobs = list(self.workspace_client.jobs.list(name=job_name))
+            # Convert SDK BaseJob objects to dict format for backward compatibility
+            return [job.as_dict() for job in jobs]
+        except Exception as e:
+            raise DbtRuntimeError(f"Error fetching job by name.\n {e}")
 
     def create(self, job_spec: dict[str, Any]) -> str:
         """
         :return: the job_id
         """
-        response = self.session.post("/create", json=job_spec)
+        try:
+            # Convert job_spec to be compatible with jobs.create
+            converted_job_spec = self._convert_job_spec_for_create(job_spec)
+            create_response = self.workspace_client.jobs.create(**converted_job_spec)
+            job_id = str(create_response.job_id)
+            logger.info(f"New workflow created with job id {job_id}")
+            return job_id
+        except Exception as e:
+            raise DbtRuntimeError(f"Error creating Workflow.\n {e}")
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating Workflow.\n {response.content!r}")
+    def _convert_job_spec_for_create(self, job_spec: dict[str, Any]) -> dict[str, Any]:
+        """Convert job_spec to be compatible with jobs.create API."""
+        converted_spec = job_spec.copy()
 
-        job_id = response.json()["job_id"]
-        logger.info(f"New workflow created with job id {job_id}")
-        return job_id
+        # Convert tasks if present
+        if "tasks" in converted_spec and converted_spec["tasks"]:
+            converted_tasks = []
+            for task in converted_spec["tasks"]:
+                converted_task = task.copy()
+                # Convert cluster_id to existing_cluster_id if present
+                if "cluster_id" in converted_task:
+                    converted_task["existing_cluster_id"] = converted_task.pop("cluster_id")
+                converted_tasks.append(converted_task)
+            converted_spec["tasks"] = converted_tasks
+
+        return converted_spec
 
     def update_job_settings(self, job_id: str, job_spec: dict[str, Any]) -> None:
-        request_body = {
-            "job_id": job_id,
-            "new_settings": job_spec,
-        }
-        logger.debug(f"Job settings: {request_body}")
-        response = self.session.post("/reset", json=request_body)
-
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Workflow.\n {response.content!r}")
-
-        logger.debug(f"Workflow update response={response.json()}")
+        try:
+            # Convert job_spec to be compatible with jobs.reset
+            converted_job_spec = self._convert_job_spec_for_create(job_spec)
+            # Use SDK to reset job settings
+            # Convert job_spec to JobSettings object
+            new_settings = JobSettings.from_dict(converted_job_spec)
+            self.workspace_client.jobs.reset(job_id=int(job_id), new_settings=new_settings)
+            logger.debug(f"Workflow updated for job_id={job_id}")
+        except Exception as e:
+            raise DbtRuntimeError(f"Error updating Workflow.\n {e}")
 
     def run(self, job_id: str, enable_queueing: bool = True) -> str:
-        request_body = {
-            "job_id": job_id,
-            "queue": {
-                "enabled": enable_queueing,
-            },
-        }
-        response = self.session.post("/run-now", json=request_body)
+        try:
+            # Use SDK to run job now
+            queue_settings = QueueSettings(enabled=enable_queueing)
 
-        if response.status_code != 200:
-            raise DbtRuntimeError(f"Error triggering run for workflow.\n {response.content!r}")
+            run_result = self.workspace_client.jobs.run_now(
+                job_id=int(job_id), queue=queue_settings
+            )
 
-        response_json = response.json()
-        logger.info(f"Workflow trigger response={response_json}")
-
-        return response_json["run_id"]
+            run_id = str(run_result.run_id)
+            logger.info(f"Workflow triggered with run_id={run_id}")
+            return run_id
+        except Exception as e:
+            raise DbtRuntimeError(f"Error triggering run for workflow.\n {e}")
 
 
-class DltPipelineApi(PollableApi):
-    def __init__(self, session: Session, host: str, polling_interval: int):
-        super().__init__(session, host, "/api/2.0/pipelines", polling_interval, 60 * 60)
+class DltPipelineApi:
+    def __init__(self, workspace_client: WorkspaceClient, polling_interval: int):
+        self.workspace_client = workspace_client
+        self.polling_interval = polling_interval
 
     def poll_for_completion(self, pipeline_id: str) -> None:
-        self._poll_api(
-            url=f"/{pipeline_id}",
-            params={},
-            get_state_func=lambda response: response.json()["state"],
-            terminal_states={"IDLE", "FAILED", "DELETED"},
-            expected_end_state="IDLE",
-            unexpected_end_state_func=self._get_exception,
-        )
-
-    def _get_exception(self, response: Response) -> None:
-        response_json = response.json()
-        cause = response_json.get("cause")
-        if cause:
-            raise DbtRuntimeError(f"Pipeline {response_json.get('pipeline_id')} failed: {cause}")
-        else:
-            latest_update = response_json.get("latest_updates")[0]
-            last_error = self.get_update_error(response_json.get("pipeline_id"), latest_update)
-            raise DbtRuntimeError(
-                f"Pipeline {response_json.get('pipeline_id')} failed: {last_error}"
+        try:
+            # Use SDK's built-in wait method that polls until pipeline is IDLE
+            self.workspace_client.pipelines.wait_get_pipeline_idle(
+                pipeline_id=pipeline_id,
+                timeout=timedelta(hours=1),  # 60 * 60 seconds = 1 hour timeout
             )
+            logger.debug(f"Pipeline {pipeline_id} completed successfully")
+        except Exception as e:
+            # Get more detailed error information
+            try:
+                pipeline = self.workspace_client.pipelines.get(pipeline_id=pipeline_id)
+                if pipeline.state == PipelineState.FAILED:
+                    # Try to get error details from the latest update
+                    if pipeline.latest_updates:
+                        latest_update = pipeline.latest_updates[0]
+                        update_id = latest_update.update_id
+                        if update_id is not None:
+                            error_msg = self.get_update_error(pipeline_id, update_id)
+                            if error_msg:
+                                raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {error_msg}")
+
+                    # Fallback to generic error
+                    raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {str(e)}")
+                else:
+                    raise DbtRuntimeError(f"Pipeline {pipeline_id} polling failed: {str(e)}")
+            except DbtRuntimeError:
+                # Re-raise DbtRuntimeError as-is (don't wrap it)
+                raise
+            except Exception:
+                # For other exceptions, use the original error
+                raise DbtRuntimeError(f"Pipeline {pipeline_id} failed: {str(e)}")
 
     def get_update_error(self, pipeline_id: str, update_id: str) -> str:
-        response = self.session.get(f"/{pipeline_id}/events")
-        if response.status_code != 200:
-            raise DbtRuntimeError(
-                f"Error getting pipeline event info for {pipeline_id}: {response.text}"
+        try:
+            # Get pipeline events using SDK
+            events_response = self.workspace_client.pipelines.list_pipeline_events(
+                pipeline_id=pipeline_id
             )
 
-        events = response.json().get("events", [])
-        update_events = [
-            e
-            for e in events
-            if e.get("event_type", "") == "update_progress"
-            and e.get("origin", {}).get("update_id") == update_id
-        ]
+            # Filter events for the specific update and error state
+            update_events = [
+                event
+                for event in events_response
+                if (
+                    event.event_type == "update_progress"
+                    and event.origin
+                    and event.origin.update_id == update_id
+                )
+            ]
 
-        error_events = [
-            e
-            for e in update_events
-            if e.get("details", {}).get("update_progress", {}).get("state", "") == "FAILED"
-        ]
+            # Look for events with error information
+            error_events = [
+                event
+                for event in update_events
+                if event.error is not None
+                or (
+                    event.message
+                    and ("error" in event.message.lower() or "fail" in event.message.lower())
+                )
+            ]
 
-        msg = ""
-        if error_events:
-            msg = error_events[0].get("message", "")
+            if error_events:
+                error_event = error_events[0]
+                if error_event.error:
+                    return str(error_event.error)
+                elif error_event.message:
+                    return error_event.message
+                else:
+                    return "Pipeline update failed"
 
-        return msg
+            return ""
+        except Exception as e:
+            raise DbtRuntimeError(f"Error getting pipeline event info for {pipeline_id}: {str(e)}")
 
 
 class DatabricksApiClient:
     def __init__(
         self,
-        session: Session,
-        host: str,
-        polling_interval: int,
-        timeout: int,
-        use_user_folder: bool,
-        credentials: DatabricksCredentials,
-    ):
-        workspace_client = DatabricksCredentialManager.create_from(credentials).api_client
-        self.libraries = LibraryApi(session, host)
-        self.clusters = ClusterApi(workspace_client, self.libraries)
-        self.command_contexts = CommandContextApi(session, host, self.clusters, self.libraries)
-        self.curr_user = CurrUserApi(workspace_client)
-        if use_user_folder:
-            self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)
-        else:
-            self.folders = SharedFolderApi()
-        self.workspace = WorkspaceApi(workspace_client, self.folders)
-        self.commands = CommandApi(session, host, polling_interval, timeout)
-        self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
-        self.workflows = WorkflowJobApi(session, host)
-        self.workflow_permissions = JobPermissionsApi(session, host)
-        self.notebook_permissions = NotebookPermissionsApi(session, host, self.workspace)
-        self.dlt_pipelines = DltPipelineApi(session, host, polling_interval)
-
-    @staticmethod
-    def create(
         credentials: DatabricksCredentials,
         timeout: int,
         use_user_folder: bool = False,
-    ) -> "DatabricksApiClient":
-        polling_interval = DEFAULT_POLLING_INTERVAL
-        retry_strategy = Retry(total=4, backoff_factor=0.5)
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session = Session()
-        session.mount("https://", adapter)
-
-        invocation_env = credentials.get_invocation_env()
-        user_agent = USER_AGENT
-        if invocation_env:
-            user_agent = f"{user_agent} ({invocation_env})"
-
-        connection_parameters = credentials.connection_parameters.copy()  # type: ignore[union-attr]
-
-        http_headers = credentials.get_all_http_headers(
-            connection_parameters.pop("http_headers", {})
-        )
-        header_factory = credentials.authenticate().credentials_provider()
-        session.auth = BearerAuth(header_factory)
-
-        session.headers.update({"User-Agent": user_agent, **http_headers})
-        host = credentials.host
-
-        assert host is not None, "Host must be set in the credentials"
-
-        return DatabricksApiClient(
-            session, host, polling_interval, timeout, use_user_folder, credentials
-        )
+        polling_interval: int = DEFAULT_POLLING_INTERVAL,
+    ):
+        workspace_client = DatabricksCredentialManager.create_from(credentials).api_client
+        self.libraries = LibraryApi(workspace_client)
+        self.clusters = ClusterApi(workspace_client, self.libraries)
+        self.command_contexts = CommandContextApi(workspace_client, self.clusters, self.libraries)
+        self.curr_user = CurrUserApi(workspace_client)
+        if use_user_folder:
+            self.folders: FolderApi = UserFolderApi(self.curr_user)
+        else:
+            self.folders = SharedFolderApi()
+        self.workspace = WorkspaceApi(workspace_client, self.folders)
+        self.commands = CommandApi(workspace_client, polling_interval, timeout)
+        self.job_runs = JobRunsApi(workspace_client, polling_interval, timeout)
+        self.workflows = WorkflowJobApi(workspace_client)
+        self.workflow_permissions = JobPermissionsApi(workspace_client)
+        self.notebook_permissions = NotebookPermissionsApi(workspace_client, self.workspace)
+        self.dlt_pipelines = DltPipelineApi(workspace_client, polling_interval)

@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 import freezegun
 import pytest
+from databricks.sdk.service.compute import State
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import ClusterApi
@@ -27,8 +28,6 @@ class TestClusterApi:
             api.status("cluster_id")
 
     def test_status__success(self, api, workspace_client):
-        from databricks.sdk.service.compute import State
-
         mock_cluster = Mock()
         mock_cluster.state = State.RUNNING
         workspace_client.clusters.get.return_value = mock_cluster
@@ -39,8 +38,6 @@ class TestClusterApi:
 
     @patch("dbt.adapters.databricks.api_client.time.sleep")
     def test_wait_for_cluster__success(self, mock_sleep, api, workspace_client, library_api):
-        from databricks.sdk.service.compute import State
-
         # Mock cluster states: first PENDING, then RUNNING
         mock_cluster_pending = Mock()
         mock_cluster_pending.state = State.PENDING
@@ -57,8 +54,6 @@ class TestClusterApi:
     @freezegun.freeze_time("2020-01-01", auto_tick_seconds=900)
     @patch("dbt.adapters.databricks.api_client.time.sleep")
     def test_wait_for_cluster__timeout(self, mock_sleep, api, workspace_client):
-        from databricks.sdk.service.compute import State
-
         mock_cluster = Mock()
         mock_cluster.state = State.PENDING
         workspace_client.clusters.get.return_value = mock_cluster
@@ -67,8 +62,6 @@ class TestClusterApi:
             api.wait_for_cluster("cluster_id")
 
     def test_start__success(self, api, workspace_client, library_api):
-        from databricks.sdk.service.compute import State
-
         # Mock cluster starting from TERMINATED state
         mock_cluster_terminated = Mock()
         mock_cluster_terminated.state = State.TERMINATED

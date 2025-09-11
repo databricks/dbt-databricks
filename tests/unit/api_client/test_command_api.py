@@ -2,16 +2,21 @@ from unittest.mock import Mock, patch
 
 import freezegun
 import pytest
+from databricks.sdk.service.compute import CommandStatus, CommandStatusResponse
+from databricks.sdk.service.compute import Language as ComputeLanguage
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import CommandApi, CommandExecution
-from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestCommandApi(ApiTestBase):
+class TestCommandApi:
     @pytest.fixture
-    def api(self, session, host):
-        return CommandApi(session, host, 1, 2)
+    def workspace_client(self):
+        return Mock()
+
+    @pytest.fixture
+    def api(self, workspace_client):
+        return CommandApi(workspace_client, 1, 2)
 
     @pytest.fixture
     def execution(self):
@@ -19,96 +24,119 @@ class TestCommandApi(ApiTestBase):
             command_id="command_id", cluster_id="cluster_id", context_id="context_id"
         )
 
-    def test_execute__non_200(self, api, session):
-        self.assert_non_200_raises_error(
-            lambda: api.execute("cluster_id", "context_id", "command"), session
+    def test_execute__exception(self, api, workspace_client):
+        workspace_client.command_execution.execute.side_effect = Exception("API Error")
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            api.execute("cluster_id", "context_id", "command")
+
+        assert "Error creating a command" in str(exc_info.value)
+
+    def test_execute__success(self, api, workspace_client, execution):
+        mock_result = Mock()
+        mock_result.result.return_value.id = "command_id"
+        workspace_client.command_execution.execute.return_value = mock_result
+
+        result = api.execute("cluster_id", "context_id", "command")
+
+        assert result == execution
+        workspace_client.command_execution.execute.assert_called_once_with(
+            cluster_id="cluster_id",
+            context_id="context_id",
+            command="command",
+            language=ComputeLanguage.PYTHON,
         )
 
-    def test_execute__200(self, api, session, host, execution):
-        session.post.return_value.status_code = 200
-        session.post.return_value.json.return_value = {"id": "command_id"}
-        assert api.execute("cluster_id", "context_id", "command") == execution
-        session.post.assert_called_once_with(
-            f"https://{host}/api/1.2/commands/execute",
-            json={
-                "clusterId": "cluster_id",
-                "contextId": "context_id",
-                "command": "command",
-                "language": "python",
-            },
-            params=None,
+    def test_cancel__exception(self, api, workspace_client):
+        workspace_client.command_execution.cancel.side_effect = Exception("API Error")
+        execution = CommandExecution(
+            command_id="command_id", cluster_id="cluster_id", context_id="context_id"
         )
 
-    def test_cancel__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.cancel(Mock()), session)
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            api.cancel(execution)
 
-    def test_cancel__200(self, api, session, host, execution):
-        session.post.return_value.status_code = 200
+        assert "Cancel command" in str(exc_info.value)
+
+    def test_cancel__success(self, api, workspace_client, execution):
         api.cancel(execution)
-        session.post.assert_called_once_with(
-            f"https://{host}/api/1.2/commands/cancel",
-            json={
-                "commandId": "command_id",
-                "clusterId": "cluster_id",
-                "contextId": "context_id",
-            },
-            params=None,
+        workspace_client.command_execution.cancel.assert_called_once_with(
+            cluster_id="cluster_id", context_id="context_id", command_id="command_id"
         )
 
-    def test_poll_for_completion__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.poll_for_completion(Mock()), session)
+    def test_poll_for_completion__exception(self, api, workspace_client):
+        workspace_client.command_execution.command_status.side_effect = Exception("API Error")
+        execution = CommandExecution(
+            command_id="command_id", cluster_id="cluster_id", context_id="context_id"
+        )
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            api.poll_for_completion(execution)
+
+        assert "Error polling for command completion" in str(exc_info.value)
 
     @freezegun.freeze_time("2020-01-01", auto_tick_seconds=3)
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_poll_for_completion__exceed_timeout(self, _, api):
-        with pytest.raises(DbtRuntimeError) as exc:
-            api.poll_for_completion(Mock())
+    @patch("time.sleep")
+    def test_poll_for_completion__exceed_timeout(self, _, api, workspace_client):
+        # Mock a command that never reaches terminal state
+        mock_status_response = Mock(spec=CommandStatusResponse)
+        mock_status_response.status = CommandStatus.RUNNING
+        workspace_client.command_execution.command_status.return_value = mock_status_response
 
-        assert "Python model run timed out" in str(exc.value)
+        execution = CommandExecution(
+            command_id="command_id", cluster_id="cluster_id", context_id="context_id"
+        )
+
+        with pytest.raises(DbtRuntimeError) as exc:
+            api.poll_for_completion(execution)
+
+        assert "Command execution timed out" in str(exc.value)
 
     @freezegun.freeze_time("2020-01-01")
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_poll_for_completion__error_handling(self, _, api, session):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "status": "Error",
-            "results": {"data": "fail"},
-        }
+    @patch("time.sleep")
+    def test_poll_for_completion__error_handling(self, _, api, workspace_client):
+        mock_status_response = Mock(spec=CommandStatusResponse)
+        mock_status_response.status = CommandStatus.ERROR
+        mock_status_response.results = Mock()
+        mock_status_response.results.data = "fail"
+        workspace_client.command_execution.command_status.return_value = mock_status_response
+
+        execution = CommandExecution(
+            command_id="command_id", cluster_id="cluster_id", context_id="context_id"
+        )
 
         with pytest.raises(DbtRuntimeError) as exc:
-            api.poll_for_completion(Mock())
+            api.poll_for_completion(execution)
 
         assert "Python model run ended in state Error" in str(exc.value)
 
     @freezegun.freeze_time("2020-01-01")
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_poll_for_completion__200(self, _, api, session, host, execution):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "status": "Finished",
-            "results": {"resultType": "finished"},
-        }
+    @patch("time.sleep")
+    def test_poll_for_completion__success(self, _, api, workspace_client, execution):
+        mock_status_response = Mock(spec=CommandStatusResponse)
+        mock_status_response.status = CommandStatus.FINISHED
+        mock_status_response.results = Mock()
+        mock_status_response.results.result_type = "finished"
+        workspace_client.command_execution.command_status.return_value = mock_status_response
 
+        # Should complete without raising an exception
         api.poll_for_completion(execution)
 
-        session.get.assert_called_once_with(
-            f"https://{host}/api/1.2/commands/status",
-            params={
-                "clusterId": execution.cluster_id,
-                "contextId": execution.context_id,
-                "commandId": execution.command_id,
-            },
-            json=None,
+        workspace_client.command_execution.command_status.assert_called_with(
+            cluster_id=execution.cluster_id,
+            context_id=execution.context_id,
+            command_id=execution.command_id,
         )
 
     @freezegun.freeze_time("2020-01-01")
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_poll_for_completion__200_with_error(self, _, api, session, host, execution):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "status": "Finished",
-            "results": {"resultType": "error", "cause": "race condition"},
-        }
+    @patch("time.sleep")
+    def test_poll_for_completion__finished_with_error(self, _, api, workspace_client, execution):
+        mock_status_response = Mock(spec=CommandStatusResponse)
+        mock_status_response.status = CommandStatus.FINISHED
+        mock_status_response.results = Mock()
+        mock_status_response.results.result_type = "error"
+        mock_status_response.results.cause = "race condition"
+        workspace_client.command_execution.command_status.return_value = mock_status_response
 
         with pytest.raises(DbtRuntimeError, match="Python model failed"):
             api.poll_for_completion(execution)
