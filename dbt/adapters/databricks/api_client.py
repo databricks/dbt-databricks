@@ -374,15 +374,23 @@ class CommandApi:
         return "Unknown error"
 
     def _check_for_execution_error(self, status_response: CommandStatusResponse) -> None:
-        if (
-            status_response.results
-            and hasattr(status_response.results, "result_type")
-            and status_response.results.result_type == "error"
-        ):
-            error_cause = getattr(status_response.results, "cause", "Unknown error")
-            raise DbtRuntimeError(
-                f"Python model failed with traceback as:\n{utils.remove_ansi(error_cause)}"
-            )
+        if status_response.results:
+            result_type = getattr(status_response.results, "result_type", None)
+            
+            # Check for error result type (could be enum or string)
+            is_error = False
+            if result_type:
+                # Handle both string and enum values
+                if hasattr(result_type, 'value'):
+                    is_error = result_type.value == "error"
+                else:
+                    is_error = result_type == "error"
+            
+            if is_error:
+                error_cause = getattr(status_response.results, "cause", "Unknown error")
+                raise DbtRuntimeError(
+                    f"Python model failed with traceback as:\n{utils.remove_ansi(error_cause)}"
+                )
 
 
 class JobRunsApi:
@@ -429,7 +437,7 @@ class JobRunsApi:
         additional_job_settings: dict[str, Any],
     ) -> Any:
         # Extract submission-level parameters from job_spec
-        submission_params = {"run_name": run_name, "tasks": tasks}
+        submission_params = {"tasks": tasks}
 
         # Handle queue settings
         if "queue" in job_spec:
@@ -444,7 +452,11 @@ class JobRunsApi:
         # Add any additional job settings
         submission_params.update(additional_job_settings)
 
-        return self.workspace_client.jobs.submit(**submission_params)
+        # Filter out parameters that the Databricks SDK doesn't expect
+        # The SDK submit() method doesn't accept 'name' or 'run_name' in the request body
+        filtered_params = {k: v for k, v in submission_params.items() if k not in ['name', 'run_name']}
+        
+        return self.workspace_client.jobs.submit(run_name=run_name, **filtered_params)
 
     def _extract_run_id(self, submit_result: Any) -> str:
         run_id = str(submit_result.run_id)
