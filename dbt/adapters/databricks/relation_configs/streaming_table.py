@@ -27,6 +27,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         RefreshProcessor,
         TagsProcessor,
         DescribeQueryProcessor,
+        TagsProcessor,
     ]
 
     def get_changeset(

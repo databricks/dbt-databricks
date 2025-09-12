@@ -45,6 +45,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             }
         )
 
@@ -72,6 +73,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             }
         )
 
@@ -84,6 +86,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             }
         )
         new = StreamingTableConfig(
@@ -94,6 +97,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             }
         )
 
@@ -110,6 +114,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={}),
             }
         )
         new = StreamingTableConfig(
@@ -120,6 +125,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             }
         )
 
@@ -134,4 +140,5 @@ class TestStreamingTableConfig:
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             "query": QueryConfig(query="select * from foo"),
+            "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
         }
