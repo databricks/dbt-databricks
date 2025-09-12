@@ -1,4 +1,3 @@
-
 ## dbt-databricks 1.11.0 (TBD)
 
 ### Features

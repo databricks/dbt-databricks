@@ -34,7 +34,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,
@@ -419,7 +419,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,

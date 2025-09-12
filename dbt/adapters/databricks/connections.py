@@ -123,9 +123,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
     @property
     def api_client(self) -> DatabricksApiClient:
         if self._api_client is None:
-            self._api_client = DatabricksApiClient.create(
-                cast(DatabricksCredentials, self.profile.credentials), 15 * 60
-            )
+            credentials = cast(DatabricksCredentials, self.profile.credentials)
+            self._api_client = DatabricksApiClient(credentials, 15 * 60)
         return self._api_client
 
     def is_cluster(self) -> bool:
