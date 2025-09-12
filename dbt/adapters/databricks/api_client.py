@@ -376,16 +376,16 @@ class CommandApi:
     def _check_for_execution_error(self, status_response: CommandStatusResponse) -> None:
         if status_response.results:
             result_type = getattr(status_response.results, "result_type", None)
-            
+
             # Check for error result type (could be enum or string)
             is_error = False
             if result_type:
                 # Handle both string and enum values
-                if hasattr(result_type, 'value'):
+                if hasattr(result_type, "value"):
                     is_error = result_type.value == "error"
                 else:
                     is_error = result_type == "error"
-            
+
             if is_error:
                 error_cause = getattr(status_response.results, "cause", "Unknown error")
                 raise DbtRuntimeError(
@@ -454,8 +454,10 @@ class JobRunsApi:
 
         # Filter out parameters that the Databricks SDK doesn't expect
         # The SDK submit() method doesn't accept 'name' or 'run_name' in the request body
-        filtered_params = {k: v for k, v in submission_params.items() if k not in ['name', 'run_name']}
-        
+        filtered_params = {
+            k: v for k, v in submission_params.items() if k not in ["name", "run_name"]
+        }
+
         return self.workspace_client.jobs.submit(run_name=run_name, **filtered_params)
 
     def _extract_run_id(self, submit_result: Any) -> str:
