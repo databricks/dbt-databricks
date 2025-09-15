@@ -1,14 +1,21 @@
+from datetime import timedelta
+from unittest.mock import Mock
+
 import pytest
+from databricks.sdk.service.pipelines import PipelineState
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import DltPipelineApi
-from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestDltPipelineApi(ApiTestBase):
+class TestDltPipelineApi:
     @pytest.fixture
-    def api(self, session, host):
-        return DltPipelineApi(session, host, 1)
+    def workspace_client(self):
+        return Mock()
+
+    @pytest.fixture
+    def api(self, workspace_client):
+        return DltPipelineApi(workspace_client, 1)
 
     @pytest.fixture
     def pipeline_id(self):
@@ -18,54 +25,92 @@ class TestDltPipelineApi(ApiTestBase):
     def update_id(self):
         return "update_id"
 
-    def test_get_update_error__non_200(self, api, session, pipeline_id, update_id):
-        session.get.return_value.status_code = 500
-        with pytest.raises(DbtRuntimeError):
-            api.get_update_error(pipeline_id, update_id)
+    def test_poll_for_completion__success(self, api, workspace_client, pipeline_id):
+        workspace_client.pipelines.wait_get_pipeline_idle.return_value = None
 
-    def test_get_update_error__200_no_events(self, api, session, pipeline_id, update_id):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"events": []}
-        assert api.get_update_error(pipeline_id, update_id) == ""
-
-    def test_get_update_error__200_no_error_events(self, api, session, pipeline_id, update_id):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "events": [{"event_type": "update_progress", "origin": {"update_id": update_id}}]
-        }
-        assert api.get_update_error(pipeline_id, update_id) == ""
-
-    def test_get_update_error__200_error_events(self, api, session, pipeline_id, update_id):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "events": [
-                {
-                    "message": "I failed",
-                    "details": {"update_progress": {"state": "FAILED"}},
-                    "event_type": "update_progress",
-                    "origin": {"update_id": update_id},
-                }
-            ]
-        }
-        assert api.get_update_error(pipeline_id, update_id) == "I failed"
-
-    def test_poll_for_completion__non_200(self, api, session, pipeline_id):
-        self.assert_non_200_raises_error(lambda: api.poll_for_completion(pipeline_id), session)
-
-    def test_poll_for_completion__200(self, api, session, host, pipeline_id):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"state": "IDLE"}
         api.poll_for_completion(pipeline_id)
-        session.get.assert_called_once_with(
-            f"https://{host}/api/2.0/pipelines/{pipeline_id}", json=None, params={}
+
+        workspace_client.pipelines.wait_get_pipeline_idle.assert_called_once_with(
+            pipeline_id=pipeline_id, timeout=timedelta(hours=1)
         )
 
-    def test_poll_for_completion__failed_with_cause(self, api, session, pipeline_id):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {
-            "state": "FAILED",
-            "pipeline_id": pipeline_id,
-            "cause": "I failed",
-        }
-        with pytest.raises(DbtRuntimeError, match=f"Pipeline {pipeline_id} failed: I failed"):
+    def test_poll_for_completion__failed_with_detailed_error(
+        self, api, workspace_client, pipeline_id, update_id
+    ):
+        # Mock the wait method to raise an exception
+        workspace_client.pipelines.wait_get_pipeline_idle.side_effect = Exception("Timeout")
+
+        # Mock pipeline get response with failed state
+        mock_pipeline = Mock()
+        mock_pipeline.state = PipelineState.FAILED
+        mock_update = Mock()
+        mock_update.update_id = update_id
+        mock_pipeline.latest_updates = [mock_update]
+        workspace_client.pipelines.get.return_value = mock_pipeline
+
+        # Mock events response with error message
+        mock_event = Mock()
+        mock_event.event_type = "update_progress"
+        mock_event.origin = Mock()
+        mock_event.origin.update_id = update_id
+        mock_event.error = None
+        mock_event.message = "Pipeline execution failed"
+        workspace_client.pipelines.list_pipeline_events.return_value = [mock_event]
+
+        with pytest.raises(
+            DbtRuntimeError, match=f"Pipeline {pipeline_id} failed: Pipeline execution failed"
+        ):
             api.poll_for_completion(pipeline_id)
+
+    def test_poll_for_completion__failed_no_detailed_error(
+        self, api, workspace_client, pipeline_id
+    ):
+        workspace_client.pipelines.wait_get_pipeline_idle.side_effect = Exception("Timeout")
+        workspace_client.pipelines.get.side_effect = Exception("Cannot get pipeline")
+
+        with pytest.raises(DbtRuntimeError, match=f"Pipeline {pipeline_id} failed: Timeout"):
+            api.poll_for_completion(pipeline_id)
+
+    def test_get_update_error__success_with_error_events(
+        self, api, workspace_client, pipeline_id, update_id
+    ):
+        mock_event = Mock()
+        mock_event.event_type = "update_progress"
+        mock_event.origin = Mock()
+        mock_event.origin.update_id = update_id
+        mock_event.error = None
+        mock_event.message = "I failed"
+        workspace_client.pipelines.list_pipeline_events.return_value = [mock_event]
+
+        result = api.get_update_error(pipeline_id, update_id)
+
+        assert result == "I failed"
+        workspace_client.pipelines.list_pipeline_events.assert_called_once_with(
+            pipeline_id=pipeline_id
+        )
+
+    def test_get_update_error__no_error_events(self, api, workspace_client, pipeline_id, update_id):
+        mock_event = Mock()
+        mock_event.event_type = "update_progress"
+        mock_event.origin = Mock()
+        mock_event.origin.update_id = update_id
+        mock_event.error = None
+        mock_event.message = "I succeeded"  # No "error" in message
+        workspace_client.pipelines.list_pipeline_events.return_value = [mock_event]
+
+        result = api.get_update_error(pipeline_id, update_id)
+
+        assert result == ""
+
+    def test_get_update_error__no_events(self, api, workspace_client, pipeline_id, update_id):
+        workspace_client.pipelines.list_pipeline_events.return_value = []
+
+        result = api.get_update_error(pipeline_id, update_id)
+
+        assert result == ""
+
+    def test_get_update_error__exception(self, api, workspace_client, pipeline_id, update_id):
+        workspace_client.pipelines.list_pipeline_events.side_effect = Exception("SDK error")
+
+        with pytest.raises(DbtRuntimeError, match="Error getting pipeline event info"):
+            api.get_update_error(pipeline_id, update_id)

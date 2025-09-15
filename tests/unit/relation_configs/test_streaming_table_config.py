@@ -43,8 +43,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -70,8 +70,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment", persist=False),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -82,8 +82,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
@@ -92,8 +92,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -108,8 +108,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
@@ -118,8 +118,8 @@ class TestStreamingTableConfig:
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
-                "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
             }
         )
 
@@ -132,6 +132,6 @@ class TestStreamingTableConfig:
             "comment": CommentConfig(comment="This is the table comment"),
             "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
-            "query": QueryConfig(query="select * from foo"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+            "query": QueryConfig(query="select * from foo"),
         }

@@ -1,4 +1,3 @@
-
 ## dbt-databricks 1.11.0 (TBD)
 
 ### Features
@@ -8,6 +7,7 @@
 ### Under the Hood
 
 - Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+- Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
 
 ## dbt-databricks 1.10.13 (TBD)
 
