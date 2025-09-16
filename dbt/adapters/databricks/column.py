@@ -24,7 +24,7 @@ class DatabricksColumn(SparkColumn):
     @classmethod
     def create(cls, name: str, label_or_dtype: str) -> "DatabricksColumn":
         column_type = cls.translate_type(label_or_dtype)
-        return cls(quote(name), column_type)
+        return cls(name, column_type)
 
     @classmethod
     def from_json_metadata(cls, json_metadata: str) -> list["DatabricksColumn"]:
@@ -46,7 +46,7 @@ class DatabricksColumn(SparkColumn):
             col_name = col_info.get("name")
             col_type = cls._parse_type_from_json(col_info.get("type"))
             comment = col_info.get("comment")
-            columns.append(cls(column=quote(col_name), dtype=col_type, comment=comment))
+            columns.append(cls(column=col_name, dtype=col_type, comment=comment))
 
         return columns
 
@@ -137,12 +137,11 @@ class DatabricksColumn(SparkColumn):
 
     @property
     def quoted(self) -> str:
-        """Return the column name as-is since it's already properly quoted.
+        """Return the properly quoted column name.
 
-        This prevents double-quoting issues when upstream code calls the quoted property,
-        since DatabricksColumn.name already contains properly quoted identifiers.
+        This applies comprehensive quoting to all column names for consistency and safety.
         """
-        return self.name
+        return quote(self.name)
 
     def enrich(self, model_column: dict[str, Any], not_null: bool) -> "DatabricksColumn":
         """Create a copy that incorporates model column metadata, including constraints."""
@@ -162,7 +161,7 @@ class DatabricksColumn(SparkColumn):
 
     def render_for_create(self) -> str:
         """Renders the column for building a create statement."""
-        column_str = f"{self.name} {self.dtype}"
+        column_str = f"{self.quoted} {self.dtype}"
         if self.not_null:
             column_str += " NOT NULL"
         if self.comment:
@@ -179,8 +178,8 @@ class DatabricksColumn(SparkColumn):
 
     @staticmethod
     def format_remove_column_list(columns: list["DatabricksColumn"]) -> str:
-        return ", ".join([c.name for c in columns])
+        return ", ".join([c.quoted for c in columns])
 
     @staticmethod
     def format_add_column_list(columns: list["DatabricksColumn"]) -> str:
-        return ", ".join([f"{c.name} {c.data_type}" for c in columns])
+        return ", ".join([f"{c.quoted} {c.data_type}" for c in columns])

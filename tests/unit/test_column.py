@@ -110,15 +110,15 @@ class TestDatabricksColumn:
 
         assert len(result) == 3
         assert isinstance(result[0], DatabricksColumn)
-        assert result[0].column == "`id`"
+        assert result[0].column == "id"
         assert result[0].dtype == "bigint"
         assert result[0].comment == "Primary key"
 
-        assert result[1].column == "`name`"
+        assert result[1].column == "name"
         assert result[1].dtype == "string"
         assert result[1].comment == "User name"
 
-        assert result[2].column == "`nested_data`"
+        assert result[2].column == "nested_data"
         assert result[2].dtype == "struct<field1:string,field2:int>"
         assert result[2].comment is None
 

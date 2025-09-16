@@ -119,11 +119,11 @@
 {%- endmacro -%}
 
 {% macro alter_set_non_null_constraint(relation, column) -%}
-  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ column }} SET NOT NULL;
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ adapter.quote(column) }} SET NOT NULL;
 {%- endmacro -%}
 
 {% macro alter_unset_non_null_constraint(relation, column) -%}
-  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ column }} DROP NOT NULL;
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ adapter.quote(column) }} DROP NOT NULL;
 {%- endmacro -%}
 
 {% macro alter_set_constraint(relation, constraint) -%}

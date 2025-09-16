@@ -106,14 +106,14 @@ class TestMetadataMacros(MacroTestBase):
               'test_table1' AS identifier,
               max(timestamp) AS last_modified,
               current_timestamp() AS snapshotted_at
-            FROM (DESCRIBE HISTORY test_schema1.test_table1)
+            FROM (DESCRIBE HISTORY `test_schema1`.`test_table1`)
             UNION ALL
             SELECT
               'test_schema2' AS schema,
               'test_table2' AS identifier,
               max(timestamp) AS last_modified,
               current_timestamp() AS snapshotted_at
-            FROM (DESCRIBE HISTORY test_schema2.test_table2)
+            FROM (DESCRIBE HISTORY `test_schema2`.`test_table2`)
         """
         self.assert_sql_equal(result, expected_sql)
 

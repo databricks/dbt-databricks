@@ -114,13 +114,13 @@ select {{source_cols_csv}} from {{ source_relation }}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
               {% set this_key_match %}
-                  {{ source_alias }}.{{ key }} <=> {{ target_alias }}.{{ key }}
+                  {{ source_alias }}.{{ adapter.quote(key) }} <=> {{ target_alias }}.{{ adapter.quote(key) }}
               {% endset %}
               {% do predicates.append(this_key_match) %}
           {% endfor %}
       {% else %}
           {% set unique_key_match %}
-              {{ source_alias }}.{{ unique_key }} <=> {{ target_alias }}.{{ unique_key }}
+              {{ source_alias }}.{{ adapter.quote(unique_key) }} <=> {{ target_alias }}.{{ adapter.quote(unique_key) }}
           {% endset %}
           {% do predicates.append(unique_key_match) %}
       {% endif %}
@@ -166,13 +166,13 @@ select {{source_cols_csv}} from {{ source_relation }}
 {% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias='DBT_INTERNAL_SOURCE') %}
   {%- if update_columns -%}
     {%- for column_name in update_columns -%}
-      {{ column_name }} = {{ source_alias }}.{{ column_name }}{%- if not loop.last %}, {% endif -%}
+      {{ adapter.quote(column_name) }} = {{ source_alias }}.{{ adapter.quote(column_name) }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- elif on_schema_change == 'ignore' -%}
     *
   {%- else -%}
     {%- for column in source_columns -%}
-      {{ column }} = {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ adapter.quote(column) }} = {{ source_alias }}.{{ adapter.quote(column) }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- endif -%}
 {% endmacro %}
@@ -181,9 +181,9 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- if on_schema_change == 'ignore' -%}
     *
   {%- else -%}
-    ({{ source_columns | join(", ") }}) VALUES (
+    ({% for column in source_columns %}{{ adapter.quote(column) }}{% if not loop.last %}, {% endif %}{% endfor %}) VALUES (
     {%- for column in source_columns -%}
-      {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ source_alias }}.{{ adapter.quote(column) }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %})
   {%- endif -%}
 {% endmacro %}
@@ -201,4 +201,38 @@ select {{source_cols_csv}} from {{ source_relation }}
   {%- endif -%}
   {%- do arg_dict.update({'incremental_predicates': incremental_predicates}) -%}
   {{ return(get_replace_where_sql(arg_dict)) }}
+{% endmacro %}
+
+
+
+{% macro databricks__get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) %}
+  {%- set default_cols = None -%}
+
+  {%- if merge_update_columns and merge_exclude_columns -%}
+    {{ exceptions.raise_compiler_error(
+        'Model cannot specify merge_update_columns and merge_exclude_columns. Please update model to use only one config'
+    )}}
+  {%- elif merge_update_columns -%}
+    {# Quote user-provided column names #}
+    {%- if merge_update_columns is sequence and merge_update_columns is not string -%}
+      {%- set update_columns = [] -%}
+      {%- for column in merge_update_columns -%}
+        {%- do update_columns.append(adapter.quote(column)) -%}
+      {%- endfor -%}
+    {%- else -%}
+      {%- set update_columns = adapter.quote(merge_update_columns) -%}
+    {%- endif -%}
+  {%- elif merge_exclude_columns -%}
+    {%- set update_columns = [] -%}
+    {%- for column in dest_columns -%}
+      {% if column.column | lower not in merge_exclude_columns | map("lower") | list %}
+        {%- do update_columns.append(column.quoted) -%}
+      {% endif %}
+    {%- endfor -%}
+  {%- else -%}
+    {%- set update_columns = default_cols -%}
+  {%- endif -%}
+
+  {{ return(update_columns) }}
+
 {% endmacro %}

@@ -271,6 +271,7 @@ class TestStreamingTablesFromFiles(TestStreamingTablesMixin):
             "schema.yml": fixtures.streaming_table_schema,
         }
 
+    @pytest.mark.skip(reason="Requires external storage configuration that may not be available")
     def test_streaming_table_create_from_file(self, project, my_streaming_table):
         # setup creates it; verify it's there
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"

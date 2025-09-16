@@ -197,6 +197,7 @@ DatabricksAdapter (impl.py)
 - Override Spark macros with Databricks-specific logic
 - Handle materializations (table, view, incremental, snapshot)
 - Implement Databricks features (liquid clustering, column masks, tags)
+- **Important**: To override a `spark__macro_name` macro, create `databricks__macro_name` (NOT `spark__macro_name`)
 
 ### Configuration System
 

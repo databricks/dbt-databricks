@@ -173,13 +173,13 @@ class TestPersistDocsMacros(MacroTestBase):
 
         first_call = call_args_list[0][0][0]
         expected_first_sql = (
-            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.id IS 'Primary key'"
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`id` IS 'Primary key'"
         )
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
         expected_second_sql = (
-            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.value"
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`value`"
             " IS 'Contains \\'quoted\\' text'"
         )
         self.assert_sql_equal(second_call, expected_second_sql)
@@ -212,14 +212,14 @@ class TestPersistDocsMacros(MacroTestBase):
         first_call = call_args_list[0][0][0]
         expected_first_sql = (
             "ALTER TABLE `some_database`.`some_schema`.`some_table` "
-            "ALTER COLUMN id COMMENT 'Primary key'"
+            "ALTER COLUMN `id` COMMENT 'Primary key'"
         )
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
         expected_second_sql = (
             "ALTER TABLE `some_database`.`some_schema`.`some_table` "
-            "ALTER COLUMN value COMMENT 'Contains \\'quoted\\' text'"
+            "ALTER COLUMN `value` COMMENT 'Contains \\'quoted\\' text'"
         )
         self.assert_sql_equal(second_call, expected_second_sql)
 
