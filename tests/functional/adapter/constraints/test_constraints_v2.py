@@ -61,7 +61,8 @@ class BaseV2ConstraintSetup:
 
         normalized = _normalize_whitespace(generated_sql_generic)
         assert _normalize_whitespace(expected_sql) in normalized
-        # V2 materialization includes constraints inline in CREATE TABLE, not as separate ALTER statements
+        # V2 materialization includes constraints inline in CREATE TABLE,
+        # not as separate ALTER statements
 
 
 @pytest.mark.skip_profile("databricks_cluster")

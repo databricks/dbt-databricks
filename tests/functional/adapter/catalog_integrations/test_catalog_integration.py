@@ -67,8 +67,11 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
         # Create schema in alternate catalog since catalog integration models will need it
         alt_catalog = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
         from dbt.tests.util import get_connection
+
         with get_connection(project.adapter):
-            alt_relation = project.adapter.Relation.create(database=alt_catalog, schema=project.test_schema)
+            alt_relation = project.adapter.Relation.create(
+                database=alt_catalog, schema=project.test_schema
+            )
             project.adapter.create_schema(alt_relation)
 
         # Run all models
