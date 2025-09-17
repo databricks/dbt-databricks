@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from dbt.tests import util
@@ -64,13 +65,15 @@ class TestIncrementalPythonColumnTags(TestIncrementalColumnTags):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         # For SQL Warehouse profiles, Python models need a cluster http_path
-        cluster_http_path = os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH") or os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH")
+        cluster_http_path = os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH") or os.getenv(
+            "DBT_DATABRICKS_CLUSTER_HTTP_PATH"
+        )
         config = {
             "flags": {"use_materialization_v2": True},
             "models": {
                 "+create_notebook": "true",
                 "+submission_method": "all_purpose_cluster",
-            }
+            },
         }
         if cluster_http_path:
             config["models"]["+http_path"] = cluster_http_path
