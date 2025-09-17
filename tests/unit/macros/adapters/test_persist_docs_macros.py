@@ -157,6 +157,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         context["adapter"] = Mock()
         context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
 
@@ -195,6 +196,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         context["adapter"] = Mock()
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
 

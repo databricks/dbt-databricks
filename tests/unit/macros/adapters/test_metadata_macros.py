@@ -34,10 +34,12 @@ class TestMetadataMacros(MacroTestBase):
         relation1 = Mock()
         relation1.schema = "test_schema1"
         relation1.identifier = "test_table1"
+        relation1.render = Mock(return_value="`test_schema1`.`test_table1`")
 
         relation2 = Mock()
         relation2.schema = "test_schema2"
         relation2.identifier = "test_table2"
+        relation2.render = Mock(return_value="`test_schema2`.`test_table2`")
 
         return [relation1, relation2]
 

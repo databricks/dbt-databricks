@@ -239,7 +239,11 @@
       {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
       {% set parent_columns = constraint.get('to_columns') %}
       {% if parent_columns %}
-        {% set stmt = stmt ~ "(" ~ parent_columns|join(", ") ~ ")"%}
+        {% set quoted_parent_columns = [] %}
+        {% for parent_column in parent_columns %}
+          {% do quoted_parent_columns.append(adapter.quote(parent_column)) %}
+        {% endfor %}
+        {% set stmt = stmt ~ "(" ~ quoted_parent_columns|join(", ") ~ ")"%}
       {% endif %}
     {% endif %}
     {% set stmt = stmt ~ ";" %}
