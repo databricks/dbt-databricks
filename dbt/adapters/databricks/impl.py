@@ -64,6 +64,7 @@ from dbt.adapters.databricks.relation_configs.incremental import IncrementalTabl
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
+from dbt.adapters.databricks.relation_configs.metric_view import MetricViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
@@ -820,6 +821,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.View:
             return ViewAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.MetricView:
+            return MetricViewAPI.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -834,6 +837,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)
+        elif model.config.materialized == "metric_view":
+            return MetricViewAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -1038,6 +1043,30 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
+        kwargs = {"table_name": relation}
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+        return results
+
+
+class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
+    relation_type = DatabricksRelationType.MetricView
+    @classmethod
+    def config_type(cls) -> type[MetricViewConfig]:
+        return MetricViewConfig
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        results = {}
+        kwargs = {"relation": relation}
+        # Metric views are stored as views in information_schema but have different properties
+        results["information_schema.views"] = get_first_row(
+            adapter.execute_macro("get_view_description", kwargs=kwargs)
+        )
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs

@@ -21,6 +21,8 @@
       {{ return(get_replace_table_sql(target_relation, sql)) }}
     {% elif is_replaceable and existing_relation.is_materialized_view %}
       {{ return(get_replace_materialized_view_sql(target_relation, sql)) }}
+    {% elif is_replaceable and existing_relation.is_metric_view %}
+      {{ return(get_replace_metric_view_sql(target_relation, sql)) }}
     {% endif %}
   {% endif %}
 

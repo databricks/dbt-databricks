@@ -104,6 +104,10 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.MaterializedView
 
     @property
+    def is_metric_view(self) -> bool:
+        return self.type == DatabricksRelationType.MetricView
+
+    @property
     def is_streaming_table(self) -> bool:
         return self.type == DatabricksRelationType.StreamingTable
 
