@@ -53,7 +53,7 @@ SELECT
   '{{ relation.identifier }}' AS identifier,
   max(timestamp) AS last_modified,
   {{ current_timestamp() }} AS snapshotted_at
-  FROM (DESCRIBE HISTORY {{ relation.schema|lower }}.{{ relation.identifier|lower }})
+  FROM (DESCRIBE HISTORY {{ relation.render() }})
       {% if not loop.last %}
 UNION ALL
       {% endif %}

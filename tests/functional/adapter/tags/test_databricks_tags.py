@@ -163,3 +163,7 @@ class TestPythonTags(BaseTestTags):
             "tags.py": fixtures.simple_python_model,
             "schema.yml": fixtures.python_schema,
         }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}

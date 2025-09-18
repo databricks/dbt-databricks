@@ -37,13 +37,23 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 
 **Install Hatch** (recommended):
 
+For Linux:
+
 ```bash
-# Install Hatch globally - see https://hatch.pypa.io/dev/install/
-pip install hatch
+# Download and install standalone binary
+curl -Lo hatch.tar.gz https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf hatch.tar.gz
+mkdir -p $HOME/bin
+mv hatch $HOME/bin/hatch
+chmod +x $HOME/bin/hatch
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+export PATH="$HOME/bin:$PATH"
 
 # Create default environment (Hatch installs needed Python versions)
 hatch env create
 ```
+
+For other platforms: see https://hatch.pypa.io/latest/install/
 
 **Essential commands**:
 
@@ -51,6 +61,9 @@ hatch env create
 hatch run code-quality           # Format, lint, type-check
 hatch run unit                   # Run unit tests
 hatch run cluster-e2e            # Run functional tests
+
+# For specific tests, use pytest directly:
+hatch run pytest path/to/test_file.py::TestClass::test_method -v
 ```
 
 > 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for comprehensive setup documentation
@@ -184,6 +197,7 @@ DatabricksAdapter (impl.py)
 - Override Spark macros with Databricks-specific logic
 - Handle materializations (table, view, incremental, snapshot)
 - Implement Databricks features (liquid clustering, column masks, tags)
+- **Important**: To override a `spark__macro_name` macro, create `databricks__macro_name` (NOT `spark__macro_name`)
 
 ### Configuration System
 
@@ -273,6 +287,7 @@ Models can be configured with Databricks-specific options:
 3. **SQL Generation**: Prefer macros over Python string manipulation
 4. **Testing**: Write both unit and functional tests for new features
 5. **Configuration**: Use dataclasses with validation for new config options
+6. **Imports**: Always import at the top of the file, never use local imports within functions or methods
 
 ## 🚨 Common Pitfalls for Agents
 

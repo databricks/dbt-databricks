@@ -47,6 +47,10 @@ class TestIncrementalPythonLiquidClustering:
             "schema.yml": fixtures.lc_python_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_cluster_by(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.lc_python_schema2, "models", "schema.yml")

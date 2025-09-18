@@ -38,6 +38,10 @@ class TestIncrementalPythonTblproperties:
             "schema.yml": fixtures.python_tblproperties_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_tblproperties(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.python_tblproperties_schema2, "models", "schema.yml")

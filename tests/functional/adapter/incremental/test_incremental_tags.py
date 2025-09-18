@@ -43,6 +43,10 @@ class TestIncrementalPythonTags:
             "schema.yml": fixtures.python_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_tags(self, project):
         util.run_dbt(["run"])
         util.write_file(fixtures.python_schema2, "models", "schema.yml")

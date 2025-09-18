@@ -179,9 +179,9 @@ class TestConstraintMacros(MacroTestBase):
             template_bundle, {"type": "not_null", "columns": ["id", "name"]}, model
         )
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` change column id "
+            "['alter table `some_database`.`some_schema`.`some_table` change column `id` "
             "set not null ;', 'alter table `some_database`.`some_schema`.`some_table` "
-            "change column name set not null ;']"
+            "change column `name` set not null ;']"
         )
 
         assert expected in r
@@ -192,7 +192,7 @@ class TestConstraintMacros(MacroTestBase):
         )
 
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` change column id "
+            "['alter table `some_database`.`some_schema`.`some_table` change column `id` "
             "set not null ;']"
         )
         assert expected in r
@@ -206,7 +206,7 @@ class TestConstraintMacros(MacroTestBase):
         )
 
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` change column name "
+            "['alter table `some_database`.`some_schema`.`some_table` change column `name` "
             "set not null ;']"
         )
         assert expected in r
@@ -273,7 +273,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint primary key(name);']"
+            "myconstraint primary key(`name`);']"
         )
         assert expected in r
 
@@ -290,7 +290,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint primary key(name);']"
+            "myconstraint primary key(`name`);']"
         )
         assert expected in r
 
@@ -304,7 +304,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint primary key(id);']"
+            "myconstraint primary key(`id`);']"
         )
         assert expected in r
 
@@ -317,7 +317,7 @@ class TestConstraintMacros(MacroTestBase):
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add constraint '
             "hash(primary_key;some_table;['id'];) "
-            'primary key(id);"]'
+            'primary key(`id`);"]'
         )
         assert expected in r
 
@@ -332,7 +332,7 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add "
-            "constraint myconstraint foreign key(name) references "
+            "constraint myconstraint foreign key(`name`) references "
             "some_schema.parent_table;']"
         )
         assert expected in r
@@ -348,7 +348,7 @@ class TestConstraintMacros(MacroTestBase):
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add '
             "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) "
-            'foreign key(name) references some_schema.parent_table;"]'
+            'foreign key(`name`) references some_schema.parent_table;"]'
         )
         assert expected in r
 
@@ -364,8 +364,8 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add "
-            "constraint myconstraint foreign key(name) references "
-            "some_schema.parent_table(parent_name);']"
+            "constraint myconstraint foreign key(`name`) references "
+            "some_schema.parent_table(`parent_name`);']"
         )
         assert expected in r
 
@@ -381,8 +381,8 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint foreign key(name, id) "
-            "references some_schema.parent_table(parent_name, parent_id);']"
+            "myconstraint foreign key(`name`, `id`) "
+            "references some_schema.parent_table(`parent_name`, `parent_id`);']"
         )
         assert expected in r
 
@@ -400,8 +400,8 @@ class TestConstraintMacros(MacroTestBase):
 
         expected = (
             "['alter table `some_database`.`some_schema`.`some_table` add constraint "
-            "myconstraint foreign key(id) references "
-            "some_schema.parent_table(parent_name);']"
+            "myconstraint foreign key(`id`) references "
+            "some_schema.parent_table(`parent_name`);']"
         )
         assert expected in r
 

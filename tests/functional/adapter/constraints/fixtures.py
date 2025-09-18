@@ -18,9 +18,9 @@ from
 
 expected_sql_v2 = """
 create or replace table <model_identifier> (
-  color string,
-  id integer not null comment 'hello',
-  date_day string,
+  `color` string,
+  `id` integer not null comment 'hello',
+  `date_day` string,
   PRIMARY KEY (id),
   FOREIGN KEY (id) REFERENCES <foreign_key_model_identifier> (id)
   ) using delta
