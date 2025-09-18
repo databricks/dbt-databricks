@@ -213,20 +213,13 @@ select {{source_cols_csv}} from {{ source_relation }}
         'Model cannot specify merge_update_columns and merge_exclude_columns. Please update model to use only one config'
     )}}
   {%- elif merge_update_columns -%}
-    {# Quote user-provided column names #}
-    {%- if merge_update_columns is sequence and merge_update_columns is not string -%}
-      {%- set update_columns = [] -%}
-      {%- for column in merge_update_columns -%}
-        {%- do update_columns.append(adapter.quote(column)) -%}
-      {%- endfor -%}
-    {%- else -%}
-      {%- set update_columns = adapter.quote(merge_update_columns) -%}
-    {%- endif -%}
+    {# Don't quote here - columns will be quoted in get_merge_update_set #}
+    {%- set update_columns = merge_update_columns -%}
   {%- elif merge_exclude_columns -%}
     {%- set update_columns = [] -%}
     {%- for column in dest_columns -%}
       {% if column.column | lower not in merge_exclude_columns | map("lower") | list %}
-        {%- do update_columns.append(column.quoted) -%}
+        {%- do update_columns.append(column.column) -%}
       {% endif %}
     {%- endfor -%}
   {%- else -%}

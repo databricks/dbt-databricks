@@ -16,12 +16,12 @@
      {% else %}
        and DBT_INTERNAL_DEST.{{ adapter.quote(columns.dbt_valid_to) }} is null
      {% endif %}
-     and DBT_INTERNAL_SOURCE.dbt_change_type in ('update', 'delete')
+     and DBT_INTERNAL_SOURCE.{{ adapter.quote('dbt_change_type') }} in ('update', 'delete')
         then update
         set {{ adapter.quote(columns.dbt_valid_to) }} = DBT_INTERNAL_SOURCE.{{ adapter.quote(columns.dbt_valid_to) }}
 
     when not matched
-     and DBT_INTERNAL_SOURCE.dbt_change_type = 'insert'
+     and DBT_INTERNAL_SOURCE.{{ adapter.quote('dbt_change_type') }} = 'insert'
         then insert *
     ;
 {% endmacro %}
