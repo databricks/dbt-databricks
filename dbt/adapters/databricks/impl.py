@@ -16,6 +16,7 @@ from typing import Generic
 from typing import Iterable
 from typing import Iterator
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import Set
 from typing import Tuple
@@ -89,6 +90,14 @@ SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 GET_COLUMNS_COMMENTS_MACRO_NAME = "get_columns_comments"
+
+
+class DatabricksRelationInfo(NamedTuple):
+    table_name: str
+    table_type: str
+    file_format: Optional[str]
+    table_owner: Optional[str]
+    databricks_table_type: Optional[str]
 
 
 @dataclass
@@ -232,23 +241,30 @@ class DatabricksAdapter(SparkAdapter):
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
     ) -> List[DatabricksRelation]:
-        empty: List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]] = []
+        empty: list[DatabricksRelationInfo] = []
         results = handle_missing_objects(
             lambda: self.get_relations_without_caching(schema_relation), empty
         )
 
         relations = []
         for row in results:
-            name, kind, file_format, owner = row
+            name, kind, file_format, owner, table_type = row
             metadata = None
             if file_format:
                 metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
+
+            if table_type:
+                databricks_table_type = DatabricksRelation.get_databricks_table_type(table_type)
+            else:
+                databricks_table_type = None
+
             relations.append(
                 self.Relation.create(
                     database=schema_relation.database,
                     schema=schema_relation.schema,
                     identifier=name,
                     type=self.Relation.get_relation_type(kind),
+                    databricks_table_type=databricks_table_type,
                     metadata=metadata,
                 )
             )
@@ -257,24 +273,26 @@ class DatabricksAdapter(SparkAdapter):
 
     def get_relations_without_caching(
         self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    ) -> list[DatabricksRelationInfo]:
         if relation.is_hive_metastore():
             return self._get_hive_relations(relation)
         return self._get_uc_relations(relation)
 
-    def _get_uc_relations(
-        self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    def _get_uc_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
-            (row["table_name"], row["table_type"], row["file_format"], row["table_owner"])
+            DatabricksRelationInfo(
+                row["table_name"],
+                row["table_type"],
+                row["file_format"],
+                row["table_owner"],
+                row["databricks_table_type"],
+            )
             for row in results
         ]
 
-    def _get_hive_relations(
-        self, relation: DatabricksRelation
-    ) -> List[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]]:
+    def _get_hive_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
         kwargs = {"relation": relation}
 
         new_rows: List[Tuple[str, Optional[str]]]
@@ -287,8 +305,8 @@ class DatabricksAdapter(SparkAdapter):
             for row in tables:
                 # list_tables returns TABLE_TYPE as view for both materialized views and for
                 # streaming tables.  Set type to "" in this case and it will be resolved below.
-                type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"] else None
-                row = (row["TABLE_NAME"], type)
+                rel_type = row["TABLE_TYPE"].lower() if row["TABLE_TYPE"] else None
+                row = (row["TABLE_NAME"], rel_type)
                 new_rows.append(row)
 
         else:
@@ -305,7 +323,16 @@ class DatabricksAdapter(SparkAdapter):
                     for row in new_rows
                 ]
 
-        return [(row[0], row[1], None, None) for row in new_rows]
+        return [
+            DatabricksRelationInfo(
+                row[0],
+                row[1],  # type: ignore[arg-type]
+                None,
+                None,
+                None,
+            )
+            for row in new_rows
+        ]
 
     @available.parse(lambda *a, **k: [])
     def get_column_schema_from_query(self, sql: str) -> List[DatabricksColumn]:
@@ -418,6 +445,7 @@ class DatabricksAdapter(SparkAdapter):
                 schema=relation.schema,
                 identifier=relation.identifier,
                 type=relation.type,  # type: ignore
+                databricks_table_type=relation.databricks_table_type,
                 metadata=metadata,
             ),
             columns,
