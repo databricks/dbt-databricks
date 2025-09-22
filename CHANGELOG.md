@@ -4,6 +4,10 @@
 
 - Support databricks_tags for MV/STs
 
+### Fixes
+
+- Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+
 ### Under the Hood
 
 - Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
