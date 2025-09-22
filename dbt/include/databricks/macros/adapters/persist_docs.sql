@@ -4,7 +4,7 @@
     {% for column in column_dict.values() %}
       {% set comment = column['description'] %}
       {% set escaped_comment = comment | replace('\'', '\\\'') %}
-      {% set column_path = relation.render() ~ '.' ~ api.Column.get_name(column) %}
+      {% set column_path = relation.render() ~ '.' ~ adapter.quote(column['name']) %}
       {{ run_query_as(comment_on_column_sql(column_path, escaped_comment), 'alter_column_comment', fetch_result=False) }}
     {% endfor %}
   {% else %}
@@ -50,7 +50,7 @@ COMMENT ON {{ relation.type.render().upper() }} {{ relation.render() }} IS '{{ d
   {% for column, comment in column_dict.items() %}
     {{ log('Updating comment for column ' ~ column ~ ' with comment ' ~ comment) }}
     {% set escaped_comment = comment | replace('\'', '\\\'') %}
-    {% set column_path = relation.render() ~ '.' ~ column %}
+    {% set column_path = relation.render() ~ '.' ~ adapter.quote(column) %}
     {{ run_query_as(comment_on_column_sql(column_path, escaped_comment), 'main', fetch_result=False) }}
   {% endfor %}
 {% endmacro %}
