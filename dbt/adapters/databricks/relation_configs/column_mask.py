@@ -16,16 +16,24 @@ class ColumnMaskConfig(DatabricksComponentConfig):
 
     def get_diff(self, other: "ColumnMaskConfig") -> Optional["ColumnMaskConfig"]:
         # Find column masks that need to be unset
+        # Use case-insensitive comparison for column names (Databricks queries are case-insensitive)
+        self_column_masks_lower = {k.lower() for k in self.set_column_masks.keys()}
         unset_column_mask = [
-            col for col in other.set_column_masks if col not in self.set_column_masks
+            col for col in other.set_column_masks if col.lower() not in self_column_masks_lower
         ]
 
         # Find column masks that need to be set or updated
-        set_column_mask = {
-            col: mask
-            for col, mask in self.set_column_masks.items()
-            if col not in other.set_column_masks or other.set_column_masks[col] != mask
-        }
+        # Use case-insensitive comparison for column names, but preserve exact mask values
+        other_column_masks_lower = {}
+        for k, v in other.set_column_masks.items():
+            other_column_masks_lower[k.lower()] = v
+
+        set_column_mask = {}
+        for col, mask in self.set_column_masks.items():
+            # Case-insensitive column name lookup, but exact mask value comparison
+            other_mask = other_column_masks_lower.get(col.lower())
+            if other_mask is None or other_mask != mask:
+                set_column_mask[col] = mask
 
         if set_column_mask or unset_column_mask:
             return ColumnMaskConfig(

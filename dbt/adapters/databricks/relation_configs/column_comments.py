@@ -20,7 +20,7 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
         comments = {}
         if self.persist:
             for column_name, comment in self.comments.items():
-                if comment != other.comments.get(column_name.lower()):
+                if comment != other.comments.get(column_name):
                     column_name = f"`{column_name}`"
                     comments[column_name] = comment
             logger.debug(f"Comments: {comments}")
