@@ -7,15 +7,6 @@ class TestMergeCaseSensitiveColumns:
     """Test case for column name case sensitivity bug in merge operations."""
 
     @pytest.fixture(scope="class")
-    def seeds(self):
-        return {
-            "case_sensitive_expected.csv": """id,Name,AGE
-1,Alice,25
-2,Bob,30
-3,Charlie,35""",
-        }
-
-    @pytest.fixture(scope="class")
     def models(self):
         return {
             "case_sensitive_merge.sql": """
@@ -55,24 +46,16 @@ class TestMergeCaseSensitiveColumns:
         results = project.run_sql("select count(*) from case_sensitive_merge", fetch="all")
         assert results[0][0] == 3  # Should have 3 rows after merge
 
-        # Verify the data matches expected
-        util.check_relations_equal(
-            project.adapter, ["case_sensitive_merge", "case_sensitive_expected"]
+        # Verify the actual data content - check that we have Alice, Bob, and Charlie
+        results = project.run_sql(
+            "select id, Name, AGE from case_sensitive_merge order by id", fetch="all"
         )
+        expected_data = [(1, "Alice", 25), (2, "Bob", 30), (3, "Charlie", 35)]
+        assert results == expected_data, f"Expected {expected_data}, got {results}"
 
 
 class TestInsertIntoCaseSensitiveColumns:
     """Test case for column name case sensitivity bug in insert_into operations."""
-
-    @pytest.fixture(scope="class")
-    def seeds(self):
-        return {
-            "insert_case_sensitive_expected.csv": """id,Name,AGE
-1,Alice,25
-2,Bob,30
-1,Alice,25
-2,Bob,30""",
-        }
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -106,7 +89,9 @@ select 2 as id, 'Bob' as Name, 30 as AGE
         results = project.run_sql("select count(*) from insert_case_sensitive", fetch="all")
         assert results[0][0] == 4  # Should have 4 rows after append
 
-        # Verify the data matches expected
-        util.check_relations_equal(
-            project.adapter, ["insert_case_sensitive", "insert_case_sensitive_expected"]
+        # Verify the actual data content - should have Alice and Bob twice each
+        results = project.run_sql(
+            "select id, Name, AGE from insert_case_sensitive order by id, Name", fetch="all"
         )
+        expected_data = [(1, "Alice", 25), (1, "Alice", 25), (2, "Bob", 30), (2, "Bob", 30)]
+        assert results == expected_data, f"Expected {expected_data}, got {results}"
