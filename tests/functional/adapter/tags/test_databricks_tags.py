@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.tags import fixtures
 
@@ -36,6 +37,7 @@ class TestIncrementalTags(TestTags):
         return {"tags.sql": fixtures.tags_sql.replace("table", "incremental")}
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestPythonTags(TestTags):
     @pytest.fixture(scope="class")

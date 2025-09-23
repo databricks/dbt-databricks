@@ -12,7 +12,7 @@
         {{ databricks__get_catalog_results_sql() }}
     {%- endset -%}
 
-  {{ return(run_query(query)) }}
+    {{ return(run_query(query)) }}
 {%- endmacro %}
 
 {% macro databricks__get_catalog_relations(information_schema, relations) -%}
@@ -29,7 +29,7 @@
         {{ databricks__get_catalog_results_sql() }}
     {%- endset -%}
 
-  {{ return(run_query(query)) }}
+    {{ return(run_query(query)) }}
 {%- endmacro %}
 
 {% macro databricks__get_catalog_tables_sql(information_schema) -%}
@@ -55,7 +55,7 @@
         table_name,
         column_name,
         ordinal_position as column_index,
-        lower(data_type) as column_type,
+        lower(full_data_type) as column_type,
         comment as column_comment
     from `system`.`information_schema`.`columns`
     where table_catalog = '{{ information_schema.database|lower }}'

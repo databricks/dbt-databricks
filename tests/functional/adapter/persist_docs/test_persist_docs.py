@@ -2,6 +2,7 @@ import os
 
 import pytest
 from agate import Table
+
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.tests import util
@@ -245,6 +246,7 @@ class TestPersistDocsCommentOnQuotedColumn:
                 break
 
 
+@pytest.mark.external
 # Skipping UC Cluster to ensure these tests don't fail due to overlapping resources
 @pytest.mark.skip_profile("databricks_uc_cluster")
 class TestPersistDocsWithSeeds:

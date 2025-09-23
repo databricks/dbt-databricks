@@ -1,19 +1,21 @@
-from typing import Dict
 from typing import Optional
 
-from dbt.adapters.databricks.relation_configs.base import DatabricksComponentConfig
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationChangeSet
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.databricks.relation_configs.base import (
+    DatabricksComponentConfig,
+    DatabricksRelationChangeSet,
+    DatabricksRelationConfigBase,
+)
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
 
 
 class IncrementalTableConfig(DatabricksRelationConfigBase):
-    config_components = [TagsProcessor]
+    config_components = [TagsProcessor, TblPropertiesProcessor]
 
     def get_changeset(
         self, existing: "IncrementalTableConfig"
     ) -> Optional[DatabricksRelationChangeSet]:
-        changes: Dict[str, DatabricksComponentConfig] = {}
+        changes: dict[str, DatabricksComponentConfig] = {}
 
         for component in self.config_components:
             key = component.name

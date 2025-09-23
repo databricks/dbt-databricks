@@ -2,24 +2,14 @@ import pytest
 
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
-from dbt.tests.adapter.constraints.test_constraints import BaseConstraintQuotedColumn
-from dbt.tests.adapter.constraints.test_constraints import BaseConstraintsRollback
 from dbt.tests.adapter.constraints.test_constraints import (
+    BaseConstraintQuotedColumn,
+    BaseConstraintsRollback,
     BaseConstraintsRuntimeDdlEnforcement,
-)
-from dbt.tests.adapter.constraints.test_constraints import (
     BaseIncrementalConstraintsColumnsEqual,
-)
-from dbt.tests.adapter.constraints.test_constraints import (
     BaseIncrementalConstraintsRollback,
-)
-from dbt.tests.adapter.constraints.test_constraints import (
     BaseIncrementalConstraintsRuntimeDdlEnforcement,
-)
-from dbt.tests.adapter.constraints.test_constraints import (
     BaseTableConstraintsColumnsEqual,
-)
-from dbt.tests.adapter.constraints.test_constraints import (
     BaseViewConstraintsColumnsEqual,
 )
 from tests.functional.adapter.constraints import fixtures as override_fixtures
@@ -189,7 +179,7 @@ class TestIncrementalConstraintsRollback(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalForeignKeyConstraint:
+class TestIncrementalForeignKeyExpressionConstraint:
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -209,6 +199,20 @@ class TestIncrementalForeignKeyConstraint:
         util.run_dbt(["run", "--select", "raw_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestForeignKeyParentConstraint:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.parent_foreign_key,
+            "parent_table.sql": override_fixtures.parent_sql,
+            "child_table.sql": override_fixtures.child_sql,
+        }
+
+    def test_foreign_key_constraint(self, project):
+        util.run_dbt(["build"])
 
 
 class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):

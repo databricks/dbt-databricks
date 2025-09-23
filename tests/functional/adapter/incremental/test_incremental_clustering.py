@@ -1,4 +1,5 @@
 import pytest
+
 from dbt.tests import util
 from tests.functional.adapter.incremental import fixtures
 
@@ -36,6 +37,7 @@ class TestIncrementalLiquidClustering:
                 assert False
 
 
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonLiquidClustering:
     @pytest.fixture(scope="class")

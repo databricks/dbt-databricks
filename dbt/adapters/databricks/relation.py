@@ -1,25 +1,18 @@
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import Dict
-from typing import Iterable
-from typing import Optional
-from typing import Set
-from typing import Type
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Any, Optional, Type  # noqa
 
-from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.relation import InformationSchema
-from dbt.adapters.base.relation import Policy
+from dbt_common.dataclass_schema import StrEnum
+from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import filter_null_values
+
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER
-from dbt.adapters.spark.impl import KEY_TABLE_STATISTICS
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
 from dbt.adapters.utils import classproperty
-from dbt_common.dataclass_schema import StrEnum
-from dbt_common.exceptions import DbtRuntimeError
-from dbt_common.utils import filter_null_values
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -46,7 +39,9 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     MetricView = "metric_view"
-    # External = "external"
+    External = "external"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
 
 
@@ -73,13 +68,13 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
-
-    metadata: Optional[Dict[str, Any]] = None
+    is_delta: Optional[bool] = None
+    metadata: Optional[dict[str, Any]] = None
 
     databricks_table_type: Optional[DatabricksTableType] = None
 
     @classmethod
-    def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
         if "database" not in data["path"]:
             data["path"]["database"] = None
@@ -104,11 +99,6 @@ class DatabricksRelation(BaseRelation):
     @property
     def is_external_table(self) -> bool:
         return self.databricks_table_type == DatabricksTableType.External
-
-    @property
-    def is_delta(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "delta"
 
     @property
     def is_hudi(self) -> bool:
@@ -152,7 +142,7 @@ class DatabricksRelation(BaseRelation):
         return match
 
     @classproperty
-    def get_relation_type(cls) -> Type[DatabricksRelationType]:
+    def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
     
     @classproperty
@@ -178,5 +168,5 @@ def is_hive_metastore(database: Optional[str]) -> bool:
     return database is None or database.lower() == "hive_metastore"
 
 
-def extract_identifiers(relations: Iterable[BaseRelation]) -> Set[str]:
+def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:
     return {r.identifier for r in relations if r.identifier is not None}

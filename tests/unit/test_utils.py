@@ -1,5 +1,4 @@
-from dbt.adapters.databricks.utils import redact_credentials
-from dbt.adapters.databricks.utils import remove_ansi
+from dbt.adapters.databricks.utils import quote, redact_credentials, remove_ansi
 
 
 class TestDatabricksUtils:
@@ -65,3 +64,6 @@ class TestDatabricksUtils:
        72 # how to execute python model in notebook
 """
         assert remove_ansi(test_string) == expected_string
+
+    def test_quote(self):
+        assert quote("table") == "`table`"

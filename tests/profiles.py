@@ -1,7 +1,5 @@
 import os
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any, Optional
 
 
 def get_databricks_cluster_target(profile_type: str):
@@ -19,9 +17,9 @@ def _build_databricks_cluster_target(
     http_path: str,
     catalog: Optional[str] = None,
     schema: Optional[str] = None,
-    session_properties: Optional[Dict[str, str]] = None,
+    session_properties: Optional[dict[str, str]] = None,
 ):
-    profile: Dict[str, Any] = {
+    profile: dict[str, Any] = {
         "type": "databricks",
         "host": os.getenv("DBT_DATABRICKS_HOST_NAME"),
         "http_path": http_path,
@@ -31,7 +29,7 @@ def _build_databricks_cluster_target(
         "connect_retries": 3,
         "connect_timeout": 5,
         "retry_all": True,
-        "auth_type": "oauth",
+        "auth_type": os.getenv("DBT_DATABRICKS_AUTH_TYPE", "oauth"),
     }
     if catalog is not None:
         profile["catalog"] = catalog
@@ -39,6 +37,13 @@ def _build_databricks_cluster_target(
         profile["schema"] = schema
     if session_properties is not None:
         profile["session_properties"] = session_properties
+    if os.getenv("DBT_DATABRICKS_PORT"):
+        profile["connection_parameters"] = {
+            "_port": os.getenv("DBT_DATABRICKS_PORT"),
+            # If you are specifying a port for running tests, assume Docker
+            # is being used and disable TLS verification
+            "_tls_no_verify": True,
+        }
     return profile
 
 

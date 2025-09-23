@@ -1,6 +1,8 @@
 from typing import Optional
 
 import pytest
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
+
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import (
@@ -11,7 +13,6 @@ from dbt.tests import util
 from dbt.tests.adapter.materialized_view.files import (
     MY_SEED,
 )
-from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -123,6 +124,7 @@ class StreamingTableChanges:
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesApply(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -153,6 +155,7 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesContinue(StreamingTableChanges):
     @pytest.fixture(scope="class")
@@ -193,6 +196,7 @@ class TestStreamingTableChangesContinue(StreamingTableChanges):
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableChangesFail(StreamingTableChanges):
     @pytest.fixture(scope="class")

@@ -8,20 +8,18 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.tests import util
-from dbt.tests.adapter.materialized_view.changes import MaterializedViewChanges
 from dbt.tests.adapter.materialized_view.changes import (
+    MaterializedViewChanges,
     MaterializedViewChangesApplyMixin,
-)
-from dbt.tests.adapter.materialized_view.changes import (
     MaterializedViewChangesContinueMixin,
+    MaterializedViewChangesFailMixin,
 )
-from dbt.tests.adapter.materialized_view.changes import MaterializedViewChangesFailMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if not k.startswith("pipeline")
+        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
     }
     assert final_tblproperties == expected
 
@@ -80,6 +78,7 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
         return fixtures.query_relation_type(project, relation)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewApplyChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesApplyMixin
@@ -87,6 +86,7 @@ class TestMaterializedViewApplyChanges(
     pass
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewContinueOnChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesContinueMixin
@@ -94,6 +94,7 @@ class TestMaterializedViewContinueOnChanges(
     pass
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewFailOnChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesFailMixin

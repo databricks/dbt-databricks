@@ -1,5 +1,8 @@
+from unittest.mock import Mock
+
 import pytest
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -11,6 +14,12 @@ class TestConstraintMacros(MacroTestBase):
     @pytest.fixture(scope="class")
     def macro_folders_to_load(self) -> list:
         return ["macros/relations", "macros"]
+
+    @pytest.fixture(scope="class", autouse=True)
+    def modify_context(self, default_context) -> None:
+        # Mock local_md5
+        default_context["local_md5"] = lambda s: f"hash({s})"
+        default_context["api"] = Mock(Column=DatabricksColumn)
 
     def render_constraints(self, template, *args):
         return self.run_macro(template, "databricks_constraints_to_dbt", *args)
@@ -240,7 +249,7 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_check_none_constraint(self, template_bundle, model):
+    def test_macros_get_constraint_sql_check_noname_constraint(self, template_bundle, model):
         constraint = {
             "type": "check",
             "expression": "id != name",
@@ -248,7 +257,8 @@ class TestConstraintMacros(MacroTestBase):
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
         expected = (
-            "['alter table `some_database`.`some_schema`.`some_table` add constraint None "
+            "['alter table `some_database`.`some_schema`.`some_table` "
+            "add constraint hash(some_table;;id != name;) "
             "check (id != name);']"
         )  # noqa: E501
         assert expected in r
@@ -307,12 +317,25 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
+    def test_macros_get_constraint_sql_primary_key_noname(self, template_bundle, model):
+        constraint = {"type": "primary_key"}
+        column = {"name": "id"}
+
+        r = self.render_constraint_sql(template_bundle, constraint, model, column)
+
+        expected = (
+            '["alter table `some_database`.`some_schema`.`some_table` add constraint '
+            "hash(primary_key;some_table;['id'];) "
+            'primary key(id);"]'
+        )
+        assert expected in r
+
     def test_macros_get_constraint_sql_foreign_key(self, template_bundle, model):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name"],
-            "parent": "parent_table",
+            "to": "parent_table",
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -323,13 +346,28 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
+    def test_macros_get_constraint_sql_foreign_key_noname(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["name"],
+            "to": "parent_table",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            '["alter table `some_database`.`some_schema`.`some_table` add '
+            "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) "
+            'foreign key(name) references some_schema.parent_table;"]'
+        )
+        assert expected in r
+
     def test_macros_get_constraint_sql_foreign_key_parent_column(self, template_bundle, model):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name"],
-            "parent": "parent_table",
-            "parent_columns": ["parent_name"],
+            "to": "parent_table",
+            "to_columns": ["parent_name"],
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -345,8 +383,8 @@ class TestConstraintMacros(MacroTestBase):
             "type": "foreign_key",
             "name": "myconstraint",
             "columns": ["name", "id"],
-            "parent": "parent_table",
-            "parent_columns": ["parent_name", "parent_id"],
+            "to": "parent_table",
+            "to_columns": ["parent_name", "parent_id"],
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
@@ -363,8 +401,8 @@ class TestConstraintMacros(MacroTestBase):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
-            "parent": "parent_table",
-            "parent_columns": ["parent_name"],
+            "to": "parent_table",
+            "to_columns": ["parent_name"],
         }
         column = {"name": "id"}
         r = self.render_constraint_sql(template_bundle, constraint, model, column)
@@ -375,3 +413,40 @@ class TestConstraintMacros(MacroTestBase):
             "some_schema.parent_table(parent_name);']"
         )
         assert expected in r
+
+    def test_macros_get_constraint_sql_custom(self, template_bundle, model):
+        constraint = {
+            "type": "custom",
+            "name": "myconstraint",
+            "expression": "PRIMARY KEY(valid_at TIMESERIES)",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            "['alter table `some_database`.`some_schema`.`some_table` add constraint "
+            "myconstraint PRIMARY KEY(valid_at TIMESERIES);']"
+        )
+        assert expected in r
+
+    def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
+        constraint = {
+            "type": "custom",
+            "expression": "PRIMARY KEY(valid_at TIMESERIES)",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        expected = (
+            "['alter table `some_database`.`some_schema`.`some_table` "
+            "add constraint hash(some_table;PRIMARY KEY(valid_at TIMESERIES);) "
+            "PRIMARY KEY(valid_at TIMESERIES);']"
+        )  # noqa: E501
+        assert expected in r
+
+    def test_macros_get_constraint_sql_custom_missing_expression(self, template_bundle, model):
+        constraint = {
+            "type": "check",
+            "expression": "",
+            "name": "myconstraint",
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+        assert "raise_compiler_error" in r

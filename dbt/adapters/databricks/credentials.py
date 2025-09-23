@@ -3,32 +3,26 @@ import json
 import os
 import re
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
-from typing import cast
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import Union
+from typing import Any, Optional, Union, cast
 
 import keyring
+from dbt_common.exceptions import DbtConfigError, DbtValidationError
+
 from databricks.sdk.core import CredentialsProvider
-from databricks.sdk.oauth import OAuthClient
-from databricks.sdk.oauth import SessionCredentials
+from databricks.sdk.oauth import OAuthClient, SessionCredentials
 from dbt.adapters.contracts.connection import Credentials
-from dbt.adapters.databricks.auth import m2m_auth
-from dbt.adapters.databricks.auth import token_auth
-from dbt.adapters.databricks.events.credential_events import CredentialLoadError
-from dbt.adapters.databricks.events.credential_events import CredentialSaveError
-from dbt.adapters.databricks.events.credential_events import CredentialShardEvent
+from dbt.adapters.databricks.auth import m2m_auth, token_auth
+from dbt.adapters.databricks.events.credential_events import (
+    CredentialLoadError,
+    CredentialSaveError,
+    CredentialShardEvent,
+)
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
-from dbt_common.exceptions import DbtConfigError
-from dbt_common.exceptions import DbtValidationError
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
-DBT_DATABRICKS_INVOCATION_ENV = "DBT_DATABRICKS_INVOCATION_ENV"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
@@ -55,21 +49,21 @@ class DatabricksCredentials(Credentials):
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     oauth_redirect_url: Optional[str] = None
-    oauth_scopes: Optional[List[str]] = None
-    session_properties: Optional[Dict[str, Any]] = None
-    connection_parameters: Optional[Dict[str, Any]] = None
+    oauth_scopes: Optional[list[str]] = None
+    session_properties: Optional[dict[str, Any]] = None
+    connection_parameters: Optional[dict[str, Any]] = None
     auth_type: Optional[str] = None
 
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
-    compute: Optional[Dict[str, Any]] = None
+    compute: Optional[dict[str, Any]] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False
     connect_max_idle: Optional[int] = None
 
-    _credentials_provider: Optional[Dict[str, Any]] = None
+    _credentials_provider: Optional[dict[str, Any]] = None
     _lock = threading.Lock()  # to avoid concurrent auth
 
     _ALIASES = {
@@ -78,10 +72,12 @@ class DatabricksCredentials(Credentials):
     }
 
     @classmethod
-    def __pre_deserialize__(cls, data: Dict[Any, Any]) -> Dict[Any, Any]:
+    def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
         data = super().__pre_deserialize__(data)
-        if "database" not in data:
-            data["database"] = None
+        data.setdefault("database", None)
+        data.setdefault("connection_parameters", {})
+        data["connection_parameters"].setdefault("_retry_stop_after_attempts_count", 30)
+        data["connection_parameters"].setdefault("_retry_delay_max", 60)
         return data
 
     def __post_init__(self) -> None:
@@ -142,25 +138,21 @@ class DatabricksCredentials(Credentials):
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
             if not getattr(self, key):
-                raise DbtConfigError(
-                    "The config '{}' is required to connect to Databricks".format(key)
-                )
+                raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
-                ("The config `auth_type: oauth` is required when not using access token")
+                "The config `auth_type: oauth` is required when not using access token"
             )
 
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
-                (
-                    "The config 'client_id' is required to connect "
-                    "to Databricks when 'client_secret' is present"
-                )
+                "The config 'client_id' is required to connect "
+                "to Databricks when 'client_secret' is present"
             )
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
-        invocation_env = os.environ.get(DBT_DATABRICKS_INVOCATION_ENV)
+        invocation_env = GlobalState.get_invocation_env()
         if invocation_env:
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
@@ -169,12 +161,10 @@ class DatabricksCredentials(Credentials):
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(cls, user_http_session_headers: Dict[str, str]) -> Dict[str, str]:
-        http_session_headers_str: Optional[str] = os.environ.get(
-            DBT_DATABRICKS_HTTP_SESSION_HEADERS
-        )
+    def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
+        http_session_headers_str = GlobalState.get_http_session_headers()
 
-        http_session_headers_dict: Dict[str, str] = (
+        http_session_headers_dict: dict[str, str] = (
             {
                 k: v if isinstance(v, str) else json.dumps(v)
                 for k, v in json.loads(http_session_headers_str).items()
@@ -204,17 +194,17 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(self, *, with_aliases: bool = False) -> Iterable[Tuple[str, Any]]:
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
-        aliases: List[str] = []
+        aliases: list[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
         for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
                 yield key, as_dict[key]
 
-    def _connection_keys(self, *, with_aliases: bool = False) -> Tuple[str, ...]:
+    def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
         # is called from only:
         #
@@ -273,17 +263,8 @@ class DatabricksCredentials(Credentials):
                 return provider
 
             client_id = self.client_id or CLIENT_ID
-
-            if client_id == "dbt-databricks":
-                # This is the temp code to make client id dbt-databricks work with server,
-                # currently the redirect url and scope for client dbt-databricks are fixed
-                # values as below. It can be removed after Databricks extends dbt-databricks
-                # scope to all-apis
-                redirect_url = "http://localhost:8050"
-                scopes = ["sql", "offline_access"]
-            else:
-                redirect_url = self.oauth_redirect_url or REDIRECT_URL
-                scopes = self.oauth_scopes or SCOPES
+            redirect_url = self.oauth_redirect_url or REDIRECT_URL
+            scopes = self.oauth_scopes or SCOPES
 
             oauth_client = OAuthClient(
                 host=host,

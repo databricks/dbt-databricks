@@ -71,25 +71,46 @@ select {{source_cols_csv}} from {{ source_relation }}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# need dest_columns for merge_exclude_columns, default to use "*" #}
+
+  {%- set target_alias = config.get('target_alias', 'DBT_INTERNAL_DEST') -%}
+  {%- set source_alias = config.get('source_alias', 'DBT_INTERNAL_SOURCE') -%}
+
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
   {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='quoted') | list)-%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
+  {%- set merge_with_schema_evolution = (config.get('merge_with_schema_evolution') | lower == 'true') -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set skip_matched_step = (config.get('skip_matched_step') | lower == 'true') -%}
+  {%- set skip_not_matched_step = (config.get('skip_not_matched_step') | lower == 'true') -%}
 
+  {%- set matched_condition = config.get('matched_condition') -%}
+  {%- set not_matched_condition = config.get('not_matched_condition') -%}
+
+  {%- set not_matched_by_source_action = config.get('not_matched_by_source_action') -%}
+  {%- set not_matched_by_source_condition = config.get('not_matched_by_source_condition') -%}
+
+  {%- set not_matched_by_source_action_trimmed = not_matched_by_source_action | lower | trim(' \n\t') %}
+  {%- set not_matched_by_source_action_is_set = (
+      not_matched_by_source_action_trimmed == 'delete'
+      or not_matched_by_source_action_trimmed.startswith('update')
+    )
+  %}
+  
+  
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
               {% set this_key_match %}
-                  DBT_INTERNAL_SOURCE.{{ key }} <=> DBT_INTERNAL_DEST.{{ key }}
+                  {{ source_alias }}.{{ key }} <=> {{ target_alias }}.{{ key }}
               {% endset %}
               {% do predicates.append(this_key_match) %}
           {% endfor %}
       {% else %}
           {% set unique_key_match %}
-              DBT_INTERNAL_SOURCE.{{ unique_key }} <=> DBT_INTERNAL_DEST.{{ unique_key }}
+              {{ source_alias }}.{{ unique_key }} <=> {{ target_alias }}.{{ unique_key }}
           {% endset %}
           {% do predicates.append(unique_key_match) %}
       {% endif %}
@@ -97,34 +118,77 @@ select {{source_cols_csv}} from {{ source_relation }}
       {% do predicates.append('FALSE') %}
   {% endif %}
 
-  merge into {{ target }} as DBT_INTERNAL_DEST
-      using {{ source }} as DBT_INTERNAL_SOURCE
-      on {{ predicates | join(' and ') }}
-      when matched then update set {{ get_merge_update_set(update_columns, on_schema_change, source_columns) }}
-      when not matched then insert {{ get_merge_insert(on_schema_change, source_columns) }}
+    merge
+        {%- if merge_with_schema_evolution %}
+        with schema evolution
+        {%- endif %}
+    into
+        {{ target }} as {{ target_alias }}
+    using
+        {{ source }} as {{ source_alias }}
+    on
+        {{ predicates | join('\n    and ') }}
+    {%- if not skip_matched_step %}
+    when matched
+        {%- if matched_condition %}
+        and ({{ matched_condition }})
+        {%- endif %}
+        then update set
+            {{ get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) }}
+    {%- endif %}
+    {%- if not skip_not_matched_step %}
+    when not matched
+        {%- if not_matched_condition %}
+        and ({{ not_matched_condition }})
+        {%- endif %}
+        then insert
+            {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
+    {%- endif %}
+    {%- if not_matched_by_source_action_is_set %}
+    when not matched by source
+        {%- if not_matched_by_source_condition %}
+        and ({{ not_matched_by_source_condition }})
+        {%- endif %}
+        then {{ not_matched_by_source_action }}
+    {%- endif %}
 {% endmacro %}
 
-{% macro get_merge_update_set(update_columns, on_schema_change, source_columns) %}
+{% macro get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias='DBT_INTERNAL_SOURCE') %}
   {%- if update_columns -%}
     {%- for column_name in update_columns -%}
-      {{ column_name }} = DBT_INTERNAL_SOURCE.{{ column_name }}{%- if not loop.last %}, {% endif -%}
+      {{ column_name }} = {{ source_alias }}.{{ column_name }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- elif on_schema_change == 'ignore' -%}
     *
   {%- else -%}
     {%- for column in source_columns -%}
-      {{ column }} = DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ column }} = {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   {%- endif -%}
 {% endmacro %}
 
-{% macro get_merge_insert(on_schema_change, source_columns) %}
+{% macro get_merge_insert(on_schema_change, source_columns, source_alias='DBT_INTERNAL_SOURCE') %}
   {%- if on_schema_change == 'ignore' -%}
     *
   {%- else -%}
     ({{ source_columns | join(", ") }}) VALUES (
     {%- for column in source_columns -%}
-      DBT_INTERNAL_SOURCE.{{ column }}{%- if not loop.last %}, {% endif -%}
+      {{ source_alias }}.{{ column }}{%- if not loop.last %}, {% endif -%}
     {%- endfor %})
   {%- endif -%}
+{% endmacro %}
+
+{% macro databricks__get_incremental_microbatch_sql(arg_dict) %}
+  {%- set incremental_predicates = [] if arg_dict.get('incremental_predicates') is none else arg_dict.get('incremental_predicates') -%}
+  {%- set event_time = model.config.event_time -%}
+  {%- set start_time = config.get("__dbt_internal_microbatch_event_time_start") -%}
+  {%- set end_time = config.get("__dbt_internal_microbatch_event_time_end") -%}
+  {%- if start_time -%}
+    {%- do incremental_predicates.append("cast(" ~ event_time ~ " as TIMESTAMP) >= '" ~ start_time ~ "'") -%}
+  {%- endif -%}
+  {%- if end_time -%}
+    {%- do incremental_predicates.append("cast(" ~ event_time ~ " as TIMESTAMP) < '" ~ end_time ~ "'") -%}
+  {%- endif -%}
+  {%- do arg_dict.update({'incremental_predicates': incremental_predicates}) -%}
+  {{ return(get_replace_where_sql(arg_dict)) }}
 {% endmacro %}

@@ -1,9 +1,8 @@
 from abc import ABC
-from typing import Any
-from typing import Optional
-from typing import Tuple
+from typing import Any, Optional
 
 from databricks.sql.client import Connection
+
 from dbt.adapters.databricks.events.base import SQLErrorEvent
 
 
@@ -16,30 +15,6 @@ class ConnectionEvent(ABC):
 
     def __str__(self) -> str:
         return f"Connection(session-id={self.session_id}) - {self.message}"
-
-
-class ConnectionCancel(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection]):
-        super().__init__(connection, "Cancelling connection")
-
-
-class ConnectionClose(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection]):
-        super().__init__(connection, "Closing connection")
-
-
-class ConnectionCancelError(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection], exception: Exception):
-        super().__init__(
-            connection, str(SQLErrorEvent(exception, "Exception while trying to cancel connection"))
-        )
-
-
-class ConnectionCloseError(ConnectionEvent):
-    def __init__(self, connection: Optional[Connection], exception: Exception):
-        super().__init__(
-            connection, str(SQLErrorEvent(exception, "Exception while trying to close connection"))
-        )
 
 
 class ConnectionCreateError(ConnectionEvent):
@@ -64,7 +39,7 @@ class ConnectionAcquire(ConnectionWrapperEvent):
         description: str,
         model: Optional[Any],
         compute_name: Optional[str],
-        thread_identifier: Tuple[int, int],
+        thread_identifier: tuple[int, int],
     ):
         message = f"Acquired connection on thread {thread_identifier}, using "
         if not compute_name:

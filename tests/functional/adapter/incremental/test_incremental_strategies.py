@@ -42,6 +42,7 @@ class TestAppendDelta(AppendBase):
     pass
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestAppendParquet(AppendBase):
     @pytest.fixture(scope="class")
@@ -51,6 +52,7 @@ class TestAppendParquet(AppendBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_append",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }
@@ -118,6 +120,7 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
 
 
+@pytest.mark.external
 @pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
@@ -127,11 +130,13 @@ class TestInsertOverwriteParquet(InsertOverwriteBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_insert_overwrite",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "insert_overwrite",
             },
         }
 
 
+@pytest.mark.external
 @pytest.mark.skip("This test is not repeatable due to external location")
 class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
     @pytest.fixture(scope="class")
@@ -141,6 +146,7 @@ class TestInsertOverwriteWithPartitionsParquet(InsertOverwriteBase):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet_insert_overwrite_partitions",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "insert_overwrite",
                 "+partition_by": "id",
             },
@@ -221,3 +227,125 @@ class TestReplaceWhere(IncrementalBase):
     def test_replace_where(self, project):
         self.seed_and_run_twice()
         util.check_relations_equal(project.adapter, ["replace_where", "replace_where_expected"])
+
+
+class TestSkipMatched(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "skip_matched_expected.csv": fixtures.skip_matched_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "skip_matched.sql": fixtures.skip_matched_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["skip_matched", "skip_matched_expected"])
+
+
+class TestSkipNotMatched(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "skip_not_matched_expected.csv": fixtures.skip_not_matched_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "skip_not_matched.sql": fixtures.skip_not_matched_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["skip_not_matched", "skip_not_matched_expected"]
+        )
+
+
+class TestMatchedAndNotMatchedCondition(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "matching_condition_expected.csv": fixtures.matching_condition_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "matching_condition.sql": fixtures.matching_condition_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["matching_condition", "matching_condition_expected"],
+        )
+
+
+class TestNotMatchedBySourceAndConditionThenDelete(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_then_del_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "not_matched_by_source.sql": fixtures.not_matched_by_source_then_delete_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["not_matched_by_source", "not_matched_by_source_expected"],
+        )
+
+
+class TestNotMatchedBySourceAndConditionThenUpdate(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "not_matched_by_source_expected.csv": fixtures.not_matched_by_source_then_upd_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "not_matched_by_source.sql": fixtures.not_matched_by_source_then_update_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["not_matched_by_source", "not_matched_by_source_expected"],
+        )
+
+
+class TestMergeSchemaEvolution(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_schema_evolution_expected.csv": fixtures.merge_schema_evolution_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_schema_evolution.sql": fixtures.merge_schema_evolution_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["merge_schema_evolution", "merge_schema_evolution_expected"],
+        )

@@ -84,14 +84,11 @@
   {% do return(load_result('get_view_description').table) %}
 {% endmacro %}
 
-  {% do return(load_result('get_view_description_alt').table) %}
-{% endmacro %}
-
 {% macro get_uc_tables(relation) %}
   {% call statement('get_uc_tables', fetch_result=True) -%}
     select
       table_name,
-      if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
+      if(table_type in ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) as table_type,
       lower(data_source_format) as file_format,
       table_owner,
       if(

@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Tuple
 
 import pytest
 
@@ -11,7 +10,7 @@ from tests.functional.adapter.materialized_view_tests import fixtures
 
 class TestMaterializedViewsMixin:
     @staticmethod
-    def insert_record(project, table: BaseRelation, record: Tuple[int, int]) -> None:
+    def insert_record(project, table: BaseRelation, record: tuple[int, int]) -> None:
         project.run_sql(f"insert into {table} values {record}")
 
     @staticmethod
@@ -27,6 +26,7 @@ class TestMaterializedViewsMixin:
         return fixtures.query_relation_type(project, relation)
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
     def test_table_replaces_materialized_view(self, project, my_materialized_view):

@@ -6,8 +6,15 @@ on:
       - "**.md"
       - "adapters/databricks/__version__.py"
       - "tests/unit/**"
+      - ".github/workflows/main.yml"
+      - ".github/workflows/stale.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  run-tox-tests-uc-cluster:
+  run-uc-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
@@ -19,22 +26,26 @@ jobs:
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-uc-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-cluster
 
-  run-tox-tests-uc-sql:
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@install
+
+      - name: Run UC Cluster Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
+
+  run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
@@ -47,22 +58,26 @@ jobs:
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-uc-sql-endpoint
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-sql-endpoint
 
-  run-tox-tests-non-uc:
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@install
+
+      - name: Run Sql Endpoint Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
+
+  run-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
     env:
@@ -72,17 +87,21 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
+
+      - name: Install Hatch
         id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-cluster
+        uses: pypa/hatch@install
+
+      - name: Run Cluster Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e

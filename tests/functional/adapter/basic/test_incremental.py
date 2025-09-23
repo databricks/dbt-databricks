@@ -2,8 +2,7 @@ import os
 
 import pytest
 
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
-from dbt.tests.adapter.basic.test_incremental import BaseIncrementalNotSchemaChange
+from dbt.tests.adapter.basic.test_incremental import BaseIncremental, BaseIncrementalNotSchemaChange
 
 
 class TestIncrementalDelta(BaseIncremental):
@@ -24,6 +23,7 @@ class TestIncrementalDeltaNotSchemaChange(BaseIncrementalNotSchemaChange):
     pass
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestIncrementalParquet(BaseIncremental):
     @pytest.fixture(scope="class")
@@ -33,6 +33,7 @@ class TestIncrementalParquet(BaseIncremental):
             "models": {
                 "+file_format": "parquet",
                 "+location_root": f"{location_root}/parquet",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }
@@ -50,6 +51,7 @@ class TestIncrementalParquetHive(BaseIncremental):
         }
 
 
+@pytest.mark.external
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestIncrementalCSV(BaseIncremental):
     @pytest.fixture(scope="class")
@@ -59,6 +61,7 @@ class TestIncrementalCSV(BaseIncremental):
             "models": {
                 "+file_format": "csv",
                 "+location_root": f"{location_root}/csv",
+                "+include_full_name_in_path": "true",
                 "+incremental_strategy": "append",
             },
         }

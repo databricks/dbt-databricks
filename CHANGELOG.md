@@ -1,16 +1,140 @@
-## dbt-databricks 1.9.0 (TBD)
+## dbt-databricks 1.9.8 (TBD)
 
-### Features
+### Fixes
 
-- Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
-- Add 'user_folder_for_python' config to switch writing python model notebooks to the user's folder ([706](https://github.com/databricks/dbt-databricks/pull/706))
+- Switch to using full_data_type column when using info schema for column info ([950](https://github.com/databricks/dbt-databricks/pull/950))
+
+## dbt-databricks 1.9.7 (Feb 25, 2025)
+
+### Fixes
+
+- Fix for missing language extraction from query header ([945](https://github.com/databricks/dbt-databricks/pull/945))
+
+## dbt-databricks 1.9.6 (Feb 24, 2025)
+
+### Fixes
+
+- Fix for parse raising error for not having credentials ([941](https://github.com/databricks/dbt-databricks/pull/941))
 
 ### Under the Hood
 
-- Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
-- Upgrade databricks-sql-connector dependency to 3.2.0 ([729](https://github.com/databricks/dbt-databricks/pull/729))
+- Refactoring of some connection internals ([929](https://github.com/databricks/dbt-databricks/pull/929))
 
-## dbt-databricks 1.8.5 (TBD)
+## dbt-databricks 1.9.5 (Feb 13, 2025)
+
+### Features
+
+- Add `auto_liquid_cluster` config to enable Auto Liquid Clustering for Delta-based dbt models (thanks @ShaneMazur!) ([935](https://github.com/databricks/dbt-databricks/pull/935))
+- Prepare for environments for python models with serverless clusters ([938](https://github.com/databricks/dbt-databricks/pull/938))
+
+### Fixes
+
+- table_format: iceberg is unblocked for snapshots ([930](https://github.com/databricks/dbt-databricks/pull/930))
+- Fix for regression in glue table listing behavior ([934](https://github.com/databricks/dbt-databricks/pull/934))
+- Use POSIX standard when creating location for the tables (thanks @gsolasab!) ([919](https://github.com/databricks/dbt-databricks/pull/919))
+
+### Under the Hood
+
+- Collapsing to a single connection manager (since the old one no longer works) ([910](https://github.com/databricks/dbt-databricks/pull/910))
+- Clean up cursor management in the hopes of limiting issues with cancellation ([912](https://github.com/databricks/dbt-databricks/pull/912))
+
+## dbt-databricks 1.9.4 (Jan 30, 2025)
+
+### Under the Hood
+
+- Pinned the python sql connector to 3.6.0 as a temporary measure while we investigate failure to wait for cluster start
+
+## dbt-databricks 1.9.3
+
+Yanked due to being published with the incorrect bits
+
+## dbt-databricks 1.9.2 (Jan 21, 2025)
+
+### Features
+
+- Update snapshot materialization to support new snapshot features ([904](https://github.com/databricks/dbt-databricks/pull/904))
+
+### Under the Hood
+
+- Refactor global state reading ([888](https://github.com/databricks/dbt-databricks/pull/888))
+- Switch to relation.render() for string interpolation ([903](https://github.com/databricks/dbt-databricks/pull/903))
+- Ensure retry defaults for PySQL ([907](https://github.com/databricks/dbt-databricks/pull/907))
+
+## dbt-databricks 1.9.1 (December 16, 2024)
+
+### Features
+
+- Merge strategy now supports the `update set ...` action with the explicit list of updates for `when not matched by source` ([866](https://github.com/databricks/dbt-databricks/pull/866)) (thanks @mi-volodin).
+
+### Under the Hood
+
+- Removed pins for pandas and pydantic to ease user burdens ([874](https://github.com/databricks/dbt-databricks/pull/874))
+- Add more relation types to make codegen happy ([875](https://github.com/databricks/dbt-databricks/pull/875))
+- add UP ruleset ([865](https://github.com/databricks/dbt-databricks/pull/865))
+
+## dbt-databricks 1.9.0 (December 9, 2024)
+
+### Features
+
+- Add config for generating unique tmp table names for enabling parralel merge (thanks @huangxingyi-git!) ([854](https://github.com/databricks/dbt-databricks/pull/854))
+- Add support for serverless job clusters on python models ([706](https://github.com/databricks/dbt-databricks/pull/706))
+- Add 'user_folder_for_python' behavior to switch writing python model notebooks to the user's folder ([835](https://github.com/databricks/dbt-databricks/pull/835))
+- Merge capabilities are extended ([739](https://github.com/databricks/dbt-databricks/pull/739)) to include the support for the following features (thanks @mi-volodin):
+  - `with schema evolution` clause (requires Databricks Runtime 15.2 or above);
+  - `when not matched by source` clause, only for `delete` action
+  - `matched`, `not matched` and `not matched by source` condition clauses;
+  - custom aliases for source and target tables can be specified and used in condition clauses;
+  - `matched` and `not matched` steps can now be skipped;
+- Allow for the use of custom constraints, using the `custom` constraint type with an `expression` as the constraint (thanks @roydobbe). ([792](https://github.com/databricks/dbt-databricks/pull/792))
+- Add "use_info_schema_for_columns" behavior flag to turn on use of information_schema to get column info where possible. This may have more latency but will not truncate complex data types the way that 'describe' can. ([808](https://github.com/databricks/dbt-databricks/pull/808))
+- Add support for table_format: iceberg. This uses UniForm under the hood to provide iceberg compatibility for tables or incrementals. ([815](https://github.com/databricks/dbt-databricks/pull/815))
+- Add `include_full_name_in_path` config boolean for external locations. This writes tables to {location_root}/{catalog}/{schema}/{table} ([823](https://github.com/databricks/dbt-databricks/pull/823))
+- Add a new `workflow_job` submission method for python, which creates a long-lived Databricks Workflow instead of a one-time run (thanks @kdazzle!) ([762](https://github.com/databricks/dbt-databricks/pull/762))
+- Allow for additional options to be passed to the Databricks Job API when using other python submission methods. For example, enable email_notifications (thanks @kdazzle!) ([762](https://github.com/databricks/dbt-databricks/pull/762))
+- Support microbatch incremental strategy using replace_where ([825](https://github.com/databricks/dbt-databricks/pull/825))
+
+### Fixes
+
+- Replace array indexing with 'get' in split_part so as not to raise exception when indexing beyond bounds ([839](https://github.com/databricks/dbt-databricks/pull/839))
+- Set queue enabled for Python notebook jobs ([856](https://github.com/databricks/dbt-databricks/pull/856))
+- Ensure columns that are added get backticked ([859](https://github.com/databricks/dbt-databricks/pull/859))
+
+### Under the Hood
+
+- Significant refactoring and increased testing of python_submissions ([830](https://github.com/databricks/dbt-databricks/pull/830))
+- Fix places where we were not properly closing cursors, and other test warnings ([713](https://github.com/databricks/dbt-databricks/pull/713))
+- Drop support for Python 3.8 ([713](https://github.com/databricks/dbt-databricks/pull/713))
+- Upgrade databricks-sql-connector dependency to 3.5.0 ([833](https://github.com/databricks/dbt-databricks/pull/833))
+- Prepare for python typing deprecations ([837](https://github.com/databricks/dbt-databricks/pull/837))
+- Fix behavior flag use in init of DatabricksAdapter (thanks @VersusFacit!) ([836](https://github.com/databricks/dbt-databricks/pull/836))
+- Restrict pydantic to V1 per dbt Labs' request ([843](https://github.com/databricks/dbt-databricks/pull/843))
+- Switching to Ruff for formatting and linting ([847](https://github.com/databricks/dbt-databricks/pull/847))
+- Refactoring location of DLT polling code ([849](https://github.com/databricks/dbt-databricks/pull/849))
+- Switching to Hatch and pyproject.toml for project config ([853](https://github.com/databricks/dbt-databricks/pull/853))
+
+## dbt-databricks 1.8.7 (October 10, 2024)
+
+### Features
+
+- Add config for generating unique tmp table names for enabling parralel replace-where (thanks @huangxingyi-git!) ([811](https://github.com/databricks/dbt-databricks/pull/811))
+
+### Fixes
+
+- Stop setting cluster by to None. If you want to drop liquid clustering, you will need to full-refresh ([806]https://github.com/databricks/dbt-databricks/pull/806)
+- Don't define table properties on snapshot staging views (thanks @jelmerk!) ([820](https://github.com/databricks/dbt-databricks/pull/820))
+
+## dbt-databricks 1.8.6 (September 18, 2024)
+
+### Fixes
+
+- Persist table comments for incremental models, snapshots and dbt clone (thanks @henlue!) ([750](https://github.com/databricks/dbt-databricks/pull/750))
+- Add relation identifier (i.e. table name) in auto generated constraint names, also adding the statement of table list for foreign keys (thanks @elca-anh!) ([774](https://github.com/databricks/dbt-databricks/pull/774))
+- Update tblproperties on incremental runs. Note: only adds/edits. Deletes are too risky/complex for now ([765](https://github.com/databricks/dbt-databricks/pull/765))
+- Update default scope/redirect Url for OAuth U2M, so with default OAuth app user can run python models ([776](https://github.com/databricks/dbt-databricks/pull/776))
+- Fix foreign key constraints by switching from `parent` to `to` and `parent_columns` to `to_columns` ([789](https://github.com/databricks/dbt-databricks/pull/789))
+- Now handles external shallow clones without blowing up ([795](https://github.com/databricks/dbt-databricks/pull/795))
+
+## dbt-databricks 1.8.5 (August 6, 2024)
 
 ### Fixes
 
@@ -18,6 +142,7 @@
 - Always use lower case when gathering metadata (since objects are stored internally as lower case regardless of how we create them) ([742](https://github.com/databricks/dbt-databricks/pull/742))
 - Persist table comments for python models ([743](https://github.com/databricks/dbt-databricks/pull/743))
 - Stop cursor destructor warnings ([744](https://github.com/databricks/dbt-databricks/pull/744))
+- Race condition on cluster creation. (thanks @jurasan!) ([751](https://github.com/databricks/dbt-databricks/pull/751))
 
 ## dbt-databricks 1.8.4 (July 17, 2024)
 

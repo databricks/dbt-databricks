@@ -5,8 +5,7 @@ import pytest
 
 from dbt.tests import util
 from dbt.tests.adapter.ephemeral import test_ephemeral
-from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeralMulti
+from dbt.tests.adapter.ephemeral.test_ephemeral import BaseEphemeral, BaseEphemeralMulti
 
 
 class TestEphemeralMulti(BaseEphemeralMulti):
@@ -34,7 +33,7 @@ class TestEphemeralNested(BaseEphemeral):
         results = util.run_dbt(["run"])
         assert len(results) == 2
         assert os.path.exists("./target/run/test/models/root_view.sql")
-        with open("./target/run/test/models/root_view.sql", "r") as fp:
+        with open("./target/run/test/models/root_view.sql") as fp:
             sql_file = fp.read()
 
         sql_file = re.sub(r"\d+", "", sql_file)

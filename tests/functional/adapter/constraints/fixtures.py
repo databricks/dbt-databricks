@@ -48,3 +48,56 @@ models:
             name: fk_n
             expression: (n) REFERENCES {schema}.raw_numbers
 """
+
+parent_foreign_key = """
+version: 2
+
+models:
+  - name: parent_table
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_example__parent_table
+  - name: child_table
+    config:
+      materialized: incremental
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        name: pk_example__child_table
+        columns: ["id"]
+      - type: not_null
+        columns: ["id", "name", "parent_id"]
+      - type: foreign_key
+        name: fk_example__child_table_1
+        columns: ["parent_id"]
+        to: ref('parent_table')
+        to_columns: ["id"]
+    columns:
+      - name: id
+        data_type: integer
+      - name: name
+        data_type: string
+      - name: parent_id
+        data_type: integer
+"""
+
+parent_sql = """
+select 1 as id
+"""
+
+child_sql = """
+ -- depends_on: {{ ref('parent_table') }}
+
+select 2 as id, 'name' as name, 1 as parent_id
+"""
