@@ -772,12 +772,19 @@ class DatabricksAdapter(SparkAdapter):
         # Since existing_columns are gathered after writing the table, we don't need to include any
         # columns from the model that are not in the existing_columns. If we did, it would lead to
         # an error when we tried to alter the table.
+
+        # Create a case-insensitive lookup for column names
+        columns_lower = {k.lower(): k for k in columns.keys()}
+
         for column in existing_columns:
             name = column.column
-            if name in columns:
-                config_column = columns[name]
+            # Use case-insensitive comparison for column names
+            name_lower = name.lower()
+            if name_lower in columns_lower:
+                original_column_name = columns_lower[name_lower]
+                config_column = columns[original_column_name]
                 if isinstance(config_column, dict):
-                    comment = columns[name].get("description")
+                    comment = columns[original_column_name].get("description")
                 elif hasattr(config_column, "description"):
                     comment = config_column.description
                 else:
@@ -807,13 +814,21 @@ class DatabricksAdapter(SparkAdapter):
             list(model_columns.values()), model_constraints
         )
 
+        # Create a case-insensitive lookup for model column names
+        model_columns_lower = {k.lower(): k for k in model_columns.keys()}
+        # Create a case-insensitive lookup for not_null columns
+        not_null_set_lower = {name.lower() for name in not_null_set}
+
         for column in existing_columns:
-            if column.name in model_columns:
-                column_info = model_columns[column.name]
-                enriched_column = column.enrich(column_info, column.name in not_null_set)
+            column_name_lower = column.name.lower()
+            if column_name_lower in model_columns_lower:
+                original_model_column_name = model_columns_lower[column_name_lower]
+                column_info = model_columns[original_model_column_name]
+                is_not_null = column_name_lower in not_null_set_lower
+                enriched_column = column.enrich(column_info, is_not_null)
                 enriched_columns.append(enriched_column)
             else:
-                if column.name in not_null_set:
+                if column_name_lower in not_null_set_lower:
                     column.not_null = True
                 enriched_columns.append(column)
 

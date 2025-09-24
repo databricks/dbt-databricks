@@ -7,6 +7,7 @@
 ### Fixes
 
 - Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+- Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
 
 ### Under the Hood
 

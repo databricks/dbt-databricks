@@ -30,7 +30,7 @@
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='name') | list -%}
     {%- set common_columns = [] -%}
     {%- for dest_col in dest_columns -%}
-      {%- if dest_col in source_columns -%}
+      {%- if dest_col | lower in source_columns | map('lower') | list -%}
         {%- do common_columns.append(dest_col) -%}
       {%- else -%}
         {%- do common_columns.append('DEFAULT') -%}
@@ -67,7 +67,7 @@ TABLE {{ temp_relation.render() }}
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
     {%- set common_columns = [] -%}
     {%- for dest_col in dest_columns -%}
-      {%- if dest_col in source_columns -%}
+      {%- if dest_col | lower in source_columns | map('lower') | list -%}
         {%- do common_columns.append(dest_col) -%}
       {%- else -%}
         {%- do common_columns.append('DEFAULT') -%}
