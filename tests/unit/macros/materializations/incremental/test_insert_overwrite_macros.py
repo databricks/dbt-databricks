@@ -24,8 +24,10 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Mock the adapter methods needed for the macro"""
         # Mock get_columns_in_relation to return some test columns
         mock_column_a = Mock()
+        mock_column_a.name = "a"
         mock_column_a.quoted = "a"
         mock_column_b = Mock()
+        mock_column_b.name = "b"
         mock_column_b.quoted = "b"
 
         context["adapter"].get_columns_in_relation.return_value = [mock_column_a, mock_column_b]
@@ -91,23 +93,25 @@ class TestInsertOverwriteMacros(MacroTestBase):
         self.assert_sql_equal(result, expected_sql)
 
     @pytest.mark.parametrize(
-        "config_key,config_value,test_description",
+        "config_key,test_description",
         [
-            ("partition_by", ["a", "b"], "multiple partition columns"),
+            (
+                "partition_by",
+                "multiple partition columns",
+            ),
             (
                 "liquid_clustered_by",
-                ["a", "b"],
                 "liquid clustering columns when no partitioning is defined",
             ),
         ],
     )
     def test_get_insert_overwrite_sql__modern_dbr_version_multiple_columns(
-        self, template, context, config, config_key, config_value, test_description
+        self, template, context, config, config_key, test_description
     ):
         """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple columns"""
         # Positive return value means DBR > 17.1
         context["adapter"].compare_dbr_version.return_value = 1
-        config[config_key] = config_value
+        config[config_key] = ["a", "b"]
 
         source_relation = Mock()
         source_relation.__str__ = lambda self: "source_table"
