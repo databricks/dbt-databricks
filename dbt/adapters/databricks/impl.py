@@ -303,7 +303,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def list_relations_without_caching(  # type: ignore[override]
         self, schema_relation: DatabricksRelation
-    ) -> List[DatabricksRelation]:
+    ) -> list[DatabricksRelation]:
         empty: list[DatabricksRelationInfo] = []
 
         results = handle_missing_objects(
