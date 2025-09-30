@@ -16,9 +16,15 @@
 
 ## dbt-databricks 1.10.13 (TBD)
 
+### Features
+- Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+
 ### Fixes
 
 - Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
+
+### Under the hood
+- Update minimum dbt-adapters version to 1.7.0 ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
 
 ## dbt-databricks 1.10.12 (September 8, 2025)
 
