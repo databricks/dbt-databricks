@@ -105,14 +105,13 @@ class TestAdapterCapabilities:
         mock_conn.handle.is_sql_warehouse = True
         mock_conn.credentials = Mock(catalog="main")
 
-        # Create a real capabilities object for testing
-        mock_conn._capabilities = DBRCapabilities()
-        mock_conn.capabilities = mock_conn._capabilities
+        # Create a real capabilities object for testing with SQL warehouse settings
+        mock_conn._capabilities = DBRCapabilities(
+            dbr_version=None, is_sql_warehouse=True, is_unity_catalog=True
+        )
 
         def mock_has_capability(cap):
-            return mock_conn._capabilities.has_capability(
-                cap, mock_conn.http_path, None, True, True
-            )
+            return mock_conn._capabilities.has_capability(cap)
 
         mock_conn.has_capability = mock_has_capability
 

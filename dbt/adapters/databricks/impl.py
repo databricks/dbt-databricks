@@ -11,6 +11,13 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
+from dbt_common.behavior_flags import BehaviorFlag
+from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.utils import executor
+from dbt_common.utils.dict import AttrDict
+from packaging import version
+
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
@@ -19,22 +26,6 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.spark.impl import (
-    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-    KEY_TABLE_OWNER,
-    KEY_TABLE_STATISTICS,
-    LIST_SCHEMAS_MACRO_NAME,
-    SparkAdapter,
-)
-from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
-from dbt_common.utils import executor
-from dbt_common.utils.dict import AttrDict
-from packaging import version
-
 from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
@@ -85,6 +76,15 @@ from dbt.adapters.databricks.utils import (
     handle_missing_objects,
     quote,
     redact_credentials,
+)
+from dbt.adapters.relation_configs import RelationResults
+from dbt.adapters.spark.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+    KEY_TABLE_OWNER,
+    KEY_TABLE_STATISTICS,
+    LIST_SCHEMAS_MACRO_NAME,
+    SparkAdapter,
 )
 
 if TYPE_CHECKING:
@@ -329,10 +329,10 @@ class DatabricksAdapter(SparkAdapter):
         """
         if not self.has_capability(capability):
             feature_name = feature_name or capability.value
-            # Use the global capability specs to get version requirement
+            # Use the class method to get version requirement
             from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
 
-            min_version = DBRCapabilities().get_required_version(capability)
+            min_version = DBRCapabilities.get_required_version(capability)
             raise DbtConfigError(
                 f"{feature_name} requires {min_version}. "
                 f"Current connection does not meet this requirement."

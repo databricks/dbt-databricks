@@ -5,6 +5,13 @@ from dataclasses import dataclass, field
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
+from dbt_common.utils import cast_to_str
+
+from databricks.sql import __version__ as dbsql_version
+from databricks.sql.exc import Error
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.contracts.connection import (
     DEFAULT_QUERY_COMMENT,
@@ -15,22 +22,6 @@ from dbt.adapters.contracts.connection import (
     Identifier,
     LazyHandle,
 )
-from dbt.adapters.events.types import (
-    ConnectionClosedInCleanup,
-    ConnectionReused,
-    ConnectionUsed,
-    NewConnection,
-    SQLQuery,
-    SQLQueryStatus,
-)
-from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
-from dbt_common.utils import cast_to_str
-
-from databricks.sql import __version__ as dbsql_version
-from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import (
@@ -47,6 +38,15 @@ from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlU
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
+from dbt.adapters.events.types import (
+    ConnectionClosedInCleanup,
+    ConnectionReused,
+    ConnectionUsed,
+    NewConnection,
+    SQLQuery,
+    SQLQueryStatus,
+)
+from dbt.adapters.spark.connections import SparkConnectionManager
 
 if TYPE_CHECKING:
     from agate import Table
@@ -115,43 +115,53 @@ class DatabricksDBTConnection(Connection):
 
     @property
     def capabilities(self) -> DBRCapabilities:
-        """Get or initialize the capability manager for this connection."""
-        if self._capabilities is None:
+        """
+        Get or create the capability manager for this connection.
+
+        The capabilities object is created lazily and reconstructed if the
+        handle changes (e.g., connection is reopened with different compute).
+        """
+        # Always reconstruct if we have fresh handle info to ensure correctness
+        if self.handle:
+            try:
+                dbr_version = self.handle.dbr_version
+                is_sql_warehouse = self.handle.is_sql_warehouse
+                is_unity_catalog = self._get_is_unity_catalog()
+
+                # Create or update capabilities with current handle info
+                self._capabilities = DBRCapabilities(
+                    dbr_version=dbr_version,
+                    is_sql_warehouse=is_sql_warehouse,
+                    is_unity_catalog=is_unity_catalog,
+                )
+            except Exception:
+                # Handle not fully initialized, keep existing or create default
+                if self._capabilities is None:
+                    self._capabilities = DBRCapabilities()
+        elif self._capabilities is None:
+            # No handle yet, create default capabilities (no features available)
             self._capabilities = DBRCapabilities()
+
         return self._capabilities
+
+    def _get_is_unity_catalog(self) -> bool:
+        """Check if Unity Catalog from credentials."""
+        if self.credentials:
+            try:
+                catalog = getattr(self.credentials, "catalog", None)
+                return bool(catalog and catalog != "hive_metastore")
+            except Exception:
+                pass
+        return False
 
     def has_capability(self, capability: DBRCapability) -> bool:
         """
         Check if this connection's compute has a specific capability.
 
-        This method extracts version info from the handle when available.
+        This method uses the lazily-initialized capabilities object which
+        contains the compute information from the handle.
         """
-        # Get compute info from handle if available
-        dbr_version = None
-        is_sql_warehouse = False
-        is_unity_catalog = False
-
-        if self.handle:
-            try:
-                dbr_version = self.handle.dbr_version
-                is_sql_warehouse = self.handle.is_sql_warehouse
-            except Exception:
-                pass  # Handle not fully initialized
-
-        # Check if Unity Catalog from credentials
-        if self.credentials:
-            try:
-                catalog = getattr(self.credentials, "catalog", None)
-                is_unity_catalog = bool(catalog and catalog != "hive_metastore")
-            except Exception:
-                pass
-
-        # Use http_path as compute identifier for caching
-        compute_id = self.http_path or "default"
-
-        return self.capabilities.has_capability(
-            capability, compute_id, dbr_version, is_sql_warehouse, is_unity_catalog
-        )
+        return self.capabilities.has_capability(capability)
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
