@@ -65,6 +65,11 @@ check-sdist = [
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = [
+    "dbt-common @ git+https://github.com/dbt-labs/dbt-common.git@main",
+    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-adapters",
+    "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
+    "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-spark",
+    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
     "pytest",
     "pytest-xdist",
     "pytest-dotenv",
@@ -76,15 +81,6 @@ dependencies = [
     "debugpy",
     "pydantic>=1.10.0, <2",
     "pytest-cov",
-]
-extra-dependencies = [
-    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
-]
-dependency-overrides = [
-    "dbt-common @ git+https://github.com/dbt-labs/dbt-common.git",
-    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-adapters",
-    "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
-    "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-spark",
 ]
 path = ".hatch"
 python = "3.9"
