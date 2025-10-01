@@ -74,6 +74,9 @@ jobs:
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@install
@@ -124,6 +127,9 @@ jobs:
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@install
@@ -170,6 +176,9 @@ jobs:
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Install Hatch
         id: install-dependencies

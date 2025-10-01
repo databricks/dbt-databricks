@@ -14,7 +14,7 @@
 
 - Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
 - Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
-- Update minimum dbt-adapters version to 1.7.0 ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
 
 ## dbt-databricks 1.10.13 (TBD)
 
