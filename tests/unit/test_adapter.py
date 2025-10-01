@@ -1078,8 +1078,8 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
     def test_get_columns_new_logic(self, mock_get_columns, adapter, unity_relation):
-        # Return value 0 means version is 16.2
-        with patch.object(adapter, "compare_dbr_version", return_value=0):
+        # Mock capability system to have JSON column metadata capability
+        with patch.object(adapter, "has_capability", return_value=True):
             json_data = (
                 '{"columns": [{"name": "col1", "type": {"name": "string"}, "comment": "comment1"}]}'
             )
@@ -1147,7 +1147,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
-        with patch.object(adapter, "compare_dbr_version", return_value=1):
+        with patch.object(adapter, "has_capability", return_value=True):
             # Mock the first call to raise PARSE_SYNTAX_ERROR
             # Mock the second call (fallback) to return legacy data
             mock_get_columns.side_effect = [
@@ -1187,7 +1187,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         self, mock_get_columns, adapter, unity_relation
     ):
         """Test that unknown types of DbtDatabaseError is re-raised"""
-        with patch.object(adapter, "compare_dbr_version", return_value=1):
+        with patch.object(adapter, "has_capability", return_value=True):
             # Mock to raise a different database error that should be re-raised
             mock_get_columns.side_effect = DbtDatabaseError("Some other database error")
 

@@ -147,6 +147,11 @@ class DatabricksHandle:
         return self._dbr_version
 
     @property
+    def is_sql_warehouse(self) -> bool:
+        """Check if this connection is to a SQL warehouse."""
+        return not self._is_cluster
+
+    @property
     def session_id(self) -> str:
         return self._conn.get_session_id_hex()
 

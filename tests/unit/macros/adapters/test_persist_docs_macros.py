@@ -33,7 +33,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         # Mock adapter to return DBR 16.1+
         context["adapter"] = Mock()
-        context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
+        context["adapter"].has_dbr_capability = Mock(return_value=True)  # Has comment_on_column capability
 
         result = self.run_macro(
             template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
@@ -51,7 +51,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         # Mock adapter to return DBR < 16.1
         context["adapter"] = Mock()
-        context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+        context["adapter"].has_dbr_capability = Mock(return_value=False)  # No comment_on_column capability
 
         result = self.run_macro(
             template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
@@ -156,7 +156,7 @@ class TestPersistDocsMacros(MacroTestBase):
         context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
 
         context["adapter"] = Mock()
-        context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
+        context["adapter"].has_dbr_capability = Mock(return_value=True)  # Has comment_on_column capability
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
@@ -195,7 +195,7 @@ class TestPersistDocsMacros(MacroTestBase):
         context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
 
         context["adapter"] = Mock()
-        context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+        context["adapter"].has_dbr_capability = Mock(return_value=False)  # No comment_on_column capability
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()

@@ -1,7 +1,7 @@
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -34,6 +34,7 @@ from dbt.adapters.databricks.events.connection_events import (
 )
 from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
@@ -107,9 +108,54 @@ class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
+    _capabilities: Optional[DBRCapabilities] = field(default=None, init=False, repr=False)
 
     def __str__(self) -> str:
-        return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
+        return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name}"
+
+    @property
+    def capabilities(self) -> DBRCapabilities:
+        """Get or initialize the capability manager for this connection."""
+        if self._capabilities is None:
+            self._capabilities = DBRCapabilities()
+        return self._capabilities
+
+    def has_capability(self, capability: DBRCapability) -> bool:
+        """
+        Check if this connection's compute has a specific capability.
+
+        This method extracts version info from the handle when available.
+        """
+        # Get compute info from handle if available
+        dbr_version = None
+        is_sql_warehouse = False
+        is_unity_catalog = False
+
+        if self.handle:
+            try:
+                dbr_version = self.handle.dbr_version
+                is_sql_warehouse = self.handle.is_sql_warehouse
+            except Exception:
+                pass  # Handle not fully initialized
+
+        # Check if Unity Catalog from credentials
+        if self.credentials:
+            try:
+                catalog = getattr(self.credentials, 'catalog', None)
+                is_unity_catalog = catalog and catalog != "hive_metastore"
+            except Exception:
+                pass
+
+        # Use http_path as compute identifier for caching
+        compute_id = self.http_path or "default"
+
+        return self.capabilities.has_capability(
+            capability,
+            compute_id,
+            dbr_version,
+            is_sql_warehouse,
+            is_unity_catalog
+        )
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
