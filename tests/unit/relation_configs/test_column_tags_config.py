@@ -2,13 +2,13 @@ from unittest.mock import Mock
 
 import pytest
 from agate import Table
+from dbt.artifacts.resources.v1.components import ColumnInfo
+from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
-from dbt.artifacts.resources.v1.components import ColumnInfo
-from dbt.exceptions import DbtRuntimeError
 
 
 class TestColumnTagsProcessor:

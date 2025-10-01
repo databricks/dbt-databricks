@@ -4,19 +4,23 @@ Integration layer for DBR capabilities with the DatabricksAdapter.
 This module provides mixins and utilities to integrate the capability system
 with the existing adapter infrastructure.
 """
-from typing import TYPE_CHECKING, Optional
+
 from functools import wraps
+from typing import Any, Callable, Optional
 
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 
-if TYPE_CHECKING:
-    from dbt.adapters.databricks.impl import DatabricksAdapter
-
 
 class CapabilitySupport:
-    """Mixin for adding capability support to the DatabricksAdapter."""
+    """
+    Mixin for adding capability support to the DatabricksAdapter.
 
-    def __init__(self):
+    Note: This is a placeholder mixin. The actual capability checking is done
+    through the connection object in impl.py. This class exists for potential
+    future use and to document the capability API.
+    """
+
+    def __init__(self) -> None:
         self._capabilities: Optional[DBRCapabilities] = None
 
     @property
@@ -28,65 +32,21 @@ class CapabilitySupport:
         information is available.
         """
         if self._capabilities is None:
-            self._initialize_capabilities()
+            self._capabilities = DBRCapabilities()
         return self._capabilities
 
-    def _initialize_capabilities(self) -> None:
-        """Initialize the capabilities based on current connection."""
-        # Get version from connection
-        dbr_version = None
-        is_sql_warehouse = False
-        is_unity_catalog = False
-
-        if hasattr(self, 'connections') and self.connections:
-            # Get DBR version from handle
-            try:
-                handle = self.connections.get_thread_connection().handle
-                if handle and hasattr(handle, 'dbr_version'):
-                    dbr_version = handle.dbr_version
-                    is_sql_warehouse = handle.is_sql_warehouse
-            except Exception:
-                pass  # Not connected yet
-
-            # Check if Unity Catalog from connection config
-            try:
-                if hasattr(self.connections, 'profile'):
-                    catalog = self.connections.profile.credentials.catalog
-                    is_unity_catalog = catalog and catalog != "hive_metastore"
-            except Exception:
-                pass
-
-        # Check for configuration overrides
-        capability_overrides = {}
-        if hasattr(self, 'config') and self.config:
-            # Check for skip_metadata_queries flag
-            if self.config.get('skip_metadata_queries', False):
-                capability_overrides[DBRCapability.TAGS] = False
-                capability_overrides[DBRCapability.COLUMN_TAGS] = False
-                capability_overrides[DBRCapability.CONSTRAINTS] = False
-                capability_overrides[DBRCapability.COLUMN_MASKS] = False
-
-            # Check for specific capability overrides
-            capabilities_config = self.config.get('dbr_capabilities', {})
-            for cap_name, enabled in capabilities_config.items():
-                try:
-                    cap = DBRCapability(cap_name)
-                    capability_overrides[cap] = enabled
-                except ValueError:
-                    pass  # Invalid capability name, ignore
-
-        self._capabilities = DBRCapabilities(
-            dbr_version=dbr_version,
-            is_sql_warehouse=is_sql_warehouse,
-            is_unity_catalog=is_unity_catalog,
-            capability_overrides=capability_overrides,
-        )
-
     def has_capability(self, capability: DBRCapability) -> bool:
-        """Check if a capability is available."""
-        return self.capabilities.has_capability(capability)
+        """
+        Check if a capability is available.
 
-    def require_capability(self, capability: DBRCapability, feature_name: str = None):
+        Note: This method should be overridden by the adapter to pass
+        compute-specific information to the capabilities system.
+        """
+        return False
+
+    def require_capability(
+        self, capability: DBRCapability, feature_name: Optional[str] = None
+    ) -> None:
         """
         Raise an error if a capability is not available.
 
@@ -103,7 +63,7 @@ class CapabilitySupport:
             )
 
 
-def with_capability(capability: DBRCapability, fallback=None):
+def with_capability(capability: DBRCapability, fallback: Any = None) -> Callable:
     """
     Decorator to conditionally execute a method based on capability.
 
@@ -117,20 +77,23 @@ def with_capability(capability: DBRCapability, fallback=None):
             # New JSON-based implementation
             ...
     """
-    def decorator(func):
+
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             if self.has_capability(capability):
                 return func(self, *args, **kwargs)
             elif callable(fallback):
                 return fallback(self, *args, **kwargs)
             else:
                 return fallback
+
         return wrapper
+
     return decorator
 
 
-def capability_guard(capability: DBRCapability, skip_if_missing: bool = True):
+def capability_guard(capability: DBRCapability, skip_if_missing: bool = True) -> Callable:
     """
     Decorator to guard a code block based on capability.
 
@@ -144,14 +107,17 @@ def capability_guard(capability: DBRCapability, skip_if_missing: bool = True):
             # This will be skipped if column tags are not supported
             ...
     """
-    def decorator(func):
+
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             if self.has_capability(capability):
                 return func(self, *args, **kwargs)
             elif skip_if_missing:
                 return None  # Skip execution
             else:
                 self.require_capability(capability, f"Operation {func.__name__}")
+
         return wrapper
+
     return decorator

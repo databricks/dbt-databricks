@@ -2,19 +2,19 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
+from dbt.adapters.contracts.relation import (
+    ComponentName,
+)
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.adapters.utils import classproperty
 from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
-from dbt.adapters.contracts.relation import (
-    ComponentName,
-)
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt.adapters.utils import classproperty
 
 KEY_TABLE_PROVIDER = "Provider"
 

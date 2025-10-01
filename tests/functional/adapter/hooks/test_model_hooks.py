@@ -1,8 +1,8 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.hooks import fixtures
 from dbt.tests.adapter.hooks.test_model_hooks import BaseTestPrePost
+
 from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 

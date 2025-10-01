@@ -1,11 +1,11 @@
 """
 Unit tests for the DBR capability system.
 """
-import pytest
+
 from dbt.adapters.databricks.dbr_capabilities import (
-    DBRCapability,
-    DBRCapabilities,
     CapabilitySpec,
+    DBRCapabilities,
+    DBRCapability,
 )
 
 
@@ -47,9 +47,7 @@ class TestDBRCapabilities:
         assert capabilities.has_capability(
             DBRCapability.TIMESTAMPDIFF, compute_id, dbr_version=(16, 2)
         )
-        assert capabilities.has_capability(
-            DBRCapability.ICEBERG, compute_id, dbr_version=(16, 2)
-        )
+        assert capabilities.has_capability(DBRCapability.ICEBERG, compute_id, dbr_version=(16, 2))
         assert capabilities.has_capability(
             DBRCapability.COMMENT_ON_COLUMN, compute_id, dbr_version=(16, 2)
         )
@@ -66,9 +64,7 @@ class TestDBRCapabilities:
         assert capabilities.has_capability(
             DBRCapability.TIMESTAMPDIFF, compute_id, is_sql_warehouse=True
         )
-        assert capabilities.has_capability(
-            DBRCapability.ICEBERG, compute_id, is_sql_warehouse=True
-        )
+        assert capabilities.has_capability(DBRCapability.ICEBERG, compute_id, is_sql_warehouse=True)
         assert capabilities.has_capability(
             DBRCapability.COMMENT_ON_COLUMN, compute_id, is_sql_warehouse=True
         )
@@ -121,7 +117,10 @@ class TestDBRCapabilities:
 
         # Should still have other capabilities
         assert capabilities.has_capability(
-            DBRCapability.TIMESTAMPDIFF, compute_id, dbr_version=(16, 2), capability_overrides=overrides
+            DBRCapability.TIMESTAMPDIFF,
+            compute_id,
+            dbr_version=(16, 2),
+            capability_overrides=overrides,
         )
         assert capabilities.has_capability(
             DBRCapability.COMMENT_ON_COLUMN, compute_id, dbr_version=(16, 2)
@@ -150,7 +149,8 @@ class TestDBRCapabilities:
             DBRCapability.ICEBERG, compute_id, dbr_version=(16, 2)
         )
 
-        assert result1 == result2 == True
+        assert result1 is True
+        assert result2 is True
 
         # Cache should contain the result
         assert compute_id in capabilities._capability_cache_by_compute
@@ -170,7 +170,9 @@ class TestDBRCapabilities:
         capabilities.set_capability(DBRCapability.ICEBERG, False, compute_id)
 
         # Cache for that capability should be cleared
-        assert DBRCapability.ICEBERG not in capabilities._capability_cache_by_compute.get(compute_id, {})
+        assert DBRCapability.ICEBERG not in capabilities._capability_cache_by_compute.get(
+            compute_id, {}
+        )
 
     def test_no_connection(self):
         """Test behavior when not connected."""
@@ -181,18 +183,14 @@ class TestDBRCapabilities:
         assert not capabilities.has_capability(
             DBRCapability.TIMESTAMPDIFF, compute_id, dbr_version=None
         )
-        assert not capabilities.has_capability(
-            DBRCapability.ICEBERG, compute_id, dbr_version=None
-        )
+        assert not capabilities.has_capability(DBRCapability.ICEBERG, compute_id, dbr_version=None)
 
     def test_enabled_capabilities_property(self):
         """Test the enabled_capabilities method."""
         capabilities = DBRCapabilities()
         compute_id = "test-compute"
 
-        enabled = capabilities.enabled_capabilities(
-            compute_id, dbr_version=(16, 2)
-        )
+        enabled = capabilities.enabled_capabilities(compute_id, dbr_version=(16, 2))
 
         # Should include all capabilities supported by DBR 16.2
         expected = {
@@ -254,12 +252,8 @@ class TestPerComputeCaching:
         compute_1 = "compute-1"
         compute_2 = "compute-2"
 
-        capabilities.has_capability(
-            DBRCapability.ICEBERG, compute_1, dbr_version=(14, 3)
-        )
-        capabilities.has_capability(
-            DBRCapability.TIMESTAMPDIFF, compute_2, dbr_version=(10, 4)
-        )
+        capabilities.has_capability(DBRCapability.ICEBERG, compute_1, dbr_version=(14, 3))
+        capabilities.has_capability(DBRCapability.TIMESTAMPDIFF, compute_2, dbr_version=(10, 4))
 
         assert len(capabilities._capability_cache_by_compute) == 2
 

@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests import util
 
 

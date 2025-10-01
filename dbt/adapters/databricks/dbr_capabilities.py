@@ -5,9 +5,9 @@ This module provides a centralized way to check for DBR version-gated features,
 replacing scattered version comparisons throughout the codebase with named capabilities.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 
 class DBRCapability(Enum):
@@ -25,7 +25,7 @@ class CapabilitySpec:
     """Specification for a DBR capability."""
 
     capability: DBRCapability
-    min_version: Tuple[int, int]  # (major, minor)
+    min_version: tuple[int, int]  # (major, minor)
     requires_unity_catalog: bool = False
     sql_warehouse_supported: bool = True
     enabled_by_default: bool = True
@@ -67,7 +67,7 @@ class DBRCapabilities:
         ),
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the capabilities manager.
 
@@ -83,7 +83,7 @@ class DBRCapabilities:
         self,
         capability: DBRCapability,
         compute_id: str,
-        dbr_version: Optional[Tuple[int, int]] = None,
+        dbr_version: Optional[tuple[int, int]] = None,
         is_sql_warehouse: bool = False,
         is_unity_catalog: bool = False,
         capability_overrides: Optional[dict[DBRCapability, bool]] = None,
@@ -134,7 +134,7 @@ class DBRCapabilities:
     def _compute_capability(
         self,
         capability: DBRCapability,
-        dbr_version: Optional[Tuple[int, int]],
+        dbr_version: Optional[tuple[int, int]],
         is_sql_warehouse: bool,
         is_unity_catalog: bool,
     ) -> bool:
@@ -210,7 +210,7 @@ class DBRCapabilities:
     def enabled_capabilities(
         self,
         compute_id: str,
-        dbr_version: Optional[Tuple[int, int]] = None,
+        dbr_version: Optional[tuple[int, int]] = None,
         is_sql_warehouse: bool = False,
         is_unity_catalog: bool = False,
         capability_overrides: Optional[dict[DBRCapability, bool]] = None,
@@ -228,4 +228,3 @@ class DBRCapabilities:
                 capability_overrides,
             )
         }
-

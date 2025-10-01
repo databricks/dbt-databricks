@@ -1,10 +1,10 @@
 from typing import Optional
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSimpleSnapshot, BaseSnapshotCheck
 from dbt.tests.util import run_dbt
+
 from tests.functional.adapter.simple_snapshot import fixtures
 
 

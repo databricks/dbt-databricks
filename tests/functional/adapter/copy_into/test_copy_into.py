@@ -1,6 +1,6 @@
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.copy_into import fixtures
 
 

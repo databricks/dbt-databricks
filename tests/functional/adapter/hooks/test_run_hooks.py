@@ -1,9 +1,9 @@
 import os
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.hooks.test_run_hooks import BaseAfterRunHooks, BasePrePostRunHooks
+
 from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 

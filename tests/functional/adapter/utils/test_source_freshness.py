@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from dbt.tests.util import get_artifact, run_dbt
 
 freshness_via_metadata_schema_yml = """

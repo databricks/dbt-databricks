@@ -5,11 +5,11 @@ from collections.abc import Callable, Sequence
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
-from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials

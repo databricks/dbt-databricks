@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
     BaseCatalogIntegrationValidation,
 )

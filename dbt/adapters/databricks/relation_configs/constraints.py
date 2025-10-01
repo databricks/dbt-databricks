@@ -3,8 +3,9 @@ from typing import ClassVar, Optional
 
 import sqlparse
 from agate import Table
-
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
+
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
     ConstraintType,
@@ -17,7 +18,6 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class ConstraintsConfig(DatabricksComponentConfig):

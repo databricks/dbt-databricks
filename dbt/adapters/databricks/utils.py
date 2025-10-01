@@ -2,12 +2,12 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+from dbt.adapters.base import BaseAdapter
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.exceptions import DbtRuntimeError
 from jinja2 import Undefined
 
-from dbt.adapters.base import BaseAdapter
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
 if TYPE_CHECKING:
     from agate import Row, Table
