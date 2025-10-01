@@ -41,6 +41,7 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     MetricView = "metric_view"
+    Function = "function"
     Unknown = "unknown"
 
     def render(self) -> str:
