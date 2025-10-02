@@ -43,11 +43,20 @@ LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
 MAX_POLL_RETRIES = 3  # Maximum number of retries for transient polling errors (must be >= 0)
 POLL_RETRY_BASE_DELAY = 2  # Base delay in seconds for exponential backoff (must be > 0)
 
+# Job execution retry configuration
+# Retries the entire job (submit + poll) when it fails with transient execution errors
+MAX_JOB_RETRIES = 2  # Maximum number of job execution retries (must be >= 0)
+JOB_RETRY_BASE_DELAY = 5  # Base delay in seconds between job retries (must be > 0)
+
 # Validate retry configuration at module load time
 if MAX_POLL_RETRIES < 0:
     raise ValueError(f"MAX_POLL_RETRIES must be >= 0, got {MAX_POLL_RETRIES}")
 if POLL_RETRY_BASE_DELAY <= 0:
     raise ValueError(f"POLL_RETRY_BASE_DELAY must be > 0, got {POLL_RETRY_BASE_DELAY}")
+if MAX_JOB_RETRIES < 0:
+    raise ValueError(f"MAX_JOB_RETRIES must be >= 0, got {MAX_JOB_RETRIES}")
+if JOB_RETRY_BASE_DELAY <= 0:
+    raise ValueError(f"JOB_RETRY_BASE_DELAY must be > 0, got {JOB_RETRY_BASE_DELAY}")
 
 
 def is_retryable_api_error(exception: Exception) -> bool:
@@ -100,6 +109,44 @@ def is_retryable_api_error(exception: Exception) -> bool:
     ]
 
     return any(indicator in error_str for indicator in transient_indicators)
+
+
+def is_retryable_job_failure(exception: Exception) -> bool:
+    """
+    Determine if a job execution failure is transient and the entire job should be retried.
+
+    This function checks if a DbtRuntimeError from job execution contains indicators
+    of transient failures that could succeed if the entire job is resubmitted.
+
+    Returns True for failures that are likely temporary, such as:
+    - INTERNAL_ERROR life cycle state (Databricks platform issues)
+    - Cluster unreachable / connection errors
+    - REPL failures
+
+    Args:
+        exception: The exception to evaluate (typically DbtRuntimeError)
+
+    Returns:
+        bool: True if the job should be retried, False otherwise
+    """
+    if not isinstance(exception, DbtRuntimeError):
+        return False
+
+    error_str = str(exception).lower()
+
+    # Check for transient job execution failures
+    # These indicate platform issues rather than code/data problems
+    job_transient_indicators = [
+        "internal_error",  # INTERNAL_ERROR life cycle state
+        "internal error",  # Error messages containing "internal error"
+        "execution on repl failed",  # REPL failures
+        "could not reach",  # Cluster unreachable
+        "cluster.*unreachable",  # Cluster connection issues
+        "failed to connect",  # Connection failures
+        "cannot reach cluster",  # Cluster availability issues
+    ]
+
+    return any(indicator in error_str for indicator in job_transient_indicators)
 
 
 class LibraryApi:
@@ -733,6 +780,61 @@ class JobRunsApi:
             f"{error_msg}\n"
             f"{error_trace}"
         )
+
+    def submit_and_poll_with_retry(
+        self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
+    ) -> str:
+        """
+        Submit a job and poll for completion with retry logic for transient failures.
+
+        This method wraps submit() + poll_for_completion() and retries the entire flow
+        if the job fails with transient errors (INTERNAL_ERROR, cluster unreachable, etc.).
+
+        Args:
+            run_name: Name for the job run
+            job_spec: Job specification dictionary
+            **additional_job_settings: Additional settings to pass to submit()
+
+        Returns:
+            str: The run_id of the successful job execution
+
+        Raises:
+            DbtRuntimeError: If the job fails after all retries, or with non-retryable errors
+        """
+        for attempt in range(MAX_JOB_RETRIES + 1):
+            try:
+                # Submit the job
+                run_id = self.submit(run_name, job_spec, **additional_job_settings)
+
+                # Poll for completion
+                self.poll_for_completion(run_id)
+
+                # Success - return the run_id
+                logger.info(f"Job completed successfully (run_id: {run_id})")
+                return run_id
+
+            except Exception as e:
+                # Check if this is a retryable job failure
+                if is_retryable_job_failure(e) and attempt < MAX_JOB_RETRIES:
+                    retry_delay = JOB_RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        f"Job execution failed with transient error "
+                        f"(attempt {attempt + 1}/{MAX_JOB_RETRIES + 1}): {str(e)[:200]}. "
+                        f"Retrying entire job in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Non-retryable error or max retries exceeded
+                    if attempt >= MAX_JOB_RETRIES:
+                        logger.error(
+                            f"Job failed after {MAX_JOB_RETRIES + 1} attempts. "
+                            "Final error: " + str(e)[:500]
+                        )
+                    raise
+
+        # Should never reach here but mypy needs explicit raise
+        raise DbtRuntimeError("Job execution failed: max retries exceeded")
 
 
 class JobPermissionsApi:
