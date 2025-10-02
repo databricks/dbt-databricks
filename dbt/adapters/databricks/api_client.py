@@ -37,6 +37,70 @@ SUBMISSION_LANGUAGE = "python"
 USER_AGENT = f"dbt-databricks/{version}"
 LIBRARY_VALID_STATUSES = {"INSTALLED", "RESTORED", "SKIPPED"}
 
+# Retry configuration for transient API errors
+# These constants control retry behavior for operations that may encounter temporary failures
+# such as rate limiting, network issues, or temporary service unavailability.
+MAX_POLL_RETRIES = 3  # Maximum number of retries for transient polling errors (must be >= 0)
+POLL_RETRY_BASE_DELAY = 2  # Base delay in seconds for exponential backoff (must be > 0)
+
+# Validate retry configuration at module load time
+if MAX_POLL_RETRIES < 0:
+    raise ValueError(f"MAX_POLL_RETRIES must be >= 0, got {MAX_POLL_RETRIES}")
+if POLL_RETRY_BASE_DELAY <= 0:
+    raise ValueError(f"POLL_RETRY_BASE_DELAY must be > 0, got {POLL_RETRY_BASE_DELAY}")
+
+
+def is_retryable_api_error(exception: Exception) -> bool:
+    """
+    Determine if an API error is transient and should be retried.
+
+    This function is intentionally conservative - it only returns True for errors
+    that are clearly temporary and safe to retry. Programming errors (AttributeError,
+    TypeError, etc.) will NOT be retried.
+
+    Returns True for errors that are likely temporary, such as:
+    - Network errors (connection failures, timeouts)
+    - Rate limiting / throttling (429, "too many requests")
+    - Temporary server unavailability (502, 503, 504)
+    - Resource exhaustion errors
+
+    Args:
+        exception: The exception to evaluate
+
+    Returns:
+        bool: True if the error should be retried, False otherwise
+    """
+    # Don't retry programming errors or keyboard interrupts
+    if isinstance(exception, (AttributeError, TypeError, ValueError, KeyError, KeyboardInterrupt)):
+        return False
+
+    error_str = str(exception).lower()
+
+    # Check for common transient error indicators
+    # These are ordered roughly by specificity (more specific first)
+    transient_indicators = [
+        "429",  # Too Many Requests HTTP status
+        "502",  # Bad Gateway
+        "503",  # Service Unavailable
+        "504",  # Gateway Timeout
+        "too many requests",
+        "rate limit",
+        "throttle",
+        "throttling",
+        "resource exhausted",
+        "deadline exceeded",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection refused",
+        "connection error",
+        "temporarily unavailable",
+        "temporary failure",
+        "try again",
+    ]
+
+    return any(indicator in error_str for indicator in transient_indicators)
+
 
 class LibraryApi:
     def __init__(self, workspace_client: WorkspaceClient):
@@ -243,24 +307,50 @@ class WorkspaceApi:
     def create_python_model_dir(self, catalog: str, schema: str) -> str:
         folder = self.user_api.get_folder(catalog, schema)
 
-        try:
-            self.workspace_client.workspace.mkdirs(path=folder)
-            return folder
-        except Exception as e:
-            raise DbtRuntimeError(f"Error creating work_dir for python notebooks: {e}")
+        for attempt in range(MAX_POLL_RETRIES + 1):
+            try:
+                self.workspace_client.workspace.mkdirs(path=folder)
+                return folder
+            except Exception as e:
+                if is_retryable_api_error(e) and attempt < MAX_POLL_RETRIES:
+                    retry_delay = POLL_RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        f"Transient error creating workspace directory "
+                        f"(attempt {attempt + 1}/{MAX_POLL_RETRIES + 1}): {e}. "
+                        f"Retrying in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise DbtRuntimeError(f"Error creating work_dir for python notebooks: {e}")
+        # Should never reach here but mypy needs explicit return
+        raise DbtRuntimeError("Error creating work_dir for python notebooks: max retries exceeded")
 
     def upload_notebook(self, path: str, compiled_code: str) -> None:
         b64_encoded_content = base64.b64encode(compiled_code.encode()).decode()
-        try:
-            self.workspace_client.workspace.import_(
-                path=path,
-                content=b64_encoded_content,
-                language=Language.PYTHON,
-                overwrite=True,
-                format=ImportFormat.SOURCE,
-            )
-        except Exception as e:
-            raise DbtRuntimeError(f"Error creating python notebook: {e}")
+
+        for attempt in range(MAX_POLL_RETRIES + 1):
+            try:
+                self.workspace_client.workspace.import_(
+                    path=path,
+                    content=b64_encoded_content,
+                    language=Language.PYTHON,
+                    overwrite=True,
+                    format=ImportFormat.SOURCE,
+                )
+                return
+            except Exception as e:
+                if is_retryable_api_error(e) and attempt < MAX_POLL_RETRIES:
+                    retry_delay = POLL_RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        f"Transient error uploading notebook "
+                        f"(attempt {attempt + 1}/{MAX_POLL_RETRIES + 1}): {e}. "
+                        f"Retrying in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise DbtRuntimeError(f"Error uploading python notebook: {e}")
+        # Should never reach here but mypy needs explicit return
+        raise DbtRuntimeError("Error uploading python notebook: max retries exceeded")
 
     def get_object_id(self, path: str) -> int:
         """
@@ -334,6 +424,7 @@ class CommandApi:
 
         start = time.time()
         terminal_states = {CommandStatus.FINISHED, CommandStatus.ERROR, CommandStatus.CANCELLED}
+        consecutive_errors = 0
 
         while True:
             if time.time() - start > self.timeout:
@@ -346,6 +437,9 @@ class CommandApi:
                     command_id=command.command_id,
                 )
 
+                # Reset error counter on successful API call
+                consecutive_errors = 0
+
                 if status_response.status in terminal_states:
                     self._handle_terminal_state(status_response)
                     break
@@ -353,7 +447,20 @@ class CommandApi:
                 time.sleep(self.polling_interval)
 
             except Exception as e:
-                raise DbtRuntimeError(f"Error polling for command completion.\n {e}")
+                # Check if the error is retryable
+                if is_retryable_api_error(e) and consecutive_errors < MAX_POLL_RETRIES:
+                    consecutive_errors += 1
+                    retry_delay = POLL_RETRY_BASE_DELAY * (2 ** (consecutive_errors - 1))
+                    logger.warning(
+                        f"Transient error while polling command status "
+                        f"(attempt {consecutive_errors}/{MAX_POLL_RETRIES}): {e}. "
+                        f"Retrying in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Non-retryable error or max retries exceeded
+                    raise DbtRuntimeError(f"Error polling for command completion.\n {e}")
 
     def _handle_terminal_state(self, status_response: CommandStatusResponse) -> None:
         if status_response.status == CommandStatus.CANCELLED:
@@ -406,14 +513,27 @@ class JobRunsApi:
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
             " and additional_job_settings={additional_job_settings}"
         )
-        try:
-            tasks = self._convert_job_spec_to_tasks(job_spec)
-            submit_result = self._submit_job_to_databricks(
-                run_name, tasks, job_spec, additional_job_settings
-            )
-            return self._extract_run_id(submit_result)
-        except Exception as e:
-            raise DbtRuntimeError(f"Error creating python run.\n {e}")
+
+        for attempt in range(MAX_POLL_RETRIES + 1):
+            try:
+                tasks = self._convert_job_spec_to_tasks(job_spec)
+                submit_result = self._submit_job_to_databricks(
+                    run_name, tasks, job_spec, additional_job_settings
+                )
+                return self._extract_run_id(submit_result)
+            except Exception as e:
+                if is_retryable_api_error(e) and attempt < MAX_POLL_RETRIES:
+                    retry_delay = POLL_RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        f"Transient error submitting job "
+                        f"(attempt {attempt + 1}/{MAX_POLL_RETRIES + 1}): {e}. "
+                        f"Retrying in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise DbtRuntimeError(f"Error creating python run.\n {e}")
+        # Should never reach here but mypy needs explicit return
+        raise DbtRuntimeError("Error creating python run: max retries exceeded")
 
     def _convert_job_spec_to_tasks(self, job_spec: dict[str, Any]) -> list:
         # Convert job_spec to be compatible with SubmitTask
@@ -489,6 +609,7 @@ class JobRunsApi:
 
         start = time.time()
         terminal_states = {"TERMINATED", "SKIPPED", "INTERNAL_ERROR"}
+        consecutive_errors = 0
 
         while True:
             if time.time() - start > self.timeout:
@@ -497,6 +618,9 @@ class JobRunsApi:
             try:
                 run = self.workspace_client.jobs.get_run(run_id=int(run_id))
                 state = run.state
+
+                # Reset error counter on successful API call
+                consecutive_errors = 0
 
                 if not state:
                     time.sleep(self.polling_interval)
@@ -512,7 +636,20 @@ class JobRunsApi:
                 time.sleep(self.polling_interval)
 
             except Exception as e:
-                raise DbtRuntimeError(f"Error polling for completion.\n {e}")
+                # Check if the error is retryable
+                if is_retryable_api_error(e) and consecutive_errors < MAX_POLL_RETRIES:
+                    consecutive_errors += 1
+                    retry_delay = POLL_RETRY_BASE_DELAY * (2 ** (consecutive_errors - 1))
+                    logger.warning(
+                        f"Transient error while polling job status (run_id: {run_id}, "
+                        f"attempt {consecutive_errors}/{MAX_POLL_RETRIES}): {e}. "
+                        f"Retrying in {retry_delay} seconds..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # Non-retryable error or max retries exceeded
+                    raise DbtRuntimeError(f"Error polling for completion.\n {e}")
 
     def _handle_terminal_state(self, run: Run) -> None:
         state = run.state
