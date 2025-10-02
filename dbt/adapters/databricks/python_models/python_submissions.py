@@ -404,7 +404,7 @@ class PythonNotebookSubmitter(PythonSubmitter):
                 break
 
             except Exception as e:
-                # Clean up tracker for this attempt
+                # Clean up tracker for this attempt before retrying
                 if run_id:
                     self.tracker.remove_run_id(run_id)
 
@@ -426,17 +426,6 @@ class PythonNotebookSubmitter(PythonSubmitter):
                             f"Final error: {str(e)[:500]}"
                         )
                     raise
-            finally:
-                # Ensure tracker cleanup on success
-                if run_id and attempt < MAX_JOB_RETRIES:
-                    # Only remove if we're going to retry (already removed in except block)
-                    pass
-                elif run_id:
-                    # Final cleanup on last attempt
-                    try:
-                        self.tracker.remove_run_id(run_id)
-                    except Exception:
-                        pass  # Best effort cleanup
 
 
 class JobClusterPythonJobHelper(BaseDatabricksHelper):
