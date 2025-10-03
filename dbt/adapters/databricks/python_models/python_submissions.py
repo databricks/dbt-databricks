@@ -400,7 +400,8 @@ class PythonNotebookSubmitter(PythonSubmitter):
                 # Poll for completion
                 self.api_client.job_runs.poll_for_completion(run_id)
 
-                # Success - break out of retry loop
+                # Success - clean up tracker and break out of retry loop
+                self.tracker.remove_run_id(run_id)
                 break
 
             except Exception as e:
