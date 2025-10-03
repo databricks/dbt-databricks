@@ -1,8 +1,8 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone, BaseClonePossible
 from dbt.tests.util import run_dbt
+
 from tests.functional.adapter.dbt_clone import fixtures
 
 

@@ -604,7 +604,7 @@ class JobRunsApi:
         additional_job_settings: dict[str, Any],
     ) -> Any:
         # Extract submission-level parameters from job_spec
-        submission_params = {"tasks": tasks}
+        submission_params: dict[str, Any] = {"tasks": tasks}
 
         # Handle queue settings
         if "queue" in job_spec:

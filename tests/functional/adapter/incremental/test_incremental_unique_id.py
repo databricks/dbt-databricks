@@ -1,6 +1,7 @@
 from dbt.tests.adapter.incremental.test_incremental_unique_id import (
     BaseIncrementalUniqueKey,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 

@@ -1,8 +1,9 @@
 from logging import Handler, LogRecord, getLogger
 from typing import Union
 
-from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.events.logging import AdapterLogger
+
+from dbt.adapters.databricks.global_state import GlobalState
 
 logger = AdapterLogger("Databricks")
 
