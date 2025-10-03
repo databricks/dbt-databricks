@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
 from dbt.tests.adapter.constraints.test_constraints import (
@@ -12,6 +11,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
     BaseTableConstraintsColumnsEqual,
     BaseViewConstraintsColumnsEqual,
 )
+
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 
 

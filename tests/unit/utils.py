@@ -2,11 +2,12 @@ import os
 from copy import deepcopy
 from typing import Optional
 
-from dbt.adapters.databricks import catalogs, constants
 from dbt.config import Profile, Project, RuntimeConfig
 from dbt.config.project import PartialProject
 from dbt.config.renderer import DbtProjectYamlRenderer, ProfileRenderer
 from dbt.config.utils import parse_cli_vars
+
+from dbt.adapters.databricks import catalogs, constants
 
 
 class Obj:

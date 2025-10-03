@@ -1,8 +1,8 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.hooks import fixtures
 from dbt.tests.adapter.hooks.test_model_hooks import BaseTestPrePost
+
 from tests.functional.adapter.hooks import fixtures as override_fixtures
 
 
@@ -70,12 +70,12 @@ class TestPrePostModelHooks(BaseTestPrePost):
             assert ctx["target_schema"] == project.test_schema
             assert ctx["target_type"] == "databricks"
 
-            assert (
-                ctx["run_started_at"] is not None and len(ctx["run_started_at"]) > 0
-            ), "run_started_at was not set"
-            assert (
-                ctx["invocation_id"] is not None and len(ctx["invocation_id"]) > 0
-            ), "invocation_id was not set"
+            assert ctx["run_started_at"] is not None and len(ctx["run_started_at"]) > 0, (
+                "run_started_at was not set"
+            )
+            assert ctx["invocation_id"] is not None and len(ctx["invocation_id"]) > 0, (
+                "invocation_id was not set"
+            )
             assert ctx["thread_id"].startswith("Thread-")
 
     def test_pre_and_post_run_hooks(self, project, dbt_profile_target):

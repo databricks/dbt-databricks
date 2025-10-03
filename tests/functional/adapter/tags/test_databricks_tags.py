@@ -1,7 +1,7 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.materialized_view.files import MY_SEED
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.tags import fixtures
 

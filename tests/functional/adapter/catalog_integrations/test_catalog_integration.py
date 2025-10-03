@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
     BaseCatalogIntegrationValidation,
 )
@@ -103,9 +102,9 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
             # Assert table exists in expected catalog
             assert result is not None, f"Table {table_name} not found in catalog {expected_catalog}"
             actual_catalog, table_type = result
-            assert (
-                actual_catalog == expected_catalog
-            ), f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
+            assert actual_catalog == expected_catalog, (
+                f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
+            )
 
             # For iceberg tables, verify they have the correct table type
             if "iceberg" in table_name.lower() or table_name == "basic_iceberg_table":
