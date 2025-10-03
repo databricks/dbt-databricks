@@ -4,6 +4,7 @@
 
 - Support databricks_tags for MV/STs
 - Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
 
 ### Fixes
 
@@ -100,8 +101,6 @@
 ### Features
 
 - Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
-
-- Add liquid clustering config for materialized views and streaming tables ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
 
 ### Fixes
 
