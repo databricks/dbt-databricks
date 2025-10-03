@@ -90,6 +90,8 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
 - **Unity Catalog Cluster** (`databricks_uc_cluster`): Modern UC features
 - **SQL Warehouse** (`databricks_uc_sql_endpoint`): Serverless compute
 
+**Important**: Test environment credentials are automatically loaded from `test.env` file by pytest (via `python-dotenv` plugin). You do NOT need to manually source this file - pytest reads it automatically when running tests.
+
 ### Writing Tests
 
 #### Unit Test Example
