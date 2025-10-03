@@ -4,6 +4,7 @@
 
 - Support databricks_tags for MV/STs
 - Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
 
 ### Fixes
 

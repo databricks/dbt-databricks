@@ -3,6 +3,7 @@ from unittest.mock import Mock
 from agate import Row, Table
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
@@ -48,6 +49,7 @@ class TestMaterializedViewConfig:
         assert config == MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -75,6 +77,7 @@ class TestMaterializedViewConfig:
         assert config == MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment", persist=True),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -87,6 +90,7 @@ class TestMaterializedViewConfig:
         old = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -97,6 +101,7 @@ class TestMaterializedViewConfig:
         new = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -111,6 +116,7 @@ class TestMaterializedViewConfig:
         old = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -121,6 +127,7 @@ class TestMaterializedViewConfig:
         new = MaterializedViewConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
