@@ -1186,17 +1186,23 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     def test_get_columns_reraises_other_database_errors(
         self, mock_get_columns, adapter, unity_relation
     ):
-        """Test that unknown types of DbtDatabaseError is re-raised"""
+        """Test that unknown types of DbtDatabaseError is re-raised from fallback"""
         with patch.object(adapter, "compare_dbr_version", return_value=1):
-            # Mock to raise a different database error that should be re-raised
-            mock_get_columns.side_effect = DbtDatabaseError("Some other database error")
+            # Mock SDK to fail (will fall back to DESCRIBE)
+            with patch.object(
+                adapter.connections.api_client.unity_catalog,
+                "get_table",
+                side_effect=Exception("SDK unavailable"),
+            ):
+                # Mock DESCRIBE fallback to raise a database error
+                mock_get_columns.side_effect = DbtDatabaseError("Some other database error")
 
-            # Verify the exception is re-raised
-            with pytest.raises(DbtDatabaseError, match="Some other database error"):
-                adapter.get_columns_in_relation(unity_relation)
+                # Verify the exception is re-raised from fallback
+                with pytest.raises(DbtDatabaseError, match="Some other database error"):
+                    adapter.get_columns_in_relation(unity_relation)
 
-            # Verify only one call was made (no fallback)
-            assert mock_get_columns.call_count == 1
-            mock_get_columns.assert_called_with(
-                adapter, unity_relation, "get_columns_comments_as_json"
-            )
+                # Verify fallback was called
+                assert mock_get_columns.call_count == 1
+                mock_get_columns.assert_called_with(
+                    adapter, unity_relation, "get_columns_comments_as_json"
+                )

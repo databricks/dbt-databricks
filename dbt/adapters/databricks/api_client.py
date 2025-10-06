@@ -1,5 +1,6 @@
 import base64
 import re
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from typing import Any, Optional
 from dbt_common.exceptions import DbtRuntimeError
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.catalog import TableInfo
 from databricks.sdk.service.compute import (
     CommandStatus,
     CommandStatusResponse,
@@ -1090,6 +1092,58 @@ class DltPipelineApi:
             raise DbtRuntimeError(f"Error getting pipeline event info for {pipeline_id}: {str(e)}")
 
 
+class UnityCatalogApi:
+    """
+    Thin wrapper around Unity Catalog SDK operations.
+
+    Uses thread-local caching to avoid redundant API calls within a single model execution.
+    The cache is automatically cleared by DatabricksConnectionManager.release() after each
+    model completes.
+    """
+
+    def __init__(self, workspace_client: WorkspaceClient):
+        self._client = workspace_client
+        self._thread_local = threading.local()
+
+    def list_tables(self, catalog_name: str, schema_name: str) -> list[TableInfo]:
+        """
+        List all tables in a Unity Catalog schema.
+
+        Returns SDK TableInfo objects. The iterator automatically handles pagination.
+        """
+        return list(self._client.tables.list(catalog_name=catalog_name, schema_name=schema_name))
+
+    def get_table(self, full_name: str) -> TableInfo:
+        """
+        Get complete table metadata including columns, constraints, and masks.
+
+        Results are cached per-thread to avoid redundant API calls during model execution.
+
+        Args:
+            full_name: Fully qualified table name (catalog.schema.table)
+
+        Returns:
+            TableInfo with all metadata
+        """
+        if not hasattr(self._thread_local, "cache"):
+            self._thread_local.cache = {}
+
+        if full_name not in self._thread_local.cache:
+            self._thread_local.cache[full_name] = self._client.tables.get(full_name)
+
+        return self._thread_local.cache[full_name]
+
+    def clear_thread_cache(self) -> None:
+        """
+        Clear the thread-local cache.
+
+        Called by DatabricksConnectionManager.release() after each model execution to
+        bound memory usage.
+        """
+        if hasattr(self._thread_local, "cache"):
+            self._thread_local.cache.clear()
+
+
 class DatabricksApiClient:
     def __init__(
         self,
@@ -1114,3 +1168,4 @@ class DatabricksApiClient:
         self.workflow_permissions = JobPermissionsApi(workspace_client)
         self.notebook_permissions = NotebookPermissionsApi(workspace_client, self.workspace)
         self.dlt_pipelines = DltPipelineApi(workspace_client, polling_interval)
+        self.unity_catalog = UnityCatalogApi(workspace_client)

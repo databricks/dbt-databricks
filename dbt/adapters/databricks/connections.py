@@ -363,6 +363,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if conn is None:
                 return
 
+            self.api_client.unity_catalog.clear_thread_cache()
             self.close(conn)
             self.clear_thread_connection()
 

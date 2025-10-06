@@ -35,6 +35,7 @@ from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
 
+from databricks.sdk.service.catalog import TableInfo
 from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
@@ -50,6 +51,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -82,6 +84,9 @@ from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
+    map_table_info_to_column_masks_rows,
+    map_table_info_to_foreign_key_constraints_rows,
+    map_table_info_to_primary_key_constraints_rows,
     quote,
     redact_credentials,
 )
@@ -99,6 +104,7 @@ SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
 
+# Table types that map to 'table' in dbt (vs view, streaming_table, etc.)
 
 USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
     name="use_info_schema_for_columns",
@@ -214,6 +220,8 @@ class DatabricksAdapter(SparkAdapter):
     def __init__(self, config: Any, mp_context: SpawnContext) -> None:
         super().__init__(config, mp_context)
 
+        # Use DESCRIBE TABLE by default (fast, reliable, complete type info)
+        # SDK can be enabled via behavior flag for specific use cases
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
@@ -375,6 +383,51 @@ class DatabricksAdapter(SparkAdapter):
         return self._get_uc_relations(relation)
 
     def _get_uc_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
+        """
+        Get Unity Catalog relations using the Databricks SDK REST API.
+
+        This avoids querying information_schema.tables which can hit QPS rate limits.
+        """
+        if not relation.database or not relation.schema:
+            raise ValueError("Catalog and schema are required for Unity Catalog relations")
+
+        try:
+            from dbt.adapters.databricks.utils import map_table_info_to_relation_info
+
+            tables = self.connections.api_client.unity_catalog.list_tables(
+                catalog_name=relation.database,
+                schema_name=relation.schema,
+            )
+
+            results = []
+            for table in tables:
+                if not table.name:
+                    continue
+
+                if relation.identifier and table.name != relation.identifier:
+                    continue
+
+                results.append(map_table_info_to_relation_info(table))
+
+            return results
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to list Unity Catalog tables using SDK REST API, "
+                f"falling back to information_schema query. Error: {e}"
+            )
+            return self._get_uc_relations_via_information_schema(relation)
+
+    def _get_uc_relations_via_information_schema(
+        self, relation: DatabricksRelation
+    ) -> list[DatabricksRelationInfo]:
+        """
+        Fallback method using information_schema queries.
+
+        This is called when SDK REST API calls fail (e.g., SDK unavailable,
+        network errors, authentication issues). Uses the original SQL-based
+        approach via information_schema.tables.
+        """
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
@@ -1019,6 +1072,41 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
+            # Try to use SDK to fetch metadata from cached TableInfo
+            table_info = cls._try_get_table_info_from_sdk(adapter, relation)
+
+            if table_info:
+                # Use SDK data for column masks and constraints (cached)
+                results["column_masks"] = cls._convert_rows_to_agate_table(
+                    map_table_info_to_column_masks_rows(table_info),
+                    ["column_name", "mask_name", "using_columns"],
+                )
+                results["primary_key_constraints"] = cls._convert_rows_to_agate_table(
+                    map_table_info_to_primary_key_constraints_rows(table_info),
+                    ["constraint_name", "column_name"],
+                )
+                results["foreign_key_constraints"] = cls._convert_rows_to_agate_table(
+                    map_table_info_to_foreign_key_constraints_rows(table_info),
+                    [
+                        "constraint_name",
+                        "from_column",
+                        "to_catalog",
+                        "to_schema",
+                        "to_table",
+                        "to_column",
+                    ],
+                )
+            else:
+                # Fall back to information_schema queries
+                results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+                results["primary_key_constraints"] = adapter.execute_macro(
+                    "fetch_primary_key_constraints", kwargs=kwargs
+                )
+                results["foreign_key_constraints"] = adapter.execute_macro(
+                    "fetch_foreign_key_constraints", kwargs=kwargs
+                )
+
+            # These are not available in SDK, must use information_schema
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
@@ -1026,13 +1114,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["non_null_constraint_columns"] = adapter.execute_macro(
                 "fetch_non_null_constraint_columns", kwargs=kwargs
             )
-            results["primary_key_constraints"] = adapter.execute_macro(
-                "fetch_primary_key_constraints", kwargs=kwargs
-            )
-            results["foreign_key_constraints"] = adapter.execute_macro(
-                "fetch_foreign_key_constraints", kwargs=kwargs
-            )
-            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
@@ -1040,6 +1122,43 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
+
+    @classmethod
+    def _try_get_table_info_from_sdk(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> Optional["TableInfo"]:
+        """
+        Try to fetch TableInfo from SDK (uses cache if available).
+
+        Returns None if SDK fetch fails or relation is not fully qualified.
+        """
+        if not relation.database or not relation.schema or not relation.identifier:
+            return None
+
+        try:
+            from dbt.adapters.databricks.connections import DatabricksConnectionManager
+
+            full_name = f"{relation.database}.{relation.schema}.{relation.identifier}"
+            connections = cast(DatabricksConnectionManager, adapter.connections)
+            return connections.api_client.unity_catalog.get_table(full_name)
+        except Exception as e:
+            logger.warning(
+                f"Failed to get table metadata using SDK, falling back to "
+                f"information_schema queries. Error: {e}"
+            )
+            return None
+
+    @classmethod
+    def _convert_rows_to_agate_table(
+        cls, rows: list[list[Any]], column_names: list[str]
+    ) -> "Table":
+        """Convert list of rows to agate Table with appropriate types."""
+        import agate
+
+        # Create column types based on data (all text for now)
+        column_types = [agate.Text() for _ in column_names]
+
+        return agate.Table(rows, column_names, column_types)
 
 
 class ViewAPI(RelationAPIBase[ViewConfig]):
