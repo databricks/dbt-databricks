@@ -35,7 +35,7 @@ class TestWorkspaceApi:
 
     def test_upload_notebook__exception(self, api, workspace_client):
         workspace_client.workspace.import_.side_effect = Exception("API Error")
-        with pytest.raises(Exception, match="Error uploading python notebook"):
+        with pytest.raises(Exception, match="Error creating python notebook"):
             api.upload_notebook("path", "code")
 
     def test_upload_notebook__success(self, api, workspace_client):
