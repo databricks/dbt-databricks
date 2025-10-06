@@ -362,71 +362,31 @@ class PythonNotebookSubmitter(PythonSubmitter):
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Job Run API.")
 
-        import time
-
-        from dbt.adapters.databricks.api_client import (
-            JOB_RETRY_BASE_DELAY,
-            MAX_JOB_RETRIES,
-            is_retryable_job_failure,
-        )
-
         file_path = self.uploader.upload(compiled_code)
         job_config = self.config_compiler.compile(file_path)
 
-        # Retry the entire submit + poll flow for transient INTERNAL_ERROR failures
+        run_id = self.api_client.job_runs.submit(
+            job_config.run_name, job_config.job_spec, **job_config.additional_job_config
+        )
+        self.tracker.insert_run_id(run_id)
 
-        for attempt in range(MAX_JOB_RETRIES + 1):
-            run_id = None
-            try:
-                run_id = self.api_client.job_runs.submit(
-                    job_config.run_name, job_config.job_spec, **job_config.additional_job_config
-                )
-                self.tracker.insert_run_id(run_id)
-
-                # Set permissions if needed
-                if "access_control_list" in job_config.job_spec:
-                    try:
-                        job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
-                        logger.debug(f"Setting permissions on job: {job_id}")
-                        self.api_client.workflow_permissions.patch(
-                            job_id, job_config.job_spec["access_control_list"]
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
-                        raise DbtRuntimeError(
-                            f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}"
-                        )
-
-                # Poll for completion
-                self.api_client.job_runs.poll_for_completion(run_id)
-
-                # Success - clean up tracker and break out of retry loop
-                self.tracker.remove_run_id(run_id)
-                break
-
-            except Exception as e:
-                # Clean up tracker for this attempt before retrying
-                if run_id:
-                    self.tracker.remove_run_id(run_id)
-
-                # Check if we should retry
-                if is_retryable_job_failure(e) and attempt < MAX_JOB_RETRIES:
-                    retry_delay = JOB_RETRY_BASE_DELAY * (2**attempt)
-                    logger.warning(
-                        f"Python model job failed with transient error "
-                        f"(attempt {attempt + 1}/{MAX_JOB_RETRIES + 1}): {str(e)[:200]}. "
-                        f"Retrying in {retry_delay} seconds..."
+        try:
+            if "access_control_list" in job_config.job_spec:
+                try:
+                    job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
+                    logger.debug(f"Setting permissions on job: {job_id}")
+                    self.api_client.workflow_permissions.patch(
+                        job_id, job_config.job_spec["access_control_list"]
                     )
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # Non-retryable or max retries exceeded
-                    if attempt >= MAX_JOB_RETRIES:
-                        logger.error(
-                            f"Python model job failed after {MAX_JOB_RETRIES + 1} attempts. "
-                            f"Final error: {str(e)[:500]}"
-                        )
-                    raise
+                except Exception as e:
+                    logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
+                    raise DbtRuntimeError(
+                        f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}"
+                    )
+
+            self.api_client.job_runs.poll_for_completion(run_id)
+        finally:
+            self.tracker.remove_run_id(run_id)
 
 
 class JobClusterPythonJobHelper(BaseDatabricksHelper):
