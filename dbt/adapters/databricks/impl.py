@@ -163,6 +163,7 @@ class DatabricksConfig(AdapterConfig):
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[dict[str, str]] = None
+    query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
     unique_tmp_table_suffix: bool = False

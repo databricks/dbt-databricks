@@ -1,13 +1,14 @@
+import json
 import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from dbt.adapters.base import BaseAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtRuntimeError, DbtValidationError
 from jinja2 import Undefined
 
+from dbt.adapters.base import BaseAdapter
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
 if TYPE_CHECKING:
     from agate import Row, Table
@@ -96,3 +97,99 @@ def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
     if "/protocolv1/" in http_path:
         return True
     return cluster_id is not None
+
+
+class QueryTagsUtils:
+    """Utility class for handling query tags merging and validation."""
+
+    # Reserved query tag keys that cannot be overridden
+    RESERVED_KEYS = {
+        "dbt_model_name",
+        "dbt_core_version",
+        "dbt_databricks_version",
+        "dbt_materialized",
+    }
+
+    # Maximum number of query tags allowed
+    MAX_TAGS = 20
+
+    @staticmethod
+    def parse_query_tags(query_tags_str: Optional[str]) -> dict[str, str]:
+        """Parse query tags from JSON string format."""
+        if not query_tags_str:
+            return {}
+
+        try:
+            parsed = json.loads(query_tags_str)
+            if not isinstance(parsed, dict):
+                raise DbtValidationError("query_tags must be a JSON object (dictionary)")
+
+            # Convert all values to strings
+            return {str(k): str(v) for k, v in parsed.items()}
+        except json.JSONDecodeError as e:
+            raise DbtValidationError(f"Invalid JSON in query_tags: {e}")
+
+    @staticmethod
+    def validate_query_tags(tags: dict[str, str], source: str = "") -> None:
+        """Validate query tags for reserved keys and limits."""
+        source_prefix = f"{source}: " if source else ""
+
+        # Check for reserved keys
+        reserved_found = set(tags.keys()) & QueryTagsUtils.RESERVED_KEYS
+        if reserved_found:
+            raise DbtValidationError(
+                f"{source_prefix}Cannot use reserved query tag keys: "
+                f"{', '.join(sorted(reserved_found))}. "
+                f"Reserved keys are: {', '.join(sorted(QueryTagsUtils.RESERVED_KEYS))}"
+            )
+
+        # Check tag limit
+        if len(tags) > QueryTagsUtils.MAX_TAGS:
+            raise DbtValidationError(
+                f"{source_prefix}Too many query tags ({len(tags)}). "
+                f"Maximum allowed is {QueryTagsUtils.MAX_TAGS}"
+            )
+
+    @staticmethod
+    def merge_query_tags(
+        connection_tags: Optional[str],
+        model_tags: Optional[str],
+        default_tags: Optional[dict[str, str]] = None,
+    ) -> dict[str, str]:
+        """
+        Merge query tags with precedence: model > connection > default.
+        Validates that no reserved keys are used and tag limits are respected.
+        """
+        # Parse tags from different sources
+        conn_tags = QueryTagsUtils.parse_query_tags(connection_tags)
+        model_tags_dict = QueryTagsUtils.parse_query_tags(model_tags)
+        default_tags_dict = default_tags or {}
+
+        # Validate each source (user-provided tags cannot use reserved keys)
+        QueryTagsUtils.validate_query_tags(conn_tags, "Connection config")
+        QueryTagsUtils.validate_query_tags(model_tags_dict, "Model config")
+
+        # Merge with precedence: model > connection > default
+        merged = {}
+        merged.update(default_tags_dict)
+        merged.update(conn_tags)
+        merged.update(model_tags_dict)
+
+        # Final validation of merged tags (only check total count, not reserved keys
+        # since default tags are allowed to use reserved keys)
+        if len(merged) > QueryTagsUtils.MAX_TAGS:
+            raise DbtValidationError(
+                f"Too many total query tags ({len(merged)}). "
+                f"Maximum allowed is {QueryTagsUtils.MAX_TAGS}"
+            )
+
+        return merged
+
+    @staticmethod
+    def format_query_tags_for_databricks(tags: dict[str, str]) -> str:
+        """Format query tags for Databricks session configuration (without quotes)."""
+        if not tags:
+            return "{}"
+        # Format as {key:value,key:value} without quotes around keys/values
+        formatted_pairs = [f"{key}:{value}" for key, value in tags.items()]
+        return ",".join(formatted_pairs)

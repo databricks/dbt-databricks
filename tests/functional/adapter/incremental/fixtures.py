@@ -696,6 +696,7 @@ models:
 check_constraint_sql = """
 {{ config(
     materialized = 'incremental',
+    query_tags = '{"team": "marketing"}'
 ) }}
 
 {% if not is_incremental() %}

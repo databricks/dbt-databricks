@@ -2,6 +2,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from importlib.metadata import version
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -32,6 +33,7 @@ from dbt_common.utils import cast_to_str
 from databricks.sql import __version__ as dbsql_version
 from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
+from dbt.adapters.databricks.__version__ import version as databricks_version
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
@@ -81,17 +83,38 @@ class QueryContextWrapper:
 
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
+    model_name: Optional[str] = None
+    query_tags: Optional[str] = None
+    materialized: Optional[str] = None
+    dbt_databricks_version: Optional[str] = None
+    dbt_core_version: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
+        query_tags = None
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
+            # query_tags is stored in the extra config, not the main config
+            query_tags = (
+                query_header_context.config.extra.get("query_tags")
+                if hasattr(query_header_context.config, "extra")
+                else None
+            )
 
-        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+        ret = QueryContextWrapper(
+            compute_name=compute_name,
+            relation_name=relation_name,
+            query_tags=query_tags,
+            model_name=query_header_context.name,
+            materialized=query_header_context.config.materialized,
+            dbt_databricks_version=databricks_version,
+            dbt_core_version=version("dbt-core"),
+        )
+        return ret
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -107,6 +130,7 @@ class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
+    _query_context: Optional[QueryContextWrapper] = None
 
     def __str__(self) -> str:
         return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
@@ -176,6 +200,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
         conn_name: str = "master" if name is None else name
+        # It's here that we should apply model level query tags
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
         # Get a connection for this thread
@@ -211,6 +236,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
+
+        # Store query context for later use in connection opening
+        conn._query_context = query_header_context
 
         conn.handle = LazyHandle(self.open)
 
@@ -389,8 +417,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         cls.credentials_manager = creds.authenticate()
+
+        # Get merged query tags if we have query context
+        query_context = getattr(databricks_connection, "_query_context", None)
+        merged_query_tags = {}
+        if query_context:
+            merged_query_tags = QueryConfigUtils.get_merged_query_tags(query_context, creds)
+
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, cls.credentials_manager, databricks_connection.http_path
+            creds, cls.credentials_manager, databricks_connection.http_path, merged_query_tags
         )
 
         def connect() -> DatabricksHandle:
@@ -480,3 +515,33 @@ class QueryConfigUtils:
             )
 
         return http_path
+
+    @staticmethod
+    def get_merged_query_tags(
+        context: QueryContextWrapper, creds: DatabricksCredentials
+    ) -> dict[str, str]:
+        """
+        Get merged query tags from connection config, model config, and default tags.
+        Model config takes precedence over connection config.
+        """
+        from dbt.adapters.databricks.utils import QueryTagsUtils
+
+        # Default tags that are always included
+        default_tags = {}
+
+        # Add version and metadata tags if available
+        if context.model_name:
+            default_tags["dbt_model_name"] = context.model_name
+        if context.dbt_databricks_version:
+            default_tags["dbt_databricks_version"] = context.dbt_databricks_version
+        if context.dbt_core_version:
+            default_tags["dbt_core_version"] = context.dbt_core_version
+        if context.materialized:
+            default_tags["dbt_materialized"] = context.materialized
+
+        # Merge tags with proper precedence
+        return QueryTagsUtils.merge_query_tags(
+            connection_tags=creds.query_tags,
+            model_tags=context.query_tags,
+            default_tags=default_tags,
+        )
