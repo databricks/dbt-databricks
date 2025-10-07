@@ -52,9 +52,6 @@ def dbt_profile_data(unique_schema, dbt_profile_target, profiles_config_update):
     }
     target = dbt_profile_target
     target["schema"] = unique_schema
-    target["query_tags"] = (
-        '{"team": "should_be_overridden", "othertag": "should_not_be_overridden"}'
-    )
 
     # For testing model-level compute override
     target["compute"] = {
