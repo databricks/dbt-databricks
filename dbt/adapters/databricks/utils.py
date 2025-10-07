@@ -152,18 +152,18 @@ class QueryTagsUtils:
 
     @staticmethod
     def merge_query_tags(
-        connection_tags: Optional[str],
-        model_tags: Optional[str],
-        default_tags: Optional[dict[str, str]] = None,
+        connection_tags: dict[str, str],
+        model_tags: dict[str, str],
+        default_tags: dict[str, str],
     ) -> dict[str, str]:
         """
         Merge query tags with precedence: model > connection > default.
         Validates that no reserved keys are used and tag limits are respected.
         """
-        # Parse tags from different sources
-        conn_tags = QueryTagsUtils.parse_query_tags(connection_tags)
-        model_tags_dict = QueryTagsUtils.parse_query_tags(model_tags)
-        default_tags_dict = default_tags or {}
+        # All sources are now already parsed dicts
+        conn_tags = connection_tags
+        model_tags_dict = model_tags
+        default_tags_dict = default_tags
 
         # Validate each source (user-provided tags cannot use reserved keys)
         QueryTagsUtils.validate_query_tags(conn_tags, "Connection config")

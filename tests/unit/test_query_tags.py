@@ -1,10 +1,9 @@
-import json
 from unittest.mock import Mock
 
 import pytest
 from dbt_common.exceptions import DbtValidationError
 
-from dbt.adapters.databricks.connections import QueryConfigUtils, QueryContextWrapper
+from dbt.adapters.databricks.connections import QueryConfigUtils
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.utils import QueryTagsUtils
 
@@ -59,8 +58,8 @@ class TestQueryTagsUtils:
 
     def test_merge_query_tags_precedence(self):
         """Test that model tags override connection tags."""
-        connection_tags = '{"team": "marketing", "cost_center": "3000"}'
-        model_tags = '{"team": "content-marketing", "project": "analytics"}'
+        connection_tags = {"team": "marketing", "cost_center": "3000"}
+        model_tags = {"team": "content-marketing", "project": "analytics"}
         default_tags = {"dbt_model_name": "test_model"}
 
         result = QueryTagsUtils.merge_query_tags(connection_tags, model_tags, default_tags)
@@ -75,8 +74,8 @@ class TestQueryTagsUtils:
 
     def test_merge_query_tags_reserved_key_conflict(self):
         """Test that reserved keys in user tags raise error."""
-        connection_tags = '{"team": "marketing"}'
-        model_tags = '{"project": "analytics"}'
+        connection_tags = {"team": "marketing"}
+        model_tags = {"project": "analytics"}
         default_tags = {"dbt_model_name": "test_model"}
 
         # This should work fine - default tags can use reserved keys
@@ -84,18 +83,15 @@ class TestQueryTagsUtils:
         assert "dbt_model_name" in result
 
         # But if user tries to use a reserved key, it should fail
-        model_tags_with_reserved = '{"dbt_model_name": "override_attempt"}'
+        model_tags_with_reserved = {"dbt_model_name": "override_attempt"}
         with pytest.raises(DbtValidationError, match="Cannot use reserved query tag keys"):
             QueryTagsUtils.merge_query_tags(connection_tags, model_tags_with_reserved, default_tags)
 
     def test_merge_query_tags_too_many_total(self):
         """Test that too many total tags after merging raises error."""
         # Create tags that individually are under the limit but together exceed it
-        connection_tags_dict = {f"conn_tag_{i}": f"value_{i}" for i in range(10)}
-        model_tags_dict = {f"model_tag_{i}": f"value_{i}" for i in range(11)}
-
-        connection_tags = json.dumps(connection_tags_dict)
-        model_tags = json.dumps(model_tags_dict)
+        connection_tags = {f"conn_tag_{i}": f"value_{i}" for i in range(10)}
+        model_tags = {f"model_tag_{i}": f"value_{i}" for i in range(11)}
         default_tags = {"dbt_model_name": "test_model"}  # 1 default tag + 10 + 11 = 22 > 20
 
         with pytest.raises(DbtValidationError, match="Too many total query tags"):
@@ -125,17 +121,16 @@ class TestQueryConfigUtils:
         creds = Mock(spec=DatabricksCredentials)
         creds.query_tags = '{"team": "marketing", "cost_center": "3000"}'
 
-        # Mock context
-        context = QueryContextWrapper(
-            relation_name="test_model",
-            model_query_tags_override='{"team": "content-marketing", "project": "analytics"}',
-            model_name="test_model",
-            materialized="table",
-            dbt_databricks_version="1.11.0a1",
-            dbt_core_version="1.8.0",
-        )
+        # Mock query header context
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = {
+            "team": "content-marketing",
+            "project": "analytics",
+        }
 
-        result = QueryConfigUtils.get_merged_query_tags(context, creds)
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check user-defined tags
         assert result["team"] == "content-marketing"  # Model overrides connection
@@ -144,8 +139,8 @@ class TestQueryConfigUtils:
 
         # Check default tags
         assert result["dbt_model_name"] == "test_model"
-        assert result["dbt_databricks_version"] == "1.11.0a1"
-        assert result["dbt_core_version"] == "1.8.0"
+        assert "dbt_databricks_version" in result
+        assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "table"
 
     def test_get_merged_query_tags_no_model_tags(self):
@@ -153,24 +148,21 @@ class TestQueryConfigUtils:
         creds = Mock(spec=DatabricksCredentials)
         creds.query_tags = '{"team": "marketing"}'
 
-        context = QueryContextWrapper(
-            relation_name="test_model",
-            model_query_tags_override=None,
-            model_name="test_model",
-            materialized="view",
-            dbt_databricks_version="1.11.0a1",
-            dbt_core_version="1.8.0",
-        )
+        # Mock query header context
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "view"
+        query_header_context.model_query_tags_override = None
 
-        result = QueryConfigUtils.get_merged_query_tags(context, creds)
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check user-defined tags
         assert result["team"] == "marketing"
 
         # Check default tags
         assert result["dbt_model_name"] == "test_model"
-        assert result["dbt_databricks_version"] == "1.11.0a1"
-        assert result["dbt_core_version"] == "1.8.0"
+        assert "dbt_databricks_version" in result
+        assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "view"
 
     def test_get_merged_query_tags_no_connection_tags(self):
@@ -178,24 +170,21 @@ class TestQueryConfigUtils:
         creds = Mock(spec=DatabricksCredentials)
         creds.query_tags = None
 
-        context = QueryContextWrapper(
-            relation_name="test_model",
-            model_query_tags_override='{"project": "analytics"}',
-            model_name="test_model",
-            materialized="incremental",
-            dbt_databricks_version="1.11.0a1",
-            dbt_core_version="1.8.0",
-        )
+        # Mock query header context
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "incremental"
+        query_header_context.model_query_tags_override = {"project": "analytics"}
 
-        result = QueryConfigUtils.get_merged_query_tags(context, creds)
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check user-defined tags
         assert result["project"] == "analytics"
 
         # Check default tags
         assert result["dbt_model_name"] == "test_model"
-        assert result["dbt_databricks_version"] == "1.11.0a1"
-        assert result["dbt_core_version"] == "1.8.0"
+        assert "dbt_databricks_version" in result
+        assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "incremental"
 
     def test_get_merged_query_tags_no_tags_at_all(self):
@@ -203,21 +192,18 @@ class TestQueryConfigUtils:
         creds = Mock(spec=DatabricksCredentials)
         creds.query_tags = None
 
-        context = QueryContextWrapper(
-            relation_name="test_model",
-            model_query_tags_override=None,
-            model_name="test_model",
-            materialized="table",
-            dbt_databricks_version="1.11.0a1",
-            dbt_core_version="1.8.0",
-        )
+        # Mock query header context
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = None
 
-        result = QueryConfigUtils.get_merged_query_tags(context, creds)
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check default tags only
         assert result["dbt_model_name"] == "test_model"
-        assert result["dbt_databricks_version"] == "1.11.0a1"
-        assert result["dbt_core_version"] == "1.8.0"
+        assert "dbt_databricks_version" in result
+        assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "table"
 
         # Should only have default tags
