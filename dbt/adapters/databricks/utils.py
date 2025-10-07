@@ -189,7 +189,7 @@ class QueryTagsUtils:
     def format_query_tags_for_databricks(tags: dict[str, str]) -> str:
         """Format query tags for Databricks session configuration (without quotes)."""
         if not tags:
-            return "{}"
+            return ""
         # Format as {key:value,key:value} without quotes around keys/values
         formatted_pairs = [f"{key}:{value}" for key, value in tags.items()]
         return ",".join(formatted_pairs)

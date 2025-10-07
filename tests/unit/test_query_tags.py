@@ -109,7 +109,7 @@ class TestQueryTagsUtils:
     def test_format_query_tags_for_databricks_empty(self):
         """Test formatting empty query tags."""
         result = QueryTagsUtils.format_query_tags_for_databricks({})
-        assert result == "{}"
+        assert result == ""
 
 
 class TestQueryConfigUtils:
@@ -138,10 +138,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"  # From model
 
         # Check default tags
-        assert result["dbt_model_name"] == "test_model"
         assert "dbt_databricks_version" in result
         assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "table"
+        assert result["dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_model_tags(self):
         """Test getting merged query tags with no model tags."""
@@ -160,10 +160,10 @@ class TestQueryConfigUtils:
         assert result["team"] == "marketing"
 
         # Check default tags
-        assert result["dbt_model_name"] == "test_model"
         assert "dbt_databricks_version" in result
         assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "view"
+        assert result["dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_connection_tags(self):
         """Test getting merged query tags with no connection tags."""
@@ -182,10 +182,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"
 
         # Check default tags
-        assert result["dbt_model_name"] == "test_model"
         assert "dbt_databricks_version" in result
         assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "incremental"
+        assert result["dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_tags_at_all(self):
         """Test getting merged query tags with no tags from any source."""
@@ -201,10 +201,10 @@ class TestQueryConfigUtils:
         result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check default tags only
-        assert result["dbt_model_name"] == "test_model"
         assert "dbt_databricks_version" in result
         assert "dbt_core_version" in result
         assert result["dbt_materialized"] == "table"
+        assert result["dbt_model_name"] == "test_model"
 
         # Should only have default tags
         assert len(result) == 4
