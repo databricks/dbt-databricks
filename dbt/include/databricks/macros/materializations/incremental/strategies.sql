@@ -41,7 +41,7 @@
     
     {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_replace_on_for_insert_overwrite) -%}
         {%- if not adapter.is_cluster() %}
-            {{ exceptions.warn("insert_overwrite will perform a partition overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
+            {{ exceptions.warn("insert_overwrite will perform a dynamic insert overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
         {%- endif -%}
         {{ get_insert_replace_on_sql(source_relation, target_relation, source_cols_csv) }}
     {%- else -%}
