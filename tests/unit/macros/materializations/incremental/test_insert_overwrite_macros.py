@@ -42,6 +42,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
         context["adapter"].behavior = mock_behavior
 
+        # Mock exceptions.warn to return empty string to avoid polluting SQL output
+        context["exceptions"].warn.return_value = ""
+
     @pytest.mark.parametrize(
         "dbr_version_comparison,expected_sql",
         [
