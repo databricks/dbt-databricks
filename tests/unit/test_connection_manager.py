@@ -71,7 +71,7 @@ class TestDatabricksConnectionManager:
         mock_connection.credentials.query_tags = None
         mock_connection.http_path = "sql/protocolv1/o/abc123def456"
         mock_connection.credentials.authenticate.return_value = Mock()
-        mock_connection._query_context = None
+        mock_connection._query_header_context = None
 
         # Mock the handle creation
         mock_handle = Mock()
