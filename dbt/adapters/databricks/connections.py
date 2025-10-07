@@ -6,6 +6,13 @@ from importlib.metadata import version
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.events.functions import fire_event
+from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
+from dbt_common.utils import cast_to_str
+
+from databricks.sql import __version__ as dbsql_version
+from databricks.sql.exc import Error
 from dbt.adapters.base.query_headers import MacroQueryStringSetter
 from dbt.adapters.contracts.connection import (
     DEFAULT_QUERY_COMMENT,
@@ -16,22 +23,6 @@ from dbt.adapters.contracts.connection import (
     Identifier,
     LazyHandle,
 )
-from dbt.adapters.events.types import (
-    ConnectionClosedInCleanup,
-    ConnectionReused,
-    ConnectionUsed,
-    NewConnection,
-    SQLQuery,
-    SQLQueryStatus,
-)
-from dbt.adapters.spark.connections import SparkConnectionManager
-from dbt_common.events.contextvars import get_node_info
-from dbt_common.events.functions import fire_event
-from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
-from dbt_common.utils import cast_to_str
-
-from databricks.sql import __version__ as dbsql_version
-from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.__version__ import version as databricks_version
 from dbt.adapters.databricks.api_client import DatabricksApiClient
@@ -47,7 +38,16 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
+from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
+from dbt.adapters.events.types import (
+    ConnectionClosedInCleanup,
+    ConnectionReused,
+    ConnectionUsed,
+    NewConnection,
+    SQLQuery,
+    SQLQueryStatus,
+)
+from dbt.adapters.spark.connections import SparkConnectionManager
 
 if TYPE_CHECKING:
     from agate import Table
@@ -96,16 +96,13 @@ class QueryContextWrapper:
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
-            # model_query_tags_override is stored in the extra config, not the main config
+
             query_tags_str = (
                 query_header_context.config.extra.get("query_tags")
                 if hasattr(query_header_context.config, "extra")
                 else None
             )
-            # Parse immediately to dict
             if query_tags_str:
-                from dbt.adapters.databricks.utils import QueryTagsUtils
-
                 model_query_tags_override = QueryTagsUtils.parse_query_tags(query_tags_str)
 
         ret = QueryContextWrapper(
