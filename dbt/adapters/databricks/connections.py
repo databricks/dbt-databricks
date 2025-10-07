@@ -524,12 +524,13 @@ class QueryConfigUtils:
         """
         from dbt.adapters.databricks.utils import QueryTagsUtils
 
-        # Extract default tags from query header context
+        # Default tags that will be applied to all queries
         default_tags = {
             "dbt_databricks_version": databricks_version,
             "dbt_core_version": version("dbt-core"),
         }
 
+        # Default tags that will only exists for queries tied to a specific model
         if query_header_context:
             if query_header_context.model_name:
                 default_tags["dbt_model_name"] = query_header_context.model_name
