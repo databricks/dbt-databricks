@@ -128,7 +128,7 @@ class TestQueryConfigUtils:
         # Mock context
         context = QueryContextWrapper(
             relation_name="test_model",
-            query_tags='{"team": "content-marketing", "project": "analytics"}',
+            model_query_tags_override='{"team": "content-marketing", "project": "analytics"}',
             model_name="test_model",
             materialized="table",
             dbt_databricks_version="1.11.0a1",
@@ -155,7 +155,7 @@ class TestQueryConfigUtils:
 
         context = QueryContextWrapper(
             relation_name="test_model",
-            query_tags=None,
+            model_query_tags_override=None,
             model_name="test_model",
             materialized="view",
             dbt_databricks_version="1.11.0a1",
@@ -180,7 +180,7 @@ class TestQueryConfigUtils:
 
         context = QueryContextWrapper(
             relation_name="test_model",
-            query_tags='{"project": "analytics"}',
+            model_query_tags_override='{"project": "analytics"}',
             model_name="test_model",
             materialized="incremental",
             dbt_databricks_version="1.11.0a1",
@@ -205,7 +205,7 @@ class TestQueryConfigUtils:
 
         context = QueryContextWrapper(
             relation_name="test_model",
-            query_tags=None,
+            model_query_tags_override=None,
             model_name="test_model",
             materialized="table",
             dbt_databricks_version="1.11.0a1",

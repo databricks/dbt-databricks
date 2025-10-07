@@ -84,7 +84,7 @@ class QueryContextWrapper:
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
     model_name: Optional[str] = None
-    query_tags: Optional[str] = None
+    model_query_tags_override: Optional[str] = None
     materialized: Optional[str] = None
     dbt_databricks_version: Optional[str] = None
     dbt_core_version: Optional[str] = None
@@ -94,12 +94,12 @@ class QueryContextWrapper:
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
-        query_tags = None
+        model_query_tags_override = None
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
-            # query_tags is stored in the extra config, not the main config
-            query_tags = (
+            # model_query_tags_override is stored in the extra config, not the main config
+            model_query_tags_override = (
                 query_header_context.config.extra.get("query_tags")
                 if hasattr(query_header_context.config, "extra")
                 else None
@@ -108,7 +108,7 @@ class QueryContextWrapper:
         ret = QueryContextWrapper(
             compute_name=compute_name,
             relation_name=relation_name,
-            query_tags=query_tags,
+            model_query_tags_override=model_query_tags_override,
             model_name=query_header_context.name,
             materialized=query_header_context.config.materialized,
             dbt_databricks_version=databricks_version,
@@ -200,7 +200,6 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self, name: Optional[str] = None, query_header_context: Any = None
     ) -> Connection:
         conn_name: str = "master" if name is None else name
-        # It's here that we should apply model level query tags
         wrapped = QueryContextWrapper.from_context(query_header_context)
 
         # Get a connection for this thread
@@ -542,6 +541,6 @@ class QueryConfigUtils:
         # Merge tags with proper precedence
         return QueryTagsUtils.merge_query_tags(
             connection_tags=creds.query_tags,
-            model_tags=context.query_tags,
+            model_tags=context.model_query_tags_override,
             default_tags=default_tags,
         )
