@@ -133,7 +133,9 @@ USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
     description=(
         "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
         "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
-        "  overwrite."
+        "  overwrite. For SQL warehouses, disabling will produce the same behavior as using the "
+        "  table materialization. For other compute types, it will fall back to the legacy syntax"
+        "  as well but functionally behaves the same regardless of flag value"
     ),
 )  # type: ignore[typeddict-item]
 
