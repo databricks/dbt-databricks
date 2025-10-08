@@ -1,7 +1,7 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
+
 from tests.functional.adapter.basic import fixtures
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 

@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests.adapter.grants.test_incremental_grants import BaseIncrementalGrants
 from dbt.tests.adapter.grants.test_invalid_grants import BaseInvalidGrants
 from dbt.tests.adapter.grants.test_model_grants import BaseModelGrants

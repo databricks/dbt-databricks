@@ -1,11 +1,11 @@
 from typing import Optional
 
 import pytest
-
 from dbt.adapters.base.relation import BaseRelation
 from dbt.tests import util
 from dbt.tests.adapter.materialized_view import files
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
+
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 

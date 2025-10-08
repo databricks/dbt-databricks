@@ -1,8 +1,8 @@
 import os
 
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.incremental import fixtures
 

@@ -3,6 +3,7 @@ from typing import Optional
 
 from dbt.adapters.catalogs import CATALOG_INTEGRATION_MODEL_CONFIG_NAME
 from dbt.adapters.contracts.relation import RelationConfig
+
 from dbt.adapters.databricks import constants
 
 

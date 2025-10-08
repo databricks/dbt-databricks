@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests.adapter.simple_copy.test_simple_copy import EmptyModelsArentRunBase, SimpleCopyBase
 
 

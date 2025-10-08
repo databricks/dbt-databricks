@@ -1,4 +1,5 @@
 from dbt.adapters.base import AdapterPlugin
+
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.include import databricks
