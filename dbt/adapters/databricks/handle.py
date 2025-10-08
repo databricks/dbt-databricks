@@ -14,6 +14,7 @@ from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.utils import QueryTagsUtils
 
 if TYPE_CHECKING:
     pass
@@ -302,8 +303,6 @@ class SqlUtils:
         http_path: str,
         query_tags: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
-        from dbt.adapters.databricks.utils import QueryTagsUtils
-
         invocation_env = creds.get_invocation_env()
         user_agent_entry = SqlUtils.user_agent
         if invocation_env:

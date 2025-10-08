@@ -33,7 +33,6 @@ from dbt_common.utils import cast_to_str
 from databricks.sql import __version__ as dbsql_version
 from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.__version__ import version as databricks_version
 from dbt.adapters.databricks.api_client import DatabricksApiClient
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
@@ -525,11 +524,10 @@ class QueryConfigUtils:
         Get merged query tags from connection config, model config, and default tags.
         Model config takes precedence over connection config.
         """
-        from dbt.adapters.databricks.utils import QueryTagsUtils
 
         # Default tags that will be applied to all queries
         default_tags = {
-            "dbt_databricks_version": databricks_version,
+            "dbt_databricks_version": __version__,
             "dbt_core_version": version("dbt-core"),
         }
 
