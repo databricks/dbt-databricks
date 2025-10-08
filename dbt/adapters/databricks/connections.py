@@ -93,24 +93,27 @@ class QueryContextWrapper:
             return QueryContextWrapper()
         compute_name = None
         model_query_tags_override = None
+        materialized = None
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-        if hasattr(query_header_context, "config") and query_header_context.config:
-            compute_name = query_header_context.config.get("databricks_compute")
 
-            query_tags_str = (
-                query_header_context.config.extra.get("query_tags")
-                if hasattr(query_header_context.config, "extra")
-                else None
-            )
+        # Extract config-related attributes safely
+        if hasattr(query_header_context, "config") and query_header_context.config:
+            config = query_header_context.config
+            compute_name = config.get("databricks_compute")
+
+            query_tags_str = config.extra.get("query_tags") if hasattr(config, "extra") else None
             if query_tags_str:
                 model_query_tags_override = QueryTagsUtils.parse_query_tags(query_tags_str)
+
+            if hasattr(config, "materialized"):
+                materialized = config.materialized
 
         ret = QueryContextWrapper(
             compute_name=compute_name,
             relation_name=relation_name,
             model_query_tags_override=model_query_tags_override,
-            model_name=query_header_context.name,
-            materialized=query_header_context.config.materialized,
+            model_name=getattr(query_header_context, "name", None),
+            materialized=materialized,
         )
         return ret
 
@@ -532,9 +535,9 @@ class QueryConfigUtils:
 
         # Default tags that will only exists for queries tied to a specific model
         if query_header_context:
-            if query_header_context.model_name:
+            if hasattr(query_header_context, "model_name") and query_header_context.model_name:
                 default_tags["dbt_model_name"] = query_header_context.model_name
-            if query_header_context.materialized:
+            if hasattr(query_header_context, "materialized") and query_header_context.materialized:
                 default_tags["dbt_materialized"] = query_header_context.materialized
 
         # Parse connection tags from JSON string
@@ -544,7 +547,11 @@ class QueryConfigUtils:
 
         # Extract model-level query tags from context
         model_tags = {}
-        if query_header_context and query_header_context.model_query_tags_override:
+        if (
+            query_header_context
+            and hasattr(query_header_context, "model_query_tags_override")
+            and query_header_context.model_query_tags_override
+        ):
             model_tags = query_header_context.model_query_tags_override
 
         return QueryTagsUtils.merge_query_tags(
