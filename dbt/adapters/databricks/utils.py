@@ -3,12 +3,12 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from dbt.adapters.base import BaseAdapter
-from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 from dbt_common.exceptions import DbtRuntimeError, DbtValidationError
 from jinja2 import Undefined
 
+from dbt.adapters.base import BaseAdapter
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
 
 if TYPE_CHECKING:
     from agate import Row, Table
@@ -124,8 +124,16 @@ class QueryTagsUtils:
             if not isinstance(parsed, dict):
                 raise DbtValidationError("query_tags must be a JSON object (dictionary)")
 
-            # Convert all values to strings
-            return {str(k): str(v) for k, v in parsed.items()}
+            # Validate that all values are strings
+            for key, value in parsed.items():
+                if not isinstance(value, str):
+                    raise DbtValidationError(
+                        f"query_tags values must be strings. Found {type(value).__name__} "
+                        f"for key '{key}': {value}. Only string values are supported."
+                    )
+
+            # Convert keys to strings and return
+            return {str(k): v for k, v in parsed.items()}
         except json.JSONDecodeError as e:
             raise DbtValidationError(f"Invalid JSON in query_tags: {e}")
 

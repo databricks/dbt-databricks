@@ -22,11 +22,39 @@ class TestQueryTagsUtils:
         expected = {"team": "marketing", "cost_center": "3000"}
         assert QueryTagsUtils.parse_query_tags(tags_json) == expected
 
-    def test_parse_query_tags_converts_values_to_strings(self):
-        """Test that all values are converted to strings."""
-        tags_json = '{"team": "marketing", "cost_center": 3000, "active": true}'
-        expected = {"team": "marketing", "cost_center": "3000", "active": "True"}
-        assert QueryTagsUtils.parse_query_tags(tags_json) == expected
+    def test_parse_query_tags_rejects_non_string_values(self):
+        """Test that non-string values raise an error."""
+        tags_json_int = '{"team": "marketing", "cost_center": 3000}'
+        expected_msg_int = (
+            "query_tags values must be strings. Found int for key 'cost_center': 3000. "
+            "Only string values are supported."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg_int):
+            QueryTagsUtils.parse_query_tags(tags_json_int)
+
+        tags_json_bool = '{"team": "marketing", "active": true}'
+        expected_msg_bool = (
+            "query_tags values must be strings. Found bool for key 'active': True. "
+            "Only string values are supported."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg_bool):
+            QueryTagsUtils.parse_query_tags(tags_json_bool)
+
+        tags_json_null = '{"team": "marketing", "description": null}'
+        expected_msg_null = (
+            "query_tags values must be strings. Found NoneType for key 'description': None. "
+            "Only string values are supported."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg_null):
+            QueryTagsUtils.parse_query_tags(tags_json_null)
+
+        tags_json_array = '{"team": "marketing", "tags": ["tag1", "tag2"]}'
+        expected_msg_array = (
+            "query_tags values must be strings. Found list for key 'tags': "
+            r"\['tag1', 'tag2'\]. Only string values are supported."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg_array):
+            QueryTagsUtils.parse_query_tags(tags_json_array)
 
     def test_parse_query_tags_invalid_json(self):
         """Test parsing invalid JSON raises error."""
