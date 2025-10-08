@@ -20,7 +20,7 @@
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
     {{ log("Safe create: " ~ safe_create) }}
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
-    {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
+    {% set is_replaceable = existing_relation.can_be_replaced and is_delta %}
 
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
