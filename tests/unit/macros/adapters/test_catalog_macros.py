@@ -19,7 +19,9 @@ class TestCatalogMacros(MacroTestBase):
         information_schema = {"database": "test_catalog"}
 
         result = self.run_macro(
-            template_bundle.template, "databricks__get_catalog_tables_sql", information_schema
+            template_bundle.template,
+            "databricks__get_catalog_tables_sql",
+            information_schema,
         )
 
         expected = """
@@ -45,7 +47,9 @@ class TestCatalogMacros(MacroTestBase):
         information_schema = {"database": "test_catalog"}
 
         result = self.run_macro(
-            template_bundle.template, "databricks__get_catalog_columns_sql", information_schema
+            template_bundle.template,
+            "databricks__get_catalog_columns_sql",
+            information_schema,
         )
 
         expected = """
@@ -64,7 +68,9 @@ class TestCatalogMacros(MacroTestBase):
 
     def test_get_catalog_results_sql(self, template_bundle):
         """Test the SQL generation for joining tables and columns"""
-        result = self.run_macro(template_bundle.template, "databricks__get_catalog_results_sql")
+        result = self.run_macro(
+            template_bundle.template, "databricks__get_catalog_results_sql"
+        )
 
         expected = """
             select *
@@ -138,7 +144,10 @@ class TestCatalogMacros(MacroTestBase):
         context["run_query_as"] = Mock(return_value=mock_result)
 
         self.run_macro_raw(
-            template_bundle.template, "databricks__get_catalog", information_schema, schemas
+            template_bundle.template,
+            "databricks__get_catalog",
+            information_schema,
+            schemas,
         )
 
         # Verify run_query was called once and capture the SQL

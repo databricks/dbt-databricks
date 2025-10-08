@@ -135,7 +135,9 @@ class DatabricksColumn(SparkColumn):
     def data_type(self) -> str:
         return self.translate_type(self.dtype)
 
-    def enrich(self, model_column: dict[str, Any], not_null: bool) -> "DatabricksColumn":
+    def enrich(
+        self, model_column: dict[str, Any], not_null: bool
+    ) -> "DatabricksColumn":
         """Create a copy that incorporates model column metadata, including constraints."""
 
         data_type = model_column.get("data_type") or self.dtype

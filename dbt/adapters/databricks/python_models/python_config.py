@@ -38,7 +38,9 @@ class PythonModelConfig(BaseModel):
     packages: list[str] = Field(default_factory=list)
     index_url: Optional[str] = None
     additional_libs: list[dict[str, Any]] = Field(default_factory=list)
-    python_job_config: PythonJobConfig = Field(default_factory=lambda: PythonJobConfig(**{}))
+    python_job_config: PythonJobConfig = Field(
+        default_factory=lambda: PythonJobConfig(**{})
+    )
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None
     create_notebook: bool = False
@@ -58,10 +60,14 @@ class PythonModelConfig(BaseModel):
         return v
 
     @validator("notebook_access_control_list")
-    def validate_notebook_permissions(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
+    def validate_notebook_permissions(
+        cls, v: list[dict[str, str]]
+    ) -> list[dict[str, str]]:
         for acl in v:
             if "permission_level" not in acl:
-                raise ValueError("permission_level is required in notebook_access_control_list")
+                raise ValueError(
+                    "permission_level is required in notebook_access_control_list"
+                )
             if acl["permission_level"] not in NOTEBOOK_PERMISSIONS:
                 raise ValueError(
                     f"Invalid permission_level in notebook_access_control_list: "

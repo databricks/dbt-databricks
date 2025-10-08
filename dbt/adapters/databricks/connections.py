@@ -91,7 +91,9 @@ class QueryContextWrapper:
         if hasattr(query_header_context, "config") and query_header_context.config:
             compute_name = query_header_context.config.get("databricks_compute")
 
-        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+        return QueryContextWrapper(
+            compute_name=compute_name, relation_name=relation_name
+        )
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -109,7 +111,9 @@ class DatabricksDBTConnection(Connection):
     session_id: Optional[str] = None
 
     def __str__(self) -> str:
-        return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
+        return (
+            f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
+        )
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
@@ -131,7 +135,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
     def is_cluster(self) -> bool:
         conn = self.get_thread_connection()
         databricks_conn = cast(DatabricksDBTConnection, conn)
-        return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
+        return is_cluster_http_path(
+            databricks_conn.http_path, conn.credentials.cluster_id
+        )
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
@@ -147,7 +153,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return (dbr_version > version) - (dbr_version < version)
 
     def set_query_header(self, query_header_context: dict[str, Any]) -> None:
-        self.query_header = DatabricksMacroQueryStringSetter(self.profile, query_header_context)
+        self.query_header = DatabricksMacroQueryStringSetter(
+            self.profile, query_header_context
+        )
 
     @contextmanager
     def exception_handler(self, sql: str) -> Iterator[None]:
@@ -194,7 +202,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
             if conn.name != conn_name:
                 orig_conn_name: str = conn.name or ""
                 conn.name = conn_name
-                fire_event(ConnectionReused(orig_conn_name=orig_conn_name, conn_name=conn_name))
+                fire_event(
+                    ConnectionReused(orig_conn_name=orig_conn_name, conn_name=conn_name)
+                )
 
         return conn
 
@@ -221,7 +231,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         self.set_thread_connection(conn)
 
         fire_event(
-            NewConnection(conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info())
+            NewConnection(
+                conn_name=conn_name, conn_type=self.TYPE, node_info=get_node_info()
+            )
         )
 
         return conn
@@ -244,7 +256,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         close_cursor: bool = False,
     ) -> tuple[Connection, Any]:
         connection = self.get_thread_connection()
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
+        fire_event(
+            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
+        )
 
         with self.exception_handler(sql):
             cursor: Optional[CursorWrapper] = None
@@ -309,7 +323,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
     ) -> "Table":
         connection = self.get_thread_connection()
 
-        fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
+        fire_event(
+            ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name))
+        )
 
         with self.exception_handler(log_sql):
             cursor: Optional[CursorWrapper] = None
@@ -399,7 +415,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 # TODO: what is the error when a user specifies a catalog they don't have access to
                 conn = DatabricksHandle.from_connection_args(
                     conn_args,
-                    is_cluster_http_path(databricks_connection.http_path, creds.cluster_id),
+                    is_cluster_http_path(
+                        databricks_connection.http_path, creds.cluster_id
+                    ),
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
@@ -459,7 +477,9 @@ class QueryConfigUtils:
     """
 
     @staticmethod
-    def get_http_path(context: QueryContextWrapper, creds: DatabricksCredentials) -> str:
+    def get_http_path(
+        context: QueryContextWrapper, creds: DatabricksCredentials
+    ) -> str:
         """
         Get the http_path for the compute specified for the node.
         If none is specified default will be used.
@@ -471,7 +491,9 @@ class QueryConfigUtils:
         # Get the http_path for the named compute.
         http_path = None
         if creds.compute:
-            http_path = creds.compute.get(context.compute_name, {}).get("http_path", None)
+            http_path = creds.compute.get(context.compute_name, {}).get(
+                "http_path", None
+            )
 
         # no http_path for the named compute resource is an error condition
         if not http_path:

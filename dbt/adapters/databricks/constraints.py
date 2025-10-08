@@ -57,7 +57,9 @@ class TypedConstraint(ModelLevelConstraint, ABC):
 
     @classmethod
     def _render_error(self, missing: list[list[str]]) -> DbtValidationError:
-        fields = " or ".join(["(" + ", ".join([f"'{e}'" for e in x]) + ")" for x in missing])
+        fields = " or ".join(
+            ["(" + ", ".join([f"'{e}'" for e in x]) + ")" for x in missing]
+        )
         name = self.name or ""
         return DbtValidationError(
             f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
@@ -114,7 +116,9 @@ class ForeignKeyConstraint(TypedConstraint):
     str_type = "foreign_key"
 
     def _validate(self) -> None:
-        if not self.columns or (not (self.to_columns and self.to) and not self.expression):
+        if not self.columns or (
+            not (self.to_columns and self.to) and not self.expression
+        ):
             raise self._render_error(
                 [["columns", "to", "to_columns"], ["columns", "expression"]],
             )
@@ -154,7 +158,9 @@ def is_supported(constraint: ColumnLevelConstraint) -> bool:
 
 
 def is_enforced(constraint: ColumnLevelConstraint) -> bool:
-    return constraint.type in CONSTRAINT_SUPPORT and CONSTRAINT_SUPPORT[constraint.type] not in [
+    return constraint.type in CONSTRAINT_SUPPORT and CONSTRAINT_SUPPORT[
+        constraint.type
+    ] not in [
         ConstraintSupport.NOT_ENFORCED,
         ConstraintSupport.NOT_SUPPORTED,
     ]
@@ -175,11 +181,15 @@ def validate_constraint(constraint: ColumnLevelConstraint) -> bool:
 
     if constraint.warn_unsupported and not supported:
         warn_or_error(
-            ConstraintNotSupported(constraint=constraint.type.value, adapter="DatabricksAdapter")
+            ConstraintNotSupported(
+                constraint=constraint.type.value, adapter="DatabricksAdapter"
+            )
         )
     elif constraint.warn_unenforced and not is_enforced(constraint):
         warn_or_error(
-            ConstraintNotEnforced(constraint=constraint.type.value, adapter="DatabricksAdapter")
+            ConstraintNotEnforced(
+                constraint=constraint.type.value, adapter="DatabricksAdapter"
+            )
         )
 
     return supported
@@ -189,11 +199,14 @@ def parse_constraints(
     model_columns: list[dict[str, Any]], model_constraints: list[dict[str, Any]]
 ) -> tuple[set[str], list[TypedConstraint]]:
     not_nulls, constraints_from_columns = parse_column_constraints(model_columns)
-    not_nulls_from_models, constraints_from_models = parse_model_constraints(model_constraints)
+    not_nulls_from_models, constraints_from_models = parse_model_constraints(
+        model_constraints
+    )
 
-    return not_nulls.union(
-        not_nulls_from_models
-    ), constraints_from_columns + constraints_from_models
+    return (
+        not_nulls.union(not_nulls_from_models),
+        constraints_from_columns + constraints_from_models,
+    )
 
 
 def parse_column_constraints(
@@ -204,7 +217,9 @@ def parse_column_constraints(
     for column in model_columns:
         for constraint in column.get("constraints", []):
             if constraint["type"] == ConstraintType.unique:
-                raise DbtValidationError("Unique constraints are not supported on Databricks")
+                raise DbtValidationError(
+                    "Unique constraints are not supported on Databricks"
+                )
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
@@ -223,10 +238,14 @@ def parse_model_constraints(
     constraints: list[TypedConstraint] = []
     for constraint in model_constraints:
         if constraint["type"] == ConstraintType.unique:
-            raise DbtValidationError("Unique constraints are not supported on Databricks")
+            raise DbtValidationError(
+                "Unique constraints are not supported on Databricks"
+            )
         if constraint["type"] == ConstraintType.not_null:
             if not constraint.get("columns"):
-                raise DbtValidationError("not_null constraint on model must have 'columns' defined")
+                raise DbtValidationError(
+                    "not_null constraint on model must have 'columns' defined"
+                )
             column_names.update(constraint["columns"])
         else:
             constraints.append(parse_constraint(constraint))
@@ -243,7 +262,8 @@ CONSTRAINT_TYPE_MAP = {
 
 
 def parse_constraint(
-    raw_constraint: dict[str, Any], type_map: dict[str, type[TypedConstraint]] = CONSTRAINT_TYPE_MAP
+    raw_constraint: dict[str, Any],
+    type_map: dict[str, type[TypedConstraint]] = CONSTRAINT_TYPE_MAP,
 ) -> TypedConstraint:
     try:
         klass = type_map[raw_constraint["type"]]

@@ -35,7 +35,10 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
 
         result = self.run_macro(
-            template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
+            template_bundle.template,
+            "comment_on_column_sql",
+            column_path,
+            escaped_comment,
         )
 
         expected_sql = """
@@ -53,7 +56,10 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
 
         result = self.run_macro(
-            template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
+            template_bundle.template,
+            "comment_on_column_sql",
+            column_path,
+            escaped_comment,
         )
 
         expected_sql = """
@@ -80,14 +86,18 @@ class TestPersistDocsMacros(MacroTestBase):
         """
         self.assert_sql_equal(result, expected_sql)
 
-    def test_alter_table_change_column_comment_sql_invalid_path(self, template_bundle, context):
+    def test_alter_table_change_column_comment_sql_invalid_path(
+        self, template_bundle, context
+    ):
         """Test error handling for invalid column path"""
         column_path = "invalid_path"
         escaped_comment = "This is a column comment"
 
         # Mock exceptions module
         context["exceptions"] = Mock()
-        context["exceptions"].raise_compiler_error = Mock(side_effect=Exception("Test error"))
+        context["exceptions"].raise_compiler_error = Mock(
+            side_effect=Exception("Test error")
+        )
 
         with pytest.raises(Exception, match="Test error"):
             self.run_macro(
@@ -109,14 +119,15 @@ class TestPersistDocsMacros(MacroTestBase):
             "This is a test model",
         )
 
-        expected_sql = (
-            "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
-        )
+        expected_sql = "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         self.assert_sql_equal(expected_sql, result)
 
     def test_alter_relation_comment_sql_with_quotes(self, template_bundle, relation):
         result = self.run_macro(
-            template_bundle.template, "alter_relation_comment_sql", relation, "Model with 'quotes'"
+            template_bundle.template,
+            "alter_relation_comment_sql",
+            relation,
+            "Model with 'quotes'",
         )
 
         expected_sql = (
@@ -140,9 +151,7 @@ class TestPersistDocsMacros(MacroTestBase):
             "This is a test model",
         )
 
-        expected_sql = (
-            "COMMENT ON VIEW `test_db`.`test_schema`.`test_view` IS 'This is a test model'"
-        )
+        expected_sql = "COMMENT ON VIEW `test_db`.`test_schema`.`test_view` IS 'This is a test model'"
         self.assert_sql_equal(result, expected_sql)
 
     def test_databricks__alter_column_comment_delta_dbr_16_1_plus(
@@ -171,9 +180,7 @@ class TestPersistDocsMacros(MacroTestBase):
         call_args_list = context["run_query_as"].call_args_list
 
         first_call = call_args_list[0][0][0]
-        expected_first_sql = (
-            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.id IS 'Primary key'"
-        )
+        expected_first_sql = "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.id IS 'Primary key'"
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
@@ -244,7 +251,9 @@ class TestPersistDocsMacros(MacroTestBase):
             "but file format parquet does not support that."
         )
 
-    def test_databricks__persist_docs_relation_only(self, template_bundle, context, relation):
+    def test_databricks__persist_docs_relation_only(
+        self, template_bundle, context, relation
+    ):
         context["config"] = MagicMock()
         context["config"].persist_relation_docs.return_value = True
 
@@ -264,7 +273,5 @@ class TestPersistDocsMacros(MacroTestBase):
         )
 
         sql = context["run_query_as"].call_args[0][0]
-        expected_sql = (
-            "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
-        )
+        expected_sql = "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         self.assert_sql_equal(sql, expected_sql)

@@ -39,8 +39,12 @@ class TestCloneStrategies(MacroTestBase):
         relation.database = "some_database"
         relation.schema = "some_schema_prod"
         relation.identifier = "some_table"
-        relation.render = Mock(return_value="`some_database`.`some_schema_prod`.`some_table`")
-        relation.without_identifier = Mock(return_value="`some_database`.`some_schema_prod`")
+        relation.render = Mock(
+            return_value="`some_database`.`some_schema_prod`.`some_table`"
+        )
+        relation.without_identifier = Mock(
+            return_value="`some_database`.`some_schema_prod`"
+        )
         relation.type = "table"
         return relation
 
@@ -51,7 +55,9 @@ class TestCloneStrategies(MacroTestBase):
             location_root=self.t_location_root,
             location_path=template_bundle.relation.identifier,
         )
-        template_bundle.context["adapter"].build_catalog_relation.return_value = t_relation
+        template_bundle.context["adapter"].build_catalog_relation.return_value = (
+            t_relation
+        )
         return t_relation
 
     def test_create_or_replace_clone(self, template_bundle, s_relation):
@@ -70,7 +76,9 @@ class TestCloneStrategies(MacroTestBase):
 
         assert expected == sql
 
-    def test_create_or_replace_clone_external(self, template_bundle, catalog_relation, s_relation):
+    def test_create_or_replace_clone_external(
+        self, template_bundle, catalog_relation, s_relation
+    ):
         sql = self.render_clone_macro(
             template_bundle,
             "create_or_replace_clone_external",

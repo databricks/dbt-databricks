@@ -39,7 +39,9 @@ class TestConstraintMacros(MacroTestBase):
 
         assert r == "[{'type': 'check', 'name': 'name', 'expression': 'id > 0'}]"
 
-    def test_macros_databricks_constraints_with_column_missing_expression(self, template):
+    def test_macros_databricks_constraints_with_column_missing_expression(
+        self, template
+    ):
         column = {"name": "col"}
         constraint = {"name": "name", "condition": "id > 0"}
         r = self.render_constraints(template, [constraint], column)
@@ -79,7 +81,9 @@ class TestConstraintMacros(MacroTestBase):
         expected = "[{'type': 'not_null', 'columns': ['id', 'name']}]"
         assert expected in r
 
-    def test_macros_get_model_constraints_persist(self, config, template, constraint_model):
+    def test_macros_get_model_constraints_persist(
+        self, config, template, constraint_model
+    ):
         config["persist_constraints"] = True
         r = self.render_model_constraints(template, constraint_model)
 
@@ -174,7 +178,9 @@ class TestConstraintMacros(MacroTestBase):
         }
         return {"columns": columns}
 
-    def test_macros_get_constraint_sql_not_null_with_columns(self, template_bundle, model):
+    def test_macros_get_constraint_sql_not_null_with_columns(
+        self, template_bundle, model
+    ):
         r = self.render_constraint_sql(
             template_bundle, {"type": "not_null", "columns": ["id", "name"]}, model
         )
@@ -186,7 +192,9 @@ class TestConstraintMacros(MacroTestBase):
 
         assert expected in r
 
-    def test_macros_get_constraint_sql_not_null_with_column(self, template_bundle, model):
+    def test_macros_get_constraint_sql_not_null_with_column(
+        self, template_bundle, model
+    ):
         r = self.render_constraint_sql(
             template_bundle, {"type": "not_null"}, model, model["columns"]["id"]
         )
@@ -197,7 +205,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_not_null_mismatched_columns(self, template_bundle, model):
+    def test_macros_get_constraint_sql_not_null_mismatched_columns(
+        self, template_bundle, model
+    ):
         r = self.render_constraint_sql(
             template_bundle,
             {"type": "not_null", "columns": ["name"]},
@@ -226,7 +236,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_check_named_constraint(self, template_bundle, model):
+    def test_macros_get_constraint_sql_check_named_constraint(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "check",
             "expression": "id != name",
@@ -240,7 +252,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_check_noname_constraint(self, template_bundle, model):
+    def test_macros_get_constraint_sql_check_noname_constraint(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "check",
             "expression": "id != name",
@@ -254,7 +268,9 @@ class TestConstraintMacros(MacroTestBase):
         )  # noqa: E501
         assert expected in r
 
-    def test_macros_get_constraint_sql_check_missing_expression(self, template_bundle, model):
+    def test_macros_get_constraint_sql_check_missing_expression(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "check",
             "expression": "",
@@ -294,7 +310,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_primary_key_with_name(self, template_bundle, model):
+    def test_macros_get_constraint_sql_primary_key_with_name(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "primary_key",
             "name": "myconstraint",
@@ -352,7 +370,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_foreign_key_parent_column(self, template_bundle, model):
+    def test_macros_get_constraint_sql_foreign_key_parent_column(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
@@ -369,7 +389,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
-    def test_macros_get_constraint_sql_foreign_key_multiple_columns(self, template_bundle, model):
+    def test_macros_get_constraint_sql_foreign_key_multiple_columns(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "foreign_key",
             "name": "myconstraint",
@@ -419,7 +441,9 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert self.clean_sql(expected) in r
 
-    def test_macros_get_constraint_sql_custom_noname_constraint(self, template_bundle, model):
+    def test_macros_get_constraint_sql_custom_noname_constraint(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "custom",
             "expression": "PRIMARY KEY(valid_at TIMESERIES)",
@@ -433,7 +457,9 @@ class TestConstraintMacros(MacroTestBase):
         )  # noqa: E501
         assert self.clean_sql(expected) in r
 
-    def test_macros_get_constraint_sql_custom_missing_expression(self, template_bundle, model):
+    def test_macros_get_constraint_sql_custom_missing_expression(
+        self, template_bundle, model
+    ):
         constraint = {
             "type": "check",
             "expression": "",

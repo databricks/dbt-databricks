@@ -16,14 +16,18 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
     quoted: dict[str, bool] = {}
     persist: bool = False
 
-    def get_diff(self, other: "ColumnCommentsConfig") -> Optional["ColumnCommentsConfig"]:
+    def get_diff(
+        self, other: "ColumnCommentsConfig"
+    ) -> Optional["ColumnCommentsConfig"]:
         logger.debug(f"Getting diff for ColumnCommentsConfig: {self} and {other}")
         comments = {}
         if self.persist:
             for column_name, comment in self.comments.items():
                 if comment != other.comments.get(column_name.lower()):
                     column_name = (
-                        f"`{column_name}`" if self.quoted.get(column_name, False) else column_name
+                        f"`{column_name}`"
+                        if self.quoted.get(column_name, False)
+                        else column_name
                     )
                     comments[column_name] = comment
             logger.debug(f"Comments: {comments}")
@@ -46,7 +50,9 @@ class ColumnCommentsProcessor(DatabricksComponentProcessor[ColumnCommentsConfig]
         return ColumnCommentsConfig(comments=comments)
 
     @classmethod
-    def from_relation_config(cls, relation_config: RelationConfig) -> ColumnCommentsConfig:
+    def from_relation_config(
+        cls, relation_config: RelationConfig
+    ) -> ColumnCommentsConfig:
         columns = getattr(relation_config, "columns", {})
         persist = False
         if relation_config.config:

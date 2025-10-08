@@ -83,7 +83,9 @@ def quote(name: str) -> str:
 ExceptionToStrOp = Callable[[Exception], str]
 
 
-def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStrOp) -> None:
+def handle_exceptions_as_warning(
+    op: Callable[[], None], log_gen: ExceptionToStrOp
+) -> None:
     try:
         op()
     except Exception as e:

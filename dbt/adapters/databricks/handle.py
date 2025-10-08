@@ -12,7 +12,10 @@ from databricks.sql.client import Connection, Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
+from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
+    DatabricksCredentials,
+)
 from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
@@ -138,7 +141,9 @@ class DatabricksHandle:
                     )
                 )
                 results = cursor.fetchone()
-                self._dbr_version = SqlUtils.extract_dbr_version(results[1] if results else "")
+                self._dbr_version = SqlUtils.extract_dbr_version(
+                    results[1] if results else ""
+                )
                 cursor.close()
             else:
                 # Assuming SQL Warehouse uses the latest version.
@@ -150,7 +155,9 @@ class DatabricksHandle:
     def session_id(self) -> str:
         return self._conn.get_session_id_hex()
 
-    def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
+    def execute(
+        self, sql: str, bindings: Optional[Sequence[Any]] = None
+    ) -> CursorWrapper:
         """
         Execute a SQL statement on the current session with optional bindings.
         """
@@ -160,7 +167,9 @@ class DatabricksHandle:
             )
         )
 
-    def list_schemas(self, database: str, schema: Optional[str] = None) -> CursorWrapper:
+    def list_schemas(
+        self, database: str, schema: Optional[str] = None
+    ) -> CursorWrapper:
         """
         Get a cursor for listing schemas in the given database.
         """
@@ -210,7 +219,9 @@ class DatabricksHandle:
 
         conn = dbsql.connect(**conn_args)
         if not conn:
-            logger.warning(f"Failed to create connection for {conn_args.get('http_path')}")
+            logger.warning(
+                f"Failed to create connection for {conn_args.get('http_path')}"
+            )
             return None
         connection = DatabricksHandle(conn, is_cluster=is_cluster)
         logger.debug(f"{connection} - Created")
@@ -283,9 +294,16 @@ class SqlUtils:
             raise DbtRuntimeError("Failed to detect DBR version")
 
     @staticmethod
-    def translate_bindings(bindings: Optional[Sequence[Any]]) -> Optional[Sequence[Any]]:
+    def translate_bindings(
+        bindings: Optional[Sequence[Any]],
+    ) -> Optional[Sequence[Any]]:
         if bindings:
-            return list(map(lambda x: float(x) if isinstance(x, decimal.Decimal) else x, bindings))
+            return list(
+                map(
+                    lambda x: float(x) if isinstance(x, decimal.Decimal) else x,
+                    bindings,
+                )
+            )
         return None
 
     @staticmethod
@@ -297,7 +315,9 @@ class SqlUtils:
 
     @staticmethod
     def prepare_connection_arguments(
-        creds: DatabricksCredentials, creds_manager: DatabricksCredentialManager, http_path: str
+        creds: DatabricksCredentials,
+        creds_manager: DatabricksCredentialManager,
+        http_path: str,
     ) -> dict[str, Any]:
         invocation_env = creds.get_invocation_env()
         user_agent_entry = SqlUtils.user_agent
@@ -307,7 +327,9 @@ class SqlUtils:
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         http_headers: list[tuple[str, str]] = list(
-            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
+            creds.get_all_http_headers(
+                connection_parameters.pop("http_headers", {})
+            ).items()
         )
 
         return {

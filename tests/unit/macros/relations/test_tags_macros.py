@@ -24,7 +24,9 @@ class TestTagsMacros(MacroTestBase):
 
     def test_macros_alter_set_tags(self, template_bundle):
         template_bundle.relation.type = "view"
-        sql = self.render_bundle(template_bundle, "alter_set_tags", {"a": "valA", "b": "valB"})
+        sql = self.render_bundle(
+            template_bundle, "alter_set_tags", {"a": "valA", "b": "valB"}
+        )
         expected = self.clean_sql(
             "ALTER view `some_database`.`some_schema`.`some_table` "
             "SET TAGS ( 'a' = 'valA', 'b' = 'valB' )"

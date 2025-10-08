@@ -13,7 +13,10 @@ def catalog_name(model: RelationConfig) -> Optional[str]:
     Luckily, all catalog attribution in the legacy behavior is on the model.
     This means we can take a default catalog and rely on the model overrides to supply the rest.
     """
-    return _get(model, CATALOG_INTEGRATION_MODEL_CONFIG_NAME) or constants.DEFAULT_CATALOG.name
+    return (
+        _get(model, CATALOG_INTEGRATION_MODEL_CONFIG_NAME)
+        or constants.DEFAULT_CATALOG.name
+    )
 
 
 def file_format(model: RelationConfig) -> Optional[str]:

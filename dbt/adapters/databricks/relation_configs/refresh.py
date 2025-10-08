@@ -80,7 +80,9 @@ class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
         schedule = base.get_config_value(relation_config, "schedule")
         if schedule:
             if "cron" not in schedule:
-                raise DbtRuntimeError(f"Schedule config must contain a 'cron' key, got {schedule}")
+                raise DbtRuntimeError(
+                    f"Schedule config must contain a 'cron' key, got {schedule}"
+                )
             return RefreshConfig(
                 cron=schedule["cron"], time_zone_value=schedule.get("time_zone_value")
             )

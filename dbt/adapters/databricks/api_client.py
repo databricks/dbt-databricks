@@ -30,17 +30,26 @@ class PrefixSession:
         self.session = session
 
     def get(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
+        self,
+        suffix: str = "",
+        json: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
     ) -> Response:
         return self.session.get(f"{self.prefix}{suffix}", json=json, params=params)
 
     def post(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
+        self,
+        suffix: str = "",
+        json: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
     ) -> Response:
         return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
 
     def put(
-        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
+        self,
+        suffix: str = "",
+        json: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
     ) -> Response:
         return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
 
@@ -50,7 +59,9 @@ class PrefixSession:
         payload: Optional[Any] = None,
         params: Optional[dict[str, Any]] = None,
     ) -> Response:
-        return self.session.patch(f"{self.prefix}{suffix}", data=json.dumps(payload), params=params)
+        return self.session.patch(
+            f"{self.prefix}{suffix}", data=json.dumps(payload), params=params
+        )
 
 
 class DatabricksApi(ABC):
@@ -104,7 +115,9 @@ class ClusterApi(DatabricksApi):
         response = self.session.get("/get", json={"cluster_id": cluster_id})
         logger.debug(f"Cluster status response={response.content!r}")
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error getting status of cluster.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error getting status of cluster.\n {response.content!r}"
+            )
 
         json_response = response.json()
         return json_response.get("state", "").upper()
@@ -122,7 +135,9 @@ class ClusterApi(DatabricksApi):
 
             libraries_status = self.libraries.get_cluster_libraries_status(cluster_id)
             if not self.libraries.all_libraries_installed(cluster_id):
-                logger.debug(f"Waiting for all libraries to be installed: {libraries_status}")
+                logger.debug(
+                    f"Waiting for all libraries to be installed: {libraries_status}"
+                )
                 time.sleep(5)
                 continue
 
@@ -143,7 +158,9 @@ class ClusterApi(DatabricksApi):
         response = self.session.post("/start", json={"cluster_id": cluster_id})
         if response.status_code != 200:
             if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
-                raise DbtRuntimeError(f"Error starting terminated cluster.\n {response.content!r}")
+                raise DbtRuntimeError(
+                    f"Error starting terminated cluster.\n {response.content!r}"
+                )
             else:
                 logger.debug("Presuming race condition, waiting for cluster to start")
 
@@ -152,7 +169,11 @@ class ClusterApi(DatabricksApi):
 
 class CommandContextApi(DatabricksApi):
     def __init__(
-        self, session: Session, host: str, cluster_api: ClusterApi, library_api: LibraryApi
+        self,
+        session: Session,
+        host: str,
+        cluster_api: ClusterApi,
+        library_api: LibraryApi,
     ):
         super().__init__(session, host, "/api/1.2/contexts")
         self.cluster_api = cluster_api
@@ -165,8 +186,9 @@ class CommandContextApi(DatabricksApi):
             logger.debug(f"Cluster {cluster_id} is not running. Attempting to restart.")
             self.cluster_api.start(cluster_id)
             logger.debug(f"Cluster {cluster_id} is now running.")
-        elif current_status != "RUNNING" or not self.library_api.all_libraries_installed(
-            cluster_id
+        elif (
+            current_status != "RUNNING"
+            or not self.library_api.all_libraries_installed(cluster_id)
         ):
             self.cluster_api.wait_for_cluster(cluster_id)
 
@@ -176,7 +198,9 @@ class CommandContextApi(DatabricksApi):
         logger.info(f"Creating execution context response={response}")
 
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating an execution context.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error creating an execution context.\n {response.content!r}"
+            )
         return response.json()["id"]
 
     def destroy(self, cluster_id: str, context_id: str) -> None:
@@ -184,7 +208,9 @@ class CommandContextApi(DatabricksApi):
             "/destroy", json={"clusterId": cluster_id, "contextId": context_id}
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error deleting an execution context.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error deleting an execution context.\n {response.content!r}"
+            )
 
 
 class FolderApi(ABC):
@@ -264,7 +290,9 @@ class WorkspaceApi(DatabricksApi):
             },
         )
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating python notebook.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error creating python notebook.\n {response.content!r}"
+            )
 
     def get_object_id(self, path: str) -> int:
         """
@@ -290,7 +318,9 @@ class WorkspaceApi(DatabricksApi):
 
 
 class PollableApi(DatabricksApi, ABC):
-    def __init__(self, session: Session, host: str, api: str, polling_interval: int, timeout: int):
+    def __init__(
+        self, session: Session, host: str, api: str, polling_interval: int, timeout: int
+    ):
         super().__init__(session, host, api)
         self.timeout = timeout
         self.polling_interval = polling_interval
@@ -315,7 +345,9 @@ class PollableApi(DatabricksApi, ABC):
             time.sleep(self.polling_interval)
             response = self.session.get(url, params=params)
             if response.status_code != 200:
-                raise DbtRuntimeError(f"Error polling for completion.\n {response.content!r}")
+                raise DbtRuntimeError(
+                    f"Error polling for completion.\n {response.content!r}"
+                )
             state = get_state_func(response)
         if exceeded_timeout:
             raise DbtRuntimeError("Python model run timed out")
@@ -340,10 +372,14 @@ class CommandExecution:
 
 
 class CommandApi(PollableApi):
-    def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
+    def __init__(
+        self, session: Session, host: str, polling_interval: int, timeout: int
+    ):
         super().__init__(session, host, "/api/1.2/commands", polling_interval, timeout)
 
-    def execute(self, cluster_id: str, context_id: str, command: str) -> CommandExecution:
+    def execute(
+        self, cluster_id: str, context_id: str, command: str
+    ) -> CommandExecution:
         # https://docs.databricks.com/dev-tools/api/1.2/index.html#run-a-command
         response = self.session.post(
             "/execute",
@@ -368,7 +404,9 @@ class CommandApi(PollableApi):
         response = self.session.post("/cancel", json=command.model_dump())
 
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Cancel command {command} failed.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Cancel command {command} failed.\n {response.content!r}"
+            )
 
     def poll_for_completion(self, command: CommandExecution) -> None:
         response = self._poll_api(
@@ -400,21 +438,29 @@ class CommandApi(PollableApi):
 
 
 class JobRunsApi(PollableApi):
-    def __init__(self, session: Session, host: str, polling_interval: int, timeout: int):
+    def __init__(
+        self, session: Session, host: str, polling_interval: int, timeout: int
+    ):
         super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
 
     def submit(
-        self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
+        self,
+        run_name: str,
+        job_spec: dict[str, Any],
+        **additional_job_settings: dict[str, Any],
     ) -> str:
         logger.debug(
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
             " and additional_job_settings={additional_job_settings}"
         )
         submit_response = self.session.post(
-            "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
+            "/submit",
+            json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings},
         )
         if submit_response.status_code != 200:
-            raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")
+            raise DbtRuntimeError(
+                f"Error creating python run.\n {submit_response.content!r}"
+            )
 
         logger.info(f"Job submission response={submit_response.content!r}")
         return submit_response.json()["run_id"]
@@ -440,7 +486,9 @@ class JobRunsApi(PollableApi):
         self._poll_api(
             url="/get",
             params={"run_id": run_id},
-            get_state_func=lambda response: response.json()["state"]["life_cycle_state"],
+            get_state_func=lambda response: response.json()["state"][
+                "life_cycle_state"
+            ],
             terminal_states={"TERMINATED", "SKIPPED", "INTERNAL_ERROR"},
             expected_end_state=None,
             unexpected_end_state_func=self._get_exception,
@@ -458,7 +506,9 @@ class JobRunsApi(PollableApi):
         logger.debug(f"[Python Model Debug] Result state: {result_state}")
 
         if result_state == "CANCELED":
-            raise DbtRuntimeError(f"Python model run ended in result_state {result_state}")
+            raise DbtRuntimeError(
+                f"Python model run ended in result_state {result_state}"
+            )
 
         if life_cycle_state != "TERMINATED":
             try:
@@ -469,14 +519,18 @@ class JobRunsApi(PollableApi):
                     logger.debug(f"[Python Model Debug] Task {i}: {task}")
 
                 task_id = response_json["tasks"][0]["run_id"]
-                logger.debug(f"[Python Model Debug] Getting output for task_id: {task_id}")
+                logger.debug(
+                    f"[Python Model Debug] Getting output for task_id: {task_id}"
+                )
 
                 # get end state to return to user
                 run_output = self.session.get("/get-output", params={"run_id": task_id})
                 json_run_output = run_output.json()
 
                 # Log the full output for debugging
-                logger.debug(f"[Python Model Debug] Run output status: {run_output.status_code}")
+                logger.debug(
+                    f"[Python Model Debug] Run output status: {run_output.status_code}"
+                )
                 logger.debug(
                     f"[Python Model Debug] Run output keys: {list(json_run_output.keys())}"
                 )
@@ -487,7 +541,9 @@ class JobRunsApi(PollableApi):
 
                 # Check for specific Python model issues
                 if "error_trace" in json_run_output:
-                    logger.debug(f"[Python Model Debug] Error trace found: {error_trace[:500]}...")
+                    logger.debug(
+                        f"[Python Model Debug] Error trace found: {error_trace[:500]}..."
+                    )
 
                 # Include run ID and task information in error
                 run_id = response_json.get("run_id")
@@ -505,7 +561,9 @@ class JobRunsApi(PollableApi):
                     raise e
                 else:
                     # Log the exception for debugging
-                    logger.debug(f"[Python Model Debug] Exception during error extraction: {e}")
+                    logger.debug(
+                        f"[Python Model Debug] Exception during error extraction: {e}"
+                    )
                     state_message = response.json()["state"]["state_message"]
 
                     # Include more context in error
@@ -535,7 +593,9 @@ class JobPermissionsApi(DatabricksApi):
         logger.debug(f"Workflow permissions update response={response.json()}")
 
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error updating Databricks workflow.\n {response.content!r}"
+            )
 
     def patch(self, job_id: str, access_control_list: list[dict[str, Any]]) -> None:
         request_body = {"access_control_list": access_control_list}
@@ -544,7 +604,9 @@ class JobPermissionsApi(DatabricksApi):
         logger.debug(f"Workflow permissions update response={response.json()}")
 
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error updating Databricks workflow.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error updating Databricks workflow.\n {response.content!r}"
+            )
 
     def get(self, job_id: str) -> dict[str, Any]:
         response = self.session.get(f"/{job_id}")
@@ -562,7 +624,9 @@ class NotebookPermissionsApi(DatabricksApi):
         super().__init__(session, host, "/api/2.0/permissions/notebooks")
         self.workspace_api = workspace_api
 
-    def put(self, notebook_path: str, access_control_list: list[dict[str, Any]]) -> None:
+    def put(
+        self, notebook_path: str, access_control_list: list[dict[str, Any]]
+    ) -> None:
         request_body = {"access_control_list": access_control_list}
 
         object_id = self.workspace_api.get_object_id(notebook_path)
@@ -655,7 +719,9 @@ class WorkflowJobApi(DatabricksApi):
         response = self.session.post("/run-now", json=request_body)
 
         if response.status_code != 200:
-            raise DbtRuntimeError(f"Error triggering run for workflow.\n {response.content!r}")
+            raise DbtRuntimeError(
+                f"Error triggering run for workflow.\n {response.content!r}"
+            )
 
         response_json = response.json()
         logger.info(f"Workflow trigger response={response_json}")
@@ -681,10 +747,14 @@ class DltPipelineApi(PollableApi):
         response_json = response.json()
         cause = response_json.get("cause")
         if cause:
-            raise DbtRuntimeError(f"Pipeline {response_json.get('pipeline_id')} failed: {cause}")
+            raise DbtRuntimeError(
+                f"Pipeline {response_json.get('pipeline_id')} failed: {cause}"
+            )
         else:
             latest_update = response_json.get("latest_updates")[0]
-            last_error = self.get_update_error(response_json.get("pipeline_id"), latest_update)
+            last_error = self.get_update_error(
+                response_json.get("pipeline_id"), latest_update
+            )
             raise DbtRuntimeError(
                 f"Pipeline {response_json.get('pipeline_id')} failed: {last_error}"
             )
@@ -707,7 +777,8 @@ class DltPipelineApi(PollableApi):
         error_events = [
             e
             for e in update_events
-            if e.get("details", {}).get("update_progress", {}).get("state", "") == "FAILED"
+            if e.get("details", {}).get("update_progress", {}).get("state", "")
+            == "FAILED"
         ]
 
         msg = ""
@@ -728,7 +799,9 @@ class DatabricksApiClient:
     ):
         self.libraries = LibraryApi(session, host)
         self.clusters = ClusterApi(session, host, self.libraries)
-        self.command_contexts = CommandContextApi(session, host, self.clusters, self.libraries)
+        self.command_contexts = CommandContextApi(
+            session, host, self.clusters, self.libraries
+        )
         self.curr_user = CurrUserApi(session, host)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(session, host, self.curr_user)
@@ -739,7 +812,9 @@ class DatabricksApiClient:
         self.job_runs = JobRunsApi(session, host, polling_interval, timeout)
         self.workflows = WorkflowJobApi(session, host)
         self.workflow_permissions = JobPermissionsApi(session, host)
-        self.notebook_permissions = NotebookPermissionsApi(session, host, self.workspace)
+        self.notebook_permissions = NotebookPermissionsApi(
+            session, host, self.workspace
+        )
         self.dlt_pipelines = DltPipelineApi(session, host, polling_interval)
 
     @staticmethod
@@ -769,4 +844,6 @@ class DatabricksApiClient:
         host = credentials.host
 
         assert host is not None, "Host must be set in the credentials"
-        return DatabricksApiClient(session, host, polling_interval, timeout, use_user_folder)
+        return DatabricksApiClient(
+            session, host, polling_interval, timeout, use_user_folder
+        )

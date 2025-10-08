@@ -29,10 +29,14 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
                 cluster_by_auto = row[1] == "true"
             if row[0] == "clusteringColumns":
                 cluster_by = cls.extract_cluster_by(row[1])
-        return LiquidClusteringConfig(cluster_by=cluster_by, auto_cluster=cluster_by_auto)
+        return LiquidClusteringConfig(
+            cluster_by=cluster_by, auto_cluster=cluster_by_auto
+        )
 
     @classmethod
-    def from_relation_config(cls, relation_config: RelationConfig) -> LiquidClusteringConfig:
+    def from_relation_config(
+        cls, relation_config: RelationConfig
+    ) -> LiquidClusteringConfig:
         liquid_clustered_by: Union[str, list[str], None] = base.get_config_value(
             relation_config, "liquid_clustered_by"
         )
@@ -45,7 +49,9 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
             return LiquidClusteringConfig(
                 cluster_by=[liquid_clustered_by], auto_cluster=cluster_by_auto
             )
-        return LiquidClusteringConfig(cluster_by=liquid_clustered_by, auto_cluster=cluster_by_auto)
+        return LiquidClusteringConfig(
+            cluster_by=liquid_clustered_by, auto_cluster=cluster_by_auto
+        )
 
     @staticmethod
     def extract_cluster_by(cluster_by: str) -> list[str]:

@@ -12,7 +12,10 @@ from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
 from dbt.adapters.databricks.relation_configs.query import DescribeQueryProcessor
-from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
+from dbt.adapters.databricks.relation_configs.refresh import (
+    RefreshConfig,
+    RefreshProcessor,
+)
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
 )
