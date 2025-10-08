@@ -5,6 +5,7 @@
 - Support databricks_tags for MV/STs
 - Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
 - Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 
 ### Fixes
 

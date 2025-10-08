@@ -127,6 +127,18 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
+    name="use_replace_on_for_insert_overwrite",
+    default=True,
+    description=(
+        "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
+        "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
+        "  overwrite. For SQL warehouses, disabling will produce the same behavior as using the "
+        "  table materialization. For other compute types, it will fall back to the legacy syntax"
+        "  as well but functionally behaves the same regardless of flag value"
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -228,7 +240,12 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_INFO_SCHEMA_FOR_COLUMNS,
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+        ]
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
         """Override base adapter's quote method to prevent double quoting."""
