@@ -1,5 +1,3 @@
-from unittest.mock import Mock
-
 import pytest
 
 from dbt.adapters.databricks import constants
@@ -305,63 +303,3 @@ class TestCreateTableAs(MacroTestBase):
         )
 
         assert expected == sql
-
-
-class TestCreateTableAt(MacroTestBase):
-    """Test the create_table_at macro which is used during incremental materialization"""
-
-    @pytest.fixture(scope="class")
-    def template_name(self) -> str:
-        return "create.sql"
-
-    @pytest.fixture(scope="class")
-    def macro_folders_to_load(self) -> list:
-        return ["macros/relations/table", "macros/relations", "macros"]
-
-    @pytest.fixture(scope="class")
-    def databricks_template_names(self) -> list:
-        return [
-            "file_format.sql",
-            "tblproperties.sql",
-            "location.sql",
-            "liquid_clustering.sql",
-            "constraints.sql",
-            "tags.sql",
-            "column_tags.sql",
-        ]
-
-    def test_create_table_at_uses_by_name(self, template_bundle):
-        """Test that create_table_at uses INSERT BY NAME syntax"""
-        # Mock all the required adapter and macro calls
-        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
-        template_bundle.context["adapter"].get_columns_in_relation.return_value = []
-        template_bundle.context["adapter"].parse_columns_and_constraints.return_value = (
-            [],
-            [],
-        )
-        template_bundle.context["model"].get.return_value = []
-        template_bundle.context["statement"] = Mock()
-        template_bundle.context["apply_alter_constraints"] = Mock(return_value="")
-        template_bundle.context["apply_tags"] = Mock(return_value="")
-        template_bundle.context["apply_column_tags"] = Mock(return_value="")
-
-        # Create mock relations
-        target_relation = Mock()
-        target_relation.render.return_value = "target_table"
-        target_relation.enrich.return_value = target_relation
-
-        intermediate_relation = Mock()
-        intermediate_relation.render.return_value = "intermediate_table"
-
-        # Call the macro
-        result = self.run_macro(
-            template_bundle.template,
-            "create_table_at",
-            target_relation,
-            intermediate_relation,
-            "select 1",
-        )
-
-        # The macro uses statement() calls, so we need to check what was called
-        # For now, just verify it doesn't error - the actual SQL will be tested functionally
-        assert result is not None
