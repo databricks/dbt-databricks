@@ -6,11 +6,7 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from dbt.adapters.base import PythonJobHelper
-from dbt.adapters.databricks.api_client import (
-    CommandExecution,
-    DatabricksApiClient,
-    WorkflowJobApi,
-)
+from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
@@ -67,10 +63,7 @@ class PythonCommandSubmitter(PythonSubmitter):
     """Submitter for Python models using the Command API."""
 
     def __init__(
-        self,
-        api_client: DatabricksApiClient,
-        tracker: PythonRunTracker,
-        cluster_id: str,
+        self, api_client: DatabricksApiClient, tracker: PythonRunTracker, cluster_id: str
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
@@ -138,9 +131,7 @@ class PythonNotebookUploader:
             permission_builder = PythonPermissionBuilder(self.api_client)
 
             access_control_list = permission_builder.build_permissions(
-                self.job_grants,
-                self.notebook_access_control_list,
-                target_type="notebook",
+                self.job_grants, self.notebook_access_control_list, target_type="notebook"
             )
 
             if access_control_list:
@@ -331,9 +322,7 @@ class PythonJobConfigCompiler:
 
         job_spec["queue"] = {"enabled": True}
         return PythonJobDetails(
-            run_name=self.run_name,
-            job_spec=job_spec,
-            additional_job_config=additional_job_config,
+            run_name=self.run_name, job_spec=job_spec, additional_job_config=additional_job_config
         )
 
 
@@ -595,9 +584,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
 
     @staticmethod
     def create(
-        api_client: DatabricksApiClient,
-        tracker: PythonRunTracker,
-        parsed_model: ParsedPythonModel,
+        api_client: DatabricksApiClient, tracker: PythonRunTracker, parsed_model: ParsedPythonModel
     ) -> "PythonNotebookWorkflowSubmitter":
         uploader = PythonNotebookUploader(api_client, parsed_model)
         config_compiler = PythonWorkflowConfigCompiler.create(parsed_model)

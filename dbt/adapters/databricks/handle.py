@@ -12,10 +12,7 @@ from databricks.sql.client import Connection, Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
-from dbt.adapters.databricks.credentials import (
-    DatabricksCredentialManager,
-    DatabricksCredentials,
-)
+from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 
 if TYPE_CHECKING:
@@ -286,16 +283,9 @@ class SqlUtils:
             raise DbtRuntimeError("Failed to detect DBR version")
 
     @staticmethod
-    def translate_bindings(
-        bindings: Optional[Sequence[Any]],
-    ) -> Optional[Sequence[Any]]:
+    def translate_bindings(bindings: Optional[Sequence[Any]]) -> Optional[Sequence[Any]]:
         if bindings:
-            return list(
-                map(
-                    lambda x: float(x) if isinstance(x, decimal.Decimal) else x,
-                    bindings,
-                )
-            )
+            return list(map(lambda x: float(x) if isinstance(x, decimal.Decimal) else x, bindings))
         return None
 
     @staticmethod
@@ -307,9 +297,7 @@ class SqlUtils:
 
     @staticmethod
     def prepare_connection_arguments(
-        creds: DatabricksCredentials,
-        creds_manager: DatabricksCredentialManager,
-        http_path: str,
+        creds: DatabricksCredentials, creds_manager: DatabricksCredentialManager, http_path: str
     ) -> dict[str, Any]:
         invocation_env = creds.get_invocation_env()
         user_agent_entry = SqlUtils.user_agent

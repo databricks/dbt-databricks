@@ -13,10 +13,7 @@ class GetColumnsBehavior(ABC):
     @classmethod
     @abstractmethod
     def get_columns_in_relation(
-        cls,
-        adapter: SQLAdapter,
-        relation: DatabricksRelation,
-        use_legacy_logic: bool = False,
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
         pass
 
@@ -35,10 +32,7 @@ class GetColumnsBehavior(ABC):
 class GetColumnsByDescribe(GetColumnsBehavior):
     @classmethod
     def get_columns_in_relation(
-        cls,
-        adapter: SQLAdapter,
-        relation: DatabricksRelation,
-        use_legacy_logic: bool = False,
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
         if use_legacy_logic:
             rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
@@ -68,9 +62,7 @@ class GetColumnsByDescribe(GetColumnsBehavior):
                 break
             columns.append(
                 DatabricksColumn(
-                    column=row["col_name"],
-                    dtype=row["data_type"],
-                    comment=row["comment"],
+                    column=row["col_name"], dtype=row["data_type"], comment=row["comment"]
                 )
             )
 
@@ -80,10 +72,7 @@ class GetColumnsByDescribe(GetColumnsBehavior):
 class GetColumnsByInformationSchema(GetColumnsByDescribe):
     @classmethod
     def get_columns_in_relation(
-        cls,
-        adapter: SQLAdapter,
-        relation: DatabricksRelation,
-        use_legacy_logic: bool = False,
+        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
     ) -> list[DatabricksColumn]:
         if use_legacy_logic or not relation.is_delta:
             return super().get_columns_in_relation(adapter, relation, use_legacy_logic)

@@ -191,10 +191,9 @@ def parse_constraints(
     not_nulls, constraints_from_columns = parse_column_constraints(model_columns)
     not_nulls_from_models, constraints_from_models = parse_model_constraints(model_constraints)
 
-    return (
-        not_nulls.union(not_nulls_from_models),
-        constraints_from_columns + constraints_from_models,
-    )
+    return not_nulls.union(
+        not_nulls_from_models
+    ), constraints_from_columns + constraints_from_models
 
 
 def parse_column_constraints(
@@ -244,8 +243,7 @@ CONSTRAINT_TYPE_MAP = {
 
 
 def parse_constraint(
-    raw_constraint: dict[str, Any],
-    type_map: dict[str, type[TypedConstraint]] = CONSTRAINT_TYPE_MAP,
+    raw_constraint: dict[str, Any], type_map: dict[str, type[TypedConstraint]] = CONSTRAINT_TYPE_MAP
 ) -> TypedConstraint:
     try:
         klass = type_map[raw_constraint["type"]]

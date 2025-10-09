@@ -124,9 +124,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
             for constraint_name, columns in constraint_columns.items():
                 pk_constraints.add(
                     PrimaryKeyConstraint(
-                        type=ConstraintType.primary_key,
-                        name=constraint_name,
-                        columns=columns,
+                        type=ConstraintType.primary_key, name=constraint_name, columns=columns
                     )
                 )
         return pk_constraints

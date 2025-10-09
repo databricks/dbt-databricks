@@ -7,16 +7,12 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
-from dbt.adapters.databricks.relation_configs.column_comments import (
-    ColumnCommentsProcessor,
-)
+from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsProcessor
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProcessor
 from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
 from dbt.adapters.databricks.relation_configs.query import QueryProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
-from dbt.adapters.databricks.relation_configs.tblproperties import (
-    TblPropertiesProcessor,
-)
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
 
 
 class ViewConfig(DatabricksRelationConfigBase):

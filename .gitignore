@@ -23,5 +23,3 @@ logs/
 .coverage*
 CLAUDE.md
 .claude/
-.cursor/
-uv.lock

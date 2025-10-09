@@ -30,26 +30,17 @@ class PrefixSession:
         self.session = session
 
     def get(
-        self,
-        suffix: str = "",
-        json: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.get(f"{self.prefix}{suffix}", json=json, params=params)
 
     def post(
-        self,
-        suffix: str = "",
-        json: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.post(f"{self.prefix}{suffix}", json=json, params=params)
 
     def put(
-        self,
-        suffix: str = "",
-        json: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
+        self, suffix: str = "", json: Optional[Any] = None, params: Optional[dict[str, Any]] = None
     ) -> Response:
         return self.session.put(f"{self.prefix}{suffix}", json=json, params=params)
 
@@ -161,11 +152,7 @@ class ClusterApi(DatabricksApi):
 
 class CommandContextApi(DatabricksApi):
     def __init__(
-        self,
-        session: Session,
-        host: str,
-        cluster_api: ClusterApi,
-        library_api: LibraryApi,
+        self, session: Session, host: str, cluster_api: ClusterApi, library_api: LibraryApi
     ):
         super().__init__(session, host, "/api/1.2/contexts")
         self.cluster_api = cluster_api
@@ -417,18 +404,14 @@ class JobRunsApi(PollableApi):
         super().__init__(session, host, "/api/2.1/jobs/runs", polling_interval, timeout)
 
     def submit(
-        self,
-        run_name: str,
-        job_spec: dict[str, Any],
-        **additional_job_settings: dict[str, Any],
+        self, run_name: str, job_spec: dict[str, Any], **additional_job_settings: dict[str, Any]
     ) -> str:
         logger.debug(
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
             " and additional_job_settings={additional_job_settings}"
         )
         submit_response = self.session.post(
-            "/submit",
-            json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings},
+            "/submit", json={"run_name": run_name, "tasks": [job_spec], **additional_job_settings}
         )
         if submit_response.status_code != 200:
             raise DbtRuntimeError(f"Error creating python run.\n {submit_response.content!r}")

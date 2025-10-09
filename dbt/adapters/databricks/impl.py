@@ -8,16 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib import metadata
 from multiprocessing.context import SpawnContext
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Generic,
-    NamedTuple,
-    Optional,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
 from dbt_common.behavior_flags import BehaviorFlag
@@ -31,12 +22,7 @@ from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.capability import (
-    Capability,
-    CapabilityDict,
-    CapabilitySupport,
-    Support,
-)
+from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySupport, Support
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
@@ -84,11 +70,7 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
-from dbt.adapters.databricks.utils import (
-    get_first_row,
-    handle_missing_objects,
-    redact_credentials,
-)
+from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
@@ -241,11 +223,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [
-            USE_INFO_SCHEMA_FOR_COLUMNS,
-            USE_USER_FOLDER_FOR_PYTHON,
-            USE_MATERIALIZATION_V2,
-        ]
+        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -294,10 +272,7 @@ class DatabricksAdapter(SparkAdapter):
     # override
     @contextmanager
     def connection_named(
-        self,
-        name: str,
-        query_header_context: Any = None,
-        should_release_connection: bool = True,
+        self, name: str, query_header_context: Any = None, should_release_connection: bool = True
     ) -> Iterator[None]:
         try:
             if self.connections.query_header is not None:
@@ -432,10 +407,7 @@ class DatabricksAdapter(SparkAdapter):
                 views = self.execute_macro(SHOW_VIEWS_MACRO_NAME, kwargs=kwargs)
                 view_names = set(views.columns["viewName"].values())  # type: ignore[attr-defined]
                 new_rows = [
-                    (
-                        row[0],
-                        str(RelationType.View if row[0] in view_names else RelationType.Table),
-                    )
+                    (row[0], str(RelationType.View if row[0] in view_names else RelationType.Table))
                     for row in new_rows
                 ]
 
@@ -638,10 +610,8 @@ class DatabricksAdapter(SparkAdapter):
             for name, information in results.select(["tableName", "information"]):
                 rel_type = self._get_relation_type(information)
                 relation = self.Relation.create(
-                    database=(
-                        schema_relation.database.lower() if schema_relation.database else None
-                    ),
-                    schema=(schema_relation.schema.lower() if schema_relation.schema else None),
+                    database=schema_relation.database.lower() if schema_relation.database else None,
+                    schema=schema_relation.schema.lower() if schema_relation.schema else None,
                     identifier=name,
                     type=rel_type,  # type: ignore
                     is_delta="Provider: delta" in information,
@@ -812,9 +782,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     @staticmethod
-    def generate_unique_temporary_table_suffix(
-        suffix_initial: str = "__dbt_tmp",
-    ) -> str:
+    def generate_unique_temporary_table_suffix(suffix_initial: str = "__dbt_tmp") -> str:
         return f"{suffix_initial}_{re.sub(r'[^A-Za-z0-9]+', '_', str(uuid4()))}"
 
     @available

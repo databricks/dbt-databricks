@@ -35,10 +35,7 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
 
         result = self.run_macro(
-            template_bundle.template,
-            "comment_on_column_sql",
-            column_path,
-            escaped_comment,
+            template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
         )
 
         expected_sql = """
@@ -56,10 +53,7 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
 
         result = self.run_macro(
-            template_bundle.template,
-            "comment_on_column_sql",
-            column_path,
-            escaped_comment,
+            template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
         )
 
         expected_sql = """
@@ -122,10 +116,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
     def test_alter_relation_comment_sql_with_quotes(self, template_bundle, relation):
         result = self.run_macro(
-            template_bundle.template,
-            "alter_relation_comment_sql",
-            relation,
-            "Model with 'quotes'",
+            template_bundle.template, "alter_relation_comment_sql", relation, "Model with 'quotes'"
         )
 
         expected_sql = (
