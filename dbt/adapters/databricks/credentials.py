@@ -52,6 +52,9 @@ class DatabricksCredentials(Credentials):
     # creating a connection when a model specifies a compute resource.
     compute: Optional[dict[str, Any]] = None
 
+    # Query tags to be applied to all queries from this connection
+    query_tags: Optional[str] = None
+
     connect_retries: int = 1
     connect_timeout: Optional[int] = None
     retry_all: bool = False

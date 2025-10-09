@@ -2,6 +2,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from importlib.metadata import version
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -45,7 +46,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
+from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
 
 if TYPE_CHECKING:
     from agate import Table
@@ -81,17 +82,39 @@ class QueryContextWrapper:
 
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
+    model_name: Optional[str] = None
+    model_query_tags_override: Optional[dict[str, str]] = None
+    materialized: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
+        model_query_tags_override = None
+        materialized = None
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-        if hasattr(query_header_context, "config") and query_header_context.config:
-            compute_name = query_header_context.config.get("databricks_compute")
 
-        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+        # Extract config-related attributes safely
+        if hasattr(query_header_context, "config") and query_header_context.config:
+            config = query_header_context.config
+            compute_name = config.get("databricks_compute")
+
+            query_tags_str = config.extra.get("query_tags") if hasattr(config, "extra") else None
+            if query_tags_str:
+                model_query_tags_override = QueryTagsUtils.parse_query_tags(query_tags_str)
+
+            if hasattr(config, "materialized"):
+                materialized = config.materialized
+
+        ret = QueryContextWrapper(
+            compute_name=compute_name,
+            relation_name=relation_name,
+            model_query_tags_override=model_query_tags_override,
+            model_name=getattr(query_header_context, "name", None),
+            materialized=materialized,
+        )
+        return ret
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -107,6 +130,7 @@ class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
+    _query_header_context: Any = None
 
     def __str__(self) -> str:
         return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
@@ -211,6 +235,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
+
+        # Store the query header context directly
+        conn._query_header_context = query_header_context
 
         conn.handle = LazyHandle(self.open)
 
@@ -389,8 +416,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         cls.credentials_manager = creds.authenticate()
+
+        # Get merged query tags if we have query header context
+        query_header_context = getattr(databricks_connection, "_query_header_context", None)
+        merged_query_tags = {}
+        if query_header_context:
+            merged_query_tags = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
+
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, cls.credentials_manager, databricks_connection.http_path
+            creds, cls.credentials_manager, databricks_connection.http_path, merged_query_tags
         )
 
         def connect() -> DatabricksHandle:
@@ -480,3 +514,46 @@ class QueryConfigUtils:
             )
 
         return http_path
+
+    @staticmethod
+    def get_merged_query_tags(
+        query_header_context: Any,
+        creds: DatabricksCredentials,
+    ) -> dict[str, str]:
+        """
+        Get merged query tags from connection config, model config, and default tags.
+        Model config takes precedence over connection config.
+        """
+
+        # Default tags that will be applied to all queries
+        default_tags = {
+            "dbt_databricks_version": __version__,
+            "dbt_core_version": version("dbt-core"),
+        }
+
+        # Default tags that will only exists for queries tied to a specific model
+        if query_header_context:
+            if hasattr(query_header_context, "model_name") and query_header_context.model_name:
+                default_tags["dbt_model_name"] = query_header_context.model_name
+            if hasattr(query_header_context, "materialized") and query_header_context.materialized:
+                default_tags["dbt_materialized"] = query_header_context.materialized
+
+        # Parse connection tags from JSON string
+        connection_tags = (
+            QueryTagsUtils.parse_query_tags(creds.query_tags) if creds.query_tags else {}
+        )
+
+        # Extract model-level query tags from context
+        model_tags = {}
+        if (
+            query_header_context
+            and hasattr(query_header_context, "model_query_tags_override")
+            and query_header_context.model_query_tags_override
+        ):
+            model_tags = query_header_context.model_query_tags_override
+
+        return QueryTagsUtils.merge_query_tags(
+            connection_tags=connection_tags,
+            model_tags=model_tags,
+            default_tags=default_tags,
+        )

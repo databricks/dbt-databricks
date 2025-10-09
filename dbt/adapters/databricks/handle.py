@@ -14,6 +14,7 @@ from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.utils import QueryTagsUtils
 
 if TYPE_CHECKING:
     pass
@@ -297,7 +298,10 @@ class SqlUtils:
 
     @staticmethod
     def prepare_connection_arguments(
-        creds: DatabricksCredentials, creds_manager: DatabricksCredentialManager, http_path: str
+        creds: DatabricksCredentials,
+        creds_manager: DatabricksCredentialManager,
+        http_path: str,
+        query_tags: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
         invocation_env = creds.get_invocation_env()
         user_agent_entry = SqlUtils.user_agent
@@ -310,12 +314,21 @@ class SqlUtils:
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
+        # Prepare session configuration with query tags
+        session_config = {**(creds.session_properties or {})}
+
+        # Add query tags if provided
+        if query_tags:
+            session_config["QUERY_TAGS"] = QueryTagsUtils.format_query_tags_for_databricks(
+                query_tags
+            )
+
         return {
             "server_hostname": creds.host,
             "http_path": http_path,
             "credentials_provider": creds_manager.credentials_provider,
             "http_headers": http_headers if http_headers else None,
-            "session_configuration": creds.session_properties,
+            "session_configuration": session_config,
             "catalog": creds.database,
             "use_inline_params": "silent",
             "schema": creds.schema,
