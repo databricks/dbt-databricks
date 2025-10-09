@@ -7,8 +7,8 @@ to be inserted into the wrong columns.
 """
 
 import pytest
-from dbt.tests import util
 
+from dbt.tests import util
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 # Model that adds a column in the middle on second run
