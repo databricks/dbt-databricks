@@ -93,6 +93,41 @@ class TestIncrementalColumnOrderAppend(TestIncrementalColumnOrderBase):
     def project_config_update(self):
         return {"models": {"+incremental_strategy": "append"}}
 
+    def test_column_reorder_preserves_data_integrity(self, project):
+        """
+        Test that when columns are added in different order with append strategy,
+        values are inserted into correct columns (not positional corruption).
+        Note: Append strategy doesn't deduplicate, so we expect 3 rows total.
+        """
+        # First run: creates table with id, name, status
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify initial data
+        actual = project.run_sql(
+            "select id, name, status from incremental_reorder order by id", fetch="all"
+        )
+        assert len(actual) == 1
+        assert actual[0] == (1, "Alice", "active")
+
+        # Second run: adds score column and appends new data
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify data is in correct columns (not corrupted by positional matching)
+        # With append strategy, we expect 3 rows: 1 from first run + 2 from second run
+        actual = project.run_sql(
+            "select id, score, name, status from incremental_reorder order by id, score nulls first",
+            fetch="all",
+        )
+
+        assert len(actual) == 3
+        # First row from initial run (score is null since column didn't exist)
+        assert actual[0] == (1, None, "Alice", "active")
+        # Two rows from second run with score column
+        assert actual[1] == (1, 100, "Alice Updated", "active")
+        assert actual[2] == (2, 200, "Bob", "inactive")
+
 
 class TestIncrementalColumnOrderAppendV2(MaterializationV2Mixin, TestIncrementalColumnOrderBase):
     """Test column order with append strategy (V2 materialization)"""
@@ -100,6 +135,41 @@ class TestIncrementalColumnOrderAppendV2(MaterializationV2Mixin, TestIncremental
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"models": {"+incremental_strategy": "append"}}
+
+    def test_column_reorder_preserves_data_integrity(self, project):
+        """
+        Test that when columns are added in different order with append strategy,
+        values are inserted into correct columns (not positional corruption).
+        Note: Append strategy doesn't deduplicate, so we expect 3 rows total.
+        """
+        # First run: creates table with id, name, status
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify initial data
+        actual = project.run_sql(
+            "select id, name, status from incremental_reorder order by id", fetch="all"
+        )
+        assert len(actual) == 1
+        assert actual[0] == (1, "Alice", "active")
+
+        # Second run: adds score column and appends new data
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify data is in correct columns (not corrupted by positional matching)
+        # With append strategy, we expect 3 rows: 1 from first run + 2 from second run
+        actual = project.run_sql(
+            "select id, score, name, status from incremental_reorder order by id, score nulls first",
+            fetch="all",
+        )
+
+        assert len(actual) == 3
+        # First row from initial run (score is null since column didn't exist)
+        assert actual[0] == (1, None, "Alice", "active")
+        # Two rows from second run with score column
+        assert actual[1] == (1, 100, "Alice Updated", "active")
+        assert actual[2] == (2, 200, "Bob", "inactive")
 
 
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")

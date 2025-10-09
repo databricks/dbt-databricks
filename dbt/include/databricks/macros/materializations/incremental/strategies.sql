@@ -26,8 +26,9 @@
 {% endmacro %}
 
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-    insert overwrite table {{ target_relation }} by name
+    insert overwrite table {{ target_relation }}
     {{ partition_cols(label="partition") }}
+    by name
     select * from {{ source_relation }}
 {% endmacro %}
 
@@ -35,16 +36,17 @@
   {%- set predicates = args_dict['incremental_predicates'] -%}
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
-INSERT INTO {{ target_relation.render() }} BY NAME
-{% if predicates %}
-  {% if predicates is sequence and predicates is not string %}
+INSERT INTO {{ target_relation.render() }}
+{%- if predicates %}
+  {%- if predicates is sequence and predicates is not string %}
 REPLACE WHERE {{ predicates | join(' and ') }}
-  {% else %}
+  {%- else %}
 REPLACE WHERE {{ predicates }}
-  {% endif %}
-{% endif %}
+  {%- endif %}
+{%- else %} BY NAME
+{%- endif %}
 TABLE {{ temp_relation.render() }}
-{% endmacro %}
+{%- endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
@@ -53,8 +55,23 @@ TABLE {{ temp_relation.render() }}
 {% endmacro %}
 
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
+{%- set dest_cols_set = set(dest_columns) -%}
+{%- set source_cols_set = set(source_columns) -%}
+{%- set columns_match = (dest_cols_set == source_cols_set) -%}
+{%- if columns_match -%}
 insert into {{ target_relation }} by name
 select * from {{ source_relation }}
+{%- else -%}
+  {#-- When columns don't match, select only columns that exist in destination --#}
+  {%- set common_columns = [] -%}
+  {%- for col in source_columns -%}
+    {%- if col in dest_columns -%}
+      {%- do common_columns.append(col) -%}
+    {%- endif -%}
+  {%- endfor -%}
+insert into {{ target_relation }} ({{ common_columns | join(', ') }})
+select {{ common_columns | join(', ') }} from {{ source_relation }}
+{%- endif -%}
 {%- endmacro %}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
