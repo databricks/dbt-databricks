@@ -79,9 +79,7 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
         return TblPropertiesConfig(tblproperties=tblproperties, pipeline_id=pipeline_id)
 
     @classmethod
-    def from_relation_config(
-        cls, relation_config: RelationConfig
-    ) -> TblPropertiesConfig:
+    def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:
         tblproperties = base.get_config_value(relation_config, "tblproperties") or {}
         is_iceberg = base.get_config_value(relation_config, "table_format") == "iceberg"
 

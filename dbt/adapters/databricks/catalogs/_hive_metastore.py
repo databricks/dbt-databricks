@@ -36,8 +36,7 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
             catalog_type=self.catalog_type,
             catalog_name=(
                 self.catalog_name
-                if self.catalog_name
-                != constants.DEFAULT_HIVE_METASTORE_CATALOG.catalog_name
+                if self.catalog_name != constants.DEFAULT_HIVE_METASTORE_CATALOG.catalog_name
                 else model.database
             ),
             table_format=parse_model.table_format(model) or self.table_format,

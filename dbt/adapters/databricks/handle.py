@@ -141,9 +141,7 @@ class DatabricksHandle:
                     )
                 )
                 results = cursor.fetchone()
-                self._dbr_version = SqlUtils.extract_dbr_version(
-                    results[1] if results else ""
-                )
+                self._dbr_version = SqlUtils.extract_dbr_version(results[1] if results else "")
                 cursor.close()
             else:
                 # Assuming SQL Warehouse uses the latest version.
@@ -155,9 +153,7 @@ class DatabricksHandle:
     def session_id(self) -> str:
         return self._conn.get_session_id_hex()
 
-    def execute(
-        self, sql: str, bindings: Optional[Sequence[Any]] = None
-    ) -> CursorWrapper:
+    def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
         """
         Execute a SQL statement on the current session with optional bindings.
         """
@@ -167,9 +163,7 @@ class DatabricksHandle:
             )
         )
 
-    def list_schemas(
-        self, database: str, schema: Optional[str] = None
-    ) -> CursorWrapper:
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> CursorWrapper:
         """
         Get a cursor for listing schemas in the given database.
         """
@@ -219,9 +213,7 @@ class DatabricksHandle:
 
         conn = dbsql.connect(**conn_args)
         if not conn:
-            logger.warning(
-                f"Failed to create connection for {conn_args.get('http_path')}"
-            )
+            logger.warning(f"Failed to create connection for {conn_args.get('http_path')}")
             return None
         connection = DatabricksHandle(conn, is_cluster=is_cluster)
         logger.debug(f"{connection} - Created")
@@ -327,9 +319,7 @@ class SqlUtils:
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         http_headers: list[tuple[str, str]] = list(
-            creds.get_all_http_headers(
-                connection_parameters.pop("http_headers", {})
-            ).items()
+            creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
 
         return {

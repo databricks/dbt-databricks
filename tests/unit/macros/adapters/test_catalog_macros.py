@@ -68,9 +68,7 @@ class TestCatalogMacros(MacroTestBase):
 
     def test_get_catalog_results_sql(self, template_bundle):
         """Test the SQL generation for joining tables and columns"""
-        result = self.run_macro(
-            template_bundle.template, "databricks__get_catalog_results_sql"
-        )
+        result = self.run_macro(template_bundle.template, "databricks__get_catalog_results_sql")
 
         expected = """
             select *

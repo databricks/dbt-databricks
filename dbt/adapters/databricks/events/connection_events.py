@@ -21,9 +21,7 @@ class ConnectionCreateError(ConnectionEvent):
     def __init__(self, exception: Exception):
         super().__init__(
             None,
-            str(
-                SQLErrorEvent(exception, "Exception while trying to create connection")
-            ),
+            str(SQLErrorEvent(exception, "Exception while trying to create connection")),
         )
 
 
@@ -43,9 +41,7 @@ class ConnectionReset(ConnectionWrapperEvent):
 
 class ConnectionReuse(ConnectionWrapperEvent):
     def __init__(self, description: str, prior_name: str):
-        super().__init__(
-            description, f"Reusing connection previously named {prior_name}"
-        )
+        super().__init__(description, f"Reusing connection previously named {prior_name}")
 
 
 class ConnectionCreate(ConnectionWrapperEvent):

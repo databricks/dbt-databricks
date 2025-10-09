@@ -42,27 +42,19 @@ class TestMetadataMacros(MacroTestBase):
         return [relation1, relation2]
 
     def test_show_table_extended_sql(self, template_bundle, relation):
-        result = self.run_macro(
-            template_bundle.template, "show_table_extended_sql", relation
-        )
+        result = self.run_macro(template_bundle.template, "show_table_extended_sql", relation)
 
-        expected_sql = (
-            "SHOW TABLE EXTENDED IN `some_database`.`some_schema` LIKE 'some_table'"
-        )
+        expected_sql = "SHOW TABLE EXTENDED IN `some_database`.`some_schema` LIKE 'some_table'"
         self.assert_sql_equal(result, expected_sql)
 
     def test_show_tables_sql(self, template_bundle, mock_schema_relation):
-        result = self.run_macro(
-            template_bundle.template, "show_tables_sql", mock_schema_relation
-        )
+        result = self.run_macro(template_bundle.template, "show_tables_sql", mock_schema_relation)
 
         expected_sql = "SHOW TABLES IN `test_db`.`test_schema`"
         self.assert_sql_equal(result, expected_sql)
 
     def test_show_views_sql(self, template_bundle, mock_schema_relation):
-        result = self.run_macro(
-            template_bundle.template, "show_views_sql", mock_schema_relation
-        )
+        result = self.run_macro(template_bundle.template, "show_views_sql", mock_schema_relation)
 
         expected_sql = "SHOW VIEWS IN `test_db`.`test_schema`"
         self.assert_sql_equal(result, expected_sql)
@@ -126,9 +118,7 @@ class TestMetadataMacros(MacroTestBase):
         self.assert_sql_equal(result, expected_sql)
 
     def test_get_view_description_sql(self, template_bundle, relation):
-        result = self.run_macro(
-            template_bundle.template, "get_view_description_sql", relation
-        )
+        result = self.run_macro(template_bundle.template, "get_view_description_sql", relation)
 
         expected_sql = """
             SELECT *
@@ -156,14 +146,10 @@ class TestMetadataMacros(MacroTestBase):
         """  # noqa
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_uc_tables_sql_without_identifier(
-        self, template_bundle, mock_schema_relation
-    ):
+    def test_get_uc_tables_sql_without_identifier(self, template_bundle, mock_schema_relation):
         mock_schema_relation.identifier = None
 
-        result = self.run_macro(
-            template_bundle.template, "get_uc_tables_sql", mock_schema_relation
-        )
+        result = self.run_macro(template_bundle.template, "get_uc_tables_sql", mock_schema_relation)
 
         expected_sql = """
             SELECT

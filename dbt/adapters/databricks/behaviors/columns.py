@@ -26,9 +26,7 @@ class GetColumnsBehavior(ABC):
     ) -> list[AttrDict]:
         return list(
             handle_missing_objects(
-                lambda: adapter.execute_macro(
-                    macro_name, kwargs={"relation": relation}
-                ),
+                lambda: adapter.execute_macro(macro_name, kwargs={"relation": relation}),
                 AttrDict(),
             )
         )
@@ -43,9 +41,7 @@ class GetColumnsByDescribe(GetColumnsBehavior):
         use_legacy_logic: bool = False,
     ) -> list[DatabricksColumn]:
         if use_legacy_logic:
-            rows = cls._get_columns_with_comments(
-                adapter, relation, "get_columns_comments"
-            )
+            rows = cls._get_columns_with_comments(adapter, relation, "get_columns_comments")
             return cls._parse_columns(rows)
         else:
             try:
@@ -99,7 +95,4 @@ class GetColumnsByInformationSchema(GetColumnsByDescribe):
 
     @classmethod
     def _parse_info_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
-        return [
-            DatabricksColumn(column=row[0], dtype=row[1], comment=row[2])
-            for row in rows
-        ]
+        return [DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]) for row in rows]

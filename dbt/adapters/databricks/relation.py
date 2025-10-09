@@ -118,11 +118,7 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def stats(self) -> Optional[str]:
-        return (
-            self.metadata.get(KEY_TABLE_STATISTICS)
-            if self.metadata is not None
-            else None
-        )
+        return self.metadata.get(KEY_TABLE_STATISTICS) if self.metadata is not None else None
 
     @property
     def can_be_replaced(self) -> bool:
@@ -152,16 +148,14 @@ class DatabricksRelation(BaseRelation):
 
         if not search:
             # nothing was passed in
-            raise DbtRuntimeError(
-                "Tried to match relation, but no search path was passed!"
-            )
+            raise DbtRuntimeError("Tried to match relation, but no search path was passed!")
 
         match = True
 
         for k, v in search.items():
-            if str(self.path.get_lowered_part(k)).strip(
+            if str(self.path.get_lowered_part(k)).strip(self.quote_character) != v.lower().strip(
                 self.quote_character
-            ) != v.lower().strip(self.quote_character):
+            ):
                 match = False
 
         return match
@@ -209,9 +203,7 @@ class DatabricksRelation(BaseRelation):
         return super().render().lower()
 
 
-def is_hive_metastore(
-    database: Optional[str], temporary: Optional[bool] = False
-) -> bool:
+def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
     return (database is None or database.lower() == "hive_metastore") and not temporary
 
 

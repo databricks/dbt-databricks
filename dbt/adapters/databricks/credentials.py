@@ -113,9 +113,7 @@ class DatabricksCredentials(Credentials):
             "user_agent_entry",
         ):
             if key in connection_parameters:
-                raise DbtValidationError(
-                    f"The connection parameter `{key}` is reserved."
-                )
+                raise DbtValidationError(f"The connection parameter `{key}` is reserved.")
         if "http_headers" in connection_parameters:
             http_headers = connection_parameters["http_headers"]
             if not isinstance(http_headers, dict) or any(
@@ -134,9 +132,7 @@ class DatabricksCredentials(Credentials):
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
             if not getattr(self, key):
-                raise DbtConfigError(
-                    f"The config '{key}' is required to connect to Databricks"
-                )
+                raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
                 "The config `auth_type: oauth` is required when not using access token"
@@ -163,15 +159,11 @@ class DatabricksCredentials(Credentials):
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
             if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
-                raise DbtValidationError(
-                    f"Invalid invocation environment: {invocation_env}"
-                )
+                raise DbtValidationError(f"Invalid invocation environment: {invocation_env}")
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(
-        cls, user_http_session_headers: dict[str, str]
-    ) -> dict[str, str]:
+    def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
         http_session_headers_str = GlobalState.get_http_session_headers()
 
         http_session_headers_dict: dict[str, str] = (
@@ -204,17 +196,13 @@ class DatabricksCredentials(Credentials):
     def unique_field(self) -> str:
         return cast(str, self.host)
 
-    def connection_info(
-        self, *, with_aliases: bool = False
-    ) -> Iterable[tuple[str, Any]]:
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
         aliases: list[str] = []
         if with_aliases:
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
-        for key in itertools.chain(
-            self._connection_keys(with_aliases=with_aliases), aliases
-        ):
+        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
                 yield key, as_dict[key]
 
@@ -288,9 +276,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     auth_type: Optional[str] = None
 
     @classmethod
-    def create_from(
-        cls, credentials: DatabricksCredentials
-    ) -> "DatabricksCredentialManager":
+    def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
             host=credentials.host or "",
             token=credentials.token,
@@ -378,9 +364,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
                     break  # Exit loop if authentication is successful
                 except Exception as e:
                     exceptions.append((auth_type, e))
-                    next_auth_type = (
-                        auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
-                    )
+                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
                     if next_auth_type:
                         logger.warning(
                             f"Failed to authenticate with {auth_type}, "
@@ -391,9 +375,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
                             f"Failed to authenticate with {auth_type}. "
                             f"No more authentication methods to try. Error: {e}"
                         )
-                        raise Exception(
-                            f"All authentication methods failed. Details: {exceptions}"
-                        )
+                        raise Exception(f"All authentication methods failed. Details: {exceptions}")
 
     @property
     def api_client(self) -> WorkspaceClient:

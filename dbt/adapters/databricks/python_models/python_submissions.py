@@ -99,9 +99,7 @@ class PythonCommandSubmitter(PythonSubmitter):
 class PythonNotebookUploader:
     """Uploads a compiled Python model as a notebook to the Databricks workspace."""
 
-    def __init__(
-        self, api_client: DatabricksApiClient, parsed_model: ParsedPythonModel
-    ) -> None:
+    def __init__(self, api_client: DatabricksApiClient, parsed_model: ParsedPythonModel) -> None:
         self.api_client = api_client
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
@@ -111,9 +109,7 @@ class PythonNotebookUploader:
             if parsed_model.config.python_job_config
             else {}
         )
-        self.notebook_access_control_list = (
-            parsed_model.config.notebook_access_control_list
-        )
+        self.notebook_access_control_list = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
@@ -121,21 +117,15 @@ class PythonNotebookUploader:
             f"[Notebook Upload Debug] Creating workspace dir for "
             f"catalog={self.catalog}, schema={self.schema}"
         )
-        workdir = self.api_client.workspace.create_python_model_dir(
-            self.catalog, self.schema
-        )
+        workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
         logger.debug(f"[Notebook Upload Debug] Uploading notebook to path: {file_path}")
 
         # Log notebook content length
-        logger.debug(
-            f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars"
-        )
+        logger.debug(f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars")
 
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
-        logger.debug(
-            f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}"
-        )
+        logger.debug(f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}")
 
         if self.job_grants or self.notebook_access_control_list:
             logger.debug("[Notebook Upload Debug] Setting permissions for notebook")
@@ -155,13 +145,9 @@ class PythonNotebookUploader:
 
             if access_control_list:
                 logger.debug(f"Setting permissions on notebook: {notebook_path}")
-                self.api_client.notebook_permissions.put(
-                    notebook_path, access_control_list
-                )
+                self.api_client.notebook_permissions.put(notebook_path, access_control_list)
         except Exception as e:
-            logger.error(
-                f"Failed to set permissions on notebook {notebook_path}: {str(e)}"
-            )
+            logger.error(f"Failed to set permissions on notebook {notebook_path}: {str(e)}")
             raise DbtRuntimeError(
                 f"Failed to set permissions on notebook: path={notebook_path}, error: {str(e)}"
             )
@@ -209,8 +195,7 @@ class PythonPermissionBuilder:
         return [
             acl
             for acl in acls
-            if "permission_level" in acl
-            and acl["permission_level"] in valid_permissions
+            if "permission_level" in acl and acl["permission_level"] in valid_permissions
         ]
 
     def build_job_permissions(
@@ -250,21 +235,15 @@ class PythonPermissionBuilder:
         access_control_list.extend(
             self._build_job_permission(job_grants.get("view", []), "CAN_READ")
         )
-        access_control_list.extend(
-            self._build_job_permission(job_grants.get("run", []), "CAN_RUN")
-        )
+        access_control_list.extend(self._build_job_permission(job_grants.get("run", []), "CAN_RUN"))
         access_control_list.extend(
             self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
         )
 
         combined_acls = access_control_list + acls
-        filtered_acls = self._filter_permissions(
-            combined_acls, self.NOTEBOOK_PERMISSIONS
-        )
+        filtered_acls = self._filter_permissions(combined_acls, self.NOTEBOOK_PERMISSIONS)
 
-        return [
-            acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"
-        ]
+        return [acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"]
 
     def build_permissions(
         self,
@@ -335,9 +314,7 @@ class PythonJobConfigCompiler:
 
         if self.environment_key:
             job_spec["environment_key"] = self.environment_key
-            if self.environment_deps and not self.additional_job_settings.get(
-                "environments"
-            ):
+            if self.environment_deps and not self.additional_job_settings.get("environments"):
                 additional_job_config["environments"] = [
                     {
                         "environment_key": self.environment_key,
@@ -390,9 +367,7 @@ class PythonNotebookSubmitter(PythonSubmitter):
             parsed_model,
             cluster_spec,
         )
-        return PythonNotebookSubmitter(
-            api_client, tracker, notebook_uploader, config_compiler
-        )
+        return PythonNotebookSubmitter(api_client, tracker, notebook_uploader, config_compiler)
 
     @override
     def submit(self, compiled_code: str) -> None:
@@ -480,9 +455,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 {"existing_cluster_id": self.cluster_id},
             )
         else:
-            return PythonCommandSubmitter(
-                self.api_client, self.tracker, self.cluster_id or ""
-            )
+            return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id or "")
 
     @override
     def validate_config(self) -> None:
@@ -497,9 +470,7 @@ class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
     """Top level helper for Python models using job runs on a serverless cluster."""
 
     def build_submitter(self) -> PythonSubmitter:
-        return PythonNotebookSubmitter.create(
-            self.api_client, self.tracker, self.parsed_model, {}
-        )
+        return PythonNotebookSubmitter.create(self.api_client, self.tracker, self.parsed_model, {})
 
 
 class PythonWorkflowConfigCompiler:
@@ -524,9 +495,7 @@ class PythonWorkflowConfigCompiler:
         if config.python_job_config:
             cluster_settings.update(config.python_job_config.additional_task_settings)
             workflow_spec = config.python_job_config.dict()
-            workflow_spec["name"] = PythonWorkflowConfigCompiler.workflow_name(
-                parsed_model
-            )
+            workflow_spec["name"] = PythonWorkflowConfigCompiler.workflow_name(parsed_model)
             existing_job_id = config.python_job_config.existing_job_id
             post_hook_tasks = config.python_job_config.post_hook_tasks
             return PythonWorkflowConfigCompiler(
@@ -541,8 +510,7 @@ class PythonWorkflowConfigCompiler:
         if parsed_model.config.python_job_config:
             name = parsed_model.config.python_job_config.name
         return (
-            name
-            or f"dbt__{parsed_model.catalog}-{parsed_model.schema_}-{parsed_model.identifier}"
+            name or f"dbt__{parsed_model.catalog}-{parsed_model.schema_}-{parsed_model.identifier}"
         )
 
     @staticmethod
@@ -664,9 +632,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         logger.debug(f"[Workflow Debug] Workflow config: {workflow_config}")
         logger.debug(f"[Workflow Debug] Existing job ID: {existing_job_id}")
 
-        job_id = self.workflow_creater.create_or_update(
-            workflow_config, existing_job_id
-        )
+        job_id = self.workflow_creater.create_or_update(workflow_config, existing_job_id)
         logger.debug(f"[Workflow Debug] Created/updated job ID: {job_id}")
 
         access_control_list = self.permission_builder.build_job_permissions(
@@ -683,13 +649,9 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         try:
             logger.debug(f"[Workflow Debug] Polling for completion of run {run_id}")
             self.api_client.job_runs.poll_for_completion(run_id)
-            logger.debug(
-                f"[Workflow Debug] Workflow run {run_id} completed successfully"
-            )
+            logger.debug(f"[Workflow Debug] Workflow run {run_id} completed successfully")
         except Exception as e:
-            logger.error(
-                f"[Workflow Debug] Workflow run {run_id} failed with error: {e}"
-            )
+            logger.error(f"[Workflow Debug] Workflow run {run_id} failed with error: {e}")
             # Try to get more info about the failure
             try:
                 run_info = self.api_client.job_runs.get_run_info(run_id)

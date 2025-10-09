@@ -8,7 +8,9 @@ class PipelineEvent(ABC):
         self.message = message
 
     def __str__(self) -> str:
-        return f"Pipeline(pipeline-id={self.pipeline_id}, update-id={self.update_id}) - {self.message}"
+        return (
+            f"Pipeline(pipeline-id={self.pipeline_id}, update-id={self.update_id}) - {self.message}"
+        )
 
 
 class PipelineRefresh(PipelineEvent):
@@ -18,6 +20,4 @@ class PipelineRefresh(PipelineEvent):
 
 class PipelineRefreshError(PipelineEvent):
     def __init__(self, pipeline_id: str, update_id: str, message: str):
-        super().__init__(
-            pipeline_id, update_id, f"Error refreshing pipeline: {message}"
-        )
+        super().__init__(pipeline_id, update_id, f"Error refreshing pipeline: {message}")

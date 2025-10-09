@@ -37,8 +37,7 @@ class GlobalState:
     def get_char_limit_bypass(cls) -> bool:
         if cls.__describe_char_bypass is None:
             cls.__describe_char_bypass = (
-                os.getenv("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "False").upper()
-                == "TRUE"
+                os.getenv("DBT_DESCRIBE_TABLE_2048_CHAR_BYPASS", "False").upper() == "TRUE"
             )
         return cls.__describe_char_bypass
 

@@ -67,24 +67,15 @@ class ConstraintsConfig(DatabricksComponentConfig):
         }
 
         # Find constraints that need to be unset
-        constraints_to_unset = (
-            other_set_constraints_normalized - self_set_constraints_normalized
-        )
+        constraints_to_unset = other_set_constraints_normalized - self_set_constraints_normalized
         # Find non-nulls that need to be unset
         non_nulls_to_unset = other.set_non_nulls - self.set_non_nulls
 
         # Set constraints that exist in self but not in other
-        set_constraints = (
-            self_set_constraints_normalized - other_set_constraints_normalized
-        )
+        set_constraints = self_set_constraints_normalized - other_set_constraints_normalized
         set_non_nulls = self.set_non_nulls - other.set_non_nulls
 
-        if (
-            set_constraints
-            or set_non_nulls
-            or constraints_to_unset
-            or non_nulls_to_unset
-        ):
+        if set_constraints or set_non_nulls or constraints_to_unset or non_nulls_to_unset:
             return ConstraintsConfig(
                 set_non_nulls=set_non_nulls,
                 unset_non_nulls=non_nulls_to_unset,

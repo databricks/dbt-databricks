@@ -33,9 +33,7 @@ class TestPythonMacros(MacroTestBase):
 
     def test_py_get_writer__specified_location_root(self, config, template, context):
         config["location_root"] = "s3://fake_location"
-        template.globals["adapter"].compute_external_path.return_value = (
-            "s3://fake_location/schema"
-        )
+        template.globals["adapter"].compute_external_path.return_value = "s3://fake_location/schema"
         result = self.run_macro_raw(template, "py_get_writer_options")
 
         expected = '.format("delta")\n.option("path", "s3://fake_location/schema")'
@@ -75,9 +73,7 @@ class TestPythonMacros(MacroTestBase):
         assert result == '.format("delta")'
 
     def test_py_try_import__golden_path(self, template):
-        result = self.run_macro_raw(
-            template, "py_try_import", "pandas", "pandas_available"
-        )
+        result = self.run_macro_raw(template, "py_try_import", "pandas", "pandas_available")
 
         expected = (
             "# make sure pandas exists before using it\n"

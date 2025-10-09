@@ -133,15 +133,11 @@ class DatabricksRelationConfigBase(BaseModel, ABC):
                 changes[key] = diff
 
         if len(changes) > 0:
-            return DatabricksRelationChangeSet(
-                changes=changes, requires_full_refresh=False
-            )
+            return DatabricksRelationChangeSet(changes=changes, requires_full_refresh=False)
         return None
 
 
-DatabricksRelationConfig = TypeVar(
-    "DatabricksRelationConfig", bound=DatabricksRelationConfigBase
-)
+DatabricksRelationConfig = TypeVar("DatabricksRelationConfig", bound=DatabricksRelationConfigBase)
 
 
 def get_config_value(config: RelationConfig, key: str) -> Any:

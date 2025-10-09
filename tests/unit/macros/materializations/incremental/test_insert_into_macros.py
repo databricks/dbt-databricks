@@ -32,25 +32,19 @@ class TestInsertIntoMacros(MacroTestBase):
 
     def test_insert_into_sql_impl__target_has_extra_columns(self, template):
         """With BY NAME, extra columns in target get default values from Databricks"""
-        sql = self.render_insert_into(
-            template, dest_columns=["a", "b"], source_columns=["b"]
-        )
+        sql = self.render_insert_into(template, dest_columns=["a", "b"], source_columns=["b"])
         expected = "insert into target by name\nselect * from source"
         self.assert_sql_equal(sql, expected)
 
     def test_insert_into_sql_impl__source_has_extra_columns(self, template):
         """With BY NAME, extra columns in source cause an error from Databricks"""
-        sql = self.render_insert_into(
-            template, dest_columns=["b"], source_columns=["a", "b"]
-        )
+        sql = self.render_insert_into(template, dest_columns=["b"], source_columns=["a", "b"])
         expected = "insert into target by name\nselect * from source"
         self.assert_sql_equal(sql, expected)
 
     def test_insert_into_sql_impl__uses_by_name_syntax(self, template):
         """Test that insert_into_sql_impl generates INSERT BY NAME syntax"""
-        sql = self.render_insert_into(
-            template, dest_columns=["a", "b"], source_columns=["a", "b"]
-        )
+        sql = self.render_insert_into(template, dest_columns=["a", "b"], source_columns=["a", "b"])
         expected = "insert into target by name\nselect * from source"
         self.assert_sql_equal(sql, expected)
 
@@ -74,9 +68,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         return source_relation, target_relation
 
-    def test_get_insert_overwrite_sql__uses_by_name_syntax(
-        self, template_bundle, mock_relations
-    ):
+    def test_get_insert_overwrite_sql__uses_by_name_syntax(self, template_bundle, mock_relations):
         """Test that get_insert_overwrite_sql generates INSERT OVERWRITE BY NAME syntax"""
         source_relation, target_relation = mock_relations
 

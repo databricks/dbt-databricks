@@ -22,9 +22,7 @@ class MacroTestBase:
         Anything you put in this dict will be returned by config in the rendered template
         """
         local_config: dict[str, Any] = {}
-        context["config"].get = lambda key, default=None, **kwargs: local_config.get(
-            key, default
-        )
+        context["config"].get = lambda key, default=None, **kwargs: local_config.get(key, default)
         return local_config
 
     @pytest.fixture(autouse=True)
@@ -115,17 +113,13 @@ class MacroTestBase:
         return []
 
     @pytest.fixture
-    def databricks_context(
-        self, spark_context, databricks_env, databricks_template_names
-    ) -> dict:
+    def databricks_context(self, spark_context, databricks_env, databricks_template_names) -> dict:
         """
         Adds all the requested Databricks macros to the context
         """
         if not databricks_template_names:
             return spark_context
-        return self.build_up_context(
-            spark_context, databricks_env, databricks_template_names
-        )
+        return self.build_up_context(spark_context, databricks_env, databricks_template_names)
 
     def build_up_context(self, context, env, template_names):
         """
@@ -184,9 +178,7 @@ class MacroTestBase:
         relation.database = "some_database"
         relation.schema = "some_schema"
         relation.identifier = "some_table"
-        relation.render = Mock(
-            return_value="`some_database`.`some_schema`.`some_table`"
-        )
+        relation.render = Mock(return_value="`some_database`.`some_schema`.`some_table`")
         relation.without_identifier = Mock(return_value="`some_database`.`some_schema`")
         relation.type = "table"
         return relation
@@ -228,16 +220,11 @@ class MacroTestBase:
         """
         Convenience method for macros that take a relation as a first argument.
         """
-        return self.run_macro(
-            template_bundle.template, name, template_bundle.relation, *args
-        )
+        return self.run_macro(template_bundle.template, name, template_bundle.relation, *args)
 
     def assert_sql_equal(self, expected, actual, msg=None):
         """Assert that two SQL strings are equal after normalization"""
         clean_expected = self.clean_sql(expected)
         clean_actual = self.clean_sql(actual)
-        msg = (
-            msg
-            or f"SQL doesn't match:\nExpected:\n{clean_expected}\n\nActual:\n{clean_actual}"
-        )
+        msg = msg or f"SQL doesn't match:\nExpected:\n{clean_expected}\n\nActual:\n{clean_actual}"
         assert clean_expected == clean_actual, msg

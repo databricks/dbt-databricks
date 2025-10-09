@@ -198,9 +198,7 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 
 
 class DatabricksAdapter(SparkAdapter):
-    INFORMATION_COMMENT_REGEX = re.compile(
-        r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL
-    )
+    INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
     Relation = DatabricksRelation
     Column = DatabricksColumn
@@ -213,12 +211,8 @@ class DatabricksAdapter(SparkAdapter):
 
     _capabilities = CapabilityDict(
         {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(
-                support=Support.Full
-            ),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(
-                support=Support.Full
-            ),
+            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -259,14 +253,10 @@ class DatabricksAdapter(SparkAdapter):
     ) -> dict[str, str]:
         result = tblproperties or config.get("tblproperties", {})
 
-        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(
-            config.model
-        )  # type:ignore
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
-                raise DbtConfigError(
-                    "Iceberg support requires Databricks Runtime 14.3 or later."
-                )
+                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
@@ -335,16 +325,13 @@ class DatabricksAdapter(SparkAdapter):
         return self.connections.compare_dbr_version(major, minor)
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
-        results = self.execute_macro(
-            LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database}
-        )
+        results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
         return [row[0] for row in results]
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
         return schema.lower() in set(
-            s.lower()
-            for s in self.connections.list_schemas(database or "hive_metastore", schema)
+            s.lower() for s in self.connections.list_schemas(database or "hive_metastore", schema)
         )
 
     def execute(
@@ -357,9 +344,7 @@ class DatabricksAdapter(SparkAdapter):
         staging_table: Optional[BaseRelation] = None,
     ) -> tuple[AdapterResponse, "Table"]:
         try:
-            return super().execute(
-                sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit
-            )
+            return super().execute(sql=sql, auto_begin=auto_begin, fetch=fetch, limit=limit)
         finally:
             if staging_table is not None:
                 self.drop_relation(staging_table)
@@ -380,9 +365,7 @@ class DatabricksAdapter(SparkAdapter):
                 metadata = {KEY_TABLE_OWNER: owner, KEY_TABLE_PROVIDER: file_format}
 
             if table_type:
-                databricks_table_type = DatabricksRelation.get_databricks_table_type(
-                    table_type
-                )
+                databricks_table_type = DatabricksRelation.get_databricks_table_type(table_type)
             else:
                 databricks_table_type = None
 
@@ -407,9 +390,7 @@ class DatabricksAdapter(SparkAdapter):
             return self._get_hive_relations(relation)
         return self._get_uc_relations(relation)
 
-    def _get_uc_relations(
-        self, relation: DatabricksRelation
-    ) -> list[DatabricksRelationInfo]:
+    def _get_uc_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
         kwargs = {"relation": relation}
         results = self.execute_macro("get_uc_tables", kwargs=kwargs)
         return [
@@ -423,9 +404,7 @@ class DatabricksAdapter(SparkAdapter):
             for row in results
         ]
 
-    def _get_hive_relations(
-        self, relation: DatabricksRelation
-    ) -> list[DatabricksRelationInfo]:
+    def _get_hive_relations(self, relation: DatabricksRelation) -> list[DatabricksRelationInfo]:
         kwargs = {"relation": relation}
 
         new_rows: list[tuple[str, Optional[str]]]
@@ -455,11 +434,7 @@ class DatabricksAdapter(SparkAdapter):
                 new_rows = [
                     (
                         row[0],
-                        str(
-                            RelationType.View
-                            if row[0] in view_names
-                            else RelationType.Table
-                        ),
+                        str(RelationType.View if row[0] in view_names else RelationType.Table),
                     )
                     for row in new_rows
                 ]
@@ -535,9 +510,7 @@ class DatabricksAdapter(SparkAdapter):
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
         )
-        return self.get_column_behavior.get_columns_in_relation(
-            self, relation, use_legacy_logic
-        )
+        return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
     def _get_updated_relation(
         self, relation: DatabricksRelation
@@ -569,9 +542,7 @@ class DatabricksAdapter(SparkAdapter):
             columns,
         )
 
-    def _set_relation_information(
-        self, relation: DatabricksRelation
-    ) -> DatabricksRelation:
+    def _set_relation_information(self, relation: DatabricksRelation) -> DatabricksRelation:
         """Update the information of the relation, or return it if it already exists."""
         if relation.has_information():
             return relation
@@ -627,9 +598,9 @@ class DatabricksAdapter(SparkAdapter):
     ) -> tuple["Table", list[Exception]]:
         relation_map: dict[tuple[str, str], set[str]] = defaultdict(set)
         for relation in relation_configs:
-            relation_map[
-                (relation.database or "hive_metastore", relation.schema or "default")
-            ].add(relation.identifier)
+            relation_map[(relation.database or "hive_metastore", relation.schema or "default")].add(
+                relation.identifier
+            )
 
         return self._get_catalog_for_relation_map(relation_map, used_schemas)
 
@@ -668,15 +639,9 @@ class DatabricksAdapter(SparkAdapter):
                 rel_type = self._get_relation_type(information)
                 relation = self.Relation.create(
                     database=(
-                        schema_relation.database.lower()
-                        if schema_relation.database
-                        else None
+                        schema_relation.database.lower() if schema_relation.database else None
                     ),
-                    schema=(
-                        schema_relation.schema.lower()
-                        if schema_relation.schema
-                        else None
-                    ),
+                    schema=(schema_relation.schema.lower() if schema_relation.schema else None),
                     identifier=name,
                     type=rel_type,  # type: ignore
                     is_delta="Provider: delta" in information,
@@ -694,9 +659,7 @@ class DatabricksAdapter(SparkAdapter):
             return DatabricksRelationType.StreamingTable
         return DatabricksRelationType.Table
 
-    def _show_table_extended(
-        self, schema_relation: DatabricksRelation
-    ) -> Optional["Table"]:
+    def _show_table_extended(self, schema_relation: DatabricksRelation) -> Optional["Table"]:
         kwargs = {"schema_relation": schema_relation}
 
         def exec() -> AttrDict:
@@ -705,9 +668,7 @@ class DatabricksAdapter(SparkAdapter):
 
         return handle_missing_objects(exec, None)
 
-    def _get_schema_for_catalog(
-        self, catalog: str, schema: str, identifier: str
-    ) -> "Table":
+    def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
         # Lazy load to improve startup time
         from agate import Table
         from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
@@ -721,9 +682,7 @@ class DatabricksAdapter(SparkAdapter):
                 identifier=identifier,
                 quote_policy=self.config.quoting,
             )
-            for relation, information in self._list_relations_with_information(
-                schema_relation
-            ):
+            for relation, information in self._list_relations_with_information(schema_relation):
                 columns.extend(self._get_columns_for_catalog(relation, information))
         return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
 
@@ -791,9 +750,7 @@ class DatabricksAdapter(SparkAdapter):
         }
 
     @log_code_execution
-    def submit_python_job(
-        self, parsed_model: dict, compiled_code: str
-    ) -> AdapterResponse:
+    def submit_python_job(self, parsed_model: dict, compiled_code: str) -> AdapterResponse:
         parsed_model["config"]["user_folder_for_python"] = parsed_model["config"].get(
             "user_folder_for_python",
             self.behavior.use_user_folder_for_python.setting,  # type: ignore[attr-defined]
@@ -818,17 +775,13 @@ class DatabricksAdapter(SparkAdapter):
                 current_catalog = self.execute_macro(CURRENT_CATALOG_MACRO_NAME)[0][0]
                 if current_catalog is not None:
                     if current_catalog != catalog:
-                        self.execute_macro(
-                            USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog)
-                        )
+                        self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=catalog))
                     else:
                         current_catalog = None
             yield
         finally:
             if current_catalog is not None:
-                self.execute_macro(
-                    USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog)
-                )
+                self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
 
     @available.parse(lambda *a, **k: {})
     def get_persist_doc_columns(
@@ -880,9 +833,7 @@ class DatabricksAdapter(SparkAdapter):
         for column in existing_columns:
             if column.name in model_columns:
                 column_info = model_columns[column.name]
-                enriched_column = column.enrich(
-                    column_info, column.name in not_null_set
-                )
+                enriched_column = column.enrich(column_info, column.name in not_null_set)
                 enriched_columns.append(enriched_column)
             else:
                 if column.name in not_null_set:
@@ -892,9 +843,7 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
-    def get_relation_config(
-        self, relation: DatabricksRelation
-    ) -> DatabricksRelationConfigBase:
+    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
         if relation.type == DatabricksRelationType.MaterializedView:
             return MaterializedViewAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.StreamingTable:
@@ -904,14 +853,10 @@ class DatabricksAdapter(SparkAdapter):
         elif relation.type == DatabricksRelationType.View:
             return ViewAPI.get_from_relation(self, relation)
         else:
-            raise NotImplementedError(
-                f"Relation type {relation.type} is not supported."
-            )
+            raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
     @available.parse(lambda *a, **k: {})
-    def get_config_from_model(
-        self, model: RelationConfig
-    ) -> DatabricksRelationConfigBase:
+    def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
         if model.config.materialized == "materialized_view":
             return MaterializedViewAPI.get_from_relation_config(model)
@@ -936,9 +881,7 @@ class DatabricksAdapter(SparkAdapter):
         return SqlUtils.clean_sql(sql)
 
     @available
-    def build_catalog_relation(
-        self, model: RelationConfig
-    ) -> Optional[CatalogRelation]:
+    def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
         """
         Builds a relation for a given configuration.
 
@@ -958,9 +901,7 @@ class DatabricksAdapter(SparkAdapter):
         return None
 
     @available
-    def get_column_tags_from_model(
-        self, model: RelationConfig
-    ) -> Optional[ColumnTagsConfig]:
+    def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
 
 
@@ -990,9 +931,7 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         return cls.config_type().from_results(results)
 
     @classmethod
-    def get_from_relation_config(
-        cls, relation_config: RelationConfig
-    ) -> DatabricksRelationConfig:
+    def get_from_relation_config(cls, relation_config: RelationConfig) -> DatabricksRelationConfig:
         """Get the relation config from the model node."""
 
         return cls.config_type().from_relation_config(relation_config)
@@ -1017,9 +956,7 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
         relation_config = super().get_from_relation(adapter, relation)
 
         # Ensure any current refreshes are completed before returning the relation config
-        tblproperties = cast(
-            TblPropertiesConfig, relation_config.config["tblproperties"]
-        )
+        tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
             adapter.connections.api_client.dlt_pipelines.poll_for_completion(
                 tblproperties.pipeline_id
@@ -1048,9 +985,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
-        results["show_tblproperties"] = adapter.execute_macro(
-            "fetch_tbl_properties", kwargs=kwargs
-        )
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
 
 
@@ -1073,9 +1008,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
         kwargs = {"relation": relation}
 
-        results["show_tblproperties"] = adapter.execute_macro(
-            "fetch_tbl_properties", kwargs=kwargs
-        )
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
 
 
@@ -1094,9 +1027,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
-            results["information_schema.tags"] = adapter.execute_macro(
-                "fetch_tags", kwargs=kwargs
-            )
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
             )
@@ -1109,12 +1040,8 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["foreign_key_constraints"] = adapter.execute_macro(
                 "fetch_foreign_key_constraints", kwargs=kwargs
             )
-            results["column_masks"] = adapter.execute_macro(
-                "fetch_column_masks", kwargs=kwargs
-            )
-        results["show_tblproperties"] = adapter.execute_macro(
-            "fetch_tbl_properties", kwargs=kwargs
-        )
+            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
@@ -1140,12 +1067,8 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
-        results["information_schema.tags"] = adapter.execute_macro(
-            "fetch_tags", kwargs=kwargs
-        )
-        results["show_tblproperties"] = adapter.execute_macro(
-            "fetch_tbl_properties", kwargs=kwargs
-        )
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(

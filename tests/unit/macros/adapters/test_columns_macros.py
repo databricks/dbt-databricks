@@ -19,22 +19,16 @@ class TestColumnsMacros(MacroTestBase):
             template_bundle.template, "get_columns_comments_as_json_sql", relation
         )
 
-        expected_sql = (
-            "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
-        )
+        expected_sql = "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
         self.assert_sql_equal(result, expected_sql)
 
     def test_repair_table_sql(self, template_bundle, relation):
         result = self.run_macro(template_bundle.template, "repair_table_sql", relation)
 
-        expected_sql = (
-            "REPAIR TABLE `some_database`.`some_schema`.`some_table` SYNC METADATA"
-        )
+        expected_sql = "REPAIR TABLE `some_database`.`some_schema`.`some_table` SYNC METADATA"
         self.assert_sql_equal(result, expected_sql)
 
-    def test_get_columns_comments_via_information_schema_sql(
-        self, template_bundle, relation
-    ):
+    def test_get_columns_comments_via_information_schema_sql(self, template_bundle, relation):
         result = self.run_macro(
             template_bundle.template,
             "get_columns_comments_via_information_schema_sql",
@@ -60,9 +54,7 @@ class TestColumnsMacros(MacroTestBase):
         """Test drop_columns_sql macro"""
         # Mock Column.format_remove_column_list
         context["api"] = MagicMock()
-        context["api"].Column.format_remove_column_list = Mock(
-            return_value="col1, col2"
-        )
+        context["api"].Column.format_remove_column_list = Mock(return_value="col1, col2")
 
         remove_columns = ["col1", "col2"]
 
@@ -70,22 +62,20 @@ class TestColumnsMacros(MacroTestBase):
             template_bundle.template, "drop_columns_sql", relation, remove_columns
         )
 
-        expected_sql = "ALTER TABLE `some_database`.`some_schema`.`some_table` DROP COLUMNS (col1, col2)"
+        expected_sql = (
+            "ALTER TABLE `some_database`.`some_schema`.`some_table` DROP COLUMNS (col1, col2)"
+        )
         self.assert_sql_equal(result, expected_sql)
 
     def test_add_columns_sql(self, template_bundle, context, relation):
         """Test add_columns_sql macro"""
         # Mock Column.format_add_column_list
         context["api"] = MagicMock()
-        context["api"].Column.format_add_column_list = Mock(
-            return_value="col1 INT, col2 STRING"
-        )
+        context["api"].Column.format_add_column_list = Mock(return_value="col1 INT, col2 STRING")
 
         add_columns = ["col1", "col2"]
 
-        result = self.run_macro(
-            template_bundle.template, "add_columns_sql", relation, add_columns
-        )
+        result = self.run_macro(template_bundle.template, "add_columns_sql", relation, add_columns)
 
         expected_sql = (
             "ALTER TABLE `some_database`.`some_schema`.`some_table` "

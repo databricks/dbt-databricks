@@ -30,9 +30,7 @@ class TestGetMergeSQL(MacroTestBase):
         )
 
     def test_get_merge_update_set__update_columns(self, template):
-        sql = self.render_update_set(
-            template, update_columns=["a", "b", "c"], source_alias="s"
-        )
+        sql = self.render_update_set(template, update_columns=["a", "b", "c"], source_alias="s")
         expected = "a = s.a, b = s.b, c = s.c"
         self.assert_sql_equal(sql, expected)
 
@@ -81,15 +79,11 @@ class TestGetMergeSQL(MacroTestBase):
 
     def test_get_merge_insert__ignore_takes_priority(self, template):
         # source_alias is default to 'src'
-        sql = self.render_insert(
-            template, on_schema_change="ignore", source_columns=["a"]
-        )
+        sql = self.render_insert(template, on_schema_change="ignore", source_columns=["a"])
         assert sql == "*"
 
     def test_get_merge_insert__source_columns_and_not_ignore(self, template):
         # source_alias is default to 'src'
-        sql = self.render_insert(
-            template, on_schema_change="append", source_columns=["a", "b"]
-        )
+        sql = self.render_insert(template, on_schema_change="append", source_columns=["a", "b"])
         expected = "(a, b) VALUES (src.a, src.b)"
         self.assert_sql_equal(sql, expected)
