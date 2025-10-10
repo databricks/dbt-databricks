@@ -101,16 +101,15 @@
   {%- set predicates = args_dict['incremental_predicates'] -%}
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
-INSERT INTO {{ target_relation.render() }}
+INSERT INTO {{ target_relation.render() }} BY NAME
 {%- if predicates %}
   {%- if predicates is sequence and predicates is not string %}
-REPLACE WHERE {{ predicates | join(' and ') }}
+ REPLACE WHERE {{ predicates | join(' and ') }}
   {%- else %}
-REPLACE WHERE {{ predicates }}
+ REPLACE WHERE {{ predicates }}
   {%- endif %}
-{%- else %} BY NAME
 {%- endif %}
-TABLE {{ temp_relation.render() }}
+ TABLE {{ temp_relation.render() }}
 {%- endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}

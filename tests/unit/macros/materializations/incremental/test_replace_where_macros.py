@@ -36,7 +36,7 @@ class TestReplaceWhereMacros(MacroTestBase):
         result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
 
         expected = """
-        INSERT INTO schema.target_table
+        INSERT INTO schema.target_table BY NAME
         REPLACE WHERE date_col > '2023-01-01'
         TABLE schema.temp_table
         """
@@ -58,7 +58,7 @@ class TestReplaceWhereMacros(MacroTestBase):
         result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
 
         expected = """
-        INSERT INTO schema.target_table
+        INSERT INTO schema.target_table BY NAME
         REPLACE WHERE date_col > '2023-01-01' and another_col != 'value'
         TABLE schema.temp_table
         """
@@ -117,17 +117,15 @@ class TestReplaceWhereMacros(MacroTestBase):
         result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
 
         expected = """
-        INSERT INTO schema.target_table
+        INSERT INTO schema.target_table BY NAME
         REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
         TABLE schema.temp_table
         """  # noqa
 
         self.assert_sql_equal(result, expected)
 
-    def test_get_replace_where_sql__no_by_name_with_predicates(
-        self, template_bundle, mock_relations
-    ):
-        """Test that get_replace_where_sql does NOT use BY NAME when predicates are present"""
+    def test_get_replace_where_sql__by_name_with_predicates(self, template_bundle, mock_relations):
+        """Test that get_replace_where_sql DOES use BY NAME even when predicates are present"""
         target_relation, temp_relation = mock_relations
 
         args_dict = {
@@ -139,7 +137,7 @@ class TestReplaceWhereMacros(MacroTestBase):
         result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
 
         expected = """
-        INSERT INTO schema.target_table
+        INSERT INTO schema.target_table BY NAME
         REPLACE WHERE date_col > '2023-01-01'
         TABLE schema.temp_table
         """
