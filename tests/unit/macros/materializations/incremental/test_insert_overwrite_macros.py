@@ -53,7 +53,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
                 """
                 insert overwrite table target_table
                 partition (a)
-                select a, b from source_table
+                by name
+                select * from source_table
                 """,
             ),
             (
@@ -163,7 +164,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Verify it uses regular INSERT OVERWRITE syntax
         expected_sql = """
-            insert overwrite table target_table select a, b from source_table
+            insert overwrite table target_table by name select * from source_table
         """
 
         self.assert_sql_equal(result, expected_sql)
@@ -236,7 +237,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
         expected_sql = """
             insert overwrite table target_table
             partition (a)
-            select a, b from source_table
+            by name
+            select * from source_table
         """
 
         self.assert_sql_equal(result, expected_sql)
@@ -249,7 +251,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
                 """
                 insert overwrite table target_table
                 partition (a)
-                select a, b from source_table
+                by name
+                select * from source_table
                 """,
             ),
             (

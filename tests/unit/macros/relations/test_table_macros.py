@@ -16,7 +16,12 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["file_format.sql", "tblproperties.sql", "location.sql", "liquid_clustering.sql"]
+        return [
+            "file_format.sql",
+            "tblproperties.sql",
+            "location.sql",
+            "liquid_clustering.sql",
+        ]
 
     @pytest.fixture
     def context(self, template) -> dict:

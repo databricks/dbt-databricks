@@ -49,7 +49,10 @@ class TestReplaceWhereMacros(MacroTestBase):
         args_dict = {
             "target_relation": target_relation,
             "temp_relation": temp_relation,
-            "incremental_predicates": ["date_col > '2023-01-01'", "another_col != 'value'"],
+            "incremental_predicates": [
+                "date_col > '2023-01-01'",
+                "another_col != 'value'",
+            ],
         }
 
         result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
@@ -118,5 +121,25 @@ class TestReplaceWhereMacros(MacroTestBase):
         REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
         TABLE schema.temp_table
         """  # noqa
+
+        self.assert_sql_equal(result, expected)
+
+    def test_get_replace_where_sql__by_name_with_predicates(self, template_bundle, mock_relations):
+        """Test that get_replace_where_sql does not use BY NAME (removed as of recent change)"""
+        target_relation, temp_relation = mock_relations
+
+        args_dict = {
+            "target_relation": target_relation,
+            "temp_relation": temp_relation,
+            "incremental_predicates": "date_col > '2023-01-01'",
+        }
+
+        result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
+
+        expected = """
+        INSERT INTO schema.target_table
+        REPLACE WHERE date_col > '2023-01-01'
+        TABLE schema.temp_table
+        """
 
         self.assert_sql_equal(result, expected)

@@ -18,7 +18,7 @@
   {% endif %}
 
   {% call statement('merge into target') %}
-    insert into {{ target_relation }} select * from {{ intermediate_relation }}
+    insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
 

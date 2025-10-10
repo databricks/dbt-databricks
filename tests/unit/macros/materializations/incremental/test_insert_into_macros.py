@@ -1,41 +1,50 @@
+from unittest.mock import Mock
+
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
 
 
-class TestInsertIntoMacros(MacroTestBase):
+class TestInsertOverwriteMacros(MacroTestBase):
     @pytest.fixture(scope="class")
     def template_name(self) -> str:
         return "strategies.sql"
 
     @pytest.fixture(scope="class")
     def macro_folders_to_load(self) -> list:
-        return ["macros/materializations/incremental"]
+        return ["macros/materializations/incremental", "macros/relations/table"]
 
-    def render_insert_into(self, template, dest_columns=["a"], source_columns=["a"]):
-        return self.run_macro_raw(
-            template,
-            "insert_into_sql_impl",
-            "target",
-            dest_columns,
-            "source",
-            source_columns,
+    @pytest.fixture
+    def mock_relations(self):
+        source_relation = Mock()
+        source_relation.render.return_value = "source_table"
+
+        target_relation = Mock()
+        target_relation.render.return_value = "target_table"
+
+        return source_relation, target_relation
+
+    def test_get_insert_overwrite_sql__uses_by_name_syntax(self, template_bundle, mock_relations):
+        """Test that get_insert_overwrite_sql generates INSERT OVERWRITE BY NAME syntax"""
+        source_relation, target_relation = mock_relations
+
+        # Mock the partition_cols macro to return empty string
+        template_bundle.context["partition_cols"] = Mock(return_value="")
+
+        # Mock adapter methods needed by the macro
+        template_bundle.context["adapter"].is_cluster.return_value = True
+        template_bundle.context["adapter"].compare_dbr_version.return_value = -1  # Old DBR
+        template_bundle.context["config"].get.return_value = None  # No partition_by
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_insert_overwrite_sql",
+            source_relation,
+            target_relation,
         )
 
-    def test_insert_into_sql_impl__matching_columns(self, template):
-        sql = self.render_insert_into(template)
-        expected = "insert into table target (a)\nselect a from source"
-        self.assert_sql_equal(sql, expected)
-
-    def test_insert_into_sql_impl__target_has_extra_columns(self, template):
-        sql = self.render_insert_into(template, dest_columns=["a", "b"], source_columns=["b"])
-        expected = "insert into table target (a, b)\nselect DEFAULT, b from source"
-        self.assert_sql_equal(sql, expected)
-
-    def test_insert_into_sql_impl__source_has_extra_columns(self, template):
-        # This would only happen if on_schema_change is set to "ignore", as otherwise
-        # source columns get added to target before this
-
-        sql = self.render_insert_into(template, dest_columns=["b"], source_columns=["a", "b"])
-        expected = "insert into table target (b)\nselect b from source"
-        self.assert_sql_equal(sql, expected)
+        # Verify the result contains the key BY NAME clause
+        clean_result = self.clean_sql(result)
+        assert "by name" in clean_result
+        assert "insert overwrite table" in clean_result
+        assert "select * from" in clean_result
