@@ -68,9 +68,27 @@
             {%- do replace_conditions.append('t.' ~ col ~ ' <=> s.' ~ col) -%}
         {%- endfor -%}
         {%- set replace_conditions_csv = replace_conditions | join(' AND ') -%}
-        insert into table {{ target_relation }} by name AS t
+        {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
+        {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
+        {%- set source_cols_lower = source_columns | map('lower') | list -%}
+        {%- set select_columns = [] -%}
+        {%- for dest_col in dest_columns -%}
+            {%- set dest_col_lower = dest_col | lower -%}
+            {%- set matched_col = namespace(value=none) -%}
+            {%- for src_col in source_columns -%}
+                {%- if src_col | lower == dest_col_lower and matched_col.value is none -%}
+                    {%- set matched_col.value = src_col -%}
+                {%- endif -%}
+            {%- endfor -%}
+            {%- if matched_col.value is not none -%}
+                {%- do select_columns.append(matched_col.value) -%}
+            {%- else -%}
+                {%- do select_columns.append('NULL as ' ~ dest_col) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        insert into table {{ target_relation }} AS t
         replace on ({{ replace_conditions_csv }})
-        (select * from {{ source_relation }}) AS s
+        (select {{ select_columns | join(', ') }} from {{ source_relation }}) AS s
     {%- else -%}
         {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
         insert overwrite table {{ target_relation }}

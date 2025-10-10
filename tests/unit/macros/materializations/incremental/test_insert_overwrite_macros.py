@@ -60,17 +60,17 @@ class TestInsertOverwriteMacros(MacroTestBase):
             (
                 0,  # DBR = 17.1
                 """
-                insert into table target_table by name as t
+                insert into table target_table as t
                 replace on (t.a <=> s.a)
-                (select * from source_table) as s
+                (select a, b from source_table) as s
                 """,
             ),
             (
                 1,  # DBR > 17.1
                 """
-                insert into table target_table by name as t
+                insert into table target_table as t
                 replace on (t.a <=> s.a)
-                (select * from source_table) as s
+                (select a, b from source_table) as s
                 """,
             ),
         ],
@@ -131,9 +131,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Verify it uses REPLACE ON syntax with multiple conditions
         expected_sql = """
-            insert into table target_table by name as t
+            insert into table target_table as t
             replace on (t.a <=> s.a AND t.b <=> s.b)
-            (select * from source_table) as s
+            (select a, b from source_table) as s
         """
 
         self.assert_sql_equal(result, expected_sql)
@@ -195,9 +195,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Verify it uses REPLACE ON syntax because cluster with DBR 17.1+ always uses new syntax
         expected_sql = """
-            insert into table target_table by name as t
+            insert into table target_table as t
             replace on (t.a <=> s.a)
-            (select * from source_table) as s
+            (select a, b from source_table) as s
         """
 
         self.assert_sql_equal(result, expected_sql)
@@ -258,9 +258,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
             (
                 True,  # Behavior flag enabled
                 """
-                insert into table target_table by name as t
+                insert into table target_table as t
                 replace on (t.a <=> s.a)
-                (select * from source_table) as s
+                (select a, b from source_table) as s
                 """,
             ),
         ],
