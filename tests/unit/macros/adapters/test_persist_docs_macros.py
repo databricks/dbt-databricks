@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from dbt.adapters.databricks.relation import DatabricksRelationType
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -131,7 +132,7 @@ class TestPersistDocsMacros(MacroTestBase):
         view_relation.schema = "test_schema"
         view_relation.identifier = "test_view"
         view_relation.render = Mock(return_value="`test_db`.`test_schema`.`test_view`")
-        view_relation.type = "view"
+        view_relation.type = DatabricksRelationType.View
 
         result = self.run_macro(
             template_bundle.template,
@@ -156,6 +157,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         context["adapter"] = Mock()
         context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
 
@@ -172,13 +174,13 @@ class TestPersistDocsMacros(MacroTestBase):
 
         first_call = call_args_list[0][0][0]
         expected_first_sql = (
-            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.id IS 'Primary key'"
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`id` IS 'Primary key'"
         )
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
         expected_second_sql = (
-            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.value"
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`value`"
             " IS 'Contains \\'quoted\\' text'"
         )
         self.assert_sql_equal(second_call, expected_second_sql)
@@ -194,6 +196,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         context["adapter"] = Mock()
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
 
@@ -211,14 +214,14 @@ class TestPersistDocsMacros(MacroTestBase):
         first_call = call_args_list[0][0][0]
         expected_first_sql = (
             "ALTER TABLE `some_database`.`some_schema`.`some_table` "
-            "ALTER COLUMN id COMMENT 'Primary key'"
+            "ALTER COLUMN `id` COMMENT 'Primary key'"
         )
         self.assert_sql_equal(first_call, expected_first_sql)
 
         second_call = call_args_list[1][0][0]
         expected_second_sql = (
             "ALTER TABLE `some_database`.`some_schema`.`some_table` "
-            "ALTER COLUMN value COMMENT 'Contains \\'quoted\\' text'"
+            "ALTER COLUMN `value` COMMENT 'Contains \\'quoted\\' text'"
         )
         self.assert_sql_equal(second_call, expected_second_sql)
 

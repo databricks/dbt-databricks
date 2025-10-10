@@ -1,5 +1,13 @@
 ## dbt-databricks 1.11.0 (TBD)
 
+### Features
+
+- Support databricks_tags for MV/STs
+- Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+- Add support for Databricks query tags
+
 ### Fixes
 
 - **BREAKING:** Fix column order mismatch bug in incremental models by using INSERT BY NAME syntax ([#1211](https://github.com/databricks/dbt-databricks/issues/1211))
@@ -8,6 +16,15 @@
   - **Breaking Change**: Requires Databricks Runtime 12.2 LTS or higher
   - Users on older runtimes should pin to dbt-databricks 1.10.x
   - Affects all incremental strategies: `append`, `insert_overwrite`, `replace_where`, and `merge` (via table creation)
+- Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+- Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
+
+### Under the Hood
+
+- Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+- Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
+- Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
+- Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
 
 ## dbt-databricks 1.10.13 (TBD)
 

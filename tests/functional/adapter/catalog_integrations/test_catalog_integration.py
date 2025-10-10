@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
     BaseCatalogIntegrationValidation,
 )
@@ -63,6 +62,17 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
         # Ensure the alternate catalog environment variable is set
         if os.getenv("DBT_DATABRICKS_ALT_CATALOG") is None:
             pytest.skip("DBT_DATABRICKS_ALT_CATALOG environment variable is not set")
+
+        # Create schema in alternate catalog since catalog integration models will need it
+        alt_catalog = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
+        from dbt.tests.util import get_connection
+
+        with get_connection(project.adapter):
+            alt_relation = project.adapter.Relation.create(
+                database=alt_catalog, schema=project.test_schema
+            )
+            project.adapter.create_schema(alt_relation)
+
         # Run all models
         run_results = run_dbt(["run", "--log-level", "debug"])
 
@@ -92,9 +102,9 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
             # Assert table exists in expected catalog
             assert result is not None, f"Table {table_name} not found in catalog {expected_catalog}"
             actual_catalog, table_type = result
-            assert (
-                actual_catalog == expected_catalog
-            ), f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
+            assert actual_catalog == expected_catalog, (
+                f"Table {table_name} found in catalog {actual_catalog}, expected {expected_catalog}"
+            )
 
             # For iceberg tables, verify they have the correct table type
             if "iceberg" in table_name.lower() or table_name == "basic_iceberg_table":

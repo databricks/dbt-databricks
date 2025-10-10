@@ -2,11 +2,11 @@ import os
 
 import pytest
 from agate import Table
+from dbt.tests import util
+from dbt.tests.adapter.persist_docs import fixtures
 
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.tests import util
-from dbt.tests.adapter.persist_docs import fixtures
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.persist_docs import fixtures as override_fixtures
 

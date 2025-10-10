@@ -52,3 +52,10 @@ ALTER TABLE {{ relation.render() }} DROP COLUMNS ({{ api.Column.format_remove_co
 {% macro add_columns_sql(relation, add_columns) %}
 ALTER TABLE {{ relation.render() }} ADD COLUMNS ({{ api.Column.format_add_column_list(add_columns) }})
 {% endmacro %}
+
+
+{% macro databricks__alter_column_type(relation, column_name, new_column_type) -%}
+  {% call statement('alter_column_type') %}
+    alter table {{ relation }} alter column {{ adapter.quote(column_name) }} type {{ new_column_type }};
+  {% endcall %}
+{% endmacro %}

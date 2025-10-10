@@ -1,7 +1,7 @@
 import pytest
-
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
+
 from tests.functional.adapter.iceberg import fixtures
 
 

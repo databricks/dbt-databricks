@@ -1,6 +1,6 @@
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.incremental import fixtures
 
 
@@ -46,6 +46,10 @@ class TestIncrementalPythonLiquidClustering:
             "simple_python_model.py": fixtures.simple_python_model,
             "schema.yml": fixtures.lc_python_schema,
         }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_cluster_by(self, project):
         util.run_dbt(["run"])

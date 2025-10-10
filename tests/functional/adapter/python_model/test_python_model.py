@@ -1,13 +1,13 @@
 import os
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
 from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonIncrementalTests,
     BasePythonModelTests,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
@@ -32,7 +32,9 @@ def verify_temp_table_cleaned(project, suffix):
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonModel(BasePythonModelTests):
-    pass
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
@@ -41,6 +43,10 @@ class TestPythonFailureModel:
     @pytest.fixture(scope="class")
     def models(self):
         return {"my_failure_model.py": override_fixtures.python_error_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_failure_model(self, project):
         util.run_dbt(["run"], expect_pass=False)
@@ -57,7 +63,9 @@ class TestPythonFailureModelNotebook(TestPythonFailureModel):
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
-    pass
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
@@ -66,6 +74,10 @@ class TestChangingSchema:
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_with_log_validation(self, project, logs_dir):
         util.run_dbt(["run"])
@@ -93,6 +105,10 @@ class TestChangingSchemaIncremental:
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"expected_incremental.csv": override_fixtures.expected_incremental}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_via_incremental(self, project):
         util.run_dbt(["seed"])
@@ -164,6 +180,7 @@ class TestComplexConfig:
     def project_config_update(self):
         return {
             "models": {
+                "+create_notebook": "true",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -199,6 +216,7 @@ class TestComplexConfigV2(TestComplexConfig):
         return {
             "flags": {"use_materialization_v2": True},
             "models": {
+                "+create_notebook": "true",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -238,6 +256,10 @@ class TestPythonModelNotebookACL:
             "python_model_with_notebook_acl.py": override_fixtures.simple_python_model,
             "schema.yml": override_fixtures.notebook_acl_schema,
         }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_python_model_with_notebook_acl(self, project):
         if not pytest.acl_tests_enabled:
@@ -301,6 +323,10 @@ class TestPythonModelAccessControlList:
             "schema.yml": override_fixtures.access_control_list_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_python_model_with_access_control_list(self, project):
         if not pytest.acl_tests_enabled:
             pytest.skip("ACL tests are not enabled")
@@ -359,6 +385,10 @@ class TestChangingSchemaV2(MaterializationV2Mixin):
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])
         util.write_file(
@@ -376,6 +406,10 @@ class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.simple_incremental_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])

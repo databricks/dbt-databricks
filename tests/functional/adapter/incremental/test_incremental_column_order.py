@@ -7,8 +7,8 @@ to be inserted into the wrong columns.
 """
 
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 # Model that adds a column in the middle on second run
@@ -117,7 +117,8 @@ class TestIncrementalColumnOrderAppend(TestIncrementalColumnOrderBase):
         # Verify data is in correct columns (not corrupted by positional matching)
         # With append strategy, we expect 3 rows: 1 from first run + 2 from second run
         actual = project.run_sql(
-            "select id, score, name, status from incremental_reorder order by id, score nulls first",
+            "select id, score, name, status from incremental_reorder "
+            "order by id, score nulls first",
             fetch="all",
         )
 
@@ -160,7 +161,8 @@ class TestIncrementalColumnOrderAppendV2(MaterializationV2Mixin, TestIncremental
         # Verify data is in correct columns (not corrupted by positional matching)
         # With append strategy, we expect 3 rows: 1 from first run + 2 from second run
         actual = project.run_sql(
-            "select id, score, name, status from incremental_reorder order by id, score nulls first",
+            "select id, score, name, status from incremental_reorder "
+            "order by id, score nulls first",
             fetch="all",
         )
 

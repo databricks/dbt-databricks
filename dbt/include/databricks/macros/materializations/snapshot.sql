@@ -81,7 +81,7 @@
 
       {% set quoted_source_columns = [] %}
       {% for column in source_columns %}
-        {% do quoted_source_columns.append(adapter.quote(column.name)) %}
+        {% do quoted_source_columns.append(column.quoted) %}
       {% endfor %}
 
       {% set final_sql = snapshot_merge_sql(

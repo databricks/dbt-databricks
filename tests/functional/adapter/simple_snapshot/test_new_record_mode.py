@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests.adapter.simple_snapshot.new_record_timestamp_mode import (
     _delete_sql,
     _invalidate_sql_statements,

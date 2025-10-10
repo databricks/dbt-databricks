@@ -2,19 +2,19 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
+from dbt.adapters.contracts.relation import (
+    ComponentName,
+)
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.adapters.utils import classproperty
 from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
-from dbt.adapters.contracts.relation import (
-    ComponentName,
-)
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt.adapters.utils import classproperty
 
 KEY_TABLE_PROVIDER = "Provider"
 
@@ -41,7 +41,12 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     MetricView = "metric_view"
+    Function = "function"
     Unknown = "unknown"
+
+    def render(self) -> str:
+        """Return the type formatted for SQL statements (replace underscores with spaces)"""
+        return self.value.replace("_", " ").upper()
 
 
 class DatabricksTableType(StrEnum):
@@ -72,7 +77,11 @@ class DatabricksRelation(BaseRelation):
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
-    replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    replaceable_relations = (
+        DatabricksRelationType.Table,
+        DatabricksRelationType.View,
+        DatabricksRelationType.MaterializedView,
+    )
     databricks_table_type: Optional[DatabricksTableType] = None
     temporary: Optional[bool] = False
 
@@ -124,8 +133,8 @@ class DatabricksRelation(BaseRelation):
     def can_be_replaced(self) -> bool:
         return (
             self.type == DatabricksRelationType.View
-            or self.is_delta is True
-            and self.type == DatabricksRelationType.Table
+            or self.type == DatabricksRelationType.MaterializedView
+            or (self.is_delta is True and self.type == DatabricksRelationType.Table)
         )
 
     @property

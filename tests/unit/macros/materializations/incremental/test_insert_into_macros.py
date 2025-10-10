@@ -31,6 +31,11 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Mock the partition_cols macro to return empty string
         template_bundle.context["partition_cols"] = Mock(return_value="")
 
+        # Mock adapter methods needed by the macro
+        template_bundle.context["adapter"].is_cluster.return_value = True
+        template_bundle.context["adapter"].compare_dbr_version.return_value = -1  # Old DBR
+        template_bundle.context["config"].get.return_value = None  # No partition_by
+
         result = self.run_macro(
             template_bundle.template,
             "get_insert_overwrite_sql",

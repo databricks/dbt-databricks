@@ -11,13 +11,6 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
-from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
-from dbt_common.utils import executor
-from dbt_common.utils.dict import AttrDict
-from packaging import version
-
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
@@ -26,6 +19,22 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.relation_configs import RelationResults
+from dbt.adapters.spark.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+    KEY_TABLE_OWNER,
+    KEY_TABLE_STATISTICS,
+    LIST_SCHEMAS_MACRO_NAME,
+    SparkAdapter,
+)
+from dbt_common.behavior_flags import BehaviorFlag
+from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.utils import executor
+from dbt_common.utils.dict import AttrDict
+from packaging import version
+
 from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
@@ -70,15 +79,11 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
-from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
-from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.spark.impl import (
-    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-    KEY_TABLE_OWNER,
-    KEY_TABLE_STATISTICS,
-    LIST_SCHEMAS_MACRO_NAME,
-    SparkAdapter,
+from dbt.adapters.databricks.utils import (
+    get_first_row,
+    handle_missing_objects,
+    quote,
+    redact_credentials,
 )
 
 if TYPE_CHECKING:
@@ -122,6 +127,18 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
+    name="use_replace_on_for_insert_overwrite",
+    default=True,
+    description=(
+        "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
+        "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
+        "  overwrite. For SQL warehouses, disabling will produce the same behavior as using the "
+        "  table materialization. For other compute types, it will fall back to the legacy syntax"
+        "  as well but functionally behaves the same regardless of flag value"
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -146,6 +163,7 @@ class DatabricksConfig(AdapterConfig):
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[dict[str, str]] = None
+    query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
     unique_tmp_table_suffix: bool = False
@@ -182,14 +200,14 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
-    Relation = DatabricksRelation
+    Relation = DatabricksRelation  # type: ignore[assignment]
     Column = DatabricksColumn
 
     ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
-    AdapterSpecificConfigs = DatabricksConfig
+    AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
     _capabilities = CapabilityDict(
         {
@@ -223,7 +241,16 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_INFO_SCHEMA_FOR_COLUMNS,
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+        ]
+
+    def quote(self, identifier):  # type: ignore[override,no-untyped-def]
+        """Override base adapter's quote method to prevent double quoting."""
+        return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_iceberg(
@@ -763,12 +790,19 @@ class DatabricksAdapter(SparkAdapter):
         # Since existing_columns are gathered after writing the table, we don't need to include any
         # columns from the model that are not in the existing_columns. If we did, it would lead to
         # an error when we tried to alter the table.
+
+        # Create a case-insensitive lookup for column names
+        columns_lower = {k.lower(): k for k in columns.keys()}
+
         for column in existing_columns:
             name = column.column
-            if name in columns:
-                config_column = columns[name]
+            # Use case-insensitive comparison for column names
+            name_lower = name.lower()
+            if name_lower in columns_lower:
+                original_column_name = columns_lower[name_lower]
+                config_column = columns[original_column_name]
                 if isinstance(config_column, dict):
-                    comment = columns[name].get("description")
+                    comment = columns[original_column_name].get("description")
                 elif hasattr(config_column, "description"):
                     comment = config_column.description
                 else:
@@ -798,13 +832,21 @@ class DatabricksAdapter(SparkAdapter):
             list(model_columns.values()), model_constraints
         )
 
+        # Create a case-insensitive lookup for model column names
+        model_columns_lower = {k.lower(): k for k in model_columns.keys()}
+        # Create a case-insensitive lookup for not_null columns
+        not_null_set_lower = {name.lower() for name in not_null_set}
+
         for column in existing_columns:
-            if column.name in model_columns:
-                column_info = model_columns[column.name]
-                enriched_column = column.enrich(column_info, column.name in not_null_set)
+            column_name_lower = column.name.lower()
+            if column_name_lower in model_columns_lower:
+                original_model_column_name = model_columns_lower[column_name_lower]
+                column_info = model_columns[original_model_column_name]
+                is_not_null = column_name_lower in not_null_set_lower
+                enriched_column = column.enrich(column_info, is_not_null)
                 enriched_columns.append(enriched_column)
             else:
-                if column.name in not_null_set:
+                if column_name_lower in not_null_set_lower:
                     column.not_null = True
                 enriched_columns.append(column)
 
