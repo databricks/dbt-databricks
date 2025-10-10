@@ -60,18 +60,16 @@ class TestInsertOverwriteMacros(MacroTestBase):
             (
                 0,  # DBR = 17.1
                 """
-                insert into table target_table as t
+                insert into table target_table by name as t
                 replace on (t.a <=> s.a)
-                by name
                 (select * from source_table) as s
                 """,
             ),
             (
                 1,  # DBR > 17.1
                 """
-                insert into table target_table as t
+                insert into table target_table by name as t
                 replace on (t.a <=> s.a)
-                by name
                 (select * from source_table) as s
                 """,
             ),
@@ -133,9 +131,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Verify it uses REPLACE ON syntax with multiple conditions
         expected_sql = """
-            insert into table target_table as t
+            insert into table target_table by name as t
             replace on (t.a <=> s.a AND t.b <=> s.b)
-            by name
             (select * from source_table) as s
         """
 
@@ -198,9 +195,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Verify it uses REPLACE ON syntax because cluster with DBR 17.1+ always uses new syntax
         expected_sql = """
-            insert into table target_table as t
+            insert into table target_table by name as t
             replace on (t.a <=> s.a)
-            by name
             (select * from source_table) as s
         """
 
@@ -262,9 +258,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
             (
                 True,  # Behavior flag enabled
                 """
-                insert into table target_table as t
+                insert into table target_table by name as t
                 replace on (t.a <=> s.a)
-                by name
                 (select * from source_table) as s
                 """,
             ),

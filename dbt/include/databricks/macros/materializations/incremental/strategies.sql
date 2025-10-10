@@ -68,9 +68,8 @@
             {%- do replace_conditions.append('t.' ~ col ~ ' <=> s.' ~ col) -%}
         {%- endfor -%}
         {%- set replace_conditions_csv = replace_conditions | join(' AND ') -%}
-        insert into table {{ target_relation }} AS t
+        insert into table {{ target_relation }} by name AS t
         replace on ({{ replace_conditions_csv }})
-        by name
         (select * from {{ source_relation }}) AS s
     {%- else -%}
         {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
