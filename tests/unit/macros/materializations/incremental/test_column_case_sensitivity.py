@@ -19,7 +19,7 @@ class TestColumnCaseSensitivity(MacroTestBase):
         # When columns match (case-insensitive), use simple BY NAME
         dest_columns = ["id", "name", "age"]
         source_columns = ["ID", "Name", "AGE"]  # Different case but same columns
-        
+
         sql = self.run_macro_raw(
             template,
             "insert_into_sql_impl",
@@ -38,7 +38,7 @@ class TestColumnCaseSensitivity(MacroTestBase):
         # Source has extra columns that target doesn't have
         dest_columns = ["id", "name"]
         source_columns = ["id", "name", "extra_col"]
-        
+
         sql = self.run_macro_raw(
             template,
             "insert_into_sql_impl",
