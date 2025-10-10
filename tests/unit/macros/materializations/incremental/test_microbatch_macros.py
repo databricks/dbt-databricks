@@ -49,7 +49,7 @@ class TestMicrobatchMacros(MacroTestBase):
         result = context["return"].call_args[0][0]
 
         expected = """
-        insert into `some_database`.`some_schema`.`some_table` by name
+        insert into `some_database`.`some_schema`.`some_table`
         replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
             and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
 """
@@ -74,7 +74,7 @@ class TestMicrobatchMacros(MacroTestBase):
         result = context["return"].call_args[0][0]
 
         expected = """
-        insert into `some_database`.`some_schema`.`some_table` by name
+        insert into `some_database`.`some_schema`.`some_table`
         replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00' table `temp_table`
 """
 
@@ -98,7 +98,7 @@ class TestMicrobatchMacros(MacroTestBase):
         result = context["return"].call_args[0][0]
 
         expected = """
-        insert into `some_database`.`some_schema`.`some_table` by name
+        insert into `some_database`.`some_schema`.`some_table`
         replace where cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
 """
 
@@ -124,7 +124,7 @@ class TestMicrobatchMacros(MacroTestBase):
         result = context["return"].call_args[0][0]
 
         expected = """
-        insert into `some_database`.`some_schema`.`some_table` by name
+        insert into `some_database`.`some_schema`.`some_table`
         replace where col1 = 'value'
             and col2 > 100 and cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
             and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
@@ -150,7 +150,7 @@ class TestMicrobatchMacros(MacroTestBase):
         result = context["return"].call_args[0][0]
 
         expected = """
-        insert into `some_database`.`some_schema`.`some_table` by name
+        insert into `some_database`.`some_schema`.`some_table`
         table `temp_table`
 """
 

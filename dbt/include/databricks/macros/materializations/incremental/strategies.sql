@@ -101,7 +101,7 @@
   {%- set predicates = args_dict['incremental_predicates'] -%}
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
-INSERT INTO {{ target_relation.render() }} BY NAME
+INSERT INTO {{ target_relation.render() }}
 {%- if predicates %}
   {%- if predicates is sequence and predicates is not string %}
  REPLACE WHERE {{ predicates | join(' and ') }}
