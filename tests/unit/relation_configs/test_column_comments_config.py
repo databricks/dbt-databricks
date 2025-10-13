@@ -1,6 +1,5 @@
 from unittest.mock import Mock
 
-import pytest
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_comments import (
@@ -34,9 +33,7 @@ class TestColumnCommentsProcessor:
             )
         }
         config = ColumnCommentsProcessor.from_relation_results(results)
-        assert config == ColumnCommentsConfig(
-            comments={"col_a": "Comment for col_a", "col_b": ""}
-        )
+        assert config == ColumnCommentsConfig(comments={"col_a": "Comment for col_a", "col_b": ""})
 
     def test_from_relation_config__no_persist(self):
         model = Mock()
@@ -68,14 +65,10 @@ class TestColumnCommentsConfig:
         )
         other = ColumnCommentsConfig(comments={"col1": "old comment", "col2": "comment2"})
         diff = config.get_diff(other)
-        assert diff == ColumnCommentsConfig(
-            comments={"`col1`": "new comment"}, persist=True
-        )
+        assert diff == ColumnCommentsConfig(comments={"`col1`": "new comment"}, persist=True)
 
     def test_get_diff__no_persist(self):
-        config = ColumnCommentsConfig(
-            comments={"col1": "new comment"}, persist=False
-        )
+        config = ColumnCommentsConfig(comments={"col1": "new comment"}, persist=False)
         other = ColumnCommentsConfig(comments={"col1": "old comment"})
         diff = config.get_diff(other)
         assert diff is None

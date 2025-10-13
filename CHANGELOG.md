@@ -16,6 +16,9 @@
   - **Breaking Change**: Requires Databricks Runtime 12.2 LTS or higher
   - Users on older runtimes should pin to dbt-databricks 1.10.x
   - Affects all incremental strategies: `append`, `insert_overwrite`, `replace_where`, and `merge` (via table creation)
+- Fix case-sensitivity issues with column name handling in persist_docs and config diff operations ([#1215](https://github.com/databricks/dbt-databricks/issues/1215))
+  - Fixed KeyError when column names in models had different casing than YAML schema definitions
+  - Improved efficiency of column tags and comments change detection to use case-insensitive comparison
 - Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
 - Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
 
