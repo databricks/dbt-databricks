@@ -1258,17 +1258,20 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             file_format=constants.DELTA_FILE_FORMAT,
         )
 
-    def test_is_uniform_with_managed_iceberg_returns_true(
+    def test_is_uniform_with_managed_iceberg_returns_false(
         self, adapter, mock_config, unity_catalog_relation_managed_iceberg_relation
     ):
-        """Test that is_uniform returns True for managed Iceberg tables in Unity Catalog"""
+        """Test that is_uniform returns False for managed Iceberg tables in Unity Catalog.
+
+        Native managed Iceberg tables don't use UniForm (Delta with Iceberg compatibility),
+        so they shouldn't get Delta table properties added."""
         adapter.behavior.use_managed_iceberg = True
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
 
         result = adapter.is_uniform(mock_config)
-        assert result is True
+        assert result is False
 
     def test_is_uniform_with_uniform_iceberg_returns_true(
         self, adapter, mock_config, unity_catalog_relation
