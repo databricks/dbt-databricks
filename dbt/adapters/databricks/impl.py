@@ -281,7 +281,9 @@ class DatabricksAdapter(SparkAdapter):
                     "Managed Iceberg tables are only supported in Unity Catalog. "
                     "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
                 )
-            return True
+            # UniForm refers to Delta tables with Iceberg compatibility.
+            # Native managed Iceberg tables don't need Delta properties.
+            return not self.behavior.use_managed_iceberg
         else:
             return False
 
