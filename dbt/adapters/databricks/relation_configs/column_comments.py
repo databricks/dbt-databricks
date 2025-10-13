@@ -20,8 +20,13 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
         logger.debug(f"Getting diff for ColumnCommentsConfig: {self} and {other}")
         comments = {}
         if self.persist:
+            # Create a case-insensitive lookup for other's column comments
+            other_comments_lower = {k.lower(): v for k, v in other.comments.items()}
+
             for column_name, comment in self.comments.items():
-                if comment != other.comments.get(column_name):
+                # Use case-insensitive comparison for column names
+                other_comment = other_comments_lower.get(column_name.lower())
+                if comment != other_comment:
                     column_name = f"`{column_name}`"
                     comments[column_name] = comment
             logger.debug(f"Comments: {comments}")
