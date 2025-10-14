@@ -29,6 +29,7 @@
 - Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
 - Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
 - Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
+- Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
 
 ## dbt-databricks 1.10.13 (TBD)
 
