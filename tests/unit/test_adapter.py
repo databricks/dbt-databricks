@@ -1041,6 +1041,26 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
         }
         assert adapter.get_persist_doc_columns(existing, column_dict) == expected
 
+    def test_get_persist_doc_columns_case_mismatch(self, adapter):
+        """Test that case mismatches between column names are handled correctly (issue #1215)."""
+        # Database column is Account_ID, YAML schema is account_id
+        existing = [self.create_column("Account_ID", "")]
+        column_dict = {"account_id": {"name": "account_id", "description": "Account ID column"}}
+        result = adapter.get_persist_doc_columns(existing, column_dict)
+        # Should use the YAML schema column name in the returned dict
+        expected = {
+            "Account_ID": {"name": "account_id", "description": "Account ID column"},
+        }
+        assert result == expected
+
+    def test_get_persist_doc_columns_case_mismatch_no_update_needed(self, adapter):
+        """Test that case mismatches are handled when no update is needed."""
+        existing = [self.create_column("Account_ID", "Account ID column")]
+        column_dict = {"account_id": {"name": "account_id", "description": "Account ID column"}}
+        result = adapter.get_persist_doc_columns(existing, column_dict)
+        # No update needed since comments match
+        assert result == {}
+
 
 class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @pytest.fixture

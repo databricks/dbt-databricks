@@ -835,7 +835,7 @@ class DatabricksAdapter(SparkAdapter):
                         f"Column {name} in model config is not a dictionary or ColumnInfo object."
                     )
                 if comment != (column.comment or ""):
-                    return_columns[name] = columns[name]
+                    return_columns[name] = columns[original_column_name]
 
         return return_columns
 

@@ -299,3 +299,74 @@ class TestPersistDocsWithSeeds:
 @pytest.mark.skip_profile("databricks_uc_cluster")
 class TestPersistDocsWithSeedsV2(TestPersistDocsWithSeeds, MaterializationV2Mixin):
     pass
+
+
+class TestPersistDocsCaseMismatch:
+    """Test for issue #1215: case mismatch between model columns and YAML schema."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        util.run_dbt(["run"])
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "case_mismatch_model.sql": """
+                {{ config(materialized='table') }}
+                select 1 as Account_ID, 'test' as User_Name
+            """
+        }
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {
+            "schema.yml": """
+version: 2
+models:
+  - name: case_mismatch_model
+    description: 'Model with case mismatch in column names'
+    columns:
+      - name: account_id
+        description: 'Account ID column'
+      - name: user_name
+        description: 'User name column'
+            """
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "test": {
+                    "+persist_docs": {
+                        "relation": True,
+                        "columns": True,
+                    },
+                }
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def table_relation(self, project):
+        return DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="case_mismatch_model",
+            type="table",
+        )
+
+    def test_case_mismatch_persist_docs(self, adapter, table_relation):
+        """Test that persist_docs handles case mismatches gracefully."""
+        results = util.run_sql_with_adapter(
+            adapter, f"describe extended {table_relation}", fetch="all"
+        )
+        _, columns = adapter.parse_describe_extended(
+            table_relation, Table(results, ["col_name", "data_type", "comment"])
+        )
+
+        # Verify that comments were persisted despite case mismatch
+        for column in columns:
+            if column.column.lower() == "account_id":
+                assert column.comment and column.comment.startswith("Account ID column")
+            elif column.column.lower() == "user_name":
+                assert column.comment and column.comment.startswith("User name column")
