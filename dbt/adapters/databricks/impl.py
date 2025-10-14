@@ -139,6 +139,15 @@ USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_MANAGED_ICEBERG = BehaviorFlag(
+    name="use_managed_iceberg",
+    default=False,
+    description=(
+        "Use managed Iceberg tables when table_format is iceberg. When this flag is disabled, "
+        "UniForm is used instead."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -246,6 +255,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_USER_FOLDER_FOR_PYTHON,
             USE_MATERIALIZATION_V2,
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+            USE_MANAGED_ICEBERG,
         ]
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
@@ -253,11 +263,7 @@ class DatabricksAdapter(SparkAdapter):
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
-    def update_tblproperties_for_iceberg(
-        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
-    ) -> dict[str, str]:
-        result = tblproperties or config.get("tblproperties", {})
-
+    def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             if self.compare_dbr_version(14, 3) < 0:
@@ -267,8 +273,27 @@ class DatabricksAdapter(SparkAdapter):
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result.update(catalog_relation.iceberg_table_properties)
+            if (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
+            # UniForm refers to Delta tables with Iceberg compatibility.
+            # Native managed Iceberg tables don't need Delta properties.
+            return not self.behavior.use_managed_iceberg
+        else:
+            return False
 
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_uniform_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        result.update(catalog_relation.iceberg_table_properties)
         return result
 
     @available.parse(lambda *a, **k: 0)
@@ -913,6 +938,15 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
+
+    @available
+    def resolve_file_format(self, config: BaseConfig) -> str:
+        if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
+            if self.behavior.use_managed_iceberg:
+                return constants.PARQUET_FILE_FORMAT
+            else:
+                return constants.DELTA_FILE_FORMAT
+        return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
 
 
 @dataclass(frozen=True)

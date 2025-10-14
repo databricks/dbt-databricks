@@ -150,12 +150,12 @@ class TestPersistDocsMacros(MacroTestBase):
         self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
-        context["config"].get = Mock(return_value="delta")
 
         context["api"] = MagicMock()
         context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
 
         context["adapter"] = Mock()
+        context["adapter"].resolve_file_format.return_value = "delta"
         context["adapter"].compare_dbr_version = Mock(return_value=0)  # >= 16.1
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
@@ -189,12 +189,12 @@ class TestPersistDocsMacros(MacroTestBase):
         self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
-        context["config"].get = Mock(return_value="delta")
 
         context["api"] = MagicMock()
         context["api"].Column.get_name = Mock(side_effect=lambda col: col["name"])
 
         context["adapter"] = Mock()
+        context["adapter"].resolve_file_format.return_value = "delta"
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
@@ -229,7 +229,7 @@ class TestPersistDocsMacros(MacroTestBase):
         self, template_bundle, context, relation, mock_model_with_columns
     ):
         context["config"] = Mock()
-        context["config"].get = Mock(return_value="parquet")
+        context["adapter"].resolve_file_format.return_value = "parquet"
 
         context["log"] = Mock()
         context["run_query_as"] = Mock()

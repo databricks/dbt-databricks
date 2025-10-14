@@ -3,7 +3,7 @@
   {% set sql = adapter.clean_sql(sql) %}
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  {%- set file_format = config.get('file_format', 'delta') -%}
+  {%- set file_format = adapter.resolve_file_format(config) -%}
   {%- set grant_config = config.get('grants') -%}
   {%- set tags = config.get('databricks_tags') -%}
 
