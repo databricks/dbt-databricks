@@ -13,6 +13,7 @@ from databricks.sql.client import Connection, Cursor
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.utils import QueryTagsUtils
 
@@ -125,6 +126,7 @@ class DatabricksHandle:
         self._cursor: Optional[CursorWrapper] = None
         self._dbr_version: Optional[tuple[int, int]] = None
         self._is_cluster = is_cluster
+        self._capabilities: Optional[DBRCapabilities] = None
 
     @property
     def dbr_version(self) -> tuple[int, int]:
@@ -151,6 +153,22 @@ class DatabricksHandle:
     def is_sql_warehouse(self) -> bool:
         """Check if this connection is to a SQL warehouse."""
         return not self._is_cluster
+
+    @property
+    def capabilities(self) -> DBRCapabilities:
+        """
+        Get the capability manager for this handle.
+
+        Capabilities are created lazily on first access and cached for the
+        lifetime of the handle. This ensures consistent capability checks
+        for a given compute resource.
+        """
+        if self._capabilities is None:
+            self._capabilities = DBRCapabilities(
+                dbr_version=self.dbr_version,
+                is_sql_warehouse=self.is_sql_warehouse,
+            )
+        return self._capabilities
 
     @property
     def session_id(self) -> str:

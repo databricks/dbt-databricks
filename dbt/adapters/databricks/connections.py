@@ -131,7 +131,6 @@ class DatabricksDBTConnection(Connection):
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
-    _capabilities: Optional[DBRCapabilities] = field(default=None, init=False, repr=False)
     _query_header_context: Any = None
 
     def __str__(self) -> str:
@@ -140,43 +139,16 @@ class DatabricksDBTConnection(Connection):
     @property
     def capabilities(self) -> DBRCapabilities:
         """
-        Get or create the capability manager for this connection.
+        Get the capability manager for this connection.
 
-        The capabilities object is created lazily and reconstructed if the
-        handle changes (e.g., connection is reopened with different compute).
+        Capabilities are cached in the handle and created lazily on first access.
+        If no handle exists, returns a default empty capabilities object.
         """
-        # Always reconstruct if we have fresh handle info to ensure correctness
         if self.handle:
-            try:
-                dbr_version = self.handle.dbr_version
-                is_sql_warehouse = self.handle.is_sql_warehouse
-                is_unity_catalog = self._get_is_unity_catalog()
-
-                # Create or update capabilities with current handle info
-                self._capabilities = DBRCapabilities(
-                    dbr_version=dbr_version,
-                    is_sql_warehouse=is_sql_warehouse,
-                    is_unity_catalog=is_unity_catalog,
-                )
-            except Exception:
-                # Handle not fully initialized, keep existing or create default
-                if self._capabilities is None:
-                    self._capabilities = DBRCapabilities()
-        elif self._capabilities is None:
-            # No handle yet, create default capabilities (no features available)
-            self._capabilities = DBRCapabilities()
-
-        return self._capabilities
-
-    def _get_is_unity_catalog(self) -> bool:
-        """Check if Unity Catalog from credentials."""
-        if self.credentials:
-            try:
-                catalog = getattr(self.credentials, "catalog", None)
-                return bool(catalog and catalog != "hive_metastore")
-            except Exception:
-                pass
-        return False
+            return self.handle.capabilities
+        # No handle yet, return default capabilities (no features available)
+        # Don't cache since handle may be created later with actual capabilities
+        return DBRCapabilities()
 
     def has_capability(self, capability: DBRCapability) -> bool:
         """
