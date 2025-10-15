@@ -33,9 +33,10 @@
         {{ get_insert_replace_on_sql(source_relation, target_relation) }}
     {%- else -%}
         {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
+        {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
         insert overwrite table {{ target_relation }}
         {{ partition_cols(label="partition") }}
-        by name
+        {%- if has_insert_by_name %} by name{% endif %}
         select * from {{ source_relation }}
     {%- endif -%}
 {% endmacro %}
@@ -91,8 +92,9 @@
         (select {{ select_columns | join(', ') }} from {{ source_relation }}) AS s
     {%- else -%}
         {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
+        {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
         insert overwrite table {{ target_relation }}
-        by name
+        {%- if has_insert_by_name %} by name{% endif %}
         select * from {{ source_relation }}
     {%- endif -%}
 {% endmacro %}
@@ -121,10 +123,19 @@ INSERT INTO {{ target_relation.render() }}
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
     {%- set dest_cols_lower = dest_columns | map('lower') | list -%}
     {%- set source_cols_lower = source_columns | map('lower') | list -%}
+    {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+
     {%- if dest_cols_lower | sort == source_cols_lower | sort -%}
-        {#-- All columns match (case-insensitive), use simple BY NAME --#}
-        insert into {{ target_relation }} by name
-        select * from {{ source_relation }}
+        {#-- All columns match (case-insensitive) --#}
+        {%- if has_insert_by_name -%}
+            {#-- DBR 12.2+: Use INSERT BY NAME for name-based matching --#}
+            insert into {{ target_relation }} by name
+            select * from {{ source_relation }}
+        {%- else -%}
+            {#-- DBR < 12.2: Use positional INSERT (columns must be in same order) --#}
+            insert into {{ target_relation }}
+            select * from {{ source_relation }}
+        {%- endif -%}
     {%- else -%}
         {#-- Columns don't match, select only columns that exist in target --#}
         {#-- Note: Cannot use BY NAME with explicit column list, so use traditional syntax --#}
@@ -139,8 +150,13 @@ INSERT INTO {{ target_relation.render() }}
             select {{ common_columns | join(', ') }} from {{ source_relation }}
         {%- else -%}
             {#-- No common columns, this shouldn't happen but handle it gracefully --#}
-            insert into {{ target_relation }} by name
-            select * from {{ source_relation }}
+            {%- if has_insert_by_name -%}
+                insert into {{ target_relation }} by name
+                select * from {{ source_relation }}
+            {%- else -%}
+                insert into {{ target_relation }}
+                select * from {{ source_relation }}
+            {%- endif -%}
         {%- endif -%}
     {%- endif -%}
 {%- endmacro %}

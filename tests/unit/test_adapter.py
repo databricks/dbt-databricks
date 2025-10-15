@@ -14,7 +14,6 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.impl import (
     DatabricksRelationInfo,
     get_identifier_list_string,
@@ -1342,9 +1341,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.compare_dbr_version = Mock(return_value=-1)  # DBR version too old
 
-        with pytest.raises(
-            DbtConfigError, match="Iceberg table format requires DBR 14.3\\+"
-        ):
+        with pytest.raises(DbtConfigError, match="Iceberg table format requires DBR 14.3\\+"):
             adapter.is_uniform(mock_config)
 
     def test_is_uniform_with_invalid_materialization_error(

@@ -141,3 +141,65 @@ class TestAdapterCapabilities:
             assert result2 is True
             # Connection should have been asked twice (adapter doesn't cache)
             assert mock_conn.has_capability.call_count == 2
+
+    def test_insert_by_name_capability_spec(self):
+        """Test INSERT_BY_NAME capability specification and requirements."""
+        from dbt.adapters.databricks.dbr_capabilities import DBRCapability
+
+        # Verify the capability exists
+        assert DBRCapability.INSERT_BY_NAME in DBRCapabilities.CAPABILITY_SPECS
+
+        # Get the capability spec
+        spec = DBRCapabilities.CAPABILITY_SPECS[DBRCapability.INSERT_BY_NAME]
+
+        # Verify the specification
+        assert spec.capability == DBRCapability.INSERT_BY_NAME
+        assert spec.min_version == (12, 2), "INSERT_BY_NAME should require DBR 12.2+"
+        assert spec.sql_warehouse_supported is True, (
+            "INSERT_BY_NAME should be supported in SQL warehouses"
+        )
+        assert spec.enabled_by_default is True, "INSERT_BY_NAME should be enabled by default"
+        assert spec.requires_unity_catalog is False, (
+            "INSERT_BY_NAME should not require Unity Catalog"
+        )
+
+    def test_insert_by_name_capability_with_dbr_12_2(self):
+        """Test INSERT_BY_NAME capability is available on DBR 12.2+"""
+        # Create capabilities for DBR 12.2 cluster
+        capabilities = DBRCapabilities(
+            dbr_version=(12, 2),
+            is_sql_warehouse=False,
+            is_unity_catalog=False,
+        )
+
+        # Should have INSERT_BY_NAME capability
+        assert capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
+
+    def test_insert_by_name_capability_with_dbr_12_1(self):
+        """Test INSERT_BY_NAME capability is NOT available on DBR 12.1"""
+        # Create capabilities for DBR 12.1 cluster (before 12.2)
+        capabilities = DBRCapabilities(
+            dbr_version=(12, 1),
+            is_sql_warehouse=False,
+            is_unity_catalog=False,
+        )
+
+        # Should NOT have INSERT_BY_NAME capability
+        assert not capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
+
+    def test_insert_by_name_capability_with_sql_warehouse(self):
+        """Test INSERT_BY_NAME capability is available in SQL warehouses"""
+        # Create capabilities for SQL warehouse
+        capabilities = DBRCapabilities(
+            dbr_version=None,
+            is_sql_warehouse=True,
+            is_unity_catalog=True,
+        )
+
+        # Should have INSERT_BY_NAME capability
+        assert capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
+
+    def test_insert_by_name_required_version_string(self):
+        """Test that the required version string is correct for INSERT_BY_NAME"""
+        version_string = DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME)
+        assert version_string == "DBR 12.2+"

@@ -200,7 +200,9 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"] = Mock()
         context["adapter"].resolve_file_format.return_value = "delta"
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
-        context["adapter"].has_dbr_capability = Mock(return_value=False)  # No comment_on_column support
+        context["adapter"].has_dbr_capability = Mock(
+            return_value=False
+        )  # No comment_on_column support
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()

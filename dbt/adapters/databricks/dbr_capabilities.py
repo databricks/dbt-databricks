@@ -18,6 +18,7 @@ class DBRCapability(Enum):
     COMMENT_ON_COLUMN = "comment_on_column"
     JSON_COLUMN_METADATA = "json_column_metadata"
     STREAMING_TABLE_JSON_METADATA = "streaming_table_json_metadata"
+    INSERT_BY_NAME = "insert_by_name"
 
 
 @dataclass
@@ -61,6 +62,10 @@ class DBRCapabilities:
             capability=DBRCapability.STREAMING_TABLE_JSON_METADATA,
             min_version=(17, 1),
             sql_warehouse_supported=False,  # Not yet available in SQL warehouses
+        ),
+        DBRCapability.INSERT_BY_NAME: CapabilitySpec(
+            capability=DBRCapability.INSERT_BY_NAME,
+            min_version=(12, 2),  # DBR 12.2 LTS
         ),
     }
 
