@@ -144,8 +144,6 @@ class TestAdapterCapabilities:
 
     def test_insert_by_name_capability_spec(self):
         """Test INSERT_BY_NAME capability specification and requirements."""
-        from dbt.adapters.databricks.dbr_capabilities import DBRCapability
-
         # Verify the capability exists
         assert DBRCapability.INSERT_BY_NAME in DBRCapabilities.CAPABILITY_SPECS
 

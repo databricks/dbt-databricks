@@ -9,7 +9,8 @@ from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
-from dbt.adapters.databricks import DatabricksAdapter, __version__
+from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
+from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
@@ -1244,9 +1245,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def unity_catalog_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             catalog_name="test_catalog",
@@ -1256,9 +1254,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def unity_catalog_relation_managed_iceberg_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             catalog_name="test_catalog",
@@ -1268,9 +1263,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def hive_catalog_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
             catalog_name="hive_metastore",
@@ -1307,9 +1299,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     def test_is_uniform_with_non_iceberg_returns_false(self, adapter, mock_config):
         """Test that is_uniform returns False for non-Iceberg tables"""
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         non_iceberg_relation = DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             table_format=constants.DEFAULT_TABLE_FORMAT,  # Not Iceberg
