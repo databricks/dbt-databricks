@@ -1,7 +1,7 @@
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib.metadata import version
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
