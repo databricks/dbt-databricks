@@ -18,7 +18,7 @@
   {% endif %}
 
   {% call statement('merge into target') %}
-    insert into {{ target_relation }} select * from {{ intermediate_relation }}
+    insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
 
@@ -101,7 +101,7 @@
   {%- if catalog_relation is not none -%}
     {%- set file_format = catalog_relation.file_format -%}
   {%- else -%}
-    {%- set file_format = config.get('file_format', default='delta') -%}
+    {%- set file_format = adapter.resolve_file_format(config) -%}
   {%- endif -%}
 
   {%- set options = config.get('options') -%}

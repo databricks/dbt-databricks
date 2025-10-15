@@ -11,13 +11,6 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
-from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
-from dbt_common.utils import executor
-from dbt_common.utils.dict import AttrDict
-from packaging import version
-
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
@@ -26,6 +19,22 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.relation_configs import RelationResults
+from dbt.adapters.spark.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
+    KEY_TABLE_OWNER,
+    KEY_TABLE_STATISTICS,
+    LIST_SCHEMAS_MACRO_NAME,
+    SparkAdapter,
+)
+from dbt_common.behavior_flags import BehaviorFlag
+from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.utils import executor
+from dbt_common.utils.dict import AttrDict
+from packaging import version
+
 from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
@@ -77,15 +86,6 @@ from dbt.adapters.databricks.utils import (
     quote,
     redact_credentials,
 )
-from dbt.adapters.relation_configs import RelationResults
-from dbt.adapters.spark.impl import (
-    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
-    GET_COLUMNS_IN_RELATION_RAW_MACRO_NAME,
-    KEY_TABLE_OWNER,
-    KEY_TABLE_STATISTICS,
-    LIST_SCHEMAS_MACRO_NAME,
-    SparkAdapter,
-)
 
 if TYPE_CHECKING:
     from agate import Row, Table
@@ -128,6 +128,27 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
+    name="use_replace_on_for_insert_overwrite",
+    default=True,
+    description=(
+        "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
+        "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
+        "  overwrite. For SQL warehouses, disabling will produce the same behavior as using the "
+        "  table materialization. For other compute types, it will fall back to the legacy syntax"
+        "  as well but functionally behaves the same regardless of flag value"
+    ),
+)  # type: ignore[typeddict-item]
+
+USE_MANAGED_ICEBERG = BehaviorFlag(
+    name="use_managed_iceberg",
+    default=False,
+    description=(
+        "Use managed Iceberg tables when table_format is iceberg. When this flag is disabled, "
+        "UniForm is used instead."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -152,6 +173,7 @@ class DatabricksConfig(AdapterConfig):
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[dict[str, str]] = None
+    query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
     unique_tmp_table_suffix: bool = False
@@ -188,14 +210,14 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
-    Relation = DatabricksRelation
+    Relation = DatabricksRelation  # type: ignore[assignment]
     Column = DatabricksColumn
 
     ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
-    AdapterSpecificConfigs = DatabricksConfig
+    AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
     _capabilities = CapabilityDict(
         {
@@ -229,18 +251,20 @@ class DatabricksAdapter(SparkAdapter):
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_INFO_SCHEMA_FOR_COLUMNS,
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+            USE_MANAGED_ICEBERG,
+        ]
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
         """Override base adapter's quote method to prevent double quoting."""
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
-    def update_tblproperties_for_iceberg(
-        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
-    ) -> dict[str, str]:
-        result = tblproperties or config.get("tblproperties", {})
-
+    def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             self.require_capability(DBRCapability.ICEBERG, "Iceberg table format")
@@ -249,8 +273,27 @@ class DatabricksAdapter(SparkAdapter):
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result.update(catalog_relation.iceberg_table_properties)
+            if (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
+            # UniForm refers to Delta tables with Iceberg compatibility.
+            # Native managed Iceberg tables don't need Delta properties.
+            return not self.behavior.use_managed_iceberg
+        else:
+            return False
 
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_uniform_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        result.update(catalog_relation.iceberg_table_properties)
         return result
 
     @available.parse(lambda *a, **k: 0)
@@ -842,7 +885,7 @@ class DatabricksAdapter(SparkAdapter):
                         f"Column {name} in model config is not a dictionary or ColumnInfo object."
                     )
                 if comment != (column.comment or ""):
-                    return_columns[name] = columns[name]
+                    return_columns[name] = columns[original_column_name]
 
         return return_columns
 
@@ -945,6 +988,15 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
+
+    @available
+    def resolve_file_format(self, config: BaseConfig) -> str:
+        if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
+            if self.behavior.use_managed_iceberg:
+                return constants.PARQUET_FILE_FORMAT
+            else:
+                return constants.DELTA_FILE_FORMAT
+        return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
 
 
 @dataclass(frozen=True)

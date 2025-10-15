@@ -3,6 +3,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, validator
 
+from .util import PYDANTIC_IS_V1
+
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
 JOB_PERMISSIONS = {"CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
@@ -84,4 +86,7 @@ class ParsedPythonModel(BaseModel):
         return f"{self.catalog}-{self.schema_}-{self.identifier}-{uuid.uuid4()}"
 
     class Config:
-        allow_population_by_field_name = True
+        if PYDANTIC_IS_V1:
+            allow_population_by_field_name = True
+        else:
+            populate_by_name = True

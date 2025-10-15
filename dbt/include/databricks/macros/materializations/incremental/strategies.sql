@@ -26,21 +26,75 @@
 {% endmacro %}
 
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute='name') | list -%}
-    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute='name') | list -%}
-    {%- set common_columns = [] -%}
-    {%- for dest_col in dest_columns -%}
-      {%- if dest_col | lower in source_columns | map('lower') | list -%}
-        {%- do common_columns.append(dest_col) -%}
-      {%- else -%}
-        {%- do common_columns.append('DEFAULT') -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- set dest_cols_csv = dest_columns | join(', ') -%}
-    {%- set source_cols_csv = common_columns | join(', ') -%}
-    insert overwrite table {{ target_relation }}
-    {{ partition_cols(label="partition") }}
-    select {{source_cols_csv}} from {{ source_relation }}
+    {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_replace_on_for_insert_overwrite) -%}
+        {%- if not adapter.is_cluster() %}
+            {{ exceptions.warn("insert_overwrite will perform a dynamic insert overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
+        {%- endif -%}
+        {{ get_insert_replace_on_sql(source_relation, target_relation) }}
+    {%- else -%}
+        {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
+        insert overwrite table {{ target_relation }}
+        {{ partition_cols(label="partition") }}
+        by name
+        select * from {{ source_relation }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro add_columns_to_list(target_list, columns) %}
+    {#-- Local helper to add columns to the target list, converting string to list if needed --#}
+    {%- if columns -%}
+        {%- if columns is string -%}
+            {%- do target_list.append(columns) -%}
+        {%- else -%}
+            {%- for col in columns -%}
+                {%- do target_list.append(col) -%}
+            {%- endfor -%}
+        {%- endif -%}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro get_insert_replace_on_sql(source_relation, target_relation) %}
+    {%- set partition_by = config.get('partition_by') -%}
+    {%- set liquid_clustered_by = config.get('liquid_clustered_by') -%}
+    {%- set replace_columns = [] -%}
+    
+    {#-- If both partition_by and liquid_clustered_by are defined, it will fail before this point with a SPECIFY_CLUSTER_BY_WITH_PARTITIONED_BY_IS_NOT_ALLOWED error from Databricks --#}
+    {%- do add_columns_to_list(replace_columns, partition_by) -%}
+    {%- do add_columns_to_list(replace_columns, liquid_clustered_by) -%}
+    
+    {%- if replace_columns -%}
+        {%- set replace_conditions = [] -%}
+        {%- for col in replace_columns -%}
+            {%- do replace_conditions.append('t.' ~ col ~ ' <=> s.' ~ col) -%}
+        {%- endfor -%}
+        {%- set replace_conditions_csv = replace_conditions | join(' AND ') -%}
+        {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
+        {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
+        {%- set source_cols_lower = source_columns | map('lower') | list -%}
+        {%- set select_columns = [] -%}
+        {%- for dest_col in dest_columns -%}
+            {%- set dest_col_lower = dest_col | lower -%}
+            {%- set matched_col = namespace(value=none) -%}
+            {%- for src_col in source_columns -%}
+                {%- if src_col | lower == dest_col_lower and matched_col.value is none -%}
+                    {%- set matched_col.value = src_col -%}
+                {%- endif -%}
+            {%- endfor -%}
+            {%- if matched_col.value is not none -%}
+                {%- do select_columns.append(matched_col.value) -%}
+            {%- else -%}
+                {%- do select_columns.append('NULL as ' ~ dest_col) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        insert into table {{ target_relation }} AS t
+        replace on ({{ replace_conditions_csv }})
+        (select {{ select_columns | join(', ') }} from {{ source_relation }}) AS s
+    {%- else -%}
+        {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
+        insert overwrite table {{ target_relation }}
+        by name
+        select * from {{ source_relation }}
+    {%- endif -%}
 {% endmacro %}
 
 {% macro get_replace_where_sql(args_dict) -%}
@@ -48,15 +102,15 @@
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
 INSERT INTO {{ target_relation.render() }}
-{% if predicates %}
-  {% if predicates is sequence and predicates is not string %}
-REPLACE WHERE {{ predicates | join(' and ') }}
-  {% else %}
-REPLACE WHERE {{ predicates }}
-  {% endif %}
-{% endif %}
-TABLE {{ temp_relation.render() }}
-{% endmacro %}
+{%- if predicates %}
+  {%- if predicates is sequence and predicates is not string %}
+ REPLACE WHERE {{ predicates | join(' and ') }}
+  {%- else %}
+ REPLACE WHERE {{ predicates }}
+  {%- endif %}
+{%- endif %}
+ TABLE {{ temp_relation.render() }}
+{%- endmacro %}
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
@@ -65,18 +119,30 @@ TABLE {{ temp_relation.render() }}
 {% endmacro %}
 
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
-    {%- set common_columns = [] -%}
-    {%- for dest_col in dest_columns -%}
-      {%- if dest_col | lower in source_columns | map('lower') | list -%}
-        {%- do common_columns.append(dest_col) -%}
-      {%- else -%}
-        {%- do common_columns.append('DEFAULT') -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- set dest_cols_csv = dest_columns | join(', ') -%}
-    {%- set source_cols_csv = common_columns | join(', ') -%}
-insert into table {{ target_relation }} ({{ dest_cols_csv }})
-select {{source_cols_csv}} from {{ source_relation }}
+    {%- set dest_cols_lower = dest_columns | map('lower') | list -%}
+    {%- set source_cols_lower = source_columns | map('lower') | list -%}
+    {%- if dest_cols_lower | sort == source_cols_lower | sort -%}
+        {#-- All columns match (case-insensitive), use simple BY NAME --#}
+        insert into {{ target_relation }} by name
+        select * from {{ source_relation }}
+    {%- else -%}
+        {#-- Columns don't match, select only columns that exist in target --#}
+        {#-- Note: Cannot use BY NAME with explicit column list, so use traditional syntax --#}
+        {%- set common_columns = [] -%}
+        {%- for dest_col in dest_columns -%}
+            {%- if dest_col | lower in source_cols_lower -%}
+                {%- do common_columns.append(dest_col) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {%- if common_columns | length > 0 -%}
+            insert into {{ target_relation }} ({{ common_columns | join(', ') }})
+            select {{ common_columns | join(', ') }} from {{ source_relation }}
+        {%- else -%}
+            {#-- No common columns, this shouldn't happen but handle it gracefully --#}
+            insert into {{ target_relation }} by name
+            select * from {{ source_relation }}
+        {%- endif -%}
+    {%- endif -%}
 {%- endmacro %}
 
 {% macro databricks__get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
