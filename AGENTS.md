@@ -168,6 +168,12 @@ DatabricksAdapter (impl.py)
   - Per-compute caching (different clusters can have different capabilities)
   - Named capabilities instead of magic version numbers
   - Automatic detection of DBR version and SQL warehouse environments
+- **Supported Capabilities**:
+  - `TIMESTAMPDIFF` (DBR 10.4+): Advanced date/time functions
+  - `INSERT_BY_NAME` (DBR 12.2+): Name-based column matching in INSERT
+  - `ICEBERG` (DBR 14.3+): Apache Iceberg table format
+  - `COMMENT_ON_COLUMN` (DBR 16.1+): Modern column comment syntax
+  - `JSON_COLUMN_METADATA` (DBR 16.2+): Efficient metadata retrieval
 - **Usage in Code**:
   ```python
   # In Python code
@@ -179,6 +185,12 @@ DatabricksAdapter (impl.py)
       COMMENT ON COLUMN ...
   {% else %}
       ALTER TABLE ... ALTER COLUMN ...
+  {% endif %}
+
+  {% if adapter.has_dbr_capability('insert_by_name') %}
+      INSERT INTO table BY NAME SELECT ...
+  {% else %}
+      INSERT INTO table SELECT ... -- positional
   {% endif %}
   ```
 - **Adding New Capabilities**:

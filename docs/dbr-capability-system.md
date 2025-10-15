@@ -14,6 +14,7 @@ The DBR (Databricks Runtime) capability system provides a centralized way to man
 ### 🎯 Named Capabilities
 Instead of magic version numbers, features are identified by clear names:
 - `TIMESTAMPDIFF` - Advanced date/time functions (DBR 10.4+)
+- `INSERT_BY_NAME` - Name-based column matching in INSERT statements (DBR 12.2+)
 - `ICEBERG` - Apache Iceberg table format support (DBR 14.3+)
 - `COMMENT_ON_COLUMN` - Modern column comment syntax (DBR 16.1+)
 - `JSON_COLUMN_METADATA` - Efficient column metadata retrieval (DBR 16.2+)
@@ -49,6 +50,10 @@ The system automatically handles feature availability based on your compute:
 -- DBR 10.4+: Uses TIMESTAMPADD
 -- DBR <10.4: Uses legacy date arithmetic
 
+-- INSERT statements automatically use the right syntax
+-- DBR 12.2+: INSERT INTO table BY NAME SELECT ...
+-- DBR <12.2: INSERT INTO table SELECT ... (positional)
+
 -- Column comments automatically use the right syntax
 -- DBR 16.1+: COMMENT ON COLUMN syntax
 -- DBR <16.1: ALTER TABLE ... ALTER COLUMN syntax
@@ -59,6 +64,7 @@ The system automatically handles feature availability based on your compute:
 | Capability | Minimum Version | SQL Warehouse | Description |
 |------------|----------------|---------------|-------------|
 | `TIMESTAMPDIFF` | DBR 10.4 | ✅ | Advanced date/time functions |
+| `INSERT_BY_NAME` | DBR 12.2 | ✅ | Name-based column matching in INSERT |
 | `ICEBERG` | DBR 14.3 | ✅ | Apache Iceberg table format |
 | `COMMENT_ON_COLUMN` | DBR 16.1 | ✅ | Modern column comment syntax |
 | `JSON_COLUMN_METADATA` | DBR 16.2 | ✅ | Efficient metadata retrieval |
@@ -107,6 +113,15 @@ You can check what capabilities are available in your macros:
   -- Use Iceberg-specific features
 {% else %}
   -- Use standard Delta features
+{% endif %}
+
+{% if adapter.has_dbr_capability('insert_by_name') %}
+  INSERT INTO {{ target }} BY NAME
+  SELECT * FROM {{ source }}
+{% else %}
+  -- Use positional INSERT for older DBR versions
+  INSERT INTO {{ target }}
+  SELECT * FROM {{ source }}
 {% endif %}
 ```
 
