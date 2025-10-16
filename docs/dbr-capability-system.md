@@ -18,12 +18,13 @@ Instead of magic version numbers, features are identified by clear names:
 - `ICEBERG` - Apache Iceberg table format support (DBR 14.3+)
 - `COMMENT_ON_COLUMN` - Modern column comment syntax (DBR 16.1+)
 - `JSON_COLUMN_METADATA` - Efficient column metadata retrieval (DBR 16.2+)
+- `REPLACE_ON` - Modern REPLACE ON syntax for incremental loads (DBR 17.1+)
+- `STREAMING_TABLE_JSON_METADATA` - Streaming table metadata support (DBR 17.1+)
 
 ### 🔧 Automatic Detection
 The system automatically detects:
 - DBR version from connected clusters
 - SQL warehouse environments (assumed to have latest stable features)
-- Unity Catalog vs Hive Metastore configurations
 
 ## Usage in dbt Models
 
@@ -68,6 +69,7 @@ The system automatically handles feature availability based on your compute:
 | `ICEBERG` | DBR 14.3 | ✅ | Apache Iceberg table format |
 | `COMMENT_ON_COLUMN` | DBR 16.1 | ✅ | Modern column comment syntax |
 | `JSON_COLUMN_METADATA` | DBR 16.2 | ✅ | Efficient metadata retrieval |
+| `REPLACE_ON` | DBR 17.1 | ✅ | REPLACE ON syntax for incremental loads |
 | `STREAMING_TABLE_JSON_METADATA` | DBR 17.1 | ❌ | Streaming table metadata (coming soon) |
 
 ## Multi-Compute Scenarios
