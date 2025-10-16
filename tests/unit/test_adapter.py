@@ -1084,16 +1084,17 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     def test_get_columns_legacy_logic(self, mock_get_columns, adapter, unity_relation):
         # Return value less than 0 means version is older than 16.2
         with patch.object(adapter, "compare_dbr_version", return_value=-1):
-            mock_get_columns.return_value = [
-                {"col_name": "col1", "data_type": "string", "comment": "comment1"},
-            ]
+            with patch.object(adapter, "has_capability", return_value=False):
+                mock_get_columns.return_value = [
+                    {"col_name": "col1", "data_type": "string", "comment": "comment1"},
+                ]
 
-            result = adapter.get_columns_in_relation(unity_relation)
-            mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
+                result = adapter.get_columns_in_relation(unity_relation)
+                mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
 
-            assert len(result) == 1
-            assert result[0].column == "col1"
-            assert result[0].dtype == "string"
+                assert len(result) == 1
+                assert result[0].column == "col1"
+                assert result[0].dtype == "string"
 
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
@@ -1131,15 +1132,18 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         )
         # Return value less than 0 means version is older than 17.1
         with patch.object(adapter, "compare_dbr_version", return_value=compare_dbr_version):
-            mock_get_columns.return_value = [
-                {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
-            ]
-            result = adapter.get_columns_in_relation(streaming_relation)
-            mock_get_columns.assert_called_with(adapter, streaming_relation, "get_columns_comments")
-            assert len(result) == 1
-            assert result[0].column == "stream_col"
-            assert result[0].dtype == "int"
-            assert result[0].comment == "streaming col"
+            with patch.object(adapter, "has_capability", return_value=False):
+                mock_get_columns.return_value = [
+                    {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
+                ]
+                result = adapter.get_columns_in_relation(streaming_relation)
+                mock_get_columns.assert_called_with(
+                    adapter, streaming_relation, "get_columns_comments"
+                )
+                assert len(result) == 1
+                assert result[0].column == "stream_col"
+                assert result[0].dtype == "int"
+                assert result[0].comment == "streaming col"
 
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
@@ -1153,10 +1157,11 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         )
         # For MVs, always use legacy logic, regardless of DBR version
         with patch.object(adapter, "compare_dbr_version", return_value=1):
-            mock_get_columns.return_value = [
-                {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
-            ]
-            result = adapter.get_columns_in_relation(mv_relation)
+            with patch.object(adapter, "has_capability", return_value=True):
+                mock_get_columns.return_value = [
+                    {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
+                ]
+                result = adapter.get_columns_in_relation(mv_relation)
             mock_get_columns.assert_called_with(adapter, mv_relation, "get_columns_comments")
             assert len(result) == 1
             assert result[0].column == "mv_col"
@@ -1328,7 +1333,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         """Test that is_uniform raises error for insufficient DBR version"""
         adapter.behavior.use_managed_iceberg = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
-        adapter.compare_dbr_version = Mock(return_value=-1)  # DBR version too old
+        adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
         with pytest.raises(DbtConfigError, match="Iceberg table format requires DBR 14.3\\+"):
             adapter.is_uniform(mock_config)

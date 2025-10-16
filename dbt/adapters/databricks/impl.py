@@ -353,12 +353,8 @@ class DatabricksAdapter(SparkAdapter):
 
     def has_capability(self, capability: DBRCapability) -> bool:
         """Check if a DBR capability is available for current compute."""
-        try:
-            conn = self.connections.get_thread_connection()
-            return conn.has_capability(capability)
-        except Exception:
-            # If we can't get a connection, assume no capabilities
-            return False
+        conn = self.connections.get_thread_connection()
+        return conn.has_capability(capability)
 
     def require_capability(
         self, capability: DBRCapability, feature_name: Optional[str] = None
@@ -381,25 +377,10 @@ class DatabricksAdapter(SparkAdapter):
                 f"Current connection does not meet this requirement."
             )
 
-    @available.parse(lambda *a, **k: False)
-    def has_dbr_capability(self, capability_name: str) -> bool:
-        """
-        Check if a DBR capability is available by name for current compute.
-
-        This method is used by macros to check capabilities.
-        Accepts either enum names (JSON_COLUMN_METADATA) or values (json_column_metadata).
-        """
-        try:
-            # Try to find by enum value first (most common from macros)
-            for cap in DBRCapability:
-                if cap.value == capability_name:
-                    return self.has_capability(cap)
-
-            # If not found by value, try by enum name
-            capability = DBRCapability[capability_name.upper()]
-            return self.has_capability(capability)
-        except (ValueError, KeyError):
-            return False  # Unknown capability
+    @property
+    def DBRCapability(self) -> type[DBRCapability]:
+        """Expose DBRCapability enum to Jinja macros."""
+        return DBRCapability
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})

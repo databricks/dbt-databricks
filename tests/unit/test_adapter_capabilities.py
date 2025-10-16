@@ -47,7 +47,7 @@ class TestAdapterCapabilities:
         """Test that adapter has capability methods."""
         assert hasattr(adapter, "has_capability")
         assert hasattr(adapter, "require_capability")
-        assert hasattr(adapter, "has_dbr_capability")
+        assert hasattr(adapter, "DBRCapability")
 
     def test_capability_initialization_lazy(self, adapter):
         """Test that capabilities are now owned by connections."""
@@ -55,22 +55,17 @@ class TestAdapterCapabilities:
         # The adapter delegates to the connection
         assert not hasattr(adapter, "_dbr_capabilities")
 
-    def test_has_dbr_capability_method(self, adapter):
-        """Test the has_dbr_capability method used by macros."""
-        # Mock a connection with capability support
-        mock_conn = Mock()
-        mock_conn.has_capability = Mock(
-            side_effect=lambda cap: cap.value != "invalid_capability"
-            if hasattr(cap, "value")
-            else False
-        )
+    def test_has_capability_enum_access(self, adapter):
+        """Test that DBRCapability enum is accessible via adapter property."""
+        # Test that we can access the enum
+        assert adapter.DBRCapability is not None
 
-        with patch.object(adapter.connections, "get_thread_connection", return_value=mock_conn):
-            # Test valid capability
-            assert adapter.has_dbr_capability("json_column_metadata")
+        # Test that enum has expected values
+        from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 
-            # Test invalid capability name (should return False for unknown capabilities)
-            assert not adapter.has_dbr_capability("invalid_capability")
+        assert adapter.DBRCapability == DBRCapability
+        assert hasattr(adapter.DBRCapability, "JSON_COLUMN_METADATA")
+        assert hasattr(adapter.DBRCapability, "INSERT_BY_NAME")
 
     def test_require_capability_success(self, adapter):
         """Test require_capability with supported capability."""
@@ -100,9 +95,6 @@ class TestAdapterCapabilities:
         # Mock a connection that reports it's a SQL warehouse
         mock_conn = Mock()
         mock_conn.http_path = "sql/1.0/warehouses/test"
-        mock_conn.handle = Mock()
-        mock_conn.handle.dbr_version = None
-        mock_conn.handle.is_sql_warehouse = True
         mock_conn.credentials = Mock(catalog="main")
 
         # Create a real capabilities object for testing with SQL warehouse settings

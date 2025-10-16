@@ -13,7 +13,7 @@
 {% endmacro %}
 
 {% macro comment_on_column_sql(column_path, escaped_comment) %}
-  {%- if adapter.has_dbr_capability('comment_on_column') -%}
+  {%- if adapter.has_capability(adapter.DBRCapability.COMMENT_ON_COLUMN) -%}
     COMMENT ON COLUMN {{ column_path }} IS '{{ escaped_comment }}'
   {%- else -%}
     {{ alter_table_change_column_comment_sql(column_path, escaped_comment) }}
