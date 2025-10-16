@@ -1,3 +1,4 @@
+import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -30,6 +31,7 @@ from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
 from dbt_common.utils import cast_to_str
 
+import databricks.sql as dbsql
 from databricks.sql import __version__ as dbsql_version
 from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
@@ -128,6 +130,7 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 @dataclass(init=False)
 class DatabricksDBTConnection(Connection):
+    capabilities: DBRCapabilities
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
@@ -136,26 +139,9 @@ class DatabricksDBTConnection(Connection):
     def __str__(self) -> str:
         return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
 
-    @property
-    def capabilities(self) -> DBRCapabilities:
-        """
-        Get the capability manager for this connection.
-
-        Capabilities are cached in the handle and created lazily on first access.
-        If no handle exists, returns a default empty capabilities object.
-        """
-        if self.handle:
-            return self.handle.capabilities
-        # No handle yet, return default capabilities (no features available)
-        # Don't cache since handle may be created later with actual capabilities
-        return DBRCapabilities()
-
     def has_capability(self, capability: DBRCapability) -> bool:
         """
         Check if this connection's compute has a specific capability.
-
-        This method uses the lazily-initialized capabilities object which
-        contains the compute information from the handle.
         """
         return self.capabilities.has_capability(capability)
 
@@ -163,6 +149,7 @@ class DatabricksDBTConnection(Connection):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_manager: Optional[DatabricksCredentialManager] = None
+    _dbr_capabilities_cache: dict[str, DBRCapabilities] = {}
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
@@ -179,6 +166,47 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn = self.get_thread_connection()
         databricks_conn = cast(DatabricksDBTConnection, conn)
         return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
+
+    def _get_capabilities_for_http_path(self, http_path: str) -> DBRCapabilities:
+        return self._dbr_capabilities_cache.get(http_path, DBRCapabilities())
+
+    @classmethod
+    def _query_dbr_version(
+        cls, creds: DatabricksCredentials, http_path: str
+    ) -> Optional[tuple[int, int]]:
+        is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
+
+        if not is_cluster:
+            return (sys.maxsize, sys.maxsize)
+
+        try:
+            if cls.credentials_manager is None:
+                raise DbtRuntimeError("credentials_manager must be set before querying DBR version")
+            conn_args = SqlUtils.prepare_connection_arguments(
+                creds, cls.credentials_manager, http_path, {}
+            )
+
+            with dbsql.connect(**conn_args) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
+                    result = cursor.fetchone()
+                    if result:
+                        return SqlUtils.extract_dbr_version(result[1])
+        except Exception:
+            pass
+
+        return None
+
+    @classmethod
+    def _cache_dbr_capabilities(cls, creds: DatabricksCredentials, http_path: str) -> None:
+        if http_path not in cls._dbr_capabilities_cache:
+            is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
+            dbr_version = cls._query_dbr_version(creds, http_path)
+
+            cls._dbr_capabilities_cache[http_path] = DBRCapabilities(
+                dbr_version=dbr_version,
+                is_sql_warehouse=not is_cluster,
+            )
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
@@ -259,15 +287,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-
-        # Store the query header context directly
         conn._query_header_context = query_header_context
-
+        conn.capabilities = self._get_capabilities_for_http_path(conn.http_path)
         conn.handle = LazyHandle(self.open)
 
         logger.debug(ConnectionCreate(str(conn)))
-
-        # Set as the current thread connection (no complex pool management)
         self.set_thread_connection(conn)
 
         fire_event(
@@ -460,6 +484,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
+                    cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
+                    databricks_connection.capabilities = cls._dbr_capabilities_cache[
+                        databricks_connection.http_path
+                    ]
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")

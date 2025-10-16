@@ -351,6 +351,12 @@ Models can be configured with Databricks-specific options:
 When working on this codebase, ensure:
 
 - [ ] All tests pass (`hatch run code-quality && hatch run unit`)
+- [ ] **CRITICAL: Run affected functional tests before declaring success**
+  - If you modified connection/capability logic: Run tests that use multiple computes or check capabilities
+  - If you modified incremental materializations: Run `tests/functional/adapter/incremental/`
+  - If you modified Python models: Run `tests/functional/adapter/python_model/`
+  - If you modified macros: Run tests that use those macros
+  - **NEVER declare "mission accomplished" without running functional tests for affected features**
 - [ ] New features have both unit and functional tests
 - [ ] SQL generation follows Databricks best practices
 - [ ] Changes maintain backward compatibility

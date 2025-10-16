@@ -26,18 +26,32 @@
 {% endmacro %}
 
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
-    {%- if (adapter.is_cluster() and adapter.compare_dbr_version(17, 1) >= 0) or (not adapter.is_cluster() and adapter.behavior.use_replace_on_for_insert_overwrite) -%}
-        {%- if not adapter.is_cluster() %}
-            {{ exceptions.warn("insert_overwrite will perform a dynamic insert overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
+    {%- if adapter.is_cluster() -%}
+        {#-- Clusters: Check DBR capability for REPLACE ON (DBR 17.1+) --#}
+        {%- if adapter.has_dbr_capability('replace_on') -%}
+            {{ get_insert_replace_on_sql(source_relation, target_relation) }}
+        {%- else -%}
+            {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions --#}
+            {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+            insert overwrite table {{ target_relation }}
+            {{ partition_cols(label="partition") }}
+            {%- if has_insert_by_name %} by name{% endif %}
+            select * from {{ source_relation }}
         {%- endif -%}
-        {{ get_insert_replace_on_sql(source_relation, target_relation) }}
     {%- else -%}
-        {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions and SQL warehouses with behavior flag disabled --#}
-        {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
-        insert overwrite table {{ target_relation }}
-        {{ partition_cols(label="partition") }}
-        {%- if has_insert_by_name %} by name{% endif %}
-        select * from {{ source_relation }}
+        {#-- SQL Warehouses: Check behavior flag first --#}
+        {%- if adapter.behavior.use_replace_on_for_insert_overwrite -%}
+            {#-- Behavior flag enabled, SQL warehouses are assumed capable --#}
+            {{ exceptions.warn("insert_overwrite will perform a dynamic insert overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
+            {{ get_insert_replace_on_sql(source_relation, target_relation) }}
+        {%- else -%}
+            {#-- Behavior flag disabled, use legacy DPO INSERT OVERWRITE --#}
+            {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+            insert overwrite table {{ target_relation }}
+            {{ partition_cols(label="partition") }}
+            {%- if has_insert_by_name %} by name{% endif %}
+            select * from {{ source_relation }}
+        {%- endif -%}
     {%- endif -%}
 {% endmacro %}
 

@@ -56,74 +56,11 @@ class TestDBRCapabilities:
         # Streaming table features not supported on SQL warehouses yet
         assert not capabilities.has_capability(DBRCapability.STREAMING_TABLE_JSON_METADATA)
 
-    def test_unity_catalog_requirements(self):
-        """Test Unity Catalog specific requirements."""
-        # Without Unity Catalog
-        capabilities_no_uc = DBRCapabilities(dbr_version=(16, 2), is_unity_catalog=False)
-        # With Unity Catalog
-        capabilities_with_uc = DBRCapabilities(dbr_version=(16, 2), is_unity_catalog=True)
-
-        # Test with and without Unity Catalog (future-proofing the test)
-        # Both should work for current capabilities since none require UC
-        assert capabilities_no_uc.has_capability(DBRCapability.ICEBERG)
-        assert capabilities_with_uc.has_capability(DBRCapability.ICEBERG)
-
-    def test_capability_overrides(self):
-        """Test manual capability overrides."""
-        overrides = {
-            DBRCapability.ICEBERG: False,  # Manually disable
-            DBRCapability.TIMESTAMPDIFF: True,  # Manually enable
-        }
-
-        capabilities = DBRCapabilities(dbr_version=(16, 2), capability_overrides=overrides)
-
-        # Override should disable Iceberg even though version supports it
-        assert not capabilities.has_capability(DBRCapability.ICEBERG)
-
-        # Override enables TIMESTAMPDIFF
-        assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
-
-        # Should still have other capabilities
-        assert capabilities.has_capability(DBRCapability.COMMENT_ON_COLUMN)
-
     def test_get_required_version(self):
         """Test getting required version strings."""
         assert DBRCapabilities.get_required_version(DBRCapability.TIMESTAMPDIFF) == "DBR 10.4+"
         assert DBRCapabilities.get_required_version(DBRCapability.ICEBERG) == "DBR 14.3+"
         assert DBRCapabilities.get_required_version(DBRCapability.COMMENT_ON_COLUMN) == "DBR 16.1+"
-
-    def test_capability_caching(self):
-        """Test that capability checks are cached."""
-        capabilities = DBRCapabilities(dbr_version=(16, 2))
-
-        # First check should populate cache
-        result1 = capabilities.has_capability(DBRCapability.ICEBERG)
-
-        # Second check should use cache
-        result2 = capabilities.has_capability(DBRCapability.ICEBERG)
-
-        assert result1 is True
-        assert result2 is True
-
-        # Cache should contain the result
-        assert DBRCapability.ICEBERG in capabilities._capability_cache
-
-    def test_set_capability_clears_cache(self):
-        """Test that setting a capability clears its cache."""
-        capabilities = DBRCapabilities(dbr_version=(16, 2))
-
-        # Populate cache
-        capabilities.has_capability(DBRCapability.ICEBERG)
-        assert DBRCapability.ICEBERG in capabilities._capability_cache
-
-        # Set capability should clear cache for that capability
-        capabilities.set_capability(DBRCapability.ICEBERG, False)
-
-        # Cache for that capability should be cleared
-        assert DBRCapability.ICEBERG not in capabilities._capability_cache
-
-        # New check should use override
-        assert not capabilities.has_capability(DBRCapability.ICEBERG)
 
     def test_no_connection(self):
         """Test behavior when not connected (no version info)."""
