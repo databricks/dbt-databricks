@@ -136,7 +136,11 @@ class TestDatabricksColumn:
             {
                 "columns": [
                     {"name": "id", "type": {"name": "bigint"}, "comment": "Primary key"},
-                    {"name": "code", "type": {"name": "char", "length": 5}, "comment": "Fixed code"},
+                    {
+                        "name": "code",
+                        "type": {"name": "char", "length": 5},
+                        "comment": "Fixed code",
+                    },
                     {
                         "name": "description",
                         "type": {"name": "varchar", "length": 100},
