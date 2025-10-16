@@ -122,6 +122,36 @@ class TestDatabricksColumn:
         assert result[2].dtype == "struct<field1:string,field2:int>"
         assert result[2].comment is None
 
+    def test_from_json_metadata_with_varchar_and_char(self):
+        """Test from_json_metadata properly handles varchar and char with length"""
+        json_metadata = json.dumps(
+            {
+                "columns": [
+                    {"name": "id", "type": {"name": "bigint"}, "comment": "Primary key"},
+                    {"name": "code", "type": {"name": "char", "length": 5}, "comment": "Fixed code"},
+                    {
+                        "name": "description",
+                        "type": {"name": "varchar", "length": 100},
+                        "comment": "Variable description",
+                    },
+                ]
+            }
+        )
+
+        result = DatabricksColumn.from_json_metadata(json_metadata)
+
+        assert len(result) == 3
+        assert result[0].column == "id"
+        assert result[0].dtype == "bigint"
+
+        assert result[1].column == "code"
+        assert result[1].dtype == "char(5)"
+        assert result[1].comment == "Fixed code"
+
+        assert result[2].column == "description"
+        assert result[2].dtype == "varchar(100)"
+        assert result[2].comment == "Variable description"
+
     def test_from_json_metadata_empty_columns(self):
         """Test from_json_metadata with empty columns list"""
         json_metadata = json.dumps({"columns": []})
@@ -213,19 +243,29 @@ class TestDatabricksColumn:
         result = DatabricksColumn._parse_type_from_json(type_info)
         assert result == "string"
 
-    def test_parse_type_from_json_varchar(self):
+    def test_parse_type_from_json_varchar_with_length(self):
         type_info = {"name": "varchar", "length": 10}
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        # varchar is just a string in Databricks
-        assert result == "string"
+        assert result == "varchar(10)"
 
-    def test_parse_type_from_json_char(self):
+    def test_parse_type_from_json_varchar_without_length(self):
+        type_info = {"name": "varchar"}
+
+        result = DatabricksColumn._parse_type_from_json(type_info)
+        assert result == "varchar"
+
+    def test_parse_type_from_json_char_with_length(self):
         type_info = {"name": "char", "length": 10}
 
         result = DatabricksColumn._parse_type_from_json(type_info)
-        # char is just a string in Databricks
-        assert result == "string"
+        assert result == "char(10)"
+
+    def test_parse_type_from_json_char_without_length(self):
+        type_info = {"name": "char"}
+
+        result = DatabricksColumn._parse_type_from_json(type_info)
+        assert result == "char"
 
     def test_parse_type_from_json_primitive_types(self):
         """Test _parse_type_from_json with various primitive types"""
