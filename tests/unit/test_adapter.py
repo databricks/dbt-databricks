@@ -1335,7 +1335,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
-        with pytest.raises(DbtConfigError, match="Iceberg table format requires DBR 14.3\\+"):
+        with pytest.raises(DbtConfigError, match="iceberg requires DBR 14\\.3\\+"):
             adapter.is_uniform(mock_config)
 
     def test_is_uniform_with_invalid_materialization_error(
