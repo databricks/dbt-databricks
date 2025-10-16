@@ -75,7 +75,7 @@ class TestAdapterCapabilities:
 
         with patch.object(adapter.connections, "get_thread_connection", return_value=mock_conn):
             # Should not raise
-            adapter.require_capability(DBRCapability.ICEBERG, "Test feature")
+            adapter.require_capability(DBRCapability.ICEBERG)
 
     def test_require_capability_failure(self, adapter):
         """Test require_capability with unsupported capability."""
@@ -87,8 +87,8 @@ class TestAdapterCapabilities:
             # Should raise DbtConfigError
             from dbt_common.exceptions import DbtConfigError
 
-            with pytest.raises(DbtConfigError, match="Test feature.*requires.*DBR 14.3"):
-                adapter.require_capability(DBRCapability.ICEBERG, "Test feature")
+            with pytest.raises(DbtConfigError, match="iceberg.*requires.*DBR 14.3"):
+                adapter.require_capability(DBRCapability.ICEBERG)
 
     def test_sql_warehouse_capabilities(self, adapter):
         """Test adapter capability checking method."""

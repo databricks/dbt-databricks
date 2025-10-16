@@ -267,7 +267,7 @@ class DatabricksAdapter(SparkAdapter):
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
-            self.require_capability(DBRCapability.ICEBERG, "Iceberg table format")
+            self.require_capability(DBRCapability.ICEBERG)
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
@@ -356,24 +356,14 @@ class DatabricksAdapter(SparkAdapter):
         conn = self.connections.get_thread_connection()
         return conn.has_capability(capability)
 
-    def require_capability(
-        self, capability: DBRCapability, feature_name: Optional[str] = None
-    ) -> None:
-        """
-        Raise an error if a capability is not available.
-
-        Args:
-            capability: The required capability
-            feature_name: Human-readable feature name for error message
-        """
+    def require_capability(self, capability: DBRCapability) -> None:
+        """Raise an error if a capability is not available."""
         if not self.has_capability(capability):
-            feature_name = feature_name or capability.value
-            # Use the class method to get version requirement
             from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
 
             min_version = DBRCapabilities.get_required_version(capability)
             raise DbtConfigError(
-                f"{feature_name} requires {min_version}. "
+                f"{capability.value} requires {min_version}. "
                 f"Current connection does not meet this requirement."
             )
 
