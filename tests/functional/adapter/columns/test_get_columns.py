@@ -80,7 +80,7 @@ class TestColumnsInRelationBehaviorFlagOnView(ColumnsInRelation):
 
 
 class TestVarcharCharTypePreservation(MaterializationV2Mixin):
-    """Test that varchar and char types preserve their length constraints with materialization v2."""
+    """Test that varchar and char types preserve their length constraints with mat v2."""
 
     @pytest.fixture(scope="class")
     def models(self):
