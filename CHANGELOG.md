@@ -30,6 +30,7 @@
 - Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
 - Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
 - Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
+- Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
 
 ## dbt-databricks 1.10.13 (TBD)
 

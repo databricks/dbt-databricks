@@ -9,7 +9,8 @@ from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
-from dbt.adapters.databricks import DatabricksAdapter, __version__
+from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
+from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
@@ -1083,23 +1084,24 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     def test_get_columns_legacy_logic(self, mock_get_columns, adapter, unity_relation):
         # Return value less than 0 means version is older than 16.2
         with patch.object(adapter, "compare_dbr_version", return_value=-1):
-            mock_get_columns.return_value = [
-                {"col_name": "col1", "data_type": "string", "comment": "comment1"},
-            ]
+            with patch.object(adapter, "has_capability", return_value=False):
+                mock_get_columns.return_value = [
+                    {"col_name": "col1", "data_type": "string", "comment": "comment1"},
+                ]
 
-            result = adapter.get_columns_in_relation(unity_relation)
-            mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
+                result = adapter.get_columns_in_relation(unity_relation)
+                mock_get_columns.assert_called_with(adapter, unity_relation, "get_columns_comments")
 
-            assert len(result) == 1
-            assert result[0].column == "col1"
-            assert result[0].dtype == "string"
+                assert len(result) == 1
+                assert result[0].column == "col1"
+                assert result[0].dtype == "string"
 
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
     def test_get_columns_new_logic(self, mock_get_columns, adapter, unity_relation):
-        # Return value 0 means version is 16.2
-        with patch.object(adapter, "compare_dbr_version", return_value=0):
+        # Mock capability system to have JSON column metadata capability
+        with patch.object(adapter, "has_capability", return_value=True):
             json_data = (
                 '{"columns": [{"name": "col1", "type": {"name": "string"}, "comment": "comment1"}]}'
             )
@@ -1130,15 +1132,18 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         )
         # Return value less than 0 means version is older than 17.1
         with patch.object(adapter, "compare_dbr_version", return_value=compare_dbr_version):
-            mock_get_columns.return_value = [
-                {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
-            ]
-            result = adapter.get_columns_in_relation(streaming_relation)
-            mock_get_columns.assert_called_with(adapter, streaming_relation, "get_columns_comments")
-            assert len(result) == 1
-            assert result[0].column == "stream_col"
-            assert result[0].dtype == "int"
-            assert result[0].comment == "streaming col"
+            with patch.object(adapter, "has_capability", return_value=False):
+                mock_get_columns.return_value = [
+                    {"col_name": "stream_col", "data_type": "int", "comment": "streaming col"},
+                ]
+                result = adapter.get_columns_in_relation(streaming_relation)
+                mock_get_columns.assert_called_with(
+                    adapter, streaming_relation, "get_columns_comments"
+                )
+                assert len(result) == 1
+                assert result[0].column == "stream_col"
+                assert result[0].dtype == "int"
+                assert result[0].comment == "streaming col"
 
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
@@ -1152,10 +1157,11 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         )
         # For MVs, always use legacy logic, regardless of DBR version
         with patch.object(adapter, "compare_dbr_version", return_value=1):
-            mock_get_columns.return_value = [
-                {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
-            ]
-            result = adapter.get_columns_in_relation(mv_relation)
+            with patch.object(adapter, "has_capability", return_value=True):
+                mock_get_columns.return_value = [
+                    {"col_name": "mv_col", "data_type": "string", "comment": "mv col"},
+                ]
+                result = adapter.get_columns_in_relation(mv_relation)
             mock_get_columns.assert_called_with(adapter, mv_relation, "get_columns_comments")
             assert len(result) == 1
             assert result[0].column == "mv_col"
@@ -1167,7 +1173,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
-        with patch.object(adapter, "compare_dbr_version", return_value=1):
+        with patch.object(adapter, "has_capability", return_value=True):
             # Mock the first call to raise PARSE_SYNTAX_ERROR
             # Mock the second call (fallback) to return legacy data
             mock_get_columns.side_effect = [
@@ -1207,7 +1213,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
         self, mock_get_columns, adapter, unity_relation
     ):
         """Test that unknown types of DbtDatabaseError is re-raised"""
-        with patch.object(adapter, "compare_dbr_version", return_value=1):
+        with patch.object(adapter, "has_capability", return_value=True):
             # Mock to raise a different database error that should be re-raised
             mock_get_columns.side_effect = DbtDatabaseError("Some other database error")
 
@@ -1244,9 +1250,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def unity_catalog_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             catalog_name="test_catalog",
@@ -1256,9 +1259,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def unity_catalog_relation_managed_iceberg_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             catalog_name="test_catalog",
@@ -1268,9 +1268,6 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
     @pytest.fixture
     def hive_catalog_relation(self):
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         return DatabricksCatalogRelation(
             catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
             catalog_name="hive_metastore",
@@ -1289,6 +1286,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
+        adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
         result = adapter.is_uniform(mock_config)
         assert result is False
@@ -1299,15 +1297,13 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         """Test that is_uniform returns True for UniForm Iceberg tables"""
         adapter.behavior.use_managed_iceberg = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
         result = adapter.is_uniform(mock_config)
         assert result is True
 
     def test_is_uniform_with_non_iceberg_returns_false(self, adapter, mock_config):
         """Test that is_uniform returns False for non-Iceberg tables"""
-        from dbt.adapters.databricks import constants
-        from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
-
         non_iceberg_relation = DatabricksCatalogRelation(
             catalog_type=constants.UNITY_CATALOG_TYPE,
             table_format=constants.DEFAULT_TABLE_FORMAT,  # Not Iceberg
@@ -1324,6 +1320,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         """Test that is_uniform raises error for managed Iceberg with Hive Metastore"""
         adapter.behavior.use_managed_iceberg = True
         adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
+        adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
         with pytest.raises(
             DbtConfigError, match="Managed Iceberg tables are only supported in Unity Catalog"
@@ -1336,11 +1333,9 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         """Test that is_uniform raises error for insufficient DBR version"""
         adapter.behavior.use_managed_iceberg = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
-        adapter.compare_dbr_version = Mock(return_value=-1)  # DBR version too old
+        adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
-        with pytest.raises(
-            DbtConfigError, match="Iceberg support requires Databricks Runtime 14.3 or later"
-        ):
+        with pytest.raises(DbtConfigError, match="iceberg requires DBR 14\\.3\\+"):
             adapter.is_uniform(mock_config)
 
     def test_is_uniform_with_invalid_materialization_error(
@@ -1349,6 +1344,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         """Test that is_uniform raises error for invalid materialization"""
         adapter.behavior.use_managed_iceberg = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
         mock_config.get.side_effect = lambda key: "view" if key == "materialized" else None
 
         with pytest.raises(
