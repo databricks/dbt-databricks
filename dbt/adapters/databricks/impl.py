@@ -356,6 +356,31 @@ class DatabricksAdapter(SparkAdapter):
         conn = self.connections.get_thread_connection()
         return conn.has_capability(capability)
 
+    @available.parse(lambda *a, **k: False)
+    def has_dbr_capability(self, capability_name: str) -> bool:
+        """
+        Check if a DBR capability is available for current compute.
+        This is a Jinja-friendly version that accepts capability names as strings.
+
+        Args:
+            capability_name: Name of the capability (e.g., 'comment_on_column', 'insert_by_name')
+
+        Returns:
+            True if the capability is available, False otherwise
+
+        Raises:
+            ValueError: If the capability name is not recognized
+        """
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            valid_capabilities = [c.value for c in DBRCapability]
+            raise ValueError(
+                f"Unknown DBR capability: '{capability_name}'. "
+                f"Valid capabilities are: {', '.join(valid_capabilities)}"
+            )
+        return self.has_capability(capability)
+
     def require_capability(self, capability: DBRCapability) -> None:
         """Raise an error if a capability is not available."""
         if not self.has_capability(capability):
@@ -366,11 +391,6 @@ class DatabricksAdapter(SparkAdapter):
                 f"{capability.value} requires {min_version}. "
                 f"Current connection does not meet this requirement."
             )
-
-    @property
-    def DBRCapability(self) -> type[DBRCapability]:
-        """Expose DBRCapability enum to Jinja macros."""
-        return DBRCapability
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})

@@ -77,8 +77,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=True)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
 
         # Define matching columns
         dest_columns = ["id", "name", "value"]
@@ -106,8 +105,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to NOT have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=False)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=False)
 
         # Define matching columns
         dest_columns = ["id", "name", "value"]
@@ -135,8 +133,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=True)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
 
         # Define mismatched columns (source has extra column)
         dest_columns = ["id", "name"]
@@ -164,8 +161,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to NOT have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=False)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=False)
 
         # Define mismatched columns (target has extra column)
         dest_columns = ["id", "name", "timestamp"]
@@ -193,8 +189,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=True)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
 
         # Define completely different columns
         dest_columns = ["a", "b"]
@@ -222,8 +217,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to NOT have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=False)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=False)
 
         # Define completely different columns
         dest_columns = ["a", "b"]
@@ -249,8 +243,7 @@ class TestInsertIntoMacros(MacroTestBase):
         source_relation, target_relation = mock_relations
 
         # Mock adapter to have INSERT_BY_NAME capability
-        template_bundle.context["adapter"].has_capability = Mock(return_value=True)
-        template_bundle.context["adapter"].DBRCapability = DBRCapability
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
 
         # Define columns with different cases but same names
         dest_columns = ["ID", "Name", "VALUE"]

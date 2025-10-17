@@ -37,16 +37,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = True
 
         # Mock has_capability - by default support both replace_on and insert_by_name
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return True  # Default to DBR 17.1+
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True  # Default to DBR 12.2+
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
-
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         # Mock behavior flags
         mock_behavior = Mock()
         mock_behavior.use_replace_on_for_insert_overwrite = (
@@ -85,15 +83,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that different DBR versions use appropriate dynamic insert overwrite syntax"""
 
         # Mock has_capability to control REPLACE ON support
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return has_replace_on_capability
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -129,15 +126,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that DBR >= 17.1 uses REPLACE ON syntax with multiple columns"""
 
         # Mock has_capability to support REPLACE ON
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return True
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         config[config_key] = ["a", "b"]
 
         source_relation = Mock()
@@ -171,15 +167,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """
 
         # Mock has_capability
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return has_replace_on
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         # No partition_by set in config
 
         source_relation = Mock()
@@ -208,15 +203,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test behavior flag disabled on cluster still uses REPLACE ON (ignored for clusters)"""
 
         # Mock has_capability to support REPLACE ON
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return True
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         # Cluster environment (default from setup)
         context["adapter"].is_cluster.return_value = True
         # Disable the behavior flag
@@ -257,15 +251,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Old DBR cluster always uses traditional INSERT OVERWRITE regardless of behavior flag"""
 
         # Mock has_capability to NOT support REPLACE ON (DBR < 17.1)
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return False
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         # Cluster environment
         context["adapter"].is_cluster.return_value = True
         # Set the behavior flag (should not affect old DBR clusters)
@@ -322,15 +315,14 @@ class TestInsertOverwriteMacros(MacroTestBase):
         """Test that SQL warehouse behavior flag controls INSERT OVERWRITE syntax"""
 
         # Mock has_capability (SQL warehouses are assumed capable)
-        def has_capability_side_effect(capability):
-            if capability == DBRCapability.REPLACE_ON:
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == 'replace_on':
                 return True  # SQL warehouses are assumed capable
-            elif capability == DBRCapability.INSERT_BY_NAME:
+            elif capability_name == 'insert_by_name':
                 return True
             return False
 
-        context["adapter"].has_capability.side_effect = has_capability_side_effect
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
         # SQL warehouse (not cluster)
         context["adapter"].is_cluster.return_value = False
         # Set the behavior flag

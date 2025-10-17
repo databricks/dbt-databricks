@@ -46,8 +46,8 @@ class TestAdapterCapabilities:
     def test_adapter_has_capability_method(self, adapter):
         """Test that adapter has capability methods."""
         assert hasattr(adapter, "has_capability")
+        assert hasattr(adapter, "has_dbr_capability")
         assert hasattr(adapter, "require_capability")
-        assert hasattr(adapter, "DBRCapability")
 
     def test_capability_initialization_lazy(self, adapter):
         """Test that capabilities are now owned by connections."""
@@ -55,17 +55,22 @@ class TestAdapterCapabilities:
         # The adapter delegates to the connection
         assert not hasattr(adapter, "_dbr_capabilities")
 
-    def test_has_capability_enum_access(self, adapter):
-        """Test that DBRCapability enum is accessible via adapter property."""
-        # Test that we can access the enum
-        assert adapter.DBRCapability is not None
+    def test_has_dbr_capability_string_interface(self, adapter):
+        """Test that has_dbr_capability accepts string capability names."""
+        # Mock a connection with DBR 16.2
+        mock_conn = Mock()
+        mock_conn._capabilities = DBRCapabilities(dbr_version=(16, 2), is_sql_warehouse=False)
+        mock_conn.has_capability = mock_conn._capabilities.has_capability
 
-        # Test that enum has expected values
-        from dbt.adapters.databricks.dbr_capabilities import DBRCapability
+        with patch.object(adapter.connections, "get_thread_connection", return_value=mock_conn):
+            # Test with valid capability names
+            assert adapter.has_dbr_capability("timestampdiff")
+            assert adapter.has_dbr_capability("comment_on_column")
+            assert adapter.has_dbr_capability("json_column_metadata")
 
-        assert adapter.DBRCapability == DBRCapability
-        assert hasattr(adapter.DBRCapability, "JSON_COLUMN_METADATA")
-        assert hasattr(adapter.DBRCapability, "INSERT_BY_NAME")
+            # Test with invalid capability name - should raise ValueError
+            with pytest.raises(ValueError, match="Unknown DBR capability"):
+                adapter.has_dbr_capability("nonexistent")
 
     def test_require_capability_success(self, adapter):
         """Test require_capability with supported capability."""

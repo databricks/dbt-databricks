@@ -34,8 +34,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         # Mock adapter to return DBR 16.1+
         context["adapter"] = Mock()
-        context["adapter"].has_capability = Mock(return_value=True)
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(return_value=True)
 
         result = self.run_macro(
             template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
@@ -53,8 +52,7 @@ class TestPersistDocsMacros(MacroTestBase):
 
         # Mock adapter to return DBR < 16.1
         context["adapter"] = Mock()
-        context["adapter"].has_capability = Mock(return_value=False)
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(return_value=False)
 
         result = self.run_macro(
             template_bundle.template, "comment_on_column_sql", column_path, escaped_comment
@@ -199,8 +197,7 @@ class TestPersistDocsMacros(MacroTestBase):
         context["adapter"] = Mock()
         context["adapter"].resolve_file_format.return_value = "delta"
         context["adapter"].compare_dbr_version = Mock(return_value=-1)  # < 16.1
-        context["adapter"].has_capability = Mock(return_value=False)
-        context["adapter"].DBRCapability = DBRCapability
+        context["adapter"].has_dbr_capability = Mock(return_value=False)
         context["adapter"].quote = lambda identifier: f"`{identifier}`"
 
         context["run_query_as"] = Mock()
