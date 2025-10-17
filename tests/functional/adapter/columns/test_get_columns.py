@@ -4,6 +4,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.tests import util
 from tests.functional.adapter.columns import fixtures
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
 class ColumnsInRelation:
@@ -71,6 +72,42 @@ class TestColumnsInRelationBehaviorFlagOnView(ColumnsInRelation):
             schema=project.test_schema,
             identifier="base_model",
             type=DatabricksRelation.View,
+        )
+
+        with project.adapter.connection_named("_test"):
+            actual_columns = project.adapter.get_columns_in_relation(my_relation)
+        assert actual_columns == expected_columns
+
+
+class TestVarcharCharTypePreservation(MaterializationV2Mixin):
+    """Test that varchar and char types preserve their length constraints with mat v2."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "varchar_char_model.sql": fixtures.varchar_char_model,
+            "schema.yml": fixtures.varchar_char_schema,
+        }
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setup(self, project):
+        util.run_dbt(["debug", "--connection"])
+        util.run_dbt(["run"])
+
+    @pytest.fixture(scope="class")
+    def expected_columns(self):
+        return [
+            DatabricksColumn(column="varchar_col", dtype="varchar(50)"),
+            DatabricksColumn(column="char_col", dtype="char(10)"),
+            DatabricksColumn(column="string_col", dtype="string"),
+        ]
+
+    def test_varchar_char_columns(self, project, expected_columns):
+        my_relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="varchar_char_model",
+            type=DatabricksRelation.Table,
         )
 
         with project.adapter.connection_named("_test"):
