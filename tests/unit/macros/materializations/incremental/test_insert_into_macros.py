@@ -2,7 +2,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from tests.unit.macros.base import MacroTestBase
 
 

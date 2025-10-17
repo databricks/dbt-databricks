@@ -2,7 +2,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -38,9 +37,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability - by default support both replace_on and insert_by_name
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return True  # Default to DBR 17.1+
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True  # Default to DBR 12.2+
             return False
 
@@ -84,9 +83,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability to control REPLACE ON support
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return has_replace_on_capability
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 
@@ -127,9 +126,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability to support REPLACE ON
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return True
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 
@@ -168,9 +167,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return has_replace_on
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 
@@ -204,9 +203,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability to support REPLACE ON
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return True
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 
@@ -252,9 +251,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability to NOT support REPLACE ON (DBR < 17.1)
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return False
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 
@@ -316,9 +315,9 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock has_capability (SQL warehouses are assumed capable)
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == 'replace_on':
+            if capability_name == "replace_on":
                 return True  # SQL warehouses are assumed capable
-            elif capability_name == 'insert_by_name':
+            elif capability_name == "insert_by_name":
                 return True
             return False
 

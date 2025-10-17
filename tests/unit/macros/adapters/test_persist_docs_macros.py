@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from tests.unit.macros.base import MacroTestBase
 
