@@ -65,10 +65,8 @@ class DatabricksColumn(SparkColumn):
           - map: nested types handled
           - decimal: precision, scale handled
           - string: collation handled
-          - varchar: Handled just in case, but the JSON should never contain a varchar type as
-                     these are just STRING types under the hood in Databricks.
-          - char: Handled just in case, but the JSON should never contain a char type as these are
-                  just STRING types under the hood in Databricks.
+          - varchar: length handled - preserves varchar(n) in DDL
+          - char: length handled - preserves char(n) in DDL
 
         Complex types can have other properties in the JSON schema such as nullable, defaults, etc.
         but those are ignored as they are not part of data type DDL
@@ -123,10 +121,16 @@ class DatabricksColumn(SparkColumn):
             return "timestamp"
 
         elif type_name == "varchar":
-            return "string"
+            length = type_info.get("length")
+            if length is not None:
+                return f"varchar({length})"
+            return "varchar"
 
         elif type_name == "char":
-            return "string"
+            length = type_info.get("length")
+            if length is not None:
+                return f"char({length})"
+            return "char"
 
         else:
             # Handle primitive types and any other types
