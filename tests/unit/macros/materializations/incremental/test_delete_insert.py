@@ -18,7 +18,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         unique_key,
         on_schema_change,
         incremental_predicates=None,
-        target_columns=("a", "b")
+        target_columns=("a", "b"),
     ):
         return self.run_macro_raw(
             template,
@@ -28,7 +28,7 @@ class TestDeleteInsertMacros(MacroTestBase):
             target_columns,
             unique_key,
             on_schema_change,
-            incremental_predicates
+            incremental_predicates,
         )
 
     def test_delete_insert_sql_impl__single_unique_key(self, template):
