@@ -1,4 +1,5 @@
 import os
+from argparse import Namespace
 from copy import deepcopy
 from typing import Optional
 
@@ -6,6 +7,7 @@ from dbt.config import Profile, Project, RuntimeConfig
 from dbt.config.project import PartialProject
 from dbt.config.renderer import DbtProjectYamlRenderer, ProfileRenderer
 from dbt.config.utils import parse_cli_vars
+from dbt.flags import set_from_args
 
 from dbt.adapters.databricks import catalogs, constants
 
@@ -23,10 +25,6 @@ def profile_from_dict(profile, profile_name, cli_vars="{}"):
 
     # in order to call dbt's internal profile rendering, we need to set the
     # flags global. This is a bit of a hack, but it's the best way to do it.
-    from argparse import Namespace
-
-    from dbt.flags import set_from_args
-
     set_from_args(Namespace(), None)
     return Profile.from_raw_profile_info(
         profile,

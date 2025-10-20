@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
@@ -38,8 +39,6 @@ class DatabricksColumn(SparkColumn):
         Returns:
             List of DatabricksColumn objects
         """
-        import json
-
         data = json.loads(json_metadata)
         columns = []
 
