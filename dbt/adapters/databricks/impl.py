@@ -704,7 +704,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     def valid_incremental_strategies(self) -> list[str]:
-        valid_strategies = ["append", "merge", "insert_overwrite", "replace_where"]
+        valid_strategies = ["append", "merge", "insert_overwrite", "replace_where", "delete+insert"]
         if SUPPORT_MICROBATCH:
             valid_strategies.append("microbatch")
 

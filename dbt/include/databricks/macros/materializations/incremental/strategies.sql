@@ -15,6 +15,10 @@
   {% do return(get_replace_where_sql(arg_dict)) %}
 {% endmacro %}
 
+{% macro databricks__get_incremental_delete_insert_sql(arg_dict) %}
+  {% do return(get_delete_insert_sql(arg_dict)) %}
+{% endmacro %}
+
 {% macro get_incremental_replace_where_sql(arg_dict) %}
 
   {{ return(adapter.dispatch('get_incremental_replace_where_sql', 'dbt')(arg_dict)) }}
@@ -57,6 +61,38 @@ REPLACE WHERE {{ predicates }}
 {% endif %}
 TABLE {{ temp_relation.render() }}
 {% endmacro %}
+
+{% macro get_delete_insert_sql(arg_dict) -%}
+  {%- set source_relation = arg_dict.get('temp_relation') -%}
+  {%- set target_relation = arg_dict.get('target_relation') -%}
+  {%- set incremental_predicates = config.get('incremental_predicates') -%}
+  {%- set target_columns = (adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list) -%}
+  {%- set unique_key = config.require('unique_key') -%}
+  {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
+  {{ delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, on_schema_change, incremental_predicates) }}
+{% endmacro %}
+
+{% macro delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, on_schema_change, incremental_predicates) %}
+  {%- set target_cols_csv = '*' if on_schema_change == 'ignore' else (target_columns | join(', ')) -%}
+  {%- set predicates -%}
+    {%- if incremental_predicates is sequence and incremental_predicates is not string -%}
+      where {{ incremental_predicates | join(' and ') }}
+    {%- elif incremental_predicates is string and incremental_predicates is not none -%}
+      where {{ incremental_predicates }}
+    {%- endif -%}
+  {%- endset -%}
+  {%- set unique_keys = unique_key if unique_key is sequence and unique_key is not string else [unique_key] -%}
+  {%- set replace_on_expr = [] -%}
+  {%- for key in unique_keys -%}
+    {%- do replace_on_expr.append('target.' ~ key ~ ' <=> temp.' ~ key) -%}
+  {%- endfor -%}
+  {%- set replace_on_expr = replace_on_expr | join(' and ') -%}
+ insert into table {{ target_relation }} as target
+replace on ({{ replace_on_expr }})
+(select {{ target_cols_csv }}
+   from {{ source_relation }} {{ predicates }}) as temp
+{% endmacro %}
+
 
 {% macro get_insert_into_sql(source_relation, target_relation) %}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="quoted") | list -%}
