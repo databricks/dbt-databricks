@@ -6,6 +6,7 @@ from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
 import pytest
+from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.impl import DatabricksAdapter
@@ -90,8 +91,6 @@ class TestAdapterCapabilities:
 
         with patch.object(adapter.connections, "get_thread_connection", return_value=mock_conn):
             # Should raise DbtConfigError
-            from dbt_common.exceptions import DbtConfigError
-
             with pytest.raises(DbtConfigError, match="iceberg.*requires.*DBR 14.3"):
                 adapter.require_capability(DBRCapability.ICEBERG)
 

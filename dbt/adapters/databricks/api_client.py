@@ -330,8 +330,6 @@ class CommandApi:
             raise DbtRuntimeError(f"Cancel command {command} failed.\n {e}")
 
     def poll_for_completion(self, command: CommandExecution) -> None:
-        import time
-
         start = time.time()
         terminal_states = {CommandStatus.FINISHED, CommandStatus.ERROR, CommandStatus.CANCELLED}
 
@@ -485,8 +483,6 @@ class JobRunsApi:
         return str(job_id)
 
     def poll_for_completion(self, run_id: str) -> None:
-        import time
-
         start = time.time()
         terminal_states = {"TERMINATED", "SKIPPED", "INTERNAL_ERROR"}
 
