@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.13 (TBD)
 
+### Features
+
+- Support delete+insert incremental strategy ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
+
 ### Fixes
 
 - Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
