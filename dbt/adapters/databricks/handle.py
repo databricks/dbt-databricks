@@ -42,12 +42,11 @@ class CursorWrapper:
         return self._cursor.description
 
     def cancel(self) -> None:
-        if self._cursor.active_op_handle:  # type: ignore[attr-defined]
-            self._cleanup(
-                lambda cursor: cursor.cancel(),
-                lambda: f"{self} - Cancelling",
-                lambda ex: f"{self} - Exception while cancelling: {ex}",
-            )
+        self._cleanup(
+            lambda cursor: cursor.cancel(),
+            lambda: f"{self} - Cancelling",
+            lambda ex: f"{self} - Exception while cancelling: {ex}",
+        )
 
     def close(self) -> None:
         self._cleanup(
