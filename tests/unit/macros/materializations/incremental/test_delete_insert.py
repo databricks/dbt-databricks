@@ -16,7 +16,6 @@ class TestDeleteInsertMacros(MacroTestBase):
         self,
         template,
         unique_key,
-        on_schema_change,
         incremental_predicates=None,
         target_columns=("a", "b"),
     ):
@@ -27,12 +26,11 @@ class TestDeleteInsertMacros(MacroTestBase):
             "target",
             target_columns,
             unique_key,
-            on_schema_change,
             incremental_predicates,
         )
 
     def test_delete_insert_sql_impl__single_unique_key(self, template):
-        sql = self.render_delete_insert(template, "a", "sync_all_columns")
+        sql = self.render_delete_insert(template, unique_key="a")
         expected = """
             insert into table target as target
             replace on (target.a <=> temp.a)
@@ -41,7 +39,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         self.assert_sql_equal(sql, expected)
 
     def test_delete_insert_sql_impl__multiple_unique_keys(self, template):
-        sql = self.render_delete_insert(template, ["a", "b"], "sync_all_columns")
+        sql = self.render_delete_insert(template, unique_key=["a", "b"])
         expected = """
             insert into table target as target
             replace on (target.a <=> temp.a and target.b <=> temp.b)
@@ -49,29 +47,20 @@ class TestDeleteInsertMacros(MacroTestBase):
             """
         self.assert_sql_equal(sql, expected)
 
-    def test_delete_insert_sql_impl__ignore_schema_change(self, template):
-        sql = self.render_delete_insert(template, "a", "ignore")
-        expected = """
-            insert into table target as target
-            replace on (target.a <=> temp.a)
-            (select * from source) as temp
-            """
-        self.assert_sql_equal(sql, expected)
-
     def test_delete_insert_sql_impl__incremental_predicates(self, template):
-        sql = self.render_delete_insert(template, "a", "ignore", "a > 1")
+        sql = self.render_delete_insert(template, unique_key="a", incremental_predicates="a > 1")
         expected = """
             insert into table target as target
             replace on (target.a <=> temp.a)
-            (select * from source where a > 1) as temp
+            (select a, b from source where a > 1) as temp
             """
         self.assert_sql_equal(sql, expected)
 
     def test_delete_insert_sql_impl__multiple_incremental_predicates(self, template):
-        sql = self.render_delete_insert(template, "a", "ignore", ["a > 1", "b < 3"])
+        sql = self.render_delete_insert(template, unique_key="a", incremental_predicates=["a > 1", "b < 3"])
         expected = """
             insert into table target as target
             replace on (target.a <=> temp.a)
-            (select * from source where a > 1 and b < 3) as temp
+            (select a, b from source where a > 1 and b < 3) as temp
             """
         self.assert_sql_equal(sql, expected)

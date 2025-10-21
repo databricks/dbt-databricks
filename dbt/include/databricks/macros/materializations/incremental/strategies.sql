@@ -68,12 +68,12 @@ TABLE {{ temp_relation.render() }}
   {%- set incremental_predicates = config.get('incremental_predicates') -%}
   {%- set target_columns = (adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list) -%}
   {%- set unique_key = config.require('unique_key') -%}
-  {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
-  {{ delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, on_schema_change, incremental_predicates) }}
+  {{ delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates) }}
 {% endmacro %}
 
-{% macro delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, on_schema_change, incremental_predicates) %}
-  {%- set target_cols_csv = '*' if on_schema_change == 'ignore' else (target_columns | join(', ')) -%}
+{% macro delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates) %}
+  {# we use target_columns to select from source to avoid potential column order issues during insert #}
+  {%- set target_cols_csv = target_columns | join(', ') -%}
   {%- set predicates -%}
     {%- if incremental_predicates is sequence and incremental_predicates is not string -%}
       where {{ incremental_predicates | join(' and ') }}
