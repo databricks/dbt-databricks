@@ -30,7 +30,7 @@ from dbt.adapters.spark.impl import (
 )
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.exceptions import DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -39,7 +39,6 @@ from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
-    GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
@@ -99,16 +98,6 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-
-
-USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
-    name="use_info_schema_for_columns",
-    default=False,
-    description=(
-        "Use info schema to gather column information to ensure complex types are not truncated."
-        "  Incurs some overhead, so disabled by default."
-    ),
-)  # type: ignore[typeddict-item]
 
 USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     name="use_user_folder_for_python",
@@ -240,11 +229,6 @@ class DatabricksAdapter(SparkAdapter):
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
-        try:
-            if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
-                self.get_column_behavior = GetColumnsByInformationSchema()
-        except CompilationError:
-            pass
 
         self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
@@ -252,7 +236,6 @@ class DatabricksAdapter(SparkAdapter):
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
-            USE_INFO_SCHEMA_FOR_COLUMNS,
             USE_USER_FOLDER_FOR_PYTHON,
             USE_MATERIALIZATION_V2,
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,

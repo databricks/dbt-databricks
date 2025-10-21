@@ -67,21 +67,3 @@ class GetColumnsByDescribe(GetColumnsBehavior):
             )
 
         return columns
-
-
-class GetColumnsByInformationSchema(GetColumnsByDescribe):
-    @classmethod
-    def get_columns_in_relation(
-        cls, adapter: SQLAdapter, relation: DatabricksRelation, use_legacy_logic: bool = False
-    ) -> list[DatabricksColumn]:
-        if use_legacy_logic or not relation.is_delta:
-            return super().get_columns_in_relation(adapter, relation, use_legacy_logic)
-
-        rows = cls._get_columns_with_comments(
-            adapter, relation, "get_columns_comments_via_information_schema"
-        )
-        return cls._parse_info_columns(rows)
-
-    @classmethod
-    def _parse_info_columns(cls, rows: list[AttrDict]) -> list[DatabricksColumn]:
-        return [DatabricksColumn(column=row[0], dtype=row[1], comment=row[2]) for row in rows]

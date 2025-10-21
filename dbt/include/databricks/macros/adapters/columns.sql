@@ -14,27 +14,6 @@ DESCRIBE TABLE {{ relation.render() }}
   DESCRIBE TABLE EXTENDED {{ relation.render() }} AS JSON
 {% endmacro %}
 
-{% macro get_columns_comments_via_information_schema(relation) -%}
-  {{ run_query_as(repair_table_sql(relation), 'repair_table', fetch_result=False) }}
-  {{ return(run_query_as(get_columns_comments_via_information_schema_sql(relation), 'get_columns_comments_via_information_schema')) }}
-{% endmacro %}
-
-{% macro repair_table_sql(relation) %}
-REPAIR TABLE {{ relation.render() }} SYNC METADATA
-{% endmacro %}
-
-{% macro get_columns_comments_via_information_schema_sql(relation) %}
-SELECT
-  column_name,
-  full_data_type,
-  comment
-FROM `system`.`information_schema`.`columns`
-WHERE
-  table_catalog = '{{ relation.database|lower }}' and
-  table_schema = '{{ relation.schema|lower }}' and 
-  table_name = '{{ relation.identifier|lower }}'
-{% endmacro %}
-
 {% macro databricks__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
   {% if remove_columns %}
     {{ run_query_as(drop_columns_sql(relation, remove_columns), 'alter_relation_remove_columns', fetch_result=False) }}
