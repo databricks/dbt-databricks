@@ -1,4 +1,4 @@
-## dbt-databricks 1.10.13 (TBD)
+## dbt-databricks 1.10.13 (October 21, 2025)
 
 ### Fixes
 
