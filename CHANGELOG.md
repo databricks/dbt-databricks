@@ -7,6 +7,10 @@
 - Fix snapshots not applying databricks_tags config ([1192](https://github.com/databricks/dbt-databricks/pull/1192))
 - Fix to respect varchar and char when using describe extended as json ([1220](https://github.com/databricks/dbt-databricks/pull/1220))
 
+### Under the hood
+
+- Update dependency versions ([1223](https://github.com/databricks/dbt-databricks/pull/1223))
+
 ## dbt-databricks 1.10.12 (September 8, 2025)
 
 ### Under the hood
