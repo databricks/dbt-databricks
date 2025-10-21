@@ -48,6 +48,7 @@ from dbt.adapters.databricks.catalogs import (
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -266,8 +267,7 @@ class DatabricksAdapter(SparkAdapter):
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
-            if self.compare_dbr_version(14, 3) < 0:
-                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
+            self.require_capability(DBRCapability.ICEBERG)
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
@@ -350,6 +350,47 @@ class DatabricksAdapter(SparkAdapter):
         Always returns positive number if trying to connect to SQL Warehouse.
         """
         return self.connections.compare_dbr_version(major, minor)
+
+    def has_capability(self, capability: DBRCapability) -> bool:
+        """Check if a DBR capability is available for current compute."""
+        conn = self.connections.get_thread_connection()
+        return conn.has_capability(capability)
+
+    @available.parse(lambda *a, **k: False)
+    def has_dbr_capability(self, capability_name: str) -> bool:
+        """
+        Check if a DBR capability is available for current compute.
+        This is a Jinja-friendly version that accepts capability names as strings.
+
+        Args:
+            capability_name: Name of the capability (e.g., 'comment_on_column', 'insert_by_name')
+
+        Returns:
+            True if the capability is available, False otherwise
+
+        Raises:
+            ValueError: If the capability name is not recognized
+        """
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            valid_capabilities = [c.value for c in DBRCapability]
+            raise ValueError(
+                f"Unknown DBR capability: '{capability_name}'. "
+                f"Valid capabilities are: {', '.join(valid_capabilities)}"
+            )
+        return self.has_capability(capability)
+
+    def require_capability(self, capability: DBRCapability) -> None:
+        """Raise an error if a capability is not available."""
+        if not self.has_capability(capability):
+            from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
+
+            min_version = DBRCapabilities.get_required_version(capability)
+            raise DbtConfigError(
+                f"{capability.value} requires {min_version}. "
+                f"Current connection does not meet this requirement."
+            )
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -525,12 +566,12 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        # Use legacy macros for hive metastore or DBR versions older than 16.2
+        # Use legacy macros for hive metastore or when JSON column metadata is not available
         use_legacy_logic = (
             relation.is_hive_metastore()
-            or self.compare_dbr_version(16, 2) < 0
+            or not self.has_capability(DBRCapability.JSON_COLUMN_METADATA)
             or relation.type == DatabricksRelationType.MaterializedView
-            # TODO: Replace with self.compare_dbr_version(17, 1) < 0 when 17.1 is current version
+            # TODO: Replace with streaming table capability check when 17.1 is current version
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
         )

@@ -30,6 +30,7 @@
 - Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
 - Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
 - Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
+- Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
 
 ## dbt-databricks 1.10.13 (TBD)
 
@@ -38,6 +39,7 @@
 - Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
 - Fix pydantic v2 deprecation warning "Valid config keys have changed in V2" (thanks @Korijn!) ([1194](https://github.com/databricks/dbt-databricks/pull/1194))
 - Fix snapshots not applying databricks_tags config ([1192](https://github.com/databricks/dbt-databricks/pull/1192))
+- Fix to respect varchar and char when using describe extended as json ([1220](https://github.com/databricks/dbt-databricks/pull/1220))
 
 ## dbt-databricks 1.10.12 (September 8, 2025)
 

@@ -1,3 +1,7 @@
+import os
+import tempfile
+from os.path import join
+
 import keyring.backend
 import pytest
 
@@ -141,13 +145,9 @@ class MockKeyring(keyring.backend.KeyringBackend):
         return 1
 
     def _generate_test_root_dir(self):
-        import tempfile
-
         return tempfile.mkdtemp(prefix="dbt-unit-test-")
 
     def file_path(self, servicename, username):
-        from os.path import join
-
         file_location = self.file_location
         file_name = f"{servicename}_{username}.txt"
         return join(file_location, file_name)
@@ -159,8 +159,6 @@ class MockKeyring(keyring.backend.KeyringBackend):
             file.write(password)
 
     def get_password(self, servicename, username):
-        import os
-
         file_path = self.file_path(servicename, username)
         if not os.path.exists(file_path):
             return None
@@ -171,8 +169,6 @@ class MockKeyring(keyring.backend.KeyringBackend):
         return password
 
     def delete_password(self, servicename, username):
-        import os
-
         file_path = self.file_path(servicename, username)
         if not os.path.exists(file_path):
             return None
