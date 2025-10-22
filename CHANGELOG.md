@@ -32,7 +32,15 @@
 - Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
 - Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
 
-## dbt-databricks 1.10.13 (TBD)
+## dbt-databricks 1.10.15 (TBD)
+
+## dbt-databricks 1.10.14 (October 22, 2025)
+
+### Under the hood
+
+- Update dependency versions ([1227](https://github.com/databricks/dbt-databricks/pull/1227))
+
+## dbt-databricks 1.10.13 (October 21, 2025)
 
 ### Fixes
 
@@ -40,6 +48,10 @@
 - Fix pydantic v2 deprecation warning "Valid config keys have changed in V2" (thanks @Korijn!) ([1194](https://github.com/databricks/dbt-databricks/pull/1194))
 - Fix snapshots not applying databricks_tags config ([1192](https://github.com/databricks/dbt-databricks/pull/1192))
 - Fix to respect varchar and char when using describe extended as json ([1220](https://github.com/databricks/dbt-databricks/pull/1220))
+
+### Under the hood
+
+- Update dependency versions ([1223](https://github.com/databricks/dbt-databricks/pull/1223))
 
 ## dbt-databricks 1.10.12 (September 8, 2025)
 
