@@ -45,38 +45,8 @@ class ColumnsInRelation:
         assert actual_columns == expected_columns
 
 
-class TestColumnsInRelationBehaviorFlagOff(ColumnsInRelation):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {}}
-
-
-class TestColumnsInRelationBehaviorFlagOn(ColumnsInRelation):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"use_info_schema_for_columns": True}}
-
-
-class TestColumnsInRelationBehaviorFlagOnView(ColumnsInRelation):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {"base_model.sql": fixtures.base_model, "schema.yml": fixtures.view_schema}
-
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"use_info_schema_for_columns": True}}
-
-    def test_columns_in_relation(self, project, expected_columns):
-        my_relation = DatabricksRelation.create(
-            database=project.database,
-            schema=project.test_schema,
-            identifier="base_model",
-            type=DatabricksRelation.View,
-        )
-
-        with project.adapter.connection_named("_test"):
-            actual_columns = project.adapter.get_columns_in_relation(my_relation)
-        assert actual_columns == expected_columns
+class TestColumnsInRelation(ColumnsInRelation):
+    pass
 
 
 class TestVarcharCharTypePreservation(MaterializationV2Mixin):
