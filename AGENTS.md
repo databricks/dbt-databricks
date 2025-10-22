@@ -127,17 +127,38 @@ class TestCreateTable(MacroTestBase):
 
 #### Functional Test Example
 
+**Important**: SQL models and YAML schemas should be defined in a `fixtures.py` file in the same directory as the test, not inline in the test class. This keeps tests clean and fixtures reusable.
+
+**fixtures.py:**
+
+```python
+my_model_sql = """
+{{ config(materialized='incremental', unique_key='id') }}
+select 1 as id, 'test' as name
+"""
+
+my_schema_yml = """
+version: 2
+models:
+  - name: my_model
+    columns:
+      - name: id
+        description: 'ID column'
+"""
+```
+
+**test_my_feature.py:**
+
 ```python
 from dbt.tests import util
+from tests.functional.adapter.my_feature import fixtures
 
 class TestIncrementalModel:
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "my_model.sql": """
-                {{ config(materialized='incremental', unique_key='id') }}
-                select 1 as id, 'test' as name
-            """
+            "my_model.sql": fixtures.my_model_sql,
+            "schema.yml": fixtures.my_schema_yml,
         }
 
     def test_incremental_run(self, project):
@@ -175,6 +196,7 @@ DatabricksAdapter (impl.py)
   - `COMMENT_ON_COLUMN` (DBR 16.1+): Modern column comment syntax
   - `JSON_COLUMN_METADATA` (DBR 16.2+): Efficient metadata retrieval
 - **Usage in Code**:
+
   ```python
   # In Python code
   if adapter.has_capability(DBRCapability.ICEBERG):
@@ -193,6 +215,7 @@ DatabricksAdapter (impl.py)
       INSERT INTO table SELECT ... -- positional
   {% endif %}
   ```
+
 - **Adding New Capabilities**:
   1. Add to `DBRCapability` enum
   2. Add `CapabilitySpec` with version requirements

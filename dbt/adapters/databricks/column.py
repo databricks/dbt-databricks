@@ -151,7 +151,8 @@ class DatabricksColumn(SparkColumn):
         """Create a copy that incorporates model column metadata, including constraints."""
 
         data_type = model_column.get("data_type") or self.dtype
-        name = model_column["name"]
+        # Use the actual column name from SQL, not from YAML, to preserve capitalization
+        name = self.name
         enriched_column = DatabricksColumn.create(name, data_type)
         if model_column.get("description"):
             enriched_column.comment = model_column["description"]
