@@ -1,3 +1,9 @@
+## dbt-databricks 1.10.14 (TBD)
+
+### Under the hood
+
+- Update dependency versions ([1227](https://github.com/databricks/dbt-databricks/pull/1227))
+
 ## dbt-databricks 1.10.13 (October 21, 2025)
 
 ### Fixes
