@@ -57,7 +57,9 @@ class TestDeleteInsertMacros(MacroTestBase):
         self.assert_sql_equal(sql, expected)
 
     def test_delete_insert_sql_impl__multiple_incremental_predicates(self, template):
-        sql = self.render_delete_insert(template, unique_key="a", incremental_predicates=["a > 1", "b < 3"])
+        sql = self.render_delete_insert(
+            template, unique_key="a", incremental_predicates=["a > 1", "b < 3"]
+        )
         expected = """
             insert into table target as target
             replace on (target.a <=> temp.a)
