@@ -7,7 +7,12 @@ from dbt.adapters.databricks.constraints import (
     CustomConstraint,
     PrimaryKeyConstraint,
 )
-from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
+from dbt.adapters.databricks.relation import (
+    DatabricksQuotePolicy,
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 
 
 class TestDatabricksRelation:
@@ -57,6 +62,57 @@ class TestDatabricksRelation:
         assert relation.database is None
         assert relation.schema, "some_schema"
         assert relation.identifier, "some_table"
+
+    def test_pre_deserialize__external_type_migration(self):
+        """Test that 'external' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.External
+        assert relation.is_external_table
+
+    def test_pre_deserialize__managed_type_migration(self):
+        """Test that 'managed' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "managed",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.Managed
+
+    def test_pre_deserialize__external_with_existing_table_type(self):
+        """Test that existing databricks_table_type is preserved."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+            "databricks_table_type": "external_shallow_clone",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        # Should preserve the existing databricks_table_type
+        assert relation.databricks_table_type == DatabricksTableType.ExternalShallowClone
 
     def test_render__all_present(self):
         data = {
