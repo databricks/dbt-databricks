@@ -32,7 +32,10 @@ class DatabricksCatalogRelation:
     @property
     def location(self) -> Optional[str]:
         if self.location_root and self.location_path:
-            return posixpath.join(self.location_root, self.location_path)
+            result = posixpath.join(self.location_root, self.location_path)
+            # Return None if result is empty string to avoid "Can not create a Path from an empty string" errors
+            # See: https://github.com/databricks/dbt-databricks/issues/1228
+            return result if result else None
         return None
 
     @property

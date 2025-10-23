@@ -6,7 +6,7 @@
   --#}
   {%- if relation.catalog_type is not none -%}
 
-    {%- if relation.location is not none -%}
+    {%- if relation.location is not none and relation.location != '' -%}
     location '{{ relation.location }}{% if is_incremental() %}_tmp{% endif %}'
     {%- endif -%}
 
