@@ -90,9 +90,9 @@ python = "3.9"
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadscope tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadscope tests/functional"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
