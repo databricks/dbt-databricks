@@ -202,6 +202,7 @@ class TestComplexConfig:
     def project_config_update(self):
         return {
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -237,6 +238,7 @@ class TestComplexConfigV2(TestComplexConfig):
         return {
             "flags": {"use_materialization_v2": True},
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,

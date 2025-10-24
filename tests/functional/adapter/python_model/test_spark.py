@@ -18,6 +18,10 @@ class TestPySpark(BasePySparkTests):
             "pyspark_df.py": fixtures.PYSPARK_MODEL,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+submission_method": "serverless_cluster"}}
+
     def test_different_dataframes(self, project):
         # test
         results = util.run_dbt(["run"])
