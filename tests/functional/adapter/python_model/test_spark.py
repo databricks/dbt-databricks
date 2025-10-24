@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_spark as fixtures
 from dbt.tests.adapter.python_model.test_spark import (
@@ -18,6 +17,10 @@ class TestPySpark(BasePySparkTests):
             "pandas_df.py": fixtures.PANDAS_MODEL,
             "pyspark_df.py": fixtures.PYSPARK_MODEL,
         }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+submission_method": "serverless_cluster"}}
 
     def test_different_dataframes(self, project):
         # test

@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
 from pydantic import BaseModel
 from typing_extensions import override
 
-from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger

@@ -1,8 +1,8 @@
-import pytest
-
 import dbt.tests.adapter.utils.fixture_dateadd as fixtures
-import tests.functional.adapter.utils.fixture_dateadd as fixture_overrides
+import pytest
 from dbt.tests.adapter.utils.test_dateadd import BaseDateAdd
+
+import tests.functional.adapter.utils.fixture_dateadd as fixture_overrides
 
 
 class TestDateAdd(BaseDateAdd):

@@ -1,9 +1,9 @@
 from unittest.mock import Mock
 
 import pytest
+from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
-from dbt.exceptions import DbtRuntimeError
 from tests.unit import fixtures
 
 

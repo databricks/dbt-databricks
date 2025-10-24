@@ -2,9 +2,9 @@ from unittest.mock import Mock
 
 import pytest
 from agate import Table
+from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
-from dbt.exceptions import DbtRuntimeError
 
 
 class TestTagsProcessor:

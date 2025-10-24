@@ -1,13 +1,13 @@
 import os
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
 from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonIncrementalTests,
     BasePythonModelTests,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
@@ -30,14 +30,26 @@ def verify_temp_table_cleaned(project, suffix):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonModel(BasePythonModelTests):
-    pass
+    """Default Python model tests using serverless compute for speed and reliability."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.serverless_schema,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonFailureModel:
+    """Test Python model error handling using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"my_failure_model.py": override_fixtures.python_error_model}
@@ -47,22 +59,30 @@ class TestPythonFailureModel:
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonFailureModelNotebook(TestPythonFailureModel):
+    """Test Python model error handling with notebooks using serverless compute."""
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
-    pass
+    """Test Python incremental models using serverless compute."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+submission_method": "serverless_cluster"}}
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchema:
+    """Test Python model schema changes using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
@@ -84,8 +104,10 @@ class TestChangingSchema:
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaIncremental:
+    """Test Python incremental schema changes using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.incremental_model}
@@ -117,7 +139,23 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestJobCluster(BasePythonModelTests):
+    """Test Python models using job_cluster submission method with ephemeral clusters."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.job_cluster_schema,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster")
 class TestServerlessCluster(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
@@ -164,6 +202,7 @@ class TestComplexConfig:
     def project_config_update(self):
         return {
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -199,6 +238,7 @@ class TestComplexConfigV2(TestComplexConfig):
         return {
             "flags": {"use_materialization_v2": True},
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -353,8 +393,10 @@ class TestPythonModelAccessControlList:
             raise
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaV2(MaterializationV2Mixin):
+    """Test Python model schema changes with V2 materialization using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
@@ -371,8 +413,10 @@ class TestChangingSchemaV2(MaterializationV2Mixin):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
+    """Test Python incremental schema changes with V2 materialization using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.simple_incremental_python_model}

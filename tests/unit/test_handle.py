@@ -4,9 +4,9 @@ from unittest.mock import Mock
 
 import pytest
 from databricks.sql.client import Cursor
+from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 
 
