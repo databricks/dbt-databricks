@@ -76,7 +76,7 @@ dependencies = [
     "freezegun",
     "mypy>=1.18.2",
     "pre-commit",
-    "ruff>=0.13.3",
+    "ruff==0.14.2",
     "types-requests",
     "debugpy",
     "pydantic>=1.10.0, <2",

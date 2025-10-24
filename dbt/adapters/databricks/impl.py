@@ -46,7 +46,10 @@ from dbt.adapters.databricks.catalogs import (
     UnityCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksDBTConnection,
+)
 from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
@@ -336,7 +339,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def has_capability(self, capability: DBRCapability) -> bool:
         """Check if a DBR capability is available for current compute."""
-        conn = self.connections.get_thread_connection()
+        conn = cast(DatabricksDBTConnection, self.connections.get_thread_connection())
         return conn.has_capability(capability)
 
     @available.parse(lambda *a, **k: False)

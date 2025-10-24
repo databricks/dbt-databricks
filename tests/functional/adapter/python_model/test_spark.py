@@ -20,7 +20,7 @@ class TestPySpark(BasePySparkTests):
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"models": {"+create_notebook": "true"}}
+        return {"models": {"+submission_method": "serverless_cluster"}}
 
     def test_different_dataframes(self, project):
         # test
