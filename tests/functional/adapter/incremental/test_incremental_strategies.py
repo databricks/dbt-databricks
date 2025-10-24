@@ -1,8 +1,8 @@
 import os
 
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.incremental import fixtures
 
 # We're only testing parquet with SQL Warehouse to ensure that the tests are not run in parallel

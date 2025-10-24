@@ -2,6 +2,7 @@ from typing import Optional
 
 from dbt.adapters.catalogs import CatalogIntegration, CatalogIntegrationConfig
 from dbt.adapters.contracts.relation import RelationConfig
+
 from dbt.adapters.databricks import constants, parse_model
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 

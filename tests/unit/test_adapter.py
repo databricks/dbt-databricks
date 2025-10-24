@@ -3,11 +3,12 @@ from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
+import dbt.flags as flags
 import pytest
 from agate import Row
+from dbt.config import RuntimeConfig
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
-import dbt.flags as flags
 from dbt.adapters.databricks import DatabricksAdapter, __version__
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
@@ -23,7 +24,6 @@ from dbt.adapters.databricks.relation import (
     DatabricksTableType,
 )
 from dbt.adapters.databricks.utils import check_not_found_error
-from dbt.config import RuntimeConfig
 from tests.unit.utils import config_from_parts_or_dicts
 
 

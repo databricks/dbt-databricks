@@ -1,11 +1,11 @@
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
 from dbt.tests.adapter.constraints.test_constraints import (
     _find_and_replace,
     _normalize_whitespace,
 )
+
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 from tests.functional.adapter.constraints.test_constraints import (
     BaseConstraintsRollback,

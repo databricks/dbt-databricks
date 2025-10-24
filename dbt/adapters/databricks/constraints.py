@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
+from dbt.adapters.base import ConstraintSupport
+from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -10,9 +12,6 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
-
-from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
 CONSTRAINT_SUPPORT = {

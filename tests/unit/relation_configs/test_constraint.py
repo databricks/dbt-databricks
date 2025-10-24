@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 from agate import Table
+from dbt.artifacts.resources.v1.components import ColumnInfo
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -16,7 +17,6 @@ from dbt.adapters.databricks.relation_configs.constraints import (
     ConstraintsConfig,
     ConstraintsProcessor,
 )
-from dbt.artifacts.resources.v1.components import ColumnInfo
 from tests.unit import fixtures
 
 

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
-from dbt.adapters.databricks.utils import quote
 from dbt.adapters.spark.column import SparkColumn
+
+from dbt.adapters.databricks.utils import quote
 
 
 @dataclass

@@ -1,7 +1,7 @@
 import pytest
 from agate import Row
-
 from dbt.tests import util
+
 from tests.functional.adapter.views import fixtures
 
 

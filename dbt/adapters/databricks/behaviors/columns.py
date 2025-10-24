@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 
+from dbt.adapters.sql import SQLAdapter
 from dbt_common.exceptions import DbtDatabaseError
 from dbt_common.utils.dict import AttrDict
 
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.utils import handle_missing_objects
-from dbt.adapters.sql import SQLAdapter
 
 
 class GetColumnsBehavior(ABC):

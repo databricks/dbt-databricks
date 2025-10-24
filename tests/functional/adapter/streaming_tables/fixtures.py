@@ -1,6 +1,7 @@
 from typing import Optional
 
 from dbt.adapters.base.relation import BaseRelation
+
 from dbt.adapters.databricks.relation import DatabricksRelationType
 
 

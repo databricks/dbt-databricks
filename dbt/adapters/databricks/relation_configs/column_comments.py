@@ -1,12 +1,13 @@
 from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
+
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class ColumnCommentsConfig(DatabricksComponentConfig):
