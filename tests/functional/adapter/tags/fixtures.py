@@ -13,6 +13,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='table',
+        submission_method='serverless_cluster',
     )
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
@@ -26,5 +27,4 @@ models:
       databricks_tags:
         a: b
         c: d
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
