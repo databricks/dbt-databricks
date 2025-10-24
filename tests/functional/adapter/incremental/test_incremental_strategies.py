@@ -424,3 +424,78 @@ class TestMergeSchemaEvolution(IncrementalBase):
             project.adapter,
             ["merge_schema_evolution", "merge_schema_evolution_expected"],
         )
+
+
+class TestDeleteInsert(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.base_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+incremental_strategy": "delete+insert", "+unique_key": "id"}}
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
+class TestDeleteInsertUpdateSchema(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.update_schema_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_update_schema_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "delete+insert",
+                "+unique_key": "id",
+                "+on_schema_change": "sync_all_columns",
+                "+tblproperties": {"delta.columnMapping.mode": "name"},
+            }
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
+class TestDeleteInsertWithPredicates(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.delete_insert_with_predicates_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_with_predicates_expected,
+        }
+
+    def test_delete_insert(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
