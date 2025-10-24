@@ -11,8 +11,6 @@ from dbt.flags import set_from_args
 
 from dbt.adapters.databricks import catalogs, constants
 
-from dbt.adapters.databricks import catalogs, constants
-
 
 class Obj:
     which = "blah"
