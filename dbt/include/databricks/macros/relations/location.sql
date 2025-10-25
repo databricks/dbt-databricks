@@ -6,7 +6,7 @@
   --#}
   {%- if relation.catalog_type is not none -%}
 
-    {%- if relation.location is not none -%}
+    {%- if relation.location is not none and relation.location != '' -%}
     location '{{ relation.location }}{% if is_incremental() %}_tmp{% endif %}'
     {%- endif -%}
 
@@ -17,7 +17,9 @@
   {%- set identifier = model['alias'] -%}
   {%- if location_root is not none %}
   {%- set model_path = adapter.compute_external_path(config, model, is_incremental()) %}
+    {%- if model_path != '' -%}
     location '{{ model_path }}'
+    {%- endif -%}
   {%- elif (not relation.is_hive_metastore()) and file_format != 'delta' -%}
     {{ exceptions.raise_compiler_error(
         'Incompatible configuration: `location_root` must be set when using a non-delta file format with Unity Catalog'
