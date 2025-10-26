@@ -289,6 +289,13 @@ merge_schema_evolution_expected = """id,first,second,V
 3,Dunkan,Aidaho,2
 """
 
+merge_with_explicit_actions_expected = """id,first,second,updated_version
+1,Jessica,Atreides,2
+2,Paul,Atreides,2
+4,Baron,Harkonnen,-1
+6,Emperor,Shaddam,1
+"""
+
 base_model = """
 {{ config(
     materialized = 'incremental'
@@ -546,6 +553,63 @@ select 1 as id, 'Jessica' as first, 'Atreides' as second, 1 as V
 union all
 select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 2 as V
 
+{% endif %}
+"""
+
+merge_with_explicit_actions_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy='merge',
+    target_alias='t',
+    source_alias='s',
+    merge_actions_explicit=\"\"\"
+        when matched
+            and s.action = 'u'
+            and s.V > t.updated_version
+            then update set
+                t.first = s.first,
+                t.second = s.second,
+                t.updated_version = s.V
+        when matched
+            and s.action = 'd'
+            and s.V > t.updated_version
+            then delete
+        when not matched
+            then insert (id, first, second, updated_version)
+                values (s.id, s.first, s.second, s.V)
+        when not matched by source
+            and t.updated_version = 1 then delete
+        when not matched by source
+            then update set t.updated_version = -1
+    \"\"\",
+) }}
+
+{% if not is_incremental() %}
+
+-- data for first invocation of model
+
+select 1 as id, 'Vasya' as first, 'Pupkin' as second, 1 as updated_version -- planned to be updated
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 2 as updated_version -- planned to be kept
+union all
+select 3 as id, 'Dunkan' as first, 'Aidaho' as second, 1 as updated_version -- planned to be deleted
+union all
+select 4 as id, 'Baron' as first, 'Harkonnen' as second, 2 as updated_version -- should be updated
+union all
+select 5 as id, 'Raban' as first, '' as second, 1 as updated_version -- should be deleted
+
+{% else %}
+
+-- id, first, second, V, action
+
+select 1 as id, 'Jessica' as first, 'Atreides' as second, 2 as V, 'u' as action -- should update
+union all
+select 2 as id, 'Paul' as first, 'Atreides' as second, 1 as V, 'd' as action -- should skip, V<2
+union all
+select 3 as id, 'Naknud' as first, 'Ohadia' as second, 2 as V, 'd' as action -- should delete
+union all
+select 6 as id, 'Emperor' as first, 'Shaddam' as second, 1 as V, 'i' as action -- should insert
 {% endif %}
 """
 

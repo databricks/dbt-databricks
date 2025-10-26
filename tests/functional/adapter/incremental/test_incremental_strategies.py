@@ -438,3 +438,24 @@ class TestMergeSchemaEvolution(IncrementalBase):
             project.adapter,
             ["merge_schema_evolution", "merge_schema_evolution_expected"],
         )
+
+
+class TestMergeWithExplicitActions(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_with_explicit_actions_expected.csv": fixtures.merge_with_explicit_actions_expected,  # noqa: E501
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_with_explicit_actions_model.sql": fixtures.merge_with_explicit_actions_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["merge_with_explicit_actions_model", "merge_with_explicit_actions_expected"],
+        )
