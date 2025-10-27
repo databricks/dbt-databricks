@@ -23,6 +23,7 @@
   - Improved efficiency of column tags and comments change detection to use case-insensitive comparison
 - Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
 - Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
+- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
 
 ### Under the Hood
 
@@ -36,9 +37,6 @@
 - Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
 
 ## dbt-databricks 1.10.15 (TBD)
-### Fixes
-
-- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
 
 ## dbt-databricks 1.10.14 (October 22, 2025)
 
