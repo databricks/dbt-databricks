@@ -36,6 +36,9 @@
 - Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
 
 ## dbt-databricks 1.10.15 (TBD)
+### Fixes
+
+- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
 
 ## dbt-databricks 1.10.14 (October 22, 2025)
 
