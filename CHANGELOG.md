@@ -33,6 +33,7 @@
 - Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
 - Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
 - **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
+- Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
 
 ## dbt-databricks 1.10.15 (TBD)
 

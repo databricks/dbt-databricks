@@ -32,7 +32,7 @@
     {{ get_assert_columns_equivalent(compiled_code) }}
   {%- endif -%}
 
-  {%- if catalog_relation.file_format == 'delta' %}
+  {%- if catalog_relation.file_format in ('delta', 'iceberg') %}
   create or replace table {{ target_relation.render() }}
   {% else %}
   create table {{ target_relation.render() }}
