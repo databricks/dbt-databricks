@@ -18,7 +18,7 @@
   #}
   {%- set temp_relation = make_temp_relation(relation) -%}
   {% call statement('create_temp_view') -%}
-    {%- set sql_with_limit = analysis_sql.rstrip('; \n\t') ~ ' LIMIT 10' -%}
+    {%- set sql_with_limit = analysis_sql.rstrip('; \n\t') -%}
     {{ create_temporary_view(temp_relation, sql_with_limit) }}
   {%- endcall %}
 
