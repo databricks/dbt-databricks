@@ -1,18 +1,18 @@
 from typing import Optional
 
 import pytest
+from dbt.adapters.base.relation import BaseRelation
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.files import (
+    MY_SEED,
+)
 from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 
-from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.tests import util
-from dbt.tests.adapter.materialized_view.files import (
-    MY_SEED,
-)
 from tests.functional.adapter.streaming_tables import fixtures
 
 

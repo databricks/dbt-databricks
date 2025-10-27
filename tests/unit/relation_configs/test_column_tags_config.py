@@ -2,13 +2,13 @@ from unittest.mock import Mock
 
 import pytest
 from agate import Table
+from dbt.artifacts.resources.v1.components import ColumnInfo
+from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
-from dbt.artifacts.resources.v1.components import ColumnInfo
-from dbt.exceptions import DbtRuntimeError
 
 
 class TestColumnTagsProcessor:
@@ -139,3 +139,31 @@ class TestColumnTagsConfig:
         other = ColumnTagsConfig(set_column_tags={"col1": {"tag_a": "value_a", "tag_b": "value_b"}})
         diff = config.get_diff(other)
         assert diff is None
+
+    def test_get_diff__case_mismatch_column_names(self):
+        """Test that column name case mismatches are handled correctly."""
+        # Config has lowercase column names (from YAML schema)
+        config = ColumnTagsConfig(
+            set_column_tags={"account_id": {"pii": "true"}, "user_name": {"pii": "true"}}
+        )
+        # Other has mixed case column names (from database)
+        other = ColumnTagsConfig(
+            set_column_tags={"Account_ID": {"pii": "true"}, "User_Name": {"pii": "true"}}
+        )
+        # Should recognize these as the same columns and return no diff
+        diff = config.get_diff(other)
+        assert diff is None
+
+    def test_get_diff__case_mismatch_with_actual_changes(self):
+        """Test that real changes are detected even with case mismatches."""
+        # Config has lowercase column names with new tag values
+        config = ColumnTagsConfig(
+            set_column_tags={"account_id": {"pii": "false"}, "user_name": {"pii": "true"}}
+        )
+        # Other has mixed case column names with old tag values
+        other = ColumnTagsConfig(
+            set_column_tags={"Account_ID": {"pii": "true"}, "User_Name": {"pii": "true"}}
+        )
+        # Should detect that account_id tag changed
+        diff = config.get_diff(other)
+        assert diff == ColumnTagsConfig(set_column_tags={"account_id": {"pii": "false"}})

@@ -1,8 +1,10 @@
+import json
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
-from dbt.adapters.databricks.utils import quote
 from dbt.adapters.spark.column import SparkColumn
+
+from dbt.adapters.databricks.utils import quote
 
 
 @dataclass
@@ -37,8 +39,6 @@ class DatabricksColumn(SparkColumn):
         Returns:
             List of DatabricksColumn objects
         """
-        import json
-
         data = json.loads(json_metadata)
         columns = []
 
@@ -139,11 +139,20 @@ class DatabricksColumn(SparkColumn):
     def data_type(self) -> str:
         return self.translate_type(self.dtype)
 
+    @property
+    def quoted(self) -> str:
+        """Return the properly quoted column name.
+
+        This applies comprehensive quoting to all column names for consistency and safety.
+        """
+        return quote(self.name)
+
     def enrich(self, model_column: dict[str, Any], not_null: bool) -> "DatabricksColumn":
         """Create a copy that incorporates model column metadata, including constraints."""
 
         data_type = model_column.get("data_type") or self.dtype
-        name = self.get_name(model_column)
+        # Use the actual column name from SQL, not from YAML, to preserve capitalization
+        name = self.name
         enriched_column = DatabricksColumn.create(name, data_type)
         if model_column.get("description"):
             enriched_column.comment = model_column["description"]
@@ -157,7 +166,7 @@ class DatabricksColumn(SparkColumn):
 
     def render_for_create(self) -> str:
         """Renders the column for building a create statement."""
-        column_str = f"{self.name} {self.dtype}"
+        column_str = f"{self.quoted} {self.dtype}"
         if self.not_null:
             column_str += " NOT NULL"
         if self.comment:
@@ -173,14 +182,9 @@ class DatabricksColumn(SparkColumn):
         return f"<DatabricksColumn {self.name} ({self.data_type})>"
 
     @staticmethod
-    def get_name(column: dict[str, Any]) -> str:
-        name = column["name"]
-        return quote(name) if column.get("quote", False) else name
-
-    @staticmethod
     def format_remove_column_list(columns: list["DatabricksColumn"]) -> str:
-        return ", ".join([quote(c.name) for c in columns])
+        return ", ".join([c.quoted for c in columns])
 
     @staticmethod
     def format_add_column_list(columns: list["DatabricksColumn"]) -> str:
-        return ", ".join([f"{quote(c.name)} {c.data_type}" for c in columns])
+        return ", ".join([f"{c.quoted} {c.data_type}" for c in columns])

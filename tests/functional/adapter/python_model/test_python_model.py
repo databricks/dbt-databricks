@@ -1,20 +1,20 @@
 import os
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.python_model import test_python_model as fixtures
 from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonIncrementalTests,
     BasePythonModelTests,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 # Check if ACL tests should be enabled
 # Set DBT_ENABLE_ACL_TESTS=1 to enable ACL tests
 # Users for tests are set via DBT_TEST_USER_1/2/3 environment variables
-pytest.acl_tests_enabled = os.environ.get("DBT_ENABLE_ACL_TESTS") == "1"
+ACL_TESTS_ENABLED = os.environ.get("DBT_ENABLE_ACL_TESTS") == "1"
 
 
 def verify_temp_tables_cleaned(project):
@@ -30,42 +30,70 @@ def verify_temp_table_cleaned(project, suffix):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonModel(BasePythonModelTests):
-    pass
+    """Default Python model tests using serverless compute for speed and reliability."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.serverless_schema,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonFailureModel:
+    """Test Python model error handling using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"my_failure_model.py": override_fixtures.python_error_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_failure_model(self, project):
         util.run_dbt(["run"], expect_pass=False)
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonFailureModelNotebook(TestPythonFailureModel):
+    """Test Python model error handling with notebooks using serverless compute."""
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"models": {"+create_notebook": "true"}}
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPythonIncrementalModel(BasePythonIncrementalTests):
-    pass
+    """Test Python incremental models using serverless compute."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+submission_method": "serverless_cluster"}}
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchema:
+    """Test Python model schema changes using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_with_log_validation(self, project, logs_dir):
         util.run_dbt(["run"])
@@ -84,8 +112,10 @@ class TestChangingSchema:
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaIncremental:
+    """Test Python incremental schema changes using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.incremental_model}
@@ -93,6 +123,10 @@ class TestChangingSchemaIncremental:
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"expected_incremental.csv": override_fixtures.expected_incremental}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_via_incremental(self, project):
         util.run_dbt(["seed"])
@@ -117,7 +151,23 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestJobCluster(BasePythonModelTests):
+    """Test Python models using job_cluster submission method with ephemeral clusters."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.job_cluster_schema,
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster")
 class TestServerlessCluster(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
@@ -164,6 +214,7 @@ class TestComplexConfig:
     def project_config_update(self):
         return {
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -199,6 +250,7 @@ class TestComplexConfigV2(TestComplexConfig):
         return {
             "flags": {"use_materialization_v2": True},
             "models": {
+                "+submission_method": "serverless_cluster",
                 "+persist_docs": {
                     "relation": True,
                     "columns": True,
@@ -239,8 +291,12 @@ class TestPythonModelNotebookACL:
             "schema.yml": override_fixtures.notebook_acl_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_python_model_with_notebook_acl(self, project):
-        if not pytest.acl_tests_enabled:
+        if not ACL_TESTS_ENABLED:
             pytest.skip("ACL tests are not enabled")
 
         result = util.run_dbt(["run"])
@@ -301,8 +357,12 @@ class TestPythonModelAccessControlList:
             "schema.yml": override_fixtures.access_control_list_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_python_model_with_access_control_list(self, project):
-        if not pytest.acl_tests_enabled:
+        if not ACL_TESTS_ENABLED:
             pytest.skip("ACL tests are not enabled")
 
         adapter = project.adapter
@@ -353,11 +413,17 @@ class TestPythonModelAccessControlList:
             raise
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaV2(MaterializationV2Mixin):
+    """Test Python model schema changes with V2 materialization using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])
@@ -371,11 +437,17 @@ class TestChangingSchemaV2(MaterializationV2Mixin):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skip_profile("databricks_cluster")
 class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
+    """Test Python incremental schema changes with V2 materialization using serverless compute."""
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.simple_incremental_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])

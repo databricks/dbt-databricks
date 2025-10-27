@@ -1,7 +1,7 @@
 import pytest
-
 from dbt.tests.adapter.basic import expected_catalog
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
+
 from tests.functional.adapter.basic.fixtures import AnyStringOrNone
 from tests.functional.adapter.basic.typing import AnyLongType, StatsLikeDict
 

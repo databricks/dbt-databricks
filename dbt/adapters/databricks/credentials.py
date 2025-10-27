@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, cast
 
+from dbt.adapters.contracts.connection import Credentials
 from dbt_common.exceptions import DbtConfigError, DbtValidationError
 from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
@@ -12,7 +13,6 @@ from requests.auth import AuthBase
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, CredentialsProvider
-from dbt.adapters.contracts.connection import Credentials
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
 
@@ -51,6 +51,9 @@ class DatabricksCredentials(Credentials):
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
     compute: Optional[dict[str, Any]] = None
+
+    # Query tags to be applied to all queries from this connection
+    query_tags: Optional[str] = None
 
     connect_retries: int = 1
     connect_timeout: Optional[int] = None

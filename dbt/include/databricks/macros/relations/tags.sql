@@ -21,7 +21,7 @@
   {%- if set_tags and relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}
   {%- endif -%}
-  {%- if set_tags %}
+  {%- if set_tags and set_tags != [] %}
     {%- call statement('main') -%}
        {{ alter_set_tags(relation, set_tags) }}
     {%- endcall -%}
@@ -29,7 +29,7 @@
 {%- endmacro -%}
 
 {% macro alter_set_tags(relation, tags) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} SET TAGS (
+  ALTER {{ relation.type.render() }} {{ relation.render() }} SET TAGS (
     {% for tag in tags -%}
       '{{ tag }}' = '{{ tags[tag] }}' {%- if not loop.last %}, {% endif -%}
     {%- endfor %}

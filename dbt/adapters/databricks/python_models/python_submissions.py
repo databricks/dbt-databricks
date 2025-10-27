@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
 from pydantic import BaseModel
 from typing_extensions import override
 
-from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
@@ -34,7 +34,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,
@@ -419,7 +419,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,

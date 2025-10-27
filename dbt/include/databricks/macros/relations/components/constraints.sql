@@ -119,23 +119,23 @@
 {%- endmacro -%}
 
 {% macro alter_set_non_null_constraint(relation, column) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} ALTER COLUMN {{ column }} SET NOT NULL;
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ adapter.quote(column) }} SET NOT NULL;
 {%- endmacro -%}
 
 {% macro alter_unset_non_null_constraint(relation, column) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} ALTER COLUMN {{ column }} DROP NOT NULL;
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ALTER COLUMN {{ adapter.quote(column) }} DROP NOT NULL;
 {%- endmacro -%}
 
 {% macro alter_set_constraint(relation, constraint) -%}
-  ALTER {{ relation.type }} {{ relation.render() }} ADD {{ constraint.render() }};
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ADD {{ constraint.render() }};
 {%- endmacro -%}
 
 {% macro alter_unset_constraint(relation, constraint) -%}
   {% set constraint_type = constraint.type %}
   {% if constraint_type == 'primary_key' %}
     {# Need to only add CASCADE to PK constraints because dropping check constraints break when adding CASCADE #}
-    ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT {{ constraint.name }} CASCADE;
+    ALTER {{ relation.type.render() }} {{ relation.render() }} DROP CONSTRAINT {{ constraint.name }} CASCADE;
   {% else %}
-    ALTER {{ relation.type }} {{ relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }};
+    ALTER {{ relation.type.render() }} {{ relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }};
   {% endif %}
 {%- endmacro -%}

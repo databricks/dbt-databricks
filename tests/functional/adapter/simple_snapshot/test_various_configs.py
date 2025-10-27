@@ -2,7 +2,6 @@ import datetime
 
 import pytest
 from agate import Table
-
 from dbt.tests.adapter.simple_snapshot.fixtures import (
     create_multi_key_seed_sql,
     create_multi_key_snapshot_expected_sql,

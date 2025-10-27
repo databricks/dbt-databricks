@@ -26,9 +26,10 @@
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
-  create materialized view {{ target_relation.render() }}
+  create or replace materialized view {{ target_relation.render() }}
     {{ get_column_and_constraints_sql(target_relation, columns_and_constraints[0]) }}
     {{ get_create_sql_partition_by(partition_by) }}
+    {{ liquid_clustered_cols() }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}
     {{ get_create_sql_refresh_schedule(refresh.cron, refresh.time_zone_value) }}
