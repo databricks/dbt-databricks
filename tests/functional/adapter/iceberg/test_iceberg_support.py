@@ -17,6 +17,7 @@ class TestIcebergTables:
         }
 
     def test_iceberg_refs(self, project):
+        util.run_dbt()
         run_results = util.run_dbt()
         assert len(run_results) == 3
 

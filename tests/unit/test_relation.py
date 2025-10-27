@@ -190,6 +190,50 @@ class TestRelationsFunctions:
         )
         assert relation.is_external_table is True
 
+    def test_is_iceberg(self):
+        relation = DatabricksRelation.create(
+            identifier="iceberg_table",
+            type="table",
+            metadata={"Provider": "iceberg"},
+        )
+        assert relation.is_iceberg is True
+
+    def test_is_iceberg_false_for_delta(self):
+        relation = DatabricksRelation.create(
+            identifier="delta_table",
+            type="table",
+            metadata={"Provider": "delta"},
+        )
+        assert relation.is_iceberg is False
+
+    @pytest.mark.parametrize(
+        "type_, is_delta, is_iceberg, expected_can_be_replaced",
+        [
+            ("table", True, False, True),  # Delta table
+            ("table", False, True, True),  # Iceberg table
+            ("table", True, True, True),  # Both (shouldn't happen in practice)
+            ("table", False, False, False),  # Other table format
+            ("view", False, False, True),  # View
+            ("materialized_view", False, False, True),  # Materialized view
+        ],
+    )
+    def test_can_be_replaced(self, type_, is_delta, is_iceberg, expected_can_be_replaced):
+        metadata = {}
+        if is_delta:
+            metadata["Provider"] = "delta"
+        elif is_iceberg:
+            metadata["Provider"] = "iceberg"
+        else:
+            metadata["Provider"] = "parquet"
+
+        relation = DatabricksRelation.create(
+            identifier="test_table",
+            type=type_,
+            is_delta=is_delta,
+            metadata=metadata,
+        )
+        assert relation.can_be_replaced is expected_can_be_replaced
+
     @pytest.mark.parametrize(
         "input, expected",
         [

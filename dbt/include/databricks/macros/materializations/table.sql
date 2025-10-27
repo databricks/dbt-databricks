@@ -25,7 +25,7 @@
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
-        {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) == 'delta')) -%}
+        {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
           {{ adapter.drop_relation(existing_relation) }}
         {%- endif %}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
@@ -43,9 +43,9 @@
   {% else %}
     {{ run_hooks(pre_hooks) }}
     -- setup: if the target relation already exists, drop it
-    -- in case if the existing and future table is delta, we want to do a
+    -- in case if the existing and future table is delta or iceberg, we want to do a
     -- create or replace table instead of dropping, so we don't have the table unavailable
-    {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) == 'delta')) -%}
+    {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
       {{ adapter.drop_relation(existing_relation) }}
     {%- endif %}
 

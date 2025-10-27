@@ -122,6 +122,11 @@ class DatabricksRelation(BaseRelation):
         return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
 
     @property
+    def is_iceberg(self) -> bool:
+        assert self.metadata is not None
+        return self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
+
+    @property
     def owner(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_OWNER) if self.metadata is not None else None
 
@@ -135,6 +140,7 @@ class DatabricksRelation(BaseRelation):
             self.type == DatabricksRelationType.View
             or self.type == DatabricksRelationType.MaterializedView
             or (self.is_delta is True and self.type == DatabricksRelationType.Table)
+            or (self.is_iceberg is True and self.type == DatabricksRelationType.Table)
         )
 
     @property
