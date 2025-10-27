@@ -8,6 +8,7 @@
 - Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
 - Add support for Databricks query tags
 - Add support for managed iceberg when `table_format` is set to `iceberg`. This behavior is gated behind behavior flag `use_managed_iceberg` which defaults to `false`
+- Support delete+insert incremental strategy (thanks @canbekley!) ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
 
 ### Fixes
 
@@ -42,10 +43,6 @@
 - Update dependency versions ([1227](https://github.com/databricks/dbt-databricks/pull/1227))
 
 ## dbt-databricks 1.10.13 (October 21, 2025)
-
-### Features
-
-- Support delete+insert incremental strategy ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
 
 ### Fixes
 
