@@ -92,6 +92,19 @@ class DatabricksRelation(BaseRelation):
             data["path"]["database"] = None
         else:
             data["path"]["database"] = remove_undefined(data["path"]["database"])
+
+        # Similarly handle other table types that might come in as relation types
+        table_type_values = {
+            "managed",
+            "managed_shallow_clone",
+            "external_shallow_clone",
+            "external",
+        }
+        if data.get("type") in table_type_values:
+            if "databricks_table_type" not in data:
+                data["databricks_table_type"] = data["type"]
+            data["type"] = "table"
+
         return data
 
     def has_information(self) -> bool:

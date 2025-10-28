@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "The Databricks adapter plugin for dbt"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Databricks", email = "feedback@databricks.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -16,10 +16,10 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "databricks-sdk>=0.41, <0.68.0",
@@ -83,7 +83,7 @@ dependencies = [
     "pytest-cov",
 ]
 path = ".hatch"
-python = "3.9"
+python = "3.10"
 
 [tool.hatch.envs.default.scripts]
 setup-precommit = "pre-commit install"
@@ -98,7 +98,7 @@ unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscop
 unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 [tool.ruff]
 line-length = 100
