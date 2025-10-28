@@ -24,6 +24,7 @@
 - Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
 - Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
 - Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
+- Reintroduce support for external so as not to break users ([1240](1240))
 
 ### Under the Hood
 
@@ -35,6 +36,7 @@
 - Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
 - **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
 - Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
+- Drop support for python 3.9, adds 3.13 ([1240](https://github.com/databricks/dbt-databricks/pull/1240))
 
 ## dbt-databricks 1.10.15 (TBD)
 
