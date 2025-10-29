@@ -472,7 +472,7 @@ class TestAllPurposeClusterCommandAPI(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "schema.yml": override_fixtures.all_purpose_command_api_schema,  # No submission_method override
+            "schema.yml": override_fixtures.all_purpose_command_api_schema,
             "my_sql_model.sql": fixtures.basic_sql,
             "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
             "my_python_model.py": fixtures.basic_python,
