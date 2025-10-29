@@ -137,6 +137,7 @@ class CheckConstraint(TypedConstraint):
             raise self._render_error([["expression"]])
 
     def _render_suffix(self) -> str:
+        assert self.expression is not None  # Validated in _validate()
         if self.expression[0] != "(" or self.expression[-1] != ")":
             return f"CHECK ({self.expression})"
         else:
@@ -207,9 +208,7 @@ def parse_column_constraints(
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
-                constraint["columns"] = [
-                    f"`{column['name']}`" if column.get("quote") else column["name"]
-                ]
+                constraint["columns"] = [column["name"]]
                 constraints.append(parse_constraint(constraint))
 
     return column_names, constraints

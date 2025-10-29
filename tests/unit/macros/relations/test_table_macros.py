@@ -16,7 +16,12 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["file_format.sql", "tblproperties.sql", "location.sql", "liquid_clustering.sql"]
+        return [
+            "file_format.sql",
+            "tblproperties.sql",
+            "location.sql",
+            "liquid_clustering.sql",
+        ]
 
     @pytest.fixture
     def context(self, template) -> dict:
@@ -26,7 +31,8 @@ class TestCreateTableAs(MacroTestBase):
         mocking macros.
         If you need to mock a macro, see the use of is_incremental in default_context.
         """
-        template.globals["adapter"].update_tblproperties_for_iceberg.return_value = {}
+        template.globals["adapter"].is_uniform.return_value = False
+        template.globals["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {}
         return template.globals
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
@@ -52,9 +58,11 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_with_iceberg(self, template_bundle):
         catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
         template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
-        template_bundle.context[
-            "adapter"
-        ].update_tblproperties_for_iceberg.return_value = catalog_relation.iceberg_table_properties  # type: ignore
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = (
+            catalog_relation.iceberg_table_properties  # type: ignore
+        )
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = False
         sql = self.render_create_table_as(template_bundle)
         assert sql == self.clean_sql(
             f"create or replace table {template_bundle.relation.render()} using delta"
@@ -246,7 +254,8 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
             "delta.appendOnly": "true"
         }
         template_bundle.context["model"].description = "Description Test"
@@ -279,7 +288,8 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
             "delta.appendOnly": "true"
         }
         template_bundle.context["model"].description = "Description Test"
@@ -296,5 +306,36 @@ class TestCreateTableAs(MacroTestBase):
             "tblproperties ('delta.appendOnly' = 'true' ) "
             "as select 1"
         )
+        assert sql == expected
 
-        assert expected == sql
+    def test_macros_create_table_as_managed_iceberg(self, config, template_bundle):
+        """Test that USING ICEBERG is generated when managed Iceberg flag is enabled"""
+        catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = True
+
+        sql = self.render_create_table_as(template_bundle)
+        expected = (
+            f"create or replace table {template_bundle.relation.render()} using iceberg as select 1"
+        )
+        assert sql == expected
+
+    def test_macros_create_table_as_uniform_iceberg(self, config, template_bundle):
+        """Test that USING DELTA is still used when managed Iceberg flag is disabled (default)"""
+        catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = False
+        # Mock the UniForm properties return
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
+            "delta.enableIcebergCompatV2": "true",
+            "delta.universalFormat.enabledFormats": "iceberg",
+        }
+
+        sql = self.render_create_table_as(template_bundle)
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using delta "
+            "tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
+            "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
+        )
+        assert sql == expected

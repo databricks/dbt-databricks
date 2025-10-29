@@ -108,3 +108,37 @@ SELECT
     'field30', 30
   ) AS my_struct;
 """
+
+liquid_clustered_mv = """
+{{ config(
+    materialized='materialized_view',
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+liquid_clustered_mv_schema_v1 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: id
+"""
+
+liquid_clustered_mv_schema_v2 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: [id, value]
+"""
+
+liquid_clustered_mv_schema_v3 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: []
+"""

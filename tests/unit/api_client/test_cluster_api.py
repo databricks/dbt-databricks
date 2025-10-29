@@ -2,79 +2,75 @@ from unittest.mock import Mock, patch
 
 import freezegun
 import pytest
+from databricks.sdk.service.compute import State
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import ClusterApi
-from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestClusterApi(ApiTestBase):
+class TestClusterApi:
     @pytest.fixture
     def library_api(self):
         return Mock()
 
     @pytest.fixture
-    def api(self, session, host, library_api):
-        return ClusterApi(session, host, library_api)
+    def workspace_client(self):
+        mock = Mock()
+        return mock
 
-    def test_status__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.status("cluster_id"), session)
+    @pytest.fixture
+    def api(self, workspace_client, library_api):
+        return ClusterApi(workspace_client, library_api)
 
-    def test_status__200(self, api, session, host):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"state": "running"}
+    def test_status__exception(self, api, workspace_client):
+        workspace_client.clusters.get.side_effect = Exception("API Error")
+        with pytest.raises(DbtRuntimeError, match="Error getting status of cluster"):
+            api.status("cluster_id")
+
+    def test_status__success(self, api, workspace_client):
+        mock_cluster = Mock()
+        mock_cluster.state = State.RUNNING
+        workspace_client.clusters.get.return_value = mock_cluster
+
         state = api.status("cluster_id")
         assert state == "RUNNING"
-        session.get.assert_called_once_with(
-            f"https://{host}/api/2.0/clusters/get", json={"cluster_id": "cluster_id"}, params=None
-        )
+        workspace_client.clusters.get.assert_called_once_with(cluster_id="cluster_id")
 
     @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_wait_for_cluster__success(self, _, api, session, library_api):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.side_effect = [{"state": "pending"}, {"state": "running"}]
+    def test_wait_for_cluster__success(self, mock_sleep, api, workspace_client, library_api):
+        # Mock cluster states: first PENDING, then RUNNING
+        mock_cluster_pending = Mock()
+        mock_cluster_pending.state = State.PENDING
+        mock_cluster_running = Mock()
+        mock_cluster_running.state = State.RUNNING
+
+        workspace_client.clusters.get.side_effect = [mock_cluster_pending, mock_cluster_running]
         library_api.get_cluster_libraries_status.return_value = {"library_statuses": []}
-        api.wait_for_cluster("cluster_id")
+        library_api.all_libraries_installed.return_value = True
 
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_wait_for_cluster_with_installed_library__success(
-        self, mock_sleep, api, session, library_api
-    ):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"state": "running"}
-        library_api.get_cluster_libraries_status.return_value = {
-            "library_statuses": [{"status": "INSTALLED"}]
-        }
         api.wait_for_cluster("cluster_id")
-        mock_sleep.assert_not_called()
-
-    @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_wait_for_cluster_with_pending_library__success(
-        self, mock_sleep, api, session, library_api
-    ):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.side_effect = [{"state": "running"}, {"state": "running"}]
-        library_api.all_libraries_installed.side_effect = [False, True]
-        api.wait_for_cluster("cluster_id")
-        mock_sleep.assert_called_with(5)
+        assert mock_sleep.call_count == 1
 
     @freezegun.freeze_time("2020-01-01", auto_tick_seconds=900)
     @patch("dbt.adapters.databricks.api_client.time.sleep")
-    def test_wait_for_cluster__timeout(self, _, api, session):
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"state": "pending"}
-        with pytest.raises(DbtRuntimeError):
+    def test_wait_for_cluster__timeout(self, mock_sleep, api, workspace_client):
+        mock_cluster = Mock()
+        mock_cluster.state = State.PENDING
+        workspace_client.clusters.get.return_value = mock_cluster
+
+        with pytest.raises(DbtRuntimeError, match="restart timed out"):
             api.wait_for_cluster("cluster_id")
 
-    def test_start__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.start("cluster_id"), session)
+    def test_start__success(self, api, workspace_client, library_api):
+        # Mock cluster starting from TERMINATED state
+        mock_cluster_terminated = Mock()
+        mock_cluster_terminated.state = State.TERMINATED
+        mock_cluster_running = Mock()
+        mock_cluster_running.state = State.RUNNING
 
-    def test_start__200(self, api, session, host, library_api):
-        session.post.return_value.status_code = 200
-        session.get.return_value.status_code = 200
-        session.get.return_value.json.return_value = {"state": "running"}
+        workspace_client.clusters.get.side_effect = [mock_cluster_terminated, mock_cluster_running]
         library_api.get_cluster_libraries_status.return_value = {"library_statuses": []}
+        library_api.all_libraries_installed.return_value = True
+
         api.start("cluster_id")
-        session.post.assert_called_once_with(
-            f"https://{host}/api/2.0/clusters/start", json={"cluster_id": "cluster_id"}, params=None
-        )
+        workspace_client.clusters.start.assert_called_once_with(cluster_id="cluster_id")

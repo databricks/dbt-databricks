@@ -30,7 +30,7 @@ from dbt.adapters.spark.impl import (
 )
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import CompilationError, DbtConfigError, DbtInternalError
+from dbt_common.exceptions import DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -39,7 +39,6 @@ from dbt.adapters.databricks import constants, constraints, parse_model
 from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsBehavior,
     GetColumnsByDescribe,
-    GetColumnsByInformationSchema,
 )
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
@@ -47,7 +46,11 @@ from dbt.adapters.databricks.catalogs import (
     UnityCatalogIntegration,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
-from dbt.adapters.databricks.connections import DatabricksConnectionManager
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksDBTConnection,
+)
+from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -79,7 +82,12 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
-from dbt.adapters.databricks.utils import get_first_row, handle_missing_objects, redact_credentials
+from dbt.adapters.databricks.utils import (
+    get_first_row,
+    handle_missing_objects,
+    quote,
+    redact_credentials,
+)
 
 if TYPE_CHECKING:
     from agate import Row, Table
@@ -93,16 +101,6 @@ GET_CATALOG_MACRO_NAME = "get_catalog"
 SHOW_TABLE_EXTENDED_MACRO_NAME = "show_table_extended"
 SHOW_TABLES_MACRO_NAME = "show_tables"
 SHOW_VIEWS_MACRO_NAME = "show_views"
-
-
-USE_INFO_SCHEMA_FOR_COLUMNS = BehaviorFlag(
-    name="use_info_schema_for_columns",
-    default=False,
-    description=(
-        "Use info schema to gather column information to ensure complex types are not truncated."
-        "  Incurs some overhead, so disabled by default."
-    ),
-)  # type: ignore[typeddict-item]
 
 USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     name="use_user_folder_for_python",
@@ -119,6 +117,27 @@ USE_MATERIALIZATION_V2 = BehaviorFlag(
     description=(
         "Use revamped materializations based on separating create and insert."
         "  This allows more performant column comments, as well as new column features."
+    ),
+)  # type: ignore[typeddict-item]
+
+USE_REPLACE_ON_FOR_INSERT_OVERWRITE = BehaviorFlag(
+    name="use_replace_on_for_insert_overwrite",
+    default=True,
+    description=(
+        "Use the new INSERT REPLACE ON syntax for insert_overwrite incremental strategy."
+        "  When disabled, falls back to legacy INSERT OVERWRITE syntax with dynamic partition"
+        "  overwrite. For SQL warehouses, disabling will produce the same behavior as using the "
+        "  table materialization. For other compute types, it will fall back to the legacy syntax"
+        "  as well but functionally behaves the same regardless of flag value"
+    ),
+)  # type: ignore[typeddict-item]
+
+USE_MANAGED_ICEBERG = BehaviorFlag(
+    name="use_managed_iceberg",
+    default=False,
+    description=(
+        "Use managed Iceberg tables when table_format is iceberg. When this flag is disabled, "
+        "UniForm is used instead."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -146,6 +165,7 @@ class DatabricksConfig(AdapterConfig):
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
     databricks_tags: Optional[dict[str, str]] = None
+    query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
     unique_tmp_table_suffix: bool = False
@@ -182,14 +202,14 @@ def get_identifier_list_string(table_names: set[str]) -> str:
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
-    Relation = DatabricksRelation
+    Relation = DatabricksRelation  # type: ignore[assignment]
     Column = DatabricksColumn
 
     ConnectionManager = DatabricksConnectionManager
 
     connections: DatabricksConnectionManager
 
-    AdapterSpecificConfigs = DatabricksConfig
+    AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
     _capabilities = CapabilityDict(
         {
@@ -212,36 +232,54 @@ class DatabricksAdapter(SparkAdapter):
         # dbt doesn't propogate flags for certain workflows like dbt debug so this requires
         # an additional guard
         self.get_column_behavior = GetColumnsByDescribe()
-        try:
-            if self.behavior.use_info_schema_for_columns.no_warn:  # type: ignore[attr-defined]
-                self.get_column_behavior = GetColumnsByInformationSchema()
-        except CompilationError:
-            pass
 
         self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
-        return [USE_INFO_SCHEMA_FOR_COLUMNS, USE_USER_FOLDER_FOR_PYTHON, USE_MATERIALIZATION_V2]
+        return [
+            USE_USER_FOLDER_FOR_PYTHON,
+            USE_MATERIALIZATION_V2,
+            USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
+            USE_MANAGED_ICEBERG,
+        ]
+
+    def quote(self, identifier):  # type: ignore[override,no-untyped-def]
+        """Override base adapter's quote method to prevent double quoting."""
+        return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
-    def update_tblproperties_for_iceberg(
-        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
-    ) -> dict[str, str]:
-        result = tblproperties or config.get("tblproperties", {})
-
+    def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
-            if self.compare_dbr_version(14, 3) < 0:
-                raise DbtConfigError("Iceberg support requires Databricks Runtime 14.3 or later.")
+            self.require_capability(DBRCapability.ICEBERG)
             if config.get("materialized") not in ("incremental", "table", "snapshot"):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
                     ", 'table', or 'snapshot'."
                 )
-            result.update(catalog_relation.iceberg_table_properties)
+            if (
+                self.behavior.use_managed_iceberg
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
+            # UniForm refers to Delta tables with Iceberg compatibility.
+            # Native managed Iceberg tables don't need Delta properties.
+            return not self.behavior.use_managed_iceberg
+        else:
+            return False
 
+    @available.parse(lambda *a, **k: 0)
+    def update_tblproperties_for_uniform_iceberg(
+        self, config: BaseConfig, tblproperties: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
+        result = tblproperties or config.get("tblproperties", {})
+        catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
+        result.update(catalog_relation.iceberg_table_properties)
         return result
 
     @available.parse(lambda *a, **k: 0)
@@ -298,6 +336,47 @@ class DatabricksAdapter(SparkAdapter):
         Always returns positive number if trying to connect to SQL Warehouse.
         """
         return self.connections.compare_dbr_version(major, minor)
+
+    def has_capability(self, capability: DBRCapability) -> bool:
+        """Check if a DBR capability is available for current compute."""
+        conn = cast(DatabricksDBTConnection, self.connections.get_thread_connection())
+        return conn.has_capability(capability)
+
+    @available.parse(lambda *a, **k: False)
+    def has_dbr_capability(self, capability_name: str) -> bool:
+        """
+        Check if a DBR capability is available for current compute.
+        This is a Jinja-friendly version that accepts capability names as strings.
+
+        Args:
+            capability_name: Name of the capability (e.g., 'comment_on_column', 'insert_by_name')
+
+        Returns:
+            True if the capability is available, False otherwise
+
+        Raises:
+            ValueError: If the capability name is not recognized
+        """
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            valid_capabilities = [c.value for c in DBRCapability]
+            raise ValueError(
+                f"Unknown DBR capability: '{capability_name}'. "
+                f"Valid capabilities are: {', '.join(valid_capabilities)}"
+            )
+        return self.has_capability(capability)
+
+    def require_capability(self, capability: DBRCapability) -> None:
+        """Raise an error if a capability is not available."""
+        if not self.has_capability(capability):
+            from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
+
+            min_version = DBRCapabilities.get_required_version(capability)
+            raise DbtConfigError(
+                f"{capability.value} requires {min_version}. "
+                f"Current connection does not meet this requirement."
+            )
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -473,12 +552,12 @@ class DatabricksAdapter(SparkAdapter):
     def get_columns_in_relation(  # type: ignore[override]
         self, relation: DatabricksRelation
     ) -> list[DatabricksColumn]:
-        # Use legacy macros for hive metastore or DBR versions older than 16.2
+        # Use legacy macros for hive metastore or when JSON column metadata is not available
         use_legacy_logic = (
             relation.is_hive_metastore()
-            or self.compare_dbr_version(16, 2) < 0
+            or not self.has_capability(DBRCapability.JSON_COLUMN_METADATA)
             or relation.type == DatabricksRelationType.MaterializedView
-            # TODO: Replace with self.compare_dbr_version(17, 1) < 0 when 17.1 is current version
+            # TODO: Replace with streaming table capability check when 17.1 is current version
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
         )
@@ -704,7 +783,7 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     def valid_incremental_strategies(self) -> list[str]:
-        valid_strategies = ["append", "merge", "insert_overwrite", "replace_where"]
+        valid_strategies = ["append", "merge", "insert_overwrite", "replace_where", "delete+insert"]
         if SUPPORT_MICROBATCH:
             valid_strategies.append("microbatch")
 
@@ -763,12 +842,19 @@ class DatabricksAdapter(SparkAdapter):
         # Since existing_columns are gathered after writing the table, we don't need to include any
         # columns from the model that are not in the existing_columns. If we did, it would lead to
         # an error when we tried to alter the table.
+
+        # Create a case-insensitive lookup for column names
+        columns_lower = {k.lower(): k for k in columns.keys()}
+
         for column in existing_columns:
             name = column.column
-            if name in columns:
-                config_column = columns[name]
+            # Use case-insensitive comparison for column names
+            name_lower = name.lower()
+            if name_lower in columns_lower:
+                original_column_name = columns_lower[name_lower]
+                config_column = columns[original_column_name]
                 if isinstance(config_column, dict):
-                    comment = columns[name].get("description")
+                    comment = columns[original_column_name].get("description")
                 elif hasattr(config_column, "description"):
                     comment = config_column.description
                 else:
@@ -776,7 +862,7 @@ class DatabricksAdapter(SparkAdapter):
                         f"Column {name} in model config is not a dictionary or ColumnInfo object."
                     )
                 if comment != (column.comment or ""):
-                    return_columns[name] = columns[name]
+                    return_columns[name] = columns[original_column_name]
 
         return return_columns
 
@@ -798,13 +884,21 @@ class DatabricksAdapter(SparkAdapter):
             list(model_columns.values()), model_constraints
         )
 
+        # Create a case-insensitive lookup for model column names
+        model_columns_lower = {k.lower(): k for k in model_columns.keys()}
+        # Create a case-insensitive lookup for not_null columns
+        not_null_set_lower = {name.lower() for name in not_null_set}
+
         for column in existing_columns:
-            if column.name in model_columns:
-                column_info = model_columns[column.name]
-                enriched_column = column.enrich(column_info, column.name in not_null_set)
+            column_name_lower = column.name.lower()
+            if column_name_lower in model_columns_lower:
+                original_model_column_name = model_columns_lower[column_name_lower]
+                column_info = model_columns[original_model_column_name]
+                is_not_null = column_name_lower in not_null_set_lower
+                enriched_column = column.enrich(column_info, is_not_null)
                 enriched_columns.append(enriched_column)
             else:
-                if column.name in not_null_set:
+                if column_name_lower in not_null_set_lower:
                     column.not_null = True
                 enriched_columns.append(column)
 
@@ -871,6 +965,15 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def get_column_tags_from_model(self, model: RelationConfig) -> Optional[ColumnTagsConfig]:
         return ColumnTagsProcessor.from_relation_config(model)
+
+    @available
+    def resolve_file_format(self, config: BaseConfig) -> str:
+        if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
+            if self.behavior.use_managed_iceberg:
+                return constants.PARQUET_FILE_FORMAT
+            else:
+                return constants.DELTA_FILE_FORMAT
+        return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
 
 
 @dataclass(frozen=True)

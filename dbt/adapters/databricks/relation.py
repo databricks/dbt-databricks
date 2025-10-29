@@ -41,7 +41,12 @@ class DatabricksRelationType(StrEnum):
     Foreign = "foreign"
     StreamingTable = "streaming_table"
     MetricView = "metric_view"
+    Function = "function"
     Unknown = "unknown"
+
+    def render(self) -> str:
+        """Return the type formatted for SQL statements (replace underscores with spaces)"""
+        return self.value.replace("_", " ").upper()
 
 
 class DatabricksTableType(StrEnum):
@@ -72,7 +77,11 @@ class DatabricksRelation(BaseRelation):
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
-    replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    replaceable_relations = (
+        DatabricksRelationType.Table,
+        DatabricksRelationType.View,
+        DatabricksRelationType.MaterializedView,
+    )
     databricks_table_type: Optional[DatabricksTableType] = None
     temporary: Optional[bool] = False
 
@@ -83,6 +92,19 @@ class DatabricksRelation(BaseRelation):
             data["path"]["database"] = None
         else:
             data["path"]["database"] = remove_undefined(data["path"]["database"])
+
+        # Similarly handle other table types that might come in as relation types
+        table_type_values = {
+            "managed",
+            "managed_shallow_clone",
+            "external_shallow_clone",
+            "external",
+        }
+        if data.get("type") in table_type_values:
+            if "databricks_table_type" not in data:
+                data["databricks_table_type"] = data["type"]
+            data["type"] = "table"
+
         return data
 
     def has_information(self) -> bool:
@@ -113,6 +135,11 @@ class DatabricksRelation(BaseRelation):
         return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
 
     @property
+    def is_iceberg(self) -> bool:
+        assert self.metadata is not None
+        return self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
+
+    @property
     def owner(self) -> Optional[str]:
         return self.metadata.get(KEY_TABLE_OWNER) if self.metadata is not None else None
 
@@ -124,8 +151,9 @@ class DatabricksRelation(BaseRelation):
     def can_be_replaced(self) -> bool:
         return (
             self.type == DatabricksRelationType.View
-            or self.is_delta is True
-            and self.type == DatabricksRelationType.Table
+            or self.type == DatabricksRelationType.MaterializedView
+            or (self.is_delta is True and self.type == DatabricksRelationType.Table)
+            or (self.is_iceberg is True and self.type == DatabricksRelationType.Table)
         )
 
     @property

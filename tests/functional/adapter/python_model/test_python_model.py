@@ -14,7 +14,7 @@ from tests.functional.adapter.python_model import fixtures as override_fixtures
 # Check if ACL tests should be enabled
 # Set DBT_ENABLE_ACL_TESTS=1 to enable ACL tests
 # Users for tests are set via DBT_TEST_USER_1/2/3 environment variables
-pytest.acl_tests_enabled = os.environ.get("DBT_ENABLE_ACL_TESTS") == "1"
+ACL_TESTS_ENABLED = os.environ.get("DBT_ENABLE_ACL_TESTS") == "1"
 
 
 def verify_temp_tables_cleaned(project):
@@ -54,6 +54,10 @@ class TestPythonFailureModel:
     def models(self):
         return {"my_failure_model.py": override_fixtures.python_error_model}
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_failure_model(self, project):
         util.run_dbt(["run"], expect_pass=False)
 
@@ -87,6 +91,10 @@ class TestChangingSchema:
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_schema_with_log_validation(self, project, logs_dir):
         util.run_dbt(["run"])
         util.write_file(
@@ -115,6 +123,10 @@ class TestChangingSchemaIncremental:
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"expected_incremental.csv": override_fixtures.expected_incremental}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_via_incremental(self, project):
         util.run_dbt(["seed"])
@@ -279,8 +291,12 @@ class TestPythonModelNotebookACL:
             "schema.yml": override_fixtures.notebook_acl_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_python_model_with_notebook_acl(self, project):
-        if not pytest.acl_tests_enabled:
+        if not ACL_TESTS_ENABLED:
             pytest.skip("ACL tests are not enabled")
 
         result = util.run_dbt(["run"])
@@ -341,8 +357,12 @@ class TestPythonModelAccessControlList:
             "schema.yml": override_fixtures.access_control_list_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_python_model_with_access_control_list(self, project):
-        if not pytest.acl_tests_enabled:
+        if not ACL_TESTS_ENABLED:
             pytest.skip("ACL tests are not enabled")
 
         adapter = project.adapter
@@ -401,6 +421,10 @@ class TestChangingSchemaV2(MaterializationV2Mixin):
     def models(self):
         return {"simple_python_model.py": override_fixtures.simple_python_model}
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
+
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])
         util.write_file(
@@ -420,6 +444,10 @@ class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {"incremental_model.py": override_fixtures.simple_incremental_python_model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
         util.run_dbt(["run"])

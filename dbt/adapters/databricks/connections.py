@@ -1,7 +1,9 @@
+import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from importlib.metadata import version
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -29,6 +31,7 @@ from dbt_common.events.functions import fire_event
 from dbt_common.exceptions import DbtDatabaseError, DbtRuntimeError
 from dbt_common.utils import cast_to_str
 
+import databricks.sql as dbsql
 from databricks.sql import __version__ as dbsql_version
 from databricks.sql.exc import Error
 from dbt.adapters.databricks.__version__ import version as __version__
@@ -37,6 +40,7 @@ from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
     DatabricksCredentials,
 )
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.events.connection_events import (
     ConnectionCreate,
     ConnectionCreateError,
@@ -45,7 +49,7 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
-from dbt.adapters.databricks.utils import is_cluster_http_path, redact_credentials
+from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
 
 if TYPE_CHECKING:
     from agate import Table
@@ -81,17 +85,39 @@ class QueryContextWrapper:
 
     compute_name: Optional[str] = None
     relation_name: Optional[str] = None
+    model_name: Optional[str] = None
+    model_query_tags_override: Optional[dict[str, str]] = None
+    materialized: Optional[str] = None
 
     @staticmethod
     def from_context(query_header_context: Any) -> "QueryContextWrapper":
         if query_header_context is None:
             return QueryContextWrapper()
         compute_name = None
+        model_query_tags_override = None
+        materialized = None
         relation_name = getattr(query_header_context, "relation_name", "[unknown]")
-        if hasattr(query_header_context, "config") and query_header_context.config:
-            compute_name = query_header_context.config.get("databricks_compute")
 
-        return QueryContextWrapper(compute_name=compute_name, relation_name=relation_name)
+        # Extract config-related attributes safely
+        if hasattr(query_header_context, "config") and query_header_context.config:
+            config = query_header_context.config
+            compute_name = config.get("databricks_compute")
+
+            query_tags_str = config.extra.get("query_tags") if hasattr(config, "extra") else None
+            if query_tags_str:
+                model_query_tags_override = QueryTagsUtils.parse_query_tags(query_tags_str)
+
+            if hasattr(config, "materialized"):
+                materialized = config.materialized
+
+        ret = QueryContextWrapper(
+            compute_name=compute_name,
+            relation_name=relation_name,
+            model_query_tags_override=model_query_tags_override,
+            model_name=getattr(query_header_context, "name", None),
+            materialized=materialized,
+        )
+        return ret
 
 
 class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
@@ -104,17 +130,26 @@ class DatabricksMacroQueryStringSetter(MacroQueryStringSetter):
 
 @dataclass(init=False)
 class DatabricksDBTConnection(Connection):
+    capabilities: DBRCapabilities
     http_path: str = ""
     thread_identifier: tuple[int, int] = (0, 0)
     session_id: Optional[str] = None
+    _query_header_context: Any = None
 
     def __str__(self) -> str:
         return f"DatabricksDBTConnection(session-id={self.session_id}, name={self.name})"
+
+    def has_capability(self, capability: DBRCapability) -> bool:
+        """
+        Check if this connection's compute has a specific capability.
+        """
+        return self.capabilities.has_capability(capability)
 
 
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_manager: Optional[DatabricksCredentialManager] = None
+    _dbr_capabilities_cache: dict[str, DBRCapabilities] = {}
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
         super().__init__(profile, mp_context)
@@ -123,15 +158,55 @@ class DatabricksConnectionManager(SparkConnectionManager):
     @property
     def api_client(self) -> DatabricksApiClient:
         if self._api_client is None:
-            self._api_client = DatabricksApiClient.create(
-                cast(DatabricksCredentials, self.profile.credentials), 15 * 60
-            )
+            credentials = cast(DatabricksCredentials, self.profile.credentials)
+            self._api_client = DatabricksApiClient(credentials, 15 * 60)
         return self._api_client
 
     def is_cluster(self) -> bool:
         conn = self.get_thread_connection()
         databricks_conn = cast(DatabricksDBTConnection, conn)
         return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
+
+    def _get_capabilities_for_http_path(self, http_path: str) -> DBRCapabilities:
+        return self._dbr_capabilities_cache.get(http_path, DBRCapabilities())
+
+    @classmethod
+    def _query_dbr_version(
+        cls, creds: DatabricksCredentials, http_path: str
+    ) -> Optional[tuple[int, int]]:
+        is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
+
+        if not is_cluster:
+            return (sys.maxsize, sys.maxsize)
+
+        try:
+            if cls.credentials_manager is None:
+                raise DbtRuntimeError("credentials_manager must be set before querying DBR version")
+            conn_args = SqlUtils.prepare_connection_arguments(
+                creds, cls.credentials_manager, http_path, {}
+            )
+
+            with dbsql.connect(**conn_args) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SET spark.databricks.clusterUsageTags.sparkVersion")
+                    result = cursor.fetchone()
+                    if result:
+                        return SqlUtils.extract_dbr_version(result[1])
+        except Exception:
+            pass
+
+        return None
+
+    @classmethod
+    def _cache_dbr_capabilities(cls, creds: DatabricksCredentials, http_path: str) -> None:
+        if http_path not in cls._dbr_capabilities_cache:
+            is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
+            dbr_version = cls._query_dbr_version(creds, http_path)
+
+            cls._dbr_capabilities_cache[http_path] = DBRCapabilities(
+                dbr_version=dbr_version,
+                is_sql_warehouse=not is_cluster,
+            )
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
@@ -212,12 +287,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds = cast(DatabricksCredentials, self.profile.credentials)
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
-
+        conn._query_header_context = query_header_context
+        conn.capabilities = self._get_capabilities_for_http_path(conn.http_path)
         conn.handle = LazyHandle(self.open)
 
         logger.debug(ConnectionCreate(str(conn)))
-
-        # Set as the current thread connection (no complex pool management)
         self.set_thread_connection(conn)
 
         fire_event(
@@ -390,8 +464,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
         timeout = creds.connect_timeout
 
         cls.credentials_manager = creds.authenticate()
+
+        # Get merged query tags if we have query header context
+        query_header_context = getattr(databricks_connection, "_query_header_context", None)
+        merged_query_tags = {}
+        if query_header_context:
+            merged_query_tags = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
+
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, cls.credentials_manager, databricks_connection.http_path
+            creds, cls.credentials_manager, databricks_connection.http_path, merged_query_tags
         )
 
         def connect() -> DatabricksHandle:
@@ -403,6 +484,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 )
                 if conn:
                     databricks_connection.session_id = conn.session_id
+                    cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
+                    databricks_connection.capabilities = cls._dbr_capabilities_cache[
+                        databricks_connection.http_path
+                    ]
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")
@@ -481,3 +566,46 @@ class QueryConfigUtils:
             )
 
         return http_path
+
+    @staticmethod
+    def get_merged_query_tags(
+        query_header_context: Any,
+        creds: DatabricksCredentials,
+    ) -> dict[str, str]:
+        """
+        Get merged query tags from connection config, model config, and default tags.
+        Model config takes precedence over connection config.
+        """
+
+        # Default tags that will be applied to all queries
+        default_tags = {
+            "dbt_databricks_version": __version__,
+            "dbt_core_version": version("dbt-core"),
+        }
+
+        # Default tags that will only exists for queries tied to a specific model
+        if query_header_context:
+            if hasattr(query_header_context, "model_name") and query_header_context.model_name:
+                default_tags["dbt_model_name"] = query_header_context.model_name
+            if hasattr(query_header_context, "materialized") and query_header_context.materialized:
+                default_tags["dbt_materialized"] = query_header_context.materialized
+
+        # Parse connection tags from JSON string
+        connection_tags = (
+            QueryTagsUtils.parse_query_tags(creds.query_tags) if creds.query_tags else {}
+        )
+
+        # Extract model-level query tags from context
+        model_tags = {}
+        if (
+            query_header_context
+            and hasattr(query_header_context, "model_query_tags_override")
+            and query_header_context.model_query_tags_override
+        ):
+            model_tags = query_header_context.model_query_tags_override
+
+        return QueryTagsUtils.merge_query_tags(
+            connection_tags=connection_tags,
+            model_tags=model_tags,
+            default_tags=default_tags,
+        )

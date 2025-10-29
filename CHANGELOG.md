@@ -1,4 +1,44 @@
-## dbt-databricks 1.10.15 (TBD)
+## dbt-databricks 1.11.1 (TBD)
+
+## dbt-databricks 1.11.0 (Oct 29, 2025)
+
+### Features
+
+- Support databricks_tags for MV/STs
+- Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+- Add support for Databricks query tags
+- Add support for managed iceberg when `table_format` is set to `iceberg`. This behavior is gated behind behavior flag `use_managed_iceberg` which defaults to `false`
+- Support delete+insert incremental strategy (thanks @canbekley!) ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
+
+### Fixes
+
+- **BREAKING:** Fix column order mismatch bug in incremental models by using INSERT BY NAME syntax ([#1211](https://github.com/databricks/dbt-databricks/issues/1211))
+  - When using `on_schema_change: sync_all_columns`, dbt previously used positional column matching in INSERT statements, causing values to be inserted into wrong columns when column order changed
+  - Now uses Databricks `INSERT BY NAME` syntax to match columns by name instead of position, preventing data corruption
+  - **Breaking Change**: Requires Databricks Runtime 12.2 LTS or higher
+  - Users on older runtimes should pin to dbt-databricks 1.10.x
+  - Affects all incremental strategies: `append`, `insert_overwrite`, `replace_where`, and `merge` (via table creation)
+- Fix case-sensitivity issues with column name handling in persist_docs and config diff operations ([#1215](https://github.com/databricks/dbt-databricks/issues/1215))
+  - Fixed KeyError when column names in models had different casing than YAML schema definitions
+  - Improved efficiency of column tags and comments change detection to use case-insensitive comparison
+- Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+- Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
+- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
+- Reintroduce support for external so as not to break users ([1240](1240))
+
+### Under the Hood
+
+- Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+- Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
+- Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
+- Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
+- Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
+- Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
+- **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
+- Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
+- Drop support for python 3.9, adds 3.13 ([1240](https://github.com/databricks/dbt-databricks/pull/1240))
 
 ## dbt-databricks 1.10.14 (October 22, 2025)
 

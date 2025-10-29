@@ -18,7 +18,7 @@
   {% endif %}
 
   {% call statement('merge into target') %}
-    insert into {{ target_relation }} select * from {{ intermediate_relation }}
+    insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
 
@@ -32,7 +32,7 @@
     {{ get_assert_columns_equivalent(compiled_code) }}
   {%- endif -%}
 
-  {%- if catalog_relation.file_format == 'delta' %}
+  {%- if catalog_relation.file_format in ('delta', 'iceberg') %}
   create or replace table {{ target_relation.render() }}
   {% else %}
   create table {{ target_relation.render() }}
@@ -101,7 +101,7 @@
   {%- if catalog_relation is not none -%}
     {%- set file_format = catalog_relation.file_format -%}
   {%- else -%}
-    {%- set file_format = config.get('file_format', default='delta') -%}
+    {%- set file_format = adapter.resolve_file_format(config) -%}
   {%- endif -%}
 
   {%- set options = config.get('options') -%}

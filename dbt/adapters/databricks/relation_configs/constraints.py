@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from typing import ClassVar, Optional
 
-import sqlparse
+import sqlparse  # type: ignore[import-untyped]
 from agate import Table
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
@@ -28,13 +28,13 @@ class ConstraintsConfig(DatabricksComponentConfig):
     set_constraints: set[TypedConstraint]
     unset_constraints: set[TypedConstraint] = set()
 
-    def normalize_expression(self, expression: str) -> str:
+    def normalize_expression(self, expression: Optional[str]) -> str:
         if expression:
             return sqlparse.format(
                 expression, reindent=True, keyword_case="lower", identifier_case="lower"
             )
         else:
-            return expression
+            return ""
 
     def normalize_constraint(self, constraint: TypedConstraint) -> TypedConstraint:
         """

@@ -137,3 +137,45 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
             + ">"
         )
         assert results[0][1] == expected_struct_type
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewLiquidClustering(TestMaterializedViewsMixin):
+    """
+    Note: Liquid clustering support for materialized views may be limited by Databricks platform.
+    These tests verify that models with liquid_clustered_by config can be created without errors,
+    which is the primary goal of the feature addition on this branch.
+    """
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"my_seed.csv": files.MY_SEED}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        yield {
+            "liquid_clustered_mv.sql": fixtures.liquid_clustered_mv,
+            "schema.yml": fixtures.liquid_clustered_mv_schema_v1,
+        }
+
+    def test_create_with_liquid_clustering_config(self, project):
+        """Test MVs can be created with liquid clustering config without errors."""
+        # Run seed to create test data (project fixture doesn't run seeds automatically)
+        util.run_dbt(["seed"])
+
+        # This is a smoke test - verify the model can be created with liquid_clustered_by config
+        util.run_dbt(["run", "--models", "liquid_clustered_mv"])
+
+        # Verify the MV was created successfully
+        assert (
+            self.query_relation_type(
+                project,
+                project.adapter.Relation.create(
+                    identifier="liquid_clustered_mv",
+                    schema=project.test_schema,
+                    database=project.database,
+                ),
+            )
+            == "materialized_view"
+        )

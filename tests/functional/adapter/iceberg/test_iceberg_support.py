@@ -2,6 +2,7 @@ import pytest
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import ManagedIcebergMixin
 from tests.functional.adapter.iceberg import fixtures
 
 
@@ -16,6 +17,8 @@ class TestIcebergTables:
         }
 
     def test_iceberg_refs(self, project):
+        # Run table materialization twice to verify atomic replacement
+        util.run_dbt()
         run_results = util.run_dbt()
         assert len(run_results) == 3
 
@@ -54,3 +57,11 @@ class TestIcebergWithParquet(InvalidIcebergConfig):
     @pytest.fixture(scope="class")
     def models(self):
         return {"first_model.sql": fixtures.invalid_iceberg_format}
+
+
+class TestManagedIcebergTables(TestIcebergTables, ManagedIcebergMixin):
+    pass
+
+
+class TestManagedIcebergSwap(TestIcebergSwap, ManagedIcebergMixin):
+    pass

@@ -235,8 +235,7 @@ class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
 
     @pytest.fixture(scope="class")
     def expected_sql(self):
-        return """
-create or replace table <model_identifier>
+        return """create or replace table <model_identifier>
     using delta
     as
 select

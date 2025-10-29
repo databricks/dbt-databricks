@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "The Databricks adapter plugin for dbt"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Databricks", email = "feedback@databricks.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -16,17 +16,17 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "databricks-sdk>=0.41, <0.64.0",
-    "databricks-sql-connector[pyarrow]>=4.0.0, <4.0.6",
-    "dbt-adapters>=1.16.0, <1.17.4",
-    "dbt-common>=1.24.0, <1.34.0",
-    "dbt-core>=1.10.1, <1.10.14",
+    "databricks-sdk>=0.41, <0.68.0",
+    "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.4",
+    "dbt-adapters>=1.17.2, <1.18.0",
+    "dbt-common>=1.33.0, <2.0.0",
+    "dbt-core>=1.10.1, <1.11.1",
     "dbt-spark>=1.9.0, <1.9.4",
     "keyring>=23.13.0",
     "pydantic>=1.10.0",
@@ -63,19 +63,18 @@ check-sdist = [
 ]
 
 [tool.hatch.envs.default]
-pre-install-commands = [
-    "pip install git+https://github.com/dbt-labs/dbt-common.git",
-    "pip install git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-adapters",
-    "pip install git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
-    "pip install git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
-]
+installer = "uv"
 dependencies = [
-    "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-spark",
+    "dbt-common @ git+https://github.com/dbt-labs/dbt-common.git@main",
+    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-adapters",
+    "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
+    "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-spark",
+    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
     "pytest",
     "pytest-xdist",
     "pytest-dotenv",
     "freezegun",
-    "mypy",
+    "mypy>=1.18.2",
     "pre-commit",
     "ruff==0.14.2",
     "types-requests",
@@ -84,22 +83,22 @@ dependencies = [
     "pytest-cov",
 ]
 path = ".hatch"
-python = "3.9"
+python = "3.10"
 
 [tool.hatch.envs.default.scripts]
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
-unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadscope tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadscope tests/functional"
+unit = "pytest --color=yes -v --profile databricks_cluster -n auto tests/unit"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadfile tests/functional"
+uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n auto --dist=loadfile tests/functional"
+sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
 unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 [tool.ruff]
 line-length = 100

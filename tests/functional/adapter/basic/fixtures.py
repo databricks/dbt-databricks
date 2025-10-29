@@ -100,3 +100,22 @@ SELECT named_struct(
   {pairs_str}
 ) AS big_struct;
 """
+
+# Fixtures for testing column capitalization preservation in materialization v2
+mixed_case_columns_sql = """
+{{ config(materialized='table') }}
+select 1 as ID, 'Alice' as UserName, 25 as Age_Value
+"""
+
+mixed_case_columns_schema_yml = """
+version: 2
+models:
+  - name: mixed_case_columns
+    columns:
+      - name: id
+        description: 'ID column'
+      - name: username
+        description: 'Username column'
+      - name: age_value
+        description: 'Age column'
+"""

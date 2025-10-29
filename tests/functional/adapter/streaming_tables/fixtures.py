@@ -87,3 +87,37 @@ complex_types_streaming_table = """
 ) }}
 select * from stream complex_types_table
 """
+
+liquid_clustered_st = """
+{{ config(
+    materialized='streaming_table',
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+liquid_clustered_st_schema_v1 = """
+version: 2
+
+models:
+  - name: liquid_clustered_st
+    config:
+      liquid_clustered_by: id
+"""
+
+liquid_clustered_st_schema_v2 = """
+version: 2
+
+models:
+  - name: liquid_clustered_st
+    config:
+      liquid_clustered_by: [id, value]
+"""
+
+liquid_clustered_st_schema_v3 = """
+version: 2
+
+models:
+  - name: liquid_clustered_st
+    config:
+      liquid_clustered_by: []
+"""

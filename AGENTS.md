@@ -9,7 +9,7 @@ This guide helps AI agents quickly understand and work productively with the dbt
 - **What**: dbt adapter for Databricks Lakehouse platform
 - **Based on**: dbt-spark adapter with Databricks-specific enhancements
 - **Key Features**: Unity Catalog support, Delta Lake, Python models, streaming tables
-- **Language**: Python 3.9+ with Jinja2 SQL macros
+- **Language**: Python 3.10+ with Jinja2 SQL macros
 - **Architecture**: Inherits from Spark adapter, extends with Databricks-specific functionality
 
 ### Essential Files to Understand
@@ -34,7 +34,7 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 
 ## 🛠 Development Environment
 
-**Prerequisites**: Python 3.9+ installed on your system
+**Prerequisites**: Python 3.10+ installed on your system
 
 **Install Hatch** (recommended):
 

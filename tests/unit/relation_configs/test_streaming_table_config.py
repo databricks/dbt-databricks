@@ -1,12 +1,16 @@
 from unittest.mock import Mock
 
+from agate import Table
+
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from tests.unit import fixtures
 
@@ -27,6 +31,9 @@ class TestStreamingTableConfig:
                 ],
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
+            "information_schema.tags": Table(
+                rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
+            ),
         }
 
         config = StreamingTableConfig.from_results(results)
@@ -34,9 +41,11 @@ class TestStreamingTableConfig:
         assert config == StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
@@ -50,6 +59,7 @@ class TestStreamingTableConfig:
                 "prop": "1",
                 "other": "other",
             },
+            "databricks_tags": {"a": "b", "c": "d"},
         }
         model.config.persist_docs = {"relation": False, "columns": True}
         model.description = "This is the table comment"
@@ -59,9 +69,11 @@ class TestStreamingTableConfig:
         assert config == StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment", persist=False),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
@@ -70,18 +82,22 @@ class TestStreamingTableConfig:
         old = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
@@ -94,18 +110,22 @@ class TestStreamingTableConfig:
         old = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
         new = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
             }
         )
@@ -116,8 +136,10 @@ class TestStreamingTableConfig:
         assert changeset.requires_full_refresh
         assert changeset.changes == {
             "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+            "liquid_clustering": LiquidClusteringConfig(),
             "comment": CommentConfig(comment="This is the table comment"),
             "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
+            "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             "query": QueryConfig(query="select * from foo"),
         }

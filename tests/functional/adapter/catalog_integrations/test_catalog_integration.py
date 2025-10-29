@@ -4,7 +4,7 @@ import pytest
 from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
     BaseCatalogIntegrationValidation,
 )
-from dbt.tests.util import run_dbt
+from dbt.tests.util import get_connection, run_dbt
 
 MODEL__BASIC_ICEBERG_TABLE = """
 {{ config(materialized='table', catalog_name='a-different-catalog') }}
@@ -62,6 +62,16 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
         # Ensure the alternate catalog environment variable is set
         if os.getenv("DBT_DATABRICKS_ALT_CATALOG") is None:
             pytest.skip("DBT_DATABRICKS_ALT_CATALOG environment variable is not set")
+
+        # Create schema in alternate catalog since catalog integration models will need it
+        alt_catalog = os.getenv("DBT_DATABRICKS_ALT_CATALOG")
+
+        with get_connection(project.adapter):
+            alt_relation = project.adapter.Relation.create(
+                database=alt_catalog, schema=project.test_schema
+            )
+            project.adapter.create_schema(alt_relation)
+
         # Run all models
         run_results = run_dbt(["run", "--log-level", "debug"])
 
