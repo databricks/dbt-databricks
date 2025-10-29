@@ -1,7 +1,6 @@
 from unittest.mock import Mock
 
 import pytest
-from databricks.sdk.service.compute import ContextStatusResponse
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import CommandContextApi
@@ -38,11 +37,11 @@ class TestCommandContextApi:
         cluster_api.status.return_value = "RUNNING"
         library_api.all_libraries_installed.return_value = True
 
-        mock_result = Mock()
-        mock_context_response = Mock(spec=ContextStatusResponse)
-        mock_context_response.id = "context_id"
-        mock_result.result.return_value = mock_context_response
-        workspace_client.command_execution.create.return_value = mock_result
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id accessible via __getattr__ without calling result()
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        workspace_client.command_execution.create.return_value = mock_waiter
 
         context_id = api.create("cluster_id")
 
@@ -56,11 +55,11 @@ class TestCommandContextApi:
         cluster_api.status.return_value = "RUNNING"
         library_api.all_libraries_installed.return_value = False
 
-        mock_result = Mock()
-        mock_context_response = Mock(spec=ContextStatusResponse)
-        mock_context_response.id = "context_id"
-        mock_result.result.return_value = mock_context_response
-        workspace_client.command_execution.create.return_value = mock_result
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id accessible via __getattr__ without calling result()
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        workspace_client.command_execution.create.return_value = mock_waiter
 
         context_id = api.create("cluster_id")
 
@@ -71,11 +70,11 @@ class TestCommandContextApi:
     def test_create__cluster_terminated(self, api, cluster_api, workspace_client):
         cluster_api.status.return_value = "TERMINATED"
 
-        mock_result = Mock()
-        mock_context_response = Mock(spec=ContextStatusResponse)
-        mock_context_response.id = "context_id"
-        mock_result.result.return_value = mock_context_response
-        workspace_client.command_execution.create.return_value = mock_result
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id accessible via __getattr__ without calling result()
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        workspace_client.command_execution.create.return_value = mock_waiter
 
         api.create("cluster_id")
 
@@ -84,11 +83,11 @@ class TestCommandContextApi:
     def test_create__cluster_pending(self, api, cluster_api, workspace_client):
         cluster_api.status.return_value = "PENDING"
 
-        mock_result = Mock()
-        mock_context_response = Mock(spec=ContextStatusResponse)
-        mock_context_response.id = "context_id"
-        mock_result.result.return_value = mock_context_response
-        workspace_client.command_execution.create.return_value = mock_result
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id accessible via __getattr__ without calling result()
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        workspace_client.command_execution.create.return_value = mock_waiter
 
         api.create("cluster_id")
 

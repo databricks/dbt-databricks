@@ -458,3 +458,32 @@ class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
         )
         util.run_dbt(["run"])
         verify_temp_tables_cleaned(project)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestAllPurposeClusterCommandAPI(BasePythonModelTests):
+    """Test Python models using all_purpose_cluster with Command API (create_notebook=False).
+
+    This tests the command execution path that uses the Command API directly
+    without creating notebooks, which exercises the timeout fix for command execution.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.all_purpose_command_api_schema,  # No submission_method override
+            "my_sql_model.sql": fixtures.basic_sql,
+            "my_versioned_sql_model_v1.sql": fixtures.basic_sql,
+            "my_python_model.py": fixtures.basic_python,
+            "second_sql_model.sql": fixtures.second_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+submission_method": "all_purpose_cluster",
+                "+create_notebook": False,  # Use Command API, not notebook submission
+            }
+        }

@@ -33,9 +33,11 @@ class TestCommandApi:
         assert "Error creating a command" in str(exc_info.value)
 
     def test_execute__success(self, api, workspace_client, execution):
-        mock_result = Mock()
-        mock_result.result.return_value.id = "command_id"
-        workspace_client.command_execution.execute.return_value = mock_result
+        # Mock the Wait object returned by execute()
+        # The Wait object has command_id accessible via __getattr__ without calling result()
+        mock_waiter = Mock()
+        mock_waiter.command_id = "command_id"
+        workspace_client.command_execution.execute.return_value = mock_waiter
 
         result = api.execute("cluster_id", "context_id", "command")
 

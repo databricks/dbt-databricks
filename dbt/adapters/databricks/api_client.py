@@ -164,13 +164,16 @@ class CommandContextApi:
 
     def _create_execution_context(self, cluster_id: str) -> str:
         try:
-            result = self.workspace_client.command_execution.create(
+            # Use SDK to create execution context - returns a Wait object immediately
+            # The Wait object has context_id available via __getattr__ without blocking
+            waiter = self.workspace_client.command_execution.create(
                 cluster_id=cluster_id,
                 language=ComputeLanguage.PYTHON,
             )
 
-            context_response = result.result()
-            context_id = context_response.id
+            # Extract context_id from the waiter without calling result()
+            # This avoids blocking on the SDK's default 20-minute timeout
+            context_id = waiter.context_id
             if context_id is None:
                 raise DbtRuntimeError("Failed to create execution context: no context ID returned")
             logger.info(f"Created execution context with id={context_id}")
@@ -300,15 +303,18 @@ class CommandApi:
 
     def execute(self, cluster_id: str, context_id: str, command: str) -> CommandExecution:
         try:
-            # Use SDK to execute command
-            result = self.workspace_client.command_execution.execute(
+            # Use SDK to execute command - returns a Wait object immediately
+            # The Wait object has command_id available via __getattr__ without blocking
+            waiter = self.workspace_client.command_execution.execute(
                 cluster_id=cluster_id,
                 context_id=context_id,
                 language=ComputeLanguage.PYTHON,  # SUBMISSION_LANGUAGE was "python"
                 command=command,
             )
 
-            command_id = result.result().id
+            # Extract command_id from the waiter without calling result()
+            # This avoids blocking on the SDK's default 20-minute timeout
+            command_id = waiter.command_id
             if command_id is None:
                 raise DbtRuntimeError("Failed to execute command: no command ID returned")
             logger.debug(f"Command executed with id={command_id}")
