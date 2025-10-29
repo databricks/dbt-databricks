@@ -140,7 +140,10 @@ class ClusterApi:
 
 class CommandContextApi:
     def __init__(
-        self, workspace_client: WorkspaceClient, cluster_api: ClusterApi, library_api: LibraryApi
+        self,
+        workspace_client: WorkspaceClient,
+        cluster_api: ClusterApi,
+        library_api: LibraryApi,
     ):
         self.workspace_client = workspace_client
         self.cluster_api = cluster_api
@@ -164,16 +167,18 @@ class CommandContextApi:
 
     def _create_execution_context(self, cluster_id: str) -> str:
         try:
-            # Use SDK to create execution context - returns a Wait object immediately
-            # The Wait object has context_id available via __getattr__ without blocking
+            # Use SDK to create execution context - returns a Wait object
+            # We must call result() to actually wait for the operation to complete
+            # Pass timeout to avoid SDK's default 20-minute timeout
             waiter = self.workspace_client.command_execution.create(
                 cluster_id=cluster_id,
                 language=ComputeLanguage.PYTHON,
             )
 
-            # Extract context_id from the waiter without calling result()
-            # This avoids blocking on the SDK's default 20-minute timeout
-            context_id = waiter.context_id
+            # Call result() to wait for context creation
+            # Use SDK's default timeout (infrastructure setup, not user model execution)
+            context_response = waiter.result()
+            context_id = context_response.id
             if context_id is None:
                 raise DbtRuntimeError("Failed to create execution context: no context ID returned")
             logger.info(f"Created execution context with id={context_id}")
@@ -304,7 +309,9 @@ class CommandApi:
     def execute(self, cluster_id: str, context_id: str, command: str) -> CommandExecution:
         try:
             # Use SDK to execute command - returns a Wait object immediately
-            # The Wait object has command_id available via __getattr__ without blocking
+            # The command_id is available via __getattr__ without calling result()
+            # We don't call result() because that would wait for execution to finish,
+            # and we want to use our own timeout via poll_for_completion()
             waiter = self.workspace_client.command_execution.execute(
                 cluster_id=cluster_id,
                 context_id=context_id,
@@ -312,8 +319,8 @@ class CommandApi:
                 command=command,
             )
 
-            # Extract command_id from the waiter without calling result()
-            # This avoids blocking on the SDK's default 20-minute timeout
+            # Extract command_id from the waiter without blocking
+            # The SDK provides this immediately in the kwargs
             command_id = waiter.command_id
             if command_id is None:
                 raise DbtRuntimeError("Failed to execute command: no command ID returned")

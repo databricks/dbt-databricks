@@ -34,7 +34,7 @@ class TestCommandApi:
 
     def test_execute__success(self, api, workspace_client, execution):
         # Mock the Wait object returned by execute()
-        # The Wait object has command_id accessible via __getattr__ without calling result()
+        # The command_id is available immediately via __getattr__, not via result()
         mock_waiter = Mock()
         mock_waiter.command_id = "command_id"
         workspace_client.command_execution.execute.return_value = mock_waiter
@@ -48,6 +48,8 @@ class TestCommandApi:
             command="command",
             language=ComputeLanguage.PYTHON,
         )
+        # result() should NOT be called - we access command_id directly
+        mock_waiter.result.assert_not_called()
 
     def test_cancel__exception(self, api, workspace_client):
         workspace_client.command_execution.cancel.side_effect = Exception("API Error")
