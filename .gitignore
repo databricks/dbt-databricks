@@ -24,4 +24,5 @@ logs/
 CLAUDE.md
 .claude/
 .cursor
-uv.lockdocs/plans/
+uv.lock
+docs/plans/
