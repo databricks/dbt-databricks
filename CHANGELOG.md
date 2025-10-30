@@ -39,6 +39,7 @@
 - **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
 - Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
 - Drop support for python 3.9, adds 3.13 ([1240](https://github.com/databricks/dbt-databricks/pull/1240))
+  -- **BREAKING:** Flipping the default for USE_USER_FOLDER_FOR_PYTHON to true ([1248](https://github.com/databricks/dbt-databricks/pull/1248))
 
 ## dbt-databricks 1.10.14 (October 22, 2025)
 
