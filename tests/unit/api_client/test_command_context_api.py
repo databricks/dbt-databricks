@@ -38,8 +38,9 @@ class TestCommandContextApi:
         library_api.all_libraries_installed.return_value = True
 
         # Mock the Wait object returned by create()
-        # The Wait object's result() method returns a response with id attribute
+        # The Wait object has context_id immediately available and result() waits for RUNNING
         mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
         mock_response = Mock()
         mock_response.id = "context_id"
         mock_waiter.result.return_value = mock_response
@@ -58,8 +59,9 @@ class TestCommandContextApi:
         library_api.all_libraries_installed.return_value = False
 
         # Mock the Wait object returned by create()
-        # The Wait object's result() method returns a response with id attribute
+        # The Wait object has context_id immediately available and result() waits for RUNNING
         mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
         mock_response = Mock()
         mock_response.id = "context_id"
         mock_waiter.result.return_value = mock_response
@@ -75,8 +77,9 @@ class TestCommandContextApi:
         cluster_api.status.return_value = "TERMINATED"
 
         # Mock the Wait object returned by create()
-        # The Wait object's result() method returns a response with id attribute
+        # The Wait object has context_id immediately available and result() waits for RUNNING
         mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
         mock_response = Mock()
         mock_response.id = "context_id"
         mock_waiter.result.return_value = mock_response
@@ -90,8 +93,9 @@ class TestCommandContextApi:
         cluster_api.status.return_value = "PENDING"
 
         # Mock the Wait object returned by create()
-        # The Wait object's result() method returns a response with id attribute
+        # The Wait object has context_id immediately available and result() waits for RUNNING
         mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
         mock_response = Mock()
         mock_response.id = "context_id"
         mock_waiter.result.return_value = mock_response

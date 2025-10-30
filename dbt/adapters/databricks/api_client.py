@@ -1,4 +1,5 @@
 import base64
+import random
 import re
 import time
 from abc import ABC, abstractmethod
@@ -165,26 +166,92 @@ class CommandContextApi:
         ):
             self.cluster_api.wait_for_cluster(cluster_id)
 
-    def _create_execution_context(self, cluster_id: str) -> str:
-        try:
-            # Use SDK to create execution context - returns a Wait object
-            # We must call result() to actually wait for the operation to complete
-            # Pass timeout to avoid SDK's default 20-minute timeout
-            waiter = self.workspace_client.command_execution.create(
-                cluster_id=cluster_id,
-                language=ComputeLanguage.PYTHON,
-            )
+    def _create_execution_context(self, cluster_id: str, max_retries: int = 5) -> str:
+        """Create execution context with retry logic for transient failures.
 
-            # Call result() to wait for context creation
-            # Use SDK's default timeout (infrastructure setup, not user model execution)
-            context_response = waiter.result()
-            context_id = context_response.id
-            if context_id is None:
-                raise DbtRuntimeError("Failed to create execution context: no context ID returned")
-            logger.info(f"Created execution context with id={context_id}")
-            return context_id
-        except Exception as e:
-            raise DbtRuntimeError(f"Error creating an execution context.\n {e}")
+        Args:
+            cluster_id: The cluster ID to create the context on
+            max_retries: Maximum number of retry attempts (default: 5)
+
+        Returns:
+            The execution context ID
+
+        Raises:
+            DbtRuntimeError: If context creation fails after all retries
+        """
+        last_error = None
+        for attempt in range(max_retries):
+            context_id = None
+            try:
+                # Use SDK to create execution context - returns a Wait object
+                # The Wait object provides context_id immediately, but we need to call result()
+                # to wait for the context to reach RUNNING state
+                waiter = self.workspace_client.command_execution.create(
+                    cluster_id=cluster_id,
+                    language=ComputeLanguage.PYTHON,
+                )
+
+                # Get context_id immediately (available before waiting)
+                context_id = waiter.context_id
+                if context_id is None:
+                    raise DbtRuntimeError(
+                        "Failed to create execution context: no context ID returned"
+                    )
+
+                logger.debug(f"Execution context {context_id} created, waiting for RUNNING state")
+
+                # Now wait for the context to reach RUNNING state
+                # This is where it may fail with ContextStatus.ERROR
+                waiter.result()
+
+                logger.info(f"Execution context {context_id} reached RUNNING state")
+                return context_id
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+
+                # Log full exception details for debugging
+                logger.debug(
+                    f"Execution context {context_id or 'unknown'} creation exception: "
+                    f"type={type(e).__name__}, message={e}"
+                )
+
+                # Retry on transient errors (resource contention, temporary failures)
+                # ContextStatus.ERROR can occur when cluster is under heavy load
+                if "contextstatus.error" in error_msg or "failed to reach running" in error_msg:
+                    if attempt < max_retries - 1:
+                        # If we have a context_id, try to destroy it before retrying
+                        if context_id:
+                            try:
+                                logger.debug(f"Destroying failed context {context_id}")
+                                self.workspace_client.command_execution.destroy(
+                                    cluster_id=cluster_id, context_id=context_id
+                                )
+                            except Exception as cleanup_error:
+                                logger.debug(
+                                    f"Failed to destroy context {context_id}: {cleanup_error}"
+                                )
+
+                        # Exponential backoff with jitter: base 2^attempt + random 0-1s
+                        # This helps prevent thundering herd when many contexts retry at once
+                        base_wait = 2**attempt  # 1s, 2s, 4s, 8s, 16s
+                        jitter = random.random()  # 0-1 second
+                        wait_time = base_wait + jitter
+                        logger.warning(
+                            f"Execution context creation failed "
+                            f"(attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait_time:.1f}s: {e}"
+                        )
+                        time.sleep(wait_time)
+                        continue
+
+                # Non-retryable error or final attempt - raise immediately
+                raise DbtRuntimeError(f"Error creating an execution context.\n {e}")
+
+        # If we exhausted all retries
+        raise DbtRuntimeError(
+            f"Error creating an execution context after {max_retries} attempts.\n {last_error}"
+        )
 
     def destroy(self, cluster_id: str, context_id: str) -> None:
         try:
