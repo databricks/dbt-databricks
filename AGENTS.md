@@ -261,6 +261,41 @@ DatabricksAdapter (impl.py)
 - Implement Databricks features (liquid clustering, column masks, tags)
 - **Important**: To override a `spark__macro_name` macro, create `databricks__macro_name` (NOT `spark__macro_name`)
 
+#### Multi-Statement SQL Execution
+
+When a macro needs to execute multiple SQL statements (e.g., DELETE followed by INSERT), use the `execute_multiple_statements` helper:
+
+**Pattern for Multi-Statement Strategies:**
+```jinja
+{% macro my_multi_statement_strategy(args) %}
+  {%- set statements = [] -%}
+  
+  {#-- Build first statement --#}
+  {%- set statement1 -%}
+    DELETE FROM {{ target_relation }}
+    WHERE some_condition
+  {%- endset -%}
+  {%- do statements.append(statement1) -%}
+  
+  {#-- Build second statement --#}
+  {%- set statement2 -%}
+    INSERT INTO {{ target_relation }}
+    SELECT * FROM {{ source_relation }}
+  {%- endset -%}
+  {%- do statements.append(statement2) -%}
+  
+  {{- return(statements) -}}
+{% endmacro %}
+```
+
+**How It Works:**
+- Return a **list of SQL strings** from your strategy macro
+- The incremental materialization automatically detects lists and calls `execute_multiple_statements()`
+- Each statement executes separately via `{% call statement('main') %}`
+- Used by: `delete+insert` incremental strategy (DBR < 17.1 fallback), materialized views, streaming tables
+
+**Note:** Databricks SQL connector does NOT support semicolon-separated statements in a single execute call. Always return a list.
+
 ### Configuration System
 
 Models can be configured with Databricks-specific options:
@@ -368,6 +403,7 @@ Models can be configured with Databricks-specific options:
 8. **Consider backward compatibility** when modifying existing behavior
 9. **Use capability system for version checks** - Never add new `compare_dbr_version()` calls
 10. **Remember per-compute caching** - Different clusters may have different capabilities in the same run
+11. **Multi-statement SQL**: Don't use semicolons to separate statements - return a list instead and let `execute_multiple_statements()` handle it
 
 ## 🎯 Success Metrics
 

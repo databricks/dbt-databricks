@@ -62,9 +62,18 @@
       {{ process_config_changes(target_relation) }}
       {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', intermediate_relation) -%}
           {{ build_sql }}
@@ -140,9 +149,18 @@
               'incremental_predicates': incremental_predicates}) -%}
       {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', temp_relation) -%}
           {{ build_sql }}
@@ -207,7 +225,7 @@
           'unique_key': unique_key,
           'dest_columns': none,
           'incremental_predicates': incremental_predicates}) -%}
-  {{ strategy_sql_macro_func(strategy_arg_dict) }}
+  {% do return(strategy_sql_macro_func(strategy_arg_dict)) %}
 {% endmacro %}
 
 {% macro process_config_changes(target_relation) %}
