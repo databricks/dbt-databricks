@@ -104,7 +104,7 @@ SHOW_VIEWS_MACRO_NAME = "show_views"
 
 USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     name="use_user_folder_for_python",
-    default=False,
+    default=True,
     description=(
         "Use the user's home folder for uploading python notebooks."
         "  Shared folder use is deprecated due to governance concerns."
