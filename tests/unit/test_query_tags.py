@@ -84,6 +84,60 @@ class TestQueryTagsUtils:
         # Should not raise any exception
         QueryTagsUtils.validate_query_tags(tags)
 
+    def test_validate_query_tags_escapes_comma(self):
+        """Test that commas in tag values are escaped."""
+        tags = {"team": "marketing,sales"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["team"] == "marketing\\,sales"
+
+    def test_validate_query_tags_escapes_colon(self):
+        """Test that colons in tag values are escaped."""
+        tags = {"description": "project:alpha"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["description"] == "project\\:alpha"
+
+    def test_validate_query_tags_escapes_backslash(self):
+        """Test that backslashes in tag values are escaped."""
+        tags = {"path": "folder\\subfolder"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["path"] == "folder\\\\subfolder"
+
+    def test_validate_query_tags_escapes_multiple_special_chars(self):
+        """Test that multiple special characters are all escaped."""
+        tags = {"complex": "value:with,comma\\and\\backslash"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["complex"] == "value\\:with\\,comma\\\\and\\\\backslash"
+
+    def test_validate_query_tags_multiple_values_too_long(self):
+        tags = {
+            "long_tag_1": "a" * 129,
+            "short_tag": "ok",
+            "long_tag_2": "b" * 130,
+        }
+        expected_msg = (
+            "Query tag values must be at most 128 characters. "
+            "Following keys have values exceeding the limit: "
+            "long_tag_1, long_tag_2."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg):
+            QueryTagsUtils.validate_query_tags(tags)
+
+    def test_validate_query_tags_value_after_escaping_too_long(self):
+        """Test validation fails when tag value exceeds 128 chars after escaping."""
+        # Create a value that's 127 characters but will exceed 128 after escaping
+        # We need at least 64 commas (each comma becomes \\, adding 1 char)
+        value_with_commas = ",".join(["a"] * 64)  # Creates "a,a,a..." with 63 commas
+        # After escaping, each comma becomes \\, so length increases by 63
+        tags = {"tag_with_commas": value_with_commas}
+
+        # First it escapes, then it validates length
+        expected_msg = (
+            "Query tag values must be at most 128 characters. "
+            "Following keys have values exceeding the limit: tag_with_commas."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg):
+            QueryTagsUtils.validate_query_tags(tags)
+
     def test_merge_query_tags_precedence(self):
         """Test that model tags override connection tags."""
         connection_tags = {"team": "marketing", "cost_center": "3000"}

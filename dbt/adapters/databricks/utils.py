@@ -151,6 +151,24 @@ class QueryTagsUtils:
                 f"Reserved keys are: {', '.join(sorted(QueryTagsUtils.RESERVED_KEYS))}"
             )
 
+        # Escape commas, colons, and backslashes in tag values
+        for key in tags.keys():
+            value = tags[key]
+            if re.search(r"[\\,:]", value):
+                logger.warning(
+                    f"{source_prefix}Query tag value for key '{key}' contains unescaped "
+                    f"character(s): {value}. Escaping..."
+                )
+                tags[key] = value.replace("\\", "\\\\").replace(",", "\\,").replace(":", "\\:")
+
+        # Validate that no tag value exceeds 128 characters
+        long_values = {k: v for k, v in tags.items() if len(v) > 128}
+        if long_values:
+            raise DbtValidationError(
+                f"{source_prefix}Query tag values must be at most 128 characters. "
+                f"Following keys have values exceeding the limit: {', '.join(long_values.keys())}."
+            )
+
         # Check tag limit
         if len(tags) > QueryTagsUtils.MAX_TAGS:
             raise DbtValidationError(
