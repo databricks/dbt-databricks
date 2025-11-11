@@ -1,8 +1,12 @@
-## dbt-databricks 1.9.8 (TBD)
+## dbt-databricks 1.9.8 (Nov 11, 2025)
 
 ### Fixes
 
 - Switch to using full_data_type column when using info schema for column info ([950](https://github.com/databricks/dbt-databricks/pull/950))
+
+### Under the hood
+
+- Pin dbt-core to 1.10.13 to prevent 1.9.X getting unexpected updates ([1255](https://github.com/databricks/dbt-databricks/pull/1255))
 
 ## dbt-databricks 1.9.7 (Feb 25, 2025)
 
