@@ -920,6 +920,15 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
+
+        # Inject the use_managed_iceberg behavior flag into the model config so
+        # processors can use it. This is needed by TblPropertiesProcessor to determine
+        # if we should add UniForm properties
+        if "_databricks_use_managed_iceberg" not in model.config.extra:
+            model.config.extra["_databricks_use_managed_iceberg"] = bool(
+                self.behavior.use_managed_iceberg
+            )
+
         if model.config.materialized == "materialized_view":
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":

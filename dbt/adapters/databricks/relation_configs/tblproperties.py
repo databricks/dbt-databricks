@@ -4,6 +4,7 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks import constants
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -81,18 +82,24 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TblPropertiesConfig:
         tblproperties = base.get_config_value(relation_config, "tblproperties") or {}
-        is_iceberg = base.get_config_value(relation_config, "table_format") == "iceberg"
 
         if not isinstance(tblproperties, dict):
             raise DbtRuntimeError("tblproperties must be a dictionary")
 
-        # If the table format is Iceberg, we need to set the iceberg-specific tblproperties
-        if is_iceberg:
+        table_format = base.get_config_value(relation_config, "table_format")
+        use_managed_iceberg = base.get_config_value(
+            relation_config, "_databricks_use_managed_iceberg"
+        )
+
+        is_uniform = table_format == constants.ICEBERG_TABLE_FORMAT and use_managed_iceberg is False
+
+        if is_uniform:
             tblproperties.update(
                 {
                     "delta.enableIcebergCompatV2": "true",
-                    "delta.universalFormat.enabledFormats": "iceberg",
+                    "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
                 }
             )
+
         tblproperties = {str(k): str(v) for k, v in tblproperties.items()}
         return TblPropertiesConfig(tblproperties=tblproperties)
