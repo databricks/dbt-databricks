@@ -152,7 +152,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
-      DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
     steps:
