@@ -4,6 +4,7 @@ import pytest
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesConfig,
     TblPropertiesProcessor,
@@ -59,10 +60,10 @@ class TestTblPropertiesProcessor:
             _ = TblPropertiesProcessor.from_relation_config(model)
 
     def test_from_model_node__with_uniform_iceberg_adds_properties(self):
+        GlobalState.set_use_managed_iceberg(False)
         model = Mock()
         model.config.extra = {
             "table_format": constants.ICEBERG_TABLE_FORMAT,
-            "_databricks_use_managed_iceberg": False,
             "tblproperties": {"custom_prop": "value"},
         }
         spec = TblPropertiesProcessor.from_relation_config(model)
@@ -76,10 +77,10 @@ class TestTblPropertiesProcessor:
         )
 
     def test_from_model_node__with_managed_iceberg_no_uniform_properties(self):
+        GlobalState.set_use_managed_iceberg(True)
         model = Mock()
         model.config.extra = {
             "table_format": constants.ICEBERG_TABLE_FORMAT,
-            "_databricks_use_managed_iceberg": True,
             "tblproperties": {"custom_prop": "value"},
         }
         spec = TblPropertiesProcessor.from_relation_config(model)
@@ -87,6 +88,7 @@ class TestTblPropertiesProcessor:
         assert spec == TblPropertiesConfig(tblproperties={"custom_prop": "value"})
 
     def test_from_model_node__with_iceberg_no_flag_no_properties(self):
+        GlobalState.set_use_managed_iceberg(None)
         model = Mock()
         model.config.extra = {
             "table_format": constants.ICEBERG_TABLE_FORMAT,

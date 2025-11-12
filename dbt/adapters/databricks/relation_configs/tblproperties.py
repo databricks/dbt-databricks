@@ -5,6 +5,7 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -87,9 +88,7 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
             raise DbtRuntimeError("tblproperties must be a dictionary")
 
         table_format = base.get_config_value(relation_config, "table_format")
-        use_managed_iceberg = base.get_config_value(
-            relation_config, "_databricks_use_managed_iceberg"
-        )
+        use_managed_iceberg = GlobalState.get_use_managed_iceberg()
 
         is_uniform = table_format == constants.ICEBERG_TABLE_FORMAT and use_managed_iceberg is False
 

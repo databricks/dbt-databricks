@@ -50,3 +50,15 @@ class GlobalState:
                 "DBT_DATABRICKS_CONNECTOR_LOG_LEVEL", "WARN"
             ).upper()
         return cls.__connector_log_level
+
+    __use_managed_iceberg: ClassVar[Optional[bool]] = None
+
+    @classmethod
+    def set_use_managed_iceberg(cls, value: bool) -> None:
+        """Set the use_managed_iceberg flag for the session."""
+        cls.__use_managed_iceberg = value
+
+    @classmethod
+    def get_use_managed_iceberg(cls) -> Optional[bool]:
+        """Get the use_managed_iceberg flag for the session."""
+        return cls.__use_managed_iceberg
