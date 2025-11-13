@@ -236,6 +236,9 @@ class DatabricksAdapter(SparkAdapter):
         self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
+        # Store the use_managed_iceberg flag in GlobalState for the session
+        GlobalState.set_use_managed_iceberg(bool(self.behavior.use_managed_iceberg))
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
@@ -920,6 +923,7 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
+
         if model.config.materialized == "materialized_view":
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":

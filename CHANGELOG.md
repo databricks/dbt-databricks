@@ -1,5 +1,9 @@
 ## dbt-databricks 1.11.1 (TBD)
 
+### Fixes
+
+- Fix bug that was applying UniForm tblproperties on managed Iceberg tables causing materializations to fail
+
 ### Under the hood
 
 - Add validation for query tag value length and auto-escape special characters
