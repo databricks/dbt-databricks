@@ -34,21 +34,12 @@ SHOW TABLE EXTENDED IN {{ schema_relation.without_identifier()|lower }} LIKE '{{
 {% endif %}
 {% endmacro %}
 
-{% macro list_schemas_result_sql(database) %}
-SELECT schema_name
-FROM information_schema.schemata
-WHERE catalog_name = '{{ database }}'
-{% endmacro %}
-
 {% macro databricks__check_schema_exists(database, schema) %}
   {{ return(run_query_as(check_schema_exists_sql(database, schema), 'check_schema_exists')) }}
 {% endmacro %}
 
 {% macro check_schema_exists_sql(database, schema) %}
-SELECT COUNT(*) > 0
-FROM information_schema.schemata
-WHERE catalog_name = '{{ database }}'
-  AND schema_name = '{{ schema }}'
+  SHOW SCHEMAS IN {{ database }} LIKE '{{ schema }}'
 {% endmacro %}
 
 {% macro show_tables_sql(relation) %}
