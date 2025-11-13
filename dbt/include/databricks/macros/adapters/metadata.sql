@@ -22,7 +22,37 @@ SHOW TABLE EXTENDED IN {{ schema_relation.without_identifier()|lower }} LIKE '{{
   {{ return(run_query_as(show_tables_sql(relation), 'show_tables')) }}
 {% endmacro %}
 
+{% macro databricks__list_schemas(database) -%}
+  {{ return(run_query_as(list_schemas_sql(database), 'list_schemas')) }}
+{% endmacro %}
+
+{% macro list_schemas_sql(database) %}
+{% if database %}
+  SHOW SCHEMAS IN {{ database }}
+{% else %}
+  SHOW SCHEMAS
+{% endif %}
+{% endmacro %}
+
+{% macro list_schemas_result_sql(database) %}
+SELECT schema_name
+FROM information_schema.schemata
+WHERE catalog_name = '{{ database }}'
+{% endmacro %}
+
+{% macro databricks__check_schema_exists(database, schema) %}
+  {{ return(run_query_as(check_schema_exists_sql(database, schema), 'check_schema_exists')) }}
+{% endmacro %}
+
+{% macro check_schema_exists_sql(database, schema) %}
+SELECT COUNT(*) > 0
+FROM information_schema.schemata
+WHERE catalog_name = '{{ database }}'
+  AND schema_name = '{{ schema }}'
+{% endmacro %}
+
 {% macro show_tables_sql(relation) %}
+
 SHOW TABLES IN {{ relation.render() }}
 {% endmacro %}
 
