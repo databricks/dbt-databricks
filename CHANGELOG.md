@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.15 (TBD)
 
+### Under the hood
+
+- Allow for dbt-core 1.10.15 ([1254](https://github.com/databricks/dbt-databricks/pull/1254))
+
 ## dbt-databricks 1.10.14 (October 22, 2025)
 
 ### Under the hood
