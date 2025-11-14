@@ -34,18 +34,18 @@ class TestCheckSchemaExists:
             exists = project.adapter.check_schema_exists(
                 database=project.database, schema=test_schema
             )
-            assert (
-                exists is True
-            ), f"Expected schema '{test_schema}' to exist but check returned False"
+            assert exists is True, (
+                f"Expected schema '{test_schema}' to exist but check returned False"
+            )
 
             # Test 2: Verify non-existing schema returns False
             non_existent_schema = "this_schema_definitely_does_not_exist_12345"
             exists = project.adapter.check_schema_exists(
                 database=project.database, schema=non_existent_schema
             )
-            assert (
-                exists is False
-            ), f"Expected schema '{non_existent_schema}' to not exist but check returned True"
+            assert exists is False, (
+                f"Expected schema '{non_existent_schema}' to not exist but check returned True"
+            )
 
             # Test 3: Verify existing default schema returns True (should always exist)
             exists = project.adapter.check_schema_exists(
