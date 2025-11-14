@@ -23,7 +23,28 @@ SHOW TABLE EXTENDED IN {{ schema_relation.without_identifier()|lower }} LIKE '{{
 {% endmacro %}
 
 {% macro show_tables_sql(relation) %}
+
 SHOW TABLES IN {{ relation.render() }}
+{% endmacro %}
+
+{% macro databricks__list_schemas(database) -%}
+  {{ return(run_query_as(list_schemas_sql(database), 'list_schemas')) }}
+{% endmacro %}
+
+{% macro list_schemas_sql(database) %}
+{% if database %}
+  SHOW SCHEMAS IN {{ database }}
+{% else %}
+  SHOW SCHEMAS
+{% endif %}
+{% endmacro %}
+
+{% macro databricks__check_schema_exists(database, schema) %}
+  {{ return(run_query_as(check_schema_exists_sql(database, schema), 'check_schema_exists')) }}
+{% endmacro %}
+
+{% macro check_schema_exists_sql(database, schema) %}
+  SHOW SCHEMAS IN {{ database }} LIKE '{{ schema }}'
 {% endmacro %}
 
 {% macro show_views(relation) %}
