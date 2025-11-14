@@ -8,57 +8,9 @@ Tests all three hard_deletes modes:
 """
 
 import pytest
-
 from dbt.tests.util import run_dbt
 
-# Snapshot SQL templates for each hard_deletes mode
-snapshot_sql_ignore = """
-{% snapshot snapshot_hard_delete_ignore %}
-    {{
-        config(
-            target_database=database,
-            target_schema=schema,
-            unique_key='id',
-            strategy='check',
-            check_cols=['name', 'city'],
-            hard_deletes='ignore',
-        )
-    }}
-    select * from {{ schema }}.seed_hard_delete
-{% endsnapshot %}
-"""
-
-snapshot_sql_invalidate = """
-{% snapshot snapshot_hard_delete_invalidate %}
-    {{
-        config(
-            target_database=database,
-            target_schema=schema,
-            unique_key='id',
-            strategy='check',
-            check_cols=['name', 'city'],
-            hard_deletes='invalidate',
-        )
-    }}
-    select * from {{ schema }}.seed_hard_delete
-{% endsnapshot %}
-"""
-
-snapshot_sql_new_record = """
-{% snapshot snapshot_hard_delete_new_record %}
-    {{
-        config(
-            target_database=database,
-            target_schema=schema,
-            unique_key='id',
-            strategy='check',
-            check_cols=['name', 'city'],
-            hard_deletes='new_record',
-        )
-    }}
-    select * from {{ schema }}.seed_hard_delete
-{% endsnapshot %}
-"""
+from tests.functional.adapter.simple_snapshot import fixtures
 
 
 class BaseHardDeleteTest:
@@ -114,7 +66,7 @@ class TestHardDeleteIgnore(BaseHardDeleteTest):
 
     @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"snapshot_hard_delete_ignore.sql": snapshot_sql_ignore}
+        return {"snapshot_hard_delete_ignore.sql": fixtures.snapshot_hard_delete_ignore_sql}
 
     def test_hard_delete_ignore(self, project):
         """
@@ -176,7 +128,7 @@ class TestHardDeleteInvalidate(BaseHardDeleteTest):
 
     @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"snapshot_hard_delete_invalidate.sql": snapshot_sql_invalidate}
+        return {"snapshot_hard_delete_invalidate.sql": fixtures.snapshot_hard_delete_invalidate_sql}
 
     def test_hard_delete_invalidate(self, project):
         """
@@ -207,9 +159,9 @@ class TestHardDeleteInvalidate(BaseHardDeleteTest):
 
         # With 'invalidate', snapshot should still have 5 records
         final_records = self.get_snapshot_records(project, "snapshot_hard_delete_invalidate")
-        assert (
-            len(final_records) == 5
-        ), f"Expected 5 records with hard_deletes='invalidate', got {len(final_records)}"
+        assert len(final_records) == 5, (
+            f"Expected 5 records with hard_deletes='invalidate', got {len(final_records)}"
+        )
 
         # Verify deleted records (3, 4) have dbt_valid_to set (not NULL)
         # Snapshot columns: id, name, city, updated_at, dbt_scd_id,
@@ -234,7 +186,7 @@ class TestHardDeleteNewRecord(BaseHardDeleteTest):
 
     @pytest.fixture(scope="class")
     def snapshots(self):
-        return {"snapshot_hard_delete_new_record.sql": snapshot_sql_new_record}
+        return {"snapshot_hard_delete_new_record.sql": fixtures.snapshot_hard_delete_new_record_sql}
 
     def test_hard_delete_new_record(self, project):
         """

@@ -261,6 +261,23 @@ DatabricksAdapter (impl.py)
 - Implement Databricks features (liquid clustering, column masks, tags)
 - **Important**: To override a `spark__macro_name` macro, create `databricks__macro_name` (NOT `spark__macro_name`)
 
+**Jinja2 Whitespace Control:**
+- **Prefer using `-` in Jinja tags** (`{%-`, `-%}`) to strip whitespace and avoid blank lines in generated SQL
+- Good: `{%- if condition -%}` - strips whitespace before and after
+- Without `-`: `{% if condition %}` - may leave blank lines in output
+- This keeps generated SQL clean and readable, especially for conditional column additions
+- Note: Sometimes whitespace stripping can break formatting, so use judgment
+- Example:
+  ```jinja
+  select
+      column1,
+      column2
+      {%- if config.get('extra_column') -%}
+      , extra_column
+      {%- endif %}
+  from table
+  ```
+
 #### Multi-Statement SQL Execution
 
 When a macro needs to execute multiple SQL statements (e.g., DELETE followed by INSERT), use the `execute_multiple_statements` helper:
@@ -390,6 +407,9 @@ Models can be configured with Databricks-specific options:
    - ❌ `if adapter.compare_dbr_version(16, 1) >= 0:`
    - ✅ `if adapter.has_capability(DBRCapability.COMMENT_ON_COLUMN):`
    - ✅ `{% if adapter.has_dbr_capability('comment_on_column') %}`
+8. **Jinja2 Whitespace**: Prefer using `-` in Jinja tags (`{%-`, `-%}`) to strip whitespace and prevent blank lines in generated SQL:
+   - Preferred: `{%- if condition -%}`
+   - Without: `{% if condition %}` (may create blank lines)
 
 ## 🚨 Common Pitfalls for Agents
 

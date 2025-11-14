@@ -77,7 +77,6 @@ dependencies = [
     "debugpy",
     "pytest-cov",
 ]
-path = ".hatch"
 python = "3.10"
 
 [tool.hatch.envs.default.scripts]
