@@ -1,5 +1,9 @@
 ## dbt-databricks 1.10.15 (TBD)
 
+### Fixes
+
+- Switch to a more reliable mechanism for checking schema existence ([1261](https://github.com/databricks/dbt-databricks/pull/1261))
+
 ### Under the hood
 
 - Allow for dbt-core 1.10.15 ([1254](https://github.com/databricks/dbt-databricks/pull/1254))
