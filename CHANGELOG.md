@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix bug that was applying UniForm tblproperties on managed Iceberg tables causing materializations to fail
+- Switch to a more reliable mechanism for checking schema existence (forward-ported from 1.10.15) ([1261](https://github.com/databricks/dbt-databricks/pull/1261))
 
 ### Under the hood
 
