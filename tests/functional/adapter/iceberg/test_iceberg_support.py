@@ -65,3 +65,33 @@ class TestManagedIcebergTables(TestIcebergTables, ManagedIcebergMixin):
 
 class TestManagedIcebergSwap(TestIcebergSwap, ManagedIcebergMixin):
     pass
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIcebergIncrementalMerge(ManagedIcebergMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"iceberg_incremental.sql": fixtures.incremental_iceberg_base}
+
+    def test_iceberg_incremental_merge(self, project):
+        results = util.run_dbt()
+        assert len(results) == 1
+
+        result = project.run_sql("select * from iceberg_incremental order by id", fetch="all")
+        assert len(result) == 1
+        assert result[0][0] == 1  # id
+        assert result[0][1] == "initial"  # status
+
+        util.write_file(fixtures.incremental_iceberg_update, "models", "iceberg_incremental.sql")
+
+        # Second run should merge successfully without UniForm property errors
+        results = util.run_dbt()
+        assert len(results) == 1
+
+        # Verify merged data: id=1 should be updated, id=2 should be new
+        result = project.run_sql("select * from iceberg_incremental order by id", fetch="all")
+        assert len(result) == 2
+        assert result[0][0] == 1
+        assert result[0][1] == "updated"  # Updated via merge
+        assert result[1][0] == 2
+        assert result[1][1] == "new"  # New row

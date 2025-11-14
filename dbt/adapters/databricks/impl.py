@@ -104,7 +104,7 @@ SHOW_VIEWS_MACRO_NAME = "show_views"
 
 USE_USER_FOLDER_FOR_PYTHON = BehaviorFlag(
     name="use_user_folder_for_python",
-    default=False,
+    default=True,
     description=(
         "Use the user's home folder for uploading python notebooks."
         "  Shared folder use is deprecated due to governance concerns."
@@ -235,6 +235,9 @@ class DatabricksAdapter(SparkAdapter):
 
         self.add_catalog_integration(constants.DEFAULT_UNITY_CATALOG)
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
+
+        # Store the use_managed_iceberg flag in GlobalState for the session
+        GlobalState.set_use_managed_iceberg(bool(self.behavior.use_managed_iceberg))
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -384,9 +387,11 @@ class DatabricksAdapter(SparkAdapter):
 
     def check_schema_exists(self, database: Optional[str], schema: str) -> bool:
         """Check if a schema exists."""
-        return schema.lower() in set(
-            s.lower() for s in self.connections.list_schemas(database or "hive_metastore", schema)
+        results = self.execute_macro(
+            "databricks__check_schema_exists",
+            kwargs={"database": database or "hive_metastore", "schema": schema},
         )
+        return len(results) > 0
 
     def execute(
         self,
@@ -920,6 +925,7 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def get_config_from_model(self, model: RelationConfig) -> DatabricksRelationConfigBase:
         assert model.config, "Config was missing from relation"
+
         if model.config.materialized == "materialized_view":
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":

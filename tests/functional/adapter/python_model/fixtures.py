@@ -314,3 +314,26 @@ def model(dbt, spark):
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
 """
+
+all_purpose_command_api_schema = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_python_model
+    # No submission_method or create_notebook config here
+    # Will use project-level config (all_purpose_cluster with create_notebook=False)
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
+"""
