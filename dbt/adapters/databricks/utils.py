@@ -119,7 +119,7 @@ class QueryTagsUtils:
     MAX_TAGS = 20
 
     @staticmethod
-    def parse_query_tags(query_tags_str: str | None) -> dict[str, str]:
+    def parse_query_tags(query_tags_str: Optional[str]) -> dict[str, str]:
         """Parse query tags from JSON string format."""
         if not query_tags_str:
             return {}
