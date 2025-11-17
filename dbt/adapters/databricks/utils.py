@@ -1,7 +1,7 @@
 import json
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from dbt.adapters.base import BaseAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
@@ -91,7 +91,7 @@ def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStr
         logger.warning(log_gen(e))
 
 
-def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
+def is_cluster_http_path(http_path: str, cluster_id: str | None) -> bool:
     if "/warehouses/" in http_path:
         return False
     if "/protocolv1/" in http_path:
@@ -102,19 +102,24 @@ def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
 class QueryTagsUtils:
     """Utility class for handling query tags merging and validation."""
 
+    DBT_MODEL_NAME_QUERY_TAG_KEY = "@@dbt_model_name"
+    DBT_CORE_VERSION_QUERY_TAG_KEY = "@@dbt_core_version"
+    DBT_DATABRICKS_VERSION_QUERY_TAG_KEY = "@@dbt_databricks_version"
+    DBT_MATERIALIZED_QUERY_TAG_KEY = "@@dbt_materialized"
+
     # Reserved query tag keys that cannot be overridden
     RESERVED_KEYS = {
-        "dbt_model_name",
-        "dbt_core_version",
-        "dbt_databricks_version",
-        "dbt_materialized",
+        DBT_MODEL_NAME_QUERY_TAG_KEY,
+        DBT_CORE_VERSION_QUERY_TAG_KEY,
+        DBT_DATABRICKS_VERSION_QUERY_TAG_KEY,
+        DBT_MATERIALIZED_QUERY_TAG_KEY,
     }
 
     # Maximum number of query tags allowed
     MAX_TAGS = 20
 
     @staticmethod
-    def parse_query_tags(query_tags_str: Optional[str]) -> dict[str, str]:
+    def parse_query_tags(query_tags_str: str | None) -> dict[str, str]:
         """Parse query tags from JSON string format."""
         if not query_tags_str:
             return {}

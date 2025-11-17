@@ -7,6 +7,7 @@
 ### Under the hood
 
 - Add validation for query tag value length and auto-escape special characters
+- Add `@@` prefix to system query tag keys
 
 ## dbt-databricks 1.11.0 (Oct 29, 2025)
 

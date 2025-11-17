@@ -68,7 +68,7 @@ class TestQueryTagsUtils:
 
     def test_validate_query_tags_reserved_keys(self):
         """Test validation fails for reserved keys."""
-        tags = {"dbt_model_name": "test", "team": "marketing"}
+        tags = {"@@dbt_model_name": "test", "team": "marketing"}
         with pytest.raises(DbtValidationError, match="Cannot use reserved query tag keys"):
             QueryTagsUtils.validate_query_tags(tags)
 
@@ -165,7 +165,7 @@ class TestQueryTagsUtils:
         assert "dbt_model_name" in result
 
         # But if user tries to use a reserved key, it should fail
-        model_tags_with_reserved = {"dbt_model_name": "override_attempt"}
+        model_tags_with_reserved = {"@@dbt_model_name": "override_attempt"}
         with pytest.raises(DbtValidationError, match="Cannot use reserved query tag keys"):
             QueryTagsUtils.merge_query_tags(connection_tags, model_tags_with_reserved, default_tags)
 
@@ -220,10 +220,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"  # From model
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "table"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "table"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_model_tags(self):
         """Test getting merged query tags with no model tags."""
@@ -242,10 +242,10 @@ class TestQueryConfigUtils:
         assert result["team"] == "marketing"
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "view"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "view"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_connection_tags(self):
         """Test getting merged query tags with no connection tags."""
@@ -264,10 +264,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "incremental"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "incremental"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_tags_at_all(self):
         """Test getting merged query tags with no tags from any source."""
@@ -283,10 +283,10 @@ class TestQueryConfigUtils:
         result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check default tags only
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "table"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "table"
+        assert result["@@dbt_model_name"] == "test_model"
 
         # Should only have default tags
         assert len(result) == 4
