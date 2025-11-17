@@ -102,12 +102,17 @@ def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
 class QueryTagsUtils:
     """Utility class for handling query tags merging and validation."""
 
+    DBT_MODEL_NAME_QUERY_TAG_KEY = "@@dbt_model_name"
+    DBT_CORE_VERSION_QUERY_TAG_KEY = "@@dbt_core_version"
+    DBT_DATABRICKS_VERSION_QUERY_TAG_KEY = "@@dbt_databricks_version"
+    DBT_MATERIALIZED_QUERY_TAG_KEY = "@@dbt_materialized"
+
     # Reserved query tag keys that cannot be overridden
     RESERVED_KEYS = {
-        "dbt_model_name",
-        "dbt_core_version",
-        "dbt_databricks_version",
-        "dbt_materialized",
+        DBT_MODEL_NAME_QUERY_TAG_KEY,
+        DBT_CORE_VERSION_QUERY_TAG_KEY,
+        DBT_DATABRICKS_VERSION_QUERY_TAG_KEY,
+        DBT_MATERIALIZED_QUERY_TAG_KEY,
     }
 
     # Maximum number of query tags allowed
@@ -149,6 +154,24 @@ class QueryTagsUtils:
                 f"{source_prefix}Cannot use reserved query tag keys: "
                 f"{', '.join(sorted(reserved_found))}. "
                 f"Reserved keys are: {', '.join(sorted(QueryTagsUtils.RESERVED_KEYS))}"
+            )
+
+        # Escape commas, colons, and backslashes in tag values
+        for key in tags.keys():
+            value = tags[key]
+            if re.search(r"[\\,:]", value):
+                logger.warning(
+                    f"{source_prefix}Query tag value for key '{key}' contains unescaped "
+                    f"character(s): {value}. Escaping..."
+                )
+                tags[key] = value.replace("\\", "\\\\").replace(",", "\\,").replace(":", "\\:")
+
+        # Validate that no tag value exceeds 128 characters
+        long_values = {k: v for k, v in tags.items() if len(v) > 128}
+        if long_values:
+            raise DbtValidationError(
+                f"{source_prefix}Query tag values must be at most 128 characters. "
+                f"Following keys have values exceeding the limit: {', '.join(long_values.keys())}."
             )
 
         # Check tag limit

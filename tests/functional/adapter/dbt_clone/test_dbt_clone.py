@@ -7,7 +7,7 @@ from tests.functional.adapter.dbt_clone import fixtures
 
 
 class CleanupMixin:
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def clean_up(self, project):
         yield
         with project.adapter.connection_named("__test"):

@@ -68,7 +68,7 @@ class TestQueryTagsUtils:
 
     def test_validate_query_tags_reserved_keys(self):
         """Test validation fails for reserved keys."""
-        tags = {"dbt_model_name": "test", "team": "marketing"}
+        tags = {"@@dbt_model_name": "test", "team": "marketing"}
         with pytest.raises(DbtValidationError, match="Cannot use reserved query tag keys"):
             QueryTagsUtils.validate_query_tags(tags)
 
@@ -83,6 +83,60 @@ class TestQueryTagsUtils:
         tags = {"team": "marketing", "cost_center": "3000"}
         # Should not raise any exception
         QueryTagsUtils.validate_query_tags(tags)
+
+    def test_validate_query_tags_escapes_comma(self):
+        """Test that commas in tag values are escaped."""
+        tags = {"team": "marketing,sales"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["team"] == "marketing\\,sales"
+
+    def test_validate_query_tags_escapes_colon(self):
+        """Test that colons in tag values are escaped."""
+        tags = {"description": "project:alpha"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["description"] == "project\\:alpha"
+
+    def test_validate_query_tags_escapes_backslash(self):
+        """Test that backslashes in tag values are escaped."""
+        tags = {"path": "folder\\subfolder"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["path"] == "folder\\\\subfolder"
+
+    def test_validate_query_tags_escapes_multiple_special_chars(self):
+        """Test that multiple special characters are all escaped."""
+        tags = {"complex": "value:with,comma\\and\\backslash"}
+        QueryTagsUtils.validate_query_tags(tags)
+        assert tags["complex"] == "value\\:with\\,comma\\\\and\\\\backslash"
+
+    def test_validate_query_tags_multiple_values_too_long(self):
+        tags = {
+            "long_tag_1": "a" * 129,
+            "short_tag": "ok",
+            "long_tag_2": "b" * 130,
+        }
+        expected_msg = (
+            "Query tag values must be at most 128 characters. "
+            "Following keys have values exceeding the limit: "
+            "long_tag_1, long_tag_2."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg):
+            QueryTagsUtils.validate_query_tags(tags)
+
+    def test_validate_query_tags_value_after_escaping_too_long(self):
+        """Test validation fails when tag value exceeds 128 chars after escaping."""
+        # Create a value that's 127 characters but will exceed 128 after escaping
+        # We need at least 64 commas (each comma becomes \\, adding 1 char)
+        value_with_commas = ",".join(["a"] * 64)  # Creates "a,a,a..." with 63 commas
+        # After escaping, each comma becomes \\, so length increases by 63
+        tags = {"tag_with_commas": value_with_commas}
+
+        # First it escapes, then it validates length
+        expected_msg = (
+            "Query tag values must be at most 128 characters. "
+            "Following keys have values exceeding the limit: tag_with_commas."
+        )
+        with pytest.raises(DbtValidationError, match=expected_msg):
+            QueryTagsUtils.validate_query_tags(tags)
 
     def test_merge_query_tags_precedence(self):
         """Test that model tags override connection tags."""
@@ -111,7 +165,7 @@ class TestQueryTagsUtils:
         assert "dbt_model_name" in result
 
         # But if user tries to use a reserved key, it should fail
-        model_tags_with_reserved = {"dbt_model_name": "override_attempt"}
+        model_tags_with_reserved = {"@@dbt_model_name": "override_attempt"}
         with pytest.raises(DbtValidationError, match="Cannot use reserved query tag keys"):
             QueryTagsUtils.merge_query_tags(connection_tags, model_tags_with_reserved, default_tags)
 
@@ -166,10 +220,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"  # From model
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "table"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "table"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_model_tags(self):
         """Test getting merged query tags with no model tags."""
@@ -188,10 +242,10 @@ class TestQueryConfigUtils:
         assert result["team"] == "marketing"
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "view"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "view"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_connection_tags(self):
         """Test getting merged query tags with no connection tags."""
@@ -210,10 +264,10 @@ class TestQueryConfigUtils:
         assert result["project"] == "analytics"
 
         # Check default tags
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "incremental"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "incremental"
+        assert result["@@dbt_model_name"] == "test_model"
 
     def test_get_merged_query_tags_no_tags_at_all(self):
         """Test getting merged query tags with no tags from any source."""
@@ -229,10 +283,10 @@ class TestQueryConfigUtils:
         result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         # Check default tags only
-        assert "dbt_databricks_version" in result
-        assert "dbt_core_version" in result
-        assert result["dbt_materialized"] == "table"
-        assert result["dbt_model_name"] == "test_model"
+        assert "@@dbt_databricks_version" in result
+        assert "@@dbt_core_version" in result
+        assert result["@@dbt_materialized"] == "table"
+        assert result["@@dbt_model_name"] == "test_model"
 
         # Should only have default tags
         assert len(result) == 4

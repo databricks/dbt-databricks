@@ -1,4 +1,24 @@
-## dbt-databricks 1.11.1 (TBD)
+## dbt-databricks 1.11.2 (TBD)
+
+## dbt-databricks 1.11.1 (Nov 17, 2025)
+
+### Features
+
+- Add support for `hard_deletes='new_record'` in snapshot materializations, enabling tracking of deleted source records with dedicated deletion records marked by `dbt_is_deleted` column (thanks @randypitcherii!) ([#1176](https://github.com/databricks/dbt-databricks/issues/1176), [#1263](https://github.com/databricks/dbt-databricks/pull/1263))
+  - Implements complete support for all three `hard_deletes` modes: `ignore` (default), `invalidate`, and `new_record`
+  - `new_record` mode creates deletion records with actual source column values and `dbt_is_deleted=true` for full audit trail
+  - `invalidate` mode uses Delta Lake's `WHEN NOT MATCHED BY SOURCE` clause to set `dbt_valid_to` on deleted records
+  - Uses Databricks native BOOLEAN type for `dbt_is_deleted` column for improved type safety and performance
+
+### Fixes
+
+- Fix bug that was applying UniForm tblproperties on managed Iceberg tables causing materializations to fail
+- Switch to a more reliable mechanism for checking schema existence (forward-ported from 1.10.15) ([1261](https://github.com/databricks/dbt-databricks/pull/1261))
+
+### Under the hood
+
+- Add validation for query tag value length and auto-escape special characters
+- Add `@@` prefix to system query tag keys
 
 ## dbt-databricks 1.11.0 (Nov 3, 2025)
 

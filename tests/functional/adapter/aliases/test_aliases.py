@@ -28,7 +28,7 @@ class TestDatabricksAliasErrors(BaseAliasErrors):
 
 
 class TestDatabricksSameAliasDifferentSchemas(BaseSameAliasDifferentSchemas):
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def clean_up(self, project):
         yield
         with project.adapter.connection_named("__test"):
@@ -53,7 +53,7 @@ class TestDatabricksSameAliasDifferentSchemas(BaseSameAliasDifferentSchemas):
 
 
 class TestDatabricksSameAliasDifferentDatabases(BaseSameAliasDifferentDatabases):
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def clean_up(self, project):
         yield
         with project.adapter.connection_named("__test"):

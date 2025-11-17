@@ -579,16 +579,20 @@ class QueryConfigUtils:
 
         # Default tags that will be applied to all queries
         default_tags = {
-            "dbt_databricks_version": __version__,
-            "dbt_core_version": version("dbt-core"),
+            QueryTagsUtils.DBT_DATABRICKS_VERSION_QUERY_TAG_KEY: __version__,
+            QueryTagsUtils.DBT_CORE_VERSION_QUERY_TAG_KEY: version("dbt-core"),
         }
 
         # Default tags that will only exists for queries tied to a specific model
         if query_header_context:
             if hasattr(query_header_context, "model_name") and query_header_context.model_name:
-                default_tags["dbt_model_name"] = query_header_context.model_name
+                default_tags[QueryTagsUtils.DBT_MODEL_NAME_QUERY_TAG_KEY] = (
+                    query_header_context.model_name
+                )
             if hasattr(query_header_context, "materialized") and query_header_context.materialized:
-                default_tags["dbt_materialized"] = query_header_context.materialized
+                default_tags[QueryTagsUtils.DBT_MATERIALIZED_QUERY_TAG_KEY] = (
+                    query_header_context.materialized
+                )
 
         # Parse connection tags from JSON string
         connection_tags = (
