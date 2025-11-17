@@ -1,7 +1,7 @@
 import json
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt.adapters.base import BaseAdapter
 from dbt.adapters.spark.impl import TABLE_OR_VIEW_NOT_FOUND_MESSAGES
@@ -91,7 +91,7 @@ def handle_exceptions_as_warning(op: Callable[[], None], log_gen: ExceptionToStr
         logger.warning(log_gen(e))
 
 
-def is_cluster_http_path(http_path: str, cluster_id: str | None) -> bool:
+def is_cluster_http_path(http_path: str, cluster_id: Optional[str]) -> bool:
     if "/warehouses/" in http_path:
         return False
     if "/protocolv1/" in http_path:
