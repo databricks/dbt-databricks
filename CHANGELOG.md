@@ -1,4 +1,10 @@
-## dbt-databricks 1.11.2 (TBD)
+## dbt-databricks 1.11.3 (TBD)
+
+## dbt-databricks 1.11.2 (Nov 18, 2025)
+
+### Fixes
+
+- pin 'click' to work around pip install issue in Lakeflow
 
 ## dbt-databricks 1.11.1 (Nov 17, 2025)
 
