@@ -38,10 +38,18 @@ class DatabricksRelationType(StrEnum):
     MaterializedView = "materialized_view"
     Foreign = "foreign"
     StreamingTable = "streaming_table"
+    MetricView = "metric_view"
     External = "external"
     ManagedShallowClone = "managed_shallow_clone"
     ExternalShallowClone = "external_shallow_clone"
     Unknown = "unknown"
+
+
+class DatabricksTableType(StrEnum):
+    External = "external"
+    Managed = "managed"
+    ManagedShallowClone = "managed_shallow_clone"
+    ExternalShallowClone = "external_shallow_clone"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -62,6 +70,8 @@ class DatabricksRelation(BaseRelation):
     quote_character: str = "`"
     is_delta: Optional[bool] = None
     metadata: Optional[dict[str, Any]] = None
+
+    databricks_table_type: Optional[DatabricksTableType] = None
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -85,6 +95,10 @@ class DatabricksRelation(BaseRelation):
     @property
     def is_streaming_table(self) -> bool:
         return self.type == DatabricksRelationType.StreamingTable
+    
+    @property
+    def is_external_table(self) -> bool:
+        return self.databricks_table_type == DatabricksTableType.External
 
     @property
     def is_hudi(self) -> bool:
@@ -130,6 +144,10 @@ class DatabricksRelation(BaseRelation):
     @classproperty
     def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
+    
+    @classproperty
+    def get_databricks_table_type(cls) -> Type[DatabricksTableType]:  # noqa
+        return DatabricksTableType
 
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
         # some of our data comes from jinja, where things can be `Undefined`.
