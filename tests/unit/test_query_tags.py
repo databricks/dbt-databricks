@@ -138,6 +138,56 @@ class TestQueryTagsUtils:
         with pytest.raises(DbtValidationError, match=expected_msg):
             QueryTagsUtils.validate_query_tags(tags)
 
+    def test_process_default_tags_escapes_special_chars(self):
+        """Test that process_default_tags escapes special characters."""
+        tags = {
+            "key1": "value:with:colons",
+            "key2": "value,with,commas",
+            "key3": "value\\with\\backslashes",
+        }
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        assert result["key1"] == "value\\:with\\:colons"
+        assert result["key2"] == "value\\,with\\,commas"
+        assert result["key3"] == "value\\\\with\\\\backslashes"
+
+    def test_process_default_tags_truncates_long_values(self):
+        """Test that process_default_tags truncates values exceeding 128 characters."""
+        long_value = "x" * 150
+        tags = {"long_key": long_value}
+
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        # Should be truncated to 128 characters
+        assert len(result["long_key"]) == 128
+        assert result["long_key"] == "x" * 128
+
+    def test_process_default_tags_truncates_after_escaping(self):
+        """Test that truncation happens after escaping."""
+        # Create a value that's 125 chars but will become 131 after escaping 3 colons
+        value = "x" * 122 + ":::"  # 122 + 3 = 125 chars
+        tags = {"key": value}
+
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        # After escaping: 122 x's + 6 chars from escaped colons = 128 chars, should be truncated
+        assert len(result["key"]) == 128
+
+    def test_process_default_tags_allows_reserved_keys(self):
+        """Test that process_default_tags allows reserved keys (unlike validate_query_tags)."""
+        tags = {
+            "@@dbt_model_name": "test_model",
+            "@@dbt_core_version": "1.5.0",
+            "custom_tag": "value",
+        }
+
+        # Should not raise error even with reserved keys
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        assert result["@@dbt_model_name"] == "test_model"
+        assert result["@@dbt_core_version"] == "1.5.0"
+        assert result["custom_tag"] == "value"
+
     def test_merge_query_tags_precedence(self):
         """Test that model tags override connection tags."""
         connection_tags = {"team": "marketing", "cost_center": "3000"}
