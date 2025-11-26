@@ -200,7 +200,7 @@ class QueryTagsUtils:
         processed = {}
         for key, value in tags.items():
             if len(value) > 128:
-                logger.warning(
+                logger.debug(
                     f"Default tags: Query tag value for key '{key}' exceeds 128 characters "
                     f"({len(value)} chars). Truncating to 128 characters."
                 )
