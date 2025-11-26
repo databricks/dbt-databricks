@@ -152,7 +152,7 @@ class QueryTagsUtils:
                 f"{source_prefix}Query tag value for key '{key}' contains unescaped "
                 f"character(s): {value}. Escaping..."
             )
-            value = value.replace("\\", "\\\\").replace(",", "\\,").replace(":", "\\:")
+            value = value.replace("\\", r"\\").replace(",", r"\,").replace(":", r"\:")
 
         return value
 
@@ -191,18 +191,22 @@ class QueryTagsUtils:
 
     @staticmethod
     def process_default_tags(tags: dict[str, str]) -> dict[str, str]:
-        """Process default tags: escape special characters and truncate long values."""
+        """
+        Process default tags: truncate long values, then escape special characters.
+
+        Note: We truncate BEFORE escaping to avoid cutting escape sequences in half,
+        which would create invalid sequences that can't be deserialized.
+        """
         processed = {}
         for key, value in tags.items():
-            escaped_value = QueryTagsUtils.escape_tag_value(key, value, "Default tags")
-
-            if len(escaped_value) > 128:
+            if len(value) > 128:
                 logger.warning(
-                    f"Default tags: Query tag value for key '{key}' exceeds 128 characters. "
-                    f"Truncating to 128 characters."
+                    f"Default tags: Query tag value for key '{key}' exceeds 128 characters "
+                    f"({len(value)} chars). Truncating to 128 characters."
                 )
-                escaped_value = escaped_value[:128]
+                value = value[:128]
 
+            escaped_value = QueryTagsUtils.escape_tag_value(key, value, "Default tags")
             processed[key] = escaped_value
 
         return processed
