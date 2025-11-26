@@ -1,5 +1,9 @@
 ## dbt-databricks 1.11.3 (TBD)
 
+### Fixes
+
+- Truncate (128 charactesr max) and escape special characters for default query tag values
+
 ## dbt-databricks 1.11.2 (Nov 18, 2025)
 
 ### Fixes

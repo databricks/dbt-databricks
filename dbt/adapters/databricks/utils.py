@@ -143,6 +143,20 @@ class QueryTagsUtils:
             raise DbtValidationError(f"Invalid JSON in query_tags: {e}")
 
     @staticmethod
+    def escape_tag_value(key: str, value: str, source: str = "") -> str:
+        """Escape special characters in tag values (backslash, comma, colon)."""
+        source_prefix = f"{source}: " if source else ""
+
+        if re.search(r"[\\,:]", value):
+            logger.warning(
+                f"{source_prefix}Query tag value for key '{key}' contains unescaped "
+                f"character(s): {value}. Escaping..."
+            )
+            value = value.replace("\\", r"\\").replace(",", r"\,").replace(":", r"\:")
+
+        return value
+
+    @staticmethod
     def validate_query_tags(tags: dict[str, str], source: str = "") -> None:
         """Validate query tags for reserved keys and limits."""
         source_prefix = f"{source}: " if source else ""
@@ -156,17 +170,11 @@ class QueryTagsUtils:
                 f"Reserved keys are: {', '.join(sorted(QueryTagsUtils.RESERVED_KEYS))}"
             )
 
-        # Escape commas, colons, and backslashes in tag values
+        # Escape values (modifies dict in place)
         for key in tags.keys():
-            value = tags[key]
-            if re.search(r"[\\,:]", value):
-                logger.warning(
-                    f"{source_prefix}Query tag value for key '{key}' contains unescaped "
-                    f"character(s): {value}. Escaping..."
-                )
-                tags[key] = value.replace("\\", "\\\\").replace(",", "\\,").replace(":", "\\:")
+            tags[key] = QueryTagsUtils.escape_tag_value(key, tags[key], source)
 
-        # Validate that no tag value exceeds 128 characters
+        # Validate that no tag value exceeds 128 characters (after escaping)
         long_values = {k: v for k, v in tags.items() if len(v) > 128}
         if long_values:
             raise DbtValidationError(
@@ -182,6 +190,28 @@ class QueryTagsUtils:
             )
 
     @staticmethod
+    def process_default_tags(tags: dict[str, str]) -> dict[str, str]:
+        """
+        Process default tags: truncate long values, then escape special characters.
+
+        Note: We truncate BEFORE escaping to avoid cutting escape sequences in half,
+        which would create invalid sequences that can't be deserialized.
+        """
+        processed = {}
+        for key, value in tags.items():
+            if len(value) > 128:
+                logger.debug(
+                    f"Default tags: Query tag value for key '{key}' exceeds 128 characters "
+                    f"({len(value)} chars). Truncating to 128 characters."
+                )
+                value = value[:128]
+
+            escaped_value = QueryTagsUtils.escape_tag_value(key, value, "Default tags")
+            processed[key] = escaped_value
+
+        return processed
+
+    @staticmethod
     def merge_query_tags(
         connection_tags: dict[str, str],
         model_tags: dict[str, str],
@@ -191,23 +221,20 @@ class QueryTagsUtils:
         Merge query tags with precedence: model > connection > default.
         Validates that no reserved keys are used and tag limits are respected.
         """
-        # All sources are now already parsed dicts
-        conn_tags = connection_tags
-        model_tags_dict = model_tags
-        default_tags_dict = default_tags
+        # Process default tags (escape and truncate, don't validate reserved keys)
+        processed_default_tags = QueryTagsUtils.process_default_tags(default_tags)
 
-        # Validate each source (user-provided tags cannot use reserved keys)
-        QueryTagsUtils.validate_query_tags(conn_tags, "Connection config")
-        QueryTagsUtils.validate_query_tags(model_tags_dict, "Model config")
+        # Validate user-provided tags (cannot use reserved keys)
+        QueryTagsUtils.validate_query_tags(connection_tags, "Connection config")
+        QueryTagsUtils.validate_query_tags(model_tags, "Model config")
 
         # Merge with precedence: model > connection > default
         merged = {}
-        merged.update(default_tags_dict)
-        merged.update(conn_tags)
-        merged.update(model_tags_dict)
+        merged.update(processed_default_tags)
+        merged.update(connection_tags)
+        merged.update(model_tags)
 
-        # Final validation of merged tags (only check total count, not reserved keys
-        # since default tags are allowed to use reserved keys)
+        # Final validation of merged tags (only check total count)
         if len(merged) > QueryTagsUtils.MAX_TAGS:
             raise DbtValidationError(
                 f"Too many total query tags ({len(merged)}). "

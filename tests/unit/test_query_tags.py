@@ -88,25 +88,25 @@ class TestQueryTagsUtils:
         """Test that commas in tag values are escaped."""
         tags = {"team": "marketing,sales"}
         QueryTagsUtils.validate_query_tags(tags)
-        assert tags["team"] == "marketing\\,sales"
+        assert tags["team"] == r"marketing\,sales"
 
     def test_validate_query_tags_escapes_colon(self):
         """Test that colons in tag values are escaped."""
         tags = {"description": "project:alpha"}
         QueryTagsUtils.validate_query_tags(tags)
-        assert tags["description"] == "project\\:alpha"
+        assert tags["description"] == r"project\:alpha"
 
     def test_validate_query_tags_escapes_backslash(self):
         """Test that backslashes in tag values are escaped."""
-        tags = {"path": "folder\\subfolder"}
+        tags = {"path": r"folder\subfolder"}
         QueryTagsUtils.validate_query_tags(tags)
-        assert tags["path"] == "folder\\\\subfolder"
+        assert tags["path"] == r"folder\\subfolder"
 
     def test_validate_query_tags_escapes_multiple_special_chars(self):
         """Test that multiple special characters are all escaped."""
-        tags = {"complex": "value:with,comma\\and\\backslash"}
+        tags = {"complex": r"value:with,comma\and\backslash"}
         QueryTagsUtils.validate_query_tags(tags)
-        assert tags["complex"] == "value\\:with\\,comma\\\\and\\\\backslash"
+        assert tags["complex"] == r"value\:with\,comma\\and\\backslash"
 
     def test_validate_query_tags_multiple_values_too_long(self):
         tags = {
@@ -137,6 +137,79 @@ class TestQueryTagsUtils:
         )
         with pytest.raises(DbtValidationError, match=expected_msg):
             QueryTagsUtils.validate_query_tags(tags)
+
+    def test_process_default_tags_escapes_special_chars(self):
+        """Test that process_default_tags escapes special characters."""
+        tags = {
+            "key1": "value:with:colons",
+            "key2": "value,with,commas",
+            "key3": r"value\with\backslashes",
+            "key4": r"path\to:file,v1",
+            "key5": r"a\b:c,d\e:f,g",
+            "key6": r"start\,middle:,end",
+        }
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        assert result["key1"] == r"value\:with\:colons"
+        assert result["key2"] == r"value\,with\,commas"
+        assert result["key3"] == r"value\\with\\backslashes"
+        assert result["key4"] == r"path\\to\:file\,v1"
+        assert result["key5"] == r"a\\b\:c\,d\\e\:f\,g"
+        assert result["key6"] == r"start\\\,middle\:\,end"
+
+    def test_process_default_tags_truncates_long_values(self):
+        """Test that process_default_tags truncates values exceeding 128 characters."""
+        long_value = "x" * 150
+        tags = {"long_key": long_value}
+
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        # Should be truncated to 128 characters
+        assert len(result["long_key"]) == 128
+        assert result["long_key"] == "x" * 128
+
+    def test_process_default_tags_truncates_before_escaping(self):
+        """Test that truncation happens before escaping to avoid cutting escape sequences."""
+        # Create a value longer than 128 chars that contains special characters
+        # 126 x's + 3 colons = 129 chars (exceeds limit)
+        value = "x" * 126 + ":::"
+        tags = {"key": value}
+
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        # Should truncate to 128 first (removing 1 char): "xxx...xxx::"
+        # Then escape the remaining colons: "xxx...xxx\:\:"
+        # Result: 126 x's + 4 chars from escaped colons = 130 chars (longer than 128, but safe)
+        assert len(result["key"]) == 130
+        assert result["key"] == ("x" * 126 + r"\:\:")
+
+    def test_process_default_tags_truncation_avoids_broken_escapes(self):
+        """Test that truncating before escaping avoids creating invalid escape sequences."""
+        # If we truncated after escaping, we could cut "value\," to "value\"
+        # which would be an invalid/incomplete escape sequence
+        value = "x" * 127 + ","  # 128 chars exactly
+        tags = {"key": value}
+
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        # Should keep all 128 chars, then escape the comma: 127 x's + r"\," (2 chars) = 129 chars
+        assert len(result["key"]) == 129
+        assert result["key"] == ("x" * 127 + r"\,")
+
+    def test_process_default_tags_allows_reserved_keys(self):
+        """Test that process_default_tags allows reserved keys (unlike validate_query_tags)."""
+        tags = {
+            "@@dbt_model_name": "test_model",
+            "@@dbt_core_version": "1.5.0",
+            "custom_tag": "value",
+        }
+
+        # Should not raise error even with reserved keys
+        result = QueryTagsUtils.process_default_tags(tags)
+
+        assert result["@@dbt_model_name"] == "test_model"
+        assert result["@@dbt_core_version"] == "1.5.0"
+        assert result["custom_tag"] == "value"
 
     def test_merge_query_tags_precedence(self):
         """Test that model tags override connection tags."""
