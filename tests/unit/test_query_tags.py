@@ -144,12 +144,18 @@ class TestQueryTagsUtils:
             "key1": "value:with:colons",
             "key2": "value,with,commas",
             "key3": r"value\with\backslashes",
+            "key4": r"path\to:file,v1",
+            "key5": r"a\b:c,d\e:f,g",
+            "key6": r"start\,middle:,end",
         }
         result = QueryTagsUtils.process_default_tags(tags)
 
         assert result["key1"] == r"value\:with\:colons"
         assert result["key2"] == r"value\,with\,commas"
         assert result["key3"] == r"value\\with\\backslashes"
+        assert result["key4"] == r"path\\to\:file\,v1"
+        assert result["key5"] == r"a\\b\:c\,d\\e\:f\,g"
+        assert result["key6"] == r"start\\\,middle\:\,end"
 
     def test_process_default_tags_truncates_long_values(self):
         """Test that process_default_tags truncates values exceeding 128 characters."""
