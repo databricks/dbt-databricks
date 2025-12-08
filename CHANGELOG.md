@@ -1,5 +1,8 @@
 ## dbt-databricks 1.11.4 (TBD)
 
+### Features
+- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging 
+
 ## dbt-databricks 1.11.3 (Dec 5, 2025)
 
 ### Fixes
