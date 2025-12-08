@@ -1,0 +1,135 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dbt-databricks"
+dynamic = ["version"]
+description = "The Databricks adapter plugin for dbt"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "Databricks", email = "feedback@databricks.com" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "click>=8.2.0, <9.0.0",
+    "databricks-sdk>=0.41, <0.68.0",
+    "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.4",
+    "dbt-adapters>=1.17.2, <1.18.0",
+    "dbt-common>=1.33.0, <1.37.0",
+    "dbt-core>=1.11.0b4, <1.11.1",
+    "dbt-spark>=1.9.0, <1.10.0",
+    "keyring>=23.13.0, <25.6.0",
+    "pydantic>=1.10.0, <2.13.0",
+]
+
+[project.urls]
+homepage = "https://github.com/databricks/dbt-databricks"
+changelog = "https://github.com/databricks/dbt-databricks/blob/main/CHANGELOG.md"
+documentation = "https://docs.getdbt.com/reference/resource-configs/databricks-configs"
+issues = "https://github.com/databricks/dbt-databricks/issues"
+repository = "https://github.com/databricks/dbt-databricks"
+
+[tool.hatch.version]
+path = "dbt/adapters/databricks/__version__.py"
+
+[tool.hatch.build]
+include = ["/dbt"]
+
+[tool.hatch.envs.verify]
+detached = true
+dependencies = ["wheel", "twine", "check-wheel-contents"]
+
+[tool.hatch.envs.verify.scripts]
+check-all = ["- check-wheel", "- check-sdist"]
+check-wheel = [
+    "twine check dist/*",
+    "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+]
+check-sdist = [
+    "check-wheel-contents dist/*.whl --ignore W007,W008",
+    "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+]
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = [
+    "dbt-tests-adapter",
+    "pytest",
+    "pytest-xdist",
+    "pytest-dotenv",
+    "freezegun",
+    "mypy>=1.18.2",
+    "pre-commit",
+    "ruff==0.14.2",
+    "types-requests",
+    "debugpy",
+    "pytest-cov",
+]
+python = "3.10"
+
+[tool.hatch.envs.default.scripts]
+setup-precommit = "pre-commit install"
+code-quality = "pre-commit run --all-files"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 tests/unit"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
+
+[tool.hatch.envs.test.scripts]
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
+[tool.ruff]
+line-length = 100
+target-version = 'py39'
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP"]
+ignore = ["E203"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*'soft_unicode' has been renamed to 'soft_str'*:DeprecationWarning",
+    "ignore:unclosed file .*:ResourceWarning",
+]
+env_files = ["test.env"]
+testpaths = ["tests/unit", "tests/functional"]
+markers = [
+    "external: mark test as requiring an external location",
+    "python: mark test as running a python model",
+    "dlt: mark test as running a DLT model",
+]
+
+[tool.mypy]
+strict_optional = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["databricks.*", "agate.*", "jinja2.*", "yaml.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+relative_files = true
+branch = true
+source = ["dbt"]

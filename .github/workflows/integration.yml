@@ -1,86 +1,197 @@
+# Integration Tests for dbt-databricks
+#
+# This workflow runs integration tests that require Databricks secrets.
+#
+# For testing external contributions (PRs from forks):
+# 1. Go to Actions tab -> Integration Tests -> Run workflow
+# 2. Enter the PR number in the 'pr_number' field
+# 3. Click "Run workflow"
+#
+# This approach is secure because:
+# - The workflow runs in the databricks repository context (access to secrets)
+# - The code to test is explicitly specified by maintainers
+# - No automatic execution of untrusted code with secrets
 name: Integration Tests
 on:
-  push:
+  pull_request:
+    # Run on PRs to the same repository (internal contributors)
     paths-ignore:
       - "**.MD"
       - "**.md"
+      - "adapters/databricks/__version__.py"
+      - "tests/unit/**"
+      - ".github/workflows/main.yml"
+      - ".github/workflows/stale.yml"
+
+  workflow_dispatch:
+    # Manual triggering for external contributions and ad-hoc testing
+    inputs:
+      pr_number:
+        description: "PR number to test (for external contributions)"
+        required: false
+        type: string
+      git_ref:
+        description: "Git ref (branch/tag/commit) to test"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  run-tox-tests-uc-cluster:
+  run-uc-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
-      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-uc-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-cluster
 
-  run-tox-tests-uc-sql:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@install
+
+      - name: Run UC Cluster Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
+
+      - name: Upload UC Cluster Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc-cluster-test-logs
+          path: logs/
+          retention-days: 5
+
+  run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
-      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
-        id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-uc-sql-endpoint
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-uc-sql-endpoint
 
-  run-tox-tests-non-uc:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@install
+
+      - name: Run Sql Endpoint Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
+
+      - name: Upload SQL Endpoint Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-endpoint-test-logs
+          path: logs/
+          retention-days: 5
+
+  run-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
-      DBT_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
-      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # For pull_request: checkout the PR head commit
+          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with git_ref: checkout that ref
+          # Otherwise: checkout current branch
+          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # Fetch enough history for PR testing
+          fetch-depth: 0
+
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Get http path from environment
         run: python .github/workflows/build_cluster_http_path.py
         shell: sh
-      - name: Install tox
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Hatch
         id: install-dependencies
-        run: pip install tox
-      - name: Run integration-databricks-cluster
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET tox -e integration-databricks-cluster
+        uses: pypa/hatch@install
+
+      - name: Run Cluster Functional Tests
+        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e
+
+      - name: Upload Cluster Test Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-test-logs
+          path: logs/
+          retention-days: 5

@@ -17,3 +17,12 @@ test.env
 *.log
 logs/
 .venv*
+*.sublime*
+.python-version
+.hatch
+.coverage*
+CLAUDE.md
+.claude/
+.cursor
+uv.lock
+docs/plans/

@@ -1,12 +1,22 @@
-import unittest
+import pytest
+from dbt_common.contracts.constraints import ConstraintType
 
-from jinja2.runtime import Undefined
+from dbt.adapters.databricks import relation
+from dbt.adapters.databricks.constraints import (
+    CheckConstraint,
+    CustomConstraint,
+    PrimaryKeyConstraint,
+)
+from dbt.adapters.databricks.relation import (
+    DatabricksQuotePolicy,
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 
-from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksQuotePolicy
 
-
-class TestDatabricksRelation(unittest.TestCase):
-    def test_pre_deserialize(self):
+class TestDatabricksRelation:
+    def test_pre_deserialize__all_present(self):
         data = {
             "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
@@ -18,10 +28,11 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertEqual(relation.database, "some_database")
-        self.assertEqual(relation.schema, "some_schema")
-        self.assertEqual(relation.identifier, "some_table")
+        assert relation.database == "some_database"
+        assert relation.schema == "some_schema"
+        assert relation.identifier == "some_table"
 
+    def test_pre_deserialize__empty_database(self):
         data = {
             "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
@@ -33,10 +44,11 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertIsNone(relation.database)
-        self.assertEqual(relation.schema, "some_schema")
-        self.assertEqual(relation.identifier, "some_table")
+        assert relation.database is None
+        assert relation.schema, "some_schema"
+        assert relation.identifier, "some_table"
 
+    def test_pre_deserialize__missing_database(self):
         data = {
             "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
@@ -47,26 +59,62 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertIsNone(relation.database)
-        self.assertEqual(relation.schema, "some_schema")
-        self.assertEqual(relation.identifier, "some_table")
+        assert relation.database is None
+        assert relation.schema, "some_schema"
+        assert relation.identifier, "some_table"
 
+    def test_pre_deserialize__external_type_migration(self):
+        """Test that 'external' as type is converted to table with databricks_table_type."""
         data = {
             "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
-                "database": Undefined(),
+                "database": "some_database",
                 "schema": "some_schema",
                 "identifier": "some_table",
             },
-            "type": None,
+            "type": "external",
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertIsNone(relation.database)
-        self.assertEqual(relation.schema, "some_schema")
-        self.assertEqual(relation.identifier, "some_table")
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.External
+        assert relation.is_external_table
 
-    def test_render(self):
+    def test_pre_deserialize__managed_type_migration(self):
+        """Test that 'managed' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "managed",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.Managed
+
+    def test_pre_deserialize__external_with_existing_table_type(self):
+        """Test that existing databricks_table_type is preserved."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+            "databricks_table_type": "external_shallow_clone",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        # Should preserve the existing databricks_table_type
+        assert relation.databricks_table_type == DatabricksTableType.ExternalShallowClone
+
+    def test_render__all_present(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -77,11 +125,10 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertEqual(
-            relation.get_default_quote_policy(), DatabricksQuotePolicy(True, True, True)
-        )
-        self.assertEqual(relation.render(), "`some_database`.`some_schema`.`some_table`")
+        assert relation.get_default_quote_policy() == DatabricksQuotePolicy(True, True, True)
+        assert relation.render() == "`some_database`.`some_schema`.`some_table`"
 
+    def test_render__database_missing(self):
         data = {
             "path": {
                 "schema": "some_schema",
@@ -91,9 +138,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertEqual(relation.render(), "`some_schema`.`some_table`")
+        assert relation.render() == "`some_schema`.`some_table`"
 
-    def test_matches(self):
+    def test_matches__exact_match(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -104,8 +151,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+        assert relation.matches("some_database", "some_schema", "some_table")
 
+    def test_matches__capitalization_mismatch(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -116,8 +164,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+        assert relation.matches("some_database", "some_schema", "some_table")
 
+    def test_matches__other_capitalization_mismatch(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -128,8 +177,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertTrue(relation.matches("some_database", "some_schema", "SOME_TABLE"))
+        assert relation.matches("some_database", "some_schema", "SOME_TABLE")
 
+    def test_matches__capitalization_mismatch_all(self):
         data = {
             "path": {
                 "database": "SOME_DATABASE",
@@ -140,8 +190,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertTrue(relation.matches("some_database", "some_schema", "some_table"))
+        assert relation.matches("some_database", "some_schema", "some_table")
 
+    def test_matches__capitalization_mismatch_all_other(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -152,8 +203,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertTrue(relation.matches("SOME_DATABASE", "SOME_SCHEMA", "SOME_TABLE"))
+        assert relation.matches("SOME_DATABASE", "SOME_SCHEMA", "SOME_TABLE")
 
+    def test_matches__mismatched_table(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -164,8 +216,9 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertFalse(relation.matches("SOME_DATABASE", "SOME_SCHEMA", "TABLE"))
+        assert not relation.matches("SOME_DATABASE", "SOME_SCHEMA", "TABLE")
 
+    def test_matches__other_mismatched_table(self):
         data = {
             "path": {
                 "database": "some_database",
@@ -176,4 +229,142 @@ class TestDatabricksRelation(unittest.TestCase):
         }
 
         relation = DatabricksRelation.from_dict(data)
-        self.assertFalse(relation.matches("some_database", "some_schema", "table"))
+        assert not relation.matches("some_database", "some_schema", "table")
+
+
+class TestRelationsFunctions:
+    @pytest.mark.parametrize(
+        "database, expected",
+        [(None, True), ("hive_metastore", True), ("not_hive", False)],
+    )
+    def test_is_hive_metastore(self, database, expected):
+        assert relation.is_hive_metastore(database) is expected
+
+    def test_is_external_table(self):
+        relation = DatabricksRelation.create(
+            identifier="external_table", databricks_table_type="external"
+        )
+        assert relation.is_external_table is True
+
+    def test_is_iceberg(self):
+        relation = DatabricksRelation.create(
+            identifier="iceberg_table",
+            type="table",
+            metadata={"Provider": "iceberg"},
+        )
+        assert relation.is_iceberg is True
+
+    def test_is_iceberg_false_for_delta(self):
+        relation = DatabricksRelation.create(
+            identifier="delta_table",
+            type="table",
+            metadata={"Provider": "delta"},
+        )
+        assert relation.is_iceberg is False
+
+    @pytest.mark.parametrize(
+        "type_, is_delta, is_iceberg, expected_can_be_replaced",
+        [
+            ("table", True, False, True),  # Delta table
+            ("table", False, True, True),  # Iceberg table
+            ("table", True, True, True),  # Both (shouldn't happen in practice)
+            ("table", False, False, False),  # Other table format
+            ("view", False, False, True),  # View
+            ("materialized_view", False, False, True),  # Materialized view
+        ],
+    )
+    def test_can_be_replaced(self, type_, is_delta, is_iceberg, expected_can_be_replaced):
+        metadata = {}
+        if is_delta:
+            metadata["Provider"] = "delta"
+        elif is_iceberg:
+            metadata["Provider"] = "iceberg"
+        else:
+            metadata["Provider"] = "parquet"
+
+        relation = DatabricksRelation.create(
+            identifier="test_table",
+            type=type_,
+            is_delta=is_delta,
+            metadata=metadata,
+        )
+        assert relation.can_be_replaced is expected_can_be_replaced
+
+    @pytest.mark.parametrize(
+        "input, expected",
+        [
+            ([], set()),
+            ([DatabricksRelation.create(identifier=None)], set()),
+            (
+                [
+                    DatabricksRelation.create(identifier=None),
+                    DatabricksRelation.create(identifier="test"),
+                ],
+                {"test"},
+            ),
+            (
+                [
+                    DatabricksRelation.create(identifier="test"),
+                    DatabricksRelation.create(identifier="test"),
+                ],
+                {"test"},
+            ),
+        ],
+    )
+    def test_extract_identifiers(self, input, expected):
+        assert relation.extract_identifiers(input) == expected
+
+
+class TestConstraints:
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create()
+
+    @pytest.fixture
+    def custom_constraint(self):
+        return CustomConstraint(type=ConstraintType.custom, expression="a > 1")
+
+    @pytest.fixture
+    def check_constraint(self):
+        return CheckConstraint(type=ConstraintType.check, expression="a > 1")
+
+    @pytest.fixture
+    def pk_constraint(self):
+        return PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["a"])
+
+    def test_add_constraint__check_is_an_alter_constraint(self, relation, check_constraint):
+        relation.add_constraint(check_constraint)
+        assert relation.alter_constraints == [check_constraint]
+        assert relation.create_constraints == []
+
+    def test_add_constraint__other_constraints_are_create_constraints(
+        self, relation, check_constraint, custom_constraint, pk_constraint
+    ):
+        relation.add_constraint(check_constraint)
+        relation.add_constraint(custom_constraint)
+        relation.add_constraint(pk_constraint)
+        assert relation.alter_constraints == [check_constraint]
+        assert relation.create_constraints == [custom_constraint, pk_constraint]
+
+    def test_enrich_relation__returns_a_copy(self, relation):
+        enriched = relation.enrich([])
+        assert id(enriched) != id(relation)
+
+    def test_enrich_relation__adds_constraints(self, relation, check_constraint, custom_constraint):
+        enriched = relation.enrich([check_constraint, custom_constraint])
+        assert enriched.alter_constraints == [check_constraint]
+        assert enriched.create_constraints == [custom_constraint]
+
+    def test_render_constraints_for_create__no_constraints(self, relation):
+        assert relation.render_constraints_for_create() == ""
+
+    def test_render_constraints_for_create__check_is_ignored(self, relation, check_constraint):
+        relation.add_constraint(check_constraint)
+        assert relation.render_constraints_for_create() == ""
+
+    def test_render_constraints_for_create__with_constraints(
+        self, relation, custom_constraint, pk_constraint
+    ):
+        relation.add_constraint(custom_constraint)
+        relation.add_constraint(pk_constraint)
+        assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
