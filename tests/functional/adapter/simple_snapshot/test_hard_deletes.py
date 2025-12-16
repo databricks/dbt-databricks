@@ -164,21 +164,32 @@ class TestHardDeleteInvalidate(BaseHardDeleteTest):
         )
 
         # Verify deleted records (3, 4) have dbt_valid_to set (not NULL)
+        # and non-deleted records (1, 2, 5) have dbt_valid_to = NULL
         # Snapshot columns: id, name, city, updated_at, dbt_scd_id,
         # dbt_updated_at, dbt_valid_from, dbt_valid_to
         # dbt_valid_to is the last column (index -1)
         invalidated_count = 0
+        active_count = 0
         for record in final_records:
-            if record[0] in [3, 4]:  # id column
-                # dbt_valid_to should NOT be NULL
-                dbt_valid_to = record[-1]  # last column
+            record_id = record[0]  # id column
+            dbt_valid_to = record[-1]  # last column
+            if record_id in [3, 4]:
+                # Deleted records: dbt_valid_to should NOT be NULL
                 assert dbt_valid_to is not None, (
-                    f"Record id={record[0]} should have dbt_valid_to set "
+                    f"Record id={record_id} should have dbt_valid_to set "
                     f"with hard_deletes='invalidate', but got {dbt_valid_to}"
                 )
                 invalidated_count += 1
+            elif record_id in [1, 2, 5]:
+                # Non-deleted records: dbt_valid_to should be NULL (still active)
+                assert dbt_valid_to is None, (
+                    f"Record id={record_id} should have NULL dbt_valid_to "
+                    f"(still active), but got {dbt_valid_to}"
+                )
+                active_count += 1
 
         assert invalidated_count == 2, f"Expected 2 invalidated records, found {invalidated_count}"
+        assert active_count == 3, f"Expected 3 active records, found {active_count}"
 
 
 class TestHardDeleteNewRecord(BaseHardDeleteTest):
