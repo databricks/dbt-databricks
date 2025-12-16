@@ -27,9 +27,8 @@ measures:
             template_bundle.template,
             "databricks__get_create_metric_view_as_sql",
             template_bundle.relation,
-            yaml_spec
+            yaml_spec,
         )
-
 
         expected = """create or replace view `some_database`.`some_schema`.`some_table`
 with metrics
@@ -64,7 +63,7 @@ measures:
             template_bundle.template,
             "databricks__get_create_metric_view_as_sql",
             template_bundle.relation,
-            yaml_spec
+            yaml_spec,
         )
 
         expected = """create or replace view `some_database`.`some_schema`.`some_table`
@@ -106,7 +105,7 @@ measures:
             template_bundle.template,
             "databricks__get_create_metric_view_as_sql",
             template_bundle.relation,
-            yaml_spec
+            yaml_spec,
         )
 
         # Check that all key parts are present
@@ -138,7 +137,7 @@ measures:
             template_bundle.template,
             "get_create_metric_view_as_sql",
             template_bundle.relation,
-            yaml_spec
+            yaml_spec,
         )
 
         # Should generate the same output as the databricks-specific macro

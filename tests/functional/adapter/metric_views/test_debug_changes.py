@@ -1,11 +1,9 @@
 import pytest
+from dbt.tests.util import run_dbt
 
-from dbt.tests import util
-from dbt.tests.util import run_dbt, get_manifest
 from tests.functional.adapter.metric_views.fixtures import (
     source_table,
 )
-
 
 # Simple metric view for debugging
 debug_metric_view = """

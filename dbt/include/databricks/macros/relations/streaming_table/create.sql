@@ -18,8 +18,8 @@
   #}
   {%- set temp_relation = make_temp_relation(relation) -%}
   {% call statement('create_temp_view') -%}
-    {%- set sql_with_limit = analysis_sql.rstrip('; \n\t') ~ ' LIMIT 10' -%}
-    {{ create_temporary_view(temp_relation, sql_with_limit) }}
+    {%- set view_sql = analysis_sql.rstrip('; \n\t') -%}
+    {{ create_temporary_view(temp_relation, view_sql) }}
   {%- endcall %}
 
   {%- set columns = adapter.get_columns_in_relation(temp_relation) -%}
@@ -30,6 +30,7 @@
   CREATE STREAMING TABLE {{ relation.render() }}
     {{ get_column_and_constraints_sql(relation, columns_and_constraints[0]) }}
     {{ get_create_sql_partition_by(partition_by) }}
+    {{ liquid_clustered_cols() }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}
     {{ get_create_sql_refresh_schedule(refresh.cron, refresh.time_zone_value) }}

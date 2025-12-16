@@ -7,7 +7,12 @@ from dbt.adapters.databricks.constraints import (
     CustomConstraint,
     PrimaryKeyConstraint,
 )
-from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
+from dbt.adapters.databricks.relation import (
+    DatabricksQuotePolicy,
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 
 
 class TestDatabricksRelation:
@@ -57,6 +62,57 @@ class TestDatabricksRelation:
         assert relation.database is None
         assert relation.schema, "some_schema"
         assert relation.identifier, "some_table"
+
+    def test_pre_deserialize__external_type_migration(self):
+        """Test that 'external' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.External
+        assert relation.is_external_table
+
+    def test_pre_deserialize__managed_type_migration(self):
+        """Test that 'managed' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "managed",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.Managed
+
+    def test_pre_deserialize__external_with_existing_table_type(self):
+        """Test that existing databricks_table_type is preserved."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+            "databricks_table_type": "external_shallow_clone",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        # Should preserve the existing databricks_table_type
+        assert relation.databricks_table_type == DatabricksTableType.ExternalShallowClone
 
     def test_render__all_present(self):
         data = {
@@ -189,6 +245,50 @@ class TestRelationsFunctions:
             identifier="external_table", databricks_table_type="external"
         )
         assert relation.is_external_table is True
+
+    def test_is_iceberg(self):
+        relation = DatabricksRelation.create(
+            identifier="iceberg_table",
+            type="table",
+            metadata={"Provider": "iceberg"},
+        )
+        assert relation.is_iceberg is True
+
+    def test_is_iceberg_false_for_delta(self):
+        relation = DatabricksRelation.create(
+            identifier="delta_table",
+            type="table",
+            metadata={"Provider": "delta"},
+        )
+        assert relation.is_iceberg is False
+
+    @pytest.mark.parametrize(
+        "type_, is_delta, is_iceberg, expected_can_be_replaced",
+        [
+            ("table", True, False, True),  # Delta table
+            ("table", False, True, True),  # Iceberg table
+            ("table", True, True, True),  # Both (shouldn't happen in practice)
+            ("table", False, False, False),  # Other table format
+            ("view", False, False, True),  # View
+            ("materialized_view", False, False, True),  # Materialized view
+        ],
+    )
+    def test_can_be_replaced(self, type_, is_delta, is_iceberg, expected_can_be_replaced):
+        metadata = {}
+        if is_delta:
+            metadata["Provider"] = "delta"
+        elif is_iceberg:
+            metadata["Provider"] = "iceberg"
+        else:
+            metadata["Provider"] = "parquet"
+
+        relation = DatabricksRelation.create(
+            identifier="test_table",
+            type=type_,
+            is_delta=is_delta,
+            metadata=metadata,
+        )
+        assert relation.can_be_replaced is expected_can_be_replaced
 
     @pytest.mark.parametrize(
         "input, expected",

@@ -252,6 +252,24 @@ replace_where_expected = """id,msg,color
 3,anyway,purple
 """
 
+delete_insert_expected = """id,msg
+1,hello
+2,yo
+3,anyway
+"""
+
+delete_insert_update_schema_expected = """id
+1
+2
+3
+"""
+
+delete_insert_with_predicates_expected = """id,msg,color
+1,hello,blue
+2,welcome,yellow
+2,back,orange
+"""
+
 skip_matched_expected = """id,msg,color
 1,hello,blue
 2,goodbye,red
@@ -369,6 +387,32 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+delete_insert_with_predicates_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy = 'delete+insert',
+    incremental_predicates = 'id >= 2',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+
+{% else %}
+
+-- `id = 1` is not getting updated because of the predicate filter
+select cast(1 as bigint) as id, 'hey' as msg, 'black' as color
+union all
+select cast(2 as bigint) as id, 'welcome' as msg, 'yellow' as color
+union all
+select cast(2 as bigint) as id, 'back' as msg, 'orange' as color
 
 {% endif %}
 """
@@ -555,6 +599,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='incremental',
+        submission_method='serverless_cluster',
     )
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
@@ -569,7 +614,6 @@ models:
       databricks_tags:
         a: b
         c: d
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_schema2 = """version: 2
@@ -581,7 +625,6 @@ models:
       databricks_tags:
         c: e
         d: f
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_tblproperties_schema = """version: 2
@@ -593,7 +636,6 @@ models:
       tblproperties:
         a: b
         c: d
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_tblproperties_schema2 = """version: 2
@@ -604,7 +646,6 @@ models:
       tblproperties:
         c: e
         d: f
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 lc_python_schema = """version: 2
@@ -612,7 +653,6 @@ models:
   - name: simple_python_model
     config:
       liquid_clustered_by: test
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 lc_python_schema2 = """version: 2
@@ -620,7 +660,6 @@ models:
   - name: simple_python_model
     config:
       liquid_clustered_by: test2
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 replace_table = """
@@ -1025,6 +1064,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='incremental',
+        submission_method='serverless_cluster',
     )
     data = [[1, 'hello', 'blue']]
     return spark.createDataFrame(data, schema=['id', 'msg', 'color'])

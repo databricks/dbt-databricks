@@ -1,12 +1,9 @@
 import pytest
+from dbt.tests.util import run_dbt
 
-from dbt.tests import util
-from dbt.tests.util import run_dbt, get_manifest
 from tests.functional.adapter.metric_views.fixtures import (
     source_table,
-    basic_metric_view,
 )
-
 
 # Test fixture for metric view without view_update_via_alter
 metric_view_without_alter = """
@@ -58,7 +55,8 @@ class TestMetricViewSimpleChanges:
 
         # Verify the metric view still works
         metric_view_name = f"{project.database}.{project.test_schema}.simple_metrics"
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             SELECT
                 status,
                 MEASURE(total_orders) as order_count,
@@ -66,9 +64,11 @@ class TestMetricViewSimpleChanges:
             FROM {metric_view_name}
             GROUP BY status
             ORDER BY status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         assert len(query_result) == 2
         status_data = {row[0]: (row[1], row[2]) for row in query_result}
-        assert status_data['completed'] == (2, 250)
-        assert status_data['pending'] == (1, 200)
+        assert status_data["completed"] == (2, 250)
+        assert status_data["pending"] == (1, 200)

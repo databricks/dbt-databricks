@@ -2,12 +2,13 @@ from dataclasses import asdict
 from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
+from dbt.exceptions import DbtRuntimeError
+
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt.exceptions import DbtRuntimeError
 
 
 class ColumnTagsConfig(DatabricksComponentConfig):
@@ -19,11 +20,22 @@ class ColumnTagsConfig(DatabricksComponentConfig):
     def get_diff(self, other: "ColumnTagsConfig") -> Optional["ColumnTagsConfig"]:
         # Column tags are now "set only" - we never unset column tags, only add or update them
         # Find columns that need to be set or updated
-        set_column_tags = {
-            col: tags
-            for col, tags in self.set_column_tags.items()
-            if col not in other.set_column_tags or other.set_column_tags[col] != tags
-        }
+
+        # Create a case-insensitive lookup for other's column names
+        other_column_tags_lower = {k.lower(): (k, v) for k, v in other.set_column_tags.items()}
+
+        set_column_tags = {}
+        for col, tags in self.set_column_tags.items():
+            col_lower = col.lower()
+            # Use case-insensitive comparison for column names
+            if col_lower not in other_column_tags_lower:
+                # Column doesn't exist in other, need to set it
+                set_column_tags[col] = tags
+            else:
+                # Column exists, check if tags are different
+                _, other_tags = other_column_tags_lower[col_lower]
+                if other_tags != tags:
+                    set_column_tags[col] = tags
 
         if set_column_tags:
             return ColumnTagsConfig(set_column_tags=set_column_tags)

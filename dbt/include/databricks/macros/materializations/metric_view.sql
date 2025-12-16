@@ -8,23 +8,9 @@
   {{ run_pre_hooks() }}
 
   {% if existing_relation %}
-    {% if relation_should_be_altered(existing_relation) %}
-      {% set configuration_changes = get_configuration_changes(existing_relation) %}
-      {% if configuration_changes and configuration_changes.changes %}
-        {% if configuration_changes.requires_full_refresh %}
-          {{ log('Using replace_with_metric_view') }}
-          {{ replace_with_metric_view(existing_relation, target_relation) }}
-        {% else %}
-          {{ log('Using alter_metric_view') }}
-          {{ log(configuration_changes.changes) }}
-          {{ alter_metric_view(target_relation, configuration_changes.changes) }}
-        {% endif %}
-      {% else %}
-        {{ execute_no_op(target_relation) }}
-      {% endif %}
-    {% else %}
-      {{ replace_with_metric_view(existing_relation, target_relation) }}
-    {% endif %}
+    {#- Metric views always use CREATE OR REPLACE - no alter path for now -#}
+    {{ log('Using replace_with_metric_view (metric views always use replace)') }}
+    {{ replace_with_metric_view(existing_relation, target_relation) }}
   {% else %}
     {% call statement('main') -%}
       {{ get_create_metric_view_as_sql(target_relation, sql) }}

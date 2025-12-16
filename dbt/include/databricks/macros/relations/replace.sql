@@ -9,8 +9,14 @@
     {{ exceptions.raise_not_implemented('get_replace_sql not implemented for target of table') }}
   {% endif %}
 
+  {#- Metric views always support CREATE OR REPLACE (no delta/file_format dependency) -#}
+  {#- Note: existing relation is typed as VIEW from DB, so check target for metric_view -#}
+  {% if target_relation.is_metric_view %}
+    {{ return(get_replace_metric_view_sql(target_relation, sql)) }}
+  {% endif %}
+
   {% set safe_replace = config.get('use_safer_relation_operations', False) | as_bool  %}
-  {% set file_format = config.get('file_format', default='delta') %}
+  {% set file_format = adapter.resolve_file_format(config) %}
   {% set is_replaceable = existing_relation.type == target_relation.type and existing_relation.can_be_replaced and file_format == "delta" %}
 
   {% if not safe_replace %}
@@ -21,8 +27,6 @@
       {{ return(get_replace_table_sql(target_relation, sql)) }}
     {% elif is_replaceable and existing_relation.is_materialized_view %}
       {{ return(get_replace_materialized_view_sql(target_relation, sql)) }}
-    {% elif is_replaceable and existing_relation.is_metric_view %}
-      {{ return(get_replace_metric_view_sql(target_relation, sql)) }}
     {% endif %}
   {% endif %}
 

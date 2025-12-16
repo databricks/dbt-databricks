@@ -3,6 +3,7 @@ from unittest.mock import Mock
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
@@ -40,6 +41,7 @@ class TestStreamingTableConfig:
         assert config == StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -67,6 +69,7 @@ class TestStreamingTableConfig:
         assert config == StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment", persist=False),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -79,6 +82,7 @@ class TestStreamingTableConfig:
         old = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -89,6 +93,7 @@ class TestStreamingTableConfig:
         new = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -105,6 +110,7 @@ class TestStreamingTableConfig:
         old = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
@@ -115,6 +121,7 @@ class TestStreamingTableConfig:
         new = StreamingTableConfig(
             config={
                 "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+                "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
@@ -129,6 +136,7 @@ class TestStreamingTableConfig:
         assert changeset.requires_full_refresh
         assert changeset.changes == {
             "partition_by": PartitionedByConfig(partition_by=["col_a"]),
+            "liquid_clustering": LiquidClusteringConfig(),
             "comment": CommentConfig(comment="This is the table comment"),
             "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),

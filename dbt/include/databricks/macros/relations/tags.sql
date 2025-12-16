@@ -29,10 +29,11 @@
 {%- endmacro -%}
 
 {% macro alter_set_tags(relation, tags) -%}
+  {#- Metric views use ALTER VIEW syntax, not ALTER METRIC VIEW -#}
   {%- if relation.is_metric_view -%}
-    ALTER VIEW {{ relation.render() }} SET TAGS (
+  ALTER VIEW {{ relation.render() }} SET TAGS (
   {%- else -%}
-    ALTER {{ relation.type.render() }} {{ relation.render() }} SET TAGS (
+  ALTER {{ relation.type.render() }} {{ relation.render() }} SET TAGS (
   {%- endif -%}
     {% for tag in tags -%}
       '{{ tag }}' = '{{ tags[tag] }}' {%- if not loop.last %}, {% endif -%}

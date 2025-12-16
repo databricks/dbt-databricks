@@ -1,8 +1,8 @@
 import pytest
-
 from dbt.tests.adapter.incremental.test_incremental_predicates import (
     BaseIncrementalPredicates,
 )
+
 from tests.functional.adapter.incremental import fixtures
 
 

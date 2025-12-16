@@ -12,6 +12,8 @@
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
   {% set is_delta = (catalog_relation.file_format == 'delta' and existing_relation.is_delta) %}
+  {% set is_iceberg = (catalog_relation.file_format == 'iceberg' and existing_relation.is_iceberg) %}
+  {% set is_replaceable_format = is_delta or is_iceberg %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
   {% if adapter.behavior.use_materialization_v2 %}
@@ -20,7 +22,7 @@
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
     {{ log("Safe create: " ~ safe_create) }}
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
-    {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
+    {% set is_replaceable = existing_relation.can_be_replaced and is_replaceable_format %}
 
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
@@ -60,9 +62,18 @@
       {{ process_config_changes(target_relation) }}
       {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', intermediate_relation) -%}
           {{ build_sql }}
@@ -104,7 +115,7 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
       {#-- Relation must be dropped & recreated --#}
-      {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+      {% if not is_replaceable_format %} {#-- If Delta or Iceberg, we will `create or replace` below, so no need to drop --#}
         {% do adapter.drop_relation(existing_relation) %}
       {% endif %}
       {%- call statement('main', language=language) -%}
@@ -138,9 +149,18 @@
               'incremental_predicates': incremental_predicates}) -%}
       {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', temp_relation) -%}
           {{ build_sql }}
@@ -191,7 +211,7 @@
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.warn("INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.") }}
+    {{ exceptions.warn("insert_overwrite is supported on SQL warehouses with DBR 17.1+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
@@ -205,7 +225,7 @@
           'unique_key': unique_key,
           'dest_columns': none,
           'incremental_predicates': incremental_predicates}) -%}
-  {{ strategy_sql_macro_func(strategy_arg_dict) }}
+  {% do return(strategy_sql_macro_func(strategy_arg_dict)) %}
 {% endmacro %}
 
 {% macro process_config_changes(target_relation) %}

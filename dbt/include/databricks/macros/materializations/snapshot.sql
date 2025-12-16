@@ -3,8 +3,9 @@
   {% set sql = adapter.clean_sql(sql) %}
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
-  {%- set file_format = config.get('file_format', 'delta') -%}
+  {%- set file_format = adapter.resolve_file_format(config) -%}
   {%- set grant_config = config.get('grants') -%}
+  {%- set tags = config.get('databricks_tags') -%}
 
   {% set target_relation_exists, target_relation = databricks__get_or_create_relation(
           database=model.database,
@@ -80,7 +81,7 @@
 
       {% set quoted_source_columns = [] %}
       {% for column in source_columns %}
-        {% do quoted_source_columns.append(adapter.quote(column.name)) %}
+        {% do quoted_source_columns.append(column.quoted) %}
       {% endfor %}
 
       {% set final_sql = snapshot_merge_sql(
@@ -100,6 +101,11 @@
   {% endcall %}
 
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode=False) %}
+  
+  {%- if tags -%}
+    {%- do apply_tags(target_relation, tags) -%}
+  {%- endif -%}
+
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 
   {% do persist_docs(target_relation, model) %}

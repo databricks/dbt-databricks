@@ -16,6 +16,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='table',
+        submission_method='serverless_cluster',
     )
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
@@ -25,6 +26,9 @@ python_error_model = """
 import pandas as pd
 
 def model(dbt, spark):
+    dbt.config(
+        submission_method='serverless_cluster',
+    )
     raise Exception("This is an error")
 
     return pd.DataFrame()
@@ -113,12 +117,45 @@ models:
         }
 """
 
+job_cluster_schema = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_sql_model
+  - name: my_python_model
+    config:
+      submission_method: job_cluster
+      create_notebook: true
+      job_cluster_config:
+        spark_version: "15.4.x-scala2.12"
+        node_type_id: "Standard_D4s_v5"
+        num_workers: 1
+        data_security_mode: "USER_ISOLATION"
+        runtime_engine: "STANDARD"
+  - name: second_sql_model
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
+"""
+
 simple_python_model_v2 = """
 import pandas
 
 def model(dbt, spark):
     dbt.config(
         materialized='table',
+        submission_method='serverless_cluster',
         unique_tmp_table_suffix=True
     )
     data = [[1,2]] * 10
@@ -129,9 +166,12 @@ incremental_model = """
 import pandas as pd
 
 def model(dbt, spark):
-    dbt.config(materialized="incremental")
-    dbt.config(unique_key="name")
-    dbt.config(on_schema_change="append_new_columns")
+    dbt.config(
+        materialized="incremental",
+        submission_method="serverless_cluster",
+        unique_key="name",
+        on_schema_change="append_new_columns"
+    )
     if dbt.is_incremental:
         data = [[2, "Teo", "Mr"], [2, "Fang", "Ms"], [3, "Elbert", "Dr"]]
         pdf = pd.DataFrame(data, columns=["date", "name", "title"])
@@ -253,6 +293,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized="incremental",
+        submission_method="serverless_cluster",
     )
     data = [[1, 2]] * 5
     return spark.createDataFrame(data, schema=["test", "test2"])
@@ -267,8 +308,32 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized="incremental",
+        submission_method="serverless_cluster",
         unique_tmp_table_suffix=True,
     )
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
+all_purpose_command_api_schema = """version: 2
+
+models:
+  - name: my_versioned_sql_model
+    versions:
+      - v: 1
+  - name: my_python_model
+    # No submission_method or create_notebook config here
+    # Will use project-level config (all_purpose_cluster with create_notebook=False)
+
+sources:
+  - name: test_source
+    loader: custom
+    schema: "{{ var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE')) }}"
+    quoting:
+      identifier: True
+    tags:
+      - my_test_source_tag
+    tables:
+      - name: test_table
+        identifier: source
 """

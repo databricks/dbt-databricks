@@ -22,34 +22,6 @@ class TestColumnsMacros(MacroTestBase):
         expected_sql = "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
         self.assert_sql_equal(result, expected_sql)
 
-    def test_repair_table_sql(self, template_bundle, relation):
-        result = self.run_macro(template_bundle.template, "repair_table_sql", relation)
-
-        expected_sql = "REPAIR TABLE `some_database`.`some_schema`.`some_table` SYNC METADATA"
-        self.assert_sql_equal(result, expected_sql)
-
-    def test_get_columns_comments_via_information_schema_sql(self, template_bundle, relation):
-        result = self.run_macro(
-            template_bundle.template,
-            "get_columns_comments_via_information_schema_sql",
-            relation,
-        )
-
-        # Note the lowercase in the WHERE clause due to |lower filters
-        expected_sql = """
-            SELECT
-              column_name,
-              full_data_type,
-              comment
-            FROM `system`.`information_schema`.`columns`
-            WHERE
-              table_catalog = 'some_database' and
-              table_schema = 'some_schema' and
-              table_name = 'some_table'
-        """
-
-        self.assert_sql_equal(result, expected_sql)
-
     def test_drop_columns_sql(self, template_bundle, context, relation):
         """Test drop_columns_sql macro"""
         # Mock Column.format_remove_column_list

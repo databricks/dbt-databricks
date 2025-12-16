@@ -1,11 +1,11 @@
 import pytest
+from dbt.tests.util import get_manifest, run_dbt
 
-from dbt.tests.util import run_dbt, get_manifest
 from tests.functional.adapter.metric_views.fixtures import (
-    source_table,
     basic_metric_view,
-    metric_view_with_filter,
     metric_view_with_config,
+    metric_view_with_filter,
+    source_table,
 )
 
 
@@ -40,7 +40,8 @@ class TestBasicMetricViewMaterialization:
 
         try:
             # Query the metric view using MEASURE() function - this is the real test
-            query_result = project.run_sql(f"""
+            query_result = project.run_sql(
+                f"""
                 SELECT
                     status,
                     MEASURE(total_orders) as order_count,
@@ -48,32 +49,40 @@ class TestBasicMetricViewMaterialization:
                 FROM {metric_view_name}
                 GROUP BY status
                 ORDER BY status
-            """, fetch="all")
+            """,
+                fetch="all",
+            )
             print(f"Metric view query result: {query_result}")
 
             # If we got results, verify the data is correct
             if query_result:
                 assert len(query_result) == 2, f"Expected 2 status groups, got {len(query_result)}"
 
-                # Check the data makes sense (2 completed orders worth 250, 1 pending order worth 200)
+                # Check data: 2 completed orders worth 250, 1 pending order worth 200
                 status_data = {row[0]: (row[1], row[2]) for row in query_result}
                 print(f"Status data: {status_data}")
 
-                assert 'completed' in status_data, "Missing 'completed' status"
-                assert 'pending' in status_data, "Missing 'pending' status"
+                assert "completed" in status_data, "Missing 'completed' status"
+                assert "pending" in status_data, "Missing 'pending' status"
 
-                completed_count, completed_revenue = status_data['completed']
-                pending_count, pending_revenue = status_data['pending']
+                completed_count, completed_revenue = status_data["completed"]
+                pending_count, pending_revenue = status_data["pending"]
 
                 assert completed_count == 2, f"Expected 2 completed orders, got {completed_count}"
-                assert completed_revenue == 250, f"Expected 250 completed revenue, got {completed_revenue}"
+                assert completed_revenue == 250, (
+                    f"Expected 250 completed revenue, got {completed_revenue}"
+                )
                 assert pending_count == 1, f"Expected 1 pending order, got {pending_count}"
-                assert pending_revenue == 200, f"Expected 200 pending revenue, got {pending_revenue}"
+                assert pending_revenue == 200, (
+                    f"Expected 200 pending revenue, got {pending_revenue}"
+                )
 
                 print("✅ Metric view query successful with correct data!")
             else:
                 # fetch=True returned None, but let's try without fetch to see if it executes
-                project.run_sql(f"SELECT MEASURE(total_orders) FROM {metric_view_name} LIMIT 1", fetch=False)
+                project.run_sql(
+                    f"SELECT MEASURE(total_orders) FROM {metric_view_name} LIMIT 1", fetch=False
+                )
                 print("✅ Metric view query executed without error (but fetch returned None)")
 
         except Exception as e:
@@ -85,7 +94,8 @@ class TestBasicMetricViewMaterialization:
         run_dbt(["run"])
 
         # Query the metric view using MEASURE() function
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             select
                 status,
                 measure(total_orders) as order_count,
@@ -93,14 +103,16 @@ class TestBasicMetricViewMaterialization:
             from {project.database}.{project.test_schema}.order_metrics
             group by status
             order by status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         # Verify we get expected results
         assert len(query_result) == 2  # Should have 'completed' and 'pending' status
 
         # Check the data makes sense
-        completed_row = next(row for row in query_result if row[0] == 'completed')
-        pending_row = next(row for row in query_result if row[0] == 'pending')
+        completed_row = next(row for row in query_result if row[0] == "completed")
+        pending_row = next(row for row in query_result if row[0] == "pending")
 
         assert completed_row[1] == 2  # 2 completed orders
         assert completed_row[2] == 250  # 100 + 150 revenue
@@ -134,12 +146,15 @@ class TestMetricViewWithFilter:
         run_dbt(["run"])
 
         # Query the filtered metric view
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             select
                 measure(completed_orders) as order_count,
                 measure(completed_revenue) as revenue
             from {project.database}.{project.test_schema}.filtered_metrics
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         # Should only see completed orders (2 orders with 250 total revenue)
         assert len(query_result) == 1
@@ -176,14 +191,17 @@ class TestMetricViewConfiguration:
         # Verify the metric view works by querying it
         metric_view_name = f"{project.database}.{project.test_schema}.config_metrics"
 
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             SELECT
                 status,
                 MEASURE(order_count) as count
             FROM {metric_view_name}
             GROUP BY status
             ORDER BY status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         # Should have results showing tags were applied without error
         assert query_result is not None
@@ -191,5 +209,5 @@ class TestMetricViewConfiguration:
 
         # Check the data is correct
         status_data = {row[0]: row[1] for row in query_result}
-        assert status_data['completed'] == 2
-        assert status_data['pending'] == 1
+        assert status_data["completed"] == 2
+        assert status_data["pending"] == 1

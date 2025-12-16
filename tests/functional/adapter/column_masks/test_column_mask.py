@@ -1,6 +1,6 @@
 import pytest
-
 from dbt.tests.util import run_dbt, write_file
+
 from tests.functional.adapter.column_masks.fixtures import (
     base_model_sql,
     base_model_streaming_table,

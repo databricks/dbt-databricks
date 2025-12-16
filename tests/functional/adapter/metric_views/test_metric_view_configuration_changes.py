@@ -1,12 +1,10 @@
 import pytest
-
 from dbt.tests import util
-from dbt.tests.util import run_dbt, get_manifest
+from dbt.tests.util import run_dbt
+
 from tests.functional.adapter.metric_views.fixtures import (
     source_table,
-    basic_metric_view,
 )
-
 
 # Test fixture for metric view with tags configuration
 metric_view_with_tags = """
@@ -117,7 +115,8 @@ class TestMetricViewConfigurationChanges:
 
         # Verify the metric view still works
         metric_view_name = f"{project.database}.{project.test_schema}.config_change_metrics"
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             SELECT
                 status,
                 MEASURE(total_orders) as order_count,
@@ -125,12 +124,14 @@ class TestMetricViewConfigurationChanges:
             FROM {metric_view_name}
             GROUP BY status
             ORDER BY status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         assert len(query_result) == 2
         status_data = {row[0]: (row[1], row[2]) for row in query_result}
-        assert status_data['completed'] == (2, 250)
-        assert status_data['pending'] == (1, 200)
+        assert status_data["completed"] == (2, 250)
+        assert status_data["pending"] == (1, 200)
 
     def test_metric_view_definition_changes_require_replace(self, project):
         """Test that YAML definition changes use CREATE OR REPLACE"""
@@ -149,7 +150,8 @@ class TestMetricViewConfigurationChanges:
 
         # Verify the updated metric view works with new measure
         metric_view_name = f"{project.database}.{project.test_schema}.config_change_metrics"
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             SELECT
                 status,
                 MEASURE(total_orders) as order_count,
@@ -158,12 +160,14 @@ class TestMetricViewConfigurationChanges:
             FROM {metric_view_name}
             GROUP BY status
             ORDER BY status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         assert len(query_result) == 2
         status_data = {row[0]: (row[1], row[2], row[3]) for row in query_result}
-        assert status_data['completed'] == (2, 250, 125.0)  # (100+150)/2 = 125
-        assert status_data['pending'] == (1, 200, 200.0)
+        assert status_data["completed"] == (2, 250, 125.0)  # (100+150)/2 = 125
+        assert status_data["pending"] == (1, 200, 200.0)
 
     def test_no_changes_skip_materialization(self, project):
         """Test that no changes result in no-op"""
@@ -179,16 +183,19 @@ class TestMetricViewConfigurationChanges:
 
         # Verify the metric view still works
         metric_view_name = f"{project.database}.{project.test_schema}.config_change_metrics"
-        query_result = project.run_sql(f"""
+        query_result = project.run_sql(
+            f"""
             SELECT
                 status,
                 MEASURE(total_orders) as order_count
             FROM {metric_view_name}
             GROUP BY status
             ORDER BY status
-        """, fetch="all")
+        """,
+            fetch="all",
+        )
 
         assert len(query_result) == 2
         status_data = {row[0]: row[1] for row in query_result}
-        assert status_data['completed'] == 2
-        assert status_data['pending'] == 1
+        assert status_data["completed"] == 2
+        assert status_data["pending"] == 1

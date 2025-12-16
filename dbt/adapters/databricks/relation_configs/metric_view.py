@@ -28,7 +28,7 @@ class MetricViewConfig(DatabricksRelationConfigBase):
     def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
         changeset = super().get_changeset(existing)
         if changeset:
-            # For metric views, query changes require full refresh since we can't ALTER the YAML definition
+            # Metric views: query changes require full refresh (can't ALTER YAML definition)
             if "query" in changeset.changes:
                 logger.debug(
                     "Metric view YAML definition changed, requiring replace, as there is"

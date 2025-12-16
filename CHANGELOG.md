@@ -1,19 +1,102 @@
-## dbt-databricks 1.11.0 (TBD)
+## dbt-databricks 1.11.4 (TBD)
+
+### Features
+- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+
+### Fixes
+- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281)) 
+
+## dbt-databricks 1.11.3 (Dec 5, 2025)
+
+### Fixes
+
+- Truncate (128 charactesr max) and escape special characters for default query tag values
+
+## dbt-databricks 1.11.2 (Nov 18, 2025)
+
+### Fixes
+
+- pin 'click' to work around pip install issue in Lakeflow
+
+## dbt-databricks 1.11.1 (Nov 17, 2025)
+
+### Features
+
+- Add support for `hard_deletes='new_record'` in snapshot materializations, enabling tracking of deleted source records with dedicated deletion records marked by `dbt_is_deleted` column (thanks @randypitcherii!) ([#1176](https://github.com/databricks/dbt-databricks/issues/1176), [#1263](https://github.com/databricks/dbt-databricks/pull/1263))
+  - Implements complete support for all three `hard_deletes` modes: `ignore` (default), `invalidate`, and `new_record`
+  - `new_record` mode creates deletion records with actual source column values and `dbt_is_deleted=true` for full audit trail
+  - `invalidate` mode uses Delta Lake's `WHEN NOT MATCHED BY SOURCE` clause to set `dbt_valid_to` on deleted records
+  - Uses Databricks native BOOLEAN type for `dbt_is_deleted` column for improved type safety and performance
+
+### Fixes
+
+- Fix bug that was applying UniForm tblproperties on managed Iceberg tables causing materializations to fail
+- Switch to a more reliable mechanism for checking schema existence (forward-ported from 1.10.15) ([1261](https://github.com/databricks/dbt-databricks/pull/1261))
+
+### Under the hood
+
+- Add validation for query tag value length and auto-escape special characters
+- Add `@@` prefix to system query tag keys
+
+## dbt-databricks 1.11.0 (Oct 29, 2025)
 
 ### Features
 
 - Support databricks_tags for MV/STs
+- Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+- Add support for Databricks query tags
+- Add support for managed iceberg when `table_format` is set to `iceberg`. This behavior is gated behind behavior flag `use_managed_iceberg` which defaults to `false`
+- Support delete+insert incremental strategy (thanks @canbekley!) ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
+
+### Fixes
+
+- **BREAKING:** Fix column order mismatch bug in incremental models by using INSERT BY NAME syntax ([#1211](https://github.com/databricks/dbt-databricks/issues/1211))
+  - When using `on_schema_change: sync_all_columns`, dbt previously used positional column matching in INSERT statements, causing values to be inserted into wrong columns when column order changed
+  - Now uses Databricks `INSERT BY NAME` syntax to match columns by name instead of position, preventing data corruption
+  - **Breaking Change**: Requires Databricks Runtime 12.2 LTS or higher
+  - Users on older runtimes should pin to dbt-databricks 1.10.x
+  - Affects all incremental strategies: `append`, `insert_overwrite`, `replace_where`, and `merge` (via table creation)
+- Fix case-sensitivity issues with column name handling in persist_docs and config diff operations ([#1215](https://github.com/databricks/dbt-databricks/issues/1215))
+  - Fixed KeyError when column names in models had different casing than YAML schema definitions
+  - Improved efficiency of column tags and comments change detection to use case-insensitive comparison
+- Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+- Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
+- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
+- Reintroduce support for external so as not to break users ([1240](1240))
 
 ### Under the Hood
 
 - Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
 - Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
+- Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
+- Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
+- Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
+- Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
+- **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
+- Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
+- Drop support for python 3.9, adds 3.13 ([1240](https://github.com/databricks/dbt-databricks/pull/1240))
+  -- **BREAKING:** Flipping the default for USE_USER_FOLDER_FOR_PYTHON to true ([1248](https://github.com/databricks/dbt-databricks/pull/1248))
 
-## dbt-databricks 1.10.13 (TBD)
+## dbt-databricks 1.10.14 (October 22, 2025)
+
+### Under the hood
+
+- Update dependency versions ([1227](https://github.com/databricks/dbt-databricks/pull/1227))
+
+## dbt-databricks 1.10.13 (October 21, 2025)
 
 ### Fixes
 
 - Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
+- Fix pydantic v2 deprecation warning "Valid config keys have changed in V2" (thanks @Korijn!) ([1194](https://github.com/databricks/dbt-databricks/pull/1194))
+- Fix snapshots not applying databricks_tags config ([1192](https://github.com/databricks/dbt-databricks/pull/1192))
+- Fix to respect varchar and char when using describe extended as json ([1220](https://github.com/databricks/dbt-databricks/pull/1220))
+
+### Under the hood
+
+- Update dependency versions ([1223](https://github.com/databricks/dbt-databricks/pull/1223))
 
 ## dbt-databricks 1.10.12 (September 8, 2025)
 

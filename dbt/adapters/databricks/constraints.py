@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
+from dbt.adapters.base import ConstraintSupport
+from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -10,9 +12,6 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
-
-from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
 CONSTRAINT_SUPPORT = {
@@ -138,6 +137,7 @@ class CheckConstraint(TypedConstraint):
             raise self._render_error([["expression"]])
 
     def _render_suffix(self) -> str:
+        assert self.expression is not None  # Validated in _validate()
         if self.expression[0] != "(" or self.expression[-1] != ")":
             return f"CHECK ({self.expression})"
         else:
@@ -208,9 +208,7 @@ def parse_column_constraints(
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
-                constraint["columns"] = [
-                    f"`{column['name']}`" if column.get("quote") else column["name"]
-                ]
+                constraint["columns"] = [column["name"]]
                 constraints.append(parse_constraint(constraint))
 
     return column_names, constraints
