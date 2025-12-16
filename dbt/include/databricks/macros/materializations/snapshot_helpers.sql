@@ -30,13 +30,6 @@
         and DBT_INTERNAL_SOURCE.{{ adapter.quote('dbt_change_type') }} = 'insert'
         then insert ({{ insert_cols_csv }})
         values ({{ insert_cols_csv }})
-
-    {%- if invalidate_hard_deletes %}
-    when not matched by source
-        and DBT_INTERNAL_DEST.{{ columns.dbt_valid_to }} is null
-        then update set
-            {{ columns.dbt_valid_to }} = current_timestamp()
-    {%- endif %}
     ;
 {% endmacro %}
 

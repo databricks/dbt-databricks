@@ -1,7 +1,10 @@
 ## dbt-databricks 1.11.4 (TBD)
 
 ### Features
-- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging 
+- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+
+### Fixes
+- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots ([#1281](https://github.com/databricks/dbt-databricks/issues/1281)) 
 
 ## dbt-databricks 1.11.3 (Dec 5, 2025)
 
