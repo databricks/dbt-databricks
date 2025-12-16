@@ -1,6 +1,6 @@
 ## dbt-databricks 1.12.0 (TBD)
 
-- Add support for metric views as a materialization
+- Add support for metric views as a materialization ([1285](https://github.com/databricks/dbt-databricks/pull/1285))
 
 ## dbt-databricks 1.11.4 (TBD)
 
