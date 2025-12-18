@@ -289,7 +289,98 @@ class TestPythonJobConfigCompiler:
             "environments": [
                 {
                     "environment_key": environment_key,
-                    "spec": {"client": "2", "dependencies": ["requests"]},
+                    "spec": {"environment_version": "2", "dependencies": ["requests"]},
                 }
             ],
         }
+
+    def test_compile__uses_environment_version_not_deprecated_client(
+        self, client, permission_builder, parsed_model, run_name, environment_key
+    ):
+        """Test that environment_version is used instead of deprecated 'client' field.
+
+        See GitHub issue #1277: The Databricks API deprecated the 'client' field
+        in favor of 'environment_version'.
+        """
+        parsed_model.config.packages = []
+        parsed_model.config.index_url = None
+        parsed_model.config.python_job_config.dict.return_value = {}
+
+        permission_builder.build_job_permissions.return_value = []
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
+        details = compiler.compile("path")
+
+        # Verify environment_version is used, not client
+        env_spec = details.additional_job_config["environments"][0]["spec"]
+        assert "environment_version" in env_spec, (
+            "Should use 'environment_version' not deprecated 'client'"
+        )
+        assert "client" not in env_spec, "Should not use deprecated 'client' field"
+
+    def test_compile__respects_user_provided_environments(
+        self, client, permission_builder, parsed_model, run_name
+    ):
+        """Test that user-provided environments in python_job_config are respected.
+
+        See GitHub issue #1277: Users should be able to specify their own
+        environments configuration to control serverless version.
+        """
+        parsed_model.config.packages = []
+        parsed_model.config.index_url = None
+        parsed_model.config.environment_key = "custom_env"
+        parsed_model.config.environment_dependencies = []  # No auto-generated deps
+
+        # User provides their own environments configuration
+        user_environments = [
+            {
+                "environment_key": "custom_env",
+                "spec": {"environment_version": "3"},
+            }
+        ]
+        parsed_model.config.python_job_config.dict.return_value = {
+            "environments": user_environments
+        }
+
+        permission_builder.build_job_permissions.return_value = []
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
+        details = compiler.compile("path")
+
+        # User-provided environments should be preserved
+        assert details.additional_job_config["environments"] == user_environments
+        # The environment_key should still be set in job_spec
+        assert details.job_spec["environment_key"] == "custom_env"
+
+    def test_compile__user_environments_override_auto_generated(
+        self, client, permission_builder, parsed_model, run_name
+    ):
+        """Test that user-provided environments override auto-generated ones.
+
+        See GitHub issue #1277: Even when environment_dependencies are set,
+        user-provided environments should take precedence.
+        """
+        parsed_model.config.packages = []
+        parsed_model.config.index_url = None
+        parsed_model.config.environment_key = "my_env"
+        parsed_model.config.environment_dependencies = ["pandas", "numpy"]  # Would trigger auto-gen
+
+        # User provides their own environments with specific version
+        user_environments = [
+            {
+                "environment_key": "my_env",
+                "spec": {"environment_version": "3", "dependencies": ["requests"]},
+            }
+        ]
+        parsed_model.config.python_job_config.dict.return_value = {
+            "environments": user_environments
+        }
+
+        permission_builder.build_job_permissions.return_value = []
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
+        details = compiler.compile("path")
+
+        # User-provided environments should override, not be merged
+        assert details.additional_job_config["environments"] == user_environments
+        # Should have user's dependencies, not auto-generated ones
+        assert details.additional_job_config["environments"][0]["spec"]["dependencies"] == [
+            "requests"
+        ]

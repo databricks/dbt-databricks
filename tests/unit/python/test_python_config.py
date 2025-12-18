@@ -212,3 +212,45 @@ class TestPythonJobConfig:
         }
         job_config = PythonJobConfig(**config).dict()
         assert job_config == {"name": "name", "foo": "bar"}
+
+    def test_python_job_config__environments_passed_through(self):
+        """Test that environments field is properly passed through to dict().
+
+        See GitHub issue #1277: Users need to be able to specify environments
+        to control serverless version.
+        """
+        environments = [
+            {
+                "environment_key": "default",
+                "spec": {"environment_version": "3"},
+            }
+        ]
+        config = {
+            "name": "test_job",
+            "environments": environments,
+        }
+        job_config = PythonJobConfig(**config).dict()
+        assert job_config == {"name": "test_job", "environments": environments}
+
+    def test_python_job_config__environments_with_dependencies(self):
+        """Test environments with dependencies are properly passed through.
+
+        See GitHub issue #1277: Users should be able to specify full environment
+        configuration including version and dependencies.
+        """
+        environments = [
+            {
+                "environment_key": "custom_env",
+                "spec": {
+                    "environment_version": "3",
+                    "dependencies": ["pandas", "numpy"],
+                },
+            }
+        ]
+        config = {
+            "name": "test_job",
+            "environments": environments,
+        }
+        job_config = PythonJobConfig(**config).dict()
+        assert job_config["environments"] == environments
+        assert job_config["environments"][0]["spec"]["environment_version"] == "3"
