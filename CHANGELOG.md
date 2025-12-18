@@ -1,3 +1,9 @@
+## dbt-databricks 1.10.16 (TBD)
+
+### Under the hood
+
+- Allow for dbt-core 1.10.16 ([1284](https://github.com/databricks/dbt-databricks/pull/1284))
+
 ## dbt-databricks 1.10.15 (Nov 17, 2025)
 
 ### Fixes
