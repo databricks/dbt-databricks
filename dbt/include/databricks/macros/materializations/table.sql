@@ -70,9 +70,11 @@
       {%- if _existing_config -%}
         {%- set model_config = adapter.get_config_from_model(config.model) -%}
         {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
-        {%- set row_filter = _configuration_changes.changes.get("row_filter") -%}
-        {%- if row_filter is not none -%}
-          {{ apply_row_filter(target_relation, row_filter) }}
+        {%- if _configuration_changes is not none -%}
+          {%- set row_filter = _configuration_changes.changes.get("row_filter") -%}
+          {%- if row_filter is not none -%}
+            {{ apply_row_filter(target_relation, row_filter) }}
+          {%- endif -%}
         {%- endif -%}
       {%- endif -%}
     {%- endif -%}
