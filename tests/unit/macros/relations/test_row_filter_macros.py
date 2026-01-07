@@ -122,7 +122,7 @@ class TestQualifyRowFilterFunction(MacroTestBase):
         sql = self.run_macro(
             template_bundle.template,
             "qualify_row_filter_function",
-            "cat.schema.fn",    
+            "cat.schema.fn",
             template_bundle.relation,
         )
         expected = "cat.schema.fn"
@@ -246,9 +246,7 @@ class TestAlterDropRowFilter(MacroTestBase):
         sql = self.run_macro(
             template_bundle.template, "alter_drop_row_filter", template_bundle.relation
         )
-        expected = (
-            "alter table `some_database`.`some_schema`.`some_table` " "drop row filter"
-        )
+        expected = "alter table `some_database`.`some_schema`.`some_table` drop row filter"
         assert sql == self.clean_sql(expected)
 
     def test_drop_row_filter_materialized_view(self, template_bundle):
@@ -289,9 +287,7 @@ class TestGetCreateRowFilterClause(MacroTestBase):
         sql = self.run_macro(
             template_bundle.template, "get_create_row_filter_clause", template_bundle.relation
         )
-        expected = (
-            "with row filter `some_database`.`some_schema`.`my_filter` on (`region`)"
-        )
+        expected = "with row filter `some_database`.`some_schema`.`my_filter` on (`region`)"
         assert sql == self.clean_sql(expected)
 
     def test_with_multiple_columns(self, config, template_bundle):
@@ -313,9 +309,7 @@ class TestGetCreateRowFilterClause(MacroTestBase):
         sql = self.run_macro(
             template_bundle.template, "get_create_row_filter_clause", template_bundle.relation
         )
-        expected = (
-            "with row filter `some_database`.`some_schema`.`my_filter` on (`region`)"
-        )
+        expected = "with row filter `some_database`.`some_schema`.`my_filter` on (`region`)"
         assert sql == self.clean_sql(expected)
 
     def test_with_fully_qualified_function(self, config, template_bundle):

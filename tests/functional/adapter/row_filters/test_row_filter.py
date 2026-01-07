@@ -1,6 +1,7 @@
 import pytest
 from dbt.tests.util import run_dbt, write_file
 
+from tests.functional.adapter.fixtures import MaterializationV1Mixin, MaterializationV2Mixin
 from tests.functional.adapter.row_filters.fixtures import (
     base_model_mv,
     base_model_sql,
@@ -11,7 +12,6 @@ from tests.functional.adapter.row_filters.fixtures import (
     row_filter_seed,
     view_model_sql,
 )
-from tests.functional.adapter.fixtures import MaterializationV1Mixin, MaterializationV2Mixin
 
 
 class BaseRowFilterMixin:
@@ -201,9 +201,7 @@ class TestStreamingTableRowFilter(RowFilterMixin):
 
     @pytest.fixture(scope="function", autouse=True)
     def cleanup_streaming_table(self, project):
-        project.run_sql(
-            f"DROP TABLE IF EXISTS {project.database}.{project.test_schema}.base_model"
-        )
+        project.run_sql(f"DROP TABLE IF EXISTS {project.database}.{project.test_schema}.base_model")
         yield
 
     def test_streaming_table_row_filter_lifecycle(self, project):

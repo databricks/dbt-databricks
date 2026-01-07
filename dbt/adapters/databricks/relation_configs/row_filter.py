@@ -54,7 +54,8 @@ class RowFilterConfig(DatabricksComponentConfig):
         Returns:
             - None if no changes needed
             - RowFilterConfig with should_unset=True, is_change=True if filter should be removed
-            - RowFilterConfig with the filter config and is_change=True if filter should be set/updated
+            - RowFilterConfig with the filter config and is_change=True if filter
+              should be set/updated
         """
         # Case 1: No filter desired, no filter exists -> no change
         if self.function is None and other.function is None:
@@ -102,7 +103,8 @@ class RowFilterProcessor(DatabricksComponentProcessor[RowFilterConfig]):
 
         # Unity Catalog returns one row per table (single filter constraint)
         row = table.rows[0]
-        # Columns: table_catalog(0), table_schema(1), table_name(2), filter_name(3), target_columns(4)
+        # Columns: table_catalog(0), table_schema(1), table_name(2),
+        # filter_name(3), target_columns(4)
         filter_name = row[3]  # Already fully qualified: catalog.schema.function
         target_columns = row[4]  # Comma-separated column list
 
@@ -137,15 +139,14 @@ class RowFilterProcessor(DatabricksComponentProcessor[RowFilterConfig]):
         if not columns or len(columns) == 0:
             raise ValueError(
                 f"Row filter function '{function}' requires a non-empty 'columns' value. "
-                f"Example: columns: region  OR  columns: [\"region_id\", \"country_code\"]"
+                f'Example: columns: region  OR  columns: ["region_id", "country_code"]'
             )
 
         # Validate each column element is a non-empty string
         for i, col in enumerate(columns):
             if not isinstance(col, str) or not col.strip():
                 raise ValueError(
-                    f"Row filter column at index {i} must be a non-empty string. "
-                    f"Got: {repr(col)}"
+                    f"Row filter column at index {i} must be a non-empty string. Got: {repr(col)}"
                 )
 
         # Qualify function name if not already qualified
@@ -190,7 +191,10 @@ class RowFilterProcessor(DatabricksComponentProcessor[RowFilterConfig]):
 
     @classmethod
     def _parse_target_columns(cls, target_columns: Optional[str]) -> list[str]:
-        """Parse target_columns string from INFORMATION_SCHEMA, handling quoted values with commas."""
+        """Parse target_columns string from INFORMATION_SCHEMA.
+
+        Handles quoted values with commas.
+        """
         if not target_columns:
             return []
 

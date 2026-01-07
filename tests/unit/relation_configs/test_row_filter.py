@@ -178,7 +178,13 @@ class TestRowFilterProcessor:
         results = {
             "row_filters": Table(
                 rows=[],
-                column_names=["table_catalog", "table_schema", "table_name", "filter_name", "target_columns"],
+                column_names=[
+                    "table_catalog",
+                    "table_schema",
+                    "table_name",
+                    "filter_name",
+                    "target_columns",
+                ],
             )
         }
         spec = RowFilterProcessor.from_relation_results(results)
@@ -189,7 +195,13 @@ class TestRowFilterProcessor:
         results = {
             "row_filters": Table(
                 rows=[["cat", "schema", "my_table", "cat.schema.my_filter", "col1, col2"]],
-                column_names=["table_catalog", "table_schema", "table_name", "filter_name", "target_columns"],
+                column_names=[
+                    "table_catalog",
+                    "table_schema",
+                    "table_name",
+                    "filter_name",
+                    "target_columns",
+                ],
             )
         }
         spec = RowFilterProcessor.from_relation_results(results)
@@ -203,7 +215,13 @@ class TestRowFilterProcessor:
                     ["cat", "schema", "my_table", "cat.schema.filter1", "col1"],
                     ["cat", "schema", "my_table", "cat.schema.filter2", "col2"],
                 ],
-                column_names=["table_catalog", "table_schema", "table_name", "filter_name", "target_columns"],
+                column_names=[
+                    "table_catalog",
+                    "table_schema",
+                    "table_name",
+                    "filter_name",
+                    "target_columns",
+                ],
             )
         }
         with pytest.raises(ValueError) as exc_info:
