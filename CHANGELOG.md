@@ -7,7 +7,7 @@
 ### Fixes
 
 - Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281))
-- Fix multiple foreign-keys from one table to another not being retained after incremental run
+- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
 
 ### Under the Hood
 
