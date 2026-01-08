@@ -289,7 +289,7 @@ class TestPythonJobConfigCompiler:
             "environments": [
                 {
                     "environment_key": environment_key,
-                    "spec": {"environment_version": "2", "dependencies": ["requests"]},
+                    "spec": {"environment_version": "4", "dependencies": ["requests"]},
                 }
             ],
         }
