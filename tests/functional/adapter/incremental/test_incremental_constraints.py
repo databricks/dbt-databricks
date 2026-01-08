@@ -328,3 +328,94 @@ class TestIncrementalRemoveForeignKeyConstraint:
         util.run_dbt(["run"])
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 0
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalMultipleFKsToSameTable:
+    """
+    Test that multiple foreign keys to the same parent table persist correctly
+    after incremental runs. This succeeds for `use_materialization_v2` at the time
+    of writing, but there is a bug in the v1 materialization implementation. This
+    test is included to confirm this.
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "target_of_multiple_fks.sql": fixtures.target_of_multiple_fks_sql,
+            "source_of_multiple_fks.sql": fixtures.source_of_multiple_fks_sql,
+            "schema.yml": fixtures.multiple_fks_on_one_target_schema_yml,
+        }
+
+    def test_multiple_fks_to_same_table_persist_after_incremental(self, project):
+        expected_constraints = {
+            ("fk_1", "pk_target_key"),
+            ("fk_2", "pk_target_key"),
+        }
+
+        # Initial run - create tables with constraints
+        util.run_dbt(["run"])
+
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraints = {(row[0], row[1]) for row in referential_constraints}
+        assert constraints == expected_constraints
+
+        # Incremental run - this should NOT lose any foreign keys
+        util.run_dbt(["run"])
+
+        referential_constraints_after = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraint_names_after = {(row[0], row[1]) for row in referential_constraints_after}
+        assert constraint_names_after == expected_constraints
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalMultipleFKsToSameTableNoV2:
+    """
+    Test that multiple foreign keys to the same parent table persist correctly
+    after incremental runs. This is a very specific test to reproduce a very
+    specific bug found when not using `use_materialization_v2`.
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "target_of_multiple_fks.sql": fixtures.target_of_multiple_fks_sql,
+            "source_of_multiple_fks.sql": fixtures.source_of_multiple_fks_sql,
+            "schema.yml": fixtures.multiple_fks_on_one_target_schema_yml,
+        }
+
+    def test_multiple_fks_to_same_table_persist_after_incremental(self, project):
+        expected_constraints = {
+            ("fk_1", "pk_target_key"),
+            ("fk_2", "pk_target_key"),
+        }
+
+        # Initial run - create tables with constraints
+        util.run_dbt(["run"])
+
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraints = {(row[0], row[1]) for row in referential_constraints}
+        assert constraints == expected_constraints
+
+        # Incremental run - this should NOT lose any foreign keys
+        util.run_dbt(["run"])
+
+        referential_constraints_after = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraint_names_after = {(row[0], row[1]) for row in referential_constraints_after}
+        assert constraint_names_after == expected_constraints

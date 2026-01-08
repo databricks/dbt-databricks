@@ -352,3 +352,47 @@ class TestConstraintsConfig:
         )
         diff = config.get_diff(other)
         assert diff is None
+
+    def test_get_diff__multiple_fks_to_same_table(self):
+        """Test that multiple FKs to the same parent table are handled correctly."""
+        config = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_start_date",
+                    columns=["start_date"],
+                    to="`catalog`.`schema`.`date_dim`",
+                    to_columns=["date_key"],
+                ),
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_end_date",
+                    columns=["end_date"],
+                    to="`catalog`.`schema`.`date_dim`",
+                    to_columns=["date_key"],
+                ),
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_start_date",
+                    columns=["start_date"],
+                    to="`catalog`.`schema`.`date_dim`",
+                    to_columns=["date_key"],
+                ),
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_end_date",
+                    columns=["end_date"],
+                    to="`catalog`.`schema`.`date_dim`",
+                    to_columns=["date_key"],
+                ),
+            },
+        )
+        # Both configs have same constraints, diff should be None
+        diff = config.get_diff(other)
+        assert diff is None

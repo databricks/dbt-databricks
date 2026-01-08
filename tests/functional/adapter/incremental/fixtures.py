@@ -1109,3 +1109,64 @@ models:
         to_columns: [id]
         warn_unenforced: false
 """
+
+target_of_multiple_fks_sql = """
+{{ config(
+    materialized='table',
+) }}
+
+SELECT 'a' AS str_key;
+"""
+
+source_of_multiple_fks_sql = """
+{{ config(
+    materialized='incremental',
+    unique_key=['fk_1_col'],
+    incremental_strategy='delete+insert',
+    on_schema_change='fail'
+) }}
+
+SELECT
+    'a' AS fk_1_col,
+    'a' AS fk_2_col
+"""
+
+multiple_fks_on_one_target_schema_yml = """
+version: 2
+
+models:
+  - name: target_of_multiple_fks
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: str_key
+        data_type: string
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_target_key
+            warn_unenforced: false
+
+  - name: source_of_multiple_fks
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: fk_1_col
+        data_type: string
+        constraints:
+          - type: foreign_key
+            to: ref('target_of_multiple_fks')
+            to_columns: ["str_key"]
+            name: fk_1
+            warn_unenforced: false
+      - name: fk_2_col
+        data_type: string
+        constraints:
+          - type: foreign_key
+            to: ref('target_of_multiple_fks')
+            to_columns: ["str_key"]
+            name: fk_2
+            warn_unenforced: false
+"""
