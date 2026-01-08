@@ -1110,7 +1110,7 @@ models:
         warn_unenforced: false
 """
 
-target_of_multiple_fks_sql = """
+non_incremental_target_of_fk = """
 {{ config(
     materialized='table',
 ) }}
@@ -1118,24 +1118,23 @@ target_of_multiple_fks_sql = """
 SELECT 'a' AS str_key;
 """
 
-source_of_multiple_fks_sql = """
+incremental_fk_sql = """
 {{ config(
     materialized='incremental',
-    unique_key=['fk_1_col'],
+    unique_key=['fk_col'],
     incremental_strategy='delete+insert',
     on_schema_change='fail'
 ) }}
 
 SELECT
-    'a' AS fk_1_col,
-    'a' AS fk_2_col
+    'a' AS fk_col
 """
 
-multiple_fks_on_one_target_schema_yml = """
+incremental_fk_on_non_incremental_target_schema_yml = """
 version: 2
 
 models:
-  - name: target_of_multiple_fks
+  - name: non_incremental_target_of_fk
     config:
       contract:
         enforced: true
@@ -1148,25 +1147,17 @@ models:
             name: pk_target_key
             warn_unenforced: false
 
-  - name: source_of_multiple_fks
+  - name: incremental_fk
     config:
       contract:
         enforced: true
     columns:
-      - name: fk_1_col
+      - name: fk_col
         data_type: string
         constraints:
           - type: foreign_key
-            to: ref('target_of_multiple_fks')
+            to: ref('non_incremental_target_of_fk')
             to_columns: ["str_key"]
-            name: fk_1
-            warn_unenforced: false
-      - name: fk_2_col
-        data_type: string
-        constraints:
-          - type: foreign_key
-            to: ref('target_of_multiple_fks')
-            to_columns: ["str_key"]
-            name: fk_2
+            name: fk
             warn_unenforced: false
 """
