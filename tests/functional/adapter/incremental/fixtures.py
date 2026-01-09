@@ -1109,3 +1109,55 @@ models:
         to_columns: [id]
         warn_unenforced: false
 """
+
+non_incremental_target_of_fk = """
+{{ config(
+    materialized='table',
+) }}
+
+SELECT 'a' AS str_key;
+"""
+
+incremental_fk_sql = """
+{{ config(
+    materialized='incremental',
+    unique_key=['fk_col'],
+    incremental_strategy='delete+insert',
+    on_schema_change='fail'
+) }}
+
+SELECT
+    'a' AS fk_col
+"""
+
+incremental_fk_on_non_incremental_target_schema_yml = """
+version: 2
+
+models:
+  - name: non_incremental_target_of_fk
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: str_key
+        data_type: string
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_target_key
+            warn_unenforced: false
+
+  - name: incremental_fk
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: fk_col
+        data_type: string
+        constraints:
+          - type: foreign_key
+            to: ref('non_incremental_target_of_fk')
+            to_columns: ["str_key"]
+            name: fk
+            warn_unenforced: false
+"""
