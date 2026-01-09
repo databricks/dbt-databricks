@@ -10,6 +10,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
+from dbt.adapters.databricks.relation_configs.row_filter import RowFilterConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
@@ -55,6 +56,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -83,6 +85,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -96,6 +99,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "row_filter": RowFilterConfig(),
             }
         )
         new = MaterializedViewConfig(
@@ -107,6 +111,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -122,6 +127,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={}),
+                "row_filter": RowFilterConfig(),
             }
         )
         new = MaterializedViewConfig(
@@ -133,6 +139,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "row_filter": RowFilterConfig(),
             }
         )
 

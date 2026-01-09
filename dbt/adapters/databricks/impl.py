@@ -930,7 +930,7 @@ class DatabricksAdapter(SparkAdapter):
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":
             return StreamingTableAPI.get_from_relation_config(model)
-        elif model.config.materialized == "incremental":
+        elif model.config.materialized in ("incremental", "table"):
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)
@@ -1063,6 +1063,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1086,6 +1087,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1118,6 +1120,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                 "fetch_foreign_key_constraints", kwargs=kwargs
             )
             results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
