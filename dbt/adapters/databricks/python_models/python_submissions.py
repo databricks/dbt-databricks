@@ -309,7 +309,7 @@ class PythonJobConfigCompiler:
                 additional_job_config["environments"] = [
                     {
                         "environment_key": self.environment_key,
-                        "spec": {"client": "2", "dependencies": self.environment_deps},
+                        "spec": {"environment_version": "4", "dependencies": self.environment_deps},
                     }
                 ]
         job_spec.update(self.cluster_spec)
