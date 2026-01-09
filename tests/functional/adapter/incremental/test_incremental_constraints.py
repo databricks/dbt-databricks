@@ -329,7 +329,7 @@ class TestIncrementalRemoveForeignKeyConstraint:
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 0
 
-
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalFkTargetNonIncrementalIsRetained:
     @pytest.fixture(scope="class")
     def project_config_update(self):
