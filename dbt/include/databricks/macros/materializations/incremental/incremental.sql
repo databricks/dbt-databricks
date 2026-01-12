@@ -187,7 +187,8 @@
         {% if liquid_clustering is not none %}
           {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
         {% endif %}
-        {% if constraints %}
+        {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
+        {% if constraints and not target_relation.is_hive_metastore() %}
           {{ apply_constraints(target_relation, constraints) }}
         {% endif %}
       {%- endif -%}
