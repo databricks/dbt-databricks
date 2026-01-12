@@ -383,8 +383,7 @@ class TestDropRowFilterIfExists(MacroTestBase):
         return ["macros/relations/components", "macros"]
 
     def test_skips_hive_metastore(self, template_bundle):
-        """Test that Hive Metastore relations are skipped entirely.
-        """
+        """Test that Hive Metastore relations are skipped entirely."""
         template_bundle.relation.is_hive_metastore = Mock(return_value=True)
 
         sql = self.run_macro(
