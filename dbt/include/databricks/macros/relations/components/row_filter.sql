@@ -4,34 +4,25 @@ ROW FILTER MACROS
 
 Implements row-level security via Unity Catalog ROW FILTER clause.
 
-ARCHITECTURAL NOTE: Why Both CREATE and ALTER Paths Exist
----------------------------------------------------------
-This file contains intentional duplication between:
-- get_create_row_filter_clause() - reads raw config.get('row_filter'), validates in Jinja
-- alter_set_row_filter() - receives pre-validated RowFilterConfig from Python
-
-This duplication exists because:
-
-1. V1 REQUIRES atomicity: CREATE TABLE AS SELECT is a single atomic statement,
-   so row filter MUST be embedded in the CREATE clause. There is no opportunity
-   to apply it via ALTER afterward.
-
-2. V2 filter-before-data: Even in V2's non-atomic flow (CREATE empty → ALTER → INSERT),
-   embedding row filter in CREATE ensures the filter is active BEFORE data INSERT.
-   This prevents any window where data could be queried without the filter.
-
-3. ALTER path uses Python-processed config: Changes on subsequent runs go through
-   RowFilterProcessor.from_relation_config() → get_diff() → RowFilterConfig,
-   which is already validated and function name is already qualified.
-   When should_unset=True, drop the filter. When function is set, apply it.
-
-4. CREATE path reads raw config: At CREATE time, Python config processing hasn't
-   happened yet, so Jinja must read config.get('row_filter') directly and do
-   its own validation/qualification.
-
+NOTE: This file contains intentional duplication between CREATE and ALTER paths.
 See row_filter.py _qualify_function_name() for the Python equivalent logic.
-Keep both implementations in sync. There are tests to validate the functionality
-(in both Python and Jinja)
+Keep both implementations in sync.
+
+ARCHITECTURAL NOTE: CREATE and ALTER Paths
+------------------------------------------
+1. CREATE PATH (get_create_row_filter_clause):
+   - Used during initial table/MV/ST creation
+   - Reads raw config.get('row_filter') and validates in Jinja
+   - Row filter is embedded in the CREATE statement
+
+2. ALTER PATH (alter_set_row_filter / alter_drop_row_filter):
+   - Used for subsequent changes in incremental materializations (incremental, MV, ST)
+   - Receives pre-validated RowFilterConfig from Python
+   - When should_unset=True, drops the filter; when function is set, applies it
+
+The duplication exists because:
+- CREATE path reads raw config (Python processing hasn't happened yet)
+- ALTER path uses Python-processed config via RowFilterProcessor.from_relation_config()
 --#}
 
 {#-- ===== FETCH MACROS ===== --#}
@@ -112,7 +103,6 @@ Keep both implementations in sync. There are tests to validate the functionality
   {%- endif -%}
 
   {%- if row_filter.is_change -%}
-    {{ log("Applying row filter to relation " ~ target_relation) }}
     {%- if row_filter.should_unset -%}
       {%- call statement('main') -%}
         {{ alter_drop_row_filter(target_relation) }}
@@ -120,6 +110,23 @@ Keep both implementations in sync. There are tests to validate the functionality
     {%- elif row_filter.function -%}
       {%- call statement('main') -%}
         {{ alter_set_row_filter(target_relation, row_filter) }}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro -%}
+
+
+{#-- ===== DROP IF EXISTS MACRO (for table materialization) ===== --#}
+
+{%- macro drop_row_filter_if_exists(relation) -%}
+  {#- Drops any existing row filter from a relation before CREATE OR REPLACE.
+      Used by table materialization when the model has no row filter configured
+      but the existing table might have one from a previous run. -#}
+  {%- if not relation.is_hive_metastore() -%}
+    {%- set existing_filters = fetch_row_filters(relation) -%}
+    {%- if existing_filters | length > 0 -%}
+      {%- call statement('drop_row_filter') -%}
+        {{ alter_drop_row_filter(relation) }}
       {%- endcall -%}
     {%- endif -%}
   {%- endif -%}
@@ -156,7 +163,12 @@ Keep both implementations in sync. There are tests to validate the functionality
 
 {%- macro get_create_row_filter_clause(relation) -%}
   {%- set row_filter = config.get('row_filter') -%}
-  {%- if row_filter and row_filter.get('function') -%}
+
+  {%- if not row_filter or not row_filter.get('function') -%}
+    {#-- Model has no row filter - drop any existing filter from table --#}
+    {{ drop_row_filter_if_exists(relation) }}
+  {%- else -%}
+    {#-- Model has row filter - generate the WITH ROW FILTER clause --#}
     {%- set columns = row_filter.get('columns', []) -%}
 
     {#- Normalize string to list -#}

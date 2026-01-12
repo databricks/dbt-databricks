@@ -930,7 +930,7 @@ class DatabricksAdapter(SparkAdapter):
             return MaterializedViewAPI.get_from_relation_config(model)
         elif model.config.materialized == "streaming_table":
             return StreamingTableAPI.get_from_relation_config(model)
-        elif model.config.materialized in ("incremental", "table"):
+        elif model.config.materialized == "incremental":
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)

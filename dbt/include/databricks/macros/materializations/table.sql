@@ -24,13 +24,11 @@
     {% else %}
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
-        {{ process_config_changes(target_relation) }}
       {% else %}
         {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
           {{ adapter.drop_relation(existing_relation) }}
         {%- endif %}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
-        {{ process_config_changes(target_relation) }}
       {% endif %}
     {% endif %}
 
@@ -63,21 +61,6 @@
       {% do apply_tblproperties(target_relation, tblproperties) %}
     {% endif %}
     {%- do apply_tags(target_relation, tags) -%}
-
-    {#-- Handle row filter changes for V1 --#}
-    {%- if existing_relation and not target_relation.is_hive_metastore() -%}
-      {%- set _existing_config = adapter.get_relation_config(target_relation) -%}
-      {%- if _existing_config -%}
-        {%- set model_config = adapter.get_config_from_model(config.model) -%}
-        {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
-        {%- if _configuration_changes is not none -%}
-          {%- set row_filter = _configuration_changes.changes.get("row_filter") -%}
-          {%- if row_filter is not none -%}
-            {{ apply_row_filter(target_relation, row_filter) }}
-          {%- endif -%}
-        {%- endif -%}
-      {%- endif -%}
-    {%- endif -%}
 
     {% do persist_docs(target_relation, model, for_relation=language=='python') %}
 
