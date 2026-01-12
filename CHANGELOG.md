@@ -1,4 +1,23 @@
-## dbt-databricks 1.11.3 (TBD)
+## dbt-databricks 1.11.4 (Jan 12, 2026)
+
+### Features
+
+- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+
+### Fixes
+
+- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281))
+- Fix serverless Python model environment configuration: use `environment_version` instead of deprecated `client` field. Users can now specify custom environment versions via `python_job_config.environments`. ([#1286](https://github.com/databricks/dbt-databricks/pull/1286))
+
+### Under the Hood
+
+- Update dependency version pins
+
+## dbt-databricks 1.11.3 (Dec 5, 2025)
+
+### Fixes
+
+- Truncate (128 charactesr max) and escape special characters for default query tag values
 
 ## dbt-databricks 1.11.2 (Nov 18, 2025)
 

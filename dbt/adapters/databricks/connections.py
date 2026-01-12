@@ -339,12 +339,13 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 handle: DatabricksHandle = connection.handle
                 cursor = handle.execute(sql, bindings)
-
+                response = self.get_response(cursor)
                 fire_event(
                     SQLQueryStatus(
                         status=str(cursor.get_response()),
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
+                        query_id=response.query_id,
                     )
                 )
 
@@ -401,9 +402,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 handle: DatabricksHandle = connection.handle
                 cursor = f(handle)
 
+                response = self.get_response(cursor)
                 fire_event(
                     SQLQueryStatus(
-                        status=str(self.get_response(cursor)),
+                        status=str(response),
+                        query_id=response.query_id,
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
                     )
