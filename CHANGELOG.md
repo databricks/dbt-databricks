@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.5 (TBD)
+
+### Fixes
+
+- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
+
 ## dbt-databricks 1.11.4 (Jan 12, 2026)
 
 ### Features
@@ -7,10 +13,7 @@
 ### Fixes
 
 - Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281))
-- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
 - Fix serverless Python model environment configuration: use `environment_version` instead of deprecated `client` field. Users can now specify custom environment versions via `python_job_config.environments`. ([#1286](https://github.com/databricks/dbt-databricks/pull/1286))
-- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
-
 
 ### Under the Hood
 
