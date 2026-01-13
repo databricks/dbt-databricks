@@ -1,4 +1,8 @@
-## dbt-databricks 1.10.18 (TBD)
+## dbt-databricks 1.10.18 (Jan 13, 2026)
+
+### Under the hood
+
+- Update dbt-common and dbt-adapters pins
 
 ## dbt-databricks 1.10.17 (Jan 13, 2026)
 
