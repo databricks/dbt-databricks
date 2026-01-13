@@ -1,4 +1,10 @@
-## dbt-databricks 1.10.17 (TBD)
+## dbt-databricks 1.10.18 (TBD)
+
+## dbt-databricks 1.10.17 (Jan 13, 2026)
+
+### Under the hood
+
+- Update dbt-core pin
 
 ## dbt-databricks 1.10.16 (Dec 18, 2025)
 
