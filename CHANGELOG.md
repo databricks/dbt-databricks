@@ -1,4 +1,6 @@
-## dbt-databricks 1.10.17 (TBD)
+## dbt-databricks 1.10.18 (TBD)
+
+## dbt-databricks 1.10.17 (Jan 13, 2026)
 
 ### Under the hood
 
