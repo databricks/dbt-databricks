@@ -123,7 +123,10 @@ class ForeignKeyConstraint(TypedConstraint):
             if self.expression.strip().startswith("("):
                 return f"FOREIGN KEY {self.expression}"
             return f"FOREIGN KEY ({', '.join(self.columns)}) {self.expression}"
-        return f"FOREIGN KEY ({', '.join(self.columns)}) REFERENCES {self.to} ({', '.join(self.to_columns)})"
+        return (
+            f"FOREIGN KEY ({', '.join(self.columns)}) REFERENCES "
+            + f"{self.to} ({', '.join(self.to_columns)})"
+        )
 
 
 class CheckConstraint(TypedConstraint):
