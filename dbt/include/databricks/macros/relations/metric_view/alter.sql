@@ -7,27 +7,47 @@
   {% set tags = changes.get("tags") %}
   {% set tblproperties = changes.get("tblproperties") %}
   {% set query = changes.get("query") %}
-  {% set column_comments = changes.get("column_comments") %}
 
-  {# For metric views, only tags and tblproperties can be altered without recreating #}
+  {# Handle YAML definition changes via ALTER VIEW AS #}
+  {% if query %}
+    {% call statement('main') %}
+      {{ get_alter_metric_view_as_sql(target_relation, query.query) }}
+    {% endcall %}
+  {% else %}
+    {# Ensure statement('main') is called for dbt to track the run #}
+    {% call statement('main') %}
+      select 1
+    {% endcall %}
+  {% endif %}
+
   {% if tags %}
     {{ apply_tags(target_relation, tags.set_tags) }}
   {% endif %}
   {% if tblproperties %}
     {{ apply_tblproperties(target_relation, tblproperties.tblproperties) }}
   {% endif %}
+{% endmacro %}
 
-  {# Query changes and column comment changes require full refresh for metric views #}
-  {% if query or column_comments %}
-    {{ exceptions.warn("Metric view YAML definition or column comment changes detected that cannot be applied via ALTER. These changes will require CREATE OR REPLACE on next run.") }}
-  {% endif %}
+{% macro get_alter_metric_view_as_sql(relation, yaml_content) -%}
+  {{ adapter.dispatch('get_alter_metric_view_as_sql', 'dbt')(relation, yaml_content) }}
+{%- endmacro %}
+
+{% macro databricks__get_alter_metric_view_as_sql(relation, yaml_content) %}
+alter view {{ relation.render() }} as $$
+{{ yaml_content }}
+$$
 {% endmacro %}
 
 {% macro replace_with_metric_view(existing_relation, target_relation) %}
   {% set sql = adapter.clean_sql(sql) %}
   {% set tags = config.get('databricks_tags') %}
+  {% set tblproperties = config.get('tblproperties') %}
   {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
   {%- do apply_tags(target_relation, tags) -%}
+
+  {% if tblproperties %}
+    {{ apply_tblproperties(target_relation, tblproperties) }}
+  {% endif %}
 
   {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
   {% if column_tags and column_tags.set_column_tags %}

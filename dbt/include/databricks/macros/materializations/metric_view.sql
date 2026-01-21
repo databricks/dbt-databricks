@@ -8,9 +8,24 @@
   {{ run_pre_hooks() }}
 
   {% if existing_relation %}
-    {#- Metric views always use CREATE OR REPLACE - no alter path for now -#}
-    {{ log('Using replace_with_metric_view (metric views always use replace)') }}
-    {{ replace_with_metric_view(existing_relation, target_relation) }}
+    {#- Only use alter path if existing relation is actually a metric_view -#}
+    {% if existing_relation.is_metric_view and relation_should_be_altered(existing_relation) %}
+      {% set configuration_changes = get_metric_view_configuration_changes(existing_relation) %}
+      {% if configuration_changes and configuration_changes.changes %}
+        {% if configuration_changes.requires_full_refresh %}
+          {{ replace_with_metric_view(existing_relation, target_relation) }}
+        {% else %}
+          {{ alter_metric_view(target_relation, configuration_changes.changes) }}
+        {% endif %}
+      {% else %}
+        {# No changes detected - run a no-op statement for dbt tracking #}
+        {% call statement('main') %}
+          select 1
+        {% endcall %}
+      {% endif %}
+    {% else %}
+      {{ replace_with_metric_view(existing_relation, target_relation) }}
+    {% endif %}
   {% else %}
     {% call statement('main') -%}
       {{ get_create_metric_view_as_sql(target_relation, sql) }}

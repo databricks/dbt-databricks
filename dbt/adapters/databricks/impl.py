@@ -1172,10 +1172,6 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
-        # Metric views are stored as views in information_schema but have different properties
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
         results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         kwargs = {"table_name": relation}
