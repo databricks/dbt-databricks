@@ -328,3 +328,79 @@ class TestIncrementalRemoveForeignKeyConstraint:
         util.run_dbt(["run"])
         referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
         assert len(referential_constraints) == 0
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalFkTargetNonIncrementalIsRetained:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "non_incremental_target_of_fk.sql": fixtures.non_incremental_target_of_fk,
+            "incremental_fk.sql": fixtures.incremental_fk_sql,
+            "schema.yml": fixtures.incremental_fk_on_non_incremental_target_schema_yml,
+        }
+
+    def test_multiple_fks_to_same_table_persist_after_incremental(self, project):
+        expected_constraints = {
+            ("fk", "pk_target_key"),
+        }
+
+        # Initial run - create tables with constraints
+        util.run_dbt(["run"])
+
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraints = {(row[0], row[1]) for row in referential_constraints}
+        assert constraints == expected_constraints
+
+        # Incremental run - this should NOT lose any foreign keys
+        util.run_dbt(["run"])
+
+        referential_constraints_after = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraint_names_after = {(row[0], row[1]) for row in referential_constraints_after}
+        assert constraint_names_after == expected_constraints
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalFkTargetNonIncrementalIsRetainedNoV2:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "non_incremental_target_of_fk.sql": fixtures.non_incremental_target_of_fk,
+            "incremental_fk.sql": fixtures.incremental_fk_sql,
+            "schema.yml": fixtures.incremental_fk_on_non_incremental_target_schema_yml,
+        }
+
+    def test_multiple_fks_to_same_table_persist_after_incremental(self, project):
+        expected_constraints = {
+            ("fk", "pk_target_key"),
+        }
+
+        # Initial run - create tables with constraints
+        util.run_dbt(["run"])
+
+        referential_constraints = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraints = {(row[0], row[1]) for row in referential_constraints}
+        assert constraints == expected_constraints
+
+        # Incremental run - this should NOT lose any foreign keys
+        util.run_dbt(["run"])
+
+        referential_constraints_after = project.run_sql(referential_constraint_sql, fetch="all")
+
+        constraint_names_after = {(row[0], row[1]) for row in referential_constraints_after}
+        assert constraint_names_after == expected_constraints

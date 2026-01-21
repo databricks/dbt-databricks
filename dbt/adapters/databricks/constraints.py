@@ -119,12 +119,14 @@ class ForeignKeyConstraint(TypedConstraint):
             )
 
     def _render_suffix(self) -> str:
-        suffix = f"FOREIGN KEY ({', '.join(self.columns)})"
         if self.expression:
-            suffix += f" {self.expression}"
-        else:
-            suffix += f" REFERENCES {self.to} ({', '.join(self.to_columns)})"
-        return suffix
+            if self.expression.strip().startswith("("):
+                return f"FOREIGN KEY {self.expression}"
+            return f"FOREIGN KEY ({', '.join(self.columns)}) {self.expression}"
+        return (
+            f"FOREIGN KEY ({', '.join(self.columns)}) REFERENCES "
+            + f"{self.to} ({', '.join(self.to_columns)})"
+        )
 
 
 class CheckConstraint(TypedConstraint):
