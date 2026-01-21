@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.5 (TBD)
+
+### Fixes
+
+- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
+
 ## dbt-databricks 1.11.4 (Jan 12, 2026)
 
 ### Features
