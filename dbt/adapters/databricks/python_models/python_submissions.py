@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
@@ -11,6 +11,9 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
@@ -29,7 +32,8 @@ class BaseDatabricksHelper(PythonJobHelper):
 
     tracker = PythonRunTracker()
 
-    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
+    def __init__(self, parsed_model: dict,
+                 credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
@@ -62,9 +66,8 @@ class BaseDatabricksHelper(PythonJobHelper):
 class PythonCommandSubmitter(PythonSubmitter):
     """Submitter for Python models using the Command API."""
 
-    def __init__(
-        self, api_client: DatabricksApiClient, tracker: PythonRunTracker, cluster_id: str
-    ) -> None:
+    def __init__(self, api_client: DatabricksApiClient,
+                 tracker: PythonRunTracker, cluster_id: str) -> None:
         self.api_client = api_client
         self.tracker = tracker
         self.cluster_id = cluster_id
@@ -77,8 +80,7 @@ class PythonCommandSubmitter(PythonSubmitter):
         command_exec: Optional[CommandExecution] = None
         try:
             command_exec = self.api_client.commands.execute(
-                self.cluster_id, context_id, compiled_code
-            )
+                self.cluster_id, context_id, compiled_code)
 
             self.tracker.insert_command(command_exec)
             self.api_client.commands.poll_for_completion(command_exec)
@@ -86,42 +88,46 @@ class PythonCommandSubmitter(PythonSubmitter):
         finally:
             if command_exec:
                 self.tracker.remove_command(command_exec)
-            self.api_client.command_contexts.destroy(self.cluster_id, context_id)
+            self.api_client.command_contexts.destroy(self.cluster_id,
+                                                     context_id)
 
 
 class PythonNotebookUploader:
     """Uploads a compiled Python model as a notebook to the Databricks workspace."""
 
-    def __init__(self, api_client: DatabricksApiClient, parsed_model: ParsedPythonModel) -> None:
+    def __init__(self, api_client: DatabricksApiClient,
+                 parsed_model: ParsedPythonModel) -> None:
         self.api_client = api_client
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
         self.identifier = parsed_model.identifier
-        self.job_grants = (
-            parsed_model.config.python_job_config.grants
-            if parsed_model.config.python_job_config
-            else {}
-        )
+        self.job_grants = (parsed_model.config.python_job_config.grants
+                           if parsed_model.config.python_job_config else {})
         self.notebook_access_control_list = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
-        logger.debug(
-            f"[Notebook Upload Debug] Creating workspace dir for "
-            f"catalog={self.catalog}, schema={self.schema}"
-        )
-        workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
+        logger.debug(f"[Notebook Upload Debug] Creating workspace dir for "
+                     f"catalog={self.catalog}, schema={self.schema}")
+        workdir = self.api_client.workspace.create_python_model_dir(
+            self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
-        logger.debug(f"[Notebook Upload Debug] Uploading notebook to path: {file_path}")
+        logger.debug(
+            f"[Notebook Upload Debug] Uploading notebook to path: {file_path}")
 
         # Log notebook content length
-        logger.debug(f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars")
+        logger.debug(
+            f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars"
+        )
 
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
-        logger.debug(f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}")
+        logger.debug(
+            f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}"
+        )
 
         if self.job_grants or self.notebook_access_control_list:
-            logger.debug("[Notebook Upload Debug] Setting permissions for notebook")
+            logger.debug(
+                "[Notebook Upload Debug] Setting permissions for notebook")
             self.set_notebook_permissions(file_path)
 
         return file_path
@@ -131,14 +137,19 @@ class PythonNotebookUploader:
             permission_builder = PythonPermissionBuilder(self.api_client)
 
             access_control_list = permission_builder.build_permissions(
-                self.job_grants, self.notebook_access_control_list, target_type="notebook"
-            )
+                self.job_grants,
+                self.notebook_access_control_list,
+                target_type="notebook")
 
             if access_control_list:
-                logger.debug(f"Setting permissions on notebook: {notebook_path}")
-                self.api_client.notebook_permissions.put(notebook_path, access_control_list)
+                logger.debug(
+                    f"Setting permissions on notebook: {notebook_path}")
+                self.api_client.notebook_permissions.put(
+                    notebook_path, access_control_list)
         except Exception as e:
-            logger.error(f"Failed to set permissions on notebook {notebook_path}: {str(e)}")
+            logger.error(
+                f"Failed to set permissions on notebook {notebook_path}: {str(e)}"
+            )
             raise DbtRuntimeError(
                 f"Failed to set permissions on notebook: path={notebook_path}, error: {str(e)}"
             )
@@ -167,26 +178,30 @@ class PythonPermissionBuilder:
     def _get_job_owner_for_config(self) -> tuple[str, str]:
         """Get the owner of the job (and type) for the access control list."""
         curr_user = self.api_client.curr_user.get_username()
-        is_service_principal = self.api_client.curr_user.is_service_principal(curr_user)
+        is_service_principal = self.api_client.curr_user.is_service_principal(
+            curr_user)
 
         source = "service_principal_name" if is_service_principal else "user_name"
         return curr_user, source
 
     @staticmethod
-    def _build_job_permission(
-        job_grants: list[dict[str, Any]], permission: str
-    ) -> list[dict[str, Any]]:
+    def _build_job_permission(job_grants: list[dict[str, Any]],
+                              permission: str) -> list[dict[str, Any]]:
         """Build the access control list for the job."""
 
-        return [{**grant, **{"permission_level": permission}} for grant in job_grants]
+        return [{
+            **grant,
+            **{
+                "permission_level": permission
+            }
+        } for grant in job_grants]
 
     def _filter_permissions(
-        self, acls: list[dict[str, Any]], valid_permissions: set[str]
-    ) -> list[dict[str, Any]]:
+            self, acls: list[dict[str, Any]],
+            valid_permissions: set[str]) -> list[dict[str, Any]]:
         return [
-            acl
-            for acl in acls
-            if "permission_level" in acl and acl["permission_level"] in valid_permissions
+            acl for acl in acls if "permission_level" in acl
+            and acl["permission_level"] in valid_permissions
         ]
 
     def build_job_permissions(
@@ -196,22 +211,19 @@ class PythonPermissionBuilder:
     ) -> list[dict[str, Any]]:
         access_control_list = []
         owner, permissions_attribute = self._get_job_owner_for_config()
-        access_control_list.append(
-            {
-                permissions_attribute: owner,
-                "permission_level": "IS_OWNER",
-            }
-        )
+        access_control_list.append({
+            permissions_attribute: owner,
+            "permission_level": "IS_OWNER",
+        })
 
         access_control_list.extend(
-            self._build_job_permission(job_grants.get("view", []), "CAN_VIEW")
-        )
+            self._build_job_permission(job_grants.get("view", []), "CAN_VIEW"))
         access_control_list.extend(
-            self._build_job_permission(job_grants.get("run", []), "CAN_MANAGE_RUN")
-        )
+            self._build_job_permission(job_grants.get("run", []),
+                                       "CAN_MANAGE_RUN"))
         access_control_list.extend(
-            self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
-        )
+            self._build_job_permission(job_grants.get("manage", []),
+                                       "CAN_MANAGE"))
 
         combined_acls = access_control_list + acls
         return self._filter_permissions(combined_acls, self.JOB_PERMISSIONS)
@@ -224,17 +236,21 @@ class PythonPermissionBuilder:
         access_control_list = []
 
         access_control_list.extend(
-            self._build_job_permission(job_grants.get("view", []), "CAN_READ")
-        )
-        access_control_list.extend(self._build_job_permission(job_grants.get("run", []), "CAN_RUN"))
+            self._build_job_permission(job_grants.get("view", []), "CAN_READ"))
         access_control_list.extend(
-            self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
-        )
+            self._build_job_permission(job_grants.get("run", []), "CAN_RUN"))
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("manage", []),
+                                       "CAN_MANAGE"))
 
         combined_acls = access_control_list + acls
-        filtered_acls = self._filter_permissions(combined_acls, self.NOTEBOOK_PERMISSIONS)
+        filtered_acls = self._filter_permissions(combined_acls,
+                                                 self.NOTEBOOK_PERMISSIONS)
 
-        return [acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"]
+        return [
+            acl for acl in filtered_acls
+            if acl.get("permission_level") != "IS_OWNER"
+        ]
 
     def build_permissions(
         self,
@@ -286,10 +302,12 @@ class PythonJobConfigCompiler:
         packages = parsed_model.config.packages
         index_url = parsed_model.config.index_url
         additional_libraries = parsed_model.config.additional_libs
-        library_config = get_library_config(packages, index_url, additional_libraries)
+        library_config = get_library_config(packages, index_url,
+                                            additional_libraries)
         self.cluster_spec = {**cluster_spec, **library_config}
         self.job_grants = parsed_model.config.python_job_config.grants
-        self.additional_job_settings = parsed_model.config.python_job_config.dict()
+        self.additional_job_settings = parsed_model.config.python_job_config.dict(
+        )
         self.environment_key = parsed_model.config.environment_key
         self.environment_deps = parsed_model.config.environment_dependencies
 
@@ -305,25 +323,27 @@ class PythonJobConfigCompiler:
 
         if self.environment_key:
             job_spec["environment_key"] = self.environment_key
-            if self.environment_deps and not self.additional_job_settings.get("environments"):
-                additional_job_config["environments"] = [
-                    {
-                        "environment_key": self.environment_key,
-                        "spec": {"environment_version": "4", "dependencies": self.environment_deps},
-                    }
-                ]
+            if self.environment_deps and not self.additional_job_settings.get(
+                    "environments"):
+                additional_job_config["environments"] = [{
+                    "environment_key":
+                    self.environment_key,
+                    "spec": {
+                        "client": "2",
+                        "dependencies": self.environment_deps
+                    },
+                }]
         job_spec.update(self.cluster_spec)
 
         access_control_list = self.permission_builder.build_job_permissions(
-            self.job_grants, self.access_control_list
-        )
+            self.job_grants, self.access_control_list)
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
 
         job_spec["queue"] = {"enabled": True}
-        return PythonJobDetails(
-            run_name=self.run_name, job_spec=job_spec, additional_job_config=additional_job_config
-        )
+        return PythonJobDetails(run_name=self.run_name,
+                                job_spec=job_spec,
+                                additional_job_config=additional_job_config)
 
 
 class PythonNotebookSubmitter(PythonSubmitter):
@@ -356,7 +376,8 @@ class PythonNotebookSubmitter(PythonSubmitter):
             parsed_model,
             cluster_spec,
         )
-        return PythonNotebookSubmitter(api_client, tracker, notebook_uploader, config_compiler)
+        return PythonNotebookSubmitter(api_client, tracker, notebook_uploader,
+                                       config_compiler)
 
     @override
     def submit(self, compiled_code: str) -> None:
@@ -366,20 +387,21 @@ class PythonNotebookSubmitter(PythonSubmitter):
         job_config = self.config_compiler.compile(file_path)
 
         run_id = self.api_client.job_runs.submit(
-            job_config.run_name, job_config.job_spec, **job_config.additional_job_config
-        )
+            job_config.run_name, job_config.job_spec,
+            **job_config.additional_job_config)
         self.tracker.insert_run_id(run_id)
 
         try:
             if "access_control_list" in job_config.job_spec:
                 try:
-                    job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
+                    job_id = self.api_client.job_runs.get_job_id_from_run_id(
+                        run_id)
                     logger.debug(f"Setting permissions on job: {job_id}")
                     self.api_client.workflow_permissions.patch(
-                        job_id, job_config.job_spec["access_control_list"]
-                    )
+                        job_id, job_config.job_spec["access_control_list"])
                 except Exception as e:
-                    logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
+                    logger.error(
+                        f"Failed to set permissions on job {run_id}: {str(e)}")
                     raise DbtRuntimeError(
                         f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}"
                     )
@@ -414,7 +436,8 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
     Top level helper for Python models using job runs or Command API on an all-purpose cluster.
     """
 
-    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
+    def __init__(self, parsed_model: dict,
+                 credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
@@ -428,8 +451,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
         config = self.parsed_model.config
         self.create_notebook = config.create_notebook
         self.cluster_id = config.cluster_id or self.credentials.extract_cluster_id(
-            config.http_path or self.credentials.http_path or ""
-        )
+            config.http_path or self.credentials.http_path or "")
         self.validate_config()
 
         self.command_submitter = self.build_submitter()
@@ -444,22 +466,23 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 {"existing_cluster_id": self.cluster_id},
             )
         else:
-            return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id or "")
+            return PythonCommandSubmitter(self.api_client, self.tracker,
+                                          self.cluster_id or "")
 
     @override
     def validate_config(self) -> None:
         if not self.cluster_id:
             raise ValueError(
                 "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
-                "for the `all_purpose_cluster` submission method."
-            )
+                "for the `all_purpose_cluster` submission method.")
 
 
 class ServerlessClusterPythonJobHelper(BaseDatabricksHelper):
     """Top level helper for Python models using job runs on a serverless cluster."""
 
     def build_submitter(self) -> PythonSubmitter:
-        return PythonNotebookSubmitter.create(self.api_client, self.tracker, self.parsed_model, {})
+        return PythonNotebookSubmitter.create(self.api_client, self.tracker,
+                                              self.parsed_model, {})
 
 
 class PythonWorkflowConfigCompiler:
@@ -478,18 +501,22 @@ class PythonWorkflowConfigCompiler:
         self.post_hook_tasks = post_hook_tasks
 
     @staticmethod
-    def create(parsed_model: ParsedPythonModel) -> "PythonWorkflowConfigCompiler":
-        cluster_settings = PythonWorkflowConfigCompiler.cluster_settings(parsed_model)
+    def create(
+            parsed_model: ParsedPythonModel) -> "PythonWorkflowConfigCompiler":
+        cluster_settings = PythonWorkflowConfigCompiler.cluster_settings(
+            parsed_model)
         config = parsed_model.config
         if config.python_job_config:
-            cluster_settings.update(config.python_job_config.additional_task_settings)
+            cluster_settings.update(
+                config.python_job_config.additional_task_settings)
             workflow_spec = config.python_job_config.dict()
-            workflow_spec["name"] = PythonWorkflowConfigCompiler.workflow_name(parsed_model)
+            workflow_spec["name"] = PythonWorkflowConfigCompiler.workflow_name(
+                parsed_model)
             existing_job_id = config.python_job_config.existing_job_id
             post_hook_tasks = config.python_job_config.post_hook_tasks
-            return PythonWorkflowConfigCompiler(
-                cluster_settings, workflow_spec, existing_job_id, post_hook_tasks
-            )
+            return PythonWorkflowConfigCompiler(cluster_settings,
+                                                workflow_spec, existing_job_id,
+                                                post_hook_tasks)
         else:
             return PythonWorkflowConfigCompiler(cluster_settings, {}, "", [])
 
@@ -499,7 +526,8 @@ class PythonWorkflowConfigCompiler:
         if parsed_model.config.python_job_config:
             name = parsed_model.config.python_job_config.name
         return (
-            name or f"dbt__{parsed_model.catalog}-{parsed_model.schema_}-{parsed_model.identifier}"
+            name or
+            f"dbt__{parsed_model.catalog}-{parsed_model.schema_}-{parsed_model.identifier}"
         )
 
     @staticmethod
@@ -584,7 +612,8 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
 
     @staticmethod
     def create(
-        api_client: DatabricksApiClient, tracker: PythonRunTracker, parsed_model: ParsedPythonModel
+            api_client: DatabricksApiClient, tracker: PythonRunTracker,
+            parsed_model: ParsedPythonModel
     ) -> "PythonNotebookWorkflowSubmitter":
         uploader = PythonNotebookUploader(api_client, parsed_model)
         config_compiler = PythonWorkflowConfigCompiler.create(parsed_model)
@@ -615,34 +644,43 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         file_path = self.uploader.upload(compiled_code)
         logger.debug(f"[Workflow Debug] Uploaded notebook to: {file_path}")
 
-        workflow_config, existing_job_id = self.config_compiler.compile(file_path)
+        workflow_config, existing_job_id = self.config_compiler.compile(
+            file_path)
         logger.debug(f"[Workflow Debug] Workflow config: {workflow_config}")
         logger.debug(f"[Workflow Debug] Existing job ID: {existing_job_id}")
 
-        job_id = self.workflow_creater.create_or_update(workflow_config, existing_job_id)
+        job_id = self.workflow_creater.create_or_update(
+            workflow_config, existing_job_id)
         logger.debug(f"[Workflow Debug] Created/updated job ID: {job_id}")
 
         access_control_list = self.permission_builder.build_job_permissions(
-            self.job_grants, self.acls
-        )
+            self.job_grants, self.acls)
         logger.debug(f"[Workflow Debug] Setting ACL: {access_control_list}")
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
-        logger.debug(f"[Workflow Debug] Running job {job_id} with queueing enabled")
+        logger.debug(
+            f"[Workflow Debug] Running job {job_id} with queueing enabled")
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
-        logger.debug(f"[Workflow Debug] Started workflow run with ID: {run_id}")
+        logger.debug(
+            f"[Workflow Debug] Started workflow run with ID: {run_id}")
         self.tracker.insert_run_id(run_id)
 
         try:
-            logger.debug(f"[Workflow Debug] Polling for completion of run {run_id}")
+            logger.debug(
+                f"[Workflow Debug] Polling for completion of run {run_id}")
             self.api_client.job_runs.poll_for_completion(run_id)
-            logger.debug(f"[Workflow Debug] Workflow run {run_id} completed successfully")
+            logger.debug(
+                f"[Workflow Debug] Workflow run {run_id} completed successfully"
+            )
         except Exception as e:
-            logger.error(f"[Workflow Debug] Workflow run {run_id} failed with error: {e}")
+            logger.error(
+                f"[Workflow Debug] Workflow run {run_id} failed with error: {e}"
+            )
             # Try to get more info about the failure
             try:
                 run_info = self.api_client.job_runs.get_run_info(run_id)
-                logger.error(f"[Workflow Debug] Run info for failed run: {run_info}")
+                logger.error(
+                    f"[Workflow Debug] Run info for failed run: {run_info}")
             except Exception:
                 pass
             raise
@@ -655,6 +693,191 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
 
     @override
     def build_submitter(self) -> PythonSubmitter:
-        return PythonNotebookWorkflowSubmitter.create(
-            self.api_client, self.tracker, self.parsed_model
+        return PythonNotebookWorkflowSubmitter.create(self.api_client,
+                                                      self.tracker,
+                                                      self.parsed_model)
+
+
+class SessionStateManager:
+    """Manages session state to prevent leakage between Python models."""
+
+    @staticmethod
+    def cleanup_temp_views(spark: "SparkSession") -> None:
+        """Drop temporary views created during model execution."""
+        try:
+            # Get list of temp views from the current database
+            temp_views = [
+                row.viewName for row in spark.sql("SHOW VIEWS").collect()
+                if hasattr(row, "isTemporary") and row.isTemporary
+            ]
+            for view in temp_views:
+                try:
+                    spark.catalog.dropTempView(view)
+                    logger.debug(f"Dropped temp view: {view}")
+                except Exception as e:
+                    logger.warning(f"Failed to drop temp view {view}: {e}")
+        except Exception as e:
+            logger.debug(f"Could not list temp views for cleanup: {e}")
+
+    @staticmethod
+    def get_clean_exec_globals(spark: "SparkSession") -> dict[str, Any]:
+        """Return a clean execution context with minimal state."""
+        return {
+            "spark": spark,
+            "dbt": __import__("dbt"),
+            # Standard Python builtins are available by default
+        }
+
+
+class SessionPythonSubmitter(PythonSubmitter):
+    """Submitter for Python models using direct execution in current SparkSession.
+
+    NOTE: This does NOT collect data to the driver. The compiled code contains
+    df.write.saveAsTable() which writes directly to storage, just like API-based
+    submission methods.
+    """
+
+    def __init__(self, spark: "SparkSession"):
+        self._spark = spark
+        self._state_manager = SessionStateManager()
+
+    @override
+    def submit(self, compiled_code: str) -> None:
+        logger.debug("Executing Python model directly in SparkSession.")
+
+        try:
+            # Get clean execution context
+            exec_globals = self._state_manager.get_clean_exec_globals(
+                self._spark)
+
+            # Log a preview of the code being executed
+            preview_len = min(500, len(compiled_code))
+            logger.debug(
+                f"[Session Python] Executing code preview: {compiled_code[:preview_len]}..."
+            )
+
+            # Execute the compiled Python model code
+            # The compiled code will:
+            # 1. Execute model() function to get a DataFrame
+            # 2. Call df.write.saveAsTable() to persist to Delta
+            # 3. No collect() - data stays distributed
+            exec(compiled_code, exec_globals)
+
+            logger.debug(
+                "[Session Python] Model execution completed successfully")
+
+        except Exception as e:
+            logger.error(f"Python model execution failed: {e}")
+            raise DbtRuntimeError(f"Python model execution failed: {e}") from e
+
+        finally:
+            # Clean up temp views to prevent state leakage
+            try:
+                self._state_manager.cleanup_temp_views(self._spark)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Failed to cleanup temp views: {cleanup_error}")
+
+
+class SessionPythonJobHelper(PythonJobHelper):
+    """Helper for Python models executing directly in session mode.
+
+    This helper executes Python models directly in the current SparkSession
+    without using the Databricks API. It's designed for running dbt on
+    job clusters where the SparkSession is already available.
+    """
+
+    tracker = PythonRunTracker()
+
+    def __init__(self, parsed_model: dict,
+                 credentials: DatabricksCredentials) -> None:
+        self.credentials = credentials
+        self.parsed_model = ParsedPythonModel(**parsed_model)
+
+        # Get SparkSession directly - no API client needed
+        import os
+        from pyspark.sql import SparkSession
+        from pyspark import SparkContext
+
+        # On Databricks, the SparkSession may already exist or we may need to create it
+        # Try multiple methods to get an existing session first
+        spark = None
+
+        # Method 1: Try to get from active SparkContext and create SparkSession from it
+        # This is the most reliable method on Databricks
+        try:
+            sc = SparkContext._active_spark_context
+            if sc is not None:
+                # Create SparkSession from existing SparkContext
+                # This avoids the need for a master URL
+                spark = SparkSession(sc)
+                logger.debug(
+                    "[Session Python] Got SparkSession from active SparkContext"
+                )
+        except Exception as e:
+            logger.debug(
+                f"[Session Python] Could not get SparkSession from SparkContext: {e}"
+            )
+
+        # Method 2: Try getActiveSession() (available in PySpark 3.0+)
+        if spark is None:
+            try:
+                spark = SparkSession.getActiveSession()
+                if spark is not None:
+                    logger.debug(
+                        "[Session Python] Got SparkSession from getActiveSession()"
+                    )
+            except (AttributeError, Exception) as e:
+                logger.debug(
+                    f"[Session Python] getActiveSession() not available or failed: {e}"
+                )
+
+        # Method 3: Try to get from global 'spark' variable (Databricks convention)
+        if spark is None:
+            try:
+                import __main__
+                if hasattr(__main__, 'spark'):
+                    spark = __main__.spark
+                    logger.debug(
+                        "[Session Python] Got SparkSession from __main__.spark"
+                    )
+            except Exception as e:
+                logger.debug(
+                    f"[Session Python] Could not get SparkSession from __main__.spark: {e}"
+                )
+
+        # If no existing SparkSession found, provide a clear error message
+        if spark is None:
+            databricks_runtime = os.getenv("DATABRICKS_RUNTIME_VERSION")
+            if databricks_runtime:
+                raise DbtRuntimeError(
+                    "[Session Python] Could not find an existing SparkSession. "
+                    "This typically happens when using the native 'dbt task' in Databricks Jobs, "
+                    "which does not provide a SparkSession context.\n\n"
+                    "Session mode is only compatible with:\n"
+                    "  - Databricks Notebooks (where 'spark' is pre-initialized)\n"
+                    "  - Python tasks that initialize SparkSession before running dbt\n"
+                    "  - Environments where SparkSession is already available\n\n"
+                    "For the native dbt task, use DBSQL mode instead (the default):\n"
+                    "  - Set 'method: dbsql' in your profile (or omit 'method' entirely)\n"
+                    "  - Configure 'host' and 'http_path' to connect to a SQL warehouse or cluster\n\n"
+                    f"Databricks runtime version: {databricks_runtime}")
+            else:
+                raise DbtRuntimeError(
+                    "[Session Python] Session mode requires a Databricks cluster environment "
+                    "with an active SparkSession. "
+                    "DATABRICKS_RUNTIME_VERSION environment variable not found. "
+                    "Ensure you are running on a Databricks cluster in a context where "
+                    "SparkSession is available (e.g., Notebook or Python task with Spark initialized)."
+                )
+
+        self._spark = spark
+        logger.debug(
+            f"[Session Python] Using SparkSession: {self._spark.sparkContext.applicationId}"
         )
+
+        self._submitter = SessionPythonSubmitter(self._spark)
+
+    def submit(self, compiled_code: str) -> None:
+        """Submit the compiled Python model for execution."""
+        self._submitter.submit(compiled_code)
