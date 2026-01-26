@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
@@ -11,6 +11,9 @@ from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
 
@@ -309,7 +312,7 @@ class PythonJobConfigCompiler:
                 additional_job_config["environments"] = [
                     {
                         "environment_key": self.environment_key,
-                        "spec": {"environment_version": "4", "dependencies": self.environment_deps},
+                        "spec": {"client": "2", "dependencies": self.environment_deps},
                     }
                 ]
         job_spec.update(self.cluster_spec)
@@ -658,3 +661,183 @@ class WorkflowPythonJobHelper(BaseDatabricksHelper):
         return PythonNotebookWorkflowSubmitter.create(
             self.api_client, self.tracker, self.parsed_model
         )
+
+
+class SessionStateManager:
+    """Manages session state to prevent leakage between Python models."""
+
+    @staticmethod
+    def cleanup_temp_views(spark: "SparkSession") -> None:
+        """Drop temporary views created during model execution."""
+        try:
+            # Get list of temp views from the current database
+            temp_views = [
+                row.viewName
+                for row in spark.sql("SHOW VIEWS").collect()
+                if hasattr(row, "isTemporary") and row.isTemporary
+            ]
+            for view in temp_views:
+                try:
+                    spark.catalog.dropTempView(view)
+                    logger.debug(f"Dropped temp view: {view}")
+                except Exception as e:
+                    logger.warning(f"Failed to drop temp view {view}: {e}")
+        except Exception as e:
+            logger.debug(f"Could not list temp views for cleanup: {e}")
+
+    @staticmethod
+    def get_clean_exec_globals(spark: "SparkSession") -> dict[str, Any]:
+        """Return a clean execution context with minimal state."""
+        return {
+            "spark": spark,
+            "dbt": __import__("dbt"),
+            # Standard Python builtins are available by default
+        }
+
+
+class SessionPythonSubmitter(PythonSubmitter):
+    """Submitter for Python models using direct execution in current SparkSession.
+
+    NOTE: This does NOT collect data to the driver. The compiled code contains
+    df.write.saveAsTable() which writes directly to storage, just like API-based
+    submission methods.
+    """
+
+    def __init__(self, spark: "SparkSession"):
+        self._spark = spark
+        self._state_manager = SessionStateManager()
+
+    @override
+    def submit(self, compiled_code: str) -> None:
+        logger.debug("Executing Python model directly in SparkSession.")
+
+        try:
+            # Get clean execution context
+            exec_globals = self._state_manager.get_clean_exec_globals(self._spark)
+
+            # Log a preview of the code being executed
+            preview_len = min(500, len(compiled_code))
+            logger.debug(
+                f"[Session Python] Executing code preview: {compiled_code[:preview_len]}..."
+            )
+
+            # Execute the compiled Python model code
+            # The compiled code will:
+            # 1. Execute model() function to get a DataFrame
+            # 2. Call df.write.saveAsTable() to persist to Delta
+            # 3. No collect() - data stays distributed
+            exec(compiled_code, exec_globals)
+
+            logger.debug("[Session Python] Model execution completed successfully")
+
+        except Exception as e:
+            logger.error(f"Python model execution failed: {e}")
+            raise DbtRuntimeError(f"Python model execution failed: {e}") from e
+
+        finally:
+            # Clean up temp views to prevent state leakage
+            try:
+                self._state_manager.cleanup_temp_views(self._spark)
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup temp views: {cleanup_error}")
+
+
+class SessionPythonJobHelper(PythonJobHelper):
+    """Helper for Python models executing directly in session mode.
+
+    This helper executes Python models directly in the current SparkSession
+    without using the Databricks API. It's designed for running dbt on
+    job clusters where the SparkSession is already available.
+    """
+
+    tracker = PythonRunTracker()
+
+    def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
+        self.credentials = credentials
+        self.parsed_model = ParsedPythonModel(**parsed_model)
+
+        # Get SparkSession directly - no API client needed
+        import os
+
+        from pyspark import SparkContext
+        from pyspark.sql import SparkSession
+
+        # On Databricks, the SparkSession may already exist or we may need to create it
+        # Try multiple methods to get an existing session first
+        spark = None
+
+        # Method 1: Try to get from active SparkContext and create SparkSession from it
+        # This is the most reliable method on Databricks
+        try:
+            sc = SparkContext._active_spark_context
+            if sc is not None:
+                # Create SparkSession from existing SparkContext
+                # This avoids the need for a master URL
+                spark = SparkSession(sc)
+                logger.debug("[Session Python] Got SparkSession from active SparkContext")
+        except Exception as e:
+            logger.debug(f"[Session Python] Could not get SparkSession from SparkContext: {e}")
+
+        # Method 2: Try getActiveSession() (available in PySpark 3.0+)
+        if spark is None:
+            try:
+                spark = SparkSession.getActiveSession()
+                if spark is not None:
+                    logger.debug("[Session Python] Got SparkSession from getActiveSession()")
+            except (AttributeError, Exception) as e:
+                logger.debug(f"[Session Python] getActiveSession() not available or failed: {e}")
+
+        # Method 3: Try to get from global 'spark' variable (Databricks convention)
+        if spark is None:
+            try:
+                import __main__
+
+                if hasattr(__main__, "spark"):
+                    spark = __main__.spark
+                    logger.debug("[Session Python] Got SparkSession from __main__.spark")
+            except Exception as e:
+                logger.debug(
+                    f"[Session Python] Could not get SparkSession from __main__.spark: {e}"
+                )
+
+        # If no existing SparkSession found, provide a clear error message
+        if spark is None:
+            databricks_runtime = os.getenv("DATABRICKS_RUNTIME_VERSION")
+            if databricks_runtime:
+                raise DbtRuntimeError(f"""
+                    [Session Python] Could not find an existing SparkSession.
+                    This typically happens when using the native 'dbt task' in Databricks Jobs,
+                    which does not provide a SparkSession context.
+                    Session mode is only compatible with:
+                    - Databricks Notebooks (where 'spark' is pre-initialized)
+                    - Python tasks that initialize SparkSession before running dbt
+                    - Environments where SparkSession is already available
+                    For the native dbt task, use DBSQL mode instead (the default):
+                    - Set 'method: dbsql' in your profile (or omit 'method' entirely)
+                    - Configure 'host' and 'http_path' to connect to a SQL warehouse
+                    or cluster.
+                    \n
+                    Databricks runtime version: {databricks_runtime}
+                    """)
+            else:
+                raise DbtRuntimeError(f"""
+                    [Session Python] Session mode requires a Databricks cluster environment
+                    with an active SparkSession.
+                    DATABRICKS_RUNTIME_VERSION environment variable not found.
+                    Ensure you are running on a Databricks cluster in a context where
+                    SparkSession is available (e.g., Notebook or Python task with
+                    Spark initialized).
+                    \n
+                    Databricks runtime version: {databricks_runtime}
+                    """)
+
+        self._spark = spark
+        logger.debug(
+            f"[Session Python] Using SparkSession: {self._spark.sparkContext.applicationId}"
+        )
+
+        self._submitter = SessionPythonSubmitter(self._spark)
+
+    def submit(self, compiled_code: str) -> None:
+        """Submit the compiled Python model for execution."""
+        self._submitter.submit(compiled_code)
