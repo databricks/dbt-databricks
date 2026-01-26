@@ -37,16 +37,12 @@ class SessionCursorWrapper:
 
     def __init__(self, spark: "SparkSession"):
         self._spark = spark
-        self._df: Optional["DataFrame"] = None
-        self._rows: Optional[list["Row"]] = None
+        self._df: Optional[DataFrame] = None
+        self._rows: Optional[list[Row]] = None
         self._query_id: str = "session-query"
         self.open = True
 
-    def execute(
-            self,
-            sql: str,
-            bindings: Optional[Sequence[Any]] = None
-    ) -> "SessionCursorWrapper":
+    def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> "SessionCursorWrapper":
         """Execute a SQL statement and store the resulting DataFrame."""
         cleaned_sql = SqlUtils.clean_sql(sql)
 
@@ -176,8 +172,9 @@ class DatabricksSessionHandle:
             A new DatabricksSessionHandle instance
         """
         import os
-        from pyspark.sql import SparkSession
+
         from pyspark import SparkContext
+        from pyspark.sql import SparkSession
 
         # On Databricks, the SparkSession may already exist or we may need to create it
         # Try multiple methods to get an existing session first
@@ -202,43 +199,51 @@ class DatabricksSessionHandle:
                 if spark is not None:
                     logger.debug("Got SparkSession from getActiveSession()")
             except (AttributeError, Exception) as e:
-                logger.debug(
-                    f"getActiveSession() not available or failed: {e}")
+                logger.debug(f"getActiveSession() not available or failed: {e}")
 
         # Method 3: Try to get from global 'spark' variable (Databricks convention)
         if spark is None:
             try:
                 import __main__
-                if hasattr(__main__, 'spark'):
+
+                if hasattr(__main__, "spark"):
                     spark = __main__.spark
                     logger.debug("Got SparkSession from __main__.spark")
             except Exception as e:
-                logger.debug(
-                    f"Could not get SparkSession from __main__.spark: {e}")
+                logger.debug(f"Could not get SparkSession from __main__.spark: {e}")
 
         # If no existing SparkSession found, provide a clear error message
         if spark is None:
             databricks_runtime = os.getenv("DATABRICKS_RUNTIME_VERSION")
             if databricks_runtime:
                 raise DbtRuntimeError(
-                    "Session mode could not find an existing SparkSession. "
-                    "This typically happens when using the native 'dbt task' in Databricks Jobs, "
-                    "which does not provide a SparkSession context.\n\n"
-                    "Session mode is only compatible with:\n"
-                    "  - Databricks Notebooks (where 'spark' is pre-initialized)\n"
-                    "  - Python tasks that initialize SparkSession before running dbt\n"
-                    "  - Environments where SparkSession is already available\n\n"
-                    "For the native dbt task, use DBSQL mode instead (the default):\n"
-                    "  - Set 'method: dbsql' in your profile (or omit 'method' entirely)\n"
-                    "  - Configure 'host' and 'http_path' to connect to a SQL warehouse or cluster\n\n"
-                    f"Databricks runtime version: {databricks_runtime}")
-            else:
-                raise DbtRuntimeError(
-                    "Session mode requires a Databricks cluster environment with an active SparkSession. "
-                    "DATABRICKS_RUNTIME_VERSION environment variable not found. "
-                    "Ensure you are running on a Databricks cluster in a context where "
-                    "SparkSession is available (e.g., Notebook or Python task with Spark initialized)."
+                    f"""Session mode could not find an existing SparkSession.
+                    This typically happens when using the native 'dbt task' in Databricks Jobs,
+                    which does not provide a SparkSession context.
+                    \n
+                    Session mode is only compatible with:
+                    - Databricks Notebooks (where 'spark' is pre-initialized)
+                    - Python tasks that initialize SparkSession before running dbt
+                    - Environments where SparkSession is already available
+                    \n
+                    For the native dbt task, use DBSQL mode instead (the default):
+                    - Set 'method: dbsql' in your profile (or omit 'method' entirely)
+                    - Configure 'host' and 'http_path' to connect to a SQL warehouse or cluster
+                    \n
+                    Databricks runtime version: {databricks_runtime}
+                """
                 )
+            else:
+                raise DbtRuntimeError(f"""
+                    Session mode requires a Databricks cluster environment with
+                    an active SparkSession.
+                    DATABRICKS_RUNTIME_VERSION environment variable not found.
+                    Ensure you are running on a Databricks cluster in a context where
+                    SparkSession is available (e.g., Notebook or Python task with
+                    Spark initialized).
+                    \n
+                    Databricks runtime version: {databricks_runtime}
+                    """)
 
         # Set catalog if provided
         if catalog:
@@ -273,18 +278,16 @@ class DatabricksSessionHandle:
         if self._dbr_version is None:
             try:
                 version_str = self._spark.conf.get(
-                    "spark.databricks.clusterUsageTags.sparkVersion", "")
+                    "spark.databricks.clusterUsageTags.sparkVersion", ""
+                )
                 if version_str:
-                    self._dbr_version = SqlUtils.extract_dbr_version(
-                        version_str)
+                    self._dbr_version = SqlUtils.extract_dbr_version(version_str)
                 else:
                     # If we can't get the version, assume latest
-                    logger.warning(
-                        "Could not determine DBR version, assuming latest")
+                    logger.warning("Could not determine DBR version, assuming latest")
                     self._dbr_version = (sys.maxsize, sys.maxsize)
             except Exception as e:
-                logger.warning(
-                    f"Failed to get DBR version: {e}, assuming latest")
+                logger.warning(f"Failed to get DBR version: {e}, assuming latest")
                 self._dbr_version = (sys.maxsize, sys.maxsize)
         return self._dbr_version
 
@@ -297,14 +300,10 @@ class DatabricksSessionHandle:
         except Exception:
             return "session-unknown"
 
-    def execute(
-            self,
-            sql: str,
-            bindings: Optional[Sequence[Any]] = None) -> SessionCursorWrapper:
+    def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> SessionCursorWrapper:
         """Execute a SQL statement and return a cursor wrapper."""
         if not self.open:
-            raise DbtRuntimeError(
-                "Attempting to execute on a closed session handle")
+            raise DbtRuntimeError("Attempting to execute on a closed session handle")
 
         if self._cursor:
             self._cursor.close()
@@ -312,9 +311,7 @@ class DatabricksSessionHandle:
         self._cursor = SessionCursorWrapper(self._spark)
         return self._cursor.execute(sql, bindings)
 
-    def list_schemas(self,
-                     database: str,
-                     schema: Optional[str] = None) -> SessionCursorWrapper:
+    def list_schemas(self, database: str, schema: Optional[str] = None) -> SessionCursorWrapper:
         """List schemas in the given database/catalog."""
         if schema:
             sql = f"SHOW SCHEMAS IN {database} LIKE '{schema}'"

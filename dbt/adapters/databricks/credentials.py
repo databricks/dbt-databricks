@@ -27,8 +27,7 @@ DATABRICKS_RUNTIME_VERSION_ENV = "DATABRICKS_RUNTIME_VERSION"
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
-EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(
-    r"/?sql/protocolv1/o/\d+/(.*)")
+EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 REDIRECT_URL = "http://localhost:8020"
@@ -84,8 +83,7 @@ class DatabricksCredentials(Credentials):
         data = super().__pre_deserialize__(data)
         data.setdefault("database", None)
         data.setdefault("connection_parameters", {})
-        data["connection_parameters"].setdefault(
-            "_retry_stop_after_attempts_count", 30)
+        data["connection_parameters"].setdefault("_retry_stop_after_attempts_count", 30)
         data["connection_parameters"].setdefault("_retry_delay_max", 60)
         return data
 
@@ -99,48 +97,48 @@ class DatabricksCredentials(Credentials):
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
             if self.database is None:
-                self.database = session_properties[
-                    CATALOG_KEY_IN_SESSION_PROPERTIES]
+                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
                 del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
             else:
                 raise DbtValidationError(
                     f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
-                    'in session_properties) all map to "database"')
+                    'in session_properties) all map to "database"'
+                )
         self.session_properties = session_properties
 
         if self.database is not None:
             database = self.database.strip()
             if not database:
-                raise DbtValidationError(
-                    f"Invalid catalog name : `{self.database}`.")
+                raise DbtValidationError(f"Invalid catalog name : `{self.database}`.")
             self.database = database
         else:
             self.database = "hive_metastore"
 
         connection_parameters = self.connection_parameters or {}
         for key in (
-                "server_hostname",
-                "http_path",
-                "access_token",
-                "client_id",
-                "client_secret",
-                "session_configuration",
-                "catalog",
-                "schema",
-                "_user_agent_entry",
-                "user_agent_entry",
+            "server_hostname",
+            "http_path",
+            "access_token",
+            "client_id",
+            "client_secret",
+            "session_configuration",
+            "catalog",
+            "schema",
+            "_user_agent_entry",
+            "user_agent_entry",
         ):
             if key in connection_parameters:
-                raise DbtValidationError(
-                    f"The connection parameter `{key}` is reserved.")
+                raise DbtValidationError(f"The connection parameter `{key}` is reserved.")
         if "http_headers" in connection_parameters:
             http_headers = connection_parameters["http_headers"]
             if not isinstance(http_headers, dict) or any(
-                    not isinstance(key, str) or not isinstance(value, str)
-                    for key, value in http_headers.items()):
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in http_headers.items()
+            ):
                 raise DbtValidationError(
                     "The connection parameter `http_headers` should be dict of strings: "
-                    f"{http_headers}.")
+                    f"{http_headers}."
+                )
         if "_socket_timeout" not in connection_parameters:
             connection_parameters["_socket_timeout"] = 600
         self.connection_parameters = connection_parameters
@@ -150,15 +148,13 @@ class DatabricksCredentials(Credentials):
 
         # Only create credentials manager for non-session mode
         if not self.is_session_mode:
-            self._credentials_manager = DatabricksCredentialManager.create_from(
-                self)
+            self._credentials_manager = DatabricksCredentialManager.create_from(self)
 
     def _init_connection_method(self) -> None:
         """Initialize and validate the connection method."""
         if self.method is None:
             # Auto-detect session mode
-            if os.getenv(DBT_DATABRICKS_SESSION_MODE_ENV,
-                         "").lower() == "true":
+            if os.getenv(DBT_DATABRICKS_SESSION_MODE_ENV, "").lower() == "true":
                 self.method = CONNECTION_METHOD_SESSION
             elif os.getenv(DATABRICKS_RUNTIME_VERSION_ENV) and not self.host:
                 # Running on Databricks cluster without host configured
@@ -167,8 +163,7 @@ class DatabricksCredentials(Credentials):
                 self.method = CONNECTION_METHOD_DBSQL
 
         # Validate method value
-        if self.method not in (CONNECTION_METHOD_SESSION,
-                               CONNECTION_METHOD_DBSQL):
+        if self.method not in (CONNECTION_METHOD_SESSION, CONNECTION_METHOD_DBSQL):
             raise DbtValidationError(
                 f"Invalid connection method: '{self.method}'. "
                 f"Must be '{CONNECTION_METHOD_SESSION}' or '{CONNECTION_METHOD_DBSQL}'."
@@ -203,8 +198,7 @@ class DatabricksCredentials(Credentials):
         """Validate credentials for DBSQL connector mode."""
         for key in ["host", "http_path"]:
             if not getattr(self, key):
-                raise DbtConfigError(
-                    f"The config '{key}' is required to connect to Databricks")
+                raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
         if not self.token and self.auth_type != "oauth":
             raise DbtConfigError(
                 "The config `auth_type: oauth` is required when not using access token"
@@ -213,13 +207,16 @@ class DatabricksCredentials(Credentials):
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
                 "The config 'client_id' is required to connect "
-                "to Databricks when 'client_secret' is present")
+                "to Databricks when 'client_secret' is present"
+            )
 
         if (not self.azure_client_id and self.azure_client_secret) or (
-                self.azure_client_id and not self.azure_client_secret):
+            self.azure_client_id and not self.azure_client_secret
+        ):
             raise DbtConfigError(
                 "The config 'azure_client_id' and 'azure_client_secret' "
-                "must be both present or both absent")
+                "must be both present or both absent"
+            )
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
@@ -228,23 +225,25 @@ class DatabricksCredentials(Credentials):
             # Thrift doesn't allow nested () so we need to ensure
             # that the passed user agent is valid.
             if not DBT_DATABRICKS_INVOCATION_ENV_REGEX.search(invocation_env):
-                raise DbtValidationError(
-                    f"Invalid invocation environment: {invocation_env}")
+                raise DbtValidationError(f"Invalid invocation environment: {invocation_env}")
         return invocation_env
 
     @classmethod
-    def get_all_http_headers(
-            cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
+    def get_all_http_headers(cls, user_http_session_headers: dict[str, str]) -> dict[str, str]:
         http_session_headers_str = GlobalState.get_http_session_headers()
 
-        http_session_headers_dict: dict[str, str] = ({
-            k:
-            v if isinstance(v, str) else json.dumps(v)
-            for k, v in json.loads(http_session_headers_str).items()
-        } if http_session_headers_str is not None else {})
+        http_session_headers_dict: dict[str, str] = (
+            {
+                k: v if isinstance(v, str) else json.dumps(v)
+                for k, v in json.loads(http_session_headers_str).items()
+            }
+            if http_session_headers_str is not None
+            else {}
+        )
 
-        intersect_http_header_keys = (user_http_session_headers.keys()
-                                      & http_session_headers_dict.keys())
+        intersect_http_header_keys = (
+            user_http_session_headers.keys() & http_session_headers_dict.keys()
+        )
 
         if len(intersect_http_header_keys) > 0:
             raise DbtValidationError(
@@ -266,19 +265,13 @@ class DatabricksCredentials(Credentials):
             return f"session://{self.database}/{self.schema}"
         return cast(str, self.host)
 
-    def connection_info(self,
-                        *,
-                        with_aliases: bool = False
-                        ) -> Iterable[tuple[str, Any]]:
+    def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
         as_dict = self.to_dict(omit_none=False)
         connection_keys = set(self._connection_keys(with_aliases=with_aliases))
         aliases: list[str] = []
         if with_aliases:
-            aliases = [
-                k for k, v in self._ALIASES.items() if v in connection_keys
-            ]
-        for key in itertools.chain(
-                self._connection_keys(with_aliases=with_aliases), aliases):
+            aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
+        for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
                 yield key, as_dict[key]
 
@@ -291,9 +284,7 @@ class DatabricksCredentials(Credentials):
             connection_keys.append("session_properties")
         return tuple(connection_keys)
 
-    def _connection_keys(self,
-                         *,
-                         with_aliases: bool = False) -> tuple[str, ...]:
+    def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
         # is called from only:
         #
@@ -326,8 +317,7 @@ class DatabricksCredentials(Credentials):
 
     @property
     def cluster_id(self) -> Optional[str]:
-        return self.extract_cluster_id(
-            self.http_path)  # type: ignore[arg-type]
+        return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
     def authenticate(self) -> Optional["DatabricksCredentialManager"]:
         """Authenticate and return credentials manager.
@@ -376,9 +366,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     auth_type: Optional[str] = None
 
     @classmethod
-    def create_from(
-            cls, credentials: DatabricksCredentials
-    ) -> "DatabricksCredentialManager":
+    def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
         return DatabricksCredentialManager(
             host=credentials.host or "",
             token=credentials.token,
@@ -443,10 +431,8 @@ class DatabricksCredentialManager(DataClassDictMixin):
             self._config = self.authenticate_with_external_browser()
         else:
             auth_methods = {
-                "oauth-m2m":
-                self.authenticate_with_oauth_m2m,
-                "legacy-azure-client-secret":
-                self.legacy_authenticate_with_azure_client_secret,
+                "oauth-m2m": self.authenticate_with_oauth_m2m,
+                "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
             }
 
             # If the secret starts with dose, high chance is it is a databricks secret
@@ -468,20 +454,18 @@ class DatabricksCredentialManager(DataClassDictMixin):
                     break  # Exit loop if authentication is successful
                 except Exception as e:
                     exceptions.append((auth_type, e))
-                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(
-                        auth_sequence) else None
+                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
                     if next_auth_type:
                         logger.warning(
                             f"Failed to authenticate with {auth_type}, "
-                            f"trying {next_auth_type} next. Error: {e}")
+                            f"trying {next_auth_type} next. Error: {e}"
+                        )
                     else:
                         logger.error(
                             f"Failed to authenticate with {auth_type}. "
                             f"No more authentication methods to try. Error: {e}"
                         )
-                        raise Exception(
-                            f"All authentication methods failed. Details: {exceptions}"
-                        )
+                        raise Exception(f"All authentication methods failed. Details: {exceptions}")
 
     @property
     def api_client(self) -> WorkspaceClient:
@@ -489,7 +473,6 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     @property
     def credentials_provider(self) -> PySQLCredentialProvider:
-
         def inner() -> Callable[[], dict[str, str]]:
             return self.header_factory
 

@@ -96,7 +96,7 @@ class TestSessionCursorWrapper:
         result = cursor.fetchmany(2)
 
         assert len(result) == 2
-        assert result == [(0, ), (1, )]
+        assert result == [(0,), (1,)]
 
     def test_description_returns_column_info(self, cursor, mock_spark):
         """Test that description returns column metadata."""
@@ -157,12 +157,10 @@ class TestSessionCursorWrapper:
         mock_df = MagicMock()
         mock_spark.sql.return_value = mock_df
 
-        cursor.execute("INSERT INTO test VALUES (%s, %s)",
-                       ("k. A.", "O'Brien"))
+        cursor.execute("INSERT INTO test VALUES (%s, %s)", ("k. A.", "O'Brien"))
 
         # Special characters should be properly quoted and escaped
-        mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES ('k. A.', 'O''Brien')")
+        mock_spark.sql.assert_called_once_with("INSERT INTO test VALUES ('k. A.', 'O''Brien')")
 
     def test_execute_with_null_value(self, cursor, mock_spark):
         """Test that execute handles NULL values correctly."""
@@ -172,8 +170,7 @@ class TestSessionCursorWrapper:
         cursor.execute("INSERT INTO test VALUES (%s, %s)", (1, None))
 
         # NULL should be formatted as SQL NULL
-        mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES (1, NULL)")
+        mock_spark.sql.assert_called_once_with("INSERT INTO test VALUES (1, NULL)")
 
     def test_execute_with_boolean_values(self, cursor, mock_spark):
         """Test that execute handles boolean values correctly."""
@@ -183,8 +180,7 @@ class TestSessionCursorWrapper:
         cursor.execute("INSERT INTO test VALUES (%s, %s)", (True, False))
 
         # Booleans should be formatted as TRUE/FALSE
-        mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES (TRUE, FALSE)")
+        mock_spark.sql.assert_called_once_with("INSERT INTO test VALUES (TRUE, FALSE)")
 
     def test_execute_with_numeric_values(self, cursor, mock_spark):
         """Test that execute handles numeric values correctly."""
@@ -194,32 +190,31 @@ class TestSessionCursorWrapper:
         cursor.execute("INSERT INTO test VALUES (%s, %s, %s)", (42, 3.14, 100))
 
         # Numbers should remain unquoted
-        mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES (42, 3.14, 100)")
+        mock_spark.sql.assert_called_once_with("INSERT INTO test VALUES (42, 3.14, 100)")
 
     def test_execute_with_comma_in_string(self, cursor, mock_spark):
         """Test that execute properly handles strings containing commas."""
         mock_df = MagicMock()
         mock_spark.sql.return_value = mock_df
 
-        cursor.execute("INSERT INTO test VALUES (%s)",
-                       ("Freie und Hansestadt Hamburg", ))
+        cursor.execute("INSERT INTO test VALUES (%s)", ("Freie und Hansestadt Hamburg",))
 
         # String with spaces and special characters should be properly quoted
         mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES ('Freie und Hansestadt Hamburg')")
+            "INSERT INTO test VALUES ('Freie und Hansestadt Hamburg')"
+        )
 
     def test_execute_with_parentheses_in_string(self, cursor, mock_spark):
         """Test that execute properly handles strings containing parentheses."""
         mock_df = MagicMock()
         mock_spark.sql.return_value = mock_df
 
-        cursor.execute("INSERT INTO test VALUES (%s)",
-                       ("Haus in Planung (projektiert)", ))
+        cursor.execute("INSERT INTO test VALUES (%s)", ("Haus in Planung (projektiert)",))
 
         # String with parentheses should be properly quoted
         mock_spark.sql.assert_called_once_with(
-            "INSERT INTO test VALUES ('Haus in Planung (projektiert)')")
+            "INSERT INTO test VALUES ('Haus in Planung (projektiert)')"
+        )
 
 
 class TestDatabricksSessionHandle:
@@ -303,8 +298,7 @@ class TestDatabricksSessionHandle:
 
         handle.list_schemas("my_catalog", "my_schema")
 
-        mock_spark.sql.assert_called_with(
-            "SHOW SCHEMAS IN my_catalog LIKE 'my_schema'")
+        mock_spark.sql.assert_called_with("SHOW SCHEMAS IN my_catalog LIKE 'my_schema'")
 
     def test_list_tables_executes_show_tables(self, handle, mock_spark):
         """Test that list_tables executes SHOW TABLES."""
@@ -313,8 +307,7 @@ class TestDatabricksSessionHandle:
 
         handle.list_tables("my_catalog", "my_schema")
 
-        mock_spark.sql.assert_called_with(
-            "SHOW TABLES IN my_catalog.my_schema")
+        mock_spark.sql.assert_called_with("SHOW TABLES IN my_catalog.my_schema")
 
     def test_create_gets_existing_spark_session(self):
         """Test that create finds an existing SparkSession via SparkContext."""
@@ -323,11 +316,8 @@ class TestDatabricksSessionHandle:
         mock_sc = MagicMock()
 
         with patch.dict(
-                "sys.modules",
-            {
-                "pyspark": MagicMock(),
-                "pyspark.sql": MagicMock()
-            },
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
         ):
             import sys
 
@@ -339,8 +329,7 @@ class TestDatabricksSessionHandle:
             handle = DatabricksSessionHandle.create()
 
             # Should have created SparkSession from SparkContext
-            sys.modules["pyspark.sql"].SparkSession.assert_called_once_with(
-                mock_sc)
+            sys.modules["pyspark.sql"].SparkSession.assert_called_once_with(mock_sc)
             assert handle.session_id == "app-456"
 
     def test_create_sets_catalog(self):
@@ -350,11 +339,8 @@ class TestDatabricksSessionHandle:
         mock_sc = MagicMock()
 
         with patch.dict(
-                "sys.modules",
-            {
-                "pyspark": MagicMock(),
-                "pyspark.sql": MagicMock()
-            },
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
         ):
             import sys
 
@@ -363,8 +349,7 @@ class TestDatabricksSessionHandle:
 
             DatabricksSessionHandle.create(catalog="my_catalog")
 
-            mock_spark.catalog.setCurrentCatalog.assert_called_once_with(
-                "my_catalog")
+            mock_spark.catalog.setCurrentCatalog.assert_called_once_with("my_catalog")
 
     def test_create_does_not_set_schema(self):
         """Test that create does NOT set the schema/database.
@@ -380,11 +365,8 @@ class TestDatabricksSessionHandle:
         mock_sc = MagicMock()
 
         with patch.dict(
-                "sys.modules",
-            {
-                "pyspark": MagicMock(),
-                "pyspark.sql": MagicMock()
-            },
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
         ):
             import sys
 
@@ -403,21 +385,15 @@ class TestDatabricksSessionHandle:
         mock_sc = MagicMock()
 
         with patch.dict(
-                "sys.modules",
-            {
-                "pyspark": MagicMock(),
-                "pyspark.sql": MagicMock()
-            },
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
         ):
             import sys
 
             sys.modules["pyspark"].SparkContext._active_spark_context = mock_sc
             sys.modules["pyspark.sql"].SparkSession.return_value = mock_spark
 
-            DatabricksSessionHandle.create(session_properties={
-                "key1": "value1",
-                "key2": 123
-            })
+            DatabricksSessionHandle.create(session_properties={"key1": "value1", "key2": 123})
 
             mock_spark.conf.set.assert_any_call("key1", "value1")
             mock_spark.conf.set.assert_any_call("key2", "123")

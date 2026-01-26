@@ -19,7 +19,6 @@ from dbt.adapters.databricks.utils import QueryTagsUtils
 if TYPE_CHECKING:
     pass
 
-
 CursorOp = Callable[[Cursor], None]
 CursorExecOp = Callable[[Cursor], Cursor]
 CursorWrapperOp = Callable[["CursorWrapper"], None]
@@ -292,20 +291,20 @@ class SqlUtils:
     def format_bindings_for_sql(bindings: Optional[Sequence[Any]]) -> Optional[Sequence[str]]:
         """
         Format bindings as SQL literals for string substitution in session mode.
-        
+
         This method properly quotes string values and handles special cases to ensure
         SQL injection safety and correct SQL syntax. Used when executing SQL via
         SparkSession.sql() which doesn't support parameterized queries.
-        
+
         Args:
             bindings: Sequence of binding values (strings, numbers, None, etc.)
-            
+
         Returns:
             Sequence of SQL literal strings, or None if bindings is None/empty
         """
         if not bindings:
             return None
-        
+
         formatted = []
         for value in bindings:
             if value is None:
@@ -326,7 +325,7 @@ class SqlUtils:
                 # For other types, convert to string and quote
                 escaped = str(value).replace("'", "''")
                 formatted.append(f"'{escaped}'")
-        
+
         return formatted
 
     @staticmethod
