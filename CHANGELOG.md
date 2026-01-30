@@ -1,11 +1,17 @@
+## dbt-databricks 1.12.0 (TBD)
+
+- Add support for metric views as a materialization ([1285](https://github.com/databricks/dbt-databricks/pull/1285))
+
 ## dbt-databricks 1.11.4 (TBD)
 
 ### Features
+
 - Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
 - Add support for Row Filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 
 ### Fixes
-- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281)) 
+
+- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281))
 
 ## dbt-databricks 1.11.3 (Dec 5, 2025)
 
