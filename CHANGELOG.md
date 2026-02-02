@@ -3,6 +3,7 @@
 ### Fixes
 
 - Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
+- Track tblproperties which are managed by dbt, rather than relying on ignore list
 
 ## dbt-databricks 1.11.4 (Jan 12, 2026)
 
