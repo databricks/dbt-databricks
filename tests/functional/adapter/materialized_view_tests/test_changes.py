@@ -19,7 +19,9 @@ from tests.functional.adapter.materialized_view_tests import fixtures
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
+        k: v
+        for k, v in tblproperties.tblproperties.items()
+        if k not in ["dbt.tblproperties.managedKeys"]
     }
     assert final_tblproperties == expected
 
@@ -58,7 +60,7 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     def change_config_via_replace(project, materialized_view):
         initial_model = util.get_model_file(project, materialized_view)
         new_model = (
-            initial_model.replace("partition_by='id',", "")
+            initial_model.replace("partition_by='id',", "partition_by='value',")
             .replace("select *", "select id, value")
             .replace("'key': 'value'", "'other': 'other'")
         )
@@ -69,7 +71,7 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
         with util.get_connection(project.adapter):
             results = project.adapter.get_relation_config(materialized_view)
         assert isinstance(results, MaterializedViewConfig)
-        assert results.config["partition_by"].partition_by == []
+        assert results.config["partition_by"].partition_by == ["value"]
         assert results.config["query"].query.startswith("select id, value")
         _check_tblproperties(results.config["tblproperties"], {"other": "other"})
 
