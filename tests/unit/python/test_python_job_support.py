@@ -40,6 +40,8 @@ class TestPythonNotebookUploader:
         parsed_model.catalog = "catalog"
         parsed_model.schema_ = "schema"
         parsed_model.identifier = identifier
+        parsed_model.config.notebook_scoped_libraries = False
+        parsed_model.config.packages = []
         return PythonNotebookUploader(client, parsed_model)
 
     def test_upload__golden_path(self, uploader, client, compiled_code, workdir, identifier):
@@ -220,6 +222,29 @@ class TestGetLibraryConfig:
             ]
         }
 
+    def test_get_library_config__notebook_scoped_packages_excluded(self):
+        config = python_submissions.get_library_config(
+            ["package1", "package2"], None, [], notebook_scoped_libraries=True
+        )
+        assert config == {"libraries": []}
+
+    def test_get_library_config__notebook_scoped_with_additional_libs(self):
+        config = python_submissions.get_library_config(
+            ["package1", "package2"],
+            None,
+            [{"jar": "s3://mybucket/myjar.jar"}],
+            notebook_scoped_libraries=True,
+        )
+        assert config == {"libraries": [{"jar": "s3://mybucket/myjar.jar"}]}
+
+    def test_get_library_config__notebook_scoped_false_includes_packages(self):
+        config = python_submissions.get_library_config(
+            ["package1", "package2"], None, [], notebook_scoped_libraries=False
+        )
+        assert config == {
+            "libraries": [{"pypi": {"package": "package1"}}, {"pypi": {"package": "package2"}}]
+        }
+
 
 class TestPythonJobConfigCompiler:
     @pytest.fixture
@@ -232,6 +257,7 @@ class TestPythonJobConfigCompiler:
         parsed_model.run_name = run_name
         parsed_model.config.packages = []
         parsed_model.config.additional_libs = []
+        parsed_model.config.notebook_scoped_libraries = False
         return run_name
 
     @pytest.fixture
@@ -383,4 +409,39 @@ class TestPythonJobConfigCompiler:
         # Should have user's dependencies, not auto-generated ones
         assert details.additional_job_config["environments"][0]["spec"]["dependencies"] == [
             "requests"
+        ]
+
+    def test_compile__notebook_scoped_libraries_excludes_packages(
+        self, client, permission_builder, parsed_model, run_name
+    ):
+        parsed_model.config.packages = ["pandas", "numpy"]
+        parsed_model.config.index_url = None
+        parsed_model.config.notebook_scoped_libraries = True
+        parsed_model.config.environment_key = None
+        parsed_model.config.python_job_config.dict.return_value = {}
+
+        permission_builder.build_job_permissions.return_value = []
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
+        details = compiler.compile("path")
+
+        # Libraries should be empty since packages are notebook-scoped
+        assert details.job_spec["libraries"] == []
+
+    def test_compile__notebook_scoped_false_includes_packages(
+        self, client, permission_builder, parsed_model, run_name
+    ):
+        parsed_model.config.packages = ["pandas", "numpy"]
+        parsed_model.config.index_url = None
+        parsed_model.config.notebook_scoped_libraries = False
+        parsed_model.config.environment_key = None
+        parsed_model.config.python_job_config.dict.return_value = {}
+
+        permission_builder.build_job_permissions.return_value = []
+        compiler = PythonJobConfigCompiler(client, permission_builder, parsed_model, {})
+        details = compiler.compile("path")
+
+        # Libraries should include packages
+        assert details.job_spec["libraries"] == [
+            {"pypi": {"package": "pandas"}},
+            {"pypi": {"package": "numpy"}},
         ]
