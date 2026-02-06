@@ -49,11 +49,11 @@ from dbt.adapters.databricks.events.other_events import QueryError
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
+from dbt.adapters.databricks.session import DatabricksSessionHandle, SessionCursorWrapper
 from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
 
 if TYPE_CHECKING:
     from agate import Table
-
 
 DATABRICKS_QUERY_COMMENT = f"""
 {{%- set comment_dict = {{}} -%}}
@@ -149,6 +149,8 @@ class DatabricksDBTConnection(Connection):
 class DatabricksConnectionManager(SparkConnectionManager):
     TYPE: str = "databricks"
     credentials_manager: Optional[DatabricksCredentialManager] = None
+    # Cache for session mode (1.10.x doesn't have DBRCapabilities, so we use a simple dict)
+    _session_capabilities: Optional[dict] = None
     _dbr_capabilities_cache: dict[str, DBRCapabilities] = {}
 
     def __init__(self, profile: AdapterRequiredConfig, mp_context: SpawnContext):
@@ -158,9 +160,15 @@ class DatabricksConnectionManager(SparkConnectionManager):
     @property
     def api_client(self) -> DatabricksApiClient:
         if self._api_client is None:
-            credentials = cast(DatabricksCredentials, self.profile.credentials)
-            self._api_client = DatabricksApiClient(credentials, 15 * 60)
+            self._api_client = DatabricksApiClient(
+                cast(DatabricksCredentials, self.profile.credentials), 15 * 60
+            )
         return self._api_client
+
+    def is_session_mode(self) -> bool:
+        """Check if the connection is using session mode."""
+        credentials = cast(DatabricksCredentials, self.profile.credentials)
+        return credentials.is_session_mode
 
     def is_cluster(self) -> bool:
         conn = self.get_thread_connection()
@@ -210,14 +218,16 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     def cancel_open(self) -> list[str]:
         cancelled = super().cancel_open()
-        logger.info("Cancelling open python jobs")
-        PythonRunTracker.cancel_runs(self.api_client)
+        # Only cancel Python jobs via API if not in session mode
+        if not self.is_session_mode():
+            logger.info("Cancelling open python jobs")
+            PythonRunTracker.cancel_runs(self.api_client)
         return cancelled
 
     def compare_dbr_version(self, major: int, minor: int) -> int:
         version = (major, minor)
 
-        handle: DatabricksHandle = self.get_thread_connection().handle
+        handle: DatabricksHandle | DatabricksSessionHandle = self.get_thread_connection().handle
         dbr_version = handle.dbr_version
         return (dbr_version > version) - (dbr_version < version)
 
@@ -289,6 +299,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
         conn._query_header_context = query_header_context
         conn.capabilities = self._get_capabilities_for_http_path(conn.http_path)
+
         conn.handle = LazyHandle(self.open)
 
         logger.debug(ConnectionCreate(str(conn)))
@@ -321,7 +332,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(sql):
-            cursor: Optional[CursorWrapper] = None
+            cursor: Optional[CursorWrapper | SessionCursorWrapper] = None
             try:
                 log_sql = redact_credentials(sql)
                 if abridge_sql_log:
@@ -337,15 +348,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 pre = time.time()
 
-                handle: DatabricksHandle = connection.handle
+                handle: DatabricksHandle | DatabricksSessionHandle = connection.handle
                 cursor = handle.execute(sql, bindings)
                 response = self.get_response(cursor)
+                # SQLQueryStatus in 1.10.x may not support query_id parameter
+                query_id = getattr(response, "query_id", None)
                 fire_event(
                     SQLQueryStatus(
-                        status=str(cursor.get_response()),
+                        status=str(response),
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
-                        query_id=response.query_id,
+                        query_id=query_id,
                     )
                 )
 
@@ -380,14 +393,18 @@ class DatabricksConnectionManager(SparkConnectionManager):
             cursor.close()
 
     def _execute_with_cursor(
-        self, log_sql: str, f: Callable[[DatabricksHandle], CursorWrapper]
+        self,
+        log_sql: str,
+        f: Callable[
+            [DatabricksHandle | DatabricksSessionHandle], CursorWrapper | SessionCursorWrapper
+        ],
     ) -> "Table":
         connection = self.get_thread_connection()
 
         fire_event(ConnectionUsed(conn_type=self.TYPE, conn_name=cast_to_str(connection.name)))
 
         with self.exception_handler(log_sql):
-            cursor: Optional[CursorWrapper] = None
+            cursor: Optional[CursorWrapper | SessionCursorWrapper] = None
             try:
                 fire_event(
                     SQLQuery(
@@ -399,14 +416,14 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
                 pre = time.time()
 
-                handle: DatabricksHandle = connection.handle
+                handle: DatabricksHandle | DatabricksSessionHandle = connection.handle
                 cursor = f(handle)
 
                 response = self.get_response(cursor)
+                # SQLQueryStatus in 1.10.x may not support query_id parameter
                 fire_event(
                     SQLQueryStatus(
                         status=str(response),
-                        query_id=response.query_id,
                         elapsed=round((time.time() - pre), 2),
                         node_info=get_node_info(),
                     )
@@ -464,9 +481,65 @@ class DatabricksConnectionManager(SparkConnectionManager):
             return connection
 
         creds: DatabricksCredentials = connection.credentials
+
+        # Dispatch based on connection method
+        if creds.is_session_mode:
+            return cls._open_session(databricks_connection, creds)
+        else:
+            return cls._open_dbsql(databricks_connection, creds)
+
+    @classmethod
+    def _open_session(
+        cls, databricks_connection: DatabricksDBTConnection, creds: DatabricksCredentials
+    ) -> Connection:
+        """Open a connection using SparkSession mode."""
+        logger.debug("Opening connection in session mode")
+
+        def connect() -> DatabricksSessionHandle:
+            try:
+                handle = DatabricksSessionHandle.create(
+                    catalog=creds.database,
+                    schema=creds.schema,
+                    session_properties=creds.session_properties,
+                )
+                databricks_connection.session_id = handle.session_id
+
+                # Cache capabilities for session mode (simplified for 1.10.x)
+                cls._cache_session_capabilities(handle)
+
+                logger.debug(f"Session mode connection opened: {handle}")
+                return handle
+            except Exception as exc:
+                logger.error(ConnectionCreateError(exc))
+                raise DbtDatabaseError(f"Failed to create session connection: {exc}") from exc
+
+        # Session mode doesn't need retry logic as SparkSession is already available
+        databricks_connection.handle = connect()
+        databricks_connection.state = ConnectionState.OPEN
+        return databricks_connection
+
+    @classmethod
+    def _cache_session_capabilities(cls, handle: DatabricksSessionHandle) -> None:
+        """Cache DBR capabilities for session mode (simplified for 1.10.x)."""
+        if cls._session_capabilities is None:
+            dbr_version = handle.dbr_version
+            cls._session_capabilities = {
+                "dbr_version": dbr_version,
+                "is_sql_warehouse": False,
+            }
+            logger.debug(f"Cached session capabilities: DBR version {dbr_version}")
+
+    @classmethod
+    def _open_dbsql(
+        cls, databricks_connection: DatabricksDBTConnection, creds: DatabricksCredentials
+    ) -> Connection:
+        """Open a connection using DBSQL connector."""
         timeout = creds.connect_timeout
 
-        cls.credentials_manager = creds.authenticate()
+        credentials_manager = creds.authenticate()
+        # In DBSQL mode, authenticate() always returns a credentials manager
+        assert credentials_manager is not None, "Credentials manager is required for DBSQL mode"
+        cls.credentials_manager = credentials_manager
 
         # Get merged query tags if we have query header context
         query_header_context = getattr(databricks_connection, "_query_header_context", None)
@@ -507,7 +580,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             retryable_exceptions = [Error]
 
         return cls.retry_connection(
-            connection,
+            databricks_connection,
             connect=connect,
             logger=logger,
             retryable_exceptions=retryable_exceptions,
@@ -527,7 +600,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
     @classmethod
     def get_response(cls, cursor: Any) -> AdapterResponse:
-        if isinstance(cursor, CursorWrapper):
+        if isinstance(cursor, (CursorWrapper, SessionCursorWrapper)):
             return cursor.get_response()
         else:
             return AdapterResponse("OK")
