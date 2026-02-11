@@ -33,7 +33,12 @@ class PythonSubmitter(ABC):
     def _prepare_code_with_notebook_scoped_packages(
         self, compiled_code: str, separator: str = NOTEBOOK_SEPARATOR
     ) -> str:
-        """Prepend notebook-scoped package installation commands to the compiled code."""
+        """
+        Prepend notebook-scoped package installation commands to the compiled code.
+
+        If notebook-scoped flag is not set, or if there are no packages to install,
+        returns the original compiled code.
+        """
         if not self.packages_config.packages or not self.packages_config.notebook_scoped:
             return compiled_code
 
