@@ -9,19 +9,54 @@ from typing_extensions import override
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
+from dbt.adapters.databricks.python_models.python_config import (
+    ParsedPythonModel,
+    PythonPackagesConfig,
+)
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
+NOTEBOOK_SEPARATOR = "\n\n# COMMAND ----------\n\n"
 
 
 class PythonSubmitter(ABC):
     """Interface for submitting Python models to run on Databricks."""
 
+    def __init__(self, packages_config: PythonPackagesConfig) -> None:
+        self.packages_config = packages_config
+
     @abstractmethod
     def submit(self, compiled_code: str) -> None:
         """Submit the compiled code to Databricks."""
         pass
+
+    def _prepare_code_with_notebook_scoped_packages(
+        self, compiled_code: str, separator: str = NOTEBOOK_SEPARATOR
+    ) -> str:
+        """
+        Prepend notebook-scoped package installation commands to the compiled code.
+
+        If notebook-scoped flag is not set, or if there are no packages to install,
+        returns the original compiled code.
+        """
+        if not self.packages_config.packages or not self.packages_config.notebook_scoped:
+            return compiled_code
+
+        index_url = (
+            f"--index-url {self.packages_config.index_url}"
+            if self.packages_config.index_url
+            else ""
+        )
+        # Build the %pip install command for notebook-scoped packages
+        packages = " ".join(self.packages_config.packages)
+        pip_install_cmd = f"%pip install {index_url} -q {packages}"
+        logger.debug(f"Adding notebook-scoped package installation: {pip_install_cmd}")
+
+        # Add extra restart python command for Databricks runtimes 13.0 and above
+        restart_cmd = "dbutils.library.restartPython()"
+
+        # Prepend the pip install command to the compiled code
+        return f"{pip_install_cmd}{separator}{restart_cmd}{separator}{compiled_code}"
 
 
 class BaseDatabricksHelper(PythonJobHelper):
@@ -63,15 +98,23 @@ class PythonCommandSubmitter(PythonSubmitter):
     """Submitter for Python models using the Command API."""
 
     def __init__(
-        self, api_client: DatabricksApiClient, tracker: PythonRunTracker, cluster_id: str
+        self,
+        api_client: DatabricksApiClient,
+        tracker: PythonRunTracker,
+        cluster_id: str,
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
         self.cluster_id = cluster_id
+        super().__init__(parsed_model.config.python_packages_config)
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Command API.")
+
+        # Prepare code with notebook-scoped package installation if needed
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
 
         context_id = self.api_client.command_contexts.create(self.cluster_id)
         command_exec: Optional[CommandExecution] = None
@@ -252,16 +295,24 @@ def get_library_config(
     packages: list[str],
     index_url: Optional[str],
     additional_libraries: list[dict[str, Any]],
+    notebook_scoped_libraries: bool = False,
 ) -> dict[str, Any]:
-    """Update the job configuration with the required libraries."""
+    """
+    Update the job configuration with the required libraries.
+
+    If notebook_scoped_libraries is True, packages are not included in the library config
+    as they will be installed via %pip install in the notebook itself.
+    """
 
     libraries = []
 
-    for package in packages:
-        if index_url:
-            libraries.append({"pypi": {"package": package, "repo": index_url}})
-        else:
-            libraries.append({"pypi": {"package": package}})
+    # Only add packages to cluster-level libraries if not using notebook-scoped
+    if not notebook_scoped_libraries:
+        for package in packages:
+            if index_url:
+                libraries.append({"pypi": {"package": package, "repo": index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
 
     for library in additional_libraries:
         libraries.append(library)
@@ -286,7 +337,10 @@ class PythonJobConfigCompiler:
         packages = parsed_model.config.packages
         index_url = parsed_model.config.index_url
         additional_libraries = parsed_model.config.additional_libs
-        library_config = get_library_config(packages, index_url, additional_libraries)
+        notebook_scoped_libraries = parsed_model.config.notebook_scoped_libraries
+        library_config = get_library_config(
+            packages, index_url, additional_libraries, notebook_scoped_libraries
+        )
         self.cluster_spec = {**cluster_spec, **library_config}
         self.job_grants = parsed_model.config.python_job_config.grants
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
@@ -335,11 +389,14 @@ class PythonNotebookSubmitter(PythonSubmitter):
         tracker: PythonRunTracker,
         uploader: PythonNotebookUploader,
         config_compiler: PythonJobConfigCompiler,
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
         self.uploader = uploader
         self.config_compiler = config_compiler
+        self.parsed_model = parsed_model
+        super().__init__(parsed_model.config.python_packages_config)
 
     @staticmethod
     def create(
@@ -356,11 +413,16 @@ class PythonNotebookSubmitter(PythonSubmitter):
             parsed_model,
             cluster_spec,
         )
-        return PythonNotebookSubmitter(api_client, tracker, notebook_uploader, config_compiler)
+        return PythonNotebookSubmitter(
+            api_client, tracker, notebook_uploader, config_compiler, parsed_model
+        )
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Job Run API.")
+
+        # Prepare code with notebook-scoped package installation if needed
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
 
         file_path = self.uploader.upload(compiled_code)
         job_config = self.config_compiler.compile(file_path)
@@ -444,7 +506,12 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 {"existing_cluster_id": self.cluster_id},
             )
         else:
-            return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id or "")
+            return PythonCommandSubmitter(
+                self.api_client,
+                self.tracker,
+                self.cluster_id or "",
+                self.parsed_model,
+            )
 
     @override
     def validate_config(self) -> None:
@@ -572,6 +639,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         workflow_creater: PythonWorkflowCreator,
         job_grants: dict[str, list[dict[str, str]]],
         acls: list[dict[str, str]],
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
@@ -581,6 +649,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         self.workflow_creater = workflow_creater
         self.job_grants = job_grants
         self.acls = acls
+        super().__init__(parsed_model.config.python_packages_config)
 
     @staticmethod
     def create(
@@ -599,6 +668,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             workflow_creater,
             parsed_model.config.python_job_config.grants,
             parsed_model.config.access_control_list,
+            parsed_model,
         )
 
     @override
@@ -611,6 +681,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             logger.debug(
                 f"[Workflow Debug] Compiled code preview: {compiled_code[:preview_len]}..."
             )
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
 
         file_path = self.uploader.upload(compiled_code)
         logger.debug(f"[Workflow Debug] Uploaded notebook to: {file_path}")

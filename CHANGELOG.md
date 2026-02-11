@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.0 (TBD)
+
+### Features
+
+- Enable Notebook scoped python packages installation
+
 ## dbt-databricks 1.11.5 (TBD)
 
 ### Fixes
