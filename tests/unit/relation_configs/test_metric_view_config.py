@@ -8,7 +8,6 @@ from dbt.adapters.databricks.relation_configs.metric_view import (
     MetricViewQueryProcessor,
 )
 
-
 yaml_content = """version: 0.1
 source: my_table
 dimensions:
