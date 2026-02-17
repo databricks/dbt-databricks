@@ -66,11 +66,11 @@ class MetricViewQueryProcessor(DatabricksComponentProcessor[MetricViewQueryConfi
 
         # Extract YAML content from $$ delimiters if present
         # Format: $$ yaml_content $$
-        if "$$" in view_definition:
-            parts = view_definition.split("$$")
-            if len(parts) >= 2:
-                # The YAML is between the first and second $$ markers
-                view_definition = parts[1].strip()
+        # Check start/end explicitly to avoid issues with embedded $$ in YAML content
+        trimmed = view_definition.strip()
+        if trimmed.startswith("$$") and trimmed.endswith("$$"):
+            # Strip the leading and trailing $$ markers
+            view_definition = trimmed[2:-2].strip()
 
         return MetricViewQueryConfig(query=view_definition)
 

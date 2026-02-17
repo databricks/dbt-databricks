@@ -48,9 +48,4 @@ $$
   {% if tblproperties %}
     {{ apply_tblproperties(target_relation, tblproperties) }}
   {% endif %}
-
-  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-  {% if column_tags and column_tags.set_column_tags %}
-    {{ apply_column_tags(target_relation, column_tags) }}
-  {% endif %}
 {% endmacro %}

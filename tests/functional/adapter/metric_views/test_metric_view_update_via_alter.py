@@ -14,6 +14,9 @@ class BaseUpdateMetricView:
 
 
 class BaseUpdateMetricViewQuery(BaseUpdateMetricView):
+    # Subclasses should set this to indicate expected execution path
+    expect_alter_flow: bool = True
+
     def test_metric_view_update_query(self, project):
         """Test that metric view query can be updated via ALTER VIEW AS"""
         # First run creates the metric view
@@ -46,10 +49,11 @@ measures:
 """
         util.write_file(updated_metric_view, "models", "test_metric_view.sql")
 
-        # Second run should update via ALTER
-        results = util.run_dbt(["run", "--models", "test_metric_view"])
-        assert len(results) == 1
-        assert results[0].status == "success"
+        # Second run should update via ALTER or REPLACE depending on config
+        _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", "test_metric_view"])
+
+        # Verify the correct execution path was taken
+        util.assert_message_in_logs("Updating metric view via ALTER", logs, self.expect_alter_flow)
 
         # Verify the metric view works with new definition
         metric_view_name = f"{project.database}.{project.test_schema}.test_metric_view"
@@ -203,6 +207,8 @@ class BaseUpdateMetricViewNothing(BaseUpdateMetricView):
 # Test classes with view_update_via_alter enabled
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateMetricViewViaAlterQuery(BaseUpdateMetricViewQuery):
+    expect_alter_flow = True
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -252,6 +258,8 @@ class TestUpdateMetricViewViaAlterNothing(BaseUpdateMetricViewNothing):
 # Test classes WITHOUT view_update_via_alter (default replace behavior)
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateMetricViewViaReplaceQuery(BaseUpdateMetricViewQuery):
+    expect_alter_flow = False
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

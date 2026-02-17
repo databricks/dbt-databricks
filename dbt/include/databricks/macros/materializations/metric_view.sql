@@ -10,7 +10,7 @@
   {% if existing_relation %}
     {#- Only use alter path if existing relation is actually a metric_view -#}
     {% if existing_relation.is_metric_view and relation_should_be_altered(existing_relation) %}
-      {% set configuration_changes = get_metric_view_configuration_changes(existing_relation) %}
+      {% set configuration_changes = get_configuration_changes(existing_relation) %}
       {% if configuration_changes and configuration_changes.changes %}
         {% if configuration_changes.requires_full_refresh %}
           {{ replace_with_metric_view(existing_relation, target_relation) }}
@@ -31,14 +31,9 @@
       {{ get_create_metric_view_as_sql(target_relation, sql) }}
     {%- endcall %}
     {{ apply_tags(target_relation, tags) }}
-    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-    {% if column_tags and column_tags.set_column_tags %}
-      {{ apply_column_tags(target_relation, column_tags) }}
-    {% endif %}
   {% endif %}
 
-  {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
-  {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
+  {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke(existing_relation, full_refresh_mode=True)) %}
 
   {{ run_post_hooks() }}
 
