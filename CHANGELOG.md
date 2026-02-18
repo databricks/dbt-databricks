@@ -6,7 +6,7 @@
 
 ### Under the Hood
 
-- Allow for dbt-core 1.11.5
+- Allow for dbt-core 1.11.6
 
 ## dbt-databricks 1.11.4 (Jan 12, 2026)
 
