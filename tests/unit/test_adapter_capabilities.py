@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from dbt_common.exceptions import DbtConfigError
 
+from dbt.adapters.capability import Capability
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from tests.unit.utils import config_from_parts_or_dicts
@@ -169,3 +170,7 @@ class TestAdapterCapabilities:
         """Test that the required version string is correct for INSERT_BY_NAME"""
         version_string = DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME)
         assert version_string == "DBR 12.2+"
+
+    def test_microbatch_concurrency_supported(self, adapter):
+        """Test that adapter declares MicrobatchConcurrency support."""
+        assert adapter.supports(Capability.MicrobatchConcurrency)

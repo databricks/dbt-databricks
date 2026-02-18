@@ -215,6 +215,7 @@ class DatabricksAdapter(SparkAdapter):
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+            Capability.MicrobatchConcurrency: CapabilitySupport(support=Support.Full),
         }
     )
 
