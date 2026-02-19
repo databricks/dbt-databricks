@@ -89,7 +89,11 @@ class TestTblPropertiesProcessor:
                 "custom_prop": "value",
                 "delta.enableIcebergCompatV2": "true",
                 "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
-                "dbt.tblproperties.managedKeys": "custom_prop,delta.enableIcebergCompatV2,delta.universalFormat.enabledFormats",
+                "dbt.tblproperties.managedKeys": ",".join([
+                    "custom_prop",
+                    "delta.enableIcebergCompatV2",
+                    "delta.universalFormat.enabledFormats",
+                ])
             }
         )
 
