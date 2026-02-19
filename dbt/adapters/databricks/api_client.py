@@ -18,6 +18,7 @@ from databricks.sdk.service.compute import Language as ComputeLanguage
 from databricks.sdk.service.iam import AccessControlRequest
 from databricks.sdk.service.jobs import (
     JobAccessControlRequest,
+    JobEnvironment,
     JobSettings,
     QueueSettings,
     Run,
@@ -529,6 +530,12 @@ class JobRunsApi:
 
         # Add any additional job settings
         submission_params.update(additional_job_settings)
+
+        # Handle environments - convert dicts to JobEnvironment objects
+        if "environments" in submission_params:
+            submission_params["environments"] = [
+                JobEnvironment.from_dict(env) for env in submission_params["environments"]
+            ]
 
         # Filter out parameters that the Databricks SDK doesn't expect
         # The SDK submit() method doesn't accept 'name' or 'run_name' in the request body
