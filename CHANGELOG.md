@@ -1,3 +1,8 @@
+## dbt-databricks next
+
+### Fixes
+- Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
+
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes
