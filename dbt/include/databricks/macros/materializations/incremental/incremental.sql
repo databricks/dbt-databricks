@@ -177,6 +177,7 @@
         {% set tags = _configuration_changes.changes.get("tags", None) %}
         {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
         {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
+        {% set constraints = _configuration_changes.changes.get("constraints") %}
         {% if tags is not none %}
           {% do apply_tags(target_relation, tags.set_tags) %}
         {%- endif -%}
@@ -185,6 +186,10 @@
         {%- endif -%}
         {% if liquid_clustering is not none %}
           {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
+        {% endif %}
+        {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
+        {% if constraints and not target_relation.is_hive_metastore() %}
+          {{ apply_constraints(target_relation, constraints) }}
         {% endif %}
       {%- endif -%}
       {% do persist_docs(target_relation, model, for_relation=True) %}
