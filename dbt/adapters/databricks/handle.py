@@ -19,7 +19,6 @@ from dbt.adapters.databricks.utils import QueryTagsUtils
 if TYPE_CHECKING:
     pass
 
-
 CursorOp = Callable[[Cursor], None]
 CursorExecOp = Callable[[Cursor], Cursor]
 CursorWrapperOp = Callable[["CursorWrapper"], None]
@@ -287,6 +286,47 @@ class SqlUtils:
         if bindings:
             return list(map(lambda x: float(x) if isinstance(x, decimal.Decimal) else x, bindings))
         return None
+
+    @staticmethod
+    def format_bindings_for_sql(bindings: Optional[Sequence[Any]]) -> Optional[Sequence[str]]:
+        """
+        Format bindings as SQL literals for string substitution in session mode.
+
+        This method properly quotes string values and handles special cases to ensure
+        SQL injection safety and correct SQL syntax. Used when executing SQL via
+        SparkSession.sql() which doesn't support parameterized queries.
+
+        Args:
+            bindings: Sequence of binding values (strings, numbers, None, etc.)
+
+        Returns:
+            Sequence of SQL literal strings, or None if bindings is None/empty
+        """
+        if not bindings:
+            return None
+
+        formatted = []
+        for value in bindings:
+            if value is None:
+                formatted.append("NULL")
+            elif isinstance(value, bool):
+                formatted.append("TRUE" if value else "FALSE")
+            elif isinstance(value, str):
+                # Escape single quotes by doubling them, then wrap in quotes
+                escaped = value.replace("'", "''")
+                formatted.append(f"'{escaped}'")
+            elif isinstance(value, (int, float, decimal.Decimal)):
+                # Numbers don't need quotes
+                if isinstance(value, decimal.Decimal):
+                    formatted.append(str(float(value)))
+                else:
+                    formatted.append(str(value))
+            else:
+                # For other types, convert to string and quote
+                escaped = str(value).replace("'", "''")
+                formatted.append(f"'{escaped}'")
+
+        return formatted
 
     @staticmethod
     def clean_sql(sql: str) -> str:

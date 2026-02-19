@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dbt-databricks"
+name = "dbt-databricks-session"
 dynamic = ["version"]
 description = "The Databricks adapter plugin for dbt"
 readme = "README.md"
