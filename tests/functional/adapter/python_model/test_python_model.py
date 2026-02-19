@@ -181,8 +181,7 @@ class TestServerlessCluster(BasePythonModelTests):
 
 
 @pytest.mark.python
-# @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-@pytest.mark.skip("Not available in Databricks yet")
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestServerlessClusterWithEnvironment(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):

@@ -27,7 +27,13 @@
 ) %}
     -- apply a full refresh immediately if needed
     {% if configuration_changes.requires_full_refresh %}
-        {% do return(get_replace_sql(existing_relation, relation,  sql)) %}
+        {#- CREATE OR REPLACE cannot change partition_by, so use DROP + CREATE when partition_by changes -#}
+        {% if configuration_changes.changes["partition_by"] %}
+            {{- log('Applying REPLACE to: ' ~ existing_relation) -}}
+            {% do return(drop_and_create(existing_relation, relation, sql)) %}
+        {% else %}
+            {% do return(get_replace_sql(existing_relation, relation, sql)) %}
+        {% endif %}
 
     -- otherwise apply individual changes as needed
     {% else %}
@@ -40,6 +46,18 @@
         {%- if tags and tags.set_tags and tags.set_tags != [] -%}
             {{ return_statements.append(alter_set_tags(relation, tags.set_tags)) }}
         {%- endif -%}
+
+        {#- Row filter handling - append SQL to list, don't execute -#}
+        {#- is_change guard prevents false alters when row_filter is unchanged -#}
+        {%- set row_filter = configuration_changes.changes.get("row_filter") -%}
+        {%- if row_filter and row_filter.is_change -%}
+          {%- if row_filter.should_unset -%}
+            {{ return_statements.append(alter_drop_row_filter(relation)) }}
+          {%- elif row_filter.function -%}
+            {{ return_statements.append(alter_set_row_filter(relation, row_filter)) }}
+          {%- endif -%}
+        {%- endif -%}
+
         {% do return(return_statements) %}
     {%- endif -%}
 {% endmacro %}
