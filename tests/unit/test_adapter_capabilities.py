@@ -6,9 +6,9 @@ from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
 import pytest
+from dbt.adapters.capability import Capability
 from dbt_common.exceptions import DbtConfigError
 
-from dbt.adapters.capability import Capability
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.impl import DatabricksAdapter
 from tests.unit.utils import config_from_parts_or_dicts
