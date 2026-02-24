@@ -141,6 +141,17 @@ USE_MANAGED_ICEBERG = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_CONCURRENT_MICROBATCH = BehaviorFlag(
+    name="use_concurrent_microbatch",
+    default=False,
+    description=(
+        "Enable concurrent execution of microbatch incremental batches. "
+        "When enabled, dbt will run microbatch batches in parallel threads "
+        "instead of sequentially. The microbatch strategy itself requires "
+        "dbt-core 1.9+; this flag controls whether batches run concurrently."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -215,7 +226,6 @@ class DatabricksAdapter(SparkAdapter):
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-            Capability.MicrobatchConcurrency: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -247,7 +257,19 @@ class DatabricksAdapter(SparkAdapter):
             USE_MATERIALIZATION_V2,
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
             USE_MANAGED_ICEBERG,
+            USE_CONCURRENT_MICROBATCH,
         ]
+
+    def supports(self, capability: Capability) -> bool:
+        # Override as instance method to gate on behavior flag.
+        # Safe because all dbt-core call sites invoke supports() on an adapter
+        # instance, never on the class directly (verified across 6 call sites
+        # in dbt-core 1.11.2). If a future dbt-core version calls
+        # DatabricksAdapter.supports(cap) at the class level, this would need
+        # to become a different pattern.
+        if capability == Capability.MicrobatchConcurrency:
+            return bool(self.behavior.use_concurrent_microbatch)
+        return super().supports(capability)
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
         """Override base adapter's quote method to prevent double quoting."""

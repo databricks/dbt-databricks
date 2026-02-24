@@ -171,6 +171,25 @@ class TestAdapterCapabilities:
         version_string = DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME)
         assert version_string == "DBR 12.2+"
 
-    def test_microbatch_concurrency_supported(self, adapter):
-        """Test that adapter declares MicrobatchConcurrency support."""
+    def test_microbatch_concurrency_disabled_by_default(self, adapter):
+        """Test that MicrobatchConcurrency is disabled by default (behavior flag off)."""
+        assert not adapter.supports(Capability.MicrobatchConcurrency)
+
+    def test_microbatch_concurrency_enabled_with_flag(self, adapter):
+        """Test that MicrobatchConcurrency is enabled when behavior flag is on."""
+        adapter.behavior.use_concurrent_microbatch = True
         assert adapter.supports(Capability.MicrobatchConcurrency)
+
+    def test_microbatch_concurrency_not_declared_in_capabilities(self):
+        """MicrobatchConcurrency must not be declared with Full support in _capabilities.
+
+        The supports() override is the sole gatekeeper. CapabilityDict is a defaultdict,
+        so missing keys auto-create with Support.Unknown (falsy). This test ensures no one
+        accidentally re-adds MicrobatchConcurrency as Full, which would bypass the flag gate.
+        """
+        assert not bool(DatabricksAdapter._capabilities[Capability.MicrobatchConcurrency])
+
+    def test_supports_delegates_other_capabilities(self, adapter):
+        """Non-MicrobatchConcurrency capabilities should still use _capabilities dict."""
+        assert adapter.supports(Capability.TableLastModifiedMetadata)
+        assert adapter.supports(Capability.SchemaMetadataByRelations)
