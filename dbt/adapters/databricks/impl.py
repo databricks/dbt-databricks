@@ -261,12 +261,7 @@ class DatabricksAdapter(SparkAdapter):
         ]
 
     def supports(self, capability: Capability) -> bool:
-        # Override as instance method to gate on behavior flag.
-        # Safe because all dbt-core call sites invoke supports() on an adapter
-        # instance, never on the class directly (verified across 6 call sites
-        # in dbt-core 1.11.2). If a future dbt-core version calls
-        # DatabricksAdapter.supports(cap) at the class level, this would need
-        # to become a different pattern.
+        # Gate MicrobatchConcurrency on the use_concurrent_microbatch behavior flag.
         if capability == Capability.MicrobatchConcurrency:
             return bool(self.behavior.use_concurrent_microbatch)
         return super().supports(capability)
