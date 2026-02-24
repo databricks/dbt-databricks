@@ -136,6 +136,41 @@ class TestAdapterCapabilities:
             # Connection should have been asked twice (adapter doesn't cache)
             assert mock_conn.has_capability.call_count == 2
 
+    def test_microbatch_concurrency_disabled_by_default(self, adapter):
+        """Test that MicrobatchConcurrency is disabled by default (behavior flag off)."""
+        from dbt.adapters.capability import Capability
+
+        assert not adapter.supports(Capability.MicrobatchConcurrency)
+
+    def test_microbatch_concurrency_enabled_with_flag(self):
+        """Test that MicrobatchConcurrency is enabled when behavior flag is on."""
+        from dbt.adapters.capability import Capability
+
+        project_cfg = {
+            "name": "test_project",
+            "version": "0.1",
+            "profile": "test",
+            "project-root": "/tmp/dbt/does-not-exist",
+            "config-version": 2,
+            "flags": {"use_concurrent_microbatch": True},
+        }
+        profile_cfg = {
+            "outputs": {
+                "test": {
+                    "type": "databricks",
+                    "catalog": "main",
+                    "schema": "analytics",
+                    "host": "test.databricks.com",
+                    "http_path": "sql/protocolv1/o/1234567890123456/1234-567890-test123",
+                    "token": "dapi" + "X" * 32,
+                }
+            },
+            "target": "test",
+        }
+        config = config_from_parts_or_dicts(project_cfg, profile_cfg)
+        adapter = DatabricksAdapter(config, get_context("spawn"))
+        assert adapter.supports(Capability.MicrobatchConcurrency)
+
     def test_insert_by_name_capability_spec(self):
         """Test INSERT_BY_NAME capability specification and requirements."""
         # Verify the capability exists
