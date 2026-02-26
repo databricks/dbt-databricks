@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
+from dbt.adapters.base.relation import BaseRelation, FunctionConfig, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
@@ -14,6 +14,7 @@ from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.utils import remove_undefined
 
 KEY_TABLE_PROVIDER = "Provider"
@@ -242,6 +243,35 @@ class DatabricksRelation(BaseRelation):
 
     def render(self) -> str:
         return super().render().lower()
+
+    def get_function_config(self, model: dict[str, Any]) -> Optional[FunctionConfig]:
+        if model.get("resource_type") == "function" and model.get("language") == "python":
+            config = model.get("config", {})
+            runtime_version = config.get("runtime_version")
+            entry_point = config.get("entry_point")
+
+            # Databricks does not use runtime_version or entry_point in SQL.
+            # Provide defaults to satisfy dbt-adapters validation.
+            if not runtime_version:
+                runtime_version = "3.11"
+                logger.debug(
+                    "runtime_version not specified for Python UDF; "
+                    "defaulting to '3.11' (not used in Databricks SQL)"
+                )
+            if not entry_point:
+                entry_point = model.get("name", "main")
+                logger.debug(
+                    f"entry_point not specified for Python UDF; "
+                    f"defaulting to '{entry_point}' (not used in Databricks SQL)"
+                )
+
+            return FunctionConfig(
+                language=model.get("language", ""),
+                type=config.get("type", ""),
+                runtime_version=runtime_version,
+                entry_point=entry_point,
+            )
+        return super().get_function_config(model)
 
 
 def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
