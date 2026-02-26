@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -93,9 +95,7 @@ class TestScalarFunctionSQL(ScalarFunctionTestBase):
 
     def test_sql_udf_body(self, template_bundle):
         self.setup_model_for_sql_udf(template_bundle.context)
-        sql = self.run_macro(
-            template_bundle.template, "databricks__scalar_function_body_sql"
-        )
+        sql = self.run_macro(template_bundle.template, "databricks__scalar_function_body_sql")
         assert "return" in sql
         assert "select value * 2" in sql
 

@@ -279,17 +279,13 @@ class TestDatabricksMultiArgPythonUDF(UDFsBasic):
         )
 
         # Verify both arguments appear in the signature
-        assert "price" in generated_sql, (
-            f"Expected 'price' in generated SQL:\n{generated_sql}"
-        )
+        assert "price" in generated_sql, f"Expected 'price' in generated SQL:\n{generated_sql}"
         assert "quantity" in generated_sql, (
             f"Expected 'quantity' in generated SQL:\n{generated_sql}"
         )
 
         # Verify the UDF actually works by executing it with two arguments
-        result = run_dbt(
-            ["show", "--inline", "SELECT {{ function('total_price') }}(25.0, 4)"]
-        )
+        result = run_dbt(["show", "--inline", "SELECT {{ function('total_price') }}(25.0, 4)"])
         assert len(result.results) == 1
         select_value = int(result.results[0].agate_table.rows[0].values()[0])
         assert select_value == 100, f"Expected 100, got {select_value}"
