@@ -1,3 +1,12 @@
+## dbt-databricks 1.11.6 (TBD)
+
+### Features
+
+- Enable concurrent microbatch execution via `MicrobatchConcurrency` capability,
+  gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
+  Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
+  ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes
