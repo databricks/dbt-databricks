@@ -1,18 +1,25 @@
 ## dbt-databricks 1.12.0 (TBD)
 
+- Add support for metric views as a materialization ([1285](https://github.com/databricks/dbt-databricks/pull/1285))
+- Add support for row filters
 - Add support for Python UDFs
 
-## dbt-databricks 1.11.5 (TBD)
+## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes
 
 - Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
+
+### Under the Hood
+
+- Allow for dbt-core 1.11.6
 
 ## dbt-databricks 1.11.4 (Jan 12, 2026)
 
 ### Features
 
 - Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+- Add support for Row Filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 
 ### Fixes
 

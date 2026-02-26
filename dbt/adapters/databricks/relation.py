@@ -49,6 +49,15 @@ class DatabricksRelationType(StrEnum):
         """Return the type formatted for SQL statements (replace underscores with spaces)"""
         return self.value.replace("_", " ").upper()
 
+    def render_for_alter(self) -> str:
+        """Return the type formatted for ALTER statements.
+
+        Metric views use ALTER VIEW (not ALTER METRIC VIEW) syntax.
+        """
+        if self == DatabricksRelationType.MetricView:
+            return "VIEW"
+        return self.render()
+
 
 class DatabricksTableType(StrEnum):
     External = "external"
@@ -117,6 +126,10 @@ class DatabricksRelation(BaseRelation):
     @property
     def is_materialized_view(self) -> bool:
         return self.type == DatabricksRelationType.MaterializedView
+
+    @property
+    def is_metric_view(self) -> bool:
+        return self.type == DatabricksRelationType.MetricView
 
     @property
     def is_streaming_table(self) -> bool:
