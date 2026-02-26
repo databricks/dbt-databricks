@@ -21,7 +21,7 @@
   {% set tblproperty_statment = databricks__tblproperties_clause(tblproperties) %}
   {% if tblproperty_statment %}
     {%- call statement('main') -%}
-      ALTER {{ relation.type.render() }} {{ relation.render() }} SET {{ tblproperty_statment}}
+      ALTER {{ relation.type.render_for_alter() }} {{ relation.render() }} SET {{ tblproperty_statment}}
     {%- endcall -%}
   {% endif %}
 {%- endmacro -%}

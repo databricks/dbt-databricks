@@ -1,3 +1,8 @@
+## dbt-databricks 1.12.0 (TBD)
+
+- Add support for metric views as a materialization ([1285](https://github.com/databricks/dbt-databricks/pull/1285))
+- Add support for row filters
+
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes
