@@ -1,3 +1,7 @@
+## dbt-databricks 1.12.0 (TBD)
+
+- Add support for Python UDFs
+
 ## dbt-databricks 1.11.5 (TBD)
 
 ### Fixes
