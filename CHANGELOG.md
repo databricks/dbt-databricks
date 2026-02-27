@@ -41,6 +41,7 @@
 ### Fixes
 
 - Truncate (128 charactesr max) and escape special characters for default query tag values
+- Fix bug where persist_docs did not update existing comments on materialized views ([#1275](https://github.com/databricks/dbt-databricks/discussions/1275))
 
 ## dbt-databricks 1.11.2 (Nov 18, 2025)
 
