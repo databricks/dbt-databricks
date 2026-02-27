@@ -69,6 +69,7 @@ class TestDatabricksConnectionManager:
         mock_connection.credentials.connect_retries = 1
         mock_connection.credentials.connect_timeout = 10
         mock_connection.credentials.query_tags = None
+        mock_connection.credentials.is_session_mode = False  # Not session mode
         mock_connection.http_path = "sql/protocolv1/o/abc123def456"
         mock_connection.credentials.authenticate.return_value = Mock()
         mock_connection._query_header_context = None

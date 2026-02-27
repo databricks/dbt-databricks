@@ -50,13 +50,16 @@ from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
 )
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.dbr_capabilities import DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
+    SessionPythonJobHelper,
     WorkflowPythonJobHelper,
 )
 from dbt.adapters.databricks.relation import (
@@ -819,6 +822,7 @@ class DatabricksAdapter(SparkAdapter):
             "all_purpose_cluster": AllPurposeClusterPythonJobHelper,
             "serverless_cluster": ServerlessClusterPythonJobHelper,
             "workflow_job": WorkflowPythonJobHelper,
+            "session": SessionPythonJobHelper,
         }
 
     @log_code_execution
@@ -827,6 +831,14 @@ class DatabricksAdapter(SparkAdapter):
             "user_folder_for_python",
             self.behavior.use_user_folder_for_python.setting,  # type: ignore[attr-defined]
         )
+
+        # Auto-select session submission when in session mode
+        creds = cast(DatabricksCredentials, self.config.credentials)
+        if creds.is_session_mode:
+            if parsed_model["config"].get("submission_method") is None:
+                parsed_model["config"]["submission_method"] = "session"
+                logger.debug("Auto-selected 'session' submission method for Python model")
+
         return super().submit_python_job(parsed_model, compiled_code)
 
     @available

@@ -1,12 +1,13 @@
 import itertools
 import json
+import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, cast
 
 from dbt.adapters.contracts.connection import Credentials
-from dbt_common.exceptions import DbtConfigError, DbtValidationError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError, DbtValidationError
 from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
@@ -15,6 +16,14 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, CredentialsProvider
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
+
+# Connection method constants
+CONNECTION_METHOD_SESSION = "session"
+CONNECTION_METHOD_DBSQL = "dbsql"
+
+# Environment variable for session mode
+DBT_DATABRICKS_SESSION_MODE_ENV = "DBT_DATABRICKS_SESSION_MODE"
+DATABRICKS_RUNTIME_VERSION_ENV = "DATABRICKS_RUNTIME_VERSION"
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
@@ -47,6 +56,9 @@ class DatabricksCredentials(Credentials):
     session_properties: Optional[dict[str, Any]] = None
     connection_parameters: Optional[dict[str, Any]] = None
     auth_type: Optional[str] = None
+
+    # Connection method: "session" for SparkSession mode, "dbsql" for DBSQL connector (default)
+    method: Optional[str] = None
 
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
@@ -102,6 +114,9 @@ class DatabricksCredentials(Credentials):
         else:
             self.database = "hive_metastore"
 
+        # Auto-detect and validate connection method
+        self._init_connection_method()
+
         connection_parameters = self.connection_parameters or {}
         for key in (
             "server_hostname",
@@ -130,9 +145,57 @@ class DatabricksCredentials(Credentials):
         if "_socket_timeout" not in connection_parameters:
             connection_parameters["_socket_timeout"] = 600
         self.connection_parameters = connection_parameters
-        self._credentials_manager = DatabricksCredentialManager.create_from(self)
+
+        # Only create credentials manager for non-session mode
+        if not self.is_session_mode:
+            self._credentials_manager = DatabricksCredentialManager.create_from(self)
+
+    def _init_connection_method(self) -> None:
+        """Initialize and validate the connection method."""
+        if self.method is None:
+            # Auto-detect session mode
+            if os.getenv(DBT_DATABRICKS_SESSION_MODE_ENV, "").lower() == "true":
+                self.method = CONNECTION_METHOD_SESSION
+            elif os.getenv(DATABRICKS_RUNTIME_VERSION_ENV) and not self.host:
+                # Running on Databricks cluster without host configured
+                self.method = CONNECTION_METHOD_SESSION
+            else:
+                self.method = CONNECTION_METHOD_DBSQL
+
+        # Validate method value
+        if self.method not in (CONNECTION_METHOD_SESSION, CONNECTION_METHOD_DBSQL):
+            raise DbtValidationError(
+                f"Invalid connection method: '{self.method}'. "
+                f"Must be '{CONNECTION_METHOD_SESSION}' or '{CONNECTION_METHOD_DBSQL}'."
+            )
+
+    @property
+    def is_session_mode(self) -> bool:
+        """Check if using session mode (SparkSession) for connections."""
+        return self.method == CONNECTION_METHOD_SESSION
+
+    def _validate_session_mode(self) -> None:
+        """Validate configuration for session mode."""
+        try:
+            from pyspark.sql import SparkSession  # noqa: F401
+        except ImportError:
+            raise DbtRuntimeError(
+                "Session mode requires PySpark. "
+                "Please ensure you are running on a Databricks cluster with PySpark available."
+            )
+
+        if self.schema is None:
+            raise DbtValidationError("Schema is required for session mode.")
 
     def validate_creds(self) -> None:
+        """Validate credentials based on connection method."""
+        if self.is_session_mode:
+            self._validate_session_mode()
+        else:
+            self._validate_dbsql_creds()
+
+    def _validate_dbsql_creds(self) -> None:
+        """Validate credentials for DBSQL connector mode."""
         for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
@@ -197,6 +260,9 @@ class DatabricksCredentials(Credentials):
 
     @property
     def unique_field(self) -> str:
+        if self.is_session_mode:
+            # For session mode, use a unique identifier based on catalog and schema
+            return f"session://{self.database}/{self.schema}"
         return cast(str, self.host)
 
     def connection_info(self, *, with_aliases: bool = False) -> Iterable[tuple[str, Any]]:
@@ -209,6 +275,15 @@ class DatabricksCredentials(Credentials):
             if key in as_dict:
                 yield key, as_dict[key]
 
+    def _connection_keys_session(self) -> tuple[str, ...]:
+        """Connection keys for session mode."""
+        connection_keys = ["method", "schema"]
+        if self.database:
+            connection_keys.insert(1, "catalog")
+        if self.session_properties:
+            connection_keys.append("session_properties")
+        return tuple(connection_keys)
+
     def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
         # is called from only:
@@ -218,6 +293,11 @@ class DatabricksCredentials(Credentials):
         #
         # Thus, if `with_aliases` is `True`, `DatabricksCredentials._connection_keys` should return
         # the internal key names; otherwise it can use aliases to show in `dbt debug`.
+
+        # Session mode has different connection keys
+        if self.is_session_mode:
+            return self._connection_keys_session()
+
         connection_keys = ["host", "http_path", "schema"]
         if with_aliases:
             connection_keys.insert(2, "database")
@@ -239,8 +319,15 @@ class DatabricksCredentials(Credentials):
     def cluster_id(self) -> Optional[str]:
         return self.extract_cluster_id(self.http_path)  # type: ignore[arg-type]
 
-    def authenticate(self) -> "DatabricksCredentialManager":
+    def authenticate(self) -> Optional["DatabricksCredentialManager"]:
+        """Authenticate and return credentials manager.
+
+        For session mode, returns None as no external authentication is needed.
+        For DBSQL mode, validates credentials and returns the credentials manager.
+        """
         self.validate_creds()
+        if self.is_session_mode:
+            return None
         assert self._credentials_manager is not None, "Credentials manager is not set."
         return self._credentials_manager
 
