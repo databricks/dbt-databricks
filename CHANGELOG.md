@@ -6,6 +6,8 @@
   gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
   Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
   ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by settings
+  tag values as empty strings `""`. ([#1270](https://github.com/databricks/dbt-databricks/issues/1270))
   
 ### Fixes
 
