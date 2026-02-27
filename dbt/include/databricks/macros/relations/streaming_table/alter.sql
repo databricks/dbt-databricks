@@ -56,6 +56,7 @@
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}
+    {{ liquid_clustered_cols() }}
     {% if comment -%}
         {{ get_create_sql_comment(comment) }}
     {%- endif %}

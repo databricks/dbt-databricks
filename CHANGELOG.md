@@ -10,6 +10,7 @@
 ### Fixes
 
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
+- Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
