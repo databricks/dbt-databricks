@@ -1,7 +1,7 @@
 tags_sql = """
 {{ config(
     materialized = 'table',
-    databricks_tags = {'a': 'b', 'c': 'd'},
+    databricks_tags = {'a': 'b', 'c': 'd', 'k': ''},
 ) }}
 
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
@@ -19,7 +19,7 @@ select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
 streaming_table_tags_sql = """
 {{ config(
     materialized='streaming_table',
-    databricks_tags = {'a': 'b', 'c': 'd'},
+    databricks_tags = {'a': 'b', 'c': 'd', 'k': ''},
 ) }}
 
 select * from stream {{ ref('my_seed') }}
@@ -54,4 +54,5 @@ models:
       databricks_tags:
         a: b
         c: d
+        k: ""
 """

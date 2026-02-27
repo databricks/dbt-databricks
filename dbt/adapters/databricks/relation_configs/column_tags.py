@@ -55,7 +55,7 @@ class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
                 # row contains [column_name, tag_name, tag_value]
                 column_name = str(row[0])
                 tag_name = str(row[1])
-                tag_value = str(row[2])
+                tag_value = str(row[2] or "")
 
                 if column_name not in set_column_tags:
                     set_column_tags[column_name] = {}
@@ -79,7 +79,7 @@ class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
             if databricks_tags:
                 if isinstance(databricks_tags, dict):
                     set_column_tags[col["name"]] = {
-                        str(k): str(v) for k, v in databricks_tags.items()
+                        str(k): str(v or "") for k, v in databricks_tags.items()
                     }
                 else:
                     raise DbtRuntimeError("databricks_tags must be a dictionary")
