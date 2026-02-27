@@ -39,6 +39,7 @@ class TestIncrementalConfig:
                     ["clusterByAuto", "true"],
                     ["clusteringColumns", '[["col1"],[""a""]]'],
                     ["delta.constraints.check_name_length", "LENGTH (name) >= 1"],
+                    ["dbt.tblproperties.managedKeys", "prop,delta.constraints.check_name_length"],
                 ],
                 column_names=["key", "value"],
             ),
@@ -99,6 +100,7 @@ class TestIncrementalConfig:
                     tblproperties={
                         "prop": "f1",
                         "delta.constraints.check_name_length": "LENGTH (name) >= 1",
+                        "dbt.tblproperties.managedKeys": "prop,delta.constraints.check_name_length",
                     }
                 ),
                 "liquid_clustering": LiquidClusteringConfig(

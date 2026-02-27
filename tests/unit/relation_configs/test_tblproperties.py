@@ -19,16 +19,30 @@ class TestTblPropertiesProcessor:
         assert spec == TblPropertiesConfig(tblproperties={})
 
     def test_from_results__single(self):
-        results = {"show_tblproperties": fixtures.gen_tblproperties([["prop", "f1"]])}
+        results = {
+            "show_tblproperties": fixtures.gen_tblproperties(
+                [["prop", "f1"], ["dbt.tblproperties.managedKeys", "prop"]]
+            )
+        }
         spec = TblPropertiesProcessor.from_relation_results(results)
-        assert spec == TblPropertiesConfig(tblproperties={"prop": "f1"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={"prop": "f1", "dbt.tblproperties.managedKeys": "prop"}
+        )
 
     def test_from_results__multiple(self):
         results = {
-            "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]])
+            "show_tblproperties": fixtures.gen_tblproperties(
+                [["prop", "1"], ["other", "other"], ["dbt.tblproperties.managedKeys", "other,prop"]]
+            )
         }
         spec = TblPropertiesProcessor.from_relation_results(results)
-        assert spec == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "prop": "1",
+                "other": "other",
+                "dbt.tblproperties.managedKeys": "other,prop",
+            }
+        )
 
     def test_from_model_node__without_tblproperties(self):
         model = Mock()
@@ -42,7 +56,9 @@ class TestTblPropertiesProcessor:
             "tblproperties": {"prop": 1},
         }
         spec = TblPropertiesProcessor.from_relation_config(model)
-        assert spec == TblPropertiesConfig(tblproperties={"prop": "1"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={"prop": "1", "dbt.tblproperties.managedKeys": "prop"}
+        )
 
     def test_from_model_node__with_empty_tblproperties(self):
         model = Mock()
@@ -73,6 +89,13 @@ class TestTblPropertiesProcessor:
                 "custom_prop": "value",
                 "delta.enableIcebergCompatV2": "true",
                 "delta.universalFormat.enabledFormats": constants.ICEBERG_TABLE_FORMAT,
+                "dbt.tblproperties.managedKeys": ",".join(
+                    [
+                        "custom_prop",
+                        "delta.enableIcebergCompatV2",
+                        "delta.universalFormat.enabledFormats",
+                    ]
+                ),
             }
         )
 
@@ -85,7 +108,9 @@ class TestTblPropertiesProcessor:
         }
         spec = TblPropertiesProcessor.from_relation_config(model)
         # Should only have the custom property, NOT the UniForm properties
-        assert spec == TblPropertiesConfig(tblproperties={"custom_prop": "value"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={"custom_prop": "value", "dbt.tblproperties.managedKeys": "custom_prop"}
+        )
 
     def test_from_model_node__with_iceberg_no_flag_no_properties(self):
         GlobalState.set_use_managed_iceberg(None)
