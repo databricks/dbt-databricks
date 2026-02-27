@@ -382,11 +382,23 @@ Models can be configured with Databricks-specific options:
 
 ### Documentation
 
-- **Development**: `docs/dbt-databricks-dev.md` - Setup and workflow
-- **Testing**: `docs/testing.md` - Comprehensive testing guide
-- **DBR Capabilities**: `docs/dbr-capability-system.md` - Version-dependent features
-- **Contributing**: `CONTRIBUTING.MD` - Code standards and PR process
-- **User Docs**: [docs.getdbt.com](https://docs.getdbt.com/reference/resource-configs/databricks-configs)
+**Internal docs (this repo):**
+- `docs/dbt-databricks-dev.md` - Development setup and workflow
+- `docs/testing.md` - Comprehensive testing guide
+- `docs/dbr-capability-system.md` - Version-dependent features
+- `CONTRIBUTING.MD` - Code standards and PR process
+
+**dbt documentation (docs.getdbt.com):**
+- [Databricks Configs](https://docs.getdbt.com/reference/resource-configs/databricks-configs) - Model/resource configuration options
+- [Materializations](https://docs.getdbt.com/docs/build/materializations) - Materialization types and behavior
+- [Python Models](https://docs.getdbt.com/docs/build/python-models) - Python model support
+- [Adapter Development](https://docs.getdbt.com/guides/adapter-creation) - How dbt adapters work
+
+**Databricks documentation (docs.databricks.com):**
+- [SQL Language Reference](https://docs.databricks.com/en/sql/language-manual/index.html) - SQL syntax for CREATE, ALTER, etc.
+- [Unity Catalog](https://docs.databricks.com/en/data-governance/unity-catalog/index.html) - UC architecture and governance
+- [Delta Lake](https://docs.databricks.com/en/delta/index.html) - Delta table features (liquid clustering, etc.)
+- [User-Defined Functions](https://docs.databricks.com/en/udf/index.html) - UDF types (SQL, Python, etc.)
 
 ### Important Files for Agents
 
