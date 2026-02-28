@@ -15,6 +15,17 @@ class BaseTestTags:
             "tags.sql": fixtures.tags_sql.replace("table", self.materialized),
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+databricks_tags": {
+                    "a": "TO_BE_REPLACED_AT_LOWER_LEVEL",
+                    "x": "y",
+                }
+            }
+        }
+
     def test_tags(self, project):
         _ = util.run_dbt(["run", "--models", "tags"])
         _ = util.run_dbt(["run", "--models", "tags"])
@@ -23,8 +34,8 @@ class BaseTestTags:
             " where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
-        assert len(results) == 3
-        expected_tags = {("a", "b"), ("c", "d"), ("k", "")}
+        assert len(results) == 4
+        expected_tags = {("a", "b"), ("c", "d"), ("k", ""), ("x", "y")}
         actual_tags = set((row[0], row[1]) for row in results)
         assert actual_tags == expected_tags
 

@@ -13,6 +13,11 @@
 
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
 
+### Under the Hood
+
+- **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+
+
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes
