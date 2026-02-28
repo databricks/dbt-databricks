@@ -33,7 +33,7 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
 
         if table:
             for row in table.rows:
-                tags[str(row[0])] = str(row[1])
+                tags[str(row[0])] = str(row[1] or "")
 
         return TagsConfig(set_tags=tags)
 
@@ -43,7 +43,7 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
         if not tags:
             return TagsConfig(set_tags=dict())
         if isinstance(tags, dict):
-            tags = {str(k): str(v) for k, v in tags.items()}
+            tags = {str(k): str(v or "") for k, v in tags.items()}
             return TagsConfig(set_tags=tags)
         else:
             raise DbtRuntimeError("databricks_tags must be a dictionary")

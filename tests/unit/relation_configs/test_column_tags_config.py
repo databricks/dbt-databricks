@@ -26,7 +26,7 @@ class TestColumnTagsProcessor:
             "information_schema.column_tags": Table(
                 rows=[
                     ["col1", "tag_a", "value_a"],
-                    ["col1", "tag_b", "value_b"],
+                    ["col1", "tag_b", ""],  # key-only tag
                     ["col2", "tag_c", "value_c"],
                 ],
                 column_names=["column_name", "tag_name", "tag_value"],
@@ -35,7 +35,7 @@ class TestColumnTagsProcessor:
         spec = ColumnTagsProcessor.from_relation_results(results)
         assert spec == ColumnTagsConfig(
             set_column_tags={
-                "col1": {"tag_a": "value_a", "tag_b": "value_b"},
+                "col1": {"tag_a": "value_a", "tag_b": ""},
                 "col2": {"tag_c": "value_c"},
             }
         )
@@ -54,14 +54,14 @@ class TestColumnTagsProcessor:
     def test_from_relation_config__with_dict(self):
         model = Mock()
         model.columns = {
-            "email": {"_extra": {"databricks_tags": {"pii": "true", "env": "prod"}}},
+            "email": {"_extra": {"databricks_tags": {"pii": "", "env": "prod"}}},
             "id": {"_extra": {}},
             "created_at": {},
         }
         spec = ColumnTagsProcessor.from_relation_config(model)
         assert spec == ColumnTagsConfig(
             set_column_tags={
-                "email": {"pii": "true", "env": "prod"},
+                "email": {"pii": "", "env": "prod"},
             }
         )
 
@@ -71,14 +71,14 @@ class TestColumnTagsProcessor:
             "id": ColumnInfo(name="id", _extra={}),
             "email": ColumnInfo(
                 name="email",
-                _extra={"databricks_tags": {"pii": "true", "env": "prod"}},
+                _extra={"databricks_tags": {"pii": "", "env": "prod"}},
             ),
             "created_at": ColumnInfo(name="created_at"),
         }
         spec = ColumnTagsProcessor.from_relation_config(model)
         assert spec == ColumnTagsConfig(
             set_column_tags={
-                "email": {"pii": "true", "env": "prod"},
+                "email": {"pii": "", "env": "prod"},
             }
         )
 

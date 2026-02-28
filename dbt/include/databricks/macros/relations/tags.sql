@@ -30,8 +30,8 @@
 
 {% macro alter_set_tags(relation, tags) -%}
   ALTER {{ relation.type.render() }} {{ relation.render() }} SET TAGS (
-    {% for tag in tags -%}
-      '{{ tag }}' = '{{ tags[tag] }}' {%- if not loop.last %}, {% endif -%}
+    {% for key, value in tags.items() -%}
+      '{{ key }}' = '{{ value }}' {%- if not loop.last %}, {% endif -%}
     {%- endfor %}
   )
 {%- endmacro -%}

@@ -6,10 +6,17 @@
   gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
   Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
   ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by settings
+  tag values as empty strings `""`. ([#1270](https://github.com/databricks/dbt-databricks/issues/1270))
   
 ### Fixes
 
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
+
+### Under the Hood
+
+- **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
