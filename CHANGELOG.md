@@ -4,6 +4,7 @@
 
 - Add support for metric views as a materialization ([#1285](https://github.com/databricks/dbt-databricks/pull/1285))
 - Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
+- Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
