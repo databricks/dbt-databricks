@@ -27,8 +27,7 @@
       {% if column_tags %}
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
-      {% set contract_config = config.get('contract') %}
-      {% if constraints and contract_config.enforced %}
+      {% if constraints %}
         {{ apply_constraints(target_relation, constraints) }}
       {% endif %}
       {% if column_masks %}
