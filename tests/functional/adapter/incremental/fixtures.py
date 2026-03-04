@@ -1110,6 +1110,33 @@ models:
         warn_unenforced: false
 """
 
+# Fixtures for testing that constraints are NOT applied without contract enforcement.
+# This is a regression test for https://github.com/databricks/dbt-databricks/issues/1342
+# The model inserts a NULL into the PK column. If the PK constraint were incorrectly applied,
+# Databricks would reject this with "Cannot create the primary key ... because its child
+# column(s) is nullable."
+pk_without_contract_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select cast(null as bigint) as id, 'hello' as msg
+"""
+
+schema_with_pk_without_contract = """
+version: 2
+
+models:
+  - name: pk_without_contract_sql
+    columns:
+      - name: id
+      - name: msg
+    constraints:
+      - type: primary_key
+        name: pk_no_contract
+        columns: [id]
+"""
+
 non_incremental_target_of_fk = """
 {{ config(
     materialized='table',
