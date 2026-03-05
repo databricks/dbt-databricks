@@ -33,7 +33,7 @@ class TestSnapshotCheck(BaseSnapshotCheck):
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
-class TestSnapshotLiquidClustering(BaseSimpleSnapshot):
+class TestSnapshotLiquidClustering(TestSnapshot):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"snapshots": {"+liquid_clustered_by": "id"}}
