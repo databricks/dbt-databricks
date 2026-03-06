@@ -124,6 +124,8 @@
 
   {% do persist_constraints(target_relation, model) %}
 
+  {% do optimize(target_relation) %}
+
   {{ run_hooks(post_hooks, inside_transaction=False) }}
 
   {{ return({'relations': [target_relation]}) }}
