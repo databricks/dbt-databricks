@@ -22,7 +22,12 @@
 
   {%- set columns = adapter.get_columns_in_relation(temp_relation) -%}
   {%- set model_columns = model.get('columns', {}) -%}
-  {%- set model_constraints = model.get('constraints', []) -%}
+  {%- set contract_config = config.get('contract') -%}
+  {%- if contract_config and contract_config.enforced -%}
+    {%- set model_constraints = model.get('constraints', []) -%}
+  {%- else -%}
+    {%- set model_constraints = [] -%}
+  {%- endif -%}
   {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 

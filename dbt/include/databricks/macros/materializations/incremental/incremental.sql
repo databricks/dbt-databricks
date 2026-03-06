@@ -189,7 +189,7 @@
         {% endif %}
         {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
         {% set contract_config = config.get('contract') %}
-        {% if constraints and contract_config.enforced and not target_relation.is_hive_metastore() %}
+        {% if constraints and contract_config and contract_config.enforced and not target_relation.is_hive_metastore() %}
           {{ apply_constraints(target_relation, constraints) }}
         {% endif %}
       {%- endif -%}
