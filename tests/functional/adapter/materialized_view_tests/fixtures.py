@@ -61,6 +61,8 @@ models:
         - type: primary_key
           columns: [id]
     config:
+      contract:
+        enforced: true
       persist_docs:
         relation: true
         columns: true
