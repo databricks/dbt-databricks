@@ -53,10 +53,12 @@ models:
   - name: my_materialized_view
     columns:
       - name: id
+        data_type: bigint
         description: "The unique identifier for each record"
         constraints:
           - type: not_null
       - name: value
+        data_type: bigint
     constraints:
         - type: primary_key
           columns: [id]
