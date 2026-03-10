@@ -99,3 +99,13 @@ class TestStreamingTableColumnTags(ColumnTagsMixin):
 @pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsView(ColumnTagsMixin):
     relation_type = "view"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsTableV1(ColumnTagsMixin):
+    relation_type = "table"
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        # Override MaterializationV2Mixin to test the V1 (default) materialization path
+        return {}
