@@ -24,18 +24,30 @@ class TestTblproperties:
             "expected.csv": fixtures.seed_csv,
         }
 
-    def check_tblproperties(self, project, model_name: str, properties: list[str]):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+tblproperties": {
+                    "default_property": "always",
+                    "tblproperties_to_view": "false"  # will be overwritten by model config
+                }
+            }
+        }
+
+    @staticmethod
+    def _check_tblproperties(project, model_name: str, tblproperties: dict[str, str]):
         results = util.run_sql_with_adapter(
             project.adapter,
             f"show tblproperties {project.test_schema}.{model_name}",
             fetch="all",
         )
-        tblproperties = [result[0] for result in results]
+        relation_tblproperties = {k: v for k, v in results}
 
-        for prop in properties:
-            assert prop in tblproperties
+        assert tblproperties.items() <= relation_tblproperties.items()
 
-    def check_snapshot_results(self, adapter, num_rows: int):
+    @staticmethod
+    def _check_snapshot_results(adapter, num_rows: int):
         results = util.run_sql_with_adapter(
             adapter, "select * from {database}.{schema}.my_snapshot", fetch="all"
         )
@@ -51,12 +63,15 @@ class TestTblproperties:
         util.check_relations_equal(project.adapter, ["set_tblproperties", "expected"])
         util.check_relations_equal(project.adapter, ["set_tblproperties_to_view", "expected"])
 
-        self.check_tblproperties(
+        self._check_tblproperties(
             project,
             "set_tblproperties",
-            ["delta.autoOptimize.optimizeWrite", "delta.autoOptimize.autoCompact"],
+            {"delta.autoOptimize.optimizeWrite": "true", "delta.autoOptimize.autoCompact": "true"},
         )
-        self.check_tblproperties(project, "set_tblproperties_to_view", ["tblproperties_to_view"])
+        self._check_tblproperties(
+            project,
+            "set_tblproperties_to_view",
+            {"tblproperties_to_view": "true", "default_property": "always"})
 
-        self.check_snapshot_results(project.adapter, num_rows=3)
-        self.check_tblproperties(project, "my_snapshot", ["tblproperties_to_snapshot"])
+        self._check_snapshot_results(project.adapter, num_rows=3)
+        self._check_tblproperties(project, "my_snapshot", {"tblproperties_to_snapshot": "true"})
