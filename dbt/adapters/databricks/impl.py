@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
@@ -29,7 +29,7 @@ from dbt.adapters.spark.impl import (
     SparkAdapter,
 )
 from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -175,7 +175,7 @@ class DatabricksConfig(AdapterConfig):
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
-    databricks_tags: Optional[dict[str, str]] = None
+    databricks_tags: Optional[dict[str, str]] = field(default=None, metadata=MergeBehavior.Update.meta())
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
