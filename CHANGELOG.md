@@ -1,4 +1,4 @@
-## dbt-databricks 1.11.6 (TBD)
+## dbt-databricks 1.11.6 (Mar 10, 2026)
 
 ### Features
 
