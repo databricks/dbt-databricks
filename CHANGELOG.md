@@ -10,6 +10,7 @@
   
 ### Fixes
 
+- Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
 - Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
 - Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
