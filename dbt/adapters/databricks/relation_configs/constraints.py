@@ -190,6 +190,20 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> ConstraintsConfig:
+        # Only read constraints from the model when contract enforcement is enabled.
+        # Without this guard, constraints that dbt-core parses and stores regardless of
+        # contract enforcement would leak through and be applied to the database.
+        # See: https://github.com/databricks/dbt-databricks/issues/1342
+        config = getattr(relation_config, "config", None)
+        contract = getattr(config, "contract", None) if config else None
+        contract_enforced = getattr(contract, "enforced", False)
+
+        if not contract_enforced:
+            return ConstraintsConfig(
+                set_non_nulls=set(),
+                set_constraints=set(),
+            )
+
         constraints = getattr(relation_config, "constraints", [])
         constraints = [
             {
