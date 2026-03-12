@@ -1,8 +1,15 @@
 from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
-from dbt.adapters.databricks.connections import DatabricksConnectionManager, DatabricksDBTConnection
+import pytest
+
+from dbt.adapters.databricks.connections import (
+    DatabricksConnectionManager,
+    DatabricksDBTConnection,
+    QueryContextWrapper,
+)
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.utils import is_cluster_http_path
 
 
@@ -88,3 +95,80 @@ class TestDatabricksConnectionManager:
         args, kwargs = mock_from_connection_args.call_args
         # Second argument (is_cluster) should be True for warehouse path with cluster_id
         assert args[1] is True
+
+
+class TestEagerCapabilityCache:
+    """Tests for eager capability caching in connection creation.
+
+    Validates the fix for the timing bug where capabilities were checked before the lazy
+    connection opened, causing table_format='iceberg' to fail on named compute.
+    """
+
+    NAMED_COMPUTE_HTTP_PATH = "sql/protocolv1/o/1234567890123456/named-compute-123"
+    DEFAULT_HTTP_PATH = "sql/protocolv1/o/1234567890123456/default-cluster-456"
+
+    @pytest.fixture
+    def connection_manager(self):
+        mock_config = Mock()
+        mock_config.credentials = Mock(spec=DatabricksCredentials)
+        mock_config.credentials.http_path = self.DEFAULT_HTTP_PATH
+        mock_config.credentials.compute = {
+            "alternate_compute": {"http_path": self.NAMED_COMPUTE_HTTP_PATH}
+        }
+        mock_config.credentials.cluster_id = None
+        mock_config.query_comment = Mock()
+        mock_config.query_comment.comment = ""
+        mock_config.query_comment.append = False
+
+        mgr = DatabricksConnectionManager(mock_config, get_context("spawn"))
+        DatabricksConnectionManager._dbr_capabilities_cache = {}
+        return mgr
+
+    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
+    def test_fresh_connection_caches_capabilities_before_setting_them(
+        self, mock_cache_dbr, connection_manager
+    ):
+        """_create_fresh_connection must call _cache_dbr_capabilities before reading the cache."""
+        expected_caps = DBRCapabilities(dbr_version=(15, 4), is_sql_warehouse=False)
+
+        def populate_cache(creds, http_path):
+            DatabricksConnectionManager._dbr_capabilities_cache[http_path] = expected_caps
+
+        mock_cache_dbr.side_effect = populate_cache
+
+        ctx = QueryContextWrapper(compute_name="alternate_compute")
+        conn = connection_manager._create_fresh_connection("test_model", ctx)
+
+        mock_cache_dbr.assert_called_once_with(
+            connection_manager.profile.credentials, self.NAMED_COMPUTE_HTTP_PATH
+        )
+        assert conn.capabilities == expected_caps
+        assert conn.capabilities.has_capability(DBRCapability.ICEBERG)
+
+    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
+    def test_fresh_connection_without_eager_cache_gets_empty_defaults(
+        self, mock_cache_dbr, connection_manager
+    ):
+        """Without the eager cache call, named compute gets empty (broken) capabilities.
+
+        This test documents the pre-fix behavior: if _cache_dbr_capabilities is a no-op,
+        the connection falls back to DBRCapabilities() which has all capabilities disabled.
+        """
+        ctx = QueryContextWrapper(compute_name="alternate_compute")
+        conn = connection_manager._create_fresh_connection("test_model", ctx)
+
+        assert conn.capabilities.dbr_version is None
+        assert not conn.capabilities.is_sql_warehouse
+        assert not conn.capabilities.has_capability(DBRCapability.ICEBERG)
+
+    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
+    def test_default_compute_cache_is_idempotent(self, mock_cache_dbr, connection_manager):
+        """For default compute with a warm cache, the eager call is a no-op."""
+        warm_caps = DBRCapabilities(dbr_version=(15, 4), is_sql_warehouse=False)
+        DatabricksConnectionManager._dbr_capabilities_cache[self.DEFAULT_HTTP_PATH] = warm_caps
+
+        ctx = QueryContextWrapper()
+        conn = connection_manager._create_fresh_connection("test_model", ctx)
+
+        mock_cache_dbr.assert_called_once()
+        assert conn.capabilities == warm_caps

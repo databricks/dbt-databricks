@@ -288,6 +288,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
         conn._query_header_context = query_header_context
+        self._cache_dbr_capabilities(creds, conn.http_path)
         conn.capabilities = self._get_capabilities_for_http_path(conn.http_path)
         conn.handle = LazyHandle(self.open)
 
