@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Optional
+from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
@@ -19,47 +19,11 @@ class TblPropertiesConfig(DatabricksComponentConfig):
     tblproperties: dict[str, str]
     pipeline_id: Optional[str] = None
 
-    # List of tblproperties that should be ignored when comparing configs. These are generally
-    # set by Databricks and are not user-configurable.
-    ignore_list: ClassVar[list[str]] = [
-        "pipelines.pipelineId",
-        "delta.enableChangeDataFeed",
-        "delta.minReaderVersion",
-        "delta.minWriterVersion",
-        "pipeline_internal.catalogType",
-        "pipelines.metastore.tableName",
-        "pipeline_internal.enzymeMode",
-        "clusterByAuto",
-        "clusteringColumns",
-        "delta.enableRowTracking",
-        "delta.feature.appendOnly",
-        "delta.feature.changeDataFeed",
-        "delta.feature.checkConstraints",
-        "delta.feature.domainMetadata",
-        "delta.feature.generatedColumns",
-        "delta.feature.invariants",
-        "delta.feature.rowTracking",
-        "delta.rowTracking.materializedRowCommitVersionColumnName",
-        "delta.rowTracking.materializedRowIdColumnName",
-        "spark.internal.pipelines.top_level_entry.user_specified_name",
-        "delta.columnMapping.maxColumnId",
-        "spark.sql.internal.pipelines.parentTableId",
-        "delta.enableDeletionVectors",
-        "delta.feature.deletionVectors",
-    ]
-
-    def __eq__(self, __value: Any) -> bool:
-        """Override equality check to ignore certain tblproperties."""
-
-        if not isinstance(__value, TblPropertiesConfig):
-            return False
-
-        def _without_ignore_list(d: dict[str, str]) -> dict[str, str]:
-            return {k: v for k, v in d.items() if k not in self.ignore_list}
-
-        return _without_ignore_list(self.tblproperties) == _without_ignore_list(
-            __value.tblproperties
-        )
+    def get_diff(self, other: "TblPropertiesConfig") -> Optional["TblPropertiesConfig"]:
+        # tblproperties are "set only" - we never unset tblproperties, only add or update them
+        if unapplied_properties := self.tblproperties.items() - other.tblproperties.items():
+            return TblPropertiesConfig(tblproperties={k: v for k, v in unapplied_properties})
+        return None
 
 
 class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
@@ -70,12 +34,11 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
         table = results.get("show_tblproperties")
         tblproperties = dict()
         pipeline_id = None
-
         if table:
             for row in table.rows:
                 if str(row[0]) == "pipelines.pipelineId":
                     pipeline_id = str(row[1])
-                elif str(row[0]) not in TblPropertiesConfig.ignore_list:
+                else:
                     tblproperties[str(row[0])] = str(row[1])
 
         return TblPropertiesConfig(tblproperties=tblproperties, pipeline_id=pipeline_id)
