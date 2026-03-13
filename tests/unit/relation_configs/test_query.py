@@ -4,7 +4,12 @@ import pytest
 from agate import Row
 from dbt.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
+from dbt.adapters.databricks.relation_configs.query import (
+    QueryConfig,
+    QueryProcessor,
+    ViewQueryConfig,
+    ViewQueryProcessor,
+)
 
 sql = "select * from foo"
 
@@ -49,4 +54,47 @@ class TestQueryProcessor:
             )
         }
         other = QueryProcessor.from_relation_results(results)
+        assert model.get_diff(other) is model
+
+
+class TestViewQueryProcessor:
+    def test_from_results(self):
+        results = {"information_schema.views": Row([sql, "other"], ["view_definition", "comment"])}
+        spec = ViewQueryProcessor.from_relation_results(results)
+        assert spec == ViewQueryConfig(query=sql)
+
+    def test_from_model_node__with_query(self):
+        model = Mock()
+        model.compiled_code = sql
+        spec = ViewQueryProcessor.from_relation_config(model)
+        assert spec == ViewQueryConfig(query=sql)
+
+    def test_from_model_node__without_query(self):
+        model = Mock()
+        model.compiled_code = None
+        model.identifier = "1"
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Cannot compile model 1 with no SQL query",
+        ):
+            _ = ViewQueryProcessor.from_relation_config(model)
+
+    def test_get_diff__always_returns_self_for_identical_query(self):
+        model = ViewQueryConfig(query="select * from foo")
+        results = {
+            "information_schema.views": Row(
+                ["(\nselect * from foo\n)", "other"], ["view_definition", "comment"]
+            )
+        }
+        other = ViewQueryProcessor.from_relation_results(results)
+        assert model.get_diff(other) is model
+
+    def test_get_diff__always_returns_self_for_different_query(self):
+        model = ViewQueryConfig(query="select * from foo")
+        results = {
+            "information_schema.views": Row(
+                ["(\nselect * from bar\n)", "other"], ["view_definition", "comment"]
+            )
+        }
+        other = ViewQueryProcessor.from_relation_results(results)
         assert model.get_diff(other) is model

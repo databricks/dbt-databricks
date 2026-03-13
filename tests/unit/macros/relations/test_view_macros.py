@@ -51,6 +51,7 @@ class TestAlterView(MacroTestBase):
         context["apply_tags"] = Mock()
         context["apply_tblproperties"] = Mock()
         context["alter_query"] = Mock()
+        context["alter_column_comment"] = Mock()
 
     def render_alter_view(self, template_bundle, changes):
         return self.run_macro(
