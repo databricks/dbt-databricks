@@ -35,7 +35,8 @@ class TestMicrobatchInsertByName:
 
         # Verify initial data using direct SQL comparison and fully qualified name
         actual_initial = project.run_sql(
-            f"select id, amount from {project.database}.{project.test_schema}.microbatch_model order by id",
+            f"select id, amount from {project.database}.{project.test_schema}.microbatch_model "
+            "order by id",
             fetch="all",
         )
         assert len(actual_initial) == 3
@@ -59,7 +60,8 @@ class TestMicrobatchInsertByName:
 
         # Verify row count and data integrity are correct
         actual_final = project.run_sql(
-            f"select id, amount from {project.database}.{project.test_schema}.microbatch_model order by id",
+            f"select id, amount from {project.database}.{project.test_schema}.microbatch_model "
+            "order by id",
             fetch="all",
         )
 
