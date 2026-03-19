@@ -48,8 +48,8 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col > '2023-01-01'
-        BY NAME TABLE schema.temp_table
+        BY NAME REPLACE WHERE date_col > '2023-01-01'
+        TABLE schema.temp_table
         """
 
         self.assert_sql_equal(result, expected)
@@ -70,8 +70,8 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col > '2023-01-01' and another_col != 'value'
-        BY NAME TABLE schema.temp_table
+        BY NAME REPLACE WHERE date_col > '2023-01-01' and another_col != 'value'
+        TABLE schema.temp_table
         """
 
         self.assert_sql_equal(result, expected)
@@ -129,8 +129,8 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
-        BY NAME TABLE schema.temp_table
+        BY NAME REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
+        TABLE schema.temp_table
         """  # noqa
 
         self.assert_sql_equal(result, expected)
