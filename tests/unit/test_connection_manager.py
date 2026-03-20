@@ -97,78 +97,56 @@ class TestDatabricksConnectionManager:
         assert args[1] is True
 
 
-class TestEagerCapabilityCache:
-    """Tests for eager capability caching in connection creation.
 
-    Validates the fix for the timing bug where capabilities were checked before the lazy
-    connection opened, causing table_format='iceberg' to fail on named compute.
-    """
+class TestTryCacheDbr:
+    """Unit tests for _try_cache_dbr_capabilities."""
 
-    NAMED_COMPUTE_HTTP_PATH = "sql/protocolv1/o/1234567890123456/named-compute-123"
-    DEFAULT_HTTP_PATH = "sql/protocolv1/o/1234567890123456/default-cluster-456"
+    HTTP_PATH = "sql/protocolv1/o/1234567890123456/cluster-abc"
 
-    @pytest.fixture
-    def connection_manager(self):
-        mock_config = Mock()
-        mock_config.credentials = Mock(spec=DatabricksCredentials)
-        mock_config.credentials.http_path = self.DEFAULT_HTTP_PATH
-        mock_config.credentials.compute = {
-            "alternate_compute": {"http_path": self.NAMED_COMPUTE_HTTP_PATH}
-        }
-        mock_config.credentials.cluster_id = None
-        mock_config.query_comment = Mock()
-        mock_config.query_comment.comment = ""
-        mock_config.query_comment.append = False
-
-        mgr = DatabricksConnectionManager(mock_config, get_context("spawn"))
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
         DatabricksConnectionManager._dbr_capabilities_cache = {}
-        return mgr
+        yield
+        DatabricksConnectionManager._dbr_capabilities_cache = {}
 
-    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
-    def test_fresh_connection_caches_capabilities_before_setting_them(
-        self, mock_cache_dbr, connection_manager
-    ):
-        """_create_fresh_connection must call _cache_dbr_capabilities before reading the cache."""
-        expected_caps = DBRCapabilities(dbr_version=(15, 4), is_sql_warehouse=False)
+    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=None)
+    def test_does_not_write_to_cache_when_version_is_none(self, mock_query):
+        """When the version query returns None, the cache must not be written.
 
-        def populate_cache(creds, http_path):
-            DatabricksConnectionManager._dbr_capabilities_cache[http_path] = expected_caps
-
-        mock_cache_dbr.side_effect = populate_cache
-
-        ctx = QueryContextWrapper(compute_name="alternate_compute")
-        conn = connection_manager._create_fresh_connection("test_model", ctx)
-
-        mock_cache_dbr.assert_called_once_with(
-            connection_manager.profile.credentials, self.NAMED_COMPUTE_HTTP_PATH
-        )
-        assert conn.capabilities == expected_caps
-        assert conn.capabilities.has_capability(DBRCapability.ICEBERG)
-
-    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
-    def test_fresh_connection_without_eager_cache_gets_empty_defaults(
-        self, mock_cache_dbr, connection_manager
-    ):
-        """Without the eager cache call, named compute gets empty (broken) capabilities.
-
-        This test documents the pre-fix behavior: if _cache_dbr_capabilities is a no-op,
-        the connection falls back to DBRCapabilities() which has all capabilities disabled.
+        This prevents a poisoned None entry from blocking the authoritative write in open().
         """
-        ctx = QueryContextWrapper(compute_name="alternate_compute")
-        conn = connection_manager._create_fresh_connection("test_model", ctx)
+        creds = Mock(spec=DatabricksCredentials)
+        creds.cluster_id = None
 
-        assert conn.capabilities.dbr_version is None
-        assert not conn.capabilities.is_sql_warehouse
-        assert not conn.capabilities.has_capability(DBRCapability.ICEBERG)
+        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
 
-    @patch.object(DatabricksConnectionManager, "_cache_dbr_capabilities")
-    def test_default_compute_cache_is_idempotent(self, mock_cache_dbr, connection_manager):
-        """For default compute with a warm cache, the eager call is a no-op."""
-        warm_caps = DBRCapabilities(dbr_version=(15, 4), is_sql_warehouse=False)
-        DatabricksConnectionManager._dbr_capabilities_cache[self.DEFAULT_HTTP_PATH] = warm_caps
+        assert self.HTTP_PATH not in DatabricksConnectionManager._dbr_capabilities_cache
+        mock_query.assert_called_once_with(creds, self.HTTP_PATH)
 
-        ctx = QueryContextWrapper()
-        conn = connection_manager._create_fresh_connection("test_model", ctx)
+    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=(15, 4))
+    def test_writes_to_cache_when_version_is_known(self, mock_query):
+        """When the version query succeeds, capabilities are cached correctly."""
+        creds = Mock(spec=DatabricksCredentials)
+        creds.cluster_id = None
 
-        mock_cache_dbr.assert_called_once()
-        assert conn.capabilities == warm_caps
+        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
+
+        mock_query.assert_called_once_with(creds, self.HTTP_PATH)
+        caps = DatabricksConnectionManager._dbr_capabilities_cache.get(self.HTTP_PATH)
+        assert caps is not None
+        assert caps.dbr_version == (15, 4)
+        assert not caps.is_sql_warehouse
+        assert caps.has_capability(DBRCapability.ICEBERG)
+
+    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=(15, 4))
+    def test_skips_write_when_already_cached(self, mock_query):
+        """If the path is already in cache, the version query is never made."""
+        creds = Mock(spec=DatabricksCredentials)
+        creds.cluster_id = None
+        existing = DBRCapabilities(dbr_version=(14, 3), is_sql_warehouse=False)
+        DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] = existing
+
+        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
+
+        mock_query.assert_not_called()
+        assert DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] is existing
