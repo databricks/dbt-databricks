@@ -32,7 +32,6 @@ microbatch_model_sql = """
     batch_size='day'
 ) }}
 select id, event_time, amount from {{ ref('microbatch_seeds') }}
-where {{ incremental_predicate('event_time') }}
 """
 
 # Reordered model: columns in (amount, id, event_time) order — this is the key scenario
@@ -46,7 +45,6 @@ microbatch_model_reordered_sql = """
     batch_size='day'
 ) }}
 select amount, id, event_time from {{ ref('microbatch_seeds') }}
-where {{ incremental_predicate('event_time') }}
 """
 
 schema_yml = """
