@@ -6,7 +6,6 @@ import pytest
 from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
-    QueryContextWrapper,
 )
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
@@ -95,7 +94,6 @@ class TestDatabricksConnectionManager:
         args, kwargs = mock_from_connection_args.call_args
         # Second argument (is_cluster) should be True for warehouse path with cluster_id
         assert args[1] is True
-
 
 
 class TestTryCacheDbr:
