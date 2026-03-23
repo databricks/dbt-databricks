@@ -121,7 +121,9 @@
   {%- set predicates = args_dict['incremental_predicates'] -%}
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
+  {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
 INSERT INTO {{ target_relation.render() }}
+{%- if has_insert_by_name %} BY NAME{% endif %}
 {%- if predicates %}
   {%- if predicates is sequence and predicates is not string %}
  REPLACE WHERE {{ predicates | join(' and ') }}
