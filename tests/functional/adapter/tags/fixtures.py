@@ -16,6 +16,15 @@ updated_tags_sql = """
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
 """
 
+tags_merged_sql = """
+{{ config(
+    materialized = 'table',
+    databricks_tags = {'c': 'd'},
+) }}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+"""
+
 streaming_table_tags_sql = """
 {{ config(
     materialized='streaming_table',
