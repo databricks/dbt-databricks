@@ -73,6 +73,7 @@ class DatabricksCredentials(Credentials):
         data.setdefault("connection_parameters", {})
         data["connection_parameters"].setdefault("_retry_stop_after_attempts_count", 30)
         data["connection_parameters"].setdefault("_retry_delay_max", 60)
+        data["connection_parameters"].setdefault("_retry_server_directed_only", False)
         return data
 
     def __post_init__(self) -> None:
