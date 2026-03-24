@@ -383,14 +383,10 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         the connector should only retry requests when the server includes a
         Retry-After header, preventing duplicate writes from blind retries.
         """
-        config = self._get_config(
-            connection_parameters={"_retry_server_directed_only": True}
-        )
+        config = self._get_config(connection_parameters={"_retry_server_directed_only": True})
         adapter = DatabricksAdapter(config, get_context("spawn"))
 
-        connect = self._connect_func(
-            expected_retry_params={"_retry_server_directed_only": True}
-        )
+        connect = self._connect_func(expected_retry_params={"_retry_server_directed_only": True})
         with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
