@@ -1,8 +1,29 @@
-## dbt-databricks 1.12.0 (TBD)
+## dbt-databricks 1.11.7 (TBD)
 
 ### Features
 
 - Enable Notebook scoped python packages installation
+- 
+### Fixes
+
+- Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
+
+## dbt-databricks 1.11.6 (Mar 10, 2026)
+
+### Features
+
+- Enable concurrent microbatch execution via `MicrobatchConcurrency` capability,
+  gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
+  Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
+  ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Run `optimize` on snapshots when `liquid_clustered_by`, `zorder`, or `auto_liquid_cluster` config is set, matching existing behavior for tables and incremental models ([#1335](https://github.com/databricks/dbt-databricks/issues/1335))
+  
+### Fixes
+
+- Fix constraints (e.g. primary key, not null) being applied to tables/incrementals/materialized views when `contract.enforced: false` ([#1343](https://github.com/databricks/dbt-databricks/pull/1343))
+- Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
+- Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
+- Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 

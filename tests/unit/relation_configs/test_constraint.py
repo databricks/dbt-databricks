@@ -121,23 +121,46 @@ class TestConstraintsProcessor:
             set_constraints=set(),
         )
 
-    def test_from_relation_config__without_constraints(self):
+    @staticmethod
+    def _make_model_with_contract(**kwargs):
+        """Create a Mock model with contract.enforced = True."""
         model = Mock()
-        model.constraints = []
+        model.config.contract.enforced = True
+        for key, value in kwargs.items():
+            setattr(model, key, value)
+        return model
+
+    def test_from_relation_config__without_constraints(self):
+        model = self._make_model_with_contract(constraints=[], columns={})
+        spec = ConstraintsProcessor.from_relation_config(model)
+        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+
+    def test_from_relation_config__without_contract(self):
+        """Constraints should be empty when contract is not enforced (issue #1342)."""
+        model = Mock()
+        model.config.contract.enforced = False
         model.columns = {}
+        model.constraints = [
+            ModelLevelConstraint(
+                type=ConstraintType.primary_key,
+                name="pk_user",
+                columns=["id"],
+            )
+        ]
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
 
     def test_from_relation_config__with_check_constraint(self):
-        model = Mock()
-        model.columns = {}
-        model.constraints = [
-            ModelLevelConstraint(
-                type=ConstraintType.check,
-                name="check_name_length",
-                expression="LENGTH (name) >= 1",
-            )
-        ]
+        model = self._make_model_with_contract(
+            columns={},
+            constraints=[
+                ModelLevelConstraint(
+                    type=ConstraintType.check,
+                    name="check_name_length",
+                    expression="LENGTH (name) >= 1",
+                )
+            ],
+        )
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
             set_non_nulls=set(),
@@ -151,15 +174,16 @@ class TestConstraintsProcessor:
         )
 
     def test_from_relation_config__with_primary_key_constraint(self):
-        model = Mock()
-        model.columns = {}
-        model.constraints = [
-            ModelLevelConstraint(
-                type=ConstraintType.primary_key,
-                name="pk_user",
-                columns=["id", "email"],
-            )
-        ]
+        model = self._make_model_with_contract(
+            columns={},
+            constraints=[
+                ModelLevelConstraint(
+                    type=ConstraintType.primary_key,
+                    name="pk_user",
+                    columns=["id", "email"],
+                )
+            ],
+        )
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
             set_non_nulls=set(),
@@ -173,17 +197,18 @@ class TestConstraintsProcessor:
         )
 
     def test_from_relation_config__with_foreign_key_constraint(self):
-        model = Mock()
-        model.columns = {}
-        model.constraints = [
-            ModelLevelConstraint(
-                type=ConstraintType.foreign_key,
-                name="fk_user_customer",
-                columns=["id", "email"],
-                to="`catalog`.`schema`.`customers`",
-                to_columns=["customer_id", "email"],
-            )
-        ]
+        model = self._make_model_with_contract(
+            columns={},
+            constraints=[
+                ModelLevelConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_user_customer",
+                    columns=["id", "email"],
+                    to="`catalog`.`schema`.`customers`",
+                    to_columns=["customer_id", "email"],
+                )
+            ],
+        )
         spec = ConstraintsProcessor.from_relation_config(model)
         assert spec == ConstraintsConfig(
             set_non_nulls=set(),
@@ -199,19 +224,20 @@ class TestConstraintsProcessor:
         )
 
     def test_from_relation_config__with_non_null_constraint(self):
-        model = Mock()
-        model.columns = {
-            "email": ColumnInfo(
-                name="email",
-                constraints=[ColumnLevelConstraint(type=ConstraintType.not_null)],
-            ),
-        }
-        model.constraints = [
-            ModelLevelConstraint(
-                type=ConstraintType.not_null,
-                columns=["id"],
-            )
-        ]
+        model = self._make_model_with_contract(
+            columns={
+                "email": ColumnInfo(
+                    name="email",
+                    constraints=[ColumnLevelConstraint(type=ConstraintType.not_null)],
+                ),
+            },
+            constraints=[
+                ModelLevelConstraint(
+                    type=ConstraintType.not_null,
+                    columns=["id"],
+                )
+            ],
+        )
         spec = ConstraintsProcessor.from_relation_config(model)
 
         assert spec == ConstraintsConfig(

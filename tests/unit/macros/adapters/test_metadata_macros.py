@@ -166,6 +166,37 @@ class TestMetadataMacros(MacroTestBase):
         """  # noqa
         self.assert_sql_equal(result, expected_sql)
 
+    def test_list_schemas_sql_with_database(self, template_bundle):
+        result = self.run_macro(template_bundle.template, "list_schemas_sql", "my_catalog")
+
+        expected_sql = "SHOW SCHEMAS IN `my_catalog`"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_list_schemas_sql_with_hyphenated_database(self, template_bundle):
+        result = self.run_macro(
+            template_bundle.template, "list_schemas_sql", "data_engineering-uc-dev"
+        )
+
+        expected_sql = "SHOW SCHEMAS IN `data_engineering-uc-dev`"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_list_schemas_sql_without_database(self, template_bundle):
+        result = self.run_macro(template_bundle.template, "list_schemas_sql", None)
+
+        expected_sql = "SHOW SCHEMAS"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_check_schema_exists_sql_with_hyphenated_database(self, template_bundle):
+        result = self.run_macro(
+            template_bundle.template,
+            "check_schema_exists_sql",
+            "data_engineering-uc-dev",
+            "my_schema",
+        )
+
+        expected_sql = "SHOW SCHEMAS IN `data_engineering-uc-dev` LIKE 'my_schema'"
+        self.assert_sql_equal(result, expected_sql)
+
     def test_case_sensitivity(self, template_bundle):
         relation = Mock()
         relation.database = "TEST_DB"
