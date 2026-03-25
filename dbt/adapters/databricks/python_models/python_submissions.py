@@ -49,7 +49,7 @@ class PythonSubmitter(ABC):
         )
         # Build the %pip install command for notebook-scoped packages
         packages = " ".join(self.packages_config.packages)
-        pip_install_cmd = f"%pip install {index_url} -q {packages}"
+        pip_install_cmd = f"%pip install {index_url} -q {packages}".replace("  ", " ")
         logger.debug(f"Adding notebook-scoped package installation: {pip_install_cmd}")
 
         # Add extra restart python command for Databricks runtimes 13.0 and above
@@ -395,7 +395,6 @@ class PythonNotebookSubmitter(PythonSubmitter):
         self.tracker = tracker
         self.uploader = uploader
         self.config_compiler = config_compiler
-        self.parsed_model = parsed_model
         super().__init__(parsed_model.config.python_packages_config)
 
     @staticmethod

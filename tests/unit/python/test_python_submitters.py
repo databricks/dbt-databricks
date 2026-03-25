@@ -109,7 +109,7 @@ class TestPythonCommandSubmitter:
 
         # Verify the code includes the pip install command
         expected_code = [
-            "%pip install  -q pandas numpy==1.24.0 scikit-learn>=1.0",
+            "%pip install -q pandas numpy==1.24.0 scikit-learn>=1.0",
             "dbutils.library.restartPython()",
             "compiled_code",
         ]
@@ -264,7 +264,7 @@ class TestPythonNotebookSubmitter:
 
         # Verify the uploader was called with the modified code
         expected_code = [
-            "%pip install  -q pandas numpy==1.24.0 scikit-learn>=1.0",
+            "%pip install -q pandas numpy==1.24.0 scikit-learn>=1.0",
             "dbutils.library.restartPython()",
             "compiled_code",
         ]
@@ -447,7 +447,7 @@ class TestPythonNotebookWorkflowSubmitter:
 
         # Verify the uploader was called with the modified code
         expected_code = [
-            "%pip install  -q pandas numpy==1.24.0 scikit-learn>=1.0",
+            "%pip install -q pandas numpy==1.24.0 scikit-learn>=1.0",
             "dbutils.library.restartPython()",
             "compiled_code",
         ]
