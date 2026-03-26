@@ -1,7 +1,7 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
-from databricks.sdk.service.jobs import BaseJob, CreateResponse, JobSettings, QueueSettings
+from databricks.sdk.service.jobs import BaseJob, CreateResponse, JobSettings, QueueSettings, Task
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import WorkflowJobApi
@@ -60,11 +60,14 @@ class TestWorkflowJobApi:
 
         assert result == "456"
         workspace_client.jobs.create.assert_called_once()
-        # After the fix, create() converts dicts to SDK dataclasses via
-        # JobSettings.from_dict().as_shallow_dict(), so kwargs will contain
-        # proper SDK objects rather than raw dicts.
+        # create() converts the dict via JobSettings.from_dict().as_shallow_dict().
+        # The SDK's jobs.create() calls v.as_dict() on each Task internally, so
+        # tasks must be proper Task dataclasses, not plain dicts.
+        # Note: as_shallow_dict() omits None/empty fields, so an empty tasks list
+        # is not included in the kwargs (the SDK treats missing as empty).
         call_kwargs = workspace_client.jobs.create.call_args[1]
         assert call_kwargs["name"] == "test_job"
+        assert call_kwargs.get("tasks") in (None, [])
 
     def test_create__job_spec_conversion(self, api, workspace_client):
         mock_create_response = Mock(spec=CreateResponse)
@@ -94,21 +97,42 @@ class TestWorkflowJobApi:
         assert result == "789"
         workspace_client.jobs.create.assert_called_once()
 
-        # After the fix, tasks are converted to SDK Task dataclasses via
-        # JobSettings.from_dict().as_shallow_dict()
+        # Tasks are converted to SDK Task dataclasses via JobSettings.from_dict().as_shallow_dict().
+        # The SDK's jobs.create() calls v.as_dict() on each task internally, so
+        # we verify: (a) they are Task instances, (b) attributes are correct,
+        # (c) .as_dict() works (proving the original AttributeError is fixed).
         call_kwargs = workspace_client.jobs.create.call_args[1]
         assert call_kwargs["name"] == "test_job"
         tasks = call_kwargs["tasks"]
         assert len(tasks) == 2
 
-        # Task objects have attributes, not dict keys
         task1 = tasks[0]
+        assert isinstance(task1, Task)
         assert task1.task_key == "task1"
         assert task1.existing_cluster_id == "test-cluster-id"
+        # Verify .as_dict() works — this was the root cause of the bug
+        task1_dict = task1.as_dict()
+        assert task1_dict["task_key"] == "task1"
+        assert task1_dict["existing_cluster_id"] == "test-cluster-id"
 
         task2 = tasks[1]
+        assert isinstance(task2, Task)
         assert task2.task_key == "task2"
         assert task2.existing_cluster_id == "already-correct"
+        assert task2.as_dict()["existing_cluster_id"] == "already-correct"
+
+    def test_create__invalid_job_spec_raises(self, api, workspace_client):
+        """If JobSettings.from_dict() raises (e.g. on malformed input), create()
+        wraps it in a DbtRuntimeError via the existing except block."""
+        with patch(
+            "dbt.adapters.databricks.api_client.JobSettings.from_dict",
+            side_effect=Exception("malformed spec"),
+        ):
+            with pytest.raises(DbtRuntimeError) as exc_info:
+                api.create({"name": "bad_job", "tasks": ["not-a-dict"]})
+
+        assert "Error creating Workflow" in str(exc_info.value)
+        workspace_client.jobs.create.assert_not_called()
 
     def test_update_job_settings__exception(self, api, workspace_client):
         workspace_client.jobs.reset.side_effect = Exception("API Error")
