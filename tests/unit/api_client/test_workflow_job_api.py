@@ -59,7 +59,12 @@ class TestWorkflowJobApi:
         result = api.create(job_spec)
 
         assert result == "456"
-        workspace_client.jobs.create.assert_called_once_with(**job_spec)
+        workspace_client.jobs.create.assert_called_once()
+        # After the fix, create() converts dicts to SDK dataclasses via
+        # JobSettings.from_dict().as_shallow_dict(), so kwargs will contain
+        # proper SDK objects rather than raw dicts.
+        call_kwargs = workspace_client.jobs.create.call_args[1]
+        assert call_kwargs["name"] == "test_job"
 
     def test_create__job_spec_conversion(self, api, workspace_client):
         mock_create_response = Mock(spec=CreateResponse)
@@ -89,21 +94,21 @@ class TestWorkflowJobApi:
         assert result == "789"
         workspace_client.jobs.create.assert_called_once()
 
-        # Verify the call was made with converted parameters
+        # After the fix, tasks are converted to SDK Task dataclasses via
+        # JobSettings.from_dict().as_shallow_dict()
         call_kwargs = workspace_client.jobs.create.call_args[1]
         assert call_kwargs["name"] == "test_job"
-        assert len(call_kwargs["tasks"]) == 2
+        tasks = call_kwargs["tasks"]
+        assert len(tasks) == 2
 
-        # Check first task conversion
-        task1 = call_kwargs["tasks"][0]
-        assert task1["task_key"] == "task1"
-        assert "cluster_id" not in task1  # Should be removed
-        assert task1["existing_cluster_id"] == "test-cluster-id"  # Should be converted
+        # Task objects have attributes, not dict keys
+        task1 = tasks[0]
+        assert task1.task_key == "task1"
+        assert task1.existing_cluster_id == "test-cluster-id"
 
-        # Check second task remains unchanged
-        task2 = call_kwargs["tasks"][1]
-        assert task2["task_key"] == "task2"
-        assert task2["existing_cluster_id"] == "already-correct"
+        task2 = tasks[1]
+        assert task2.task_key == "task2"
+        assert task2.existing_cluster_id == "already-correct"
 
     def test_update_job_settings__exception(self, api, workspace_client):
         workspace_client.jobs.reset.side_effect = Exception("API Error")
