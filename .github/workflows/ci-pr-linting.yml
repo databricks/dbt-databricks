@@ -23,7 +23,7 @@ jobs:
           node-version: 20
       - name: Install conventional commit parser
         shell: bash
-        run: npm install --global conventional-commits-parser
+        run: npm install --global conventional-commits-parser@6.3.0
 
       - name: Validate PR title
         id: pr-format
