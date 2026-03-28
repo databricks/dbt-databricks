@@ -71,7 +71,8 @@ class BaseUpdateTblProperties(BaseUpdateView):
             "show tblproperties {database}.{schema}.initial_view",
             fetch="all",
         )
-        assert results[0][1] == "value2"
+        row = [r for r in results if r[0] == "key"][0]
+        assert row[1] == "value2"
 
 
 class BaseUpdateColumnComments(BaseUpdateView):

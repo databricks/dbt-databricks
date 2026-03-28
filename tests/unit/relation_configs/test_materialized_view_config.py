@@ -37,7 +37,12 @@ class TestMaterializedViewConfig:
                 ["select * from foo", "other"], ["view_definition", "comment"]
             ),
             "show_tblproperties": Table(
-                rows=[["prop", "1"], ["other", "other"]], column_names=["key", "value"]
+                rows=[
+                    ["prop", "1"],
+                    ["other", "other"],
+                    ["dbt.tblproperties.managedKeys", "other,prop"],
+                ],
+                column_names=["key", "value"],
             ),
             "information_schema.tags": Table(
                 rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
@@ -51,7 +56,13 @@ class TestMaterializedViewConfig:
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "tblproperties": TblPropertiesConfig(
+                    tblproperties={
+                        "prop": "1",
+                        "other": "other",
+                        "dbt.tblproperties.managedKeys": "other,prop",
+                    }
+                ),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
@@ -79,7 +90,13 @@ class TestMaterializedViewConfig:
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment", persist=True),
-                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "tblproperties": TblPropertiesConfig(
+                    tblproperties={
+                        "prop": "1",
+                        "other": "other",
+                        "dbt.tblproperties.managedKeys": "other,prop",
+                    }
+                ),
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
