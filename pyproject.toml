@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.2.0, <9.0.0",
-    "databricks-sdk>=0.68.0, <0.78.0",
+    "databricks-sdk>=0.68.0, <0.103.0",
     "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.4",
     "dbt-adapters>=1.22.0, <1.23.0",
     "dbt-common>=1.37.0, <1.38.0",
