@@ -1,13 +1,20 @@
+import os
 import sys
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from databricks.sql.client import Cursor
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
+from dbt.adapters.databricks.handle import (
+    CursorWrapper,
+    DatabricksAdapterResponse,
+    DatabricksHandle,
+    SqlUtils,
+    _get_job_run_context,
+)
 
 
 class TestSqlUtils:
@@ -101,12 +108,40 @@ class TestCursorWrapper:
     def test_get_response__no_query_id(self, cursor):
         cursor.query_id = None
         wrapper = CursorWrapper(cursor)
-        assert wrapper.get_response() == AdapterResponse("OK", query_id="N/A")
+        response = wrapper.get_response()
+        assert response._message == "OK"
+        assert response.query_id == "N/A"
 
     def test_get_response__with_query_id(self, cursor):
         cursor.query_id = "id"
         wrapper = CursorWrapper(cursor)
-        assert wrapper.get_response() == AdapterResponse("OK", query_id="id")
+        response = wrapper.get_response()
+        assert response._message == "OK"
+        assert response.query_id == "id"
+
+    @patch.dict(
+        os.environ,
+        {"DATABRICKS_JOB_ID": "123", "DATABRICKS_RUN_ID": "456", "DATABRICKS_TASK_KEY": "my_task"},
+    )
+    def test_get_response__with_job_context(self, cursor):
+        cursor.query_id = "qid"
+        wrapper = CursorWrapper(cursor)
+        response = wrapper.get_response()
+        assert isinstance(response, DatabricksAdapterResponse)
+        assert response.job_id == "123"
+        assert response.run_id == "456"
+        assert response.task_key == "my_task"
+        assert response.query_id == "qid"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_response__without_job_context(self, cursor):
+        cursor.query_id = "qid"
+        wrapper = CursorWrapper(cursor)
+        response = wrapper.get_response()
+        assert isinstance(response, DatabricksAdapterResponse)
+        assert response.job_id is None
+        assert response.run_id is None
+        assert response.task_key is None
 
     def test_with__no_exception(self, cursor):
         with CursorWrapper(cursor) as c:
@@ -209,3 +244,71 @@ class TestDatabricksHandle:
         handle.close()
         cursor.close.assert_called_once()
         conn.close.assert_called_once()
+
+
+class TestGetJobRunContext:
+    @patch.dict(
+        os.environ,
+        {"DATABRICKS_JOB_ID": "111", "DATABRICKS_RUN_ID": "222", "DATABRICKS_TASK_KEY": "etl"},
+    )
+    def test_all_vars_set(self):
+        ctx = _get_job_run_context()
+        assert ctx == {"job_id": "111", "run_id": "222", "task_key": "etl"}
+
+    @patch.dict(os.environ, {"DATABRICKS_JOB_ID": "111"}, clear=True)
+    def test_partial_vars(self):
+        ctx = _get_job_run_context()
+        assert ctx["job_id"] == "111"
+        assert ctx["run_id"] is None
+        assert ctx["task_key"] is None
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_vars(self):
+        ctx = _get_job_run_context()
+        assert ctx == {"job_id": None, "run_id": None, "task_key": None}
+
+
+class TestDatabricksAdapterResponse:
+    def test_from_cursor__with_all_context(self):
+        cursor = Mock()
+        cursor.query_id = "q1"
+        with patch.dict(
+            os.environ,
+            {
+                "DATABRICKS_JOB_ID": "10",
+                "DATABRICKS_RUN_ID": "20",
+                "DATABRICKS_TASK_KEY": "transform",
+            },
+        ):
+            resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp._message == "OK"
+        assert resp.query_id == "q1"
+        assert resp.job_id == "10"
+        assert resp.run_id == "20"
+        assert resp.task_key == "transform"
+
+    def test_from_cursor__no_context(self):
+        cursor = Mock()
+        cursor.query_id = "q2"
+        with patch.dict(os.environ, {}, clear=True):
+            resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp._message == "OK"
+        assert resp.query_id == "q2"
+        assert resp.job_id is None
+        assert resp.run_id is None
+        assert resp.task_key is None
+
+    def test_from_cursor__no_query_id(self):
+        cursor = Mock()
+        cursor.query_id = None
+        with patch.dict(os.environ, {}, clear=True):
+            resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.query_id == "N/A"
+
+    def test_str_representation(self):
+        resp = DatabricksAdapterResponse(_message="OK", query_id="q1", job_id="10")
+        assert str(resp) == "OK"
+
+    def test_is_adapter_response_subclass(self):
+        resp = DatabricksAdapterResponse(_message="OK")
+        assert isinstance(resp, AdapterResponse)
