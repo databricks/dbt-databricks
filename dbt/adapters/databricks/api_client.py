@@ -801,7 +801,15 @@ class WorkflowJobApi:
         try:
             # Convert job_spec to be compatible with jobs.create
             converted_job_spec = self._convert_job_spec_for_create(job_spec)
-            create_response = self.workspace_client.jobs.create(**converted_job_spec)
+            # Convert plain dicts to proper SDK dataclass objects via JobSettings.
+            # The SDK's jobs.create() iterates tasks calling `v.as_dict()` on each
+            # (confirmed in JobsAPI.create source). Plain dicts have no .as_dict(),
+            # which caused the original AttributeError. as_shallow_dict() is the
+            # correct choice: it unpacks the top-level fields as kwargs (matching
+            # the jobs.create() signature) while keeping nested values as typed
+            # Task / NotebookTask / etc. dataclasses that have .as_dict().
+            job_settings = JobSettings.from_dict(converted_job_spec)
+            create_response = self.workspace_client.jobs.create(**job_settings.as_shallow_dict())
             job_id = str(create_response.job_id)
             logger.info(f"New workflow created with job id {job_id}")
             return job_id
