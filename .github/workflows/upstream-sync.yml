@@ -1,0 +1,200 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 09:00 UTC
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: 'Force sync a specific upstream tag (e.g. v1.11.7). Leave empty to use latest.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-upstream:
+    name: Check for new upstream release
+    runs-on: ubuntu-latest
+    outputs:
+      has_new_release: ${{ steps.check.outputs.has_new_release }}
+      new_tag: ${{ steps.check.outputs.new_tag }}
+    steps:
+      - name: Check latest upstream release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_TAG: ${{ inputs.force_tag }}
+          LAST_SYNCED: ${{ vars.LAST_UPSTREAM_SYNC_TAG }}
+        run: |
+          LATEST_TAG=$(gh api repos/databricks/dbt-databricks/releases/latest --jq '.tag_name')
+          echo "Latest upstream tag: $LATEST_TAG"
+          echo "Last synced tag:     $LAST_SYNCED"
+
+          TARGET_TAG="${FORCE_TAG:-$LATEST_TAG}"
+          echo "Target tag: $TARGET_TAG"
+
+          if [[ "$TARGET_TAG" != "$LAST_SYNCED" ]] || [[ -n "$FORCE_TAG" ]]; then
+            echo "has_new_release=true" >> "$GITHUB_OUTPUT"
+            echo "new_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+            echo "New release detected: $TARGET_TAG"
+          else
+            echo "has_new_release=false" >> "$GITHUB_OUTPUT"
+            echo "No new releases. Already at $LAST_SYNCED"
+          fi
+
+  create-sync-pr:
+    name: Create upstream sync PR
+    needs: check-upstream
+    if: needs.check-upstream.outputs.has_new_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream and target tag
+        env:
+          NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
+        run: |
+          git remote add upstream https://github.com/databricks/dbt-databricks.git
+          git fetch upstream --tags
+          echo "Fetched upstream. Tag $NEW_TAG resolved to: $(git rev-parse upstream/$NEW_TAG 2>/dev/null || git rev-parse $NEW_TAG)"
+
+      - name: Create sync branch and attempt merge
+        id: merge
+        env:
+          NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="sync/upstream-${NEW_TAG}"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+          # Check if branch already exists
+          if git ls-remote --exit-code origin "$BRANCH_NAME" &>/dev/null; then
+            echo "Branch $BRANCH_NAME already exists. Deleting and recreating."
+            git push origin --delete "$BRANCH_NAME" || true
+          fi
+
+          git checkout -b "$BRANCH_NAME"
+
+          # Fetch upstream release notes
+          UPSTREAM_NOTES=$(gh api "repos/databricks/dbt-databricks/releases/tags/$NEW_TAG" \
+            --jq '.body' 2>/dev/null || echo "_No release notes available._")
+          echo "upstream_notes<<NOTES_EOF" >> "$GITHUB_OUTPUT"
+          echo "$UPSTREAM_NOTES" >> "$GITHUB_OUTPUT"
+          echo "NOTES_EOF" >> "$GITHUB_OUTPUT"
+
+          # Attempt merge
+          if git merge "$NEW_TAG" --no-edit \
+              -m "chore: sync upstream $NEW_TAG" 2>&1; then
+            echo "merge_status=clean" >> "$GITHUB_OUTPUT"
+            echo "Merge completed without conflicts."
+          else
+            echo "merge_status=conflicts" >> "$GITHUB_OUTPUT"
+            echo "Merge has conflicts — committing conflict state for manual resolution."
+            git add -A
+            git commit -m "chore: sync upstream $NEW_TAG (CONFLICTS — needs manual resolution)"
+          fi
+
+          git push origin "$BRANCH_NAME"
+
+      - name: Get list of files changed upstream
+        id: changed_files
+        env:
+          NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
+          LAST_SYNCED: ${{ vars.LAST_UPSTREAM_SYNC_TAG }}
+        run: |
+          if git rev-parse "$LAST_SYNCED" &>/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only "$LAST_SYNCED".."$NEW_TAG" | head -40 || echo "(unable to diff)")
+          else
+            CHANGED="(first sync — no previous tag to diff against)"
+          fi
+          echo "changed_files<<FILES_EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "FILES_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
+          MERGE_STATUS: ${{ steps.merge.outputs.merge_status }}
+          BRANCH_NAME: ${{ steps.merge.outputs.branch_name }}
+          UPSTREAM_NOTES: ${{ steps.merge.outputs.upstream_notes }}
+          CHANGED_FILES: ${{ steps.changed_files.outputs.changed_files }}
+        run: |
+          LABELS="upstream-sync"
+          CONFLICT_SECTION=""
+
+          if [[ "$MERGE_STATUS" == "conflicts" ]]; then
+            LABELS="upstream-sync,needs-manual-resolution"
+            CONFLICT_SECTION="## ⚠️ Merge Conflicts Detected
+
+          This PR contains merge conflicts that require manual resolution before merging.
+          Look for files containing \`<<<<<<<\` markers.
+
+          "
+          fi
+
+          gh pr create \
+            --title "chore: sync upstream $NEW_TAG" \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --label "$LABELS" \
+            --body "$(cat <<BODY_EOF
+          ## Upstream Sync: $NEW_TAG
+
+          ${CONFLICT_SECTION}## Upstream Release Notes
+
+          ${UPSTREAM_NOTES}
+
+          ## Files Changed Upstream (vs previous sync)
+
+          \`\`\`
+          ${CHANGED_FILES}
+          \`\`\`
+
+          ## Review Checklist
+
+          Files most likely to conflict with session mode additions:
+
+          - [ ] \`dbt/adapters/databricks/session.py\` — ensure it wasn't removed or overwritten
+          - [ ] \`dbt/adapters/databricks/credentials.py\` — check \`method\` field and \`is_session_mode\` are intact
+          - [ ] \`dbt/adapters/databricks/connections.py\` — check session mode guards are intact
+          - [ ] \`dbt/adapters/databricks/impl.py\` — check \`USE_CONCURRENT_MICROBATCH\`, \`supports()\`, and \`SessionPythonJobHelper\` are all present
+          - [ ] \`dbt/adapters/databricks/python_models/python_submissions.py\` — check \`SessionPythonJobHelper\` class is intact
+          - [ ] Run unit tests: \`hatch run unit\`
+          - [ ] After merging, update \`LAST_UPSTREAM_SYNC_TAG\` repo variable to \`$NEW_TAG\` if it was not updated automatically
+
+          ---
+          _Automatically generated by the [upstream-sync](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) workflow._
+          BODY_EOF
+          )"
+
+      - name: Update LAST_UPSTREAM_SYNC_TAG variable
+        if: steps.merge.outputs.merge_status == 'clean'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
+        run: |
+          # Try to update the variable; create it if it doesn't exist
+          gh api \
+            --method PATCH \
+            "/repos/${{ github.repository }}/actions/variables/LAST_UPSTREAM_SYNC_TAG" \
+            -f name=LAST_UPSTREAM_SYNC_TAG \
+            -f value="$NEW_TAG" \
+          || \
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/actions/variables" \
+            -f name=LAST_UPSTREAM_SYNC_TAG \
+            -f value="$NEW_TAG"
+          echo "Updated LAST_UPSTREAM_SYNC_TAG to $NEW_TAG"
