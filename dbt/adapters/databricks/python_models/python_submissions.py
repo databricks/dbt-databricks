@@ -754,6 +754,7 @@ class SessionPythonJobHelper(PythonJobHelper):
 
     def __init__(self, parsed_model: dict, credentials: DatabricksCredentials) -> None:
         self.credentials = credentials
+        self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
         # Get SparkSession directly - no API client needed
