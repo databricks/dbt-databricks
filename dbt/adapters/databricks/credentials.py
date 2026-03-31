@@ -275,10 +275,12 @@ class DatabricksCredentials(Credentials):
             if key in as_dict:
                 yield key, as_dict[key]
 
-    def _connection_keys_session(self) -> tuple[str, ...]:
+    def _connection_keys_session(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         """Connection keys for session mode."""
         connection_keys = ["method", "schema"]
-        if self.database:
+        if with_aliases:
+            connection_keys.insert(1, "database")
+        elif self.database:
             connection_keys.insert(1, "catalog")
         if self.session_properties:
             connection_keys.append("session_properties")
@@ -296,7 +298,7 @@ class DatabricksCredentials(Credentials):
 
         # Session mode has different connection keys
         if self.is_session_mode:
-            return self._connection_keys_session()
+            return self._connection_keys_session(with_aliases=with_aliases)
 
         connection_keys = ["host", "http_path", "schema"]
         if with_aliases:

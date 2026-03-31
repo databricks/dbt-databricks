@@ -176,6 +176,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
         return credentials.is_session_mode
 
     def is_cluster(self) -> bool:
+        if self.is_session_mode():
+            return True
         conn = self.get_thread_connection()
         databricks_conn = cast(DatabricksDBTConnection, conn)
         return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
