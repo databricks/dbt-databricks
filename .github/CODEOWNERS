@@ -2,4 +2,7 @@
 # the repo. Unless a later match takes precedence, these
 # users will be requested for review when someone opens a
 # pull request.
-*       @sd-db @tejassp-db @benc-db
+*       @sd-db @tejassp-db @benc-db @jprakash-db
+
+# Explicit rule for CI/CD workflow changes
+/.github/workflows/ @sd-db @tejassp-db @benc-db @jprakash-db
