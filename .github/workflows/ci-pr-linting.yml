@@ -36,7 +36,7 @@ jobs:
           exit 1
 
       - name: Add comment to warn user
-        uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd  # v2.8.0
+        uses: marocchino/sticky-pull-request-comment@d4d6b0936434b21bc8345ad45a440c5f7d2c40ff  # v3.0.3
         if: failure()
         with:
           header: pr-title-lint-error
@@ -50,7 +50,7 @@ jobs:
             - `fix(name-of-impacted-package): My awesome fix`
 
       - name: Delete a previous comment when the issue has been resolved
-        uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd  # v2.8.0
+        uses: marocchino/sticky-pull-request-comment@d4d6b0936434b21bc8345ad45a440c5f7d2c40ff  # v3.0.3
         if: success()
         with:
           header: pr-title-lint-error
