@@ -5,8 +5,8 @@ on:
 jobs:
   stale:
     runs-on:
-      group: databricks-protected-runner-group-hardened-optin
-      labels: linux-ubuntu-latest-hardened
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     steps:
       # pinned at v4 (https://github.com/actions/stale/releases/tag/v4.0.0)
       - uses: actions/stale@cdf15f641adb27a71842045a94023bef6945e3aa

@@ -47,8 +47,8 @@ jobs:
     name: Code Quality
 
     runs-on:
-      group: databricks-protected-runner-group-hardened-optin
-      labels: linux-ubuntu-latest-hardened
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     timeout-minutes: 10
 
     env:
@@ -88,8 +88,8 @@ jobs:
     name: unit test / python ${{ matrix.python-version }}
 
     runs-on:
-      group: databricks-protected-runner-group-hardened-optin
-      labels: linux-ubuntu-latest-hardened
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     timeout-minutes: 15
 
     permissions:
@@ -154,8 +154,8 @@ jobs:
   build:
     name: Build and Verify Packages
     runs-on:
-      group: databricks-protected-runner-group-hardened-optin
-      labels: linux-ubuntu-latest-hardened
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
 
     env:
       UV_FROZEN: "1"
