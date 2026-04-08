@@ -29,3 +29,20 @@ runs:
 
         echo "JFROG_ACCESS_TOKEN=${ACCESS_TOKEN}" >> "$GITHUB_ENV"
         echo "JFrog OIDC token obtained successfully"
+
+    - name: Configure pip and uv to use JFrog PyPI proxy
+      shell: bash
+      run: |
+        set -euo pipefail
+        JFROG_PYPI_URL="https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple"
+        echo "PIP_INDEX_URL=${JFROG_PYPI_URL}" >> "$GITHUB_ENV"
+        echo "UV_INDEX_URL=${JFROG_PYPI_URL}" >> "$GITHUB_ENV"
+
+        # Write pip.conf so subprocesses (hatch, pre-commit, virtualenv) also use JFrog
+        mkdir -p ~/.config/pip
+        cat > ~/.config/pip/pip.conf << EOF
+        [global]
+        index-url = ${JFROG_PYPI_URL}
+        EOF
+
+        echo "pip and uv configured to use JFrog registry"

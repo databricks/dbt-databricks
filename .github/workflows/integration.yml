@@ -74,12 +74,6 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure pip and uv
-        run: |
-          set -euo pipefail
-          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up python
         id: setup-python
@@ -140,12 +134,6 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure pip and uv
-        run: |
-          set -euo pipefail
-          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up python
         id: setup-python
@@ -204,12 +192,6 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure pip and uv
-        run: |
-          set -euo pipefail
-          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up python
         id: setup-python
