@@ -64,11 +64,12 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure uv
+      - name: Configure pip and uv
         run: |
           set -euo pipefail
+          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
           echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "uv configured to use JFrog registry"
+          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -117,11 +118,12 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure uv
+      - name: Configure pip and uv
         run: |
           set -euo pipefail
+          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
           echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "uv configured to use JFrog registry"
+          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -167,11 +169,12 @@ jobs:
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
-      - name: Configure uv
+      - name: Configure pip and uv
         run: |
           set -euo pipefail
+          echo "PIP_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
           echo "UV_INDEX_URL=https://gha-service-account:${JFROG_ACCESS_TOKEN}@databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
-          echo "uv configured to use JFrog registry"
+          echo "pip and uv configured to use JFrog registry"
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
