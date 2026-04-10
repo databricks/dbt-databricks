@@ -109,14 +109,15 @@ jobs:
         id: cache-key
         shell: bash
         run: |
-          # Timestamp ensures each run creates a new immutable cache entry.
-          # restore-keys prefix matching in consumers picks the latest.
+          # Hash first so consumers can prefix-match on the hash alone.
+          # Timestamp suffix ensures each run creates a new immutable entry;
+          # consumers pick the latest timestamp for a given hash.
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
           LOCK_HASH="${{ hashFiles('uv.lock', 'pyproject.toml') }}"
-          echo "python-deps-key=python-deps-${TIMESTAMP}-${LOCK_HASH}" >> "$GITHUB_OUTPUT"
+          echo "python-deps-key=python-deps-${LOCK_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
 
           PRECOMMIT_HASH="${{ hashFiles('.pre-commit-config.yaml') }}"
-          echo "pre-commit-key=pre-commit-deps-${TIMESTAMP}-${PRECOMMIT_HASH}" >> "$GITHUB_OUTPUT"
+          echo "pre-commit-key=pre-commit-deps-${PRECOMMIT_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
 
       - name: Save uv and pip cache
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
