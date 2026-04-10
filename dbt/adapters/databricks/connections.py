@@ -497,6 +497,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         cls, databricks_connection: DatabricksDBTConnection, creds: DatabricksCredentials
     ) -> Connection:
         """Open a connection using SparkSession mode."""
+        creds.validate_creds()
         logger.debug("Opening connection in session mode")
 
         def connect() -> DatabricksSessionHandle:

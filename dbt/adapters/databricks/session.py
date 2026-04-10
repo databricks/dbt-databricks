@@ -20,6 +20,7 @@ from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.utils import redact_credentials
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame, Row, SparkSession
@@ -46,15 +47,14 @@ class SessionCursorWrapper:
         self, sql: str, bindings: Optional[Sequence[Any]] = None
     ) -> "SessionCursorWrapper":
         """Execute a SQL statement and store the resulting DataFrame."""
-        cleaned_sql = SqlUtils.clean_sql(sql)
-
-        # Handle bindings by simple string substitution if provided
         if bindings:
-            translated = SqlUtils.translate_bindings(bindings)
-            if translated:
-                cleaned_sql = cleaned_sql % tuple(translated)
-
-        logger.debug(f"Session mode executing SQL: {cleaned_sql[:200]}...")
+            raise DbtRuntimeError(
+                "Session mode does not support SQL parameter bindings. "
+                "Render parameters into the SQL string before calling execute()."
+            )
+        cleaned_sql = SqlUtils.clean_sql(sql)
+        log_sql = redact_credentials(cleaned_sql)
+        logger.debug(f"Session mode executing SQL: {log_sql[:200]}...")
         self._df = self._spark.sql(cleaned_sql)
         self._rows = None  # Reset cached rows
         return self
@@ -239,19 +239,37 @@ class DatabricksSessionHandle:
         self._cursor = SessionCursorWrapper(self._spark)
         return self._cursor.execute(sql, bindings)
 
+    @staticmethod
+    def _quote_identifier(identifier: str) -> str:
+        """Quote an identifier for use in Spark SQL using backtick escaping."""
+        escaped = identifier.replace("`", "``")
+        return f"`{escaped}`"
+
+    @staticmethod
+    def _escape_like_pattern(pattern: str) -> str:
+        """Escape a value for use in a SQL LIKE pattern enclosed in single quotes."""
+        escaped = pattern.replace("\\", "\\\\")
+        escaped = escaped.replace("%", "\\%").replace("_", "\\_")
+        escaped = escaped.replace("'", "''")
+        return escaped
+
     def list_schemas(
         self, database: str, schema: Optional[str] = None
     ) -> SessionCursorWrapper:
         """List schemas in the given database/catalog."""
+        quoted_db = self._quote_identifier(database)
         if schema:
-            sql = f"SHOW SCHEMAS IN {database} LIKE '{schema}'"
+            escaped_schema = self._escape_like_pattern(schema)
+            sql = f"SHOW SCHEMAS IN {quoted_db} LIKE '{escaped_schema}'"
         else:
-            sql = f"SHOW SCHEMAS IN {database}"
+            sql = f"SHOW SCHEMAS IN {quoted_db}"
         return self.execute(sql)
 
     def list_tables(self, database: str, schema: str) -> SessionCursorWrapper:
         """List tables in the given database and schema."""
-        sql = f"SHOW TABLES IN {database}.{schema}"
+        quoted_db = self._quote_identifier(database)
+        quoted_schema = self._quote_identifier(schema)
+        sql = f"SHOW TABLES IN {quoted_db}.{quoted_schema}"
         return self.execute(sql)
 
     def cancel(self) -> None:

@@ -34,14 +34,12 @@ class TestSessionCursorWrapper:
         mock_spark.sql.assert_called_once_with("SELECT 1")
         assert result is cursor
 
-    def test_execute_with_bindings(self, cursor, mock_spark):
-        """Test that execute handles bindings via string substitution."""
-        mock_df = MagicMock()
-        mock_spark.sql.return_value = mock_df
+    def test_execute_with_bindings_raises(self, cursor, mock_spark):
+        """Test that execute raises DbtRuntimeError when bindings are provided."""
+        from dbt_common.exceptions import DbtRuntimeError
 
-        cursor.execute("SELECT %s, %s", (1, "test"))
-
-        mock_spark.sql.assert_called_once_with("SELECT 1, test")
+        with pytest.raises(DbtRuntimeError, match="Session mode does not support SQL parameter bindings"):
+            cursor.execute("SELECT %s, %s", (1, "test"))
 
     def test_fetchall_returns_tuples(self, cursor, mock_spark):
         """Test that fetchall returns list of tuples."""
