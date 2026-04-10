@@ -33,8 +33,6 @@ runs:
       shell: bash
       run: |
         echo "UV_OFFLINE=true" >> "$GITHUB_ENV"
-        # verify env uses pip, not uv
         echo "PIP_NO_INDEX=1" >> "$GITHUB_ENV"
         mkdir -p ~/.config/pip
         printf '[global]\nno-index = true\n' > ~/.config/pip/pip.conf
-        echo "Cache restored — offline mode enabled"

@@ -42,7 +42,10 @@ jobs:
       UV_FROZEN: "1"
 
     steps:
-      - name: Checkout PR dependency files (sparse)
+      - name: Checkout main branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Overlay PR dependency files
         if: inputs.pr_number != ''
         shell: bash
         run: |
@@ -58,22 +61,11 @@ jobs:
 
           echo "Warming cache for PR #${{ inputs.pr_number }} from ${FORK_REPO}@${FORK_REF}"
 
-          # Sparse checkout: only dependency files and CI actions (no source code from fork)
-          git init .
+          # Fetch only lockfiles from the fork — .github/actions/ always
+          # comes from main to prevent code injection from forks.
           git remote add fork "https://github.com/${FORK_REPO}.git"
-          git config core.sparseCheckout true
-          cat > .git/info/sparse-checkout << 'EOF'
-uv.lock
-pyproject.toml
-.pre-commit-config.yaml
-.github/actions/
-EOF
           git fetch --depth=1 fork "${FORK_REF}"
-          git checkout FETCH_HEAD
-
-      - name: Checkout main branch
-        if: inputs.pr_number == ''
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+          git checkout FETCH_HEAD -- uv.lock pyproject.toml .pre-commit-config.yaml
 
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
@@ -120,11 +112,11 @@ EOF
           # Timestamp ensures each run creates a new immutable cache entry.
           # restore-keys prefix matching in consumers picks the latest.
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
-          LOCK_HASH=${{ hashFiles('uv.lock', 'pyproject.toml') }}
-          echo "python-deps-key=python-deps-${TIMESTAMP}-${LOCK_HASH}" >> $GITHUB_OUTPUT
+          LOCK_HASH="${{ hashFiles('uv.lock', 'pyproject.toml') }}"
+          echo "python-deps-key=python-deps-${TIMESTAMP}-${LOCK_HASH}" >> "$GITHUB_OUTPUT"
 
-          PRECOMMIT_HASH=${{ hashFiles('.pre-commit-config.yaml') }}
-          echo "pre-commit-key=pre-commit-deps-${TIMESTAMP}-${PRECOMMIT_HASH}" >> $GITHUB_OUTPUT
+          PRECOMMIT_HASH="${{ hashFiles('.pre-commit-config.yaml') }}"
+          echo "pre-commit-key=pre-commit-deps-${TIMESTAMP}-${PRECOMMIT_HASH}" >> "$GITHUB_OUTPUT"
 
       - name: Save uv and pip cache
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
