@@ -10,7 +10,9 @@ on:
 jobs:
   test:
     name: Run tests & display coverage
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
     permissions:
       # Gives the action the necessary permissions for publishing new
