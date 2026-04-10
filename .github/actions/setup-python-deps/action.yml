@@ -30,7 +30,4 @@ runs:
         # verify env uses pip, not uv
         echo "PIP_NO_INDEX=1" >> "$GITHUB_ENV"
         mkdir -p ~/.config/pip
-        cat > ~/.config/pip/pip.conf << 'EOF'
-[global]
-no-index = true
-EOF
+        printf '[global]\nno-index = true\n' > ~/.config/pip/pip.conf
