@@ -18,8 +18,6 @@ runs:
         path: |
           ~/.cache/uv
           ~/.cache/pip
-        # Hash-prefixed key ensures only caches matching the current lockfiles
-        # are restored. If lockfiles changed, no match → JFrog fallback.
         key: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-latest
         restore-keys: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
 

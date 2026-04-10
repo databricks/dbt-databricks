@@ -53,9 +53,6 @@ jobs:
     env:
       UV_FROZEN: "1"
 
-    strategy:
-      fail-fast: false
-
     steps:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -136,6 +133,7 @@ jobs:
 
       # Only run coverage comment once (not for all python versions)
       - name: Coverage Comment
+        id: coverage_comment
         if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683  # v3
         with:
