@@ -15,6 +15,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from tests.functional.adapter.materialized_view_tests import fixtures
+from tests.functional.adapter.utils.test_utils import get_model_config
 
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
@@ -22,7 +23,6 @@ def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
         k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
     }
     assert final_tblproperties == expected
-
 
 class MaterializedViewChangesMixin(MaterializedViewChanges):
     @pytest.fixture(scope="class", autouse=True)
@@ -32,7 +32,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_start_state(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["partition_by"].partition_by == ["id"]
         assert results.config["query"].query.startswith("select * from")
@@ -49,7 +50,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_state_alter_change_is_applied(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
@@ -67,7 +69,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_state_replace_change_is_applied(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["partition_by"].partition_by == []
         assert results.config["query"].query.startswith("select id, value")

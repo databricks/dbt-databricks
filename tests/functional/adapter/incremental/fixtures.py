@@ -76,6 +76,47 @@ models:
         - name: color
 """
 
+metadata_fetch_incremental_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id
+"""
+
+metadata_fetch_no_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+"""
+
+metadata_fetch_table_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    config:
+      databricks_tags:
+        classification: internal
+    columns:
+      - name: id
+"""
+
+metadata_fetch_column_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+        databricks_tags:
+          classification: internal
+"""
+
 tblproperties_a = """
 version: 2
 
