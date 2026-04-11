@@ -52,6 +52,7 @@ jobs:
 
     env:
       UV_FROZEN: "1"
+      UV_CACHE_DIR: /home/runner/.cache/uv
 
     steps:
       - name: Check out the repository
@@ -99,6 +100,7 @@ jobs:
 
     env:
       UV_FROZEN: "1"
+      UV_CACHE_DIR: /home/runner/.cache/uv
 
     strategy:
       fail-fast: false
@@ -154,6 +156,7 @@ jobs:
 
     env:
       UV_FROZEN: "1"
+      UV_CACHE_DIR: /home/runner/.cache/uv
 
     steps:
       - name: Check out the repository
