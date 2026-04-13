@@ -25,11 +25,12 @@ jobs:
       - name: Check latest upstream release
         id: check
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE_TAG: ${{ inputs.force_tag }}
           LAST_SYNCED: ${{ vars.LAST_UPSTREAM_SYNC_TAG }}
         run: |
-          LATEST_TAG=$(gh api repos/databricks/dbt-databricks/releases/latest --jq '.tag_name')
+          # Use PyPI JSON API — avoids Databricks org IP allowlist that blocks gh api
+          LATEST_VERSION=$(curl -fsSL https://pypi.org/pypi/dbt-databricks/json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])")
+          LATEST_TAG="v${LATEST_VERSION}"
           echo "Latest upstream tag: $LATEST_TAG"
           echo "Last synced tag:     $LAST_SYNCED"
 
@@ -86,13 +87,6 @@ jobs:
 
           git checkout -b "$BRANCH_NAME"
 
-          # Fetch upstream release notes
-          UPSTREAM_NOTES=$(gh api "repos/databricks/dbt-databricks/releases/tags/$NEW_TAG" \
-            --jq '.body' 2>/dev/null || echo "_No release notes available._")
-          echo "upstream_notes<<NOTES_EOF" >> "$GITHUB_OUTPUT"
-          echo "$UPSTREAM_NOTES" >> "$GITHUB_OUTPUT"
-          echo "NOTES_EOF" >> "$GITHUB_OUTPUT"
-
           # Attempt merge
           if git merge "$NEW_TAG" --no-edit \
               -m "chore: sync upstream $NEW_TAG" 2>&1; then
@@ -128,7 +122,6 @@ jobs:
           NEW_TAG: ${{ needs.check-upstream.outputs.new_tag }}
           MERGE_STATUS: ${{ steps.merge.outputs.merge_status }}
           BRANCH_NAME: ${{ steps.merge.outputs.branch_name }}
-          UPSTREAM_NOTES: ${{ steps.merge.outputs.upstream_notes }}
           CHANGED_FILES: ${{ steps.changed_files.outputs.changed_files }}
         run: |
           LABELS="upstream-sync"
@@ -152,11 +145,7 @@ jobs:
             --body "$(cat <<BODY_EOF
           ## Upstream Sync: $NEW_TAG
 
-          ${CONFLICT_SECTION}## Upstream Release Notes
-
-          ${UPSTREAM_NOTES}
-
-          ## Files Changed Upstream (vs previous sync)
+          ${CONFLICT_SECTION}## Files Changed Upstream (vs previous sync)
 
           \`\`\`
           ${CHANGED_FILES}
