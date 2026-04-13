@@ -13,7 +13,7 @@ on:
 
 jobs:
   pr-title:
-    runs-on: linux-ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

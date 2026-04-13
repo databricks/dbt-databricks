@@ -44,7 +44,7 @@ jobs:
   code-quality:
     name: Code Quality
 
-    runs-on: linux-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     strategy:
@@ -71,7 +71,7 @@ jobs:
   unit:
     name: unit test / python ${{ matrix.python-version }}
 
-    runs-on: linux-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     permissions:
@@ -122,7 +122,7 @@ jobs:
 
   build:
     name: Build and Verify Packages
-    runs-on: linux-ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out the repository
