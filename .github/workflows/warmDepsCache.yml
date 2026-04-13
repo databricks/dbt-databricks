@@ -62,8 +62,6 @@ jobs:
 
           echo "Warming cache for PR #${{ inputs.pr_number }} from ${FORK_REPO}@${FORK_REF}"
 
-          # Fetch only lockfiles from the fork — .github/actions/ always
-          # comes from main to prevent code injection from forks.
           git remote add fork "https://github.com/${FORK_REPO}.git"
           git fetch --depth=1 fork "${FORK_REF}"
           git checkout FETCH_HEAD -- uv.lock pyproject.toml .pre-commit-config.yaml
@@ -84,30 +82,43 @@ jobs:
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install
 
+      - name: Install Python versions for test matrix
+        run: uv python install 3.11 3.12 3.13
+
       - name: Create hatch environments (populates uv cache)
         run: |
           set -euo pipefail
           hatch env create default
+          hatch env create test.py3.10
+          hatch env create test.py3.11
+          hatch env create test.py3.12
+          hatch env create test.py3.13
           hatch env create verify
 
       - name: Warm pre-commit cache
         run: hatch run pre-commit install-hooks
 
-      - name: Build and warm pip cache for verify environment
+      - name: Create pip wheelhouse
         run: |
           set -euo pipefail
-          hatch -v build
-          # Run verify to populate ~/.cache/pip/ with runtime transitive deps.
-          # Allow failure — we only care about populating the cache.
-          hatch run verify:check-all || true
+          mkdir -p ~/.cache/pip-wheelhouse
+          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+            setuptools wheel twine check-wheel-contents
+          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+            $(hatch run python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(' '.join(data['project']['dependencies']))
+          ")
+
+      - name: Build package
+        run: hatch -v build
 
       - name: Generate cache key
         id: cache-key
         shell: bash
         run: |
-          # Hash first so consumers can prefix-match on the hash alone.
-          # Timestamp suffix ensures each run creates a new immutable entry;
-          # consumers pick the latest timestamp for a given hash.
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
           LOCK_HASH="${{ hashFiles('uv.lock', 'pyproject.toml') }}"
           echo "python-deps-key=python-deps-${LOCK_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
@@ -121,6 +132,7 @@ jobs:
           path: |
             ~/.cache/uv
             ~/.cache/pip
+            ~/.cache/pip-wheelhouse
           key: ${{ steps.cache-key.outputs.python-deps-key }}
 
       - name: Save pre-commit cache

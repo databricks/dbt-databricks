@@ -18,6 +18,7 @@ runs:
         path: |
           ~/.cache/uv
           ~/.cache/pip
+          ~/.cache/pip-wheelhouse
         key: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-latest
         restore-keys: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
 
@@ -33,11 +34,6 @@ runs:
       shell: bash
       run: |
         echo "UV_OFFLINE=true" >> "$GITHUB_ENV"
-        # uv cache is index-URL-scoped. The warmer downloads via JFrog, so
-        # cache entries are keyed by JFrog's URL hash. Set the same URL here
-        # (without credentials — offline mode never contacts it, only uses
-        # the hash to find the right cache bucket).
         echo "UV_INDEX_URL=https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
         echo "PIP_NO_INDEX=1" >> "$GITHUB_ENV"
-        mkdir -p ~/.config/pip
-        printf '[global]\nno-index = true\n' > ~/.config/pip/pip.conf
+        echo "PIP_FIND_LINKS=$HOME/.cache/pip-wheelhouse" >> "$GITHUB_ENV"
