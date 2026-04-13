@@ -102,15 +102,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.cache/pip-wheelhouse
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
-            setuptools wheel twine check-wheel-contents
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
-            $(hatch run python -c "
-          import tomllib
+          DEPS=$(hatch run python -c "
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
           with open('pyproject.toml', 'rb') as f:
               data = tomllib.load(f)
           print(' '.join(data['project']['dependencies']))
           ")
+          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+            setuptools wheel twine check-wheel-contents $DEPS
 
       - name: Build package
         run: hatch -v build
