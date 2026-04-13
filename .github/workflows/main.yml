@@ -78,6 +78,17 @@ jobs:
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
+      - name: Debug pre-commit cache
+        run: |
+          echo "=== PRE_COMMIT_HOME ==="
+          echo "${PRE_COMMIT_HOME:-not set (default: ~/.cache/pre-commit)}"
+          echo "=== ~/.cache/pre-commit contents ==="
+          ls -la ~/.cache/pre-commit/ 2>/dev/null || echo "directory not found"
+          echo "=== db.db repos ==="
+          sqlite3 ~/.cache/pre-commit/db.db "SELECT * FROM repos;" 2>/dev/null || echo "no db.db or no sqlite3"
+          echo "=== repo dirs ==="
+          ls -la ~/.cache/pre-commit/repo*/ 2>/dev/null | head -20
+
       - name: Run Code Quality
         run: hatch -v run code-quality
 
