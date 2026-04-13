@@ -18,6 +18,7 @@ on:
       - "uv.lock"
       - "pyproject.toml"
       - ".pre-commit-config.yaml"
+  pull_request: # TEMPORARY: remove after testing
   schedule:
     - cron: "0 6 * * *" # Daily at 06:00 UTC
   workflow_dispatch:
@@ -40,6 +41,9 @@ jobs:
 
     env:
       UV_FROZEN: "1"
+      # Pin cache dir so setup-uv doesn't override it to a temp path.
+      # Must match the path in setup-python-deps/action.yml cache restore.
+      UV_CACHE_DIR: /home/runner/.cache/uv
 
     steps:
       - name: Checkout main branch
@@ -95,7 +99,7 @@ jobs:
           hatch env create verify
 
       - name: Warm pre-commit cache
-        run: pre-commit install-hooks
+        run: hatch run pre-commit install-hooks
 
       - name: Build and warm pip cache for verify environment
         run: |
