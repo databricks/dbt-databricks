@@ -52,7 +52,6 @@ jobs:
 
     env:
       UV_FROZEN: "1"
-      UV_CACHE_DIR: /home/runner/.cache/uv
 
     steps:
       - name: Check out the repository
@@ -73,6 +72,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
@@ -100,7 +101,6 @@ jobs:
 
     env:
       UV_FROZEN: "1"
-      UV_CACHE_DIR: /home/runner/.cache/uv
 
     strategy:
       fail-fast: false
@@ -126,6 +126,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
@@ -156,7 +158,6 @@ jobs:
 
     env:
       UV_FROZEN: "1"
-      UV_CACHE_DIR: /home/runner/.cache/uv
 
     steps:
       - name: Check out the repository
@@ -177,6 +178,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
