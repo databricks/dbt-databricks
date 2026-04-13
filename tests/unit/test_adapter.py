@@ -28,8 +28,10 @@ from dbt.adapters.databricks.relation import (
     DatabricksTableType,
 )
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProcessor
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig
+from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
@@ -1273,14 +1275,14 @@ class TestDescribeRelationMetadataFetchPlanning:
     ) -> IncrementalTableConfig:
         return IncrementalTableConfig(
             config={
-                "tags": TagsConfig(set_tags=tags or {}),
-                "column_tags": ColumnTagsConfig(set_column_tags=column_tags or {}),
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
             }
         )
 
     @staticmethod
     def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
-        return ViewConfig(config={"tags": TagsConfig(set_tags=tags or {})})
+        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
 
     @staticmethod
     def _called_macro_names(adapter: Mock) -> list[str]:

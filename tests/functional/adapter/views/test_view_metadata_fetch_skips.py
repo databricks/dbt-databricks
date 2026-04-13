@@ -1,11 +1,7 @@
 import pytest
 from dbt.tests import util
 
-FAIL_IF_TAG_FETCH_CALLED_MACROS = """
-{% macro fetch_tags(relation) %}
-  {{ exceptions.raise_compiler_error("fetch_tags should not be called") }}
-{% endmacro %}
-"""
+from tests.functional.adapter.helpers import FAIL_IF_TAG_FETCH_CALLED_MACROS
 
 VIEW_WITHOUT_TAGS_SQL = """
 {{ config(materialized='view') }}
@@ -43,6 +39,8 @@ class TestViewMetadataFetchSkips:
         }
 
     def test_second_view_run_succeeds_without_tag_fetches(self, project):
+        # The first run creates the view; the second run exercises the existing-relation
+        # alter/config-diff path where adapter.get_relation_config() may fetch tags.
         util.run_dbt(["run"])
         util.run_dbt(["run"])
 
@@ -67,6 +65,8 @@ class TestViewMetadataFetchRequiresTags:
         }
 
     def test_second_view_run_fails_when_tag_fetch_is_required(self, project):
+        # The first run creates the view; the second run exercises the existing-relation
+        # alter/config-diff path where adapter.get_relation_config() may fetch tags.
         util.run_dbt(["run"])
         _, logs = util.run_dbt_and_capture(["run"], expect_pass=False)
         util.assert_message_in_logs("fetch_tags should not be called", logs)

@@ -8,8 +8,8 @@ from dbt_common.contracts.config.materialization import OnConfigurationChangeOpt
 
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
+from tests.functional.adapter.helpers import get_model_config
 from tests.functional.adapter.streaming_tables import fixtures
-from tests.functional.adapter.utils.test_utils import get_model_config
 
 
 class TestStreamingTablesMixin:

@@ -13,8 +13,8 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.functional.adapter.helpers import get_model_config
 from tests.functional.adapter.streaming_tables import fixtures
-from tests.functional.adapter.utils.test_utils import get_model_config
 
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):

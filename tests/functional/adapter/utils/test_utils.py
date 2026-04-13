@@ -1,4 +1,3 @@
-from dbt.adapters.base.relation import BaseRelation
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
 from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
@@ -29,18 +28,6 @@ from dbt.tests.adapter.utils.test_safe_cast import BaseSafeCast
 from dbt.tests.adapter.utils.test_split_part import BaseSplitPart
 from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 from dbt.tests.adapter.utils.test_validate_sql import BaseValidateSqlMethod
-from dbt.tests.util import get_manifest
-
-
-def get_model_config(project, relation: BaseRelation):
-    """Return the parsed dbt model config for the given relation fixture."""
-    manifest = get_manifest(project.project_root)
-    node_id = f"model.test.{relation.identifier}"
-    node = manifest.nodes.get(node_id)
-    assert node is not None, f"Node {node_id} not found in manifest"
-    return project.adapter.get_config_from_model(node)
-
-
 class TestAnyValue(BaseAnyValue):
     pass
 
