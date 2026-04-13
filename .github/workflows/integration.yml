@@ -13,18 +13,8 @@
 # - No automatic execution of untrusted code with secrets
 name: Integration Tests
 on:
-  pull_request:
-    # Run on PRs to the same repository (internal contributors)
-    paths-ignore:
-      - "**.MD"
-      - "**.md"
-      - "adapters/databricks/__version__.py"
-      - "tests/unit/**"
-      - ".github/workflows/main.yml"
-      - ".github/workflows/stale.yml"
-
   workflow_dispatch:
-    # Manual triggering for external contributions and ad-hoc testing
+    # Manual triggering only - integration tests require Databricks infrastructure
     inputs:
       pr_number:
         description: "PR number to test (for external contributions)"
@@ -43,8 +33,7 @@ jobs:
   run-uc-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch'
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -95,8 +84,7 @@ jobs:
   run-sqlwarehouse-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch'
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -148,8 +136,7 @@ jobs:
   run-cluster-e2e-tests:
     runs-on: ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch'
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
