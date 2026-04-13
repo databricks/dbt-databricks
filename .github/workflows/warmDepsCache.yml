@@ -87,14 +87,6 @@ jobs:
       - name: Install Python versions for test matrix
         run: uv python install 3.10 3.11 3.12 3.13
 
-      - name: Cache build system dependencies
-        run: |
-          # Trigger uv's build isolation to cache hatchling and its deps
-          # through the exact same code path consumers use. uv pip install
-          # uses a different cache resolution than build isolation.
-          uv build --wheel --out-dir /tmp/warmup-build
-          rm -rf /tmp/warmup-build
-
       - name: Create all hatch environments (populates uv cache)
         run: |
           set -euo pipefail
