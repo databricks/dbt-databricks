@@ -88,6 +88,13 @@ jobs:
       - name: Install Python versions for test matrix
         run: uv python install 3.10 3.11 3.12 3.13
 
+      - name: Cache build system dependencies
+        run: |
+          # pypa/hatch@install bundles hatchling, so hatch env create reuses
+          # it instead of downloading via uv. Force hatchling into the uv
+          # cache so offline builds with build isolation work on consumers.
+          uv pip install --system --reinstall hatchling
+
       - name: Create all hatch environments (populates uv cache)
         run: |
           set -euo pipefail
