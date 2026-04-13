@@ -80,14 +80,24 @@ jobs:
 
       - name: Debug pre-commit cache
         run: |
-          echo "=== PRE_COMMIT_HOME ==="
-          echo "${PRE_COMMIT_HOME:-not set (default: ~/.cache/pre-commit)}"
-          echo "=== ~/.cache/pre-commit contents ==="
-          ls -la ~/.cache/pre-commit/ 2>/dev/null || echo "directory not found"
           echo "=== db.db repos ==="
-          sqlite3 ~/.cache/pre-commit/db.db "SELECT * FROM repos;" 2>/dev/null || echo "no db.db or no sqlite3"
-          echo "=== repo dirs ==="
-          ls -la ~/.cache/pre-commit/repo*/ 2>/dev/null | head -20
+          sqlite3 ~/.cache/pre-commit/db.db "SELECT * FROM repos;" 2>/dev/null || echo "no db.db or sqlite3"
+          echo ""
+          # Find the ruff-pre-commit repo dir from db.db
+          RUFF_DIR=$(sqlite3 ~/.cache/pre-commit/db.db "SELECT path FROM repos WHERE repo LIKE '%ruff%';" 2>/dev/null)
+          echo "=== Ruff hook dir: $RUFF_DIR ==="
+          ls -la "$RUFF_DIR/" 2>/dev/null | head -10
+          echo "=== Ruff venv contents ==="
+          ls -la "$RUFF_DIR/py_env-python3.10/" 2>/dev/null | head -10
+          echo "=== pyvenv.cfg ==="
+          cat "$RUFF_DIR/py_env-python3.10/pyvenv.cfg" 2>/dev/null
+          echo "=== Python binary check ==="
+          ls -la "$RUFF_DIR/py_env-python3.10/bin/python"* 2>/dev/null
+          file "$RUFF_DIR/py_env-python3.10/bin/python" 2>/dev/null
+          echo "=== Can the venv python run? ==="
+          "$RUFF_DIR/py_env-python3.10/bin/python" --version 2>&1 || echo "FAILED"
+          echo "=== Installed packages in venv ==="
+          "$RUFF_DIR/py_env-python3.10/bin/pip" list 2>&1 | head -10 || echo "pip list failed"
 
       - name: Run Code Quality
         run: hatch -v run code-quality
