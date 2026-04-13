@@ -89,10 +89,11 @@ jobs:
 
       - name: Cache build system dependencies
         run: |
-          # pypa/hatch@install bundles hatchling, so hatch env create reuses
-          # it instead of downloading via uv. Force hatchling into the uv
-          # cache so offline builds with build isolation work on consumers.
-          uv pip install --system --reinstall hatchling
+          # Trigger uv's build isolation to cache hatchling and its deps
+          # through the exact same code path consumers use. uv pip install
+          # uses a different cache resolution than build isolation.
+          uv build --wheel --out-dir /tmp/warmup-build
+          rm -rf /tmp/warmup-build
 
       - name: Create all hatch environments (populates uv cache)
         run: |
