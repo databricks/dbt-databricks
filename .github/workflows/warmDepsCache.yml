@@ -18,7 +18,6 @@ on:
       - "uv.lock"
       - "pyproject.toml"
       - ".pre-commit-config.yaml"
-  pull_request: # TEMPORARY: remove after testing
   schedule:
     - cron: "0 6 * * *" # Daily at 06:00 UTC
   workflow_dispatch:
