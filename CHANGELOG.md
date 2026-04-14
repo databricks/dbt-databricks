@@ -4,6 +4,10 @@
 
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
 
+### Under the Hood
+
+- Bump upper bound of dbt-core to `<1.11.9` to include dbt-core 1.11.8
+
 ## dbt-databricks 1.11.6 (Mar 10, 2026)
 
 ### Features
