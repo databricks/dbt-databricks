@@ -470,7 +470,7 @@ class TestNotebookScopedPackagesCommandAPI:
 
     @pytest.fixture(scope="class")
     def models(self):
-        model = override_fixtures.notebook_scoped_packages_notebook_run_model
+        model = override_fixtures.notebook_scoped_packages_cmd_api_model
         return {"notebook_scoped_packages_cmd.py": model}
 
     def test_notebook_scoped_packages_command_api(self, project):
