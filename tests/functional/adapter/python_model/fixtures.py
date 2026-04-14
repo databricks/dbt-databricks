@@ -337,3 +337,41 @@ sources:
       - name: test_table
         identifier: source
 """
+
+# Notebook-scoped packages via Command API (all_purpose_cluster, create_notebook=False)
+notebook_scoped_packages_cmd_api_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+        create_notebook=False,
+        notebook_scoped_libraries=True,
+        packages=['chispa'],
+    )
+    # it will break if not installed
+    from chispa import assert_df_equality
+    df = spark.createDataFrame(
+        schema="id int, data string",
+        data=[(1, "a"), (2, "b")]
+    )
+    return df
+"""
+
+# Notebook-scoped packages via notebook job run (all_purpose_cluster, create_notebook=True)
+notebook_scoped_packages_notebook_run_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+        create_notebook=True,
+        notebook_scoped_libraries=True,
+        packages=['chispa'],
+    )
+    # it will break if not installed
+    from chispa import assert_df_equality
+    df = spark.createDataFrame(
+        schema="id int, data string",
+        data=[(1, "a"), (2, "b")]
+    )
+    return df
+"""

@@ -70,6 +70,11 @@ models:
         runtime_engine: "{{ var('job_cluster_defaults.runtime_engine') }}"
         data_security_mode: "{{ var('job_cluster_defaults.data_security_mode') }}"
         autoscale: { "min_workers": 1, "max_workers": 4 }
+
+      # Python package configuration
+      packages: ["pandas", "numpy==1.24.0"]
+      index_url: "https://pypi.org/simple"  # Optional custom PyPI index
+      notebook_scoped_libraries: false  # Set to true for notebook-scoped installation
 ```
 
 ### Configuration
@@ -172,6 +177,65 @@ grants:
   ]
   manage: []
 ```
+
+#### Python Packages
+
+You can install Python packages for your models using the `packages` configuration. There are two ways to install packages:
+
+##### Cluster-level installation (default)
+
+By default, packages are installed at the cluster level using Databricks libraries. This is the traditional approach where packages are installed when the cluster starts.
+
+```yaml
+models:
+  - name: my_model
+    config:
+      packages: ["pandas", "numpy==1.24.0", "scikit-learn>=1.0"]
+      index_url: "https://pypi.org/simple"  # Optional: custom PyPI index
+      notebook_scoped_libraries: false  # Default behavior
+```
+
+**Benefits:**
+- Packages are available for the entire cluster lifecycle
+- Faster model execution (no installation overhead per run)
+
+**Limitations:**
+- Requires cluster restart to update packages
+- All tasks on the cluster share the same package versions
+
+##### Notebook-scoped installation
+
+When `notebook_scoped_libraries: true`, packages are installed at the notebook level using `%pip install` magic commands. This prepends installation commands to your compiled code.
+
+```yaml
+models:
+  - name: my_model
+    config:
+      packages: ["pandas", "numpy==1.24.0", "scikit-learn>=1.0"]
+      index_url: "https://pypi.org/simple"  # Optional: custom PyPI index
+      notebook_scoped_libraries: true  # Enable notebook-scoped installation
+```
+
+**Benefits:**
+- Packages are installed per model execution
+- No cluster restart required to change packages
+- Different models can use different package versions
+- Works with serverless compute and all-purpose clusters
+
+**How it works:**
+The adapter prepends the following commands to your model code:
+```python
+%pip install -q pandas numpy==1.24.0 scikit-learn>=1.0
+dbutils.library.restartPython()
+# Your model code follows...
+```
+
+**Supported submission methods:**
+- `all_purpose_cluster` (Command API)
+- `job_cluster` (Notebook Job Run)
+- `workflow_job` (Workflow Job)
+
+**Note:** For Databricks Runtime 13.0 and above, `dbutils.library.restartPython()` is automatically added after package installation to ensure packages are properly loaded.
 
 #### Post hooks
 
