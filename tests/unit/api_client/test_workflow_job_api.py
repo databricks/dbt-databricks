@@ -60,11 +60,6 @@ class TestWorkflowJobApi:
 
         assert result == "456"
         workspace_client.jobs.create.assert_called_once()
-        # create() converts the dict via JobSettings.from_dict().as_shallow_dict().
-        # The SDK's jobs.create() calls v.as_dict() on each Task internally, so
-        # tasks must be proper Task dataclasses, not plain dicts.
-        # Note: as_shallow_dict() omits None/empty fields, so an empty tasks list
-        # is not included in the kwargs (the SDK treats missing as empty).
         call_kwargs = workspace_client.jobs.create.call_args[1]
         assert call_kwargs["name"] == "test_job"
         assert call_kwargs.get("tasks") in (None, [])
