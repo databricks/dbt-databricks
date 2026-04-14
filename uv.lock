@@ -431,7 +431,7 @@ wheels = [
 
 [[package]]
 name = "dbt-core"
-version = "1.11.6"
+version = "1.11.7"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
 dependencies = [
     { name = "agate" },
@@ -458,9 +458,9 @@ dependencies = [
     { name = "sqlparse" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/58/53d869e31895b022a8e37488fdfdce02f9c4cbd689c4cbc8eedf4a3fe524/dbt_core-1.11.6.tar.gz", hash = "sha256:a62cde8f20994589a27cba84bcf63aafbf3ecbd44221137e1b1520cee3baeb5c", size = 919767, upload-time = "2026-02-17T22:23:52.576Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/50/1053e2ebf77e01cfbf79fada97d0aaf8ee85e580363612b43a23c84bb20a/dbt_core-1.11.7.tar.gz", hash = "sha256:3bacae28f4c687280d91671a1694f52a1654e472bebc8313b37870ac3d61e42b", size = 919885, upload-time = "2026-03-04T16:16:26.518Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/bb/bcaa53ae98902e46d940cceefc0619afd70df96d719ea09ac4aac809d87c/dbt_core-1.11.6-py3-none-any.whl", hash = "sha256:0694f7e9abedd35e80eb56019c4d408687558c834747b0aacaeae74b8f13ac8d", size = 1009504, upload-time = "2026-02-17T22:23:50.266Z" },
+    { url = "https://files.pythonhosted.org/packages/57/88/28a88f807e38bee4b6308f4a39a02fd818040a36aac883b3041b18c1be9b/dbt_core-1.11.7-py3-none-any.whl", hash = "sha256:047b4ac6bd4541dd33a6642dedd7fcd8b998e3f5ec6e7083436b369558a995d6", size = 1009631, upload-time = "2026-03-04T16:16:24.818Z" },
 ]
 
 [[package]]
@@ -485,7 +485,7 @@ requires-dist = [
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.1.4" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.23.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
-    { name = "dbt-core", specifier = ">=1.11.2,<1.11.7" },
+    { name = "dbt-core", specifier = ">=1.11.2,<1.11.9" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
     { name = "keyring", specifier = ">=23.13.0,<25.6.0" },
     { name = "pydantic", specifier = ">=1.10.0,<2.13.0" },
