@@ -354,6 +354,7 @@ def model(dbt, spark):
         schema="id int, data string",
         data=[(1, "a"), (2, "b")]
     )
+    return df
 """
 
 # Notebook-scoped packages via notebook job run (all_purpose_cluster, create_notebook=True)
@@ -372,4 +373,5 @@ def model(dbt, spark):
         schema="id int, data string",
         data=[(1, "a"), (2, "b")]
     )
+    return df
 """
