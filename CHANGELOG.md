@@ -1,5 +1,9 @@
 ## dbt-databricks 1.11.7 (TBD)
 
+### Features
+
+- Enable Notebook scoped python packages installation
+- 
 ### Fixes
 
 - Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
