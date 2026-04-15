@@ -3,9 +3,11 @@
 ### Features
 
 - Allow V1 incremental path to skip unnecessary metadata queries by respecting `incremental_apply_config_changes` config flag, matching V2 behavior ([#1402](https://github.com/databricks/dbt-databricks/issues/1402))
+- Enable Notebook scoped python packages installation
 
 ### Fixes
 
+- Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
 
 ## dbt-databricks 1.11.6 (Mar 10, 2026)
