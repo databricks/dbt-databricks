@@ -10,6 +10,7 @@
 ### Under the Hood
 
 - **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+- Allow V1 incremental path to skip unnecessary metadata queries by respecting `incremental_apply_config_changes` config flag, matching V2 behavior ([#1402](https://github.com/databricks/dbt-databricks/issues/1402))
 
 ## dbt-databricks 1.11.8 (TBD)
 
