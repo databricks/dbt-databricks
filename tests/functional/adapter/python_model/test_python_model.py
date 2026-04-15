@@ -259,9 +259,7 @@ class TestComplexConfigV2(TestComplexConfig):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile(
-    "databricks_cluster", "databricks_uc_sql_endpoint"
-)
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestWorkflowJob:
     @pytest.fixture(scope="class")
     def models(self):
