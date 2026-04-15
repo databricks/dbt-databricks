@@ -1,5 +1,9 @@
 ## dbt-databricks 1.11.7 (TBD)
 
+### Features
+
+- Allow V1 incremental path to skip unnecessary metadata queries by respecting `incremental_apply_config_changes` config flag, matching V2 behavior ([#1402](https://github.com/databricks/dbt-databricks/issues/1402))
+
 ### Fixes
 
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
