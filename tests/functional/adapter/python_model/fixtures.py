@@ -102,6 +102,17 @@ sources:
         identifier: source
 """
 
+workflow_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+    )
+    data = [[1,2]] * 10
+    return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
 workflow_schema = """version: 2
 
 models:
@@ -110,7 +121,6 @@ models:
       submission_method: workflow_job
       user_folder_for_python: true
       python_job_config:
-        max_retries: 2
         timeout_seconds: 500
         additional_task_settings: {
           "task_key": "my_dbt_task"
