@@ -13,6 +13,7 @@
 
 ### Under the Hood
 
+- Bump `databricks-sql-connector` upper bound to `<4.1.6`, enabling users to opt into `_respect_server_retry_after_header` (available in connector 4.1.5) for server-directed retry behavior via `connection_parameters` ([#1363](https://github.com/databricks/dbt-databricks/pull/1363))
 - Bump upper bound of dbt-core to `<1.11.9` to include dbt-core 1.11.8
 
 ## dbt-databricks 1.11.6 (Mar 10, 2026)
