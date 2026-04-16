@@ -11,6 +11,10 @@
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
 - Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
 
+### Under the Hood
+
+- Bump `databricks-sql-connector` upper bound to `<4.1.6`, enabling users to opt into `_respect_server_retry_after_header` (available in connector 4.1.5) for server-directed retry behavior via `connection_parameters` ([#1363](https://github.com/databricks/dbt-databricks/pull/1363))
+
 ## dbt-databricks 1.11.6 (Mar 10, 2026)
 
 ### Features

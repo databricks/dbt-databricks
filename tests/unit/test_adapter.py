@@ -242,7 +242,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         expected_http_headers=None,
         expected_no_token=None,
         expected_client_creds=None,
-        expected_retry_params=None,
     ):
         def connect(
             server_hostname,
@@ -281,9 +280,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 assert http_headers is None
             else:
                 assert http_headers == expected_http_headers
-            if expected_retry_params is not None:
-                for key, value in expected_retry_params.items():
-                    assert kwargs.get(key) == value
             return Mock()
 
         return connect
@@ -358,40 +354,6 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             )
             assert connection.credentials.token == "dapiXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             assert connection.credentials.schema == "analytics"
-
-    def test_databricks_sql_connector_default_retry_params(self):
-        """Verify default retry parameters are passed through to dbsql.connect().
-
-        Ensures _retry_stop_after_attempts_count, _retry_delay_max, and
-        _retry_server_directed_only defaults from __pre_deserialize__ reach
-        the connector.
-        """
-        self._test_databricks_sql_connector_connection(
-            self._connect_func(
-                expected_retry_params={
-                    "_retry_stop_after_attempts_count": 30,
-                    "_retry_delay_max": 60,
-                    "_retry_server_directed_only": False,
-                }
-            )
-        )
-
-    def test_databricks_sql_connector_retry_server_directed_only_opt_in(self):
-        """Verify user can opt in to _retry_server_directed_only via connection_parameters.
-
-        When a user sets _retry_server_directed_only: true in their profile,
-        the connector should only retry requests when the server includes a
-        Retry-After header, preventing duplicate writes from blind retries.
-        """
-        config = self._get_config(connection_parameters={"_retry_server_directed_only": True})
-        adapter = DatabricksAdapter(config, get_context("spawn"))
-
-        connect = self._connect_func(expected_retry_params={"_retry_server_directed_only": True})
-        with patch("dbt.adapters.databricks.handle.dbsql.connect", new=connect):
-            connection = adapter.acquire_connection("dummy")
-            connection.handle  # trigger lazy-load
-
-            assert connection.state == "open"
 
     @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
     def test_list_relations_without_caching__no_relations(self, _):
@@ -1396,39 +1358,18 @@ class TestDatabricksCredentialsPreDeserialize:
     """Tests for DatabricksCredentials.__pre_deserialize__ retry defaults."""
 
     def test_pre_deserialize__default_retry_params(self):
-        """Verify all retry defaults are set when connection_parameters is empty."""
+        """Verify retry defaults are set when connection_parameters is empty."""
         data = {"connection_parameters": {}}
         result = DatabricksCredentials.__pre_deserialize__(data)
         assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
         assert result["connection_parameters"]["_retry_delay_max"] == 60
-        assert result["connection_parameters"]["_retry_server_directed_only"] is False
 
     def test_pre_deserialize__missing_connection_parameters(self):
         """Verify retry defaults are set even when connection_parameters key is absent."""
-        data = {}
+        data: dict[Any, Any] = {}
         result = DatabricksCredentials.__pre_deserialize__(data)
         assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
         assert result["connection_parameters"]["_retry_delay_max"] == 60
-        assert result["connection_parameters"]["_retry_server_directed_only"] is False
-
-    def test_pre_deserialize__user_override_retry_server_directed_only(self):
-        """Verify user-provided _retry_server_directed_only is not overridden by default."""
-        data = {"connection_parameters": {"_retry_server_directed_only": True}}
-        result = DatabricksCredentials.__pre_deserialize__(data)
-        assert result["connection_parameters"]["_retry_server_directed_only"] is True
-
-    def test_pre_deserialize__user_override_preserves_other_defaults(self):
-        """Verify overriding one retry param does not affect the others."""
-        data = {
-            "connection_parameters": {
-                "_retry_stop_after_attempts_count": 5,
-                "_retry_server_directed_only": True,
-            }
-        }
-        result = DatabricksCredentials.__pre_deserialize__(data)
-        assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 5
-        assert result["connection_parameters"]["_retry_delay_max"] == 60
-        assert result["connection_parameters"]["_retry_server_directed_only"] is True
 
     def test_pre_deserialize__custom_params_preserve_retry_defaults(self):
         """Verify unrelated connection_parameters don't interfere with retry defaults."""
@@ -1437,4 +1378,3 @@ class TestDatabricksCredentialsPreDeserialize:
         assert result["connection_parameters"]["custom_param"] == "value"
         assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
         assert result["connection_parameters"]["_retry_delay_max"] == 60
-        assert result["connection_parameters"]["_retry_server_directed_only"] is False
