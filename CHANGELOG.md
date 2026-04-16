@@ -1,11 +1,12 @@
-## dbt-databricks 1.11.7 (TBD)
+## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
 
 - Enable Notebook scoped python packages installation
-- 
+
 ### Fixes
 
+- Fix capability detection (e.g., `table_format='iceberg'`) failing on named compute (`databricks_compute`) due to lazy DBR version caching ([#1355](https://github.com/databricks/dbt-databricks/pull/1355))
 - Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
