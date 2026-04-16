@@ -85,6 +85,22 @@ class TestParsedPythonModel:
         assert config.http_path == "http_path"
         assert config.create_notebook is True
 
+    def test_parsed_model__valid_python_packages_config(self):
+        parsed_model = {
+            "alias": "test",
+            "config": {
+                "packages": ["package"],
+                "index_url": "index_url",
+                "notebook_scoped_libraries": True,
+            },
+        }
+
+        model = ParsedPythonModel(**parsed_model)
+        config = model.config.python_packages_config
+        assert config.packages == ["package"]
+        assert config.index_url == "index_url"
+        assert config.notebook_scoped is True
+
     def test_parsed_model__extra_model_config(self):
         parsed_model = {
             "alias": "test",
