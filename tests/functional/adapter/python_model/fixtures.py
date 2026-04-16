@@ -102,6 +102,17 @@ sources:
         identifier: source
 """
 
+workflow_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+    )
+    data = [[1,2]] * 10
+    return spark.createDataFrame(data, schema=['test', 'test2'])
+"""
+
 workflow_schema = """version: 2
 
 models:
@@ -110,7 +121,6 @@ models:
       submission_method: workflow_job
       user_folder_for_python: true
       python_job_config:
-        max_retries: 2
         timeout_seconds: 500
         additional_task_settings: {
           "task_key": "my_dbt_task"
@@ -336,4 +346,42 @@ sources:
     tables:
       - name: test_table
         identifier: source
+"""
+
+# Notebook-scoped packages via Command API (all_purpose_cluster, create_notebook=False)
+notebook_scoped_packages_cmd_api_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+        create_notebook=False,
+        notebook_scoped_libraries=True,
+        packages=['chispa'],
+    )
+    # it will break if not installed
+    from chispa import assert_df_equality
+    df = spark.createDataFrame(
+        schema="id int, data string",
+        data=[(1, "a"), (2, "b")]
+    )
+    return df
+"""
+
+# Notebook-scoped packages via notebook job run (all_purpose_cluster, create_notebook=True)
+notebook_scoped_packages_notebook_run_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+        create_notebook=True,
+        notebook_scoped_libraries=True,
+        packages=['chispa'],
+    )
+    # it will break if not installed
+    from chispa import assert_df_equality
+    df = spark.createDataFrame(
+        schema="id int, data string",
+        data=[(1, "a"), (2, "b")]
+    )
+    return df
 """
