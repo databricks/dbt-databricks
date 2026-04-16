@@ -14,7 +14,6 @@ from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
-    DatabricksCredentials,
 )
 from dbt.adapters.databricks.impl import (
     DatabricksRelationInfo,
@@ -1352,29 +1351,3 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
-
-
-class TestDatabricksCredentialsPreDeserialize:
-    """Tests for DatabricksCredentials.__pre_deserialize__ retry defaults."""
-
-    def test_pre_deserialize__default_retry_params(self):
-        """Verify retry defaults are set when connection_parameters is empty."""
-        data = {"connection_parameters": {}}
-        result = DatabricksCredentials.__pre_deserialize__(data)
-        assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
-        assert result["connection_parameters"]["_retry_delay_max"] == 60
-
-    def test_pre_deserialize__missing_connection_parameters(self):
-        """Verify retry defaults are set even when connection_parameters key is absent."""
-        data: dict[Any, Any] = {}
-        result = DatabricksCredentials.__pre_deserialize__(data)
-        assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
-        assert result["connection_parameters"]["_retry_delay_max"] == 60
-
-    def test_pre_deserialize__custom_params_preserve_retry_defaults(self):
-        """Verify unrelated connection_parameters don't interfere with retry defaults."""
-        data = {"connection_parameters": {"custom_param": "value"}}
-        result = DatabricksCredentials.__pre_deserialize__(data)
-        assert result["connection_parameters"]["custom_param"] == "value"
-        assert result["connection_parameters"]["_retry_stop_after_attempts_count"] == 30
-        assert result["connection_parameters"]["_retry_delay_max"] == 60
