@@ -1,3 +1,4 @@
+import json
 import posixpath
 import re
 from abc import ABC, abstractmethod
@@ -1094,7 +1095,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         kwargs = {"relation": relation}
         if adapter.is_describe_as_json_supported(relation):
             describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-            json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+            json_metadata = json.loads(describe_results.rows[0][0])
             results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
         else:
             results["information_schema.views"] = get_first_row(
@@ -1153,7 +1154,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             # TODO @Tejas simplify this?
             if adapter.is_describe_as_json_supported(relation):
                 describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-                json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+                json_metadata = json.loads(describe_results.rows[0][0])
                 relation_metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
                 results["non_null_constraint_columns"] = relation_metadata.non_null_constraints
                 results["primary_key_constraints"] = relation_metadata.primary_key_constraints
@@ -1196,7 +1197,7 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
         if adapter.is_describe_as_json_supported(relation):
             describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-            json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+            json_metadata = json.loads(describe_results.rows[0][0])
             results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
         else:
             results["information_schema.views"] = get_first_row(
