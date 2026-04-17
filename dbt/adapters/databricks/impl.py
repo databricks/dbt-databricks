@@ -11,6 +11,7 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
+import agate
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
@@ -401,6 +402,13 @@ class DatabricksAdapter(SparkAdapter):
                 f"{capability.value} requires {min_version}. "
                 f"Current connection does not meet this requirement."
             )
+
+    def is_describe_as_json_supported(self, relation: DatabricksRelation) -> bool:
+        """
+        Check if DESCRIBE TABLE EXTENDED AS JSON can be used for the relation.
+        """
+        return (not relation.is_hive_metastore() and not relation.is_foreign_table
+                and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON))
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -1084,9 +1092,14 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         )
 
         kwargs = {"relation": relation}
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
+        if adapter.is_describe_as_json_supported(relation):
+            describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
+            json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+            results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+        else:
+            results["information_schema.views"] = get_first_row(
+                adapter.execute_macro("get_view_description", kwargs=kwargs)
+            )
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
@@ -1135,17 +1148,29 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
             )
-            results["non_null_constraint_columns"] = adapter.execute_macro(
-                "fetch_non_null_constraint_columns", kwargs=kwargs
-            )
-            results["primary_key_constraints"] = adapter.execute_macro(
-                "fetch_primary_key_constraints", kwargs=kwargs
-            )
-            results["foreign_key_constraints"] = adapter.execute_macro(
-                "fetch_foreign_key_constraints", kwargs=kwargs
-            )
-            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
             results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
+            # TODO @Tejas simplify this?
+            if adapter.is_describe_as_json_supported(relation):
+                describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
+                json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+                relation_metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+                results["non_null_constraint_columns"] = relation_metadata.non_null_constraints
+                results["primary_key_constraints"] = relation_metadata.primary_key_constraints
+                results["foreign_key_constraints"] = relation_metadata.foreign_key_constraints
+                results["column_masks"] = relation_metadata.column_masks
+            else:
+                results["non_null_constraint_columns"] = adapter.execute_macro(
+                    "fetch_non_null_constraint_columns", kwargs=kwargs
+                )
+                results["primary_key_constraints"] = adapter.execute_macro(
+                    "fetch_primary_key_constraints", kwargs=kwargs
+                )
+                results["foreign_key_constraints"] = adapter.execute_macro(
+                    "fetch_foreign_key_constraints", kwargs=kwargs
+                )
+                results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
@@ -1169,9 +1194,15 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         results = {}
         kwargs = {"relation": relation}
 
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
+        if adapter.is_describe_as_json_supported(relation):
+            describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
+            json_metadata = describe_results.rows[0][0]  # TODO @Tejas fix this.
+            results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+        else:
+            results["information_schema.views"] = get_first_row(
+                adapter.execute_macro("get_view_description", kwargs=kwargs)
+            )
+
         results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
@@ -1180,7 +1211,6 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
-
 
 class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
     relation_type = DatabricksRelationType.MetricView
@@ -1202,3 +1232,101 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
+
+@dataclass
+class DatabricksDescribeJsonMetadata:
+    column_masks: Optional["agate.Table"] = None
+    foreign_key_constraints: Optional["agate.Table"] = None
+    non_null_constraints: Optional["agate.Table"] = None
+    primary_key_constraints: Optional["agate.Table"] = None
+    view_description: Optional["agate.Row"] = None
+
+    # TODO @Tejas fix parsing to not use regex and make it more robust.
+    # TODO add comments to class and fields and the methods.
+    # TODO check if the fields have to be none, today the methods set it as an Agate table with empty rows.
+    # TODO fix agate imports for fasster cli load time?
+
+    @classmethod
+    def from_json_metadata(cls, json_metadata: dict[str, Any]) -> "DatabricksDescribeJsonMetadata":
+        return DatabricksDescribeJsonMetadata(
+            column_masks=cls.parse_column_masks(json_metadata),
+            foreign_key_constraints=cls.parse_foreign_key_constraints(json_metadata),
+            non_null_constraints=cls.parse_non_null_constraints(json_metadata),
+            primary_key_constraints=cls.parse_primary_key_constraints(json_metadata),
+            view_description=cls.parse_view_description(json_metadata),
+        )
+
+    @classmethod
+    def parse_column_masks(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        """Convert AS JSON column_masks to agate Table matching info_schema format."""
+        raw_masks = json_metadata.get("column_masks", [])
+        rows = []
+        for mask in raw_masks:
+            column_name = mask["column_name"]
+            fn = mask["function_name"]
+            mask_name = f"{fn['catalog_name']}.{fn['schema_name']}.{fn['function_name']}"
+            using_columns = ",".join(mask.get("using_column_names", []))
+            rows.append((column_name, mask_name, using_columns or None))
+
+        return agate.Table(
+            rows=rows,
+            column_names=["column_name", "mask_name", "using_columns"],
+            column_types=[agate.Text(), agate.Text(), agate.Text()],
+        )
+
+    @classmethod
+    def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
+        pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
+        fk_rows = []
+        for name, constraint in pairs:
+            constraint = constraint.strip()
+            if re.search(r'FOREIGN\s+KEY', constraint):
+                fk_part, ref_part = constraint.split("REFERENCES", 1)
+                from_cols = re.findall(r'`([^`]+)`', fk_part)
+                ref_parts = re.findall(r'`([^`]+)`', ref_part)
+                to_catalog = ref_parts[0]
+                to_schema = ref_parts[1]
+                to_table = ref_parts[2]
+                to_cols = ref_parts[3:]
+                for from_col, to_col in zip(from_cols, to_cols):
+                    fk_rows.append([name, from_col, to_catalog, to_schema, to_table, to_col])
+
+        fk_column_names = ['constraint_name', 'from_column', 'to_catalog', 'to_schema', 'to_table', 'to_column']
+        fk_columns_types = [agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text()]
+        return agate.Table(fk_rows, fk_column_names, fk_columns_types)
+
+    @classmethod
+    def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        columns = json_metadata.get("columns", [])
+
+        non_null_cols = [column["name"] for column in columns if column.get("nullable") == False]
+        return agate.Table(
+            rows=[[col] for col in non_null_cols],
+            column_names=["column_name"],
+            column_types=[agate.Text()],
+        )
+
+    @classmethod
+    def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
+        pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
+        pk_rows = []
+        for name, constraint in pairs:
+            constraint = constraint.strip()
+            parts = re.findall(r'`([^`]+)`', constraint)
+            if re.search(r'PRIMARY\s+KEY', constraint):
+                for col in parts:
+                    pk_rows.append([name, col])
+
+        pk_column_names = ['constraint_name', 'column_name']
+        pk_columns_types = [agate.Text(), agate.Text()]
+        return agate.Table(pk_rows, pk_column_names, pk_columns_types)
+
+    @classmethod
+    def parse_view_description(cls, json_metadata: dict[str, Any]) -> "agate.Row":
+        view_text = json_metadata.get("view_text", None)
+        if view_text is None:
+            return agate.Row(values=set())
+        else:
+            return agate.Row(values=(view_text,), keys=("view_definition",))
