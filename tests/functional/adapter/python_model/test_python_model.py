@@ -259,15 +259,13 @@ class TestComplexConfigV2(TestComplexConfig):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile(
-    "databricks_cluster", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
-)
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestWorkflowJob:
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "schema.yml": override_fixtures.workflow_schema,
-            "my_workflow_model.py": override_fixtures.simple_python_model,
+            "my_workflow_model.py": override_fixtures.workflow_python_model,
         }
 
     def test_workflow_run(self, project):
