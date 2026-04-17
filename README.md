@@ -2,33 +2,40 @@
   <img src="https://bynder-public-us-west-2.s3.amazonaws.com/styleguide/ABB317701CA31CB7F29268E32B303CAE-pdf-column-1.png" alt="databricks logo" width="50%" />
   <img src="https://raw.githubusercontent.com/dbt-labs/dbt/ec7dee39f793aa4f7dd3dae37282cc87664813e4/etc/dbt-logo-full.svg" alt="dbt logo" width="250"/>
 </p>
-<p align="center">
-  <a href="https://github.com/databricks/dbt-databricks/actions/workflows/main.yml">
-    <img src="https://github.com/databricks/dbt-databricks/actions/workflows/main.yml/badge.svg?event=push" alt="Unit Tests Badge"/>
-  </a>
-  <a href="https://github.com/databricks/dbt-databricks/actions/workflows/integration.yml">
-    <img src="https://github.com/databricks/dbt-databricks/actions/workflows/integration.yml/badge.svg?event=push" alt="Integration Tests Badge"/>
-  </a>
-</p>
 
 **[dbt](https://www.getdbt.com/)** enables data analysts and engineers to transform their data using the same practices that software engineers use to build applications.
 
 The **[Databricks Lakehouse](https://www.databricks.com/)** provides one simple platform to unify all your data, analytics and AI workloads.
 
-# dbt-databricks
+# dbt-databricks-enhanced
 
-The `dbt-databricks` adapter contains all of the code enabling dbt to work with Databricks. This adapter is based off the amazing work done in [dbt-spark](https://github.com/dbt-labs/dbt-spark). Some key features include:
+An enhanced fork of [`dbt-databricks`](https://github.com/databricks/dbt-databricks) that extends the official adapter with additional capabilities. This is not a copy — it tracks upstream releases and adds features on top.
+
+## What's Different
+
+### Session Mode
+
+The primary enhancement is **session mode** — the ability to run dbt entirely within a SparkSession on Databricks **job clusters**, without requiring the Databricks SQL connector (DBSQL) or all-purpose clusters. This enables significant cost savings for dbt workloads by using the most economical Databricks compute option.
+
+Session mode supports:
+- SQL and Python models executing within a single SparkSession
+- Seed loading with automatic parameter binding rendering
+- Auto-detection of session mode environment with manual override
+
+All features of the original `dbt-databricks` adapter are preserved.
+
+## Versioning
+
+This fork tracks upstream `dbt-databricks` version numbers. When upstream releases `1.11.7`, this fork rebases and releases as `1.11.7`. If fork-specific bugfixes are needed between upstream releases, a fourth version segment is added: `1.11.7.1`, `1.11.7.2`, etc. All versions follow [PEP 440](https://peps.python.org/pep-0440/).
+
+## Upstream Features
+
+All features from the original `dbt-databricks` adapter are included:
 
 - **Easy setup**. No need to install an ODBC driver as the adapter uses pure Python APIs.
-- **Open by default**. For example, it uses the the open and performant [Delta](https://delta.io/) table format by default. This has many benefits, including letting you use `MERGE` as the the default incremental materialization strategy.
+- **Open by default**. For example, it uses the open and performant [Delta](https://delta.io/) table format by default. This has many benefits, including letting you use `MERGE` as the default incremental materialization strategy.
 - **Support for Unity Catalog**. dbt-databricks supports the 3-level namespace of Unity Catalog (catalog / schema / relations) so you can organize and secure your data the way you like.
 - **Performance**. The adapter generates SQL expressions that are automatically accelerated by the native, vectorized [Photon](https://databricks.com/product/photon) execution engine.
-
-## Choosing between dbt-databricks and dbt-spark
-
-If you are developing a dbt project on Databricks, we recommend using `dbt-databricks` for the reasons noted above.
-
-`dbt-spark` is an actively developed adapter which works with Databricks as well as Apache Spark anywhere it is hosted e.g. on AWS EMR.
 
 ## Getting started
 
@@ -37,13 +44,13 @@ If you are developing a dbt project on Databricks, we recommend using `dbt-datab
 Install using pip:
 
 ```nofmt
-pip install dbt-databricks
+pip install dbt-databricks-enhanced
 ```
 
 Upgrade to the latest version
 
 ```nofmt
-pip install --upgrade dbt-databricks
+pip install --upgrade dbt-databricks-enhanced
 ```
 
 ### Profile Setup
@@ -82,9 +89,9 @@ These following quick starts will get you up and running with the `dbt-databrick
 
 ### Compatibility
 
-The `dbt-databricks` adapter has been tested:
+The `dbt-databricks-enhanced` adapter has been tested:
 
-- with Python 3.7 or above.
+- with Python 3.10 or above.
 - against `Databricks SQL` and `Databricks runtime releases 9.1 LTS` and later.
 
 ### Tips and Tricks
