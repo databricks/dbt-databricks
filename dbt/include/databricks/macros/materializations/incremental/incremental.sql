@@ -53,6 +53,16 @@
       {% endif %}
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
+      {#-- Short-circuit when `skip_merge_on_empty_source=true` and the source is empty.
+           This must come after the intermediate relation was created (so pre-hooks and
+           any side-effect SQL inside `compiled_code` still execute) but before we pay
+           for schema/config metadata queries, strategy planning, and the MERGE itself.
+           The `run_query` below issues `SELECT 1 FROM (<compiled_code>) LIMIT 1`; when
+           the source SELECT has no rows, we skip the remainder and return. --#}
+      {%- if should_skip_merge_on_empty_source(target_relation, existing_relation, compiled_code, grant_config, full_refresh_mode) -%}
+        {{ run_post_hooks() }}
+        {{ return({'relations': [target_relation]}) }}
+      {%- endif -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
         {{ set_overwrite_mode('DYNAMIC') }}
@@ -128,6 +138,13 @@
       {% do apply_tags(target_relation, tags) %}
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
+      {#-- Short-circuit when `skip_merge_on_empty_source=true` and the source is empty.
+           Placed before `get_relation_config` / `create_temp_relation` so we skip all
+           downstream metadata queries and the MERGE itself when there are no deltas. --#}
+      {%- if should_skip_merge_on_empty_source(target_relation, existing_relation, compiled_code, grant_config, full_refresh_mode) -%}
+        {{ run_hooks(post_hooks) }}
+        {{ return({'relations': [target_relation]}) }}
+      {%- endif -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
       {%- if incremental_strategy == 'insert_overwrite' and partition_by -%}
         {{ set_overwrite_mode('DYNAMIC') }}
@@ -242,4 +259,43 @@
     {%- set configuration_changes = model_config.get_changeset(existing_config) -%}
     {{ apply_config_changeset(target_relation, model, configuration_changes) }}
   {% endif %}
+{% endmacro %}
+
+{#-- Returns true iff the compiled source SELECT produces at least one row.
+     Used by the `skip_merge_on_empty_source` incremental config to avoid
+     unnecessary MERGE / temp view / metadata queries when the delta is empty. --#}
+{% macro source_has_rows(compiled_code) %}
+  {%- set check_sql -%}
+    select 1 from ({{ compiled_code }}) as __dbt_empty_source_check limit 1
+  {%- endset -%}
+  {%- set result = run_query(check_sql) -%}
+  {{ return(result is not none and (result | length) > 0) }}
+{% endmacro %}
+
+{#-- Short-circuit helper: if `skip_merge_on_empty_source` is true and the
+     compiled source SELECT is empty, perform the minimal work required by dbt
+     (pre/post hooks + a no-op `main` statement + grants) and return early.
+
+     Returns true if the materialization should short-circuit (caller should
+     then `{{ return({'relations': [target_relation]}) }}`), false otherwise. --#}
+{% macro should_skip_merge_on_empty_source(target_relation, existing_relation, compiled_code, grant_config, full_refresh_mode) %}
+  {%- set skip_flag = config.get('skip_merge_on_empty_source', False) | as_bool -%}
+  {%- if not skip_flag -%}
+    {{ return(false) }}
+  {%- endif -%}
+  {%- if not execute -%}
+    {{ return(false) }}
+  {%- endif -%}
+  {%- if model['language'] != 'sql' -%}
+    {{ return(false) }}
+  {%- endif -%}
+  {%- if source_has_rows(compiled_code) -%}
+    {{ return(false) }}
+  {%- endif -%}
+  {{ log("[skip_merge_on_empty_source] " ~ target_relation ~ ": empty source, skipping MERGE", info=True) }}
+  {%- call statement('main') -%}
+    select 1 as __dbt_skip_merge_noop where false
+  {%- endcall -%}
+  {% do apply_grants(target_relation, grant_config, should_revoke(existing_relation, full_refresh_mode)) %}
+  {{ return(true) }}
 {% endmacro %}
