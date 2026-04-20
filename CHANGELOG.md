@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Features
+
+- Add `skip_merge_on_empty_source` incremental config to bypass MERGE and associated metadata queries when the compiled source SELECT returns no rows, significantly reducing no-op incremental run time. ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
+
 ### Under the Hood
 
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
