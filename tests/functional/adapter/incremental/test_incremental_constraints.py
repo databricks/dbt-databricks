@@ -369,6 +369,57 @@ class TestIncrementalFkTargetNonIncrementalIsRetained:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestPrimaryKeyNotAppliedWithoutContractV2:
+    """Regression test for https://github.com/databricks/dbt-databricks/issues/1342
+
+    A model with a primary_key constraint on a nullable column and no contract.enforced.
+    If the constraint were incorrectly applied, Databricks would error with:
+    "Cannot create the primary key ... because its child column(s) is nullable."
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "pk_without_contract_sql.sql": fixtures.pk_without_contract_sql,
+            "schema.yml": fixtures.schema_with_pk_without_contract,
+        }
+
+    def test_pk_not_applied_without_contract(self, project):
+        # Both initial and incremental runs should succeed because the PK is not applied
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPrimaryKeyNotAppliedWithoutContractV1:
+    """Regression test for https://github.com/databricks/dbt-databricks/issues/1342 (v1 path)"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "pk_without_contract_sql.sql": fixtures.pk_without_contract_sql,
+            "schema.yml": fixtures.schema_with_pk_without_contract,
+        }
+
+    def test_pk_not_applied_without_contract(self, project):
+        # Both initial and incremental runs should succeed because the PK is not applied
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalFkTargetNonIncrementalIsRetainedNoV2:
     @pytest.fixture(scope="class")
     def project_config_update(self):

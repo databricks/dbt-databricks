@@ -33,7 +33,7 @@ SHOW TABLES IN {{ relation.render() }}
 
 {% macro list_schemas_sql(database) %}
 {% if database %}
-  SHOW SCHEMAS IN {{ database }}
+  SHOW SCHEMAS IN {{ adapter.quote(database) }}
 {% else %}
   SHOW SCHEMAS
 {% endif %}
@@ -44,7 +44,7 @@ SHOW TABLES IN {{ relation.render() }}
 {% endmacro %}
 
 {% macro check_schema_exists_sql(database, schema) %}
-  SHOW SCHEMAS IN {{ database }} LIKE '{{ schema }}'
+  SHOW SCHEMAS IN {{ adapter.quote(database) }} LIKE '{{ schema }}'
 {% endmacro %}
 
 {% macro show_views(relation) %}

@@ -431,3 +431,16 @@ class TestGetFunctionConfig:
         }
         result = relation.get_function_config(model)
         assert result is None
+
+
+class TestDatabricksRenderLimited:
+    def test_render_limited_with_empty_no_alias(self):
+        relation = DatabricksRelation.create(
+            database="test_catalog",
+            schema="test_schema",
+            identifier="test_model",
+            limit=0,
+        )
+        result = relation.render_limited()
+        expected = "(select * from `test_catalog`.`test_schema`.`test_model` where false limit 0)"
+        assert result == expected

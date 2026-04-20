@@ -6,6 +6,42 @@
 - Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 - Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
 
+## dbt-databricks 1.11.7 (Apr 17, 2026)
+
+### Features
+
+- Enable Notebook scoped python packages installation
+
+### Fixes
+
+- Fix capability detection (e.g., `table_format='iceberg'`) failing on named compute (`databricks_compute`) due to lazy DBR version caching ([#1355](https://github.com/databricks/dbt-databricks/pull/1355))
+- Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
+- Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
+- Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
+- Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
+
+### Under the Hood
+
+- Bump `databricks-sql-connector` upper bound to `<4.1.6`, enabling users to opt into `_respect_server_retry_after_header` (available in connector 4.1.5) for server-directed retry behavior via `connection_parameters` ([#1363](https://github.com/databricks/dbt-databricks/pull/1363))
+- Bump upper bound of dbt-core to `<1.11.9` to include dbt-core 1.11.8
+
+## dbt-databricks 1.11.6 (Mar 10, 2026)
+
+### Features
+
+- Enable concurrent microbatch execution via `MicrobatchConcurrency` capability,
+  gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
+  Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
+  ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Run `optimize` on snapshots when `liquid_clustered_by`, `zorder`, or `auto_liquid_cluster` config is set, matching existing behavior for tables and incremental models ([#1335](https://github.com/databricks/dbt-databricks/issues/1335))
+  
+### Fixes
+
+- Fix constraints (e.g. primary key, not null) being applied to tables/incrementals/materialized views when `contract.enforced: false` ([#1343](https://github.com/databricks/dbt-databricks/pull/1343))
+- Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
+- Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
+- Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
+
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
 ### Fixes

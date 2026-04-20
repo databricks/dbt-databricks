@@ -6,6 +6,7 @@ from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
 import pytest
+from dbt.adapters.capability import Capability
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
@@ -169,3 +170,12 @@ class TestAdapterCapabilities:
         """Test that the required version string is correct for INSERT_BY_NAME"""
         version_string = DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME)
         assert version_string == "DBR 12.2+"
+
+    def test_microbatch_concurrency_disabled_by_default(self, adapter):
+        """Test that MicrobatchConcurrency is disabled by default (behavior flag off)."""
+        assert not adapter.supports(Capability.MicrobatchConcurrency)
+
+    def test_microbatch_concurrency_enabled_with_flag(self, adapter):
+        """Test that MicrobatchConcurrency is enabled when behavior flag is on."""
+        adapter.behavior.use_concurrent_microbatch = True
+        assert adapter.supports(Capability.MicrobatchConcurrency)
