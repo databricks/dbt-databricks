@@ -32,6 +32,7 @@
   gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
   Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
   ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Run `optimize` on snapshots when `liquid_clustered_by`, `zorder`, or `auto_liquid_cluster` config is set, matching existing behavior for tables and incremental models ([#1335](https://github.com/databricks/dbt-databricks/issues/1335))
   
 ### Fixes
 
