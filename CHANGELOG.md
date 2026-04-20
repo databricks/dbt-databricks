@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.5 (TBD)
+
+### Features
+
+- Add `skip_merge_on_empty_source` incremental config to bypass MERGE and associated metadata queries when the compiled source SELECT returns no rows, significantly reducing no-op incremental run time. ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
+
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 
 ### Fixes
@@ -139,7 +145,6 @@
 - Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
 - Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
 - Fix `dbt docs generate` failing with `RuntimeError: Tables contain columns with the same names ... but different types` during catalog merge across schemas ([#1392](https://github.com/databricks/dbt-databricks/issues/1392))
-
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
