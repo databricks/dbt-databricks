@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from dbt.adapters.capability import Capability
+from dbt_common.events.event_manager_client import add_callback_to_manager
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
@@ -177,5 +178,25 @@ class TestAdapterCapabilities:
 
     def test_microbatch_concurrency_enabled_with_flag(self, adapter):
         """Test that MicrobatchConcurrency is enabled when behavior flag is on."""
-        adapter.behavior.use_concurrent_microbatch = True
+        adapter.behavior.use_concurrent_microbatch.setting = True
         assert adapter.supports(Capability.MicrobatchConcurrency)
+
+    def test_microbatch_concurrency_probe_does_not_warn(self, adapter):
+        """Test that supports(MicrobatchConcurrency) does not fire BehaviorChangeEvent."""
+        caught = []
+
+        def record(event_msg):
+            if (
+                event_msg.info.name == "BehaviorChangeEvent"
+                and event_msg.data.flag_name == "use_concurrent_microbatch"
+            ):
+                caught.append(event_msg)
+
+        add_callback_to_manager(record)
+
+        adapter.supports(Capability.MicrobatchConcurrency)
+
+        assert caught == [], (
+            "supports(MicrobatchConcurrency) must not fire BehaviorChangeEvent "
+            f"(fired {len(caught)} times)"
+        )
