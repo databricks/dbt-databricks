@@ -74,21 +74,21 @@ jobs:
           targets="["
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             targets+=$(entry "$PR_NUMBER" "$PR_SHA")
-          elif [[ -n "${INPUT_PR_NUMBERS// /}" ]]; then
+          elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
             first=1
             IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
             for pr in "${prs[@]}"; do
-              pr_trimmed="${pr// /}"
+              pr_trimmed="${pr//[[:space:]]/}"
               [[ -z "$pr_trimmed" ]] && continue
               if [[ ! "$pr_trimmed" =~ ^[0-9]+$ ]]; then
-                echo "::error::Invalid PR number '$pr_trimmed' — pr_numbers must be digits, comma-separated."
+                echo "::error::Invalid PR number '$pr_trimmed' in pr_numbers='$INPUT_PR_NUMBERS' — expected digits, comma-separated."
                 exit 1
               fi
               [[ $first -eq 0 ]] && targets+=","
               first=0
               targets+=$(entry "$pr_trimmed" "refs/pull/$pr_trimmed/head")
             done
-          elif [[ -n "${INPUT_GIT_REF// /}" ]]; then
+          elif [[ -n "${INPUT_GIT_REF//[[:space:]]/}" ]]; then
             targets+=$(entry "manual" "$INPUT_GIT_REF")
           else
             targets+=$(entry "manual" "$DEFAULT_REF")
@@ -98,6 +98,10 @@ jobs:
           echo "Parsed targets: $targets"
 
   run-uc-cluster-e2e-tests:
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
     needs: prepare
     strategy:
       fail-fast: false
@@ -121,11 +125,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
-          fetch-depth: 0
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -139,6 +146,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -180,11 +189,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
-          fetch-depth: 0
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -198,6 +210,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -237,11 +251,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
-          fetch-depth: 0
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -255,6 +272,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
