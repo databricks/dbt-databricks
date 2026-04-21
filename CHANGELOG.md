@@ -1,3 +1,9 @@
+## dbt-databricks next
+
+### Features
+
+- Replace information_schema queries with DESCRIBE TABLE EXTENDED AS JSON for metadata fetching in incremental, materialized view, and view materializations (DBR 17.3+, falls back to info_schema on older runtimes)
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
