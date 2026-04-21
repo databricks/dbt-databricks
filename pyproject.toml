@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dbt-databricks"
+name = "dbt-databricks-enhanced"
 dynamic = ["version"]
-description = "The Databricks adapter plugin for dbt"
+description = "Enhanced Databricks adapter plugin for dbt with session mode support"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -34,11 +34,12 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/databricks/dbt-databricks"
-changelog = "https://github.com/databricks/dbt-databricks/blob/main/CHANGELOG.md"
+homepage = "https://github.com/viadkt/dbt-databricks-enhanced"
+changelog = "https://github.com/viadkt/dbt-databricks-enhanced/blob/main/CHANGELOG.md"
 documentation = "https://docs.getdbt.com/reference/resource-configs/databricks-configs"
-issues = "https://github.com/databricks/dbt-databricks/issues"
-repository = "https://github.com/databricks/dbt-databricks"
+issues = "https://github.com/viadkt/dbt-databricks-enhanced/issues"
+repository = "https://github.com/viadkt/dbt-databricks-enhanced"
+upstream = "https://github.com/databricks/dbt-databricks"
 
 [tool.hatch.version]
 path = "dbt/adapters/databricks/__version__.py"

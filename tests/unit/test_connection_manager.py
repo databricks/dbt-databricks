@@ -9,35 +9,33 @@ from dbt.adapters.databricks.utils import is_cluster_http_path
 class TestDatabricksConnectionManager:
     def test_is_cluster_with_warehouse_path_no_cluster_id(self):
         """Test is_cluster() returns False for warehouse path with no cluster_id"""
-        # Create a minimal connection manager with mock config
         mock_config = Mock()
         connection_manager = DatabricksConnectionManager(mock_config, get_context("spawn"))
 
-        # Mock the connection
         mock_connection = Mock(spec=DatabricksDBTConnection)
         mock_connection.credentials = Mock(spec=DatabricksCredentials)
         mock_connection.credentials.cluster_id = None
         mock_connection.http_path = "sql/1.0/warehouses/abc123def456"
 
-        with patch.object(
-            connection_manager, "get_thread_connection", return_value=mock_connection
+        with (
+            patch.object(connection_manager, "get_thread_connection", return_value=mock_connection),
+            patch.object(connection_manager, "is_session_mode", return_value=False),
         ):
             assert connection_manager.is_cluster() is False
 
     def test_is_cluster_with_cluster_id_overrides_path(self):
         """Test is_cluster() returns False even when cluster_id is provided"""
-        # Create a minimal connection manager with mock config
         mock_config = Mock()
         connection_manager = DatabricksConnectionManager(mock_config, get_context("spawn"))
 
-        # Mock the connection with cluster_id set (overriding warehouse path)
         mock_connection = Mock(spec=DatabricksDBTConnection)
         mock_connection.credentials = Mock(spec=DatabricksCredentials)
         mock_connection.credentials.cluster_id = "cluster-123"
         mock_connection.http_path = "sql/1.0/warehouses/abc123def456"
 
-        with patch.object(
-            connection_manager, "get_thread_connection", return_value=mock_connection
+        with (
+            patch.object(connection_manager, "get_thread_connection", return_value=mock_connection),
+            patch.object(connection_manager, "is_session_mode", return_value=False),
         ):
             assert connection_manager.is_cluster() is False
 
@@ -69,6 +67,7 @@ class TestDatabricksConnectionManager:
         mock_connection.credentials.connect_retries = 1
         mock_connection.credentials.connect_timeout = 10
         mock_connection.credentials.query_tags = None
+        mock_connection.credentials.is_session_mode = False  # Not session mode
         mock_connection.http_path = "sql/protocolv1/o/abc123def456"
         mock_connection.credentials.authenticate.return_value = Mock()
         mock_connection._query_header_context = None
