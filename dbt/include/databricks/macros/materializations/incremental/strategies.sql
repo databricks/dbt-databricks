@@ -8,7 +8,7 @@
 {% endmacro %}
 
 {% macro databricks__get_incremental_append_sql(arg_dict) %}
-  {% do return(get_insert_into_sql(arg_dict["temp_relation"], arg_dict["target_relation"])) %}
+  {% do return(get_insert_into_sql(arg_dict["temp_relation"], arg_dict["target_relation"], arg_dict.get("dest_columns"))) %}
 {% endmacro %}
 
 {% macro databricks__get_incremental_replace_where_sql(arg_dict) %}
@@ -138,7 +138,13 @@ INSERT INTO {{ target_relation.render() }}
   {%- set source_relation = arg_dict.get('temp_relation') -%}
   {%- set target_relation = arg_dict.get('target_relation') -%}
   {%- set incremental_predicates = config.get('incremental_predicates') -%}
-  {%- set target_columns = (adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list) -%}
+  {#-- Reuse dest_columns from the materialization (obtained via `process_schema_changes`)
+       when provided, otherwise fall back to a fresh DESCRIBE. --#}
+  {%- set dest_columns = arg_dict.get('dest_columns') -%}
+  {%- if dest_columns is none -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
+  {%- endif -%}
+  {%- set target_columns = (dest_columns | map(attribute='quoted') | list) -%}
   {%- set unique_key = config.require('unique_key') -%}
   {% do return(delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates)) %}
 {% endmacro %}
@@ -219,10 +225,15 @@ where {{ incremental_predicates }}
 {% endmacro %}
 
 
-{% macro get_insert_into_sql(source_relation, target_relation) %}
+{% macro get_insert_into_sql(source_relation, target_relation, dest_columns=none) %}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
-    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
-    {{ insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) }}
+    {#-- Reuse dest_columns from the materialization when provided; otherwise DESCRIBE. --#}
+    {%- if dest_columns is none -%}
+      {%- set dest_cols_list = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
+    {%- else -%}
+      {%- set dest_cols_list = dest_columns | map(attribute="name") | list -%}
+    {%- endif -%}
+    {{ insert_into_sql_impl(target_relation, dest_cols_list, source_relation, source_columns) }}
 {% endmacro %}
 
 {% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
@@ -273,7 +284,12 @@ where {{ incremental_predicates }}
   {%- set source_alias = config.get('source_alias', 'DBT_INTERNAL_SOURCE') -%}
 
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
-  {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {#-- Prefer the `dest_columns` passed in by the materialization (obtained via
+       `process_schema_changes` or a single DESCRIBE on the existing relation).
+       Only issue a fresh DESCRIBE when no columns were provided. --#}
+  {%- if dest_columns is none -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {%- endif -%}
   {%- set source_columns = (adapter.get_columns_in_relation(source) | map(attribute='name') | list)-%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
