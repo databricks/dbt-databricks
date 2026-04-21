@@ -411,6 +411,14 @@ class DatabricksAdapter(SparkAdapter):
         return (not relation.is_hive_metastore() and not relation.is_foreign_table
                 and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON))
 
+    def fetch_json_metadata(self, relation: DatabricksRelation) -> dict[str, Any]:
+        """Fetch the JSON metadata for a relation using DESCRIBE TABLE EXTENDED AS JSON.
+        """
+        kwargs = {"relation": relation}
+        describe_results = self.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
+        json_metadata = json.loads(describe_results.rows[0].get("json_metadata"))
+        return json_metadata
+
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
         return [row[0] for row in results]
@@ -1094,8 +1102,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
 
         kwargs = {"relation": relation}
         if adapter.is_describe_as_json_supported(relation):
-            describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-            json_metadata = json.loads(describe_results.rows[0][0])
+            json_metadata = adapter.fetch_json_metadata(relation)
             results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
         else:
             results["information_schema.views"] = get_first_row(
@@ -1151,10 +1158,8 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             )
             results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 
-            # TODO @Tejas simplify this?
             if adapter.is_describe_as_json_supported(relation):
-                describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-                json_metadata = json.loads(describe_results.rows[0][0])
+                json_metadata = adapter.fetch_json_metadata(relation)
                 relation_metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
                 results["non_null_constraint_columns"] = relation_metadata.non_null_constraints
                 results["primary_key_constraints"] = relation_metadata.primary_key_constraints
@@ -1196,8 +1201,7 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         kwargs = {"relation": relation}
 
         if adapter.is_describe_as_json_supported(relation):
-            describe_results = adapter.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-            json_metadata = json.loads(describe_results.rows[0][0])
+            json_metadata = adapter.fetch_json_metadata(relation)
             results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
         else:
             results["information_schema.views"] = get_first_row(
@@ -1242,13 +1246,9 @@ class DatabricksDescribeJsonMetadata:
     primary_key_constraints: Optional["agate.Table"] = None
     view_description: Optional["agate.Row"] = None
 
-    # TODO @Tejas fix parsing to not use regex and make it more robust.
-    # TODO add comments to class and fields and the methods.
-    # TODO check if the fields have to be none, today the methods set it as an Agate table with empty rows.
-    # TODO fix agate imports for fasster cli load time?
-
     @classmethod
     def from_json_metadata(cls, json_metadata: dict[str, Any]) -> "DatabricksDescribeJsonMetadata":
+        """Parse and convert the json metadata into structured metadata for the adapter to use."""
         return DatabricksDescribeJsonMetadata(
             column_masks=cls.parse_column_masks(json_metadata),
             foreign_key_constraints=cls.parse_foreign_key_constraints(json_metadata),
@@ -1259,7 +1259,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_column_masks(cls, json_metadata: dict[str, Any]) -> agate.Table:
-        """Convert AS JSON column_masks to agate Table matching info_schema format."""
+        """Parse and convert json metadata to agate Table for column masks matching info_schema format."""
         raw_masks = json_metadata.get("column_masks", [])
         rows = []
         for mask in raw_masks:
@@ -1277,6 +1277,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        """Parse and convert json metadata constraints to agate Table for foreign keys matching info_schema format."""
         table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
         pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
         fk_rows = []
@@ -1299,6 +1300,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        """Parse and convert json metadata constraints to agate Table for non-null constraints matching info_schema format."""
         columns = json_metadata.get("columns", [])
 
         non_null_cols = [column["name"] for column in columns if column.get("nullable") == False]
@@ -1310,6 +1312,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        """Parse and convert json metadata constraints to agate Table for primary keys matching info_schema format."""
         table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
         pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
         pk_rows = []
@@ -1326,6 +1329,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_view_description(cls, json_metadata: dict[str, Any]) -> "agate.Row":
+        """Parse and convert json metadata to agate Row for view description matching info_schema format."""
         view_text = json_metadata.get("view_text", None)
         if view_text is None:
             return agate.Row(values=set())
