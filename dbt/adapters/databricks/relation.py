@@ -17,12 +17,6 @@ from dbt.adapters.databricks.constraints import TypedConstraint, process_constra
 from dbt.adapters.databricks.utils import remove_undefined
 
 KEY_TABLE_PROVIDER = "Provider"
-
-# Databricks (Unity Catalog / Hive Metastore) enforces a 255-character limit
-# on table and view names. This constant is used by relation_max_name_length()
-# to validate identifier lengths at relation creation time rather than at
-# SQL execution time, providing a clear error message instead of a cryptic
-# DatabricksExecutionError.
 MAX_CHARACTERS_IN_IDENTIFIER = 255
 
 
@@ -93,23 +87,14 @@ class DatabricksRelation(BaseRelation):
     databricks_table_type: Optional[DatabricksTableType] = None
     temporary: Optional[bool] = False
 
-    def __post_init__(self):
-        # Validate identifier length against Databricks' 255-character limit.
-        # Check self.type to exclude test relation identifiers that may not
-        # have a type set yet.
-        if (
-            self.identifier is not None
-            and self.type is not None
-            and len(self.identifier) > self.relation_max_name_length()
-        ):
-            raise DbtRuntimeError(
-                f"Relation name '{self.identifier}' "
-                f"is longer than {self.relation_max_name_length()} characters. "
-                f"Databricks has a maximum identifier length of "
-                f"{self.relation_max_name_length()} characters. "
-                f"If this is a store_failures table, consider using a shorter "
-                f"test name or setting a custom alias."
-            )
+    def __post_init__(self) -> None:
+        if self.identifier and self.type:
+            if len(self.identifier) > self.relation_max_name_length():
+                raise DbtRuntimeError(
+                    f"Relation name '{self.identifier}' is longer than "
+                    f"{self.relation_max_name_length()} characters. "
+                    "Use a shorter test name or configure a custom alias."
+                )
 
     def relation_max_name_length(self):
         return MAX_CHARACTERS_IN_IDENTIFIER
