@@ -3,7 +3,6 @@ from dbt.tests import util
 
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
-
 UTF8_DATA = {
     "arabic": "مرحبا بالعالم",
     "greek": "Γειά σου Κόσμε",
