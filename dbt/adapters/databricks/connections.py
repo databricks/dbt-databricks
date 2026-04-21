@@ -202,11 +202,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
         if http_path not in cls._dbr_capabilities_cache:
             is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
             dbr_version = cls._query_dbr_version(creds, http_path)
-
-            cls._dbr_capabilities_cache[http_path] = DBRCapabilities(
-                dbr_version=dbr_version,
-                is_sql_warehouse=not is_cluster,
-            )
+            if dbr_version is not None:
+                cls._dbr_capabilities_cache[http_path] = DBRCapabilities(
+                    dbr_version=dbr_version,
+                    is_sql_warehouse=not is_cluster,
+                )
 
     @classmethod
     def _try_cache_dbr_capabilities(cls, creds: DatabricksCredentials, http_path: str) -> None:
@@ -506,9 +506,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.session_id
                     cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
-                    databricks_connection.capabilities = cls._dbr_capabilities_cache[
-                        databricks_connection.http_path
-                    ]
+                    databricks_connection.capabilities = cls._dbr_capabilities_cache.get(
+                        databricks_connection.http_path, DBRCapabilities()
+                    )
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")

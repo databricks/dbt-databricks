@@ -1,3 +1,9 @@
+## dbt-databricks next (TBD)
+
+### Fixes
+
+- Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
