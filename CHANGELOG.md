@@ -10,6 +10,7 @@
 - Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
+- Fix `is_string()`, `is_number()`, `is_float()`, `is_integer()`, and `is_numeric()` returning `False` for Databricks/Spark column types by overriding them in `DatabricksColumn` with the correct Spark type names ([#1380](https://github.com/databricks/dbt-databricks/issues/1380))
 - Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
 
 ### Under the Hood
