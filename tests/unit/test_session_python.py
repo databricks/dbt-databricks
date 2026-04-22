@@ -163,6 +163,25 @@ class TestSessionPythonSubmitter:
         # Cleanup should be called (SHOW VIEWS)
         mock_spark.sql.assert_called()
 
+    def test_submit_raises_on_timeout(self, mock_spark):
+        """Test that submit raises DbtRuntimeError when execution exceeds timeout."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=1)
+        # Code that sleeps longer than timeout
+        compiled_code = "import time; time.sleep(10)"
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            submitter.submit(compiled_code)
+
+        assert "timed out" in str(exc_info.value)
+
+    def test_submit_succeeds_within_timeout(self, mock_spark):
+        """Test that submit completes normally when execution finishes before timeout."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "result = 1 + 1"
+
+        # Should not raise
+        submitter.submit(compiled_code)
+
 
 class TestSessionPythonJobHelper:
     """Tests for SessionPythonJobHelper."""
