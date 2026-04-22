@@ -1,3 +1,5 @@
+import threading
+import uuid
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -16,6 +18,7 @@ if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
+CANCEL_GRACE_PERIOD = 5
 
 
 class PythonSubmitter(ABC):
@@ -698,44 +701,68 @@ class SessionStateManager:
 class SessionPythonSubmitter(PythonSubmitter):
     """Submitter for Python models using direct execution in current SparkSession.
 
-    NOTE: This does NOT collect data to the driver. The compiled code contains
-    df.write.saveAsTable() which writes directly to storage, just like API-based
-    submission methods.
+    Executes compiled code in a daemon thread with timeout protection.
+    Uses Spark job groups for isolation so cancellation only affects
+    this model's Spark jobs, not other concurrent models.
     """
 
-    def __init__(self, spark: "SparkSession"):
+    def __init__(self, spark: "SparkSession", timeout: int = DEFAULT_TIMEOUT):
         self._spark = spark
+        self._timeout = timeout
         self._state_manager = SessionStateManager()
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Executing Python model directly in SparkSession.")
 
+        exec_globals = self._state_manager.get_clean_exec_globals(self._spark)
+        group_id = f"dbt-session-python-{uuid.uuid4()}"
+        exception_holder: list[Exception] = []
+
+        def _execute() -> None:
+            try:
+                # setJobGroup must be called on the worker thread — it sets
+                # per-thread local state in Spark's thread-local context.
+                # There is a narrow race: if timeout expires before this call,
+                # cancelJobGroup will be a no-op. In practice the window is
+                # milliseconds (thread startup to setJobGroup call).
+                self._spark.sparkContext.setJobGroup(
+                    group_id,
+                    "dbt Python model execution",
+                    interruptOnCancel=True,
+                )
+                exec(compiled_code, exec_globals)
+            except Exception as e:
+                exception_holder.append(e)
+
+        preview_len = min(500, len(compiled_code))
+        logger.debug(f"[Session Python] Executing code preview: {compiled_code[:preview_len]}...")
+
+        thread = threading.Thread(target=_execute, daemon=True)
+        thread.start()
+        thread.join(timeout=self._timeout)
+
         try:
-            # Get clean execution context
-            exec_globals = self._state_manager.get_clean_exec_globals(self._spark)
+            if thread.is_alive():
+                logger.warning(
+                    f"Python model execution timed out after {self._timeout}s, "
+                    f"cancelling Spark job group {group_id}"
+                )
+                self._spark.sparkContext.cancelJobGroup(group_id)
+                thread.join(timeout=CANCEL_GRACE_PERIOD)
+                raise DbtRuntimeError(
+                    f"Python model execution timed out after {self._timeout} seconds"
+                )
 
-            # Log a preview of the code being executed
-            preview_len = min(500, len(compiled_code))
-            logger.debug(
-                f"[Session Python] Executing code preview: {compiled_code[:preview_len]}..."
-            )
-
-            # Execute the compiled Python model code
-            # The compiled code will:
-            # 1. Execute model() function to get a DataFrame
-            # 2. Call df.write.saveAsTable() to persist to Delta
-            # 3. No collect() - data stays distributed
-            exec(compiled_code, exec_globals)
+            if exception_holder:
+                logger.warning(f"Python model execution failed: {exception_holder[0]}")
+                raise DbtRuntimeError(
+                    f"Python model execution failed: {exception_holder[0]}"
+                ) from exception_holder[0]
 
             logger.debug("[Session Python] Model execution completed successfully")
 
-        except Exception as e:
-            logger.error(f"Python model execution failed: {e}")
-            raise DbtRuntimeError(f"Python model execution failed: {e}") from e
-
         finally:
-            # Clean up temp views to prevent state leakage
             try:
                 self._state_manager.cleanup_temp_views(self._spark)
             except Exception as cleanup_error:
@@ -765,7 +792,9 @@ class SessionPythonJobHelper(PythonJobHelper):
             f"[Session Python] Using SparkSession: {self._spark.sparkContext.applicationId}"
         )
 
-        self._submitter = SessionPythonSubmitter(self._spark)
+        self._submitter = SessionPythonSubmitter(
+            self._spark, timeout=self.parsed_model.config.timeout
+        )
 
     def submit(self, compiled_code: str) -> None:
         """Submit the compiled Python model for execution."""
