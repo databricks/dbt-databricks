@@ -182,6 +182,31 @@ class TestSessionPythonSubmitter:
         # Should not raise
         submitter.submit(compiled_code)
 
+    def test_submit_sets_job_group(self, mock_spark):
+        """Test that submit sets a Spark job group for isolation."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "result = 1"
+
+        submitter.submit(compiled_code)
+
+        mock_spark.sparkContext.setJobGroup.assert_called_once()
+        call_args = mock_spark.sparkContext.setJobGroup.call_args
+        assert call_args[0][0].startswith("dbt-session-python-")
+        assert call_args[1]["interruptOnCancel"] is True
+
+    def test_submit_cancels_job_group_on_timeout(self, mock_spark):
+        """Test that submit cancels the Spark job group when execution times out."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=1)
+        compiled_code = "import time; time.sleep(10)"
+
+        with pytest.raises(DbtRuntimeError):
+            submitter.submit(compiled_code)
+
+        mock_spark.sparkContext.cancelJobGroup.assert_called_once()
+        group_id = mock_spark.sparkContext.setJobGroup.call_args[0][0]
+        mock_spark.sparkContext.cancelJobGroup.assert_called_with(group_id)
+
+
 
 class TestSessionPythonJobHelper:
     """Tests for SessionPythonJobHelper."""
