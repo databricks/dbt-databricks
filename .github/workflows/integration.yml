@@ -2,9 +2,10 @@
 #
 # This workflow runs integration tests that require Databricks secrets.
 #
-# For testing external contributions (PRs from forks):
+# For testing external contributions (PRs from forks) or batching multiple PRs:
 # 1. Go to Actions tab -> Integration Tests -> Run workflow
-# 2. Enter the PR number in the 'pr_number' field
+# 2. Enter one PR number (e.g. "100") OR a comma-separated list (e.g. "100,200,300") in 'pr_numbers'
+#    - For batch dispatches, matrix max-parallel caps in-run parallelism.
 # 3. Click "Run workflow"
 #
 # This approach is secure because:
@@ -24,14 +25,14 @@ on:
       - ".github/workflows/stale.yml"
 
   workflow_dispatch:
-    # Manual triggering for external contributions and ad-hoc testing
+    # Manual triggering for external contributions and ad-hoc / batch testing
     inputs:
-      pr_number:
-        description: "PR number to test (for external contributions)"
+      pr_numbers:
+        description: "PR number(s) to test — single PR or comma-separated for batch (e.g. '100' or '100,200,300')"
         required: false
         type: string
       git_ref:
-        description: "Git ref (branch/tag/commit) to test"
+        description: "Git ref (branch/tag/commit) to test — used only when pr_numbers is empty"
         required: false
         type: string
 
@@ -39,18 +40,78 @@ permissions:
   id-token: write
   contents: read
 
+# Target-aware concurrency:
+# - Different PRs / batches don't cancel each other.
+# - Re-push to the same PR (or re-dispatch of the same batch) cancels the stale run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pr_numbers || github.event.inputs.git_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  prepare:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures.
+    # Downstream jobs inherit this gate via `needs: prepare`.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      targets: ${{ steps.parse.outputs.targets }}
+    steps:
+      - name: Parse targets
+        id: parse
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
+          INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
+          DEFAULT_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          entry() { printf '{"pr":"%s","ref":"%s"}' "$1" "$2"; }
+          targets="["
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            targets+=$(entry "$PR_NUMBER" "$PR_SHA")
+          elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
+            first=1
+            IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
+            for pr in "${prs[@]}"; do
+              pr_trimmed="${pr//[[:space:]]/}"
+              [[ -z "$pr_trimmed" ]] && continue
+              if [[ ! "$pr_trimmed" =~ ^[0-9]+$ ]]; then
+                echo "::error::Invalid PR number '$pr_trimmed' in pr_numbers='$INPUT_PR_NUMBERS' — expected digits, comma-separated."
+                exit 1
+              fi
+              [[ $first -eq 0 ]] && targets+=","
+              first=0
+              targets+=$(entry "$pr_trimmed" "refs/pull/$pr_trimmed/head")
+            done
+          elif [[ -n "${INPUT_GIT_REF//[[:space:]]/}" ]]; then
+            targets+=$(entry "manual" "$INPUT_GIT_REF")
+          else
+            targets+=$(entry "manual" "$DEFAULT_REF")
+          fi
+          targets+="]"
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "Parsed targets: $targets"
+
   run-uc-cluster-e2e-tests:
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -63,17 +124,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -87,6 +146,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -99,17 +160,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: uc-cluster-test-logs
+          name: uc-cluster-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -123,17 +188,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -147,6 +210,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -159,17 +224,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: sql-endpoint-test-logs
+          name: sql-endpoint-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
 
   run-cluster-e2e-tests:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -181,17 +250,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -205,6 +272,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -217,6 +286,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: cluster-test-logs
+          name: cluster-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
