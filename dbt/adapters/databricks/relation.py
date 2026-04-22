@@ -91,9 +91,7 @@ class DatabricksRelation(BaseRelation):
         if self.identifier and self.type:
             if len(self.identifier) > self.relation_max_name_length():
                 raise DbtRuntimeError(
-                    f"Relation name '{self.identifier}' is longer than "
-                    f"{self.relation_max_name_length()} characters. "
-                    "Databricks has a maximum identifier length of "
+                    f"Databricks has a maximum identifier length of "
                     f"{self.relation_max_name_length()} characters. "
                     "Use a shorter name or configure a custom alias."
                 )

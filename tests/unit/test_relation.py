@@ -380,7 +380,7 @@ class TestIdentifierLengthValidation:
 
     def test_identifier_too_long_raises(self):
         identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
-        with pytest.raises(DbtRuntimeError, match="longer than 255 characters"):
+        with pytest.raises(DbtRuntimeError, match="maximum identifier length of 255 characters"):
             DatabricksRelation.create(identifier=identifier, type="table")
 
     def test_long_identifier_without_type_is_allowed(self):
