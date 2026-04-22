@@ -206,6 +206,17 @@ class TestSessionPythonSubmitter:
         group_id = mock_spark.sparkContext.setJobGroup.call_args[0][0]
         mock_spark.sparkContext.cancelJobGroup.assert_called_with(group_id)
 
+    def test_submit_propagates_exception_with_cause(self, mock_spark):
+        """Test that exceptions from exec thread are re-raised with __cause__ set."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "raise ValueError('inner error')"
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            submitter.submit(compiled_code)
+
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "inner error" in str(exc_info.value.__cause__)
 
 
 class TestSessionPythonJobHelper:
