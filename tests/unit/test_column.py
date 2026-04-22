@@ -295,8 +295,19 @@ class TestDatabricksColumn:
 class TestTypeClassification:
     @pytest.mark.parametrize(
         "dtype",
-        ["string", "varchar", "char", "text", "character varying", "character", "nchar", "nvarchar",
-         "STRING", "VARCHAR", "CHAR"],
+        [
+            "string",
+            "varchar",
+            "char",
+            "text",
+            "character varying",
+            "character",
+            "nchar",
+            "nvarchar",
+            "STRING",
+            "VARCHAR",
+            "CHAR",
+        ],
     )
     def test_is_string_true(self, dtype):
         assert DatabricksColumn("col", dtype).is_string() is True
@@ -326,9 +337,22 @@ class TestTypeClassification:
 
     @pytest.mark.parametrize(
         "dtype",
-        ["tinyint", "smallint", "int", "integer", "bigint", "long",
-         "float", "double", "decimal", "numeric", "real",
-         "decimal(10,2)", "decimal(38,0)", "DECIMAL(10,2)"],
+        [
+            "tinyint",
+            "smallint",
+            "int",
+            "integer",
+            "bigint",
+            "long",
+            "float",
+            "double",
+            "decimal",
+            "numeric",
+            "real",
+            "decimal(10,2)",
+            "decimal(38,0)",
+            "DECIMAL(10,2)",
+        ],
     )
     def test_is_number_true(self, dtype):
         assert DatabricksColumn("col", dtype).is_number() is True
