@@ -296,3 +296,23 @@ class TestSessionPythonJobHelper:
             helper.submit(compiled_code)
 
             # The code should execute without error
+
+    def test_init_passes_timeout_to_submitter(self, mock_credentials, parsed_model_dict):
+        """Test that __init__ passes model timeout config to the submitter."""
+        parsed_model_dict["config"]["timeout"] = 7200
+        mock_spark = MagicMock()
+        mock_spark.sparkContext.applicationId = "app-123"
+        mock_builder = MagicMock()
+        mock_builder.getOrCreate.return_value = mock_spark
+
+        with patch.dict(
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
+        ):
+            import sys
+
+            sys.modules["pyspark.sql"].SparkSession.builder = mock_builder
+
+            helper = SessionPythonJobHelper(parsed_model_dict, mock_credentials)
+
+            assert helper._submitter._timeout == 7200

@@ -789,7 +789,9 @@ class SessionPythonJobHelper(PythonJobHelper):
             f"[Session Python] Using SparkSession: {self._spark.sparkContext.applicationId}"
         )
 
-        self._submitter = SessionPythonSubmitter(self._spark)
+        self._submitter = SessionPythonSubmitter(
+            self._spark, timeout=self.parsed_model.config.timeout
+        )
 
     def submit(self, compiled_code: str) -> None:
         """Submit the compiled Python model for execution."""
