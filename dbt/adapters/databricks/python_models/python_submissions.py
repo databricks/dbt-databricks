@@ -697,6 +697,9 @@ class SessionStateManager:
         }
 
 
+CANCEL_GRACE_PERIOD = 5
+
+
 class SessionPythonSubmitter(PythonSubmitter):
     """Submitter for Python models using direct execution in current SparkSession.
 
@@ -720,6 +723,11 @@ class SessionPythonSubmitter(PythonSubmitter):
 
         def _execute() -> None:
             try:
+                # setJobGroup must be called on the worker thread — it sets
+                # per-thread local state in Spark's thread-local context.
+                # There is a narrow race: if timeout expires before this call,
+                # cancelJobGroup will be a no-op. In practice the window is
+                # milliseconds (thread startup to setJobGroup call).
                 self._spark.sparkContext.setJobGroup(
                     group_id,
                     "dbt Python model execution",
@@ -745,8 +753,7 @@ class SessionPythonSubmitter(PythonSubmitter):
                     f"cancelling Spark job group {group_id}"
                 )
                 self._spark.sparkContext.cancelJobGroup(group_id)
-                # Grace period for cancellation to propagate before cleanup
-                thread.join(timeout=5)
+                thread.join(timeout=CANCEL_GRACE_PERIOD)
                 raise DbtRuntimeError(
                     f"Python model execution timed out after {self._timeout} seconds"
                 )

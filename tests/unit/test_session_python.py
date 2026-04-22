@@ -195,7 +195,12 @@ class TestSessionPythonSubmitter:
         assert call_args[1]["interruptOnCancel"] is True
 
     def test_submit_cancels_job_group_on_timeout(self, mock_spark):
-        """Test that submit cancels the Spark job group when execution times out."""
+        """Test that submit cancels the Spark job group when execution times out.
+
+        Note: mock cancelJobGroup is a no-op — this test only verifies the call
+        is made with the correct group_id. Real cancellation behavior (interrupt
+        propagation) requires integration testing with a live SparkContext.
+        """
         submitter = SessionPythonSubmitter(mock_spark, timeout=1)
         compiled_code = "import time; time.sleep(10)"
 
