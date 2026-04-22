@@ -1,3 +1,9 @@
+## dbt-databricks next
+
+### Under the Hood
+
+- Reuse the columns returned by `process_schema_changes` in the incremental materialization so the downstream strategy macros (`merge`, `append`, `delete+insert`) no longer re-issue `DESCRIBE TABLE EXTENDED` on the target. Saves one metadata round-trip per incremental model. Mirrors the existing `dbt-snowflake` pattern.
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features

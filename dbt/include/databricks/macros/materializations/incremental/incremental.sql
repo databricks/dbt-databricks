@@ -58,9 +58,16 @@
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
-      {%- do process_schema_changes(on_schema_change, intermediate_relation, existing_relation) -%}
+      {#-- Reuse the columns returned by `process_schema_changes` so the downstream
+           merge strategy macro doesn't have to re-issue DESCRIBE on the target.
+           When `on_schema_change == 'ignore'`, the macro returns `{}` and we fall
+           back to a single DESCRIBE on the existing relation. --#}
+      {%- set dest_columns = process_schema_changes(on_schema_change, intermediate_relation, existing_relation) -%}
+      {%- if not dest_columns -%}
+        {%- set dest_columns = adapter.get_columns_in_relation(existing_relation) -%}
+      {%- endif -%}
       {{ process_config_changes(target_relation) }}
-      {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
+      {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation, dest_columns) %}
       {%- if language == 'sql' -%}
         {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
         {%- if build_sql is sequence and build_sql is not string -%}
@@ -139,13 +146,20 @@
       {%- call statement('create_temp_relation', language=language) -%}
         {{ create_table_as(True, temp_relation, compiled_code, language) }}
       {%- endcall -%}
-      {%- do process_schema_changes(on_schema_change, temp_relation, existing_relation) -%}
+      {#-- Reuse the columns returned by `process_schema_changes` so the downstream
+           merge strategy macro doesn't have to re-issue DESCRIBE on the target.
+           When `on_schema_change == 'ignore'`, the macro returns `{}` and we fall
+           back to a single DESCRIBE on the existing relation. --#}
+      {%- set dest_columns = process_schema_changes(on_schema_change, temp_relation, existing_relation) -%}
+      {%- if not dest_columns -%}
+        {%- set dest_columns = adapter.get_columns_in_relation(existing_relation) -%}
+      {%- endif -%}
       {%- set strategy_sql_macro_func = adapter.get_incremental_strategy_macro(context, incremental_strategy) -%}
       {%- set strategy_arg_dict = ({
               'target_relation': target_relation,
               'temp_relation': temp_relation,
               'unique_key': unique_key,
-              'dest_columns': none,
+              'dest_columns': dest_columns,
               'incremental_predicates': incremental_predicates}) -%}
       {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
       {%- if language == 'sql' -%}
@@ -221,7 +235,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
+{% macro get_build_sql(incremental_strategy, target_relation, intermediate_relation, dest_columns=none) %}
   {%- set unique_key = config.get('unique_key') -%}
   {%- set incremental_predicates = config.get('predicates') or config.get('incremental_predicates') -%}
   {%- set strategy_sql_macro_func = adapter.get_incremental_strategy_macro(context, incremental_strategy) -%}
@@ -229,7 +243,7 @@
           'target_relation': target_relation,
           'temp_relation': intermediate_relation,
           'unique_key': unique_key,
-          'dest_columns': none,
+          'dest_columns': dest_columns,
           'incremental_predicates': incremental_predicates}) -%}
   {% do return(strategy_sql_macro_func(strategy_arg_dict)) %}
 {% endmacro %}
