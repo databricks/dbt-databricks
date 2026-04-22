@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.8 (TBD)
+
+### Fixes
+
+- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
@@ -10,7 +16,6 @@
 - Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
-- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit, preventing confusing runtime failures when `store_failures: true` generates long table names ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
 - Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
 
 ### Under the Hood

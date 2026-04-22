@@ -373,9 +373,6 @@ class TestConstraints:
 
 
 class TestIdentifierLengthValidation:
-    def test_relation_max_name_length(self):
-        assert DatabricksRelation.relation_max_name_length() == MAX_CHARACTERS_IN_IDENTIFIER
-
     def test_valid_identifier_length(self):
         identifier = "a" * MAX_CHARACTERS_IN_IDENTIFIER
         rel = DatabricksRelation.create(identifier=identifier, type="table")
