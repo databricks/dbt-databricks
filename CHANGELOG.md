@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.8 (TBD)
+
+### Fixes
+
+- Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
