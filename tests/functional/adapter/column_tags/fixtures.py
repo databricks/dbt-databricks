@@ -13,7 +13,8 @@ models:
       - name: account_number
         databricks_tags:
           pii: "true"
-          sensitive: ""
+          sensitive: "true"
+          key_only: ""
 """
 
 updated_column_tag_model = """
@@ -29,7 +30,8 @@ models:
       - name: account_number
         databricks_tags:
           pii: "true"
-          sensitive: ""
+          sensitive: "true"
+          key_only: ""
 """
 
 column_tags_seed = """

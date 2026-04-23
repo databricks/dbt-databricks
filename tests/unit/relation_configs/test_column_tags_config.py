@@ -54,14 +54,14 @@ class TestColumnTagsProcessor:
     def test_from_relation_config__with_dict(self):
         model = Mock()
         model.columns = {
-            "email": {"_extra": {"databricks_tags": {"pii": "", "env": "prod"}}},
+            "email": {"_extra": {"databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}}},
             "id": {"_extra": {}},
             "created_at": {},
         }
         spec = ColumnTagsProcessor.from_relation_config(model)
         assert spec == ColumnTagsConfig(
             set_column_tags={
-                "email": {"pii": "", "env": "prod"},
+                "email": {"pii": "", "env": "prod", "priority": "0", "enabled": "False"},
             }
         )
 
@@ -71,14 +71,14 @@ class TestColumnTagsProcessor:
             "id": ColumnInfo(name="id", _extra={}),
             "email": ColumnInfo(
                 name="email",
-                _extra={"databricks_tags": {"pii": "", "env": "prod"}},
+                _extra={"databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}},
             ),
             "created_at": ColumnInfo(name="created_at"),
         }
         spec = ColumnTagsProcessor.from_relation_config(model)
         assert spec == ColumnTagsConfig(
             set_column_tags={
-                "email": {"pii": "", "env": "prod"},
+                "email": {"pii": "", "env": "prod", "priority": "0", "enabled": "False"},
             }
         )
 

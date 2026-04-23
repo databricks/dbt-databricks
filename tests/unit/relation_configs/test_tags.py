@@ -51,6 +51,12 @@ class TestTagsProcessor:
         spec = TagsProcessor.from_relation_config(model)
         assert spec == TagsConfig(set_tags={"a": "", "b": ""})
 
+    def test_from_relation_config__with_falsy_tags(self):
+        model = Mock()
+        model.config.extra = {"databricks_tags": {"priority": 0, "enabled": False}}
+        spec = TagsProcessor.from_relation_config(model)
+        assert spec == TagsConfig(set_tags={"priority": "0", "enabled": "False"})
+
     def test_from_relation_config__with_incorrect_tags(self):
         model = Mock()
         model.config.extra = {"databricks_tags": ["a", "b"]}
