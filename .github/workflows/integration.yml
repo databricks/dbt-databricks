@@ -1,33 +1,28 @@
 # Integration Tests for dbt-databricks
 #
-# This workflow runs integration tests that require Databricks secrets.
+# This workflow runs integration tests that require Databricks secrets. It is
+# never triggered by PR events directly — every PR-based run is the result of
+# a maintainer's explicit decision.
 #
-# For testing external contributions (PRs from forks):
-# 1. Go to Actions tab -> Integration Tests -> Run workflow
-# 2. Enter the PR number in the 'pr_number' field
-# 3. Click "Run workflow"
+# Triggering:
+# 1. On a PR (internal OR fork): a maintainer comments `/integration-test`.
+#    The integration-trigger workflow validates the comment author and
+#    dispatches this workflow with the PR number. The run posts a result
+#    comment back to the PR when the matrix completes.
+# 2. Manually from the Actions tab (workflow_dispatch) with pr_number or
+#    git_ref, for ad-hoc testing.
+# 3. Nightly on `main` at 03:00 IST (21:30 UTC). The schedule is skipped if
+#    the current main SHA has already had a successful integration run.
 #
-# This approach is secure because:
-# - The workflow runs in the databricks repository context (access to secrets)
-# - The code to test is explicitly specified by maintainers
-# - No automatic execution of untrusted code with secrets
+# Security: PR-triggered runs are gated on maintainer comment authorization;
+# fork-PR code runs in the main repo context (access to secrets) only because
+# a maintainer explicitly approved it via the slash command.
 name: Integration Tests
 on:
-  pull_request:
-    # Run on PRs to the same repository (internal contributors)
-    paths-ignore:
-      - "**.MD"
-      - "**.md"
-      - "adapters/databricks/__version__.py"
-      - "tests/unit/**"
-      - ".github/workflows/main.yml"
-      - ".github/workflows/stale.yml"
-
   workflow_dispatch:
-    # Manual triggering for external contributions and ad-hoc testing
     inputs:
       pr_number:
-        description: "PR number to test (for external contributions)"
+        description: "PR number to test (for external contributions and ad-hoc runs)"
         required: false
         type: string
       git_ref:
@@ -35,22 +30,60 @@ on:
         required: false
         type: string
 
+  schedule:
+    - cron: "30 21 * * *"   # 21:30 UTC = 03:00 IST
+
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Each PR and each ad-hoc git_ref gets its own concurrency group so parallel
+  # dispatches don't cancel each other. Schedule runs share the main group.
+  group: ${{ github.workflow }}-${{ inputs.pr_number || inputs.git_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Schedule-only gate: skip the nightly run if the current main SHA has
+  # already had a successful integration run. Does not run for
+  # workflow_dispatch, so PR-triggered dispatches skip the ~30s runner spin.
+  check-nightly-needed:
+    if: github.event_name == 'schedule'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Decide whether to run
+        id: decide
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'integration.yml',
+              branch: 'main',
+              status: 'success',
+              head_sha: context.sha,
+            });
+            core.info(`main SHA=${context.sha}, prior successful runs=${runs.data.total_count}`);
+            core.setOutput('should_run', runs.data.total_count > 0 ? 'false' : 'true');
+
   run-uc-cluster-e2e-tests:
+    needs: check-nightly-needed
+    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
+    # to let the job run; on schedule it runs iff the gate says should_run.
+    if: |
+      !cancelled() && (
+        github.event_name != 'schedule' ||
+        needs.check-nightly-needed.outputs.should_run == 'true'
+      )
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -63,11 +96,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
           # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # For schedule: falls through to github.ref (refs/heads/main)
+          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
           # Fetch enough history for PR testing
           fetch-depth: 0
 
@@ -104,12 +136,18 @@ jobs:
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
+    needs: check-nightly-needed
+    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
+    # to let the job run; on schedule it runs iff the gate says should_run.
+    if: |
+      !cancelled() && (
+        github.event_name != 'schedule' ||
+        needs.check-nightly-needed.outputs.should_run == 'true'
+      )
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -123,11 +161,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
           # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # For schedule: falls through to github.ref (refs/heads/main)
+          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
           # Fetch enough history for PR testing
           fetch-depth: 0
 
@@ -164,12 +201,18 @@ jobs:
           retention-days: 5
 
   run-cluster-e2e-tests:
+    needs: check-nightly-needed
+    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
+    # to let the job run; on schedule it runs iff the gate says should_run.
+    if: |
+      !cancelled() && (
+        github.event_name != 'schedule' ||
+        needs.check-nightly-needed.outputs.should_run == 'true'
+      )
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -181,11 +224,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
+          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
           # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
+          # For schedule: falls through to github.ref (refs/heads/main)
+          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
           # Fetch enough history for PR testing
           fetch-depth: 0
 
@@ -220,3 +262,43 @@ jobs:
           name: cluster-test-logs
           path: logs/
           retention-days: 5
+
+  report-status:
+    needs:
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+      - run-cluster-e2e-tests
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.pr_number != ''
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post result comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
+          SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
+          CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
+        with:
+          script: |
+            const ICONS = { success: ':white_check_mark:', skipped: ':fast_forward:' };
+            const results = {
+              'UC cluster':          process.env.UC_RESULT,
+              'SQL warehouse':       process.env.SQLW_RESULT,
+              'All-purpose cluster': process.env.CLUSTER_RESULT,
+            };
+            const line = Object.entries(results)
+              .map(([name, r]) => `${name} ${ICONS[r] || ':x:'} ${r}`)
+              .join(' · ');
+            const runUrl =
+              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(process.env.PR_NUMBER, 10),
+              body: `Integration results for PR #${process.env.PR_NUMBER} — ${line}\n\n[Run details](${runUrl}).`,
+            });
