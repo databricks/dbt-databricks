@@ -53,7 +53,7 @@ jobs:
               repo: context.repo.repo,
               workflow_id: 'integration.yml',
               ref: 'main',
-              inputs: { pr_number: prNumber },
+              inputs: { pr_numbers: prNumber },
             });
             const actionsUrl =
               `https://github.com/${context.repo.owner}/${context.repo.repo}` +

@@ -9,10 +9,12 @@
 #    The integration-trigger workflow validates the comment author and
 #    dispatches this workflow with the PR number. The run posts a result
 #    comment back to the PR when the matrix completes.
-# 2. Manually from the Actions tab (workflow_dispatch) with pr_number or
-#    git_ref, for ad-hoc testing.
-# 3. Nightly on `main` at 03:00 IST (21:30 UTC). The schedule is skipped if
-#    the current main SHA has already had a successful integration run.
+# 2. Manually from the Actions tab (workflow_dispatch):
+#    - One PR (e.g. "100") OR comma-separated list ("100,200,300") in pr_numbers.
+#    - Or a git_ref for ad-hoc testing.
+# 3. Nightly on `main` at 03:00 IST (21:30 UTC). The `prepare` job short-circuits
+#    if the current main SHA has already had a successful integration run,
+#    emitting an empty targets array so the matrix jobs skip cleanly.
 #
 # Security: PR-triggered runs are gated on maintainer comment authorization;
 # fork-PR code runs in the main repo context (access to secrets) only because
@@ -21,12 +23,12 @@ name: Integration Tests
 on:
   workflow_dispatch:
     inputs:
-      pr_number:
-        description: "PR number to test (for external contributions and ad-hoc runs)"
+      pr_numbers:
+        description: "PR number(s) to test — single PR or comma-separated for batch (e.g. '100' or '100,200,300')"
         required: false
         type: string
       git_ref:
-        description: "Git ref (branch/tag/commit) to test"
+        description: "Git ref (branch/tag/commit) to test — used only when pr_numbers is empty"
         required: false
         type: string
 
@@ -37,49 +39,82 @@ permissions:
   id-token: write
   contents: read
 
+# Target-aware concurrency:
+# - Different PRs / batches don't cancel each other.
+# - Re-dispatch of the same PR / batch cancels the stale run.
+# - Schedule runs share the main-ref group.
 concurrency:
-  # Each PR and each ad-hoc git_ref gets its own concurrency group so parallel
-  # dispatches don't cancel each other. Schedule runs share the main group.
-  group: ${{ github.workflow }}-${{ inputs.pr_number || inputs.git_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.pr_numbers || github.event.inputs.git_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Schedule-only gate: skip the nightly run if the current main SHA has
-  # already had a successful integration run. Does not run for
-  # workflow_dispatch, so PR-triggered dispatches skip the ~30s runner spin.
-  check-nightly-needed:
-    if: github.event_name == 'schedule'
+  prepare:
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     outputs:
-      should_run: ${{ steps.decide.outputs.should_run }}
+      targets: ${{ steps.parse.outputs.targets }}
     steps:
-      - name: Decide whether to run
-        id: decide
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
-        with:
-          script: |
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'integration.yml',
-              branch: 'main',
-              status: 'success',
-              head_sha: context.sha,
-            });
-            core.info(`main SHA=${context.sha}, prior successful runs=${runs.data.total_count}`);
-            core.setOutput('should_run', runs.data.total_count > 0 ? 'false' : 'true');
+      - name: Parse targets
+        id: parse
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
+          INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
+          DEFAULT_REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          entry() { printf '{"pr":"%s","ref":"%s"}' "$1" "$2"; }
+          targets="["
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            # Nightly skip-if-unchanged: if this main SHA already has a green
+            # integration run, emit empty targets so the matrix jobs skip.
+            already_tested=$(curl -sfS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/integration.yml/runs?branch=main&status=success&head_sha=$GITHUB_SHA" \
+              | jq -r '.total_count // 0')
+            if [[ "$already_tested" -gt 0 ]]; then
+              echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
+            else
+              targets+=$(entry "nightly" "$DEFAULT_REF")
+            fi
+          elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
+            first=1
+            IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
+            for pr in "${prs[@]}"; do
+              pr_trimmed="${pr//[[:space:]]/}"
+              [[ -z "$pr_trimmed" ]] && continue
+              if [[ ! "$pr_trimmed" =~ ^[0-9]+$ ]]; then
+                echo "::error::Invalid PR number '$pr_trimmed' in pr_numbers='$INPUT_PR_NUMBERS' — expected digits, comma-separated."
+                exit 1
+              fi
+              [[ $first -eq 0 ]] && targets+=","
+              first=0
+              targets+=$(entry "$pr_trimmed" "refs/pull/$pr_trimmed/head")
+            done
+          elif [[ -n "${INPUT_GIT_REF//[[:space:]]/}" ]]; then
+            targets+=$(entry "manual" "$INPUT_GIT_REF")
+          else
+            targets+=$(entry "manual" "$DEFAULT_REF")
+          fi
+          targets+="]"
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "Parsed targets: $targets"
 
   run-uc-cluster-e2e-tests:
-    needs: check-nightly-needed
-    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
-    # to let the job run; on schedule it runs iff the gate says should_run.
-    if: |
-      !cancelled() && (
-        github.event_name != 'schedule' ||
-        needs.check-nightly-needed.outputs.should_run == 'true'
-      )
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -96,16 +131,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
-          # For workflow_dispatch with git_ref: checkout that ref
-          # For schedule: falls through to github.ref (refs/heads/main)
-          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -119,6 +153,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -131,19 +167,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: uc-cluster-test-logs
+          name: uc-cluster-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    needs: check-nightly-needed
-    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
-    # to let the job run; on schedule it runs iff the gate says should_run.
-    if: |
-      !cancelled() && (
-        github.event_name != 'schedule' ||
-        needs.check-nightly-needed.outputs.should_run == 'true'
-      )
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -161,16 +195,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
-          # For workflow_dispatch with git_ref: checkout that ref
-          # For schedule: falls through to github.ref (refs/heads/main)
-          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -184,6 +217,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -196,19 +231,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: sql-endpoint-test-logs
+          name: sql-endpoint-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
 
   run-cluster-e2e-tests:
-    needs: check-nightly-needed
-    # On workflow_dispatch the gate is skipped (schedule-only), so use !cancelled()
-    # to let the job run; on schedule it runs iff the gate says should_run.
-    if: |
-      !cancelled() && (
-        github.event_name != 'schedule' ||
-        needs.check-nightly-needed.outputs.should_run == 'true'
-      )
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -224,16 +257,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For workflow_dispatch with pr_number: checkout that PR's head (internal or fork)
-          # For workflow_dispatch with git_ref: checkout that ref
-          # For schedule: falls through to github.ref (refs/heads/main)
-          ref: ${{ (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
-
 
       - name: Set up python
         id: setup-python
@@ -247,6 +279,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
@@ -259,16 +293,25 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: cluster-test-logs
+          name: cluster-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
 
+  # Posts a per-job pass/fail summary comment back to the PR when dispatched
+  # with a single PR number (the slash-command path). Skipped for batch
+  # dispatches (pr_numbers contains a comma) and for schedule / git_ref runs.
+  # Matrix jobs' result fields are aggregated across cells, which is why this
+  # only runs for single-PR dispatches.
   report-status:
     needs:
       - run-uc-cluster-e2e-tests
       - run-sqlwarehouse-e2e-tests
       - run-cluster-e2e-tests
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.pr_number != ''
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.pr_numbers != '' &&
+      !contains(inputs.pr_numbers, ',')
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -278,7 +321,7 @@ jobs:
       - name: Post result comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
         env:
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ inputs.pr_numbers }}
           UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
           SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
           CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
@@ -296,9 +339,10 @@ jobs:
             const runUrl =
               `https://github.com/${context.repo.owner}/${context.repo.repo}` +
               `/actions/runs/${context.runId}`;
+            const prNumber = process.env.PR_NUMBER.trim();
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: parseInt(process.env.PR_NUMBER, 10),
-              body: `Integration results for PR #${process.env.PR_NUMBER} — ${line}\n\n[Run details](${runUrl}).`,
+              issue_number: parseInt(prNumber, 10),
+              body: `Integration results for PR #${prNumber} — ${line}\n\n[Run details](${runUrl}).`,
             });
