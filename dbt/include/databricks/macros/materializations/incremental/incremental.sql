@@ -171,7 +171,6 @@
         --#}
       {%- endif -%}
       {{ process_config_changes(target_relation) }}
-      {% do persist_docs(target_relation, model, for_relation=True) %}
     {%- endif -%}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}

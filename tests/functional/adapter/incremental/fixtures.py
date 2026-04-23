@@ -1118,6 +1118,96 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
 """
 
+v1_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    merge_update_columns = ['msg'],
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+
+{% else %}
+
+select cast(1 as bigint) as id, 'updated' as msg, 'blue' as color
+
+{% endif %}
+"""
+
+v1_skip_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_apply_config_changes = false,
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+
+{% else %}
+
+select cast(1 as bigint) as id, 'updated' as msg
+
+{% endif %}
+"""
+
+v1_column_tags_a = """
+version: 2
+
+models:
+  - name: v1_config_changes_sql
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+        - name: msg
+        - name: color
+"""
+
+v1_column_tags_b = """
+version: 2
+
+models:
+  - name: v1_config_changes_sql
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "true"
+        - name: msg
+          databricks_tags:
+            source: "app"
+        - name: color
+"""
+
+fail_if_metadata_fetched_macros = """
+{% macro fetch_tags(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_tags should not be called when incremental_apply_config_changes is false") }}
+{% endmacro %}
+
+{% macro fetch_column_tags(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_column_tags should not be called") }}
+{% endmacro %}
+
+{% macro fetch_non_null_constraint_columns(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_non_null_constraint_columns should not be called") }}
+{% endmacro %}
+
+{% macro fetch_primary_key_constraints(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_primary_key_constraints should not be called") }}
+{% endmacro %}
+
+{% macro fetch_foreign_key_constraints(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_foreign_key_constraints should not be called") }}
+{% endmacro %}
+
+{% macro fetch_column_masks(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_column_masks should not be called") }}
+{% endmacro %}
+"""
+
 warn_unenforced_override_sql = """
 select "abc" as id
 """
