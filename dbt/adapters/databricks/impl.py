@@ -176,7 +176,9 @@ class DatabricksConfig(AdapterConfig):
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
-    databricks_tags: Optional[dict[str, str]] = field(default=None, metadata=MergeBehavior.Update.meta())
+    databricks_tags: Optional[dict[str, str]] = field(
+        default=None, metadata=MergeBehavior.Update.meta()
+    )
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
