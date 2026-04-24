@@ -170,6 +170,21 @@ Rules:
 - Tags are conceptually owned by release-line branches — tag commits must be reachable from the corresponding `X.Y.latest` branch.
 - A new `X.Y.latest` branch is created when we pick up a new upstream minor version (e.g. `1.12.latest` is created when we sync upstream `1.12.0`).
 
+### Direction of Flow
+
+Because this fork both **develops its own enhancements** and **tracks upstream releases**, changes flow in different directions depending on their origin. Keep `main` ahead of (or equal to) every `X.Y.latest` branch so that new release lines can always branch from `main` with confidence.
+
+| Change type             | Where to develop   | Then propagate to                                      |
+|-------------------------|--------------------|--------------------------------------------------------|
+| Enhancement feature     | `main`             | Cherry-pick forward to each `X.Y.latest` that needs it |
+| Urgent hotfix           | `X.Y.latest`       | Merge / cherry-pick **backward to `main`** after release so `main` doesn't lose the fix |
+| Upstream sync           | `X.Y.latest` only  | Don't propagate back to `main` — `main` picks up upstream changes when its own baseline is bumped |
+| Shared docs / CI        | `main`             | Merge forward to each `X.Y.latest` so release-line contributors see them too |
+
+**The backward-hotfix rule is the one people forget.** If you ship `v1.11.7.2` with a hotfix only on `1.11.latest`, immediately open a follow-up that brings the same change to `main`, otherwise the next time someone branches from `main` (e.g. to create `1.12.latest`) the fix vanishes.
+
+**Starting point for a new `X.Y.latest` branch** (e.g. creating `1.12.latest` when upstream ships 1.12.0): always branch from `main`, then merge `upstream/1.12.latest` on top. Branching from an older `X.Y.latest` risks missing hotfixes that have already been merged back to `main`.
+
 ### Versioning
 
 Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements append a fourth segment:
