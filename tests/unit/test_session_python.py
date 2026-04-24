@@ -163,6 +163,66 @@ class TestSessionPythonSubmitter:
         # Cleanup should be called (SHOW VIEWS)
         mock_spark.sql.assert_called()
 
+    def test_submit_raises_on_timeout(self, mock_spark):
+        """Test that submit raises DbtRuntimeError when execution exceeds timeout."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=1)
+        # Code that sleeps longer than timeout
+        compiled_code = "import time; time.sleep(10)"
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            submitter.submit(compiled_code)
+
+        assert "timed out" in str(exc_info.value)
+
+    def test_submit_succeeds_within_timeout(self, mock_spark):
+        """Test that submit completes normally when execution finishes before timeout."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "result = 1 + 1"
+
+        # Should not raise
+        submitter.submit(compiled_code)
+
+    def test_submit_sets_job_group(self, mock_spark):
+        """Test that submit sets a Spark job group for isolation."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "result = 1"
+
+        submitter.submit(compiled_code)
+
+        mock_spark.sparkContext.setJobGroup.assert_called_once()
+        call_args = mock_spark.sparkContext.setJobGroup.call_args
+        assert call_args[0][0].startswith("dbt-session-python-")
+        assert call_args[1]["interruptOnCancel"] is True
+
+    def test_submit_cancels_job_group_on_timeout(self, mock_spark):
+        """Test that submit cancels the Spark job group when execution times out.
+
+        Note: mock cancelJobGroup is a no-op — this test only verifies the call
+        is made with the correct group_id. Real cancellation behavior (interrupt
+        propagation) requires integration testing with a live SparkContext.
+        """
+        submitter = SessionPythonSubmitter(mock_spark, timeout=1)
+        compiled_code = "import time; time.sleep(10)"
+
+        with pytest.raises(DbtRuntimeError):
+            submitter.submit(compiled_code)
+
+        mock_spark.sparkContext.cancelJobGroup.assert_called_once()
+        group_id = mock_spark.sparkContext.setJobGroup.call_args[0][0]
+        mock_spark.sparkContext.cancelJobGroup.assert_called_with(group_id)
+
+    def test_submit_propagates_exception_with_cause(self, mock_spark):
+        """Test that exceptions from exec thread are re-raised with __cause__ set."""
+        submitter = SessionPythonSubmitter(mock_spark, timeout=10)
+        compiled_code = "raise ValueError('inner error')"
+
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            submitter.submit(compiled_code)
+
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "inner error" in str(exc_info.value.__cause__)
+
 
 class TestSessionPythonJobHelper:
     """Tests for SessionPythonJobHelper."""
@@ -241,3 +301,23 @@ class TestSessionPythonJobHelper:
             helper.submit(compiled_code)
 
             # The code should execute without error
+
+    def test_init_passes_timeout_to_submitter(self, mock_credentials, parsed_model_dict):
+        """Test that __init__ passes model timeout config to the submitter."""
+        parsed_model_dict["config"]["timeout"] = 7200
+        mock_spark = MagicMock()
+        mock_spark.sparkContext.applicationId = "app-123"
+        mock_builder = MagicMock()
+        mock_builder.getOrCreate.return_value = mock_spark
+
+        with patch.dict(
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
+        ):
+            import sys
+
+            sys.modules["pyspark.sql"].SparkSession.builder = mock_builder
+
+            helper = SessionPythonJobHelper(parsed_model_dict, mock_credentials)
+
+            assert helper._submitter._timeout == 7200
