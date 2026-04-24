@@ -155,49 +155,137 @@ That said, we ask that you include integration tests where relevant and that you
 
 This fork adds team-specific features and fixes on top of upstream releases. The sections below apply only to maintainers of this fork.
 
+### Branch Model
+
+This repository mirrors the upstream `dbt-databricks` branch model exactly:
+
+| Branch          | Purpose                                                                  |
+|-----------------|--------------------------------------------------------------------------|
+| `main`          | Active development. Next unreleased enhancement lands here first.        |
+| `X.Y.latest`    | Stable release line for `X.Y.Z+enh.N` enhanced releases (e.g. `1.11.latest`). |
+
+Rules:
+- New feature work targets `main`.
+- Release-line branches (`X.Y.latest`) only receive: upstream syncs for their version line, and cherry-picked fixes from `main` or from another release line.
+- Tags are conceptually owned by release-line branches — tag commits must be reachable from the corresponding `X.Y.latest` branch.
+- A new `X.Y.latest` branch is created when we pick up a new upstream minor version (e.g. `1.12.latest` is created when we sync upstream `1.12.0`).
+
+### Direction of Flow
+
+Because this fork both **develops its own enhancements** and **tracks upstream releases**, changes flow in different directions depending on their origin. Keep `main` ahead of (or equal to) every `X.Y.latest` branch so that new release lines can always branch from `main` with confidence.
+
+| Change type             | Where to develop   | Then propagate to                                      |
+|-------------------------|--------------------|--------------------------------------------------------|
+| Enhancement feature     | `main`             | Cherry-pick forward to each `X.Y.latest` that needs it |
+| Urgent hotfix           | `X.Y.latest`       | Merge / cherry-pick **backward to `main`** after release so `main` doesn't lose the fix |
+| Upstream sync           | `X.Y.latest` only  | Don't propagate back to `main` — `main` picks up upstream changes when its own baseline is bumped |
+| Shared docs / CI        | `main`             | Merge forward to each `X.Y.latest` so release-line contributors see them too |
+
+**The backward-hotfix rule is the one people forget.** If you ship `v1.11.7+enh.2` with a hotfix only on `1.11.latest`, immediately open a follow-up that brings the same change to `main`, otherwise the next time someone branches from `main` (e.g. to create `1.12.latest`) the fix vanishes.
+
+**Starting point for a new `X.Y.latest` branch** (e.g. creating `1.12.latest` when upstream ships 1.12.0): always branch from `main`, then merge `upstream/1.12.latest` on top. Branching from an older `X.Y.latest` risks missing hotfixes that have already been merged back to `main`.
+
 ### Versioning
 
-Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements use a fourth segment:
+Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements use [semver build metadata](https://semver.org/#spec-item-10) (`+enh.N`):
 
 ```
-1.11.6.1  ← first enhanced release on top of 1.11.6
-1.11.6.2  ← second enhanced release
+1.11.6+enh.1  ← first enhanced release on top of upstream 1.11.6
+1.11.6+enh.2  ← second enhanced release on 1.11.6 baseline
+1.11.7+enh.1  ← first enhanced release on top of upstream 1.11.7
 ```
 
-When upstream releases a new version (e.g. `1.11.7`), rebase onto it and reset the fourth segment to `.1`.
+Why `+enh.N` (not a fourth segment like `1.11.6.1`):
+- dbt-core's semver parser rejects four-part versions
+- Build metadata is ignored in version equality — dbt-core sees `1.11.6+enh.1` as compatible `1.11.6`
+- Maps to PEP 440 local versions — pip and hatch handle it correctly
+
+When an `X.Y.latest` branch syncs a new upstream patch release, the enhancement counter resets to `+enh.1`.
+
+Parallel release lines run side-by-side: `1.11.latest` may be at `1.11.7+enh.2` while a future `1.12.latest` is at `1.12.0+enh.1`. This lets us hotfix an older line after we've already adopted a newer one.
 
 ### Post-Merge Release Checklist
 
-After a PR is merged to `main`:
+After a PR is merged into an `X.Y.latest` branch (or cherry-picked into one):
 
-- [ ] Confirm `dbt/adapters/databricks/__version__.py` has the correct version (e.g. `1.11.6.2`)
-- [ ] Confirm `CHANGELOG.md` has a `## dbt-databricks-enhanced X.Y.Z.N` section describing **only our changes** (not upstream changes)
-- [ ] Tag the merge commit on `main`:
+- [ ] Confirm `dbt/adapters/databricks/__version__.py` on the release branch has the correct `X.Y.Z+enh.N` version
+- [ ] Confirm `CHANGELOG.md` has a `## dbt-databricks-enhanced X.Y.Z+enh.N (YYYY-MM-DD)` section describing **only our changes** (not upstream changes)
+- [ ] Tag the release commit on the `X.Y.latest` branch:
   ```bash
-  git checkout main && git pull
-  git tag -a vX.Y.Z.N -m "X.Y.Z.N — <one-line summary>"
-  git push origin vX.Y.Z.N
+  git checkout X.Y.latest && git pull
+  git tag -a vX.Y.Z+enh.N -m "X.Y.Z+enh.N — <one-line summary>"
+  git push origin vX.Y.Z+enh.N
   ```
 - [ ] Create a GitHub Release from the tag, using the changelog section as release notes
+- [ ] Confirm the `Release Wheel` workflow (`.github/workflows/release-wheel.yml`) ran and attached `*.whl` + `*.tar.gz` to the release. If it didn't trigger, re-run it manually via `workflow_dispatch` with the tag name.
+
+> **Note on `+` in GitHub URLs:** Git tags support `+` natively, but GitHub encodes it as `%2B` in download URLs. The wheel install URL uses the encoded form (see below).
+
+### Installing a Released Wheel
+
+Consumers install a specific enhanced release directly from the GitHub Release artifact:
+
+```
+dbt-databricks @ https://github.com/viadkt/dbt-databricks-enhanced/releases/download/vX.Y.Z%2Benh.N/dbt_databricks_enhanced-X.Y.Z+enh.N-py3-none-any.whl
+```
+
+Note: the tag `+` is URL-encoded as `%2B` in the download path, but the wheel filename keeps the literal `+`.
+
+The `Release Wheel` GitHub Actions workflow builds and uploads the artifact automatically when a `vX.Y.Z+enh.N` tag is pushed.
 
 ### Changelog format
 
-Only include changes introduced in this repository. Use the existing upstream `CHANGELOG.md` entries as baseline — our sections sit above them:
+`CHANGELOG.md` contains entries for all release lines, ordered newest-first. Each entry describes only changes introduced in this repository; upstream changes are tracked by the upstream version in the header.
 
 ```markdown
-## dbt-databricks-enhanced 1.11.6.1 (YYYY-MM-DD)
+## dbt-databricks-enhanced 1.11.7+enh.1 (YYYY-MM-DD)
 
 ### Features
 - ...
 
 ### Fixes
 - ...
+
+## dbt-databricks-enhanced 1.11.6+enh.2 (YYYY-MM-DD)
+
+### Fixes
+- ...
 ```
 
-### Upstream sync
+### Upstream Sync
 
-When syncing a new upstream release, open a dedicated PR that:
-1. Merges/rebases upstream changes
-2. Updates `.github/last-upstream-sync-tag` to the new upstream tag
-3. Resets `__version__.py` to `X.Y.Z.1` (new upstream base + fourth segment reset to 1)
-4. Adds a changelog entry noting the upstream sync
+When upstream ships a new patch release (e.g. `1.11.8`):
+1. Create a sync branch from the matching `X.Y.latest`: `git checkout -b sync/upstream-v1.11.8 1.11.latest`
+2. Merge `upstream/1.11.latest` into it, resolve conflicts
+3. Bump `__version__.py` to `1.11.8+enh.1`
+4. Update `.github/last-upstream-sync-tag` to `v1.11.8`
+5. Add a changelog entry noting the upstream sync
+6. Open a PR into `1.11.latest`, not `main`
+
+When upstream ships a new minor version (e.g. `1.12.0`):
+1. Create `1.12.latest` from either the newest `X.Y.latest` or `main`, depending on which contains the patches we want carried over — decide case-by-case
+2. Merge `upstream/1.12.latest` into it, resolve conflicts
+3. Version becomes `1.12.0+enh.1`
+
+### Maintaining Older Release Lines
+
+By default, this fork follows upstream and keeps one branch per upstream minor version — for example, `1.11.latest` moves forward through `1.11.6 → 1.11.7 → 1.11.8` as we sync. A single line covers all patches within a minor version.
+
+However, because our consumer(s) may not always be able to upgrade in lockstep, we may need to ship a fix for an older upstream patch release **after** we've already advanced `1.11.latest` past it. In that case:
+
+1. **Tags are the anchor.** As long as a release tag exists (e.g. `v1.11.6+enh.1`), we can always branch back from it. Tags are the permanent record of what shipped; branches are just where active work happens.
+2. **Spin up a patch-line branch on demand.** When we need to fix `1.11.6` while `1.11.latest` is already at `1.11.7+enh.x`, create `1.11.6.latest` from the last tag on that line:
+   ```bash
+   git checkout -b 1.11.6.latest v1.11.6+enh.1
+   ```
+3. **Apply the fix, bump version, tag.** Enhancement counter increments within the patch line (e.g. `v1.11.6+enh.2`).
+4. **Optionally delete the branch after release.** The tag preserves the release; the branch can be recreated next time we need it.
+
+Only spin up a patch-line branch when we have an active reason to maintain that version. Otherwise, prefer moving `1.11.latest` forward and asking consumers to upgrade.
+
+### Backporting Fixes Across Release Lines
+
+When a fix is needed on multiple release lines:
+1. Develop and merge to `main` (if the fix is also relevant to future work).
+2. Cherry-pick onto each affected `X.Y.latest` (or `X.Y.Z.latest`) branch: `git cherry-pick <commit>`
+3. Each line gets its own version bump, changelog entry, and tag.

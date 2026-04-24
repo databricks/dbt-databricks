@@ -1,4 +1,4 @@
-## dbt-databricks-enhanced 1.11.6.1 (Apr 24, 2026)
+## dbt-databricks-enhanced 1.11.6+enh.1 (Apr 24, 2026)
 
 ### Features
 
