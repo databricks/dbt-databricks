@@ -33,6 +33,7 @@ class ColumnTagsMixin(MaterializationV2Mixin):
             ("account_number", "pii", "true"),
             ("account_number", "sensitive", "true"),
             ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
         }
         actual_tags = {(row[0], row[1], row[2]) for row in tags}
         assert actual_tags == expected_tags
@@ -54,6 +55,7 @@ class ColumnTagsMixin(MaterializationV2Mixin):
             ("account_number", "pii", "true"),
             ("account_number", "sensitive", "true"),
             ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
         }
         actual_tags = {(row[0], row[1], row[2]) for row in tags}
         assert actual_tags == expected_tags

@@ -2,8 +2,8 @@
 
 ### Features
 
-- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by settings
-  tag values as empty strings `""`. ([#1270](https://github.com/databricks/dbt-databricks/issues/1270))
+- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting
+  tag values to empty strings `""` or `None`. ([#1270](https://github.com/databricks/dbt-databricks/issues/1270))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
