@@ -46,6 +46,7 @@
   {{ file_format_clause(catalog_relation) }}
   {{ databricks__options_clause(catalog_relation) }}
   {{ partition_cols(label="partitioned by") }}
+  {{ get_create_row_filter_clause(target_relation) }}
   {{ liquid_clustered_cols() }}
   {{ clustered_cols(label="clustered by") }}
   {{ location_clause(catalog_relation) }}
@@ -74,6 +75,7 @@
       {{ file_format_clause(catalog_relation) }}
       {{ databricks__options_clause(catalog_relation) }}
       {{ partition_cols(label="partitioned by") }}
+      {{ get_create_row_filter_clause(relation) }}
       {{ liquid_clustered_cols() }}
       {{ clustered_cols(label="clustered by") }}
       {{ location_clause(catalog_relation) }}

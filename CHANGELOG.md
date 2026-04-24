@@ -1,9 +1,19 @@
+<<<<<<< feat/support-for-key-only-databricks-tags
 ## dbt-databricks 1.11.8 (TBD)
 
 ### Features
 
 - Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting
   tag values to empty strings `""` or `None`. ([#1270](https://github.com/databricks/dbt-databricks/issues/1270))
+=======
+## dbt-databricks 1.12.0 (TBD)
+
+### Features
+
+- Add support for metric views as a materialization ([#1285](https://github.com/databricks/dbt-databricks/pull/1285))
+- Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
+- Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
+>>>>>>> 1.12.latest
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
@@ -56,6 +66,7 @@
 ### Features
 
 - Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+- Add support for Row Filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 
 ### Fixes
 
