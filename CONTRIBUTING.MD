@@ -232,9 +232,25 @@ When upstream ships a new minor version (e.g. `1.12.0`):
 2. Merge `upstream/1.12.latest` into it, resolve conflicts
 3. Version becomes `1.12.0.1`
 
+### Maintaining Older Release Lines
+
+By default, this fork follows upstream and keeps one branch per upstream minor version — for example, `1.11.latest` moves forward through `1.11.6 → 1.11.7 → 1.11.8` as we sync. A single line covers all patches within a minor version.
+
+However, because our consumer(s) may not always be able to upgrade in lockstep, we may need to ship a fix for an older upstream patch release **after** we've already advanced `1.11.latest` past it. In that case:
+
+1. **Tags are the anchor.** As long as a release tag exists (e.g. `v1.11.6.1`), we can always branch back from it. Tags are the permanent record of what shipped; branches are just where active work happens.
+2. **Spin up a patch-line branch on demand.** When we need to fix `1.11.6.x` while `1.11.latest` is already at `1.11.7.x`, create `1.11.6.latest` from the last tag on that line:
+   ```bash
+   git checkout -b 1.11.6.latest v1.11.6.1
+   ```
+3. **Apply the fix, bump version, tag.** Fourth segment increments within the patch line (e.g. `v1.11.6.2`).
+4. **Optionally delete the branch after release.** The tag preserves the release; the branch can be recreated next time we need it.
+
+Only spin up a patch-line branch when we have an active reason to maintain that version. Otherwise, prefer moving `1.11.latest` forward and asking consumers to upgrade.
+
 ### Backporting Fixes Across Release Lines
 
 When a fix is needed on multiple release lines:
 1. Develop and merge to `main` (if the fix is also relevant to future work).
-2. Cherry-pick onto each affected `X.Y.latest` branch: `git cherry-pick <commit>`
+2. Cherry-pick onto each affected `X.Y.latest` (or `X.Y.Z.latest`) branch: `git cherry-pick <commit>`
 3. Each line gets its own version bump, changelog entry, and tag.
