@@ -54,7 +54,11 @@ class TestColumnTagsProcessor:
     def test_from_relation_config__with_dict(self):
         model = Mock()
         model.columns = {
-            "email": {"_extra": {"databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}}},
+            "email": {
+                "_extra": {
+                    "databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}
+                }
+            },
             "id": {"_extra": {}},
             "created_at": {},
         }
@@ -71,7 +75,9 @@ class TestColumnTagsProcessor:
             "id": ColumnInfo(name="id", _extra={}),
             "email": ColumnInfo(
                 name="email",
-                _extra={"databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}},
+                _extra={
+                    "databricks_tags": {"pii": "", "env": "prod", "priority": 0, "enabled": False}
+                },
             ),
             "created_at": ColumnInfo(name="created_at"),
         }
