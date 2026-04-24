@@ -197,6 +197,17 @@ After a PR is merged into an `X.Y.latest` branch (or cherry-picked into one):
   git push origin vX.Y.Z.N
   ```
 - [ ] Create a GitHub Release from the tag, using the changelog section as release notes
+- [ ] Confirm the `Release Wheel` workflow (`.github/workflows/release-wheel.yml`) ran and attached `*.whl` + `*.tar.gz` to the release. If it didn't trigger, re-run it manually via `workflow_dispatch` with the tag name.
+
+### Installing a Released Wheel
+
+Consumers install a specific enhanced release directly from the GitHub Release artifact:
+
+```
+dbt-databricks @ https://github.com/viadkt/dbt-databricks-enhanced/releases/download/vX.Y.Z.N/dbt_databricks-X.Y.Z.N-py3-none-any.whl
+```
+
+The `Release Wheel` GitHub Actions workflow builds and uploads the artifact automatically when a `vX.Y.Z.N` tag is pushed.
 
 ### Changelog format
 
