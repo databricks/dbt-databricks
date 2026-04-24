@@ -155,26 +155,44 @@ That said, we ask that you include integration tests where relevant and that you
 
 This fork adds team-specific features and fixes on top of upstream releases. The sections below apply only to maintainers of this fork.
 
+### Branch Model
+
+This repository mirrors the upstream `dbt-databricks` branch model exactly:
+
+| Branch          | Purpose                                                                  |
+|-----------------|--------------------------------------------------------------------------|
+| `main`          | Active development. Next unreleased enhancement lands here first.        |
+| `X.Y.latest`    | Stable release line for `X.Y.Z.N` enhanced releases (e.g. `1.11.latest`). |
+
+Rules:
+- New feature work targets `main`.
+- Release-line branches (`X.Y.latest`) only receive: upstream syncs for their version line, and cherry-picked fixes from `main` or from another release line.
+- Tags are conceptually owned by release-line branches — tag commits must be reachable from the corresponding `X.Y.latest` branch.
+- A new `X.Y.latest` branch is created when we pick up a new upstream minor version (e.g. `1.12.latest` is created when we sync upstream `1.12.0`).
+
 ### Versioning
 
-Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements use a fourth segment:
+Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements append a fourth segment:
 
 ```
-1.11.6.1  ← first enhanced release on top of 1.11.6
-1.11.6.2  ← second enhanced release
+1.11.6.1  ← first enhanced release on top of upstream 1.11.6
+1.11.6.2  ← second enhanced release on 1.11.6 baseline
+1.11.7.1  ← first enhanced release on top of upstream 1.11.7
 ```
 
-When upstream releases a new version (e.g. `1.11.7`), rebase onto it and reset the fourth segment to `.1`.
+When an `X.Y.latest` branch syncs a new upstream patch release, the fourth segment resets to `.1`.
+
+Parallel release lines run side-by-side: `1.11.latest` may be at `1.11.7.2` while a future `1.12.latest` is at `1.12.0.1`. This lets us hotfix an older line after we've already adopted a newer one.
 
 ### Post-Merge Release Checklist
 
-After a PR is merged to `main`:
+After a PR is merged into an `X.Y.latest` branch (or cherry-picked into one):
 
-- [ ] Confirm `dbt/adapters/databricks/__version__.py` has the correct version (e.g. `1.11.6.2`)
-- [ ] Confirm `CHANGELOG.md` has a `## dbt-databricks-enhanced X.Y.Z.N` section describing **only our changes** (not upstream changes)
-- [ ] Tag the merge commit on `main`:
+- [ ] Confirm `dbt/adapters/databricks/__version__.py` on the release branch has the correct `X.Y.Z.N` version
+- [ ] Confirm `CHANGELOG.md` has a `## dbt-databricks-enhanced X.Y.Z.N (YYYY-MM-DD)` section describing **only our changes** (not upstream changes)
+- [ ] Tag the release commit on the `X.Y.latest` branch:
   ```bash
-  git checkout main && git pull
+  git checkout X.Y.latest && git pull
   git tag -a vX.Y.Z.N -m "X.Y.Z.N — <one-line summary>"
   git push origin vX.Y.Z.N
   ```
@@ -182,22 +200,41 @@ After a PR is merged to `main`:
 
 ### Changelog format
 
-Only include changes introduced in this repository. Use the existing upstream `CHANGELOG.md` entries as baseline — our sections sit above them:
+`CHANGELOG.md` contains entries for all release lines, ordered newest-first. Each entry describes only changes introduced in this repository; upstream changes are tracked by the upstream version in the header.
 
 ```markdown
-## dbt-databricks-enhanced 1.11.6.1 (YYYY-MM-DD)
+## dbt-databricks-enhanced 1.11.7.1 (YYYY-MM-DD)
 
 ### Features
 - ...
 
 ### Fixes
 - ...
+
+## dbt-databricks-enhanced 1.11.6.2 (YYYY-MM-DD)
+
+### Fixes
+- ...
 ```
 
-### Upstream sync
+### Upstream Sync
 
-When syncing a new upstream release, open a dedicated PR that:
-1. Merges/rebases upstream changes
-2. Updates `.github/last-upstream-sync-tag` to the new upstream tag
-3. Resets `__version__.py` to `X.Y.Z.1` (new upstream base + fourth segment reset to 1)
-4. Adds a changelog entry noting the upstream sync
+When upstream ships a new patch release (e.g. `1.11.8`):
+1. Create a sync branch from the matching `X.Y.latest`: `git checkout -b sync/upstream-v1.11.8 1.11.latest`
+2. Merge `upstream/1.11.latest` into it, resolve conflicts
+3. Bump `__version__.py` to `1.11.8.1`
+4. Update `.github/last-upstream-sync-tag` to `v1.11.8`
+5. Add a changelog entry noting the upstream sync
+6. Open a PR into `1.11.latest`, not `main`
+
+When upstream ships a new minor version (e.g. `1.12.0`):
+1. Create `1.12.latest` from either the newest `X.Y.latest` or `main`, depending on which contains the patches we want carried over — decide case-by-case
+2. Merge `upstream/1.12.latest` into it, resolve conflicts
+3. Version becomes `1.12.0.1`
+
+### Backporting Fixes Across Release Lines
+
+When a fix is needed on multiple release lines:
+1. Develop and merge to `main` (if the fix is also relevant to future work).
+2. Cherry-pick onto each affected `X.Y.latest` branch: `git cherry-pick <commit>`
+3. Each line gets its own version bump, changelog entry, and tag.
