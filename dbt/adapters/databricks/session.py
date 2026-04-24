@@ -210,7 +210,12 @@ class DatabricksSessionHandle:
 
         # Set schema/database if provided
         if schema:
-            spark.catalog.setCurrentDatabase(schema)
+            try:
+                spark.catalog.setCurrentDatabase(schema)
+            except Exception:
+                logger.info(f"Schema '{schema}' not found, creating it")
+                spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+                spark.catalog.setCurrentDatabase(schema)
             logger.debug(f"Set current database to: {schema}")
 
         # Apply session properties
