@@ -1,3 +1,15 @@
+## dbt-databricks-enhanced 1.11.6.1 (Apr 24, 2026)
+
+### Features
+
+- Add timeout and cancellation support for Python model execution in session mode — long-running or hung `exec()` calls are now interrupted after a configurable timeout, preventing job cluster freezes
+
+### Fixes
+
+- Fix `USE CATALOG` fallback statement using unquoted catalog identifier, which caused SQL syntax errors and potential injection for catalog names with special characters
+- Fix session mode `execute()` failing when SQL contained literal `%` characters alongside `%s` parameter bindings
+- Fix `DatabricksSessionHandle.create()` not setting the initial database on the Spark session, causing models to run in the wrong schema
+
 ## dbt-databricks 1.11.7 (TBD)
 
 ### Fixes

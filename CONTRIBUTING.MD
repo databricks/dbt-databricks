@@ -148,3 +148,56 @@ For this reason, once a change has been reviewed and merged into a staging branc
 That said, we ask that you include integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
 
 [Allow Edits from Maintainers]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork
+
+---
+
+## dbt-databricks-enhanced — Fork Release Process
+
+This fork adds team-specific features and fixes on top of upstream releases. The sections below apply only to maintainers of this fork.
+
+### Versioning
+
+Upstream controls `major.minor.patch` (e.g. `1.11.6`). Our enhancements use a fourth segment:
+
+```
+1.11.6.1  ← first enhanced release on top of 1.11.6
+1.11.6.2  ← second enhanced release
+```
+
+When upstream releases a new version (e.g. `1.11.7`), rebase onto it and reset the fourth segment to `.1`.
+
+### Post-Merge Release Checklist
+
+After a PR is merged to `main`:
+
+- [ ] Confirm `dbt/adapters/databricks/__version__.py` has the correct version (e.g. `1.11.6.2`)
+- [ ] Confirm `CHANGELOG.md` has a `## dbt-databricks-enhanced X.Y.Z.N` section describing **only our changes** (not upstream changes)
+- [ ] Tag the merge commit on `main`:
+  ```bash
+  git checkout main && git pull
+  git tag -a vX.Y.Z.N -m "X.Y.Z.N — <one-line summary>"
+  git push origin vX.Y.Z.N
+  ```
+- [ ] Create a GitHub Release from the tag, using the changelog section as release notes
+
+### Changelog format
+
+Only include changes introduced in this repository. Use the existing upstream `CHANGELOG.md` entries as baseline — our sections sit above them:
+
+```markdown
+## dbt-databricks-enhanced 1.11.6.1 (YYYY-MM-DD)
+
+### Features
+- ...
+
+### Fixes
+- ...
+```
+
+### Upstream sync
+
+When syncing a new upstream release, open a dedicated PR that:
+1. Merges/rebases upstream changes
+2. Updates `.github/last-upstream-sync-tag` to the new upstream tag
+3. Resets `__version__.py` to `X.Y.Z.1` (new upstream base + fourth segment reset to 1)
+4. Adds a changelog entry noting the upstream sync
