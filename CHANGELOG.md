@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.8 (TBD)
+
+### Fixes
+
+- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
