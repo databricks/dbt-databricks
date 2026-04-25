@@ -24,19 +24,19 @@ If it is appropriate to write a design document, the document must be hosted eit
 
 ## Pull request review process
 
-dbt-databricks uses a **two-step review process** to merge PRs to `main`. We first squash the patch onto a staging branch so that we can securely run our full matrix of integration tests against a real Databricks workspace. Then we merge the staging branch to `main`.
-
-> **Note:** When you create a pull request we recommend that you _[Allow Edits from Maintainers]_. This smooths our two-step process and also lets your reviewer easily commit minor fixes or changes.
+When you open a PR, the unit-test / lint / build checks run automatically. The full integration test matrix (against a real Databricks workspace) is **not** run automatically — it's an explicit maintainer decision, because those tests require compute resources.
 
 A dbt-databricks maintainer will review your PR and may suggest changes for style and clarity, or they may request that you add unit or integration tests.
 
-Once your patch is approved, a maintainer will create a staging branch and either you or the maintainer (if you allowed edits from maintainers) will change the base branch of your PR to the staging branch. Then a maintainer will squash and merge the PR into the staging branch.
+> **Note:** When you create a pull request we recommend that you _[Allow Edits from Maintainers]_ so a reviewer can easily commit minor fixes.
 
-dbt-databricks uses staging branches to run our full matrix of functional and integration tests via Github Actions. This extra step is required for security because GH Action workflows that run on pull requests from forks can't access our testing Databricks workspace.
+When the reviewer is ready to run the integration matrix, they'll comment `/integration-test` on the PR. This works the same way for PRs from forks — the command runs the tests in the main repo context so they can use the Databricks workspace. Only repo maintainers can issue the command; comments from other users get a reply explaining this.
 
-If the functional or integration tests fail as a result of your change, a maintainer will work with you to fix it _on your fork_ and then repeat this step.
+The PR will receive a reply comment when the dispatch succeeds and a follow-up comment with the per-job pass/fail when the run completes.
 
-Once all tests pass a maintainer will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics.
+If the integration tests fail as a result of your change, a maintainer will work with you to fix it _on your fork_ and re-run `/integration-test`.
+
+Once all tests pass a maintainer will rebase and merge your change to `main` so that your authorship is maintained in our commit history and GitHub statistics. `main` is additionally covered by a nightly integration run that skips itself if the branch hasn't advanced since the last green run.
 
 ---
 
@@ -143,7 +143,7 @@ Update `test.env` with the relevant HTTP paths and tokens.
 ### Please test what you can
 
 We understand that not every contributor will have all three types of compute resources in their Databricks workspace.
-For this reason, once a change has been reviewed and merged into a staging branch, we will run the full matrix of tests against our testing workspace at our expense (see the [pull request review process](#pull-request-review-process) for more detail).
+For this reason, once a change has been reviewed, a maintainer will run the full matrix of tests against our testing workspace at our expense via the `/integration-test` comment command (see the [pull request review process](#pull-request-review-process) for more detail).
 
 That said, we ask that you include integration tests where relevant and that you indicate in your pull request description the environment type(s) you tested the change against.
 
