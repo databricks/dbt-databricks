@@ -2,6 +2,8 @@
 
 ### Fixes
 
+- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
+- Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
 - Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
