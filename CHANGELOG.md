@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.8 (TBD)
+
+### Fixes
+
+- Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
