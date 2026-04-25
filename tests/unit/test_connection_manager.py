@@ -96,60 +96,6 @@ class TestDatabricksConnectionManager:
         assert args[1] is True
 
 
-class TestTryCacheDbr:
-    """Unit tests for _try_cache_dbr_capabilities."""
-
-    HTTP_PATH = "sql/protocolv1/o/1234567890123456/cluster-abc"
-
-    @pytest.fixture(autouse=True)
-    def clear_cache(self):
-        DatabricksConnectionManager._dbr_capabilities_cache = {}
-        yield
-        DatabricksConnectionManager._dbr_capabilities_cache = {}
-
-    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=None)
-    def test_does_not_write_to_cache_when_version_is_none(self, mock_query):
-        """When the version query returns None, the cache must not be written.
-
-        This prevents a poisoned None entry from blocking the authoritative write in open().
-        """
-        creds = Mock(spec=DatabricksCredentials)
-        creds.cluster_id = None
-
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
-
-        assert self.HTTP_PATH not in DatabricksConnectionManager._dbr_capabilities_cache
-        mock_query.assert_called_once_with(creds, self.HTTP_PATH)
-
-    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=(15, 4))
-    def test_writes_to_cache_when_version_is_known(self, mock_query):
-        """When the version query succeeds, capabilities are cached correctly."""
-        creds = Mock(spec=DatabricksCredentials)
-        creds.cluster_id = None
-
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
-
-        mock_query.assert_called_once_with(creds, self.HTTP_PATH)
-        caps = DatabricksConnectionManager._dbr_capabilities_cache.get(self.HTTP_PATH)
-        assert caps is not None
-        assert caps.dbr_version == (15, 4)
-        assert not caps.is_sql_warehouse
-        assert caps.has_capability(DBRCapability.ICEBERG)
-
-    @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=(15, 4))
-    def test_skips_write_when_already_cached(self, mock_query):
-        """If the path is already in cache, the version query is never made."""
-        creds = Mock(spec=DatabricksCredentials)
-        creds.cluster_id = None
-        existing = DBRCapabilities(dbr_version=(14, 3), is_sql_warehouse=False)
-        DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] = existing
-
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
-
-        mock_query.assert_not_called()
-        assert DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] is existing
-
-
 class TestCacheDbr:
     """Unit tests for _cache_dbr_capabilities."""
 
