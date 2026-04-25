@@ -1,31 +1,27 @@
 # Integration Tests for dbt-databricks
 #
-# This workflow runs integration tests that require Databricks secrets.
+# This workflow runs integration tests that require Databricks secrets. It is
+# never triggered by PR events directly — every PR-based run is the result of
+# a maintainer's explicit decision.
 #
-# For testing external contributions (PRs from forks) or batching multiple PRs:
-# 1. Go to Actions tab -> Integration Tests -> Run workflow
-# 2. Enter one PR number (e.g. "100") OR a comma-separated list (e.g. "100,200,300") in 'pr_numbers'
-#    - For batch dispatches, matrix max-parallel caps in-run parallelism.
-# 3. Click "Run workflow"
+# Triggering:
+# 1. On a PR (internal OR fork): a maintainer comments `/integration-test`.
+#    The integration-trigger workflow validates the comment author and
+#    dispatches this workflow with the PR number. The run posts a result
+#    comment back to the PR when the matrix completes.
+# 2. Manually from the Actions tab (workflow_dispatch):
+#    - One PR (e.g. "100") OR comma-separated list ("100,200,300") in pr_numbers.
+#    - Or a git_ref for ad-hoc testing.
+# 3. Nightly on `main` at 03:00 IST (21:30 UTC). The `prepare` job short-circuits
+#    if the current main SHA has already had a successful integration run,
+#    emitting an empty targets array so the matrix jobs skip cleanly.
 #
-# This approach is secure because:
-# - The workflow runs in the databricks repository context (access to secrets)
-# - The code to test is explicitly specified by maintainers
-# - No automatic execution of untrusted code with secrets
+# Security: PR-triggered runs are gated on maintainer comment authorization;
+# fork-PR code runs in the main repo context (access to secrets) only because
+# a maintainer explicitly approved it via the slash command.
 name: Integration Tests
 on:
-  pull_request:
-    # Run on PRs to the same repository (internal contributors)
-    paths-ignore:
-      - "**.MD"
-      - "**.md"
-      - "adapters/databricks/__version__.py"
-      - "tests/unit/**"
-      - ".github/workflows/main.yml"
-      - ".github/workflows/stale.yml"
-
   workflow_dispatch:
-    # Manual triggering for external contributions and ad-hoc / batch testing
     inputs:
       pr_numbers:
         description: "PR number(s) to test — single PR or comma-separated for batch (e.g. '100' or '100,200,300')"
@@ -36,15 +32,19 @@ on:
         required: false
         type: string
 
+  schedule:
+    - cron: "30 21 * * *"   # 21:30 UTC = 03:00 IST
+
 permissions:
   id-token: write
   contents: read
 
 # Target-aware concurrency:
 # - Different PRs / batches don't cancel each other.
-# - Re-push to the same PR (or re-dispatch of the same batch) cancels the stale run.
+# - Re-dispatch of the same PR / batch cancels the stale run.
+# - Schedule runs share the main-ref group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pr_numbers || github.event.inputs.git_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.pr_numbers || github.event.inputs.git_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -52,9 +52,6 @@ jobs:
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures.
-    # Downstream jobs inherit this gate via `needs: prepare`.
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     outputs:
       targets: ${{ steps.parse.outputs.targets }}
     steps:
@@ -63,17 +60,27 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
           INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
           INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
           DEFAULT_REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           entry() { printf '{"pr":"%s","ref":"%s"}' "$1" "$2"; }
           targets="["
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            targets+=$(entry "$PR_NUMBER" "$PR_SHA")
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            # Nightly skip-if-unchanged: if this main SHA already has a green
+            # integration run, emit empty targets so the matrix jobs skip.
+            already_tested=$(curl -sfS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/integration.yml/runs?branch=main&status=success&head_sha=$GITHUB_SHA" \
+              | jq -r '.total_count // 0')
+            if [[ "$already_tested" -gt 0 ]]; then
+              echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
+            else
+              targets+=$(entry "nightly" "$DEFAULT_REF")
+            fi
           elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
             first=1
             IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
@@ -289,3 +296,53 @@ jobs:
           name: cluster-test-logs-${{ matrix.target.pr }}
           path: logs/
           retention-days: 5
+
+  # Posts a per-job pass/fail summary comment back to the PR when dispatched
+  # with a single PR number (the slash-command path). Skipped for batch
+  # dispatches (pr_numbers contains a comma) and for schedule / git_ref runs.
+  # Matrix jobs' result fields are aggregated across cells, which is why this
+  # only runs for single-PR dispatches.
+  report-status:
+    needs:
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+      - run-cluster-e2e-tests
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.pr_numbers != '' &&
+      !contains(inputs.pr_numbers, ',')
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post result comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_numbers }}
+          UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
+          SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
+          CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
+        with:
+          script: |
+            const ICONS = { success: ':white_check_mark:', skipped: ':fast_forward:' };
+            const results = {
+              'UC cluster':          process.env.UC_RESULT,
+              'SQL warehouse':       process.env.SQLW_RESULT,
+              'All-purpose cluster': process.env.CLUSTER_RESULT,
+            };
+            const line = Object.entries(results)
+              .map(([name, r]) => `${name} ${ICONS[r] || ':x:'} ${r}`)
+              .join(' · ');
+            const runUrl =
+              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const prNumber = process.env.PR_NUMBER.trim();
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber, 10),
+              body: `Integration results for PR #${prNumber} — ${line}\n\n[Run details](${runUrl}).`,
+            });
