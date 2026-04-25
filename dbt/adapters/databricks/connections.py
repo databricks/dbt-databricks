@@ -167,8 +167,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         databricks_conn = cast(DatabricksDBTConnection, conn)
         return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
 
-    def _get_capabilities_for_http_path(self, http_path: str) -> DBRCapabilities:
-        return self._dbr_capabilities_cache.get(http_path, DBRCapabilities())
+    @classmethod
+    def _get_capabilities_for_http_path(cls, http_path: str) -> DBRCapabilities:
+        return cls._dbr_capabilities_cache.get(http_path, DBRCapabilities())
 
     @classmethod
     def _query_dbr_version(
@@ -496,8 +497,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.session_id
                     cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
-                    databricks_connection.capabilities = cls._dbr_capabilities_cache.get(
-                        databricks_connection.http_path, DBRCapabilities()
+                    databricks_connection.capabilities = cls._get_capabilities_for_http_path(
+                        databricks_connection.http_path
                     )
                     return conn
                 else:
