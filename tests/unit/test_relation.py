@@ -1,5 +1,6 @@
 import pytest
 from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.constraints import (
@@ -8,6 +9,7 @@ from dbt.adapters.databricks.constraints import (
     PrimaryKeyConstraint,
 )
 from dbt.adapters.databricks.relation import (
+    MAX_CHARACTERS_IN_IDENTIFIER,
     DatabricksQuotePolicy,
     DatabricksRelation,
     DatabricksRelationType,
@@ -368,3 +370,37 @@ class TestConstraints:
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
         assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
+
+
+class TestIdentifierLengthValidation:
+    def test_valid_identifier_length(self):
+        identifier = "a" * MAX_CHARACTERS_IN_IDENTIFIER
+        rel = DatabricksRelation.create(identifier=identifier, type="table")
+        assert rel.identifier == identifier
+
+    def test_identifier_too_long_raises(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        with pytest.raises(DbtRuntimeError, match="maximum identifier length of 255 characters"):
+            DatabricksRelation.create(identifier=identifier, type="table")
+
+    def test_long_identifier_without_type_is_allowed(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        rel = DatabricksRelation.create(identifier=identifier)
+        assert rel.identifier == identifier
+
+    def test_none_identifier_is_allowed(self):
+        rel = DatabricksRelation.create(identifier=None, type="table")
+        assert rel.identifier is None
+
+
+class TestDatabricksRenderLimited:
+    def test_render_limited_with_empty_no_alias(self):
+        relation = DatabricksRelation.create(
+            database="test_catalog",
+            schema="test_schema",
+            identifier="test_model",
+            limit=0,
+        )
+        result = relation.render_limited()
+        expected = "(select * from `test_catalog`.`test_schema`.`test_model` where false limit 0)"
+        assert result == expected

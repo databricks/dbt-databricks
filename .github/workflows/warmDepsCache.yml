@@ -1,0 +1,145 @@
+# Warm Python Dependency Cache
+#
+# Pre-downloads all Python dependencies via JFrog Artifactory and saves them
+# to the GitHub Actions cache. PR workflows (including fork PRs, which cannot
+# authenticate to JFrog) restore this cache and build fully offline.
+#
+# Triggers:
+#   - push to main when dependency files change (keeps cache fresh)
+#   - daily schedule (prevents 7-day GitHub Actions cache eviction)
+#   - manual dispatch (with optional PR number to warm cache for a fork's deps)
+
+name: Warm Python Dependency Cache
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - ".pre-commit-config.yaml"
+  schedule:
+    - cron: "0 6 * * *" # Daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to warm cache for (reads lockfiles from the PR branch). Leave empty to warm from main."
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  warm-cache:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+
+    env:
+      UV_FROZEN: "1"
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Overlay PR dependency files
+        if: inputs.pr_number != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PR_DATA=$(curl -sLS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}")
+
+          FORK_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
+          FORK_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
+
+          echo "Warming cache for PR #${{ inputs.pr_number }} from ${FORK_REPO}@${FORK_REF}"
+
+          git remote add fork "https://github.com/${FORK_REPO}.git"
+          git fetch --depth=1 fork "${FORK_REF}"
+          git checkout FETCH_HEAD -- uv.lock pyproject.toml .pre-commit-config.yaml
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install
+
+      - name: Install Python versions for test matrix
+        run: uv python install 3.11 3.12 3.13
+
+      - name: Create hatch environments (populates uv cache)
+        run: |
+          set -euo pipefail
+          hatch env create default
+          hatch env create test.py3.10
+          hatch env create test.py3.11
+          hatch env create test.py3.12
+          hatch env create test.py3.13
+          hatch env create verify
+
+      - name: Warm pre-commit cache
+        run: hatch run pre-commit install-hooks
+
+      - name: Create pip wheelhouse
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/pip-wheelhouse
+          hatch run python -c "
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          for dep in data['project']['dependencies']:
+              print(dep)
+          " > /tmp/runtime-deps.txt
+          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+            setuptools wheel twine check-wheel-contents \
+            -r /tmp/runtime-deps.txt
+
+      - name: Build package
+        run: hatch -v build
+
+      - name: Generate cache key
+        id: cache-key
+        shell: bash
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+          LOCK_HASH="${{ hashFiles('uv.lock', 'pyproject.toml') }}"
+          echo "python-deps-key=python-deps-${LOCK_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+          PRECOMMIT_HASH="${{ hashFiles('.pre-commit-config.yaml') }}"
+          echo "pre-commit-key=pre-commit-deps-${PRECOMMIT_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Save uv and pip cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.cache/pip
+            ~/.cache/pip-wheelhouse
+          key: ${{ steps.cache-key.outputs.python-deps-key }}
+
+      - name: Save pre-commit cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ steps.cache-key.outputs.pre-commit-key }}

@@ -364,7 +364,7 @@ wheels = [
 
 [[package]]
 name = "databricks-sql-connector"
-version = "4.1.3"
+version = "4.1.5"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
 dependencies = [
     { name = "lz4" },
@@ -377,9 +377,9 @@ dependencies = [
     { name = "thrift" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/e9/6f538a27ffa79a34ddb7ea61e18fdce8420aca899c7cecdcad61b56d75c7/databricks_sql_connector-4.1.3.tar.gz", hash = "sha256:225cef7c3454e93d7a700dd336c665a44b04ab8f80236bd9be815bc42e7d2468", size = 175553, upload-time = "2025-09-17T17:56:28.733Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/37/c842e73242a00f54cd82806b15db6c8899da53ec99e67fbccfa3db1812f4/databricks_sql_connector-4.1.5.tar.gz", hash = "sha256:e3e22554c0fb11011b830d88d735c0d0629eea8328944f47ce5b241e501a87ba", size = 178578, upload-time = "2026-03-23T12:18:13.202Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/6f/56617e6a866d8f0ba54f1df1b7d2feb9fe63e27e06033c81ce20ad894721/databricks_sql_connector-4.1.3-py3-none-any.whl", hash = "sha256:471c5acc2ce4ee4efedf66d33e6f86f5cd349496a85826ee95fc59b485d2daef", size = 198774, upload-time = "2025-09-17T17:56:27.112Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/88/5980d75fa709ed76508ebcf583bf85b22941833ab3c810ec75b39be14f09/databricks_sql_connector-4.1.5-py3-none-any.whl", hash = "sha256:9a65155e576c4971d1037b772a322f57b28497c6cdfa4bb2851e471c163c3569", size = 202555, upload-time = "2026-03-23T12:18:11.291Z" },
 ]
 
 [package.optional-dependencies]
@@ -431,7 +431,7 @@ wheels = [
 
 [[package]]
 name = "dbt-core"
-version = "1.11.6"
+version = "1.11.8"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
 dependencies = [
     { name = "agate" },
@@ -458,9 +458,9 @@ dependencies = [
     { name = "sqlparse" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/58/53d869e31895b022a8e37488fdfdce02f9c4cbd689c4cbc8eedf4a3fe524/dbt_core-1.11.6.tar.gz", hash = "sha256:a62cde8f20994589a27cba84bcf63aafbf3ecbd44221137e1b1520cee3baeb5c", size = 919767, upload-time = "2026-02-17T22:23:52.576Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/54/4f/5524b85f0bd94053ee51fe7e8b0011295f056da707c754975ed7da3888f9/dbt_core-1.11.8.tar.gz", hash = "sha256:1bfe0b40c958785680a1b2b894b0851f5bf780ddc058747dd1e62c389b0d3b1d", size = 972635, upload-time = "2026-04-08T19:01:46.63Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/bb/bcaa53ae98902e46d940cceefc0619afd70df96d719ea09ac4aac809d87c/dbt_core-1.11.6-py3-none-any.whl", hash = "sha256:0694f7e9abedd35e80eb56019c4d408687558c834747b0aacaeae74b8f13ac8d", size = 1009504, upload-time = "2026-02-17T22:23:50.266Z" },
+    { url = "https://files.pythonhosted.org/packages/36/47/a07061c70e0872d8f49fbd12cf93f481b22cabb2e75016ce00aa3520a7ab/dbt_core-1.11.8-py3-none-any.whl", hash = "sha256:13ff79252a7ae9c9acc7de243789b72f04f7f915f05930d3407edeeea3758b6f", size = 1061289, upload-time = "2026-04-08T19:01:44.83Z" },
 ]
 
 [[package]]
@@ -482,10 +482,10 @@ dependencies = [
 requires-dist = [
     { name = "click", specifier = ">=8.2.0,<9.0.0" },
     { name = "databricks-sdk", specifier = ">=0.68.0,<0.78.0" },
-    { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.1.4" },
+    { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.1.6" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.23.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
-    { name = "dbt-core", specifier = ">=1.11.2,<1.11.7" },
+    { name = "dbt-core", specifier = ">=1.11.2,<1.11.9" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
     { name = "keyring", specifier = ">=23.13.0,<25.6.0" },
     { name = "pydantic", specifier = ">=1.10.0,<2.13.0" },
@@ -1804,11 +1804,11 @@ wheels = [
 
 [[package]]
 name = "sqlparse"
-version = "0.5.4"
+version = "0.5.5"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
-sdist = { url = "https://files.pythonhosted.org/packages/18/67/701f86b28d63b2086de47c942eccf8ca2208b3be69715a1119a4e384415a/sqlparse-0.5.4.tar.gz", hash = "sha256:4396a7d3cf1cd679c1be976cf3dc6e0a51d0111e87787e7a8d780e7d5a998f9e", size = 120112, upload-time = "2025-11-28T07:10:18.377Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/76/437d71068094df0726366574cf3432a4ed754217b436eb7429415cf2d480/sqlparse-0.5.5.tar.gz", hash = "sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e", size = 120815, upload-time = "2025-12-19T07:17:45.073Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/70/001ee337f7aa888fb2e3f5fd7592a6afc5283adb1ed44ce8df5764070f22/sqlparse-0.5.4-py3-none-any.whl", hash = "sha256:99a9f0314977b76d776a0fcb8554de91b9bb8a18560631d6bc48721d07023dcb", size = 45933, upload-time = "2025-11-28T07:10:19.73Z" },
+    { url = "https://files.pythonhosted.org/packages/49/4b/359f28a903c13438ef59ebeee215fb25da53066db67b305c125f1c6d2a25/sqlparse-0.5.5-py3-none-any.whl", hash = "sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba", size = 46138, upload-time = "2025-12-19T07:17:46.573Z" },
 ]
 
 [[package]]

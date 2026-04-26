@@ -13,7 +13,9 @@ on:
 
 jobs:
   pr-title:
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     steps:
       - name: Validate PR title
         id: pr-format

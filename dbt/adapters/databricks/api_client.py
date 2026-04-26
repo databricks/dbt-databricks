@@ -801,7 +801,10 @@ class WorkflowJobApi:
         try:
             # Convert job_spec to be compatible with jobs.create
             converted_job_spec = self._convert_job_spec_for_create(job_spec)
-            create_response = self.workspace_client.jobs.create(**converted_job_spec)
+            # Convert plain dicts to SDK dataclasses via JobSettings to avoid
+            # AttributeError when the SDK iterates and calls .as_dict() on tasks.
+            job_settings = JobSettings.from_dict(converted_job_spec)
+            create_response = self.workspace_client.jobs.create(**job_settings.as_shallow_dict())
             job_id = str(create_response.job_id)
             logger.info(f"New workflow created with job id {job_id}")
             return job_id

@@ -1,9 +1,8 @@
 # **what?**
 # Runs code quality checks, unit tests, and verifies python build on
-# all code commited to the repository. This workflow should not
-# require any secrets since it runs for PRs from forked repos.
-# By default, secrets are not passed to workflows running from
-# a forked repo.
+# all code commited to the repository. Dependencies are served from a
+# pre-populated cache (see warmDepsCache.yml) when available, with a
+# JFrog OIDC fallback when the cache is cold.
 
 # **why?**
 # Ensure code for dbt meets a certain quality standard.
@@ -29,7 +28,9 @@ on:
       - "**.md"
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  id-token: write
+  contents: read
 
 # will cancel previous workflows triggered by the same event and for the same ref for PRs or same SHA otherwise
 concurrency:
@@ -44,18 +45,25 @@ jobs:
   code-quality:
     name: Code Quality
 
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     timeout-minutes: 10
 
     env:
       UV_FROZEN: "1"
 
-    strategy:
-      fail-fast: false
-
     steps:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -64,6 +72,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
@@ -74,10 +84,13 @@ jobs:
   unit:
     name: unit test / python ${{ matrix.python-version }}
 
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     timeout-minutes: 15
 
     permissions:
+      id-token: write
       # Gives the action the necessary permissions for publishing new
       # comments in pull requests.
       pull-requests: write
@@ -98,6 +111,14 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
@@ -105,6 +126,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
@@ -114,6 +137,7 @@ jobs:
 
       # Only run coverage comment once (not for all python versions)
       - name: Coverage Comment
+        id: coverage_comment
         if: matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683  # v3
         with:
@@ -128,7 +152,9 @@ jobs:
 
   build:
     name: Build and Verify Packages
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
 
     env:
       UV_FROZEN: "1"
@@ -137,6 +163,14 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
@@ -144,6 +178,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
