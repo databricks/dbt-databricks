@@ -45,7 +45,6 @@
             select * from {{ source_relation }}
         {%- endif -%}
     {%- else -%}
-        {#-- SQL Warehouses: REPLACE ON is always supported; the behavior flag toggles opt-in --#}
         {%- if adapter.behavior.use_replace_on_for_insert_overwrite -%}
             {{ get_insert_replace_on_sql(source_relation, target_relation) }}
         {%- else -%}
