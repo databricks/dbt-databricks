@@ -3,9 +3,6 @@
 ### Features
 
 - Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
-
-### Features
-
 - Include `job_id`, `run_id`, and `task_key` from Databricks Job context in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#722](https://github.com/databricks/dbt-databricks/issues/722))
 
 ### Fixes
