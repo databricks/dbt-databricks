@@ -35,7 +35,9 @@
         {%- if adapter.has_dbr_capability('replace_on') -%}
             {{ get_insert_replace_on_sql(source_relation, target_relation) }}
         {%- else -%}
-            {#-- Use legacy DPO INSERT OVERWRITE for older DBR versions --#}
+            {%- if adapter.behavior.use_replace_on_for_insert_overwrite -%}
+                {{ exceptions.warn("insert_overwrite: use_replace_on_for_insert_overwrite is enabled but this cluster's DBR version does not support REPLACE ON (requires DBR 17.1+). Falling back to legacy INSERT OVERWRITE.") }}
+            {%- endif -%}
             {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
             insert overwrite table {{ target_relation }}
             {{ partition_cols(label="partition") }}
@@ -43,10 +45,8 @@
             select * from {{ source_relation }}
         {%- endif -%}
     {%- else -%}
-        {#-- SQL Warehouses: Check behavior flag first --#}
+        {#-- SQL Warehouses: REPLACE ON is always supported; the behavior flag toggles opt-in --#}
         {%- if adapter.behavior.use_replace_on_for_insert_overwrite -%}
-            {#-- Behavior flag enabled, SQL warehouses are assumed capable --#}
-            {{ exceptions.warn("insert_overwrite will perform a dynamic insert overwrite. If you depended on the legacy truncation behavior, consider disabling the behavior flag use_replace_on_for_insert_overwrite.") }}
             {{ get_insert_replace_on_sql(source_relation, target_relation) }}
         {%- else -%}
             {#-- Behavior flag disabled, use legacy DPO INSERT OVERWRITE --#}
