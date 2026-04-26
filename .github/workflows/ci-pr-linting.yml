@@ -13,36 +13,27 @@ on:
 
 jobs:
   pr-title:
-    runs-on: linux-ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-
-      - name: Setup node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
-        with:
-          node-version: 20
-      - name: Install conventional commit parser
-        shell: bash
-        run: npm install --global conventional-commits-parser@6.3.0
-
       - name: Validate PR title
         id: pr-format
         shell: bash
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        # language=bash
         run: |
           echo "PR title: ${PR_TITLE}"
-                    
-          # check if PR title follows conventional commits format
-          # issue on parser does not support "!" for breaking change (https://github.com/conventional-changelog/conventional-changelog/issues/648)
-          # so we override the regex to support it
-          conventionalCommitResult=$(echo "${PR_TITLE}" | conventional-commits-parser -p "^(\w*)!?(?:\(([\w\$\.\-\* ]*)\))?\: (.*)$" | jq ".[].type")
-          if [[ "${conventionalCommitResult}" != "null" ]]; then
-            echo "Conventional commit type: ${conventionalCommitResult}"
+
+          # Validate PR title follows conventional commits format
+          # Pattern: type[!][(scope)]: description
+          # Examples: feat(JIRA-123): add feature, fix!: breaking change
+          REGEX='^[a-zA-Z]+!?(\([^)]*\))?\: .+'
+          if [[ "${PR_TITLE}" =~ $REGEX ]]; then
+            echo "Valid conventional commit format"
             exit 0
           fi
-          
+
           echo "Invalid PR title"
           exit 1
 

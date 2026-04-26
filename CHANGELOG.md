@@ -1,4 +1,8 @@
-## dbt-databricks 1.11.7 (TBD)
+## dbt-databricks 1.11.8 (TBD)
+
+### Features
+
+- Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
 
 ### Features
 
@@ -6,7 +10,27 @@
 
 ### Fixes
 
+- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
+- Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
+
+## dbt-databricks 1.11.7 (Apr 17, 2026)
+
+### Features
+
+- Enable Notebook scoped python packages installation
+
+### Fixes
+
+- Fix capability detection (e.g., `table_format='iceberg'`) failing on named compute (`databricks_compute`) due to lazy DBR version caching ([#1355](https://github.com/databricks/dbt-databricks/pull/1355))
+- Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
+- Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
 - Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
+- Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
+
+### Under the Hood
+
+- Bump `databricks-sql-connector` upper bound to `<4.1.6`, enabling users to opt into `_respect_server_retry_after_header` (available in connector 4.1.5) for server-directed retry behavior via `connection_parameters` ([#1363](https://github.com/databricks/dbt-databricks/pull/1363))
+- Bump upper bound of dbt-core to `<1.11.9` to include dbt-core 1.11.8
 
 ## dbt-databricks 1.11.6 (Mar 10, 2026)
 

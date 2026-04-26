@@ -259,15 +259,13 @@ class TestComplexConfigV2(TestComplexConfig):
 
 
 @pytest.mark.python
-@pytest.mark.skip_profile(
-    "databricks_cluster", "databricks_uc_sql_endpoint", "databricks_uc_cluster"
-)
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
 class TestWorkflowJob:
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "schema.yml": override_fixtures.workflow_schema,
-            "my_workflow_model.py": override_fixtures.simple_python_model,
+            "my_workflow_model.py": override_fixtures.workflow_python_model,
         }
 
     def test_workflow_run(self, project):
@@ -457,6 +455,56 @@ class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
         )
         util.run_dbt(["run"])
         verify_temp_tables_cleaned(project)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestNotebookScopedPackagesCommandAPI:
+    """Test notebook_scoped_libraries=True with the Command API path (create_notebook=False).
+
+    Verifies that packages are installed via %pip install in the notebook code
+    rather than as cluster-level libraries, and the model runs successfully.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        model = override_fixtures.notebook_scoped_packages_cmd_api_model
+        return {"notebook_scoped_packages_cmd.py": model}
+
+    def test_notebook_scoped_packages_command_api(self, project):
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        rows = project.run_sql(
+            "SELECT * FROM {database}.{schema}.notebook_scoped_packages_cmd ORDER BY id",
+            fetch="all",
+        )
+        assert len(rows) == 2
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+class TestNotebookScopedPackagesNotebookRun:
+    """Test notebook_scoped_libraries=True with the notebook job run path (create_notebook=True).
+
+    Verifies that packages are installed via %pip install in the notebook code
+    when using the notebook job submission path.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        model = override_fixtures.notebook_scoped_packages_notebook_run_model
+        return {"notebook_scoped_packages_nb.py": model}
+
+    def test_notebook_scoped_packages_notebook_run(self, project):
+        results = util.run_dbt(["run"])
+        assert len(results) == 1
+
+        rows = project.run_sql(
+            "SELECT * FROM {database}.{schema}.notebook_scoped_packages_nb ORDER BY id",
+            fetch="all",
+        )
+        assert len(rows) == 2
 
 
 @pytest.mark.python
