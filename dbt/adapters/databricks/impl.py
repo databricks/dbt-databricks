@@ -408,12 +408,14 @@ class DatabricksAdapter(SparkAdapter):
         """
         Check if DESCRIBE TABLE EXTENDED AS JSON can be used for the relation.
         """
-        return (not relation.is_hive_metastore() and not relation.is_foreign_table
-                and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON))
+        return (
+            not relation.is_hive_metastore()
+            and not relation.is_foreign_table
+            and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+        )
 
     def fetch_json_metadata(self, relation: DatabricksRelation) -> dict[str, Any]:
-        """Fetch the JSON metadata for a relation using DESCRIBE TABLE EXTENDED AS JSON.
-        """
+        """Fetch the JSON metadata for a relation using DESCRIBE TABLE EXTENDED AS JSON."""
         kwargs = {"relation": relation}
         describe_results = self.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
         json_metadata = json.loads(describe_results.rows[0].get("json_metadata"))
@@ -1103,7 +1105,9 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         kwargs = {"relation": relation}
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)
-            results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            results["information_schema.views"] = (
+                DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            )
         else:
             results["information_schema.views"] = get_first_row(
                 adapter.execute_macro("get_view_description", kwargs=kwargs)
@@ -1202,7 +1206,9 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)
-            results["information_schema.views"] = DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            results["information_schema.views"] = (
+                DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            )
         else:
             results["information_schema.views"] = get_first_row(
                 adapter.execute_macro("get_view_description", kwargs=kwargs)
@@ -1259,7 +1265,7 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_column_masks(cls, json_metadata: dict[str, Any]) -> agate.Table:
-        """Parse and convert json metadata to agate Table for column masks matching info_schema format."""
+        """Parse json metadata into an agate Table of column masks (info_schema format)."""
         raw_masks = json_metadata.get("column_masks", [])
         rows = []
         for mask in raw_masks:
@@ -1277,16 +1283,16 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
-        """Parse and convert json metadata constraints to agate Table for foreign keys matching info_schema format."""
-        table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
-        pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
+        """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
+        table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
+        pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
         fk_rows = []
         for name, constraint in pairs:
             constraint = constraint.strip()
-            if re.search(r'FOREIGN\s+KEY', constraint):
+            if re.search(r"FOREIGN\s+KEY", constraint):
                 fk_part, ref_part = constraint.split("REFERENCES", 1)
-                from_cols = re.findall(r'`([^`]+)`', fk_part)
-                ref_parts = re.findall(r'`([^`]+)`', ref_part)
+                from_cols = re.findall(r"`([^`]+)`", fk_part)
+                ref_parts = re.findall(r"`([^`]+)`", ref_part)
                 to_catalog = ref_parts[0]
                 to_schema = ref_parts[1]
                 to_table = ref_parts[2]
@@ -1294,16 +1300,30 @@ class DatabricksDescribeJsonMetadata:
                 for from_col, to_col in zip(from_cols, to_cols):
                     fk_rows.append([name, from_col, to_catalog, to_schema, to_table, to_col])
 
-        fk_column_names = ['constraint_name', 'from_column', 'to_catalog', 'to_schema', 'to_table', 'to_column']
-        fk_columns_types = [agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text()]
+        fk_column_names = [
+            "constraint_name",
+            "from_column",
+            "to_catalog",
+            "to_schema",
+            "to_table",
+            "to_column",
+        ]
+        fk_columns_types = [
+            agate.Text(),
+            agate.Text(),
+            agate.Text(),
+            agate.Text(),
+            agate.Text(),
+            agate.Text(),
+        ]
         return agate.Table(fk_rows, fk_column_names, fk_columns_types)
 
     @classmethod
     def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
-        """Parse and convert json metadata constraints to agate Table for non-null constraints matching info_schema format."""
+        """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
         columns = json_metadata.get("columns", [])
 
-        non_null_cols = [column["name"] for column in columns if column.get("nullable") == False]
+        non_null_cols = [column["name"] for column in columns if not column.get("nullable")]
         return agate.Table(
             rows=[[col] for col in non_null_cols],
             column_names=["column_name"],
@@ -1312,24 +1332,24 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
-        """Parse and convert json metadata constraints to agate Table for primary keys matching info_schema format."""
-        table_constraint = re.sub(r'\s+', ' ', json_metadata.get("table_constraints", '').strip())
-        pairs = re.findall(r'\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])', table_constraint)
+        """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
+        table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
+        pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
         pk_rows = []
         for name, constraint in pairs:
             constraint = constraint.strip()
-            parts = re.findall(r'`([^`]+)`', constraint)
-            if re.search(r'PRIMARY\s+KEY', constraint):
+            parts = re.findall(r"`([^`]+)`", constraint)
+            if re.search(r"PRIMARY\s+KEY", constraint):
                 for col in parts:
                     pk_rows.append([name, col])
 
-        pk_column_names = ['constraint_name', 'column_name']
+        pk_column_names = ["constraint_name", "column_name"]
         pk_columns_types = [agate.Text(), agate.Text()]
         return agate.Table(pk_rows, pk_column_names, pk_columns_types)
 
     @classmethod
     def parse_view_description(cls, json_metadata: dict[str, Any]) -> "agate.Row":
-        """Parse and convert json metadata to agate Row for view description matching info_schema format."""
+        """Parse json metadata into an agate Row for the view description (info_schema format)."""
         view_text = json_metadata.get("view_text", None)
         if view_text is None:
             return agate.Row(values=set())

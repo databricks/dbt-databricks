@@ -1237,7 +1237,9 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
 
     def test_supported_for_uc_table_with_capability(self, adapter):
         relation = DatabricksRelation.create(
-            database="catalog", schema="schema", identifier="table",
+            database="catalog",
+            schema="schema",
+            identifier="table",
             type=DatabricksRelation.Table,
         )
         with patch.object(adapter, "has_capability", return_value=True):
@@ -1245,7 +1247,9 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
 
     def test_not_supported_without_capability(self, adapter):
         relation = DatabricksRelation.create(
-            database="catalog", schema="schema", identifier="table",
+            database="catalog",
+            schema="schema",
+            identifier="table",
             type=DatabricksRelation.Table,
         )
         with patch.object(adapter, "has_capability", return_value=False):
@@ -1253,7 +1257,9 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
 
     def test_not_supported_for_hive_metastore(self, adapter):
         relation = DatabricksRelation.create(
-            database="hive_metastore", schema="schema", identifier="table",
+            database="hive_metastore",
+            schema="schema",
+            identifier="table",
             type=DatabricksRelation.Table,
         )
         with patch.object(adapter, "has_capability", return_value=True):
@@ -1261,7 +1267,9 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
 
     def test_not_supported_for_foreign_table(self, adapter):
         relation = DatabricksRelation.create(
-            database="catalog", schema="schema", identifier="table",
+            database="catalog",
+            schema="schema",
+            identifier="table",
             type=DatabricksRelationType.Foreign,
         )
         with patch.object(adapter, "has_capability", return_value=True):

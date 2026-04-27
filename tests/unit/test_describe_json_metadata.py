@@ -6,7 +6,6 @@ agate Tables that match the format expected by existing processors.
 """
 
 from dbt_common.contracts.constraints import ConstraintType
-from pandas import json_normalize
 
 from dbt.adapters.databricks.constraints import (
     ForeignKeyConstraint,
@@ -22,7 +21,6 @@ from dbt.adapters.databricks.relation_configs.constraints import (
     ConstraintsProcessor,
 )
 from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
-
 
 # Fixtures: minimal JSON samples with only fields relevant to parsing.
 
@@ -55,7 +53,6 @@ COLUMN_MASK_JSON = {
 }
 
 
-
 MATERIALIZED_VIEW_JSON = {
     "view_text": "SELECT id, name FROM main.default.source_table",
 }
@@ -70,7 +67,6 @@ PLAIN_TABLE_JSON = {
         {"name": "value", "nullable": True},
     ],
 }
-
 
 
 COMPOSITE_PK_JSON = {
@@ -147,8 +143,7 @@ class TestParsePrimaryKeyConstraints:
         """Test PRIMARY KEY parsing with no primary key constraints."""
         json_metadata = {
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`ref_id`)"
-                " REFERENCES `main`.`default`.`t` (`id`))]"
+                "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `main`.`default`.`t` (`id`))]"
             )
         }
         result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
@@ -169,7 +164,7 @@ class TestParsePrimaryKeyConstraints:
     def test_spaces(self):
         """Test PRIMARY KEY parsing is robust to excessive spaces between 'PRIMARY' and 'KEY'."""
         for num_extra_spaces in range(0, 40):
-            es = " " * num_extra_spaces # extra spaces
+            es = " " * num_extra_spaces  # extra spaces
             constraint_entry = f"{es}({es}pk1{es},{es}PRIMARY {es}KEY{es}({es}`col_1`{es}){es}){es}"
             json_metadata = {"table_constraints": f"[{constraint_entry}]"}
             result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
@@ -184,8 +179,7 @@ class TestParsePrimaryKeyConstraints:
         """Test PRIMARY KEY constraint parsing with many constraints in one string."""
         constraint_count = 20
         constraint_entries = [
-            f"(pk{i},PRIMARY KEY (`col_{i}`))"
-            for i in range(1, constraint_count + 1)
+            f"(pk{i},PRIMARY KEY (`col_{i}`))" for i in range(1, constraint_count + 1)
         ]
         json_metadata = {"table_constraints": f"[{', '.join(constraint_entries)}]"}
         result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
@@ -216,11 +210,9 @@ class TestParsePrimaryKeyConstraints:
         are qualified with varying numbers of leading/trailing underscores.
         """
         for i in range(0, 20):
-            usc = "_" * i # underscores
+            usc = "_" * i  # underscores
             column_name = f"{usc}id{usc}"
-            constraint_entry = (
-                f"(pk1,PRIMARY KEY (`{column_name}`))"
-            )
+            constraint_entry = f"(pk1,PRIMARY KEY (`{column_name}`))"
 
             json_metadata = {"table_constraints": f"[{constraint_entry}]"}
             result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
@@ -237,8 +229,7 @@ class TestParseForeignKeyConstraints:
         """Test FOREIGN KEY parsing with a single foreign key constraint."""
         json_metadata = {
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`ref_id`)"
-                " REFERENCES `main`.`default`.`users` (`user_id`))]"
+                "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `main`.`default`.`users` (`user_id`))]"
             )
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
@@ -286,8 +277,7 @@ class TestParseForeignKeyConstraints:
         """Test FOREIGN KEY parsing when the referenced schema contains hyphens."""
         json_metadata = {
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`ref_id`)"
-                " REFERENCES `main`.`my-schema`.`users` (`user_id`))]"
+                "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `main`.`my-schema`.`users` (`user_id`))]"
             )
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
@@ -607,6 +597,7 @@ class TestParseViewDescription:
         result = DatabricksDescribeJsonMetadata.parse_view_description({"view_text": None})
         assert len(result.values()) == 0
 
+
 class TestFromJsonMetadata:
     def test_table_with_column_masks(self):
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(COLUMN_MASK_JSON)
@@ -684,9 +675,7 @@ class TestParserToConstraintsProcessor:
         assert config == ConstraintsConfig(
             set_non_nulls={"id"},
             set_constraints={
-                PrimaryKeyConstraint(
-                    type=ConstraintType.primary_key, name="pk1", columns=["id"]
-                ),
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name="pk1", columns=["id"]),
             },
         )
 
@@ -708,8 +697,7 @@ class TestParserToConstraintsProcessor:
         json_metadata = {
             "columns": [{"name": "ref_id", "nullable": True}],
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`ref_id`)"
-                " REFERENCES `main`.`default`.`other` (`other_id`))]"
+                "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `main`.`default`.`other` (`other_id`))]"
             ),
         }
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
@@ -772,9 +760,7 @@ class TestParserToConstraintsProcessor:
 class TestParserToColumnMaskProcessor:
     def test_mask_roundtrip(self):
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(COLUMN_MASK_JSON)
-        config = ColumnMaskProcessor.from_relation_results(
-            {"column_masks": metadata.column_masks}
-        )
+        config = ColumnMaskProcessor.from_relation_results({"column_masks": metadata.column_masks})
         assert config == ColumnMaskConfig(
             set_column_masks={
                 "phone_number": {
@@ -786,9 +772,7 @@ class TestParserToColumnMaskProcessor:
 
     def test_no_masks_roundtrip(self):
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(PLAIN_TABLE_JSON)
-        config = ColumnMaskProcessor.from_relation_results(
-            {"column_masks": metadata.column_masks}
-        )
+        config = ColumnMaskProcessor.from_relation_results({"column_masks": metadata.column_masks})
         assert config == ColumnMaskConfig(set_column_masks={})
 
     def test_mask_no_false_diff(self):
@@ -852,49 +836,33 @@ class TestParserToColumnMaskProcessor:
 
 class TestParserToQueryProcessor:
     def test_mv_view_text_roundtrip(self):
-        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(
-            MATERIALIZED_VIEW_JSON
-        )
-        config = QueryProcessor.from_relation_results(
-            {"information_schema.views": view_desc}
-        )
+        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(MATERIALIZED_VIEW_JSON)
+        config = QueryProcessor.from_relation_results({"information_schema.views": view_desc})
         assert config == QueryConfig(query="SELECT id, name FROM main.default.source_table")
 
     def test_view_text_roundtrip(self):
         view_desc = DatabricksDescribeJsonMetadata.parse_view_description(REGULAR_VIEW_JSON)
-        config = QueryProcessor.from_relation_results(
-            {"information_schema.views": view_desc}
-        )
+        config = QueryProcessor.from_relation_results({"information_schema.views": view_desc})
         assert config == QueryConfig(query="SELECT id, name FROM main.default.other_table")
 
     def test_view_text_with_outer_parens(self):
         view_desc = DatabricksDescribeJsonMetadata.parse_view_description(
             {"view_text": "(SELECT id FROM t)"}
         )
-        config = QueryProcessor.from_relation_results(
-            {"information_schema.views": view_desc}
-        )
+        config = QueryProcessor.from_relation_results({"information_schema.views": view_desc})
         assert config == QueryConfig(query="SELECT id FROM t")
 
 
 class TestParserToQueryDiff:
     def test_no_false_diff_on_identical_query(self):
-        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(
-            MATERIALIZED_VIEW_JSON
-        )
-        existing = QueryProcessor.from_relation_results(
-            {"information_schema.views": view_desc}
-        )
+        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(MATERIALIZED_VIEW_JSON)
+        existing = QueryProcessor.from_relation_results({"information_schema.views": view_desc})
         model = QueryConfig(query="SELECT id, name FROM main.default.source_table")
         assert model.get_diff(existing) is None
 
     def test_detects_real_query_change(self):
-        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(
-            MATERIALIZED_VIEW_JSON
-        )
-        existing = QueryProcessor.from_relation_results(
-            {"information_schema.views": view_desc}
-        )
+        view_desc = DatabricksDescribeJsonMetadata.parse_view_description(MATERIALIZED_VIEW_JSON)
+        existing = QueryProcessor.from_relation_results({"information_schema.views": view_desc})
         model = QueryConfig(query="SELECT id FROM different_table")
         diff = model.get_diff(existing)
         assert diff is not None
@@ -926,7 +894,7 @@ class TestParserToConstraintsDiff:
         assert model.get_diff(existing) is None
 
     def test_composite_pk_diff_add_column(self):
-        """Model adds a column to the PK — diff should set new PK, unset old PK, set new non-null."""
+        """Model adds a column to PK — diff should set new PK, unset old PK, set new non-null."""
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(COMPOSITE_PK_JSON)
         existing = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
         model = ConstraintsConfig(

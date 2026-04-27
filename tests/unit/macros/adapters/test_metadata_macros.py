@@ -201,9 +201,7 @@ class TestMetadataMacros(MacroTestBase):
         result = self.run_macro(
             template_bundle.template, "describe_table_extended_as_json_sql", relation
         )
-        expected_sql = (
-            "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
-        )
+        expected_sql = "DESCRIBE TABLE EXTENDED `some_database`.`some_schema`.`some_table` AS JSON"
         self.assert_sql_equal(result, expected_sql)
 
     def test_case_sensitivity(self, template_bundle):
