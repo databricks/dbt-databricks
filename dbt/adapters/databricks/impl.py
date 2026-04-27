@@ -263,9 +263,9 @@ class DatabricksAdapter(SparkAdapter):
         ]
 
     def supports(self, capability: Capability) -> bool:
-        # Gate MicrobatchConcurrency on the use_concurrent_microbatch behavior flag.
         if capability == Capability.MicrobatchConcurrency:
-            return bool(self.behavior.use_concurrent_microbatch)
+            # `.no_warn` avoids a BehaviorChangeEvent on dbt-core's per-parse probe.
+            return self.behavior.use_concurrent_microbatch.no_warn
         return super().supports(capability)
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]

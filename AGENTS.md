@@ -85,6 +85,12 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
    - Require live Databricks workspace
    - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e`, `sqlw-e2e`)
 
+### What to Assert in Each Test Type
+
+Functional tests assert user-visible outcomes: the model materializes and the resulting rows are correct. Unit and macro tests assert implementation details like the exact SQL a macro generates or the exact text of a warning.
+
+When there is nothing meaningful to assert in either category, the change does not need a test.
+
 ### Test Environments
 
 - **HMS Cluster** (`databricks_cluster`): Legacy Hive Metastore
@@ -361,6 +367,20 @@ Models can be configured with Databricks-specific options:
 2. Update macro to use new configuration
 3. Add validation logic if needed
 4. Write tests for both valid and invalid configurations
+
+### Updating Dependencies (`pyproject.toml` / `uv.lock`)
+
+`uv.lock` pins the exact version CI tests against. Version bounds in `pyproject.toml` are independent of the pinned version — a loosened upper bound does NOT auto-bump the pinned version.
+
+**When changing a version bound in `pyproject.toml`:**
+
+1. Run `uv lock --upgrade-package <name>` to pick up the newest allowed version of that package (targeted, not a full resolve).
+2. Inspect the `uv.lock` diff — confirm the pinned version now matches the version you actually want to test against.
+3. Commit both `pyproject.toml` and `uv.lock` in the same commit.
+
+**Why this matters:** a pre-commit hook runs `uv lock --check` and catches pyproject↔lock *inconsistency*, but it does NOT force pinned versions forward. If the previously pinned version still satisfies the new bound (e.g. raised `<4.1.4` to `<4.1.6` while `4.1.3` is already pinned), the lock stays consistent and CI keeps testing the old version — the whole point of the bound change is lost. Always run the targeted upgrade explicitly.
+
+**Adding a new dependency:** `uv add <name>` updates both files; no separate lock step needed.
 
 ## 🐛 Debugging Guide
 
