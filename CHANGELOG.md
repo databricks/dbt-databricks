@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.8 (TBD)
+
+### Fixes
+
+- Fix `dbt docs generate` failing with `RuntimeError: Tables contain columns with the same names ... but different types` during catalog merge across schemas ([#1392](https://github.com/databricks/dbt-databricks/issues/1392))
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
