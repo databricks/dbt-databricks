@@ -1,0 +1,82 @@
+# **what?**
+# Builds a wheel distribution and attaches it to a GitHub Release when
+# an enhanced release tag is pushed.
+#
+# **why?**
+# Consumers of this fork install the wheel directly from the GitHub
+# Release URL, so each tag needs a corresponding prebuilt artifact.
+#
+# **when?**
+# Triggered by pushing a tag matching vX.Y.Z+enh.N (e.g. v1.11.6+enh.1).
+# Git tags support `+` natively; GitHub encodes it as `%2B` in URLs.
+# Can also be triggered manually via workflow_dispatch for a given tag.
+
+name: Release Wheel
+
+on:
+  push:
+    tags:
+      - "v*+enh.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g. v1.11.6+enh.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build wheel and attach to release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository at the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Hatch
+        uses: pypa/hatch@install
+
+      - name: Build distributions
+        run: hatch -v build
+
+      - name: Verify distributions
+        run: hatch run verify:check-all
+
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload wheel and sdist to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          # Create release if it doesn't exist yet; --notes-file uses the
+          # matching CHANGELOG section if maintainers prepared release notes,
+          # otherwise falls back to auto-generated notes.
+          if ! gh release view "$TAG" -R viadkt/dbt-databricks-enhanced >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              -R viadkt/dbt-databricks-enhanced \
+              --title "$TAG" \
+              --generate-notes
+          fi
+          gh release upload "$TAG" dist/*.whl dist/*.tar.gz \
+            -R viadkt/dbt-databricks-enhanced \
+            --clobber

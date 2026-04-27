@@ -1,0 +1,66 @@
+{
+  "name": "dbt-databricks-enhanced",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  "containerEnv": {
+    "HATCH_DATA_DIR": "/workspaces/${localWorkspaceFolderBasename}/.hatch",
+    "UV_LINK_MODE": "copy"
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.databrickscfg,target=/home/vscode/.databrickscfg,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.databricks,target=/home/vscode/.databricks,type=bind,consistency=cached",
+    "source=${localWorkspaceFolderBasename}-hatch,target=/workspaces/${localWorkspaceFolderBasename}/.hatch,type=volume",
+    "source=${localWorkspaceFolderBasename}-cache,target=/home/vscode/.cache,type=volume"
+  ],
+
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.cache /workspaces/${localWorkspaceFolderBasename}/.hatch && hatch env create && hatch run setup-precommit",
+  "postStartCommand": "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/${localWorkspaceFolderBasename}/.hatch/env/virtual/dbt-databricks-enhanced/*/bin/python",
+        "mypy-type-checker.importStrategy": "fromEnvironment",
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["--color=yes", "-n=auto", "--dist=loadscope"],
+        "[python]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 4,
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "logViewer.watch": [
+          {
+            "title": "dbt logs",
+            "pattern": "${workspaceFolder}/logs/**/dbt.log"
+          }
+        ]
+      },
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "berublan.vscode-log-viewer",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "eamodio.gitlens",
+        "github.vscode-github-actions",
+        "editorconfig.editorconfig",
+        "samuelcolvin.jinjahtml",
+        "ms-toolsai.jupyter",
+        "vivaxy.vscode-conventional-commits",
+        "databricks.databricks"
+      ]
+    }
+  }
+}

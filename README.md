@@ -26,7 +26,7 @@ All features of the original `dbt-databricks` adapter are preserved.
 
 ## Versioning
 
-This fork tracks upstream `dbt-databricks` version numbers. When upstream releases `1.11.7`, this fork rebases and releases as `1.11.7`. If fork-specific bugfixes are needed between upstream releases, a fourth version segment is added: `1.11.7.1`, `1.11.7.2`, etc. All versions follow [PEP 440](https://peps.python.org/pep-0440/).
+This fork tracks upstream `dbt-databricks` version numbers. When upstream releases `1.11.7`, this fork rebases and releases as `1.11.7`. Fork-specific enhancements use [semver build metadata](https://semver.org/#spec-item-10): `1.11.7+enh.1`, `1.11.7+enh.2`, etc. This ensures dbt-core sees the adapter as a compatible `1.11.7` version. All versions follow [PEP 440](https://peps.python.org/pep-0440/) (local version identifiers).
 
 ## Upstream Features
 
