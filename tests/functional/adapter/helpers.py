@@ -31,4 +31,14 @@ def get_model_config(project, relation: BaseRelation):
         f"Expected exactly one model node for relation {relation.identifier}, "
         f"found {len(model_nodes)}"
     )
-    return project.adapter.get_config_from_model(model_nodes[0])
+    model_node = model_nodes[0]
+
+    # The partial-parse manifest only stores `raw_code`; `compiled_code` is set
+    # later during compile/run. `get_config_from_model` requires it for MV/ST,
+    # so backfill from `raw_code` (only used for equality checks here). If a
+    # caller needs the actually-compiled SQL, run `run_dbt(["compile"])` first
+    # and read `target/manifest.json` instead.
+    if model_node.compiled_code is None:
+        model_node.compiled_code = model_node.raw_code
+
+    return project.adapter.get_config_from_model(model_node)
