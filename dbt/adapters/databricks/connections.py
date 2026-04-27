@@ -194,8 +194,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     result = cursor.fetchone()
                     if result:
                         return SqlUtils.extract_dbr_version(result[1])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to query DBR version for http_path={http_path}: {e}")
 
         return None
 
