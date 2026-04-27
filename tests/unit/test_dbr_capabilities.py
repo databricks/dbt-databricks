@@ -14,40 +14,57 @@ class TestDBRCapabilities:
 
     def test_capability_enum_values(self):
         """Test that all capabilities have the expected values."""
-        assert DBRCapability.TIMESTAMPDIFF.value == "timestampdiff"
-        assert DBRCapability.ICEBERG.value == "iceberg"
         assert DBRCapability.COMMENT_ON_COLUMN.value == "comment_on_column"
+        assert (
+            DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON.value == "describe_table_extended_as_json"
+        )
+        assert DBRCapability.ICEBERG.value == "iceberg"
+        assert DBRCapability.INSERT_BY_NAME.value == "insert_by_name"
         assert DBRCapability.JSON_COLUMN_METADATA.value == "json_column_metadata"
+        assert DBRCapability.REPLACE_ON.value == "replace_on"
+        assert DBRCapability.STREAMING_TABLE_JSON_METADATA.value == "streaming_table_json_metadata"
+        assert DBRCapability.TIMESTAMPDIFF.value == "timestampdiff"
 
     def test_old_dbr_version(self):
         """Test capabilities with old DBR version."""
         capabilities = DBRCapabilities(dbr_version=(10, 0))
 
         # Should not have newer features
-        assert not capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
-        assert not capabilities.has_capability(DBRCapability.ICEBERG)
         assert not capabilities.has_capability(DBRCapability.COMMENT_ON_COLUMN)
+        assert not capabilities.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+        assert not capabilities.has_capability(DBRCapability.ICEBERG)
+        assert not capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
         assert not capabilities.has_capability(DBRCapability.JSON_COLUMN_METADATA)
+        assert not capabilities.has_capability(DBRCapability.REPLACE_ON)
+        assert not capabilities.has_capability(DBRCapability.STREAMING_TABLE_JSON_METADATA)
+        assert not capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
 
     def test_modern_dbr_version(self):
         """Test capabilities with modern DBR version."""
-        capabilities = DBRCapabilities(dbr_version=(16, 2))
+        capabilities = DBRCapabilities(dbr_version=(17, 3))
 
         # Should have all features up to 16.2
-        assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
-        assert capabilities.has_capability(DBRCapability.ICEBERG)
         assert capabilities.has_capability(DBRCapability.COMMENT_ON_COLUMN)
+        assert capabilities.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+        assert capabilities.has_capability(DBRCapability.ICEBERG)
+        assert capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
         assert capabilities.has_capability(DBRCapability.JSON_COLUMN_METADATA)
+        assert capabilities.has_capability(DBRCapability.REPLACE_ON)
+        assert capabilities.has_capability(DBRCapability.STREAMING_TABLE_JSON_METADATA)
+        assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
 
     def test_sql_warehouse(self):
         """Test that SQL warehouses are assumed to have latest features."""
         capabilities = DBRCapabilities(is_sql_warehouse=True)
 
         # SQL warehouses should have all supported features
-        assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
-        assert capabilities.has_capability(DBRCapability.ICEBERG)
         assert capabilities.has_capability(DBRCapability.COMMENT_ON_COLUMN)
+        assert capabilities.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+        assert capabilities.has_capability(DBRCapability.ICEBERG)
+        assert capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
         assert capabilities.has_capability(DBRCapability.JSON_COLUMN_METADATA)
+        assert capabilities.has_capability(DBRCapability.REPLACE_ON)
+        assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
 
     def test_sql_warehouse_unsupported_features(self):
         """Test that some features are not supported on SQL warehouses."""
@@ -58,17 +75,36 @@ class TestDBRCapabilities:
 
     def test_get_required_version(self):
         """Test getting required version strings."""
-        assert DBRCapabilities.get_required_version(DBRCapability.TIMESTAMPDIFF) == "DBR 10.4+"
-        assert DBRCapabilities.get_required_version(DBRCapability.ICEBERG) == "DBR 14.3+"
         assert DBRCapabilities.get_required_version(DBRCapability.COMMENT_ON_COLUMN) == "DBR 16.1+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+            == "DBR 17.3+"
+        )
+        assert DBRCapabilities.get_required_version(DBRCapability.ICEBERG) == "DBR 14.3+"
+        assert DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME) == "DBR 12.2+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.JSON_COLUMN_METADATA) == "DBR 16.2+"
+        )
+        assert DBRCapabilities.get_required_version(DBRCapability.REPLACE_ON) == "DBR 17.1+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.STREAMING_TABLE_JSON_METADATA)
+            == "DBR 17.1+"
+        )
+        assert DBRCapabilities.get_required_version(DBRCapability.TIMESTAMPDIFF) == "DBR 10.4+"
 
     def test_no_connection(self):
         """Test behavior when not connected (no version info)."""
         capabilities = DBRCapabilities(dbr_version=None)
 
         # Without connection info, assume no capabilities
-        assert not capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
+        assert not capabilities.has_capability(DBRCapability.COMMENT_ON_COLUMN)
+        assert not capabilities.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
         assert not capabilities.has_capability(DBRCapability.ICEBERG)
+        assert not capabilities.has_capability(DBRCapability.INSERT_BY_NAME)
+        assert not capabilities.has_capability(DBRCapability.JSON_COLUMN_METADATA)
+        assert not capabilities.has_capability(DBRCapability.REPLACE_ON)
+        assert not capabilities.has_capability(DBRCapability.STREAMING_TABLE_JSON_METADATA)
+        assert not capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
 
     def test_enabled_capabilities_property(self):
         """Test the enabled_capabilities method."""
@@ -78,15 +114,18 @@ class TestDBRCapabilities:
 
         # Should include all capabilities supported by DBR 16.2
         expected = {
-            DBRCapability.TIMESTAMPDIFF,
-            DBRCapability.ICEBERG,
             DBRCapability.COMMENT_ON_COLUMN,
+            DBRCapability.ICEBERG,
+            DBRCapability.INSERT_BY_NAME,
             DBRCapability.JSON_COLUMN_METADATA,
+            DBRCapability.TIMESTAMPDIFF,
         }
 
         assert expected.issubset(enabled)
 
         # Should not include capabilities requiring newer versions
+        assert DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON not in enabled
+        assert DBRCapability.REPLACE_ON not in enabled
         assert DBRCapability.STREAMING_TABLE_JSON_METADATA not in enabled
 
 
@@ -137,6 +176,15 @@ class TestCapabilitySpecs:
         assert specs[DBRCapability.ICEBERG].min_version == (14, 3)
         assert specs[DBRCapability.COMMENT_ON_COLUMN].min_version == (16, 1)
         assert specs[DBRCapability.JSON_COLUMN_METADATA].min_version == (16, 2)
+        assert specs[DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON].min_version == (17, 3)
+
+    def test_describe_json_boundary(self):
+        """Test DESCRIBE_TABLE_EXTENDED_AS_JSON is available at 17.3 but not 17.2."""
+        unsupported = DBRCapabilities(dbr_version=(17, 2))
+        assert not unsupported.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+
+        supported = DBRCapabilities(dbr_version=(17, 3))
+        assert supported.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
 
     def test_sql_warehouse_support_flags(self):
         """Test that SQL warehouse support is correctly specified."""

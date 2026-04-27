@@ -1228,6 +1228,54 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             )
 
 
+class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    def test_supported_for_uc_table_with_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is True
+
+    def test_not_supported_without_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        with patch.object(adapter, "has_capability", return_value=False):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_hive_metastore(self, adapter):
+        relation = DatabricksRelation.create(
+            database="hive_metastore",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_foreign_table(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelationType.Foreign,
+        )
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+
 class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
     @pytest.fixture
     def adapter(self):

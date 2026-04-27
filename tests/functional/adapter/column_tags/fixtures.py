@@ -14,6 +14,8 @@ models:
         databricks_tags:
           pii: "true"
           sensitive: "true"
+          key_only: ""
+          null_value:
 """
 
 updated_column_tag_model = """
@@ -30,6 +32,8 @@ models:
         databricks_tags:
           pii: "true"
           sensitive: "true"
+          key_only: ""
+          null_value:
 """
 
 column_tags_seed = """

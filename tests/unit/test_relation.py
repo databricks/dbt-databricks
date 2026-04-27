@@ -1,4 +1,5 @@
 import pytest
+from dbt.adapters.base.relation import FunctionConfig
 from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -392,6 +393,66 @@ class TestIdentifierLengthValidation:
         rel = DatabricksRelation.create(identifier=None, type="table")
         assert rel.identifier is None
 
+class TestGetFunctionConfig:
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create()
+
+    def test_python_udf_defaults_injected_when_omitted(self, relation):
+        """runtime_version and entry_point should be defaulted for Python UDFs."""
+        model = {
+            "resource_type": "function",
+            "language": "python",
+            "name": "my_func",
+            "config": {"type": "scalar"},
+        }
+        result = relation.get_function_config(model)
+        assert isinstance(result, FunctionConfig)
+        assert result.runtime_version == "3.11"
+        assert result.entry_point == "my_func"
+        assert result.language == "python"
+        assert result.type == "scalar"
+
+    def test_python_udf_explicit_values_preserved(self, relation):
+        """Explicitly provided runtime_version and entry_point should be kept."""
+        model = {
+            "resource_type": "function",
+            "language": "python",
+            "name": "my_func",
+            "config": {
+                "type": "scalar",
+                "runtime_version": "3.10",
+                "entry_point": "custom_handler",
+            },
+        }
+        result = relation.get_function_config(model)
+        assert isinstance(result, FunctionConfig)
+        assert result.runtime_version == "3.10"
+        assert result.entry_point == "custom_handler"
+
+    def test_sql_udf_delegates_to_super(self, relation):
+        """SQL UDFs should use the base class implementation."""
+        model = {
+            "resource_type": "function",
+            "language": "sql",
+            "config": {"type": "scalar"},
+        }
+        result = relation.get_function_config(model)
+        assert isinstance(result, FunctionConfig)
+        assert result.language == "sql"
+        # SQL functions don't need runtime_version/entry_point
+        assert result.runtime_version is None
+        assert result.entry_point is None
+
+    def test_non_function_returns_none(self, relation):
+        """Non-function resource types should return None."""
+        model = {
+            "resource_type": "model",
+            "language": "sql",
+            "config": {},
+        }
+        result = relation.get_function_config(model)
+        assert result is None
 
 class TestDatabricksRenderLimited:
     def test_render_limited_with_empty_no_alias(self):
