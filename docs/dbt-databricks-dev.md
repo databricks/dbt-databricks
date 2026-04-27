@@ -4,7 +4,26 @@ This guide covers the essential setup and workflow for developing the dbt-databr
 
 ## Quick Start
 
-### 1. Environment Setup
+### Devcontainer (recommended)
+
+Open the repo in VS Code (or Cursor) with the Dev Containers extension and
+choose **Reopen in Container**. The `.devcontainer/` config installs
+Python 3.10, Hatch, uv, and the Databricks CLI, then runs `hatch env create`
+and sets up pre-commit hooks automatically.
+
+Requirements on the host:
+- Docker
+- VS Code with the **Dev Containers** extension (or Cursor equivalent)
+- A `~/.databrickscfg` file and `~/.databricks/` directory (create empty
+  ones if you don't use the Databricks CLI locally: `touch ~/.databrickscfg && mkdir -p ~/.databricks`)
+
+If VS Code prompts for a Python interpreter, pick the one under
+`.hatch/env/virtual/dbt-databricks-enhanced/*/bin/python`.
+
+Persistent named Docker volumes hold the hatch envs and uv/pip caches, so
+rebuilds stay fast.
+
+### Manual setup (fallback)
 
 **Prerequisites**: Python 3.9+ installed on your system
 
