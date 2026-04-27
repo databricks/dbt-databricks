@@ -133,9 +133,6 @@
         {{ set_overwrite_mode('DYNAMIC') }}
       {%- endif -%}
       {#-- Relation must be merged --#}
-      {%- set _existing_config = adapter.get_relation_config(existing_relation) -%}
-      {%- set model_config = adapter.get_config_from_model(config.model) -%}
-      {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
       {%- call statement('create_temp_relation', language=language) -%}
         {{ create_table_as(True, temp_relation, compiled_code, language) }}
       {%- endcall -%}
@@ -173,27 +170,7 @@
         Also, why does not either drop_relation or adapter.drop_relation work here?!
         --#}
       {%- endif -%}
-      {% if _configuration_changes is not none %}
-        {% set tags = _configuration_changes.changes.get("tags", None) %}
-        {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
-        {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
-        {% set constraints = _configuration_changes.changes.get("constraints") %}
-        {% if tags is not none %}
-          {% do apply_tags(target_relation, tags.set_tags) %}
-        {%- endif -%}
-        {% if tblproperties is not none %}
-          {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
-        {%- endif -%}
-        {% if liquid_clustering is not none %}
-          {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
-        {% endif %}
-        {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
-        {% set contract_config = config.get('contract') %}
-        {% if constraints and contract_config and contract_config.enforced and not target_relation.is_hive_metastore() %}
-          {{ apply_constraints(target_relation, constraints) }}
-        {% endif %}
-      {%- endif -%}
-      {% do persist_docs(target_relation, model, for_relation=True) %}
+      {{ process_config_changes(target_relation) }}
     {%- endif -%}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}

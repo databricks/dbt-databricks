@@ -14,6 +14,7 @@
 
 ### Features
 
+- Allow V1 incremental path to skip unnecessary metadata queries by respecting `incremental_apply_config_changes` config flag, matching V2 behavior ([#1402](https://github.com/databricks/dbt-databricks/issues/1402))
 - Enable Notebook scoped python packages installation
 
 ### Fixes
