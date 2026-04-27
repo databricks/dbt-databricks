@@ -26,7 +26,7 @@ class TagsConfig(DatabricksComponentConfig):
         """
         Indicates whether server metadata is required to compute the diff for this component.
         """
-        return self.set_tags and len(self.set_tags) > 0
+        return self.set_tags is not None and len(self.set_tags) > 0
 
 
 class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
