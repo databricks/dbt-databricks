@@ -22,6 +22,7 @@ class DBRCapability(Enum):
     STREAMING_TABLE_JSON_METADATA = "streaming_table_json_metadata"
     TIMESTAMPDIFF = "timestampdiff"
 
+
 @dataclass
 class CapabilitySpec:
     """Specification for a DBR capability."""

@@ -15,7 +15,9 @@ class TestDBRCapabilities:
     def test_capability_enum_values(self):
         """Test that all capabilities have the expected values."""
         assert DBRCapability.COMMENT_ON_COLUMN.value == "comment_on_column"
-        assert DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON.value == "describe_table_extended_as_json"
+        assert (
+            DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON.value == "describe_table_extended_as_json"
+        )
         assert DBRCapability.ICEBERG.value == "iceberg"
         assert DBRCapability.INSERT_BY_NAME.value == "insert_by_name"
         assert DBRCapability.JSON_COLUMN_METADATA.value == "json_column_metadata"
@@ -51,7 +53,6 @@ class TestDBRCapabilities:
         assert capabilities.has_capability(DBRCapability.STREAMING_TABLE_JSON_METADATA)
         assert capabilities.has_capability(DBRCapability.TIMESTAMPDIFF)
 
-
     def test_sql_warehouse(self):
         """Test that SQL warehouses are assumed to have latest features."""
         capabilities = DBRCapabilities(is_sql_warehouse=True)
@@ -75,14 +76,21 @@ class TestDBRCapabilities:
     def test_get_required_version(self):
         """Test getting required version strings."""
         assert DBRCapabilities.get_required_version(DBRCapability.COMMENT_ON_COLUMN) == "DBR 16.1+"
-        assert DBRCapabilities.get_required_version(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON) == "DBR 17.3+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+            == "DBR 17.3+"
+        )
         assert DBRCapabilities.get_required_version(DBRCapability.ICEBERG) == "DBR 14.3+"
         assert DBRCapabilities.get_required_version(DBRCapability.INSERT_BY_NAME) == "DBR 12.2+"
-        assert DBRCapabilities.get_required_version(DBRCapability.JSON_COLUMN_METADATA) == "DBR 16.2+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.JSON_COLUMN_METADATA) == "DBR 16.2+"
+        )
         assert DBRCapabilities.get_required_version(DBRCapability.REPLACE_ON) == "DBR 17.1+"
-        assert DBRCapabilities.get_required_version(DBRCapability.STREAMING_TABLE_JSON_METADATA) == "DBR 17.1+"
+        assert (
+            DBRCapabilities.get_required_version(DBRCapability.STREAMING_TABLE_JSON_METADATA)
+            == "DBR 17.1+"
+        )
         assert DBRCapabilities.get_required_version(DBRCapability.TIMESTAMPDIFF) == "DBR 10.4+"
-
 
     def test_no_connection(self):
         """Test behavior when not connected (no version info)."""

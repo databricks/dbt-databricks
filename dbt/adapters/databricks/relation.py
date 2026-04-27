@@ -123,7 +123,7 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.StreamingTable
 
     @property
-    def is_foreign_table(self):
+    def is_foreign_table(self) -> bool:
         return self.type == DatabricksRelationType.Foreign
 
     @property
