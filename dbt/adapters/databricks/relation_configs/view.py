@@ -7,10 +7,9 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
-from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsProcessor
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProcessor
 from dbt.adapters.databricks.relation_configs.comment import CommentProcessor
-from dbt.adapters.databricks.relation_configs.query import QueryProcessor
+from dbt.adapters.databricks.relation_configs.query import ViewQueryProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesProcessor
 
@@ -19,15 +18,15 @@ class ViewConfig(DatabricksRelationConfigBase):
     config_components = [
         TagsProcessor,
         TblPropertiesProcessor,
-        QueryProcessor,
+        ViewQueryProcessor,
         CommentProcessor,
-        ColumnCommentsProcessor,
         ColumnTagsProcessor,
     ]
 
-    def get_changeset(self, existing: Self) -> Optional[DatabricksRelationChangeSet]:
+    def get_changeset(self, existing: Self) -> DatabricksRelationChangeSet:
+        # view query processor will always return a change
         changeset = super().get_changeset(existing)
-        if changeset and "comment" in changeset.changes:
+        if "comment" in changeset.changes:
             logger.debug(
                 "View description changed, requiring replace, as there is"
                 " no API yet to update comments."

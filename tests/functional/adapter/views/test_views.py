@@ -89,6 +89,24 @@ class BaseUpdateColumnComments(BaseUpdateView):
         assert results[0][2] == "This is an id column"
 
 
+class BaseUpdateUpstreamSchema(BaseUpdateView):
+    """Test that a star-select view is re-applied when the upstream table gains a new column."""
+
+    def test_view_update_with_upstream_schema_change(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.seed_with_extra_csv, "seeds", "seed.csv")
+        util.run_dbt(["seed", "--full-refresh"])
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "describe {database}.{schema}.initial_view",
+            fetch="all",
+        )
+
+        # check that `extra` column was added, even though the view's sql definition hasn't changed
+        assert any([col.col_name == "extra" for col in results])
+
+
 class BaseRemoveTags(BaseUpdateView):
     def test_view_update_remove_tags(self, project):
         util.run_dbt(["build"])
@@ -177,6 +195,22 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterUpstreamSchema(BaseUpdateUpstreamSchema):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
