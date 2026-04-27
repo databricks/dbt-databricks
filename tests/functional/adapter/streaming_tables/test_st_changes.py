@@ -23,6 +23,7 @@ def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     }
     assert final_tblproperties == expected
 
+
 class StreamingTableChanges:
     @staticmethod
     def check_start_state(project, streaming_table):

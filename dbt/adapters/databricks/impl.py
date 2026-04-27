@@ -79,10 +79,10 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tags import (
     TagsProcessor,
 )
-from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import (
@@ -931,7 +931,9 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
-    def get_relation_config(self, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase) -> DatabricksRelationConfigBase:
+    def get_relation_config(
+        self, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+    ) -> DatabricksRelationConfigBase:
         if relation.type == DatabricksRelationType.MaterializedView:
             return MaterializedViewAPI.get_from_relation(self, relation, relation_config)
         elif relation.type == DatabricksRelationType.StreamingTable:
@@ -1020,7 +1022,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
@@ -1037,7 +1042,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     @classmethod
     @abstractmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> RelationResults:
         """Describe the relation and return the results."""
 
@@ -1047,7 +1055,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
@@ -1071,7 +1082,10 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1096,7 +1110,10 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1119,19 +1136,28 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
-            table_tag_config = relation_config.config.get(TagsProcessor.name) if relation_config else None
+            table_tag_config = (
+                relation_config.config.get(TagsProcessor.name) if relation_config else None
+            )
             if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-                results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+                results["information_schema.tags"] = adapter.execute_macro(
+                    "fetch_tags", kwargs=kwargs
+                )
             else:
                 results["information_schema.tags"] = None
 
-            column_tag_config = relation_config.config.get(ColumnTagsProcessor.name) if relation_config else None
+            column_tag_config = (
+                relation_config.config.get(ColumnTagsProcessor.name) if relation_config else None
+            )
             if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
                 results["information_schema.column_tags"] = adapter.execute_macro(
                     "fetch_column_tags", kwargs=kwargs
@@ -1167,7 +1193,10 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation, relation_config: DatabricksRelationConfigBase
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        relation_config: DatabricksRelationConfigBase,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
@@ -1176,7 +1205,9 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
 
-        table_tag_config = relation_config.config.get(TagsProcessor.name) if relation_config else None
+        table_tag_config = (
+            relation_config.config.get(TagsProcessor.name) if relation_config else None
+        )
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:

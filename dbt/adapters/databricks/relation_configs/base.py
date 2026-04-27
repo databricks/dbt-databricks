@@ -40,6 +40,7 @@ class DatabricksComponentConfig(BaseModel):
         """
         return True
 
+
 class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""
 

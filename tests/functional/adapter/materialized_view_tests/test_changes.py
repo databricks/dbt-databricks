@@ -24,6 +24,7 @@ def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     }
     assert final_tblproperties == expected
 
+
 class MaterializedViewChangesMixin(MaterializedViewChanges):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):

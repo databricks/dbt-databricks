@@ -27,11 +27,12 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelationType,
     DatabricksTableType,
 )
-from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
-from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProcessor
+from dbt.adapters.databricks.relation_configs.column_tags import (
+    ColumnTagsConfig,
+    ColumnTagsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
-from dbt.adapters.databricks.relation_configs.tags import TagsConfig
-from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
