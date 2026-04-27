@@ -97,3 +97,33 @@ class TestTblPropertiesProcessor:
         spec = TblPropertiesProcessor.from_relation_config(model)
         # Should not have UniForm properties without explicit use_managed_iceberg=False
         assert spec == TblPropertiesConfig(tblproperties={})
+
+
+class TestTblPropertiesConfig:
+    def test_get_diff__empty_and_some_exist(self):
+        # tblproperties are "set only" - when config has no tblproperties and relation has tblproperties,
+        # we don't unset the existing tblproperties
+        config_properties = TblPropertiesConfig(tblproperties={})
+        relation_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff is None  # No changes needed since we don't unset tblproperties
+
+    def test_get_diff__some_new_and_empty_existing(self):
+        config_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        relation_properties = TblPropertiesConfig(tblproperties={})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff == TblPropertiesConfig(tblproperties={"prop": "1"})
+
+    def test_get_diff__mixed_case(self):
+        # tblproperties are "set only" - only the new/updated tblproperties are included
+        config_properties = TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
+        relation_properties = TblPropertiesConfig(tblproperties={"prop": "2", "c": "value"})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
+
+    def test_get_diff__no_changes(self):
+        config_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        relation_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff is None
+
