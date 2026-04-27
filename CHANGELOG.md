@@ -1,7 +1,11 @@
-## dbt-databricks next
+## dbt-databricks 1.12.0 (TBD)
 
 ### Features
 
+- Add support for metric views as a materialization ([#1285](https://github.com/databricks/dbt-databricks/pull/1285))
+- Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
+- Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
+- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting tag values to empty strings `""` or `None`. ([#1339](https://github.com/databricks/dbt-databricks/pull/1339))
 - Replace information_schema queries with DESCRIBE TABLE EXTENDED AS JSON for metadata fetching in incremental, materialized view, and view materializations (DBR 17.3+, falls back to info_schema on older runtimes)
 
 ## dbt-databricks 1.11.8 (TBD)
@@ -66,6 +70,7 @@
 ### Features
 
 - Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+- Add support for Row Filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 
 ### Fixes
 

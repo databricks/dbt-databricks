@@ -78,6 +78,7 @@ from dbt.adapters.databricks.relation_configs.incremental import IncrementalTabl
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
+from dbt.adapters.databricks.relation_configs.metric_view import MetricViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
@@ -956,6 +957,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation(self, relation)
         elif relation.type == DatabricksRelationType.View:
             return ViewAPI.get_from_relation(self, relation)
+        elif relation.type == DatabricksRelationType.MetricView:
+            return MetricViewAPI.get_from_relation(self, relation)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -971,6 +974,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)
+        elif model.config.materialized == "metric_view":
+            return MetricViewAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -1106,6 +1111,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
                 adapter.execute_macro("get_view_description", kwargs=kwargs)
             )
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1129,6 +1135,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1151,6 +1158,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
             )
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 
             if adapter.is_describe_as_json_supported(relation):
                 json_metadata = adapter.fetch_json_metadata(relation)
@@ -1213,6 +1221,27 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         )
         return results
 
+
+class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
+    relation_type = DatabricksRelationType.MetricView
+
+    @classmethod
+    def config_type(cls) -> type[MetricViewConfig]:
+        return MetricViewConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        results = {}
+        kwargs = {"relation": relation}
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        kwargs = {"table_name": relation}
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+        return results
 
 @dataclass
 class DatabricksDescribeJsonMetadata:
