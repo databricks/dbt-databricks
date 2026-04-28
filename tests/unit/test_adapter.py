@@ -16,7 +16,10 @@ from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
 from dbt.adapters.databricks.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     DatabricksRelationInfo,
+    IncrementalTableAPI,
+    ViewAPI,
     get_identifier_list_string,
 )
 from dbt.adapters.databricks.relation import (
@@ -24,6 +27,13 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelationType,
     DatabricksTableType,
 )
+from dbt.adapters.databricks.relation_configs.column_tags import (
+    ColumnTagsConfig,
+    ColumnTagsProcessor,
+)
+from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
+from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
 
@@ -1226,6 +1236,172 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             mock_get_columns.assert_called_with(
                 adapter, unity_relation, "get_columns_comments_as_json"
             )
+
+
+class TestDescribeRelationMetadataFetchPlanning:
+    @staticmethod
+    def _create_adapter():
+        adapter = Mock()
+
+        def execute_macro(macro_name, kwargs=None):
+            if macro_name == "get_view_description":
+                return Mock(rows=[("view_description",)])
+            return f"{macro_name}_result"
+
+        adapter.execute_macro.side_effect = execute_macro
+        return adapter
+
+    @staticmethod
+    def _create_incremental_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_incremental_model",
+            type=DatabricksRelationType.Table,
+        )
+
+    @staticmethod
+    def _create_view_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_view_model",
+            type=DatabricksRelationType.View,
+        )
+
+    @staticmethod
+    def _create_incremental_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> IncrementalTableConfig:
+        return IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
+
+    @staticmethod
+    def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
+        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _called_macro_names(adapter: Mock) -> list[str]:
+        return [call.args[0] for call in adapter.execute_macro.call_args_list]
+
+    def test_incremental_describe_relation_skips_both_tag_queries_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_table_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(tags={"classification": "internal"})
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_column_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            column_tags={"id": {"classification": "internal"}}
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_both_tag_queries_when_both_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_skips_tag_queries_for_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation(database="hive_metastore")
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert "information_schema.tags" not in results
+        assert "information_schema.column_tags" not in results
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_view_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config()
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_view_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config(tags={"classification": "internal"})
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
 
 
 class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):

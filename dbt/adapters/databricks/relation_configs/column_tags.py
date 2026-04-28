@@ -41,6 +41,12 @@ class ColumnTagsConfig(DatabricksComponentConfig):
             return ColumnTagsConfig(set_column_tags=set_column_tags)
         return None
 
+    def requires_server_metadata_for_diff(self) -> bool:
+        """
+        Indicates whether server metadata is required to compute the diff for this component.
+        """
+        return self.set_column_tags is not None and len(self.set_column_tags) > 0
+
 
 class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
     name: ClassVar[str] = "column_tags"

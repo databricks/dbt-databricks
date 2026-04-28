@@ -8,6 +8,7 @@ from dbt_common.contracts.config.materialization import OnConfigurationChangeOpt
 
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
+from tests.functional.adapter.helpers import get_model_config
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -346,7 +347,8 @@ class TestStreamingTableLiquidClusteringChanges:
         util.run_dbt(["run", "--models", liquid_clustered_st.identifier])
 
         with util.get_connection(project.adapter):
-            config = project.adapter.get_relation_config(liquid_clustered_st)
+            relation_config = get_model_config(project, liquid_clustered_st)
+            config = project.adapter.get_relation_config(liquid_clustered_st, relation_config)
         assert isinstance(config, StreamingTableConfig)
         assert config.config["liquid_clustering"].cluster_by == ["id", "value"]
 
