@@ -64,7 +64,6 @@ class BaseTestTagsUpdateViaAlter(MaterializationV2Mixin):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestTableTagsMerged(BaseTestTags):
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"tags.sql": fixtures.tags_merged_sql}

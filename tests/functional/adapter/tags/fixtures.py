@@ -19,7 +19,7 @@ select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
 tags_merged_sql = """
 {{ config(
     materialized = 'table',
-    databricks_tags = {'c': 'd'},
+    databricks_tags = {'c': 'd', 'k': ''},
 ) }}
 
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
