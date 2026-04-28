@@ -168,8 +168,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
         databricks_conn = cast(DatabricksDBTConnection, conn)
         return is_cluster_http_path(databricks_conn.http_path, conn.credentials.cluster_id)
 
-    def _get_capabilities_for_http_path(self, http_path: str) -> DBRCapabilities:
-        return self._dbr_capabilities_cache.get(http_path, DBRCapabilities())
+    @classmethod
+    def _get_capabilities_for_http_path(cls, http_path: str) -> DBRCapabilities:
+        return cls._dbr_capabilities_cache.get(http_path, DBRCapabilities())
 
     @classmethod
     def _query_dbr_version(
@@ -193,29 +194,19 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     result = cursor.fetchone()
                     if result:
                         return SqlUtils.extract_dbr_version(result[1])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to query DBR version for http_path={http_path}: {e}")
 
         return None
 
     @classmethod
     def _cache_dbr_capabilities(cls, creds: DatabricksCredentials, http_path: str) -> None:
-        if http_path not in cls._dbr_capabilities_cache:
-            is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
-            dbr_version = cls._query_dbr_version(creds, http_path)
+        """Cache DBR capabilities for an http_path on first successful version query.
 
-            cls._dbr_capabilities_cache[http_path] = DBRCapabilities(
-                dbr_version=dbr_version,
-                is_sql_warehouse=not is_cluster,
-            )
-
-    @classmethod
-    def _try_cache_dbr_capabilities(cls, creds: DatabricksCredentials, http_path: str) -> None:
-        """Like _cache_dbr_capabilities, but only writes to the cache when the version query
-        actually succeeds. This prevents a failed eager lookup (e.g. credentials_manager not yet
-        set, cluster still spinning up) from storing a None-version entry that the idempotency
-        guard in open() would later treat as authoritative, causing all capability checks to
-        return False.
+        Only writes when the version query succeeds: a failed lookup (credentials_manager
+        not yet set, cluster spinning up) must not store a None-version entry, since the
+        idempotency guard would then treat it as authoritative and disable every
+        capability check for the rest of the process.
         """
         if http_path not in cls._dbr_capabilities_cache:
             is_cluster = is_cluster_http_path(http_path, creds.cluster_id)
@@ -306,7 +297,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         conn.http_path = QueryConfigUtils.get_http_path(query_header_context, creds)
         conn.thread_identifier = cast(tuple[int, int], self.get_thread_identifier())
         conn._query_header_context = query_header_context
-        self._try_cache_dbr_capabilities(creds, conn.http_path)
+        self._cache_dbr_capabilities(creds, conn.http_path)
         conn.capabilities = self._get_capabilities_for_http_path(conn.http_path)
         conn.handle = LazyHandle(self.open)
 
@@ -507,9 +498,9 @@ class DatabricksConnectionManager(SparkConnectionManager):
                 if conn:
                     databricks_connection.session_id = conn.session_id
                     cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
-                    databricks_connection.capabilities = cls._dbr_capabilities_cache[
+                    databricks_connection.capabilities = cls._get_capabilities_for_http_path(
                         databricks_connection.http_path
-                    ]
+                    )
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")
