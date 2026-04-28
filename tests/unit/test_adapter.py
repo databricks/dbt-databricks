@@ -1356,7 +1356,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
     def test_is_uniform_does_not_fire_managed_iceberg_event(
         self, adapter, mock_config, unity_catalog_relation
     ):
-        """Regression for #1266: is_uniform must not fire BehaviorChangeEvent.
+        """is_uniform must not fire BehaviorChangeEvent.
 
         The Python helper `get_behavior_flag_no_warn` reads the flag via the
         `.no_warn` property, which bypasses the deprecation warning event. This
