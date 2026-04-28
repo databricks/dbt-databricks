@@ -7,6 +7,10 @@
 - Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
 - Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting tag values to empty strings `""` or `None`. ([#1339](https://github.com/databricks/dbt-databricks/pull/1339))
 
+### Under the Hood
+
+- **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
