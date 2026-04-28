@@ -7,6 +7,7 @@ import dbt.flags as flags
 import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
+from dbt_common.events.event_manager_client import add_callback_to_manager
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
@@ -1282,7 +1283,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
         Native managed Iceberg tables don't use UniForm (Delta with Iceberg compatibility),
         so they shouldn't get Delta table properties added."""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
@@ -1295,7 +1296,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform returns True for UniForm Iceberg tables"""
-        adapter.behavior.use_managed_iceberg = False  # Default
+        adapter.behavior.use_managed_iceberg.setting = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1318,7 +1319,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, hive_catalog_relation
     ):
         """Test that is_uniform raises error for managed Iceberg with Hive Metastore"""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1331,7 +1332,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for insufficient DBR version"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
@@ -1342,7 +1343,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for invalid materialization"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
         mock_config.get.side_effect = lambda key: "view" if key == "materialized" else None
@@ -1351,3 +1352,35 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
+
+    def test_is_uniform_does_not_fire_managed_iceberg_event(
+        self, adapter, mock_config, unity_catalog_relation
+    ):
+        """Regression for #1266: is_uniform must not fire BehaviorChangeEvent.
+
+        The Python helper `get_behavior_flag_no_warn` reads the flag via the
+        `.no_warn` property, which bypasses the deprecation warning event. This
+        test pins down that contract so a future maintainer cannot accidentally
+        revert to a direct `self.behavior.use_managed_iceberg` access.
+        """
+        caught = []
+
+        def record(event_msg):
+            if (
+                event_msg.info.name == "BehaviorChangeEvent"
+                and event_msg.data.flag_name == "use_managed_iceberg"
+            ):
+                caught.append(event_msg)
+
+        add_callback_to_manager(record)
+
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        adapter.has_capability = Mock(return_value=True)
+
+        adapter.is_uniform(mock_config)
+
+        assert caught == [], (
+            "is_uniform must not fire BehaviorChangeEvent for use_managed_iceberg "
+            f"(fired {len(caught)} times)"
+        )
