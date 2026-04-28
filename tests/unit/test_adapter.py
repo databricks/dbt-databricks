@@ -1,12 +1,15 @@
 import re
+import warnings
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
+import agate
 import dbt.flags as flags
 import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
+from dbt_common.clients.agate_helper import merge_tables
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
@@ -26,6 +29,22 @@ from dbt.adapters.databricks.relation import (
 )
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+def _catalog_row(column_name: str) -> dict:
+    """Mimics the dict shape `_get_columns_for_catalog` yields per column."""
+    return {
+        "table_database": "cat",
+        "table_schema": "schema",
+        "table_name": "model",
+        "table_type": "table",
+        "table_owner": "root",
+        "table_comment": None,
+        "column_index": 0,
+        "column_name": column_name,
+        "column_type": "bigint",
+        "comment": None,
+    }
 
 
 class DatabricksAdapterBase:
@@ -417,6 +436,69 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 2
                 assert table.column_names == ("name", "type", "comment")
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__metadata_columns_are_always_text(self, _):
+        # column_name "12345" forces agate's DEFAULT_TYPE_TESTER to infer Number
+        # for column_name unless it is force-typed Text by the adapter.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = [_catalog_row("12345")]
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                table = adapter._get_schema_for_catalog("cat", "schema", "name")
+
+        types = dict(zip(table.column_names, table.column_types))
+        for col in (
+            "table_database",
+            "table_schema",
+            "table_name",
+            "table_type",
+            "table_owner",
+            "table_comment",
+            "column_name",
+            "column_type",
+            "comment",
+        ):
+            assert col in types, f"missing metadata column {col!r}"
+            assert isinstance(types[col], agate.data_types.text.Text), (
+                f"{col!r} must be Text, got {type(types[col]).__name__}"
+            )
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__results_merge_across_schemas(self, _):
+        # Two schemas whose column_name values would force agate to infer
+        # different types (Text vs Number) without the text_only override.
+        # `catch_as_completed` merges per-schema results via `merge_tables`, so
+        # a type mismatch surfaces there as the user-visible RuntimeError.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                get_columns.return_value = [_catalog_row("id")]
+                table_a = adapter._get_schema_for_catalog("cat", "schema_a", "id")
+                get_columns.return_value = [_catalog_row("12345")]
+                table_b = adapter._get_schema_for_catalog("cat", "schema_b", "id")
+
+        merged = merge_tables([table_a, table_b])
+        assert len(merged.rows) == 2
+        types = dict(zip(merged.column_names, merged.column_types))
+        assert isinstance(types["column_name"], agate.data_types.text.Text)
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__no_columns_emits_no_warnings(self, _):
+        # An empty schema must not spam RuntimeWarnings about forced columns
+        # missing from the (empty) table; that's the exact `dbt docs generate`
+        # scenario the fix targets.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = []
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", RuntimeWarning)
+                    table = adapter._get_schema_for_catalog("database", "schema", "name")
+        assert len(table.rows) == 0
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None

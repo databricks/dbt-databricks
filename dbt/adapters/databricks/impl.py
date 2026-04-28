@@ -740,10 +740,26 @@ class DatabricksAdapter(SparkAdapter):
 
         return handle_missing_objects(exec, None)
 
+    # Force Text type for catalog metadata columns. Without this, agate's
+    # value-driven type inference can mark a metadata column as Number in one
+    # schema (e.g. all-numeric column names, all-null comments) and Text in
+    # another, causing `catch_as_completed`'s merge to raise on the conflict.
+    CATALOG_TEXT_ONLY_COLUMNS = (
+        "table_database",
+        "table_schema",
+        "table_name",
+        "table_type",
+        "table_owner",
+        "table_comment",
+        "column_name",
+        "column_type",
+        "comment",
+    )
+
     def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
         # Lazy load to improve startup time
         from agate import Table
-        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, build_type_tester
 
         columns: list[dict[str, Any]] = []
 
@@ -756,7 +772,12 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 columns.extend(self._get_columns_for_catalog(relation, information))
-        return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
+        # An empty input produces a 0-column table; force-typing absent columns
+        # would emit one RuntimeWarning per name. Skip the override in that case.
+        column_types = (
+            build_type_tester(self.CATALOG_TEXT_ONLY_COLUMNS) if columns else DEFAULT_TYPE_TESTER
+        )
+        return Table.from_object(columns, column_types=column_types)
 
     def _get_columns_for_catalog(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
