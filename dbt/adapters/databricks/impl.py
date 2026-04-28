@@ -770,6 +770,20 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
 
+    @available
+    def get_behavior_flag_no_warn(self, behavior_flag_name: str) -> bool:
+        """Get the value of a behavior flag without triggering a warning.
+
+        dbt logs a warning the first time a behavior flag with a False value is accessed. Use
+        this method to access the value of a behavior flag without triggering a warning.
+
+        Decorated with `@available` so that Jinja macros can call it via the
+        `RuntimeDatabaseWrapper` exposed in the dbt runtime context.
+        """
+        # As intended - This method will error out if the behavior flag is missing.
+        behavior_flag = getattr(self.behavior, behavior_flag_name)
+        return behavior_flag.no_warn
+
     def add_query(
         self,
         sql: str,
