@@ -11,6 +11,10 @@
 
 - Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
 
+### Under the Hood
+
+- **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
 ### Features
