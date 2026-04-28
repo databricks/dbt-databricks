@@ -248,7 +248,9 @@ class DatabricksAdapter(SparkAdapter):
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
         # Store the use_managed_iceberg flag in GlobalState for the session
-        GlobalState.set_use_managed_iceberg(self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG['name']))
+        GlobalState.set_use_managed_iceberg(
+            self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+        )
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -262,7 +264,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def supports(self, capability: Capability) -> bool:
         if capability == Capability.MicrobatchConcurrency:
-            return self.get_behavior_flag_no_warn(USE_CONCURRENT_MICROBATCH['name'])
+            return self.get_behavior_flag_no_warn(USE_CONCURRENT_MICROBATCH["name"])
         return super().supports(capability)
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
@@ -280,7 +282,7 @@ class DatabricksAdapter(SparkAdapter):
                     ", 'table', or 'snapshot'."
                 )
             if (
-                self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG['name'])
+                self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
                 and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
             ):
                 raise DbtConfigError(
@@ -289,7 +291,7 @@ class DatabricksAdapter(SparkAdapter):
                 )
             # UniForm refers to Delta tables with Iceberg compatibility.
             # Native managed Iceberg tables don't need Delta properties.
-            return not self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG['name'])
+            return not self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         else:
             return False
 
@@ -1002,7 +1004,7 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def resolve_file_format(self, config: BaseConfig) -> str:
         if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
-            if self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG['name']):
+            if self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"]):
                 return constants.PARQUET_FILE_FORMAT
             else:
                 return constants.DELTA_FILE_FORMAT

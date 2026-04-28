@@ -4,8 +4,8 @@ from dbt.tests import util
 from dbt.adapters.databricks.impl import USE_MANAGED_ICEBERG
 from tests.functional.adapter.iceberg import fixtures
 
+_iceberg_warning_text = USE_MANAGED_ICEBERG["description"][:25]
 
-_iceberg_warning_text = USE_MANAGED_ICEBERG['description'][:25]
 
 class TestNoManagedIcebergWarningOnDeltaProject:
     """A Delta-only project must not emit the `use_managed_iceberg` deprecation warning on
