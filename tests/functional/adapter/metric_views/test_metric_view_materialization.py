@@ -3,6 +3,7 @@ from dbt.tests.util import get_manifest, run_dbt
 
 from tests.functional.adapter.metric_views.fixtures import (
     basic_metric_view,
+    metric_view_bare_ref,
     metric_view_with_config,
     metric_view_with_filter,
     source_table,
@@ -211,3 +212,31 @@ class TestMetricViewConfiguration:
         status_data = {row[0]: row[1] for row in query_result}
         assert status_data["completed"] == 2
         assert status_data["pending"] == 1
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMetricViewBareRef:
+    """Regression for #1361: bare {{ ref(...) }} in metric_view body."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "bare_ref_metrics.sql": metric_view_bare_ref,
+        }
+
+    def test_bare_ref_metric_view_creates_and_queries(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        assert all(r.status == "success" for r in results), (
+            f"Expected all models to succeed, got: "
+            f"{[(r.node.name, r.status, r.message) for r in results]}"
+        )
+
+        # Run-success alone doesn't catch a non-functional view.
+        metric_view_name = f"{project.database}.{project.test_schema}.bare_ref_metrics"
+        query_result = project.run_sql(
+            f"SELECT MEASURE(total_orders) FROM {metric_view_name}",
+            fetch="all",
+        )
+        assert query_result and query_result[0][0] == 3

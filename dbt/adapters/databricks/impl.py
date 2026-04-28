@@ -971,6 +971,10 @@ class DatabricksAdapter(SparkAdapter):
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
 
+    @available.parse(lambda *a, **k: "")
+    def yaml_quote_backtick_values(self, yaml_body: str) -> str:
+        return SqlUtils.yaml_quote_backtick_values(yaml_body)
+
     @available
     def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
         """

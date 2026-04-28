@@ -43,6 +43,7 @@ class MacroTestBase:
         # Create a mock adapter with a working quote method
         mock_adapter = Mock()
         mock_adapter.quote = lambda identifier: f"`{identifier}`"
+        mock_adapter.yaml_quote_backtick_values = lambda yaml_body: yaml_body
 
         # Create a mock for api.Relation.create that returns a relation with proper render method
         def mock_relation_create(database=None, schema=None, identifier=None, type=None):
