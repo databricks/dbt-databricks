@@ -6,7 +6,6 @@ from dbt.tests import util
 from dbt.tests.adapter.materialized_view import files
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 
-from dbt.adapters.databricks.impl import USE_MATERIALIZATION_V2
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -138,6 +137,7 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
             + ">"
         )
         assert results[0][1] == expected_struct_type
+
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
