@@ -1373,7 +1373,7 @@ class DatabricksDescribeJsonMetadata:
     def parse_row_filter(cls, json_metadata: dict[str, Any]) -> agate.Table:
         """Parse json metadata into an agate Table of row filter (info_schema format)."""
         row_filter_metadata = json_metadata.get("row_filter")
-        rows = []
+        rows: list[Any] = []
         column_names = [
             "table_catalog",
             "table_schema",
