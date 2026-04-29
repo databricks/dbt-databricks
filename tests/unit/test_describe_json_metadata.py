@@ -21,6 +21,10 @@ from dbt.adapters.databricks.relation_configs.constraints import (
     ConstraintsProcessor,
 )
 from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
+from dbt.adapters.databricks.relation_configs.row_filter import (
+    RowFilterConfig,
+    RowFilterProcessor,
+)
 
 # Fixtures: minimal JSON samples with only fields relevant to parsing.
 
@@ -50,6 +54,34 @@ COLUMN_MASK_JSON = {
             "using_column_names": ["city"],
         }
     ],
+}
+
+ROW_FILTER_JSON = {
+    "table_name": "table_with_row_filter",
+    "catalog_name": "default_catalog",
+    "schema_name": "default",
+    "row_filter": {
+        "function_name": {
+            "catalog_name": "default_catalog",
+            "schema_name": "default",
+            "function_name": "filter_by_region",
+        },
+        "column_names": ["region"],
+    },
+}
+
+ROW_FILTER_MULTI_COLUMN_JSON = {
+    "table_name": "table_with_row_filter",
+    "catalog_name": "default_catalog",
+    "schema_name": "default",
+    "row_filter": {
+        "function_name": {
+            "catalog_name": "default_catalog",
+            "schema_name": "default",
+            "function_name": "filter_by_dept_and_region",
+        },
+        "column_names": ["department", "region"],
+    },
 }
 
 
@@ -92,6 +124,9 @@ COMPOSITE_FK_JSON = {
 }
 
 ALL_FIELDS_JSON = {
+    "table_name": "source",
+    "catalog_name": "main",
+    "schema_name": "default",
     "columns": [
         {"name": "id", "nullable": False},
         {"name": "secret", "nullable": True},
@@ -112,6 +147,14 @@ ALL_FIELDS_JSON = {
             "using_column_names": ["id"],
         }
     ],
+    "row_filter": {
+        "function_name": {
+            "catalog_name": "main",
+            "schema_name": "db",
+            "function_name": "filter_secret",
+        },
+        "column_names": ["id"],
+    },
     "view_text": "SELECT id, secret FROM main.default.source",
 }
 
@@ -577,6 +620,40 @@ class TestParseColumnMasks:
         assert result.rows[0]["using_columns"] is None
 
 
+class TestParseRowFilter:
+    def test_row_filter_with_single_target_column(self):
+        result = DatabricksDescribeJsonMetadata.parse_row_filter(ROW_FILTER_JSON)
+        assert len(result.rows) == 1
+        assert result.rows[0][0] == "default_catalog"
+        assert result.rows[0]["table_catalog"] == "default_catalog"
+        assert result.rows[0][1] == "default"
+        assert result.rows[0]["table_schema"] == "default"
+        assert result.rows[0][2] == "table_with_row_filter"
+        assert result.rows[0]["table_name"] == "table_with_row_filter"
+        assert result.rows[0][3] == "default_catalog.default.filter_by_region"
+        assert result.rows[0]["filter_name"] == "default_catalog.default.filter_by_region"
+        assert result.rows[0][4] == "region"
+        assert result.rows[0]["target_columns"] == "region"
+
+    def test_row_filter_with_multiple_target_columns(self):
+        result = DatabricksDescribeJsonMetadata.parse_row_filter(ROW_FILTER_MULTI_COLUMN_JSON)
+        assert len(result.rows) == 1
+        assert result.rows[0][0] == "default_catalog"
+        assert result.rows[0]["table_catalog"] == "default_catalog"
+        assert result.rows[0][1] == "default"
+        assert result.rows[0]["table_schema"] == "default"
+        assert result.rows[0][2] == "table_with_row_filter"
+        assert result.rows[0]["table_name"] == "table_with_row_filter"
+        assert result.rows[0][3] == "default_catalog.default.filter_by_dept_and_region"
+        assert result.rows[0]["filter_name"] == "default_catalog.default.filter_by_dept_and_region"
+        assert result.rows[0][4] == "department,region"
+        assert result.rows[0]["target_columns"] == "department,region"
+
+    def test_no_row_filter_field(self):
+        result = DatabricksDescribeJsonMetadata.parse_row_filter(PLAIN_TABLE_JSON)
+        assert len(result.rows) == 0
+
+
 class TestParseViewDescription:
     def test_with_view_text(self):
         json_metadata = {"view_text": "SELECT id, name FROM main.default.source_table"}
@@ -611,6 +688,23 @@ class TestFromJsonMetadata:
         assert len(metadata.primary_key_constraints.rows) == 0
         assert len(metadata.foreign_key_constraints.rows) == 0
 
+    def test_table_with_row_filter(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        assert len(metadata.row_filters.rows) == 1
+        assert metadata.row_filters.rows[0][0] == "default_catalog"
+        assert metadata.row_filters.rows[0]["table_catalog"] == "default_catalog"
+        assert metadata.row_filters.rows[0][1] == "default"
+        assert metadata.row_filters.rows[0]["table_schema"] == "default"
+        assert metadata.row_filters.rows[0][2] == "table_with_row_filter"
+        assert metadata.row_filters.rows[0]["table_name"] == "table_with_row_filter"
+        assert metadata.row_filters.rows[0][3] == "default_catalog.default.filter_by_region"
+        assert metadata.row_filters.rows[0]["filter_name"] == "default_catalog.default.filter_by_region"
+        assert metadata.row_filters.rows[0][4] == "region"
+        assert metadata.row_filters.rows[0]["target_columns"] == "region"
+        assert len(metadata.primary_key_constraints.rows) == 0
+        assert len(metadata.foreign_key_constraints.rows) == 0
+        assert len(metadata.column_masks.rows) == 0
+
     def test_materialized_view(self):
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(MATERIALIZED_VIEW_JSON)
         assert metadata.view_description["view_definition"] == (
@@ -642,6 +736,13 @@ class TestFromJsonMetadata:
         assert metadata.column_masks.rows[0]["column_name"] == "secret"
         assert metadata.column_masks.rows[0]["mask_name"] == "main.db.mask_secret"
         assert metadata.column_masks.rows[0]["using_columns"] == "id"
+        # Row filters
+        assert len(metadata.row_filters.rows) == 1
+        assert metadata.row_filters.rows[0]["table_catalog"] == "main"
+        assert metadata.row_filters.rows[0]["table_schema"] == "default"
+        assert metadata.row_filters.rows[0]["table_name"] == "source"
+        assert metadata.row_filters.rows[0]["filter_name"] == "main.db.filter_secret"
+        assert metadata.row_filters.rows[0]["target_columns"] == "id"
         # View description
         assert metadata.view_description["view_definition"] == (
             "SELECT id, secret FROM main.default.source"
@@ -652,6 +753,7 @@ class TestFromJsonMetadata:
         assert len(metadata.primary_key_constraints.rows) == 0
         assert len(metadata.foreign_key_constraints.rows) == 0
         assert len(metadata.non_null_constraints.rows) == 0
+        assert len(metadata.row_filters.rows) == 0
         assert len(metadata.column_masks.rows) == 0
         assert len(metadata.view_description.values()) == 0
 
@@ -832,6 +934,76 @@ class TestParserToColumnMaskProcessor:
         assert diff is not None
         assert "ssn" in diff.set_column_masks
         assert "phone_number" not in diff.set_column_masks
+
+
+class TestParserToRowFilterProcessor:
+    def test_row_filter_roundtrip(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        config = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        assert config == RowFilterConfig(
+            function="default_catalog.default.filter_by_region",
+            columns=("region",),
+        )
+
+    def test_multi_column_row_filter_roundtrip(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_MULTI_COLUMN_JSON)
+        config = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        assert config == RowFilterConfig(
+            function="default_catalog.default.filter_by_dept_and_region",
+            columns=("department", "region"),
+        )
+
+    def test_no_row_filter_roundtrip(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(PLAIN_TABLE_JSON)
+        config = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        assert config == RowFilterConfig()
+
+    def test_row_filter_no_false_diff(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        existing = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        model = RowFilterConfig(
+            function="default_catalog.default.filter_by_region",
+            columns=("region",),
+        )
+        assert model.get_diff(existing) is None
+
+    def test_row_filter_diff_change_function(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        existing = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        model = RowFilterConfig(
+            function="default_catalog.default.filter_by_department",
+            columns=("region",),
+        )
+        diff = model.get_diff(existing)
+        assert diff is not None
+        assert diff == RowFilterConfig(
+            function="default_catalog.default.filter_by_department",
+            columns=("region",),
+            is_change=True,
+        )
+
+    def test_row_filter_diff_change_columns(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        existing = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        model = RowFilterConfig(
+            function="default_catalog.default.filter_by_region",
+            columns=("department", "region"),
+        )
+        diff = model.get_diff(existing)
+        assert diff is not None
+        assert diff == RowFilterConfig(
+            function="default_catalog.default.filter_by_region",
+            columns=("department", "region"),
+            is_change=True,
+        )
+
+    def test_row_filter_diff_unset(self):
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
+        existing = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
+        model = RowFilterConfig()
+        diff = model.get_diff(existing)
+        assert diff is not None
+        assert diff == RowFilterConfig(should_unset=True, is_change=True)
 
 
 class TestParserToQueryProcessor:

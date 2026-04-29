@@ -1108,12 +1108,14 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
             results["information_schema.views"] = (
                 DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
             )
+            results["row_filters"] = DatabricksDescribeJsonMetadata.parse_row_filter(json_metadata)
         else:
             results["information_schema.views"] = get_first_row(
                 adapter.execute_macro("get_view_description", kwargs=kwargs)
             )
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1137,7 +1139,13 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
-        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
+        if adapter.is_describe_as_json_supported(relation):
+            json_metadata = adapter.fetch_json_metadata(relation)
+            results["row_filters"] = DatabricksDescribeJsonMetadata.parse_row_filter(json_metadata)
+        else:
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         return results
 
 
@@ -1160,7 +1168,6 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             results["information_schema.column_tags"] = adapter.execute_macro(
                 "fetch_column_tags", kwargs=kwargs
             )
-            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 
             if adapter.is_describe_as_json_supported(relation):
                 json_metadata = adapter.fetch_json_metadata(relation)
@@ -1169,6 +1176,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                 results["primary_key_constraints"] = relation_metadata.primary_key_constraints
                 results["foreign_key_constraints"] = relation_metadata.foreign_key_constraints
                 results["column_masks"] = relation_metadata.column_masks
+                results["row_filters"] = relation_metadata.row_filters
             else:
                 results["non_null_constraint_columns"] = adapter.execute_macro(
                     "fetch_non_null_constraint_columns", kwargs=kwargs
@@ -1180,6 +1188,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                     "fetch_foreign_key_constraints", kwargs=kwargs
                 )
                 results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+                results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
@@ -1250,6 +1259,7 @@ class DatabricksDescribeJsonMetadata:
     foreign_key_constraints: Optional["agate.Table"] = None
     non_null_constraints: Optional["agate.Table"] = None
     primary_key_constraints: Optional["agate.Table"] = None
+    row_filters: Optional["agate.Table"] = None
     view_description: Optional["agate.Row"] = None
 
     @classmethod
@@ -1260,6 +1270,7 @@ class DatabricksDescribeJsonMetadata:
             foreign_key_constraints=cls.parse_foreign_key_constraints(json_metadata),
             non_null_constraints=cls.parse_non_null_constraints(json_metadata),
             primary_key_constraints=cls.parse_primary_key_constraints(json_metadata),
+            row_filters=cls.parse_row_filter(json_metadata),
             view_description=cls.parse_view_description(json_metadata),
         )
 
@@ -1355,3 +1366,36 @@ class DatabricksDescribeJsonMetadata:
             return agate.Row(values=set())
         else:
             return agate.Row(values=(view_text,), keys=("view_definition",))
+
+    @classmethod
+    def parse_row_filter(cls, json_metadata: dict[str, Any]) -> agate.Table:
+        """Parse json metadata into an agate Table of row filter (info_schema format)."""
+        row_filter = json_metadata.get("row_filter")
+        rows = []
+        column_names = ["table_catalog", "table_schema", "table_name", "filter_name", "target_columns"]
+        column_types = [agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text()]
+
+        if not row_filter:
+            return agate.Table(rows=rows, column_names=column_names, column_types=column_types)
+
+        table_catalog = json_metadata["catalog_name"]
+        table_schema = json_metadata["schema_name"]
+        table_name = json_metadata["table_name"]
+
+        function_name = row_filter["function_name"]
+        filter_name = (
+            function_name["catalog_name"]
+            + "."
+            + function_name["schema_name"]
+            + "."
+            + function_name["function_name"]
+        )
+        filter_column_names = row_filter["column_names"]
+
+        rows.append([table_catalog, table_schema, table_name, filter_name, ",".join(filter_column_names)])
+
+        return agate.Table(
+            rows=rows,
+            column_names=column_names,
+            column_types=column_types,
+        )
