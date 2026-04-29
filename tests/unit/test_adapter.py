@@ -1355,9 +1355,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
 
 class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
-    """The `use_materialization_v2` deprecation warning must not fire on every dbt run.
-    The fix routes all 4 Jinja-side accesses through `adapter.get_behavior_flag_no_warn(...)`,
-    which reads the flag via dbt-core's `.no_warn` property and bypasses the event."""
+    """The `use_materialization_v2` deprecation warning must not fire on every dbt run."""
 
     @pytest.fixture
     def adapter(self):

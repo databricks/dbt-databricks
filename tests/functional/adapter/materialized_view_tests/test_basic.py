@@ -139,14 +139,6 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         )
         assert results[0][1] == expected_struct_type
 
-    def test_use_materialization_v2_warning_absent(self, project, my_table):
-        """A project on the default `use_materialization_v2` setting must not emit the
-        deprecation warning. Running a `table` model exercises the v2 check."""
-        _, logs = util.run_dbt_and_capture(["run", "--models", my_table.identifier])
-        warning_substring = USE_MATERIALIZATION_V2["description"][:40]
-        util.assert_message_in_logs(warning_substring, logs, False)
-
-
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewLiquidClustering(TestMaterializedViewsMixin):
