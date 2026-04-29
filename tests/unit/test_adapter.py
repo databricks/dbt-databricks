@@ -7,7 +7,6 @@ import dbt.flags as flags
 import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
-from dbt_common.events.event_manager_client import add_callback_to_manager
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
