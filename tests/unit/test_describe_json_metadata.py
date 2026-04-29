@@ -698,7 +698,10 @@ class TestFromJsonMetadata:
         assert metadata.row_filters.rows[0][2] == "table_with_row_filter"
         assert metadata.row_filters.rows[0]["table_name"] == "table_with_row_filter"
         assert metadata.row_filters.rows[0][3] == "default_catalog.default.filter_by_region"
-        assert metadata.row_filters.rows[0]["filter_name"] == "default_catalog.default.filter_by_region"
+        assert (
+            metadata.row_filters.rows[0]["filter_name"]
+            == "default_catalog.default.filter_by_region"
+        )
         assert metadata.row_filters.rows[0][4] == "region"
         assert metadata.row_filters.rows[0]["target_columns"] == "region"
         assert len(metadata.primary_key_constraints.rows) == 0

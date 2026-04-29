@@ -1232,6 +1232,7 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         )
         return results
 
+
 class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
     relation_type = DatabricksRelationType.MetricView
 
@@ -1252,6 +1253,7 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
+
 
 @dataclass
 class DatabricksDescribeJsonMetadata:
@@ -1370,19 +1372,25 @@ class DatabricksDescribeJsonMetadata:
     @classmethod
     def parse_row_filter(cls, json_metadata: dict[str, Any]) -> agate.Table:
         """Parse json metadata into an agate Table of row filter (info_schema format)."""
-        row_filter = json_metadata.get("row_filter")
+        row_filter_metadata = json_metadata.get("row_filter")
         rows = []
-        column_names = ["table_catalog", "table_schema", "table_name", "filter_name", "target_columns"]
+        column_names = [
+            "table_catalog",
+            "table_schema",
+            "table_name",
+            "filter_name",
+            "target_columns",
+        ]
         column_types = [agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text()]
 
-        if not row_filter:
+        if not row_filter_metadata:
             return agate.Table(rows=rows, column_names=column_names, column_types=column_types)
 
         table_catalog = json_metadata["catalog_name"]
         table_schema = json_metadata["schema_name"]
         table_name = json_metadata["table_name"]
 
-        function_name = row_filter["function_name"]
+        function_name = row_filter_metadata["function_name"]
         filter_name = (
             function_name["catalog_name"]
             + "."
@@ -1390,9 +1398,11 @@ class DatabricksDescribeJsonMetadata:
             + "."
             + function_name["function_name"]
         )
-        filter_column_names = row_filter["column_names"]
+        filter_column_names = row_filter_metadata["column_names"]
 
-        rows.append([table_catalog, table_schema, table_name, filter_name, ",".join(filter_column_names)])
+        rows.append(
+            [table_catalog, table_schema, table_name, filter_name, ",".join(filter_column_names)]
+        )
 
         return agate.Table(
             rows=rows,
