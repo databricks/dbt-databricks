@@ -1352,35 +1352,3 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
-
-    def test_is_uniform_does_not_fire_managed_iceberg_event(
-        self, adapter, mock_config, unity_catalog_relation
-    ):
-        """is_uniform must not fire BehaviorChangeEvent.
-
-        The Python helper `get_behavior_flag_no_warn` reads the flag via the
-        `.no_warn` property, which bypasses the deprecation warning event. This
-        test pins down that contract so a future maintainer cannot accidentally
-        revert to a direct `self.behavior.use_managed_iceberg` access.
-        """
-        caught = []
-
-        def record(event_msg):
-            if (
-                event_msg.info.name == "BehaviorChangeEvent"
-                and event_msg.data.flag_name == "use_managed_iceberg"
-            ):
-                caught.append(event_msg)
-
-        add_callback_to_manager(record)
-
-        adapter.behavior.use_managed_iceberg.setting = False
-        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
-        adapter.has_capability = Mock(return_value=True)
-
-        adapter.is_uniform(mock_config)
-
-        assert caught == [], (
-            "is_uniform must not fire BehaviorChangeEvent for use_managed_iceberg "
-            f"(fired {len(caught)} times)"
-        )

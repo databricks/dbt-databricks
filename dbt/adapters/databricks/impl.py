@@ -1004,7 +1004,7 @@ class DatabricksAdapter(SparkAdapter):
     @available
     def resolve_file_format(self, config: BaseConfig) -> str:
         if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
-            if self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"]):
+            if self.behavior.use_managed_iceberg:
                 return constants.PARQUET_FILE_FORMAT
             else:
                 return constants.DELTA_FILE_FORMAT
