@@ -526,6 +526,18 @@ class TestBuildSparkSchema:
         schema = handle._build_spark_schema(["col1"], {"col1": "somecustomtype"})
         assert schema.fields[0].dataType.simpleString() == "string"
 
+    def test_none_type_falls_back_to_string(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": None})
+        assert schema.fields[0].dataType.simpleString() == "string"
+
+    def test_varchar_with_length(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "varchar(255)"})
+        assert schema.fields[0].dataType.simpleString() == "string"
+
+    def test_time_type_maps_to_string(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "time"})
+        assert schema.fields[0].dataType.simpleString() == "string"
+
     def test_multiple_columns(self, handle):
         schema = handle._build_spark_schema(
             ["id", "name", "active"],

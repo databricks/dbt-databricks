@@ -357,6 +357,10 @@ class DatabricksSessionHandle:
             TimestampType,
         )
 
+        # None from convert_type() when agate column type is unrecognized
+        if dbt_type is None:
+            return StringType()
+
         type_map: dict[str, Any] = {
             "string": StringType(),
             "varchar": StringType(),
@@ -369,6 +373,7 @@ class DatabricksSessionHandle:
             "boolean": BooleanType(),
             "date": DateType(),
             "timestamp": TimestampType(),
+            "time": StringType(),
         }
 
         normalized = dbt_type.strip().lower()
@@ -383,6 +388,10 @@ class DatabricksSessionHandle:
             precision = int(decimal_match.group(1)) if decimal_match.group(1) else 10
             scale = int(decimal_match.group(2)) if decimal_match.group(2) else 0
             return DecimalType(precision, scale)
+
+        # Handle varchar(N) — strip length parameter, map to StringType
+        if re.match(r"varchar\(\d+\)$", normalized):
+            return StringType()
 
         # Unknown type — fall back to string
         logger.warning(f"Unknown dbt type '{dbt_type}', falling back to StringType")
