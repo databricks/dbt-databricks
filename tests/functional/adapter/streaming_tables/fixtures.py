@@ -44,7 +44,7 @@ complex_streaming_table = """
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',
-        'time_zone': 'Etc/UTC'
+        'time_zone_value': 'Etc/UTC'
     },
     tblproperties={
         'key': 'value'

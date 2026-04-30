@@ -6,6 +6,12 @@
 - Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 - Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
 - Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting tag values to empty strings `""` or `None`. ([#1339](https://github.com/databricks/dbt-databricks/pull/1339))
+- Support `SCHEDULE EVERY` and `TRIGGER ON UPDATE` refresh modes for materialized views and streaming tables, with parser and diff coverage so relations whose actual refresh is not CRON no longer crash on subsequent runs ([#1293](https://github.com/databricks/dbt-databricks/issues/1293))
+
+### Fixes
+
+- Fix `RefreshConfig.__eq__` self/other typo where two configs with the same `cron` but different `time_zone_value` compared equal
+- Fix streaming-table DROP-SCHEDULE path that was silently filtered out of the changeset
 
 ### Under the Hood
 
