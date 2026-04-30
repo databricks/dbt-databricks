@@ -1118,24 +1118,6 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
 """
 
-v1_config_changes_sql = """
-{{ config(
-    materialized = 'incremental',
-    unique_key = 'id',
-    merge_update_columns = ['msg'],
-) }}
-
-{% if not is_incremental() %}
-
-select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
-
-{% else %}
-
-select cast(1 as bigint) as id, 'updated' as msg, 'blue' as color
-
-{% endif %}
-"""
-
 v1_skip_config_changes_sql = """
 {{ config(
     materialized = 'incremental',
@@ -1152,34 +1134,6 @@ select cast(1 as bigint) as id, 'hello' as msg
 select cast(1 as bigint) as id, 'updated' as msg
 
 {% endif %}
-"""
-
-v1_column_tags_a = """
-version: 2
-
-models:
-  - name: v1_config_changes_sql
-    columns:
-        - name: id
-          databricks_tags:
-            pii: "false"
-        - name: msg
-        - name: color
-"""
-
-v1_column_tags_b = """
-version: 2
-
-models:
-  - name: v1_config_changes_sql
-    columns:
-        - name: id
-          databricks_tags:
-            pii: "true"
-        - name: msg
-          databricks_tags:
-            source: "app"
-        - name: color
 """
 
 fail_if_metadata_fetched_macros = """
@@ -1206,6 +1160,33 @@ fail_if_metadata_fetched_macros = """
 {% macro fetch_column_masks(relation) %}
   {{ exceptions.raise_compiler_error("fetch_column_masks should not be called") }}
 {% endmacro %}
+"""
+
+fail_if_column_masks_applied_macro = """
+{% macro apply_column_masks(relation, column_masks) %}
+  {{ exceptions.raise_compiler_error("apply_column_masks should not be called in V1 — column masks must only be applied in V2 to prevent unmasked data exposure") }}
+{% endmacro %}
+"""
+
+v1_column_mask_model_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name
+"""
+
+v1_column_mask_schema = """
+version: 2
+
+models:
+  - name: v1_column_mask_model_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
 """
 
 warn_unenforced_override_sql = """

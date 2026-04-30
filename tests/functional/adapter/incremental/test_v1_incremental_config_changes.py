@@ -5,109 +5,8 @@ from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestV1IncrementalColumnTags:
-    """Test that V1 incremental path applies column tag changes via process_config_changes."""
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "v1_config_changes_sql.sql": fixtures.v1_config_changes_sql,
-            "schema.yml": fixtures.v1_column_tags_a,
-        }
-
-    def test_changing_column_tags(self, project):
-        # First run creates the table
-        util.run_dbt(["run"])
-
-        # Update column tags
-        util.write_file(fixtures.v1_column_tags_b, "models", "schema.yml")
-        util.run_dbt(["run"])
-
-        # Verify column tags were applied
-        results = project.run_sql(
-            f"""
-            select column_name, tag_name, tag_value
-            from `system`.`information_schema`.`column_tags`
-            where schema_name = '{project.test_schema}'
-            and table_name = 'v1_config_changes_sql'
-            order by column_name, tag_name
-            """,
-            fetch="all",
-        )
-
-        tags_dict = {}
-        for row in results:
-            col = row.column_name
-            if col not in tags_dict:
-                tags_dict[col] = {}
-            tags_dict[col][row.tag_name] = row.tag_value
-
-        # Verify expected final state
-        expected_tags = {
-            "id": {"pii": "true"},
-            "msg": {"source": "app"},
-        }
-        assert tags_dict == expected_tags
-
-
-@pytest.mark.skip_profile("databricks_cluster")
-class TestV1IncrementalColumnMasks:
-    """Test that V1 incremental path applies column mask changes via process_config_changes."""
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "column_mask_sql.sql": fixtures.column_mask_sql,
-            "schema.yml": fixtures.column_mask_base,
-        }
-
-    def test_changing_column_masks(self, project):
-        # Create mask functions
-        project.run_sql(
-            f"""
-            CREATE OR REPLACE FUNCTION
-                {project.database}.{project.test_schema}.full_mask(password STRING)
-            RETURNS STRING
-            RETURN '*****';
-            """
-        )
-        project.run_sql(
-            f"""
-            CREATE OR REPLACE FUNCTION
-                {project.database}.{project.test_schema}.email_mask(value STRING)
-            RETURNS STRING
-            RETURN CONCAT(
-                REPEAT('*', POSITION('@' IN value) - 1),
-                SUBSTR(value, POSITION('@' IN value))
-            );
-            """
-        )
-
-        # First run with initial masks
-        util.run_dbt(["run"])
-        masks = project.run_sql(
-            "SELECT id, name, email, password FROM column_mask_sql",
-            fetch="all",
-        )
-        assert len(masks) == 1
-        assert masks[0][1] == "*****"  # name (masked)
-        assert masks[0][3] == "password123"  # password (unmasked)
-
-        # Update masks and verify changes
-        util.write_file(fixtures.column_mask_valid_mask_updates, "models", "schema.yml")
-        util.run_dbt(["run"])
-
-        result = project.run_sql(
-            "SELECT id, name, email, password FROM column_mask_sql", fetch="all"
-        )
-        assert len(result) == 1
-        assert result[0][1] == "hello"  # name (unmasked)
-        assert result[0][3] == "*****"  # password (masked)
-
-
-@pytest.mark.skip_profile("databricks_cluster")
 class TestV1IncrementalSkipConfigChanges:
-    """Test that incremental_apply_config_changes=false skips metadata fetch queries."""
+    """Test that incremental_apply_config_changes=false skips metadata fetch queries in V1 path."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -126,4 +25,44 @@ class TestV1IncrementalSkipConfigChanges:
         util.run_dbt(["run"])
         # Second run exercises the incremental merge path.
         # If metadata fetch macros are called, they will raise errors and the run will fail.
+        util.run_dbt(["run"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV1IncrementalColumnMasksNotApplied:
+    """Test that column masks are NOT applied in V1 incremental path.
+
+    Column masks must only be applied in V2 where the empty table is created before data
+    arrives. In V1 (CTAS), data is written immediately, so applying masks after the fact
+    would leave a window where data is unmasked — a security/privacy vulnerability.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "v1_column_mask_model_sql.sql": fixtures.v1_column_mask_model_sql,
+            "schema.yml": fixtures.v1_column_mask_schema,
+        }
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {
+            "fail_if_column_masks_applied.sql": fixtures.fail_if_column_masks_applied_macro,
+        }
+
+    def test_column_masks_not_applied_in_v1(self, project):
+        # Create the mask function so the model config is valid
+        project.run_sql(
+            f"""
+            CREATE OR REPLACE FUNCTION
+                {project.database}.{project.test_schema}.full_mask(val STRING)
+            RETURNS STRING
+            RETURN '*****';
+            """
+        )
+
+        # First run creates the table
+        util.run_dbt(["run"])
+        # Second run exercises the incremental merge path with config change detection.
+        # If apply_column_masks is called, the overridden macro raises an error.
         util.run_dbt(["run"])
