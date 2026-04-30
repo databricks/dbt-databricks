@@ -842,6 +842,38 @@ class DatabricksAdapter(SparkAdapter):
         return super().submit_python_job(parsed_model, compiled_code)
 
     @available
+    def is_session_mode(self) -> bool:
+        """Check if the current connection is using session mode.
+
+        Exposed to Jinja macros via @available so that macros can branch
+        behavior based on the connection mode.
+        """
+        return self.connections.is_session_mode()
+
+    @available
+    def load_seed_data(self, model: dict, agate_table: Any) -> None:
+        """Load seed data via DataFrame API in session mode.
+
+        Extracts table name, column info, and raw rows from the dbt model and
+        agate table, then delegates to DatabricksSessionHandle.load_seed_data().
+        """
+        handle = self.connections.get_thread_connection().handle
+        table_name = (
+            self.quote(model["database"])
+            + "."
+            + self.quote(model["schema"])
+            + "."
+            + self.quote(model["alias"])
+        )
+        column_names = list(agate_table.column_names)
+        column_types = {}
+        user_types = model["config"].get("column_types", {})
+        for i, col in enumerate(column_names):
+            column_types[col] = user_types.get(col) or self.convert_type(agate_table, i)
+        rows = [list(row) for row in agate_table.rows]
+        handle.load_seed_data(table_name, column_names, column_types, rows)
+
+    @available
     def redact_credentials(self, sql: str) -> str:
         return redact_credentials(sql)
 
