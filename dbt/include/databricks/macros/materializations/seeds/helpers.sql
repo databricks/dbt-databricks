@@ -4,6 +4,14 @@
 
 {% macro databricks__load_csv_rows(model, agate_table) %}
 
+  {% if adapter.is_session_mode() %}
+    {# Session mode: use DataFrame API for fast seed loading #}
+    {% do adapter.load_seed_data(model, agate_table) %}
+    {% set sql = "-- seed data loaded via DataFrame API (session mode)" %}
+    {% do adapter.add_query(sql, abridge_sql_log=True, close_cursor=True) %}
+    {{ return(sql) }}
+  {% endif %}
+
   {% set batch_size = get_batch_size() %}
   {% set column_override = model['config'].get('column_types', {}) %}
   {% set must_cast = model['config'].get('file_format', 'delta') == 'parquet' %}
