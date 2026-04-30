@@ -11,6 +11,7 @@ Key components:
 """
 
 import decimal
+import re
 import sys
 from collections.abc import Sequence
 from types import TracebackType
@@ -336,3 +337,63 @@ class DatabricksSessionHandle:
 
     def __str__(self) -> str:
         return f"SessionHandle(session-id={self.session_id})"
+
+    @staticmethod
+    def _dbt_type_to_spark_type(dbt_type: str) -> Any:
+        """Map a dbt SQL type string to a PySpark DataType.
+
+        Imports PySpark types locally to avoid import errors when PySpark
+        is not installed (e.g., in DBSQL mode or during parsing).
+        """
+        from pyspark.sql.types import (
+            BooleanType,
+            DateType,
+            DecimalType,
+            DoubleType,
+            FloatType,
+            IntegerType,
+            LongType,
+            StringType,
+            TimestampType,
+        )
+
+        type_map: dict[str, Any] = {
+            "string": StringType(),
+            "varchar": StringType(),
+            "bigint": LongType(),
+            "long": LongType(),
+            "int": IntegerType(),
+            "integer": IntegerType(),
+            "double": DoubleType(),
+            "float": FloatType(),
+            "boolean": BooleanType(),
+            "date": DateType(),
+            "timestamp": TimestampType(),
+        }
+
+        normalized = dbt_type.strip().lower()
+
+        # Check direct mapping first
+        if normalized in type_map:
+            return type_map[normalized]
+
+        # Handle decimal(precision, scale)
+        decimal_match = re.match(r"decimal(?:\((\d+),\s*(\d+)\))?$", normalized)
+        if decimal_match:
+            precision = int(decimal_match.group(1)) if decimal_match.group(1) else 10
+            scale = int(decimal_match.group(2)) if decimal_match.group(2) else 0
+            return DecimalType(precision, scale)
+
+        # Unknown type — fall back to string
+        logger.warning(f"Unknown dbt type '{dbt_type}', falling back to StringType")
+        return StringType()
+
+    def _build_spark_schema(self, column_names: list[str], column_types: dict[str, str]) -> Any:
+        """Build a PySpark StructType schema from dbt column names and types."""
+        from pyspark.sql.types import StructField, StructType
+
+        fields = [
+            StructField(name, self._dbt_type_to_spark_type(column_types[name]), nullable=True)
+            for name in column_names
+        ]
+        return StructType(fields)

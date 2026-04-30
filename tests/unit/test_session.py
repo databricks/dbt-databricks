@@ -456,3 +456,85 @@ class TestDatabricksSessionHandle:
         handle._spark.sql.return_value = mock_df
         handle.execute("SELECT 1")
         handle.__del__()  # should not raise
+
+
+class TestBuildSparkSchema:
+    """Tests for DatabricksSessionHandle._build_spark_schema."""
+
+    @pytest.fixture
+    def handle(self):
+        spark = MagicMock()
+        spark.sparkContext.applicationId = "app-test"
+        spark.conf.get.return_value = "14.3.x-scala2.12"
+        return DatabricksSessionHandle(spark)
+
+    def test_string_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "string"})
+        assert len(schema.fields) == 1
+        assert schema.fields[0].name == "col1"
+        assert schema.fields[0].dataType.simpleString() == "string"
+
+    def test_varchar_maps_to_string(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "varchar"})
+        assert schema.fields[0].dataType.simpleString() == "string"
+
+    def test_bigint_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "bigint"})
+        assert schema.fields[0].dataType.simpleString() == "bigint"
+
+    def test_long_maps_to_bigint(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "long"})
+        assert schema.fields[0].dataType.simpleString() == "bigint"
+
+    def test_int_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "int"})
+        assert schema.fields[0].dataType.simpleString() == "int"
+
+    def test_integer_maps_to_int(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "integer"})
+        assert schema.fields[0].dataType.simpleString() == "int"
+
+    def test_double_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "double"})
+        assert schema.fields[0].dataType.simpleString() == "double"
+
+    def test_float_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "float"})
+        assert schema.fields[0].dataType.simpleString() == "float"
+
+    def test_boolean_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "boolean"})
+        assert schema.fields[0].dataType.simpleString() == "boolean"
+
+    def test_date_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "date"})
+        assert schema.fields[0].dataType.simpleString() == "date"
+
+    def test_timestamp_type(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "timestamp"})
+        assert schema.fields[0].dataType.simpleString() == "timestamp"
+
+    def test_decimal_with_precision_scale(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "decimal(10,2)"})
+        assert schema.fields[0].dataType.simpleString() == "decimal(10,2)"
+
+    def test_decimal_without_params(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "decimal"})
+        assert schema.fields[0].dataType.simpleString() == "decimal(10,0)"
+
+    def test_unknown_type_falls_back_to_string(self, handle):
+        schema = handle._build_spark_schema(["col1"], {"col1": "somecustomtype"})
+        assert schema.fields[0].dataType.simpleString() == "string"
+
+    def test_multiple_columns(self, handle):
+        schema = handle._build_spark_schema(
+            ["id", "name", "active"],
+            {"id": "bigint", "name": "string", "active": "boolean"},
+        )
+        assert len(schema.fields) == 3
+        assert schema.fields[0].name == "id"
+        assert schema.fields[0].dataType.simpleString() == "bigint"
+        assert schema.fields[1].name == "name"
+        assert schema.fields[1].dataType.simpleString() == "string"
+        assert schema.fields[2].name == "active"
+        assert schema.fields[2].dataType.simpleString() == "boolean"
