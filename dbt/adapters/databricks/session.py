@@ -397,3 +397,39 @@ class DatabricksSessionHandle:
             for name in column_names
         ]
         return StructType(fields)
+
+    def load_seed_data(
+        self,
+        table_name: str,
+        column_names: list[str],
+        column_types: dict[str, str],
+        rows: list[list[Any]],
+    ) -> None:
+        """Load seed data via DataFrame API instead of INSERT SQL.
+
+        Creates a PySpark DataFrame from the provided rows and writes it to the
+        target table using overwrite mode. This bypasses SQL string rendering and
+        Spark SQL parsing, which is significantly faster for large seed files.
+
+        Args:
+            table_name: Fully qualified table name (e.g., `catalog`.`schema`.`table`)
+            column_names: Ordered list of column names
+            column_types: Mapping of column name to dbt SQL type string
+            rows: List of row data, each row is a list of values
+        """
+        logger.debug(
+            f"Loading seed data via DataFrame API: {len(rows)} rows, "
+            f"{len(column_names)} columns into {table_name}"
+        )
+
+        # Convert Decimal values to float, matching SqlUtils.translate_bindings behavior
+        for row in rows:
+            for i, value in enumerate(row):
+                if isinstance(value, decimal.Decimal):
+                    row[i] = float(value)
+
+        schema = self._build_spark_schema(column_names, column_types)
+        df = self._spark.createDataFrame(rows, schema)
+        df.write.mode("overwrite").insertInto(table_name)
+
+        logger.debug(f"Seed data loaded successfully into {table_name}")

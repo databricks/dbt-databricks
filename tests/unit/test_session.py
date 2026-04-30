@@ -538,3 +538,107 @@ class TestBuildSparkSchema:
         assert schema.fields[1].dataType.simpleString() == "string"
         assert schema.fields[2].name == "active"
         assert schema.fields[2].dataType.simpleString() == "boolean"
+
+
+class TestLoadSeedData:
+    """Tests for DatabricksSessionHandle.load_seed_data."""
+
+    @pytest.fixture
+    def mock_spark(self):
+        spark = MagicMock()
+        spark.sparkContext.applicationId = "app-test"
+        spark.conf.get.return_value = "14.3.x-scala2.12"
+        return spark
+
+    @pytest.fixture
+    def handle(self, mock_spark):
+        return DatabricksSessionHandle(mock_spark)
+
+    def test_creates_dataframe_with_correct_data(self, handle, mock_spark):
+        """load_seed_data calls createDataFrame with rows and schema."""
+        mock_df = MagicMock()
+        mock_spark.createDataFrame.return_value = mock_df
+
+        handle.load_seed_data(
+            table_name="`catalog`.`schema`.`my_seed`",
+            column_names=["id", "name"],
+            column_types={"id": "bigint", "name": "string"},
+            rows=[[1, "alice"], [2, "bob"]],
+        )
+
+        mock_spark.createDataFrame.assert_called_once()
+        call_args = mock_spark.createDataFrame.call_args
+        assert call_args[0][0] == [[1, "alice"], [2, "bob"]]
+        schema = call_args[0][1]
+        assert len(schema.fields) == 2
+        assert schema.fields[0].name == "id"
+        assert schema.fields[1].name == "name"
+
+    def test_writes_with_overwrite_insert_into(self, handle, mock_spark):
+        """load_seed_data writes DataFrame with mode overwrite and insertInto."""
+        mock_df = MagicMock()
+        mock_writer = MagicMock()
+        mock_df.write = mock_writer
+        mock_writer.mode.return_value = mock_writer
+        mock_spark.createDataFrame.return_value = mock_df
+
+        handle.load_seed_data(
+            table_name="`catalog`.`schema`.`my_seed`",
+            column_names=["id"],
+            column_types={"id": "bigint"},
+            rows=[[1]],
+        )
+
+        mock_writer.mode.assert_called_once_with("overwrite")
+        mock_writer.insertInto.assert_called_once_with("`catalog`.`schema`.`my_seed`")
+
+    def test_converts_decimal_to_float(self, handle, mock_spark):
+        """load_seed_data converts Decimal values to float."""
+        from decimal import Decimal
+
+        mock_df = MagicMock()
+        mock_spark.createDataFrame.return_value = mock_df
+
+        handle.load_seed_data(
+            table_name="`c`.`s`.`t`",
+            column_names=["amount"],
+            column_types={"amount": "double"},
+            rows=[[Decimal("3.14")], [Decimal("2.71")]],
+        )
+
+        call_args = mock_spark.createDataFrame.call_args
+        rows_passed = call_args[0][0]
+        assert rows_passed == [[3.14], [2.71]]
+        assert all(isinstance(row[0], float) for row in rows_passed)
+
+    def test_preserves_none_values(self, handle, mock_spark):
+        """load_seed_data preserves None values in rows."""
+        mock_df = MagicMock()
+        mock_spark.createDataFrame.return_value = mock_df
+
+        handle.load_seed_data(
+            table_name="`c`.`s`.`t`",
+            column_names=["id", "name"],
+            column_types={"id": "bigint", "name": "string"},
+            rows=[[1, None], [None, "bob"]],
+        )
+
+        call_args = mock_spark.createDataFrame.call_args
+        rows_passed = call_args[0][0]
+        assert rows_passed == [[1, None], [None, "bob"]]
+
+    def test_empty_rows(self, handle, mock_spark):
+        """load_seed_data handles empty row list."""
+        mock_df = MagicMock()
+        mock_spark.createDataFrame.return_value = mock_df
+
+        handle.load_seed_data(
+            table_name="`c`.`s`.`t`",
+            column_names=["id"],
+            column_types={"id": "bigint"},
+            rows=[],
+        )
+
+        mock_spark.createDataFrame.assert_called_once()
+        call_args = mock_spark.createDataFrame.call_args
+        assert call_args[0][0] == []
