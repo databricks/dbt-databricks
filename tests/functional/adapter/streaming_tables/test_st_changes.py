@@ -18,7 +18,9 @@ from tests.functional.adapter.streaming_tables import fixtures
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
     final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
+        k: v
+        for k, v in tblproperties.tblproperties.items()
+        if k not in ["dbt.tblproperties.managedKeys"]
     }
     assert final_tblproperties == expected
 

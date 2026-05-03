@@ -19,47 +19,11 @@ class TblPropertiesConfig(DatabricksComponentConfig):
     tblproperties: dict[str, str]
     pipeline_id: Optional[str] = None
 
-    # List of tblproperties that should be ignored when comparing configs. These are generally
-    # set by Databricks and are not user-configurable.
-    ignore_list: ClassVar[list[str]] = [
-        "pipelines.pipelineId",
-        "delta.enableChangeDataFeed",
-        "delta.minReaderVersion",
-        "delta.minWriterVersion",
-        "pipeline_internal.catalogType",
-        "pipelines.metastore.tableName",
-        "pipeline_internal.enzymeMode",
-        "clusterByAuto",
-        "clusteringColumns",
-        "delta.enableRowTracking",
-        "delta.feature.appendOnly",
-        "delta.feature.changeDataFeed",
-        "delta.feature.checkConstraints",
-        "delta.feature.domainMetadata",
-        "delta.feature.generatedColumns",
-        "delta.feature.invariants",
-        "delta.feature.rowTracking",
-        "delta.rowTracking.materializedRowCommitVersionColumnName",
-        "delta.rowTracking.materializedRowIdColumnName",
-        "spark.internal.pipelines.top_level_entry.user_specified_name",
-        "delta.columnMapping.maxColumnId",
-        "spark.sql.internal.pipelines.parentTableId",
-        "delta.enableDeletionVectors",
-        "delta.feature.deletionVectors",
-    ]
-
     def __eq__(self, __value: Any) -> bool:
-        """Override equality check to ignore certain tblproperties."""
-
         if not isinstance(__value, TblPropertiesConfig):
             return False
 
-        def _without_ignore_list(d: dict[str, str]) -> dict[str, str]:
-            return {k: v for k, v in d.items() if k not in self.ignore_list}
-
-        return _without_ignore_list(self.tblproperties) == _without_ignore_list(
-            __value.tblproperties
-        )
+        return self.tblproperties == __value.tblproperties
 
 
 class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
@@ -72,11 +36,19 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
         pipeline_id = None
 
         if table:
-            for row in table.rows:
-                if str(row[0]) == "pipelines.pipelineId":
-                    pipeline_id = str(row[1])
-                elif str(row[0]) not in TblPropertiesConfig.ignore_list:
-                    tblproperties[str(row[0])] = str(row[1])
+            # only load the properties that are managed by dbt
+            managed_keys = {"dbt.tblproperties.managedKeys"}
+            managed_keys_prop = next(
+                (v for k, v in table.rows if k == "dbt.tblproperties.managedKeys"), None
+            )
+            if managed_keys_prop:
+                managed_keys.update(managed_keys_prop.split(","))
+
+            for k, v in table.rows:
+                if str(k) == "pipelines.pipelineId":
+                    pipeline_id = str(v)
+                elif str(k) in managed_keys:
+                    tblproperties[str(k)] = str(v)
 
         return TblPropertiesConfig(tblproperties=tblproperties, pipeline_id=pipeline_id)
 
@@ -101,4 +73,10 @@ class TblPropertiesProcessor(DatabricksComponentProcessor[TblPropertiesConfig]):
             )
 
         tblproperties = {str(k): str(v) for k, v in tblproperties.items()}
+
+        if tblproperties:
+            # track the keys that are managed by dbt
+            managed_keys = sorted([k for k in tblproperties.keys()])
+            tblproperties["dbt.tblproperties.managedKeys"] = ",".join(managed_keys)
+
         return TblPropertiesConfig(tblproperties=tblproperties)
