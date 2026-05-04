@@ -127,16 +127,33 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
 
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
-        with:
-          comment_on_pr: false
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -168,6 +185,13 @@ jobs:
       - name: Run UC Cluster Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
 
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
+
       - name: Upload UC Cluster Test Logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
@@ -196,16 +220,33 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
 
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
-        with:
-          comment_on_pr: false
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -237,6 +278,13 @@ jobs:
       - name: Run Sql Endpoint Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
 
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
+
       - name: Upload SQL Endpoint Test Logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
@@ -263,16 +311,33 @@ jobs:
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
 
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
-        with:
-          comment_on_pr: false
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -303,6 +368,13 @@ jobs:
 
       - name: Run Cluster Functional Tests
         run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e
+
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload Cluster Test Logs
         if: always()
