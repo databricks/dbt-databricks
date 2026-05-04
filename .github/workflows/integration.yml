@@ -104,21 +104,9 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
 
-  # Bounded FIFO queue for integration runs. One workflow run holds the slot at
-  # a time across the whole repo. Combined with `max-parallel: 1` on the test-job
-  # matrices below, at most one PR's worth of cluster/warehouse load is in flight
-  # at any moment. Other runs (PR /integration-test triggers, the nightly
-  # schedule) wait FIFO by run id, and abort their wait after
-  # `abort-after-seconds` so the queue is bounded by time. Skipped when prepare
-  # emits empty targets so the slot is not held for nothing.
-  #
-  # Implementation note: `queue-name` is intentionally NOT set. Turnstyle treats
-  # it as a substring filter against `run.display_title` / `run.name` (see
-  # softprops/turnstyle src/wait.ts), not as an arbitrary tag — passing a value
-  # that doesn't appear in the run's auto-generated title makes the filter
-  # match nothing and the gate exit immediately. With queue-name omitted,
-  # turnstyle defaults to filtering by workflow_id, which is exactly the
-  # serialization scope we want.
+  # Serialize integration runs across the repo. Others wait FIFO by run id and
+  # abort after `abort-after-seconds`. `max-parallel: 1` on the test jobs below
+  # keeps batch dispatch serial inside this slot.
   gate:
     needs: prepare
     if: needs.prepare.outputs.targets != '[]' && needs.prepare.outputs.targets != ''
