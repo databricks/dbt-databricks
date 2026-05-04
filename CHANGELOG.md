@@ -11,6 +11,7 @@
 - Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
 - Stop emitting the `insert_overwrite will perform a dynamic insert overwrite` warning on every `insert_overwrite` run on SQL warehouses; warn instead only when `use_replace_on_for_insert_overwrite` is enabled but the cluster's DBR version does not support REPLACE ON ([#1305](https://github.com/databricks/dbt-databricks/issues/1305))
 - Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
+- Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
