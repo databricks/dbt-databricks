@@ -12,7 +12,6 @@ from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
 from uuid import uuid4
 
-import agate
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
 from dbt.adapters.base.impl import catch_as_completed, log_code_execution
 from dbt.adapters.base.meta import available
@@ -1257,12 +1256,12 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
 
 @dataclass
 class DatabricksDescribeJsonMetadata:
-    column_masks: Optional["agate.Table"] = None
-    foreign_key_constraints: Optional["agate.Table"] = None
-    non_null_constraints: Optional["agate.Table"] = None
-    primary_key_constraints: Optional["agate.Table"] = None
-    row_filters: Optional["agate.Table"] = None
-    view_description: Optional["agate.Row"] = None
+    column_masks: Optional["Table"] = None
+    foreign_key_constraints: Optional["Table"] = None
+    non_null_constraints: Optional["Table"] = None
+    primary_key_constraints: Optional["Table"] = None
+    row_filters: Optional["Table"] = None
+    view_description: Optional["Row"] = None
 
     @classmethod
     def from_json_metadata(cls, json_metadata: dict[str, Any]) -> "DatabricksDescribeJsonMetadata":
@@ -1277,8 +1276,12 @@ class DatabricksDescribeJsonMetadata:
         )
 
     @classmethod
-    def parse_column_masks(cls, json_metadata: dict[str, Any]) -> agate.Table:
+    def parse_column_masks(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of column masks (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
         raw_masks = json_metadata.get("column_masks", [])
         rows = []
         for mask in raw_masks:
@@ -1288,15 +1291,19 @@ class DatabricksDescribeJsonMetadata:
             using_columns = ",".join(mask.get("using_column_names", []))
             rows.append((column_name, mask_name, using_columns or None))
 
-        return agate.Table(
+        return AgateTable(
             rows=rows,
             column_names=["column_name", "mask_name", "using_columns"],
-            column_types=[agate.Text(), agate.Text(), agate.Text()],
+            column_types=[AgateText(), AgateText(), AgateText()],
         )
 
     @classmethod
-    def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+    def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
         table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
         pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
         fk_rows = []
@@ -1322,30 +1329,38 @@ class DatabricksDescribeJsonMetadata:
             "to_column",
         ]
         fk_columns_types = [
-            agate.Text(),
-            agate.Text(),
-            agate.Text(),
-            agate.Text(),
-            agate.Text(),
-            agate.Text(),
+            AgateText(),
+            AgateText(),
+            AgateText(),
+            AgateText(),
+            AgateText(),
+            AgateText(),
         ]
-        return agate.Table(fk_rows, fk_column_names, fk_columns_types)
+        return AgateTable(fk_rows, fk_column_names, fk_columns_types)
 
     @classmethod
-    def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+    def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
         columns = json_metadata.get("columns", [])
 
         non_null_cols = [column["name"] for column in columns if not column.get("nullable")]
-        return agate.Table(
+        return AgateTable(
             rows=[[col] for col in non_null_cols],
             column_names=["column_name"],
-            column_types=[agate.Text()],
+            column_types=[AgateText()],
         )
 
     @classmethod
-    def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> agate.Table:
+    def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
         table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
         pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
         pk_rows = []
@@ -1357,21 +1372,28 @@ class DatabricksDescribeJsonMetadata:
                     pk_rows.append([name, col])
 
         pk_column_names = ["constraint_name", "column_name"]
-        pk_columns_types = [agate.Text(), agate.Text()]
-        return agate.Table(pk_rows, pk_column_names, pk_columns_types)
+        pk_columns_types = [AgateText(), AgateText()]
+        return AgateTable(pk_rows, pk_column_names, pk_columns_types)
 
     @classmethod
-    def parse_view_description(cls, json_metadata: dict[str, Any]) -> "agate.Row":
+    def parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
         """Parse json metadata into an agate Row for the view description (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Row as AgateRow
+
         view_text = json_metadata.get("view_text", None)
         if view_text is None:
-            return agate.Row(values=set())
+            return AgateRow(values=set())
         else:
-            return agate.Row(values=(view_text,), keys=("view_definition",))
+            return AgateRow(values=(view_text,), keys=("view_definition",))
 
     @classmethod
-    def parse_row_filter(cls, json_metadata: dict[str, Any]) -> agate.Table:
+    def parse_row_filter(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of row filter (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
         row_filter_metadata = json_metadata.get("row_filter")
         rows: list[Any] = []
         column_names = [
@@ -1381,10 +1403,10 @@ class DatabricksDescribeJsonMetadata:
             "filter_name",
             "target_columns",
         ]
-        column_types = [agate.Text(), agate.Text(), agate.Text(), agate.Text(), agate.Text()]
+        column_types = [AgateText(), AgateText(), AgateText(), AgateText(), AgateText()]
 
         if not row_filter_metadata:
-            return agate.Table(rows=rows, column_names=column_names, column_types=column_types)
+            return AgateTable(rows=rows, column_names=column_names, column_types=column_types)
 
         table_catalog = json_metadata["catalog_name"]
         table_schema = json_metadata["schema_name"]
@@ -1404,7 +1426,7 @@ class DatabricksDescribeJsonMetadata:
             [table_catalog, table_schema, table_name, filter_name, ",".join(filter_column_names)]
         )
 
-        return agate.Table(
+        return AgateTable(
             rows=rows,
             column_names=column_names,
             column_types=column_types,
