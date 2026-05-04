@@ -104,15 +104,35 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
 
+  # Serialize integration runs across the repo. Others wait FIFO by run id and
+  # abort after `abort-after-seconds`. `max-parallel: 1` on the test jobs below
+  # keeps batch dispatch serial inside this slot.
+  gate:
+    needs: prepare
+    if: needs.prepare.outputs.targets != '[]' && needs.prepare.outputs.targets != ''
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for integration slot
+        uses: softprops/turnstyle@15f9da4059166900981058ba251e0b652511c68f  # v3.2.2
+        with:
+          same-branch-only: false
+          poll-interval-seconds: 30
+          abort-after-seconds: 14400
+
   run-uc-cluster-e2e-tests:
     # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
     # `needs: prepare` propagates the external-fork skip cleanly, and forcing
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
     # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
-    needs: prepare
+    # `needs: gate` enforces the global bounded FIFO; max-parallel: 1 ensures a
+    # batch dispatch (multi-PR matrix) does not blow past the gate's "max 1" intent.
+    needs: [prepare, gate]
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
@@ -172,10 +192,10 @@ jobs:
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    needs: prepare
+    needs: [prepare, gate]
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
@@ -236,10 +256,10 @@ jobs:
           retention-days: 5
 
   run-cluster-e2e-tests:
-    needs: prepare
+    needs: [prepare, gate]
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
