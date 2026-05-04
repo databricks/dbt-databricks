@@ -110,6 +110,10 @@ jobs:
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
     # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
     needs: prepare
+    # Skip when `prepare` emits an empty targets array (nightly skip-if-unchanged).
+    # Without this, GitHub Actions treats a job with a zero-combination matrix as
+    # a failure, so every already-tested nightly run gets reported as failed.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -173,6 +177,8 @@ jobs:
 
   run-sqlwarehouse-e2e-tests:
     needs: prepare
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -237,6 +243,8 @@ jobs:
 
   run-cluster-e2e-tests:
     needs: prepare
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       max-parallel: 2
