@@ -133,6 +133,11 @@ jobs:
         with:
           ref: ${{ matrix.target.ref }}
 
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
       - name: Setup Python Dependencies
         id: deps
         uses: ./.github/actions/setup-python-deps
@@ -197,6 +202,11 @@ jobs:
         with:
           ref: ${{ matrix.target.ref }}
 
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
       - name: Setup Python Dependencies
         id: deps
         uses: ./.github/actions/setup-python-deps
@@ -258,6 +268,11 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
+
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
 
       - name: Setup Python Dependencies
         id: deps
