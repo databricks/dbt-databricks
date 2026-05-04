@@ -29,7 +29,6 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         CommentProcessor,
         TblPropertiesProcessor,
         RefreshProcessor,
-        TagsProcessor,
         DescribeQueryProcessor,
         TagsProcessor,
     ]

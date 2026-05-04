@@ -14,6 +14,7 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.functional.adapter.helpers import get_model_config
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -32,7 +33,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_start_state(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["partition_by"].partition_by == ["id"]
         assert results.config["query"].query.startswith("select * from")
@@ -49,7 +51,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_state_alter_change_is_applied(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
@@ -67,7 +70,8 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
     @staticmethod
     def check_state_replace_change_is_applied(project, materialized_view):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(materialized_view)
+            relation_config = get_model_config(project, materialized_view)
+            results = project.adapter.get_relation_config(materialized_view, relation_config)
         assert isinstance(results, MaterializedViewConfig)
         assert results.config["partition_by"].partition_by == []
         assert results.config["query"].query.startswith("select id, value")

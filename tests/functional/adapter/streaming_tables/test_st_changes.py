@@ -13,6 +13,7 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.functional.adapter.helpers import get_model_config
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -27,7 +28,8 @@ class StreamingTableChanges:
     @staticmethod
     def check_start_state(project, streaming_table):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(streaming_table)
+            relation_config = get_model_config(project, streaming_table)
+            results = project.adapter.get_relation_config(streaming_table, relation_config)
         assert isinstance(results, StreamingTableConfig)
         assert results.config["partition_by"].partition_by == ["id"]
         _check_tblproperties(results.config["tblproperties"], {"key": "value"})
@@ -46,7 +48,8 @@ class StreamingTableChanges:
     @staticmethod
     def check_state_alter_change_is_applied(project, streaming_table):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(streaming_table)
+            relation_config = get_model_config(project, streaming_table)
+            results = project.adapter.get_relation_config(streaming_table, relation_config)
         assert isinstance(results, StreamingTableConfig)
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
@@ -62,7 +65,8 @@ class StreamingTableChanges:
     @staticmethod
     def check_state_replace_change_is_applied(project, streaming_table):
         with util.get_connection(project.adapter):
-            results = project.adapter.get_relation_config(streaming_table)
+            relation_config = get_model_config(project, streaming_table)
+            results = project.adapter.get_relation_config(streaming_table, relation_config)
         assert isinstance(results, StreamingTableConfig)
         assert results.config["partition_by"].partition_by == ["value"]
 
