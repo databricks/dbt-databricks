@@ -121,7 +121,7 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Wait for integration slot
-        uses: softprops/turnstyle@e15e934b3f69ee283ba389ea05c8886baa656d93  # v3.2.4
+        uses: softprops/turnstyle@15f9da4059166900981058ba251e0b652511c68f  # v3.2.2
         with:
           queue-name: integration-shared-compute
           same-branch-only: false
