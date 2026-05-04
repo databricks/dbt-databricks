@@ -134,7 +134,7 @@ jobs:
           ref: ${{ matrix.target.ref }}
 
       - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@94c3c3d9567a0205de6da68a76c428ce4e769af1  # v2.0.0
+        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
         with:
           comment_on_pr: false
 
@@ -203,7 +203,7 @@ jobs:
           ref: ${{ matrix.target.ref }}
 
       - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@94c3c3d9567a0205de6da68a76c428ce4e769af1  # v2.0.0
+        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
         with:
           comment_on_pr: false
 
@@ -270,7 +270,7 @@ jobs:
           ref: ${{ matrix.target.ref }}
 
       - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@94c3c3d9567a0205de6da68a76c428ce4e769af1  # v2.0.0
+        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455  # v1.8.7 (2023-04-03)
         with:
           comment_on_pr: false
 
