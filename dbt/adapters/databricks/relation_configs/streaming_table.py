@@ -15,7 +15,7 @@ from dbt.adapters.databricks.relation_configs.partitioning import (
     PartitionedByProcessor,
 )
 from dbt.adapters.databricks.relation_configs.query import DescribeQueryProcessor
-from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
+from dbt.adapters.databricks.relation_configs.refresh import RefreshProcessor
 from dbt.adapters.databricks.relation_configs.row_filter import RowFilterProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
@@ -42,22 +42,23 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         current state of the dbt project.
         """
         changes: dict[str, DatabricksComponentConfig] = {}
-        requires_refresh = False
-        requires_replace = False
+        requires_full_refresh = False
+        has_changes = False
 
         for component in self.config_components:
             key = component.name
             value = self.config[key]
             diff = value.get_diff(existing.config[key])
-            if key == "partition_by" and diff is not None:
-                requires_refresh = True
-            if diff and diff != RefreshConfig():
-                requires_replace = True
-            diff = diff or value
-            if diff != RefreshConfig():
+            if diff is not None:
+                has_changes = True
+                if key == "partition_by":
+                    requires_full_refresh = True
                 changes[key] = diff
-        if requires_replace:
-            return DatabricksRelationChangeSet(
-                changes=changes, requires_full_refresh=requires_refresh
-            )
-        return None
+            else:
+                changes[key] = value
+
+        if not has_changes:
+            return None
+        return DatabricksRelationChangeSet(
+            changes=changes, requires_full_refresh=requires_full_refresh
+        )
