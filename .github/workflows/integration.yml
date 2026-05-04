@@ -181,21 +181,51 @@ jobs:
           path: shard-assignments/
           retention-days: 5
 
+  # Bounded FIFO queue for integration runs. One workflow run holds the slot at
+  # a time across the whole repo (queue-name is repo-scoped, branch filter off).
+  # Combined with per-job `max-parallel` matching the shard count (so a single
+  # workflow run's matrix never exceeds one PR's worth of cluster cells), at
+  # most one PR's worth of cluster/warehouse load is in flight at any moment.
+  # Other runs (PR /integration-test triggers, the nightly schedule) wait FIFO
+  # by run created_at, and abort their wait after `abort-after-seconds` so the
+  # queue is bounded by time. Skipped when prepare emits empty targets so the
+  # slot is not held for nothing.
+  gate:
+    needs: prepare
+    if: needs.prepare.outputs.targets != '[]' && needs.prepare.outputs.targets != ''
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for integration slot
+        uses: softprops/turnstyle@e15e934b3f69ee283ba389ea05c8886baa656d93  # v3.2.4
+        with:
+          queue-name: integration-shared-compute
+          same-branch-only: false
+          poll-interval-seconds: 30
+          abort-after-seconds: 14400
+
   run-uc-cluster-e2e-tests:
     # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
     # `needs: prepare` propagates the external-fork skip cleanly, and forcing
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
     # empty output. Matrix shape contract: {pr, ref, shard} — defined in the
     # `prepare` job (pr+ref) plus the static `shard` dimension below.
+    # `needs: gate` enforces the global bounded FIFO; `max-parallel` matches
+    # the shard count so a single PR's shards run in parallel but a multi-PR
+    # batch does not blow past the gate's "one PR's worth of compute" intent.
     needs:
       - prepare
       - prepare-shards
+      - gate
     # Skip when `prepare` emits an empty targets array (nightly skip-if-unchanged).
     # Without this, GitHub Actions treats a job with a zero-combination matrix as
     # a failure, so every already-tested nightly run gets reported as failed.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1, 2]
@@ -292,10 +322,12 @@ jobs:
     needs:
       - prepare
       - prepare-shards
+      - gate
     # See run-uc-cluster-e2e-tests for empty-matrix rationale.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1, 2]
@@ -393,10 +425,12 @@ jobs:
     needs:
       - prepare
       - prepare-shards
+      - gate
     # See run-uc-cluster-e2e-tests for empty-matrix rationale.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1]
