@@ -31,7 +31,7 @@ from dbt.adapters.spark.impl import (
 )
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
-from dbt_common.exceptions import DbtConfigError, DbtInternalError
+from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -1304,39 +1304,75 @@ class DatabricksDescribeJsonMetadata:
         from agate import Table as AgateTable
         from agate import Text as AgateText
 
-        table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
-        pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
-        fk_rows = []
-        for name, constraint in pairs:
-            constraint = constraint.strip()
-            if re.search(r"FOREIGN\s+KEY", constraint):
-                fk_part, ref_part = constraint.split("REFERENCES", 1)
-                from_cols = re.findall(r"`([^`]+)`", fk_part)
-                ref_parts = re.findall(r"`([^`]+)`", ref_part)
-                to_catalog = ref_parts[0]
-                to_schema = ref_parts[1]
-                to_table = ref_parts[2]
-                to_cols = ref_parts[3:]
-                for from_col, to_col in zip(from_cols, to_cols):
-                    fk_rows.append([name, from_col, to_catalog, to_schema, to_table, to_col])
+        rows: list[list[str]] = []
+        # For the worked example, _split_constraints yields:
+        #   ("p-a,b@c(d", "PRIMARY KEY ...")  -> skipped, leading token != FOREIGN
+        #   ("fk1",       "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)")
+        for name, body in cls._split_constraints(json_metadata.get("table_constraints", "")):
+            # `re.match` (not `re.search`) so the keyword must be the body's
+            # leading token — never a column-name false-positive.
+            if not re.match(r"FOREIGN\s+KEY\b", body):
+                continue
+            # Structurally-anchored split: REFERENCES sits between the
+            # closing `)` of the from-cols and the opening `` ` `` of the
+            # qualified relation. Lookbehind/lookahead require those chars,
+            # so a column whose name contains the substring REFERENCES
+            # (e.g. `MY_REFERENCES_COL`) cannot mis-split, and surrounding
+            # whitespace is optional.
+            #
+            # Worked example FK body splits as:
+            #   parts[0] = "FOREIGN KEY (`x`, `y`)"
+            #   parts[1] = "`cat`.`sch`.`tbl` (`a`, `b`)"
+            parts = re.split(r"(?<=\))\s*REFERENCES\s*(?=`)", body, maxsplit=1)
+            if len(parts) != 2:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' is missing a REFERENCES "
+                    f"clause: {body!r}"
+                )
+            # Worked example:
+            #   from_cols  = ["x", "y"]
+            #   ref_tokens = ["cat", "sch", "tbl", "a", "b"]
+            from_cols = cls._extract_backticked(parts[0])
+            ref_tokens = cls._extract_backticked(parts[1])
+            n = len(from_cols)
+            if n == 0:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' has no from-columns: "
+                    f"{body!r}"
+                )
+            # Layout in the right half: catalog, schema, table, *to_cols.
+            # Anything other than exactly (3 + n) tokens means the referenced
+            # name is not a fully-qualified `catalog`.`schema`.`table` or the
+            # to-column count doesn't match the from-column count.
+            #
+            # Worked example: n=2, len(ref_tokens)=5, 5 == 2+3 ✓
+            if len(ref_tokens) != n + 3:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' must reference a 3-part "
+                    f"`catalog`.`schema`.`table` with matching column counts "
+                    f"(from={n}, ref tokens={len(ref_tokens)}): {body!r}"
+                )
+            # Worked example unpack:
+            #   to_catalog="cat", to_schema="sch", to_table="tbl", to_cols=["a","b"]
+            to_catalog, to_schema, to_table, *to_cols = ref_tokens
+            # Worked example zip yields two rows:
+            #   ["fk1", "x", "cat", "sch", "tbl", "a"]
+            #   ["fk1", "y", "cat", "sch", "tbl", "b"]
+            for from_col, to_col in zip(from_cols, to_cols):
+                rows.append([name, from_col, to_catalog, to_schema, to_table, to_col])
 
-        fk_column_names = [
-            "constraint_name",
-            "from_column",
-            "to_catalog",
-            "to_schema",
-            "to_table",
-            "to_column",
-        ]
-        fk_columns_types = [
-            AgateText(),
-            AgateText(),
-            AgateText(),
-            AgateText(),
-            AgateText(),
-            AgateText(),
-        ]
-        return AgateTable(fk_rows, fk_column_names, fk_columns_types)
+        return AgateTable(
+            rows=rows,
+            column_names=[
+                "constraint_name",
+                "from_column",
+                "to_catalog",
+                "to_schema",
+                "to_table",
+                "to_column",
+            ],
+            column_types=[AgateText()] * 6,
+        )
 
     @classmethod
     def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
@@ -1361,19 +1397,27 @@ class DatabricksDescribeJsonMetadata:
         from agate import Table as AgateTable
         from agate import Text as AgateText
 
-        table_constraint = re.sub(r"\s+", " ", json_metadata.get("table_constraints", "").strip())
-        pairs = re.findall(r"\(\s*(\w+)\s*,(.*?)\)(?=\s*,\s*\(|\s*\])", table_constraint)
-        pk_rows = []
-        for name, constraint in pairs:
-            constraint = constraint.strip()
-            parts = re.findall(r"`([^`]+)`", constraint)
-            if re.search(r"PRIMARY\s+KEY", constraint):
-                for col in parts:
-                    pk_rows.append([name, col])
+        rows: list[list[str]] = []
+        # `_split_constraints` yields, for the worked example:
+        #   ("p-a,b@c(d", "PRIMARY KEY (`id``a`)") and
+        #   ("fk1",       "FOREIGN KEY ...")
+        for name, body in cls._split_constraints(json_metadata.get("table_constraints", "")):
+            # `re.match` (anchored at start) so the keyword must be the body's
+            # leading token. The FK body's leading token is "FOREIGN", so it
+            # is skipped here without inspecting its contents.
+            if re.match(r"PRIMARY\s+KEY\b", body):
+                # Worked example: body = "PRIMARY KEY (`id``a`)".
+                # _extract_backticked returns ["id`a"] (one column, with the
+                # doubled backtick un-escaped to a literal `).
+                # Row appended: ["p-a,b@c(d", "id`a"].
+                for col in cls._extract_backticked(body):
+                    rows.append([name, col])
 
-        pk_column_names = ["constraint_name", "column_name"]
-        pk_columns_types = [AgateText(), AgateText()]
-        return AgateTable(pk_rows, pk_column_names, pk_columns_types)
+        return AgateTable(
+            rows=rows,
+            column_names=["constraint_name", "column_name"],
+            column_types=[AgateText(), AgateText()],
+        )
 
     @classmethod
     def parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
@@ -1431,3 +1475,153 @@ class DatabricksDescribeJsonMetadata:
             column_names=column_names,
             column_types=column_types,
         )
+
+    # ---------------------------------------------------------------------
+    # WORKED EXAMPLE — referenced by all parser comments below.
+    #
+    # Input:
+    #   table_constraints =
+    #     "[(p-a,b@c(d,PRIMARY KEY (`id``a`)),"
+    #     " (fk1,FOREIGN KEY (`x`, `y`)"
+    #     "  REFERENCES `cat`.`sch`.`tbl` (`a`, `b`))]"
+    #
+    # Single fixture, every corner case:
+    #   - constraint name with hyphen, comma, paren, @ ("p-a,b@c(d")
+    #   - column name with literal backtick, escaped as `` ("id``a" -> id`a)
+    #   - composite FK (two from-columns paired with two to-columns)
+    #   - two constraints in one array (PK first, FK second)
+    #
+    # Expected parse:
+    #   PK rows:  [("p-a,b@c(d", "id`a")]
+    #   FK rows:  [("fk1", "x", "cat", "sch", "tbl", "a"),
+    #              ("fk1", "y", "cat", "sch", "tbl", "b")]
+    # ---------------------------------------------------------------------
+
+    # Boundary anchor: the comma that precedes the body keyword. A constraint
+    # name cannot contain `,PRIMARY KEY` or `,FOREIGN KEY` because the space
+    # inside the keyword pair is illegal in a name, so this never fires inside
+    # a name. In the example, the name "p-a,b@c(d" contains TWO commas — the
+    # regex skips both because neither is followed by the keyword.
+    _CONSTRAINT_BOUNDARY = re.compile(r",\s*(?:PRIMARY|FOREIGN)\s+KEY\b")
+
+    # A backticked identifier with embedded doubled-backticks treated as a
+    # single literal `. In the example, `id``a` matches as ONE token whose
+    # group(1) is "id``a"; the `.replace("``", "`")` step in
+    # `_extract_backticked` un-escapes it to "id`a".
+    _BACKTICKED = re.compile(r"`((?:[^`]|``)*)`")
+
+    @classmethod
+    def _split_constraints(cls, table_constraints: str) -> list[tuple[str, str]]:
+        """Yield (name, body) pairs from a Databricks table_constraints value.
+
+        The constraint name is captured as raw text — characters inside it
+        (commas, parens, backticks, @, hyphens) are not interpreted. The body
+        is then walked with paren-depth + backtick-state tracking to find the
+        block's outer closing `)`.
+
+        See WORKED EXAMPLE block above for the fixture used in the comments
+        below.
+        """
+        # Strip surrounding `[` `]`. For the worked example:
+        #   inner = "(p-a,b@c(d,PRIMARY KEY (`id``a`)),"
+        #           " (fk1,FOREIGN KEY (`x`, `y`)"
+        #           "  REFERENCES `cat`.`sch`.`tbl` (`a`, `b`))"
+        s = table_constraints.strip()
+        if not (s.startswith("[") and s.endswith("]")):
+            return []
+        inner = s[1:-1]
+
+        pairs: list[tuple[str, str]] = []
+        pos = 0
+        while pos < len(inner):
+            # Skip whitespace + inter-block commas. Iter 1: `inner[0]` is
+            # already `(`, loop is a no-op. Iter 2: consumes `, ` between
+            # the two constraint blocks and stops at the next `(`.
+            while pos < len(inner) and (inner[pos].isspace() or inner[pos] == ","):
+                pos += 1
+            if pos >= len(inner) or inner[pos] != "(":
+                break
+
+            # Step into the block. Iter 1: name_start points one past `(`.
+            # The boundary regex finds the FIRST `,PRIMARY KEY` or
+            # `,FOREIGN KEY` — never inside the name. The two commas inside
+            # "p-a,b@c(d" are skipped because they aren't followed by the
+            # keyword pair (the pair contains a space, illegal in a name).
+            #
+            # Iter 1: name = "p-a,b@c(d"
+            # Iter 2: name = "fk1"
+            name_start = pos + 1
+            m = cls._CONSTRAINT_BOUNDARY.search(inner, name_start)
+            if not m:
+                break
+            name = inner[name_start: m.start()].strip()
+
+            # Walk the body forward to find the block's outer closing `)`.
+            # Body parens are balanced, so depth returns to 0 only at that `)`.
+            # Backticks come paired in the body (or doubled to mean a literal).
+            #
+            # Iter 1 walk through "PRIMARY KEY (`id``a`)":
+            #   '(' depth 0 -> 1
+            #   '`'   in_bt True
+            #   'id'  literal chars
+            #   '``'  DOUBLED — skipped as one unit, in_bt stays True
+            #   'a'   literal char
+            #   '`'   in_bt False
+            #   ')'   depth 1 -> 0
+            #   ')'   depth 0 -> BREAK (this is the block's outer closer)
+            # -> body = "PRIMARY KEY (`id``a`)"
+            #
+            # Iter 2 walk through the FK body:
+            #   '(' 0->1, `\`x\``, ',', `\`y\``, ')' 1->0,
+            #   ' REFERENCES ' (depth 0, no parens),
+            #   `\`cat\`.\`sch\`.\`tbl\`` (backticks toggle in pairs),
+            #   '(' 0->1, `\`a\``, ',', `\`b\``, ')' 1->0,
+            #   ')' depth 0 -> BREAK
+            # -> body = "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)"
+            depth = 0
+            in_bt = False
+            i = m.start() + 1
+            while i < len(inner):
+                c = inner[i]
+                if c == "`":
+                    if i + 1 < len(inner) and inner[i + 1] == "`":
+                        i += 2  # doubled = literal, don't toggle
+                        continue
+                    in_bt = not in_bt
+                elif not in_bt:
+                    if c == "(":
+                        depth += 1
+                    elif c == ")":
+                        if depth == 0:
+                            break  # this is the block's outer closer
+                        depth -= 1
+                i += 1
+            if i >= len(inner):
+                break
+
+            body = inner[m.start() + 1: i].strip()
+            pairs.append((name, body))
+            pos = i + 1   # advance past the block's outer `)`
+
+        # For the worked example, pairs is now:
+        #   [("p-a,b@c(d", "PRIMARY KEY (`id``a`)"),
+        #    ("fk1",       "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)")]
+        return pairs
+
+    @classmethod
+    def _extract_backticked(cls, s: str) -> list[str]:
+        """Every backticked identifier in s, with doubled backticks unescaped.
+
+        Worked-example calls:
+          - On PK body "PRIMARY KEY (`id``a`)":
+              regex matches once, group(1) = "id``a";
+              .replace("``", "`") -> "id`a";
+              returns ["id`a"]   (one column, with the literal backtick)
+          - On FK left half "FOREIGN KEY (`x`, `y`)":
+              returns ["x", "y"]
+          - On FK right half "`cat`.`sch`.`tbl` (`a`, `b`)":
+              returns ["cat", "sch", "tbl", "a", "b"]
+        """
+        return [m.group(1).replace("``", "`") for m in cls._BACKTICKED.finditer(s)]
+
+

@@ -5,7 +5,9 @@ Tests the parsing of DESCRIBE TABLE EXTENDED ... AS JSON responses into
 agate Tables that match the format expected by existing processors.
 """
 
+import pytest
 from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.constraints import (
     ForeignKeyConstraint,
@@ -266,6 +268,72 @@ class TestParsePrimaryKeyConstraints:
             assert row[1] == column_name
             assert row["column_name"] == column_name
 
+    def test_hyphen_in_constraint_name(self):
+        json_metadata = {"table_constraints": "[(my-pk,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "my-pk"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_at_sign_in_constraint_name(self):
+        json_metadata = {"table_constraints": "[(pk@1,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "pk@1"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_comma_in_constraint_name(self):
+        json_metadata = {"table_constraints": "[(a,b,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "a,b"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_paren_in_constraint_name(self):
+        json_metadata = {"table_constraints": "[(a(b,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "a(b"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_backtick_in_constraint_name(self):
+        json_metadata = {"table_constraints": "[(p`a,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "p`a"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_column_with_escaped_backtick(self):
+        json_metadata = {"table_constraints": "[(p-a4,PRIMARY KEY (`id``a`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "p-a4"
+        assert result.rows[0]["column_name"] == "id`a"
+
+    def test_unicode_cjk_constraint_name(self):
+        """Constraint names with CJK ideographs (valid Unicode in Databricks)."""
+        json_metadata = {"table_constraints": "[(用户_pk,PRIMARY KEY (`id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "用户_pk"
+        assert result.rows[0]["column_name"] == "id"
+
+    def test_unicode_acute_accent_column_name(self):
+        """Column names with acute-accented characters (e.g. é) inside backticks."""
+        json_metadata = {"table_constraints": "[(pk1,PRIMARY KEY (`prénom`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "pk1"
+        assert result.rows[0]["column_name"] == "prénom"
+
+    def test_unicode_diaeresis_column_name(self):
+        """Column names with diaeresis/umlaut characters (e.g. ï, ë)."""
+        json_metadata = {"table_constraints": "[(pk1,PRIMARY KEY (`cliënt_id`))]"}
+        result = DatabricksDescribeJsonMetadata.parse_primary_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "pk1"
+        assert result.rows[0]["column_name"] == "cliënt_id"
+
 
 class TestParseForeignKeyConstraints:
     def test_single_column_foreign_key(self):
@@ -445,6 +513,176 @@ class TestParseForeignKeyConstraints:
             assert row["to_table"] == to_table
             assert row[5] == to_column
             assert row["to_column"] == to_column
+
+    def test_hyphen_in_constraint_name(self):
+        json_metadata = {
+            "table_constraints": ("[(my-fk,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]")
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "my-fk"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_at_sign_in_constraint_name(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(fk@1,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "fk@1"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_comma_in_constraint_name(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(a,b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "a,b"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_paren_in_constraint_name(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(a(b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "a(b"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_backtick_in_constraint_name(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(p`a,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "p`a"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_unicode_diaeresis_constraint_name(self):
+        """FK constraint name with diaeresis/umlaut characters (e.g. ï, ë)."""
+        json_metadata = {
+            "table_constraints": (
+                "[(cliënt_fk,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["constraint_name"] == "cliënt_fk"
+        assert result.rows[0]["from_column"] == "ref_id"
+        assert result.rows[0]["to_table"] == "t"
+
+    def test_unicode_cjk_referenced_identifiers(self):
+        """CJK ideographs inside backticked catalog/schema/table/column."""
+        json_metadata = {
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`用户_id`)"
+                " REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        row = result.rows[0]
+        assert row["constraint_name"] == "fk1"
+        assert row["from_column"] == "用户_id"
+        assert row["to_catalog"] == "主目录"
+        assert row["to_schema"] == "架构"
+        assert row["to_table"] == "用户"
+        assert row["to_column"] == "编号"
+
+    def test_from_column_with_escaped_backtick(self):
+        json_metadata = {
+            "table_constraints": ("[(fk1,FOREIGN KEY (`ref``id`) REFERENCES `c`.`s`.`t` (`id`))]")
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["from_column"] == "ref`id"
+        assert result.rows[0]["to_catalog"] == "c"
+        assert result.rows[0]["to_schema"] == "s"
+        assert result.rows[0]["to_table"] == "t"
+        assert result.rows[0]["to_column"] == "id"
+
+    def test_referenced_table_with_escaped_backtick(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`a`) REFERENCES `c`.`s`.`weird``tbl` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["to_catalog"] == "c"
+        assert result.rows[0]["to_schema"] == "s"
+        assert result.rows[0]["to_table"] == "weird`tbl"
+        assert result.rows[0]["to_column"] == "id"
+
+    def test_from_column_named_references(self):
+        json_metadata = {
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`REFERENCES`) REFERENCES `c`.`s`.`t` (`id`))]"
+            )
+        }
+        result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+        assert len(result.rows) == 1
+        assert result.rows[0]["from_column"] == "REFERENCES"
+        assert result.rows[0]["to_catalog"] == "c"
+        assert result.rows[0]["to_schema"] == "s"
+        assert result.rows[0]["to_table"] == "t"
+        assert result.rows[0]["to_column"] == "id"
+
+    def test_missing_references_clause_raises(self):
+        """A FOREIGN KEY body without a REFERENCES clause is malformed."""
+        json_metadata = {"table_constraints": "[(fk1,FOREIGN KEY (`ref_id`))]"}
+        with pytest.raises(DbtRuntimeError, match="missing a REFERENCES"):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+
+    def test_one_part_referenced_name_raises(self):
+        """A 1-part reference is missing catalog and schema; must raise."""
+        json_metadata = {
+            "table_constraints": "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `t` (`id`))]"
+        }
+        with pytest.raises(DbtRuntimeError, match="3-part"):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+
+    def test_two_part_referenced_name_raises(self):
+        """A 2-part reference is missing catalog; must raise."""
+        json_metadata = {
+            "table_constraints": "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `s`.`t` (`id`))]"
+        }
+        with pytest.raises(DbtRuntimeError, match="3-part"):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+
+    def test_four_part_referenced_name_raises(self):
+        """A 4-part reference exceeds catalog.schema.table; must raise."""
+        json_metadata = {
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`ref_id`) REFERENCES `a`.`b`.`c`.`d` (`id`))]"
+            )
+        }
+        with pytest.raises(DbtRuntimeError, match="3-part"):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
+
+    def test_mismatched_column_counts_raises(self):
+        """from-cols count must equal to-cols count; mismatch must raise."""
+        json_metadata = {
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`a`, `b`) REFERENCES `c`.`s`.`t` (`x`))]"
+            )
+        }
+        with pytest.raises(DbtRuntimeError, match="3-part"):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
 
 
 class TestParseNonNullConstraints:
@@ -760,6 +998,36 @@ class TestFromJsonMetadata:
         assert len(metadata.column_masks.rows) == 0
         assert len(metadata.view_description.values()) == 0
 
+    def test_pk_with_column_named_foreign_key(self):
+        json_metadata = {
+            "columns": [{"name": "FOREIGN KEY", "nullable": False}],
+            "table_constraints": "[(pk1,PRIMARY KEY (`FOREIGN KEY`))]",
+        }
+        # Must not raise.
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        assert len(metadata.primary_key_constraints.rows) == 1
+        assert metadata.primary_key_constraints.rows[0]["constraint_name"] == "pk1"
+        assert metadata.primary_key_constraints.rows[0]["column_name"] == "FOREIGN KEY"
+        assert len(metadata.foreign_key_constraints.rows) == 0
+
+    def test_fk_with_column_named_primary_key(self):
+        json_metadata = {
+            "columns": [{"name": "PRIMARY KEY", "nullable": True}],
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`PRIMARY KEY`) REFERENCES `c`.`s`.`t` (`id`))]"
+            ),
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        assert len(metadata.primary_key_constraints.rows) == 0
+        assert len(metadata.foreign_key_constraints.rows) == 1
+        fk = metadata.foreign_key_constraints.rows[0]
+        assert fk["constraint_name"] == "fk1"
+        assert fk["from_column"] == "PRIMARY KEY"
+        assert fk["to_catalog"] == "c"
+        assert fk["to_schema"] == "s"
+        assert fk["to_table"] == "t"
+        assert fk["to_column"] == "id"
+
 
 class TestParserToConstraintsProcessor:
     @staticmethod
@@ -860,6 +1128,235 @@ class TestParserToConstraintsProcessor:
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(PLAIN_TABLE_JSON)
         config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
         assert config == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+
+    # ----- Corner-case roundtrips (constraint name) -----
+
+    def _assert_pk_roundtrip(self, table_constraints: str, expected_name: str) -> None:
+        json_metadata = {
+            "columns": [{"name": "id", "nullable": False}],
+            "table_constraints": table_constraints,
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls={"id"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name=expected_name, columns=["id"]
+                ),
+            },
+        )
+
+    def _assert_fk_roundtrip(
+        self, table_constraints: str, expected_name: str, expected_to: str = "`c`.`s`.`t`"
+    ) -> None:
+        json_metadata = {
+            "columns": [{"name": "ref_id", "nullable": True}],
+            "table_constraints": table_constraints,
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name=expected_name,
+                    columns=["ref_id"],
+                    to=expected_to,
+                    to_columns=["id"],
+                )
+            },
+        )
+
+    def test_pk_hyphen_name_roundtrip(self):
+        self._assert_pk_roundtrip("[(my-pk,PRIMARY KEY (`id`))]", "my-pk")
+
+    def test_pk_at_sign_name_roundtrip(self):
+        self._assert_pk_roundtrip("[(pk@1,PRIMARY KEY (`id`))]", "pk@1")
+
+    def test_pk_comma_name_roundtrip(self):
+        self._assert_pk_roundtrip("[(a,b,PRIMARY KEY (`id`))]", "a,b")
+
+    def test_pk_paren_name_roundtrip(self):
+        self._assert_pk_roundtrip("[(a(b,PRIMARY KEY (`id`))]", "a(b")
+
+    def test_pk_backtick_name_roundtrip(self):
+        self._assert_pk_roundtrip("[(p`a,PRIMARY KEY (`id`))]", "p`a")
+
+    def test_fk_hyphen_name_roundtrip(self):
+        self._assert_fk_roundtrip(
+            "[(my-fk,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]", "my-fk"
+        )
+
+    def test_fk_at_sign_name_roundtrip(self):
+        self._assert_fk_roundtrip(
+            "[(fk@1,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]", "fk@1"
+        )
+
+    def test_fk_comma_name_roundtrip(self):
+        self._assert_fk_roundtrip(
+            "[(a,b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]", "a,b"
+        )
+
+    def test_fk_paren_name_roundtrip(self):
+        self._assert_fk_roundtrip(
+            "[(a(b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]", "a(b"
+        )
+
+    def test_fk_backtick_name_roundtrip(self):
+        self._assert_fk_roundtrip(
+            "[(p`a,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]", "p`a"
+        )
+
+    # ----- Corner-case roundtrips (escaped-backtick identifiers) -----
+
+    def test_pk_escaped_backtick_column_roundtrip(self):
+        """Column literally named id`a (emitted as `id``a`)."""
+        json_metadata = {
+            "columns": [{"name": "id`a", "nullable": False}],
+            "table_constraints": "[(pk1,PRIMARY KEY (`id``a`))]",
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls={"id`a"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk1", columns=["id`a"]
+                ),
+            },
+        )
+
+    def test_fk_escaped_backtick_from_column_roundtrip(self):
+        """From-column literally named ref`id (emitted as `ref``id`)."""
+        json_metadata = {
+            "columns": [{"name": "ref`id", "nullable": True}],
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`ref``id`) REFERENCES `c`.`s`.`t` (`id`))]"
+            ),
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk1",
+                    columns=["ref`id"],
+                    to="`c`.`s`.`t`",
+                    to_columns=["id"],
+                )
+            },
+        )
+
+    def test_fk_column_named_references_roundtrip(self):
+        """From-column named REFERENCES; the substring must not mis-split."""
+        json_metadata = {
+            "columns": [{"name": "REFERENCES", "nullable": True}],
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`REFERENCES`) REFERENCES `c`.`s`.`t` (`id`))]"
+            ),
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk1",
+                    columns=["REFERENCES"],
+                    to="`c`.`s`.`t`",
+                    to_columns=["id"],
+                )
+            },
+        )
+
+    # ----- Unicode roundtrips -----
+
+    def test_pk_unicode_cjk_roundtrip(self):
+        """Constraint name and column with CJK ideographs."""
+        json_metadata = {
+            "columns": [{"name": "用户名", "nullable": False}],
+            "table_constraints": "[(用户_pk,PRIMARY KEY (`用户名`))]",
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls={"用户名"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="用户_pk", columns=["用户名"]
+                ),
+            },
+        )
+
+    def test_pk_unicode_acute_accent_roundtrip(self):
+        """Column with acute-accented characters (e.g. é)."""
+        json_metadata = {
+            "columns": [{"name": "prénom", "nullable": False}],
+            "table_constraints": "[(pk1,PRIMARY KEY (`prénom`))]",
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls={"prénom"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk1", columns=["prénom"]
+                ),
+            },
+        )
+
+    def test_fk_unicode_diaeresis_roundtrip(self):
+        """Constraint name and column with diaeresis/umlaut characters (ï, ë)."""
+        json_metadata = {
+            "columns": [{"name": "cliënt_id", "nullable": True}],
+            "table_constraints": (
+                "[(cliënt_fk,FOREIGN KEY (`cliënt_id`)"
+                " REFERENCES `c`.`s`.`klanten` (`id`))]"
+            ),
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="cliënt_fk",
+                    columns=["cliënt_id"],
+                    to="`c`.`s`.`klanten`",
+                    to_columns=["id"],
+                )
+            },
+        )
+
+    def test_fk_unicode_cjk_referenced_identifiers_roundtrip(self):
+        """Catalog/schema/table/column on the FK reference all in CJK ideographs."""
+        json_metadata = {
+            "columns": [{"name": "用户_id", "nullable": True}],
+            "table_constraints": (
+                "[(fk1,FOREIGN KEY (`用户_id`)"
+                " REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
+            ),
+        }
+        metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+        config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
+        assert config == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk1",
+                    columns=["用户_id"],
+                    to="`主目录`.`架构`.`用户`",
+                    to_columns=["编号"],
+                )
+            },
+        )
 
 
 class TestParserToColumnMaskProcessor:
