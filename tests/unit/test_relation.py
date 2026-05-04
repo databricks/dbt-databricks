@@ -1,5 +1,6 @@
 import pytest
 from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.constraints import (
@@ -8,6 +9,7 @@ from dbt.adapters.databricks.constraints import (
     PrimaryKeyConstraint,
 )
 from dbt.adapters.databricks.relation import (
+    MAX_CHARACTERS_IN_IDENTIFIER,
     DatabricksQuotePolicy,
     DatabricksRelation,
     DatabricksRelationType,
@@ -262,6 +264,22 @@ class TestRelationsFunctions:
         )
         assert relation.is_iceberg is False
 
+    def test_is_iceberg_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_iceberg_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_iceberg is False
+
+    def test_is_hudi_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_hudi_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_hudi is False
+
     @pytest.mark.parametrize(
         "type_, is_delta, is_iceberg, expected_can_be_replaced",
         [
@@ -368,6 +386,27 @@ class TestConstraints:
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
         assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
+
+
+class TestIdentifierLengthValidation:
+    def test_valid_identifier_length(self):
+        identifier = "a" * MAX_CHARACTERS_IN_IDENTIFIER
+        rel = DatabricksRelation.create(identifier=identifier, type="table")
+        assert rel.identifier == identifier
+
+    def test_identifier_too_long_raises(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        with pytest.raises(DbtRuntimeError, match="maximum identifier length of 255 characters"):
+            DatabricksRelation.create(identifier=identifier, type="table")
+
+    def test_long_identifier_without_type_is_allowed(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        rel = DatabricksRelation.create(identifier=identifier)
+        assert rel.identifier == identifier
+
+    def test_none_identifier_is_allowed(self):
+        rel = DatabricksRelation.create(identifier=None, type="table")
+        assert rel.identifier is None
 
 
 class TestDatabricksRenderLimited:
