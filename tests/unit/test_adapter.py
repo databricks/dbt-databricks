@@ -1283,7 +1283,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
         Native managed Iceberg tables don't use UniForm (Delta with Iceberg compatibility),
         so they shouldn't get Delta table properties added."""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
@@ -1296,7 +1296,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform returns True for UniForm Iceberg tables"""
-        adapter.behavior.use_managed_iceberg = False  # Default
+        adapter.behavior.use_managed_iceberg.setting = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1319,7 +1319,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, hive_catalog_relation
     ):
         """Test that is_uniform raises error for managed Iceberg with Hive Metastore"""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1332,7 +1332,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for insufficient DBR version"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
@@ -1343,7 +1343,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for invalid materialization"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
         mock_config.get.side_effect = lambda key: "view" if key == "materialized" else None

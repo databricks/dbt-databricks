@@ -12,6 +12,7 @@
 - Stop emitting the `insert_overwrite will perform a dynamic insert overwrite` warning on every `insert_overwrite` run on SQL warehouses; warn instead only when `use_replace_on_for_insert_overwrite` is enabled but the cluster's DBR version does not support REPLACE ON ([#1305](https://github.com/databricks/dbt-databricks/issues/1305))
 - Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
 - Fix spurious `use_materialization_v2` behavior-change warning firing on table, view, seed, and incremental materializations ([#1089](https://github.com/databricks/dbt-databricks/issues/1089))
+- Fix spurious `use_managed_iceberg` behavior-change warning firing on every run for projects that don't use Iceberg ([#1266](https://github.com/databricks/dbt-databricks/issues/1266))
 - Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
