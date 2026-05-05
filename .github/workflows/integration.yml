@@ -137,18 +137,56 @@ jobs:
       - name: Start runner metrics sampler
         run: |
           mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
           NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
           [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
           (
-            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
             while true; do
               ts=$(date -u +%s)
               read load1 load5 load15 _ _ < /proc/loadavg
               cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
               mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
               net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
               [ -z "$net" ] && net="0	0"
-              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
               sleep 5
             done
           ) > logs/runner-metrics.tsv 2>&1 &
@@ -230,18 +268,56 @@ jobs:
       - name: Start runner metrics sampler
         run: |
           mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
           NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
           [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
           (
-            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
             while true; do
               ts=$(date -u +%s)
               read load1 load5 load15 _ _ < /proc/loadavg
               cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
               mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
               net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
               [ -z "$net" ] && net="0	0"
-              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
               sleep 5
             done
           ) > logs/runner-metrics.tsv 2>&1 &
@@ -321,18 +397,56 @@ jobs:
       - name: Start runner metrics sampler
         run: |
           mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
           NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
           [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
           (
-            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\trx_bytes\ttx_bytes"
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
             while true; do
               ts=$(date -u +%s)
               read load1 load5 load15 _ _ < /proc/loadavg
               cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
               mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
               net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
               [ -z "$net" ] && net="0	0"
-              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$net"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
               sleep 5
             done
           ) > logs/runner-metrics.tsv 2>&1 &

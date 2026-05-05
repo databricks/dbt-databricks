@@ -20,7 +20,7 @@ def pytest_addoption(parser):
 
 
 _HTTP_TRACE_ENABLED = os.environ.get("DBT_DATABRICKS_HTTP_TRACE", "0") == "1"
-_HTTP_STATUS_RE = re.compile(r"\b(?:HTTP/\d\.\d\s+|status[_=:\s]+|<\s+)(\d{3})\b")
+_HTTP_STATUS_RE = re.compile(r'(?:HTTP/\d\.\d["\']?[\s,]+|<\s+|status[_=:\s]+)(\d{3})\b')
 _status_counter: dict[str, int] = defaultdict(int)
 _counter_lock = threading.Lock()
 
