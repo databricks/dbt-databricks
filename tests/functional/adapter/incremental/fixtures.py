@@ -1118,6 +1118,77 @@ def model(dbt, spark):
     return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
 """
 
+v1_skip_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_apply_config_changes = false,
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+
+{% else %}
+
+select cast(1 as bigint) as id, 'updated' as msg
+
+{% endif %}
+"""
+
+fail_if_metadata_fetched_macros = """
+{% macro fetch_tags(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_tags should not be called when incremental_apply_config_changes is false") }}
+{% endmacro %}
+
+{% macro fetch_column_tags(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_column_tags should not be called") }}
+{% endmacro %}
+
+{% macro fetch_non_null_constraint_columns(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_non_null_constraint_columns should not be called") }}
+{% endmacro %}
+
+{% macro fetch_primary_key_constraints(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_primary_key_constraints should not be called") }}
+{% endmacro %}
+
+{% macro fetch_foreign_key_constraints(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_foreign_key_constraints should not be called") }}
+{% endmacro %}
+
+{% macro fetch_column_masks(relation) %}
+  {{ exceptions.raise_compiler_error("fetch_column_masks should not be called") }}
+{% endmacro %}
+"""
+
+fail_if_column_masks_applied_macro = """
+{% macro apply_column_masks(relation, column_masks) %}
+  {{ exceptions.raise_compiler_error("apply_column_masks should not be called in V1 — column masks must only be applied in V2 to prevent unmasked data exposure") }}
+{% endmacro %}
+"""
+
+v1_column_mask_model_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name
+"""
+
+v1_column_mask_schema = """
+version: 2
+
+models:
+  - name: v1_column_mask_model_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
+"""
+
 warn_unenforced_override_sql = """
 select "abc" as id
 """

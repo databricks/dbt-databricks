@@ -30,7 +30,9 @@
       {% if constraints %}
         {{ apply_constraints(target_relation, constraints) }}
       {% endif %}
-      {% if column_masks %}
+      {#-- Column masks are only applied in V2 to avoid a window where data is unmasked (CTAS in V1
+           writes data before masks can be applied, whereas V2 creates an empty table first) --#}
+      {% if column_masks and adapter.behavior.use_materialization_v2 %}
         {{ apply_column_masks(target_relation, column_masks) }}
       {% endif %}
     {%- endif -%}
