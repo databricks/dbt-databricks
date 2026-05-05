@@ -16,8 +16,11 @@
   {% endif %}
   {% if query %}
     {{ alter_query(target_relation, query.query) }}
-  {% endif %}
-  {% if column_comments %}
-    {{ alter_column_comments(target_relation, column_comments.comments) }}
+    {% if config.persist_column_docs() and model.columns %}
+      {#-- ALTER VIEW AS <query> will wipe all column comments in a column_list, so we need to reapply them here. --#}
+      {%- set existing_columns = adapter.get_columns_in_relation(target_relation) -%}
+      {%- set columns_to_persist = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
+      {{ alter_column_comment(target_relation, columns_to_persist) }}
+    {% endif %}
   {% endif %}
 {% endmacro %}

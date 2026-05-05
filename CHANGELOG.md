@@ -51,6 +51,11 @@
 - Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
 - Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
+- Fix column comments being permanently dropped from views upon SQL changes when using `view_update_via_alter` ([#1357](https://github.com/databricks/dbt-databricks/issues/1357))
+
+### Under the Hood
+
+- Views with enabled config `view_update_via_alter` now update the view query independent of diffs in the query definition. This ensures that changes in underlying tables are also reflected when using star select semantics. ([#1356](https://github.com/databricks/dbt-databricks/issues/1356))
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
