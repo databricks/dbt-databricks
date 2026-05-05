@@ -23,6 +23,52 @@ class TestSqlUtils:
     def test_clean_sql(self, sql, expected):
         assert SqlUtils.clean_sql(sql) == expected
 
+    @pytest.mark.parametrize(
+        "yaml_body, expected",
+        [
+            pytest.param(
+                "version: 0.1\nsource: `db`.`schema`.`name`\n",
+                'version: 0.1\nsource: "`db`.`schema`.`name`"\n',
+                id="three_part_bare",
+            ),
+            pytest.param("source: `name`\n", 'source: "`name`"\n', id="one_part_bare"),
+            pytest.param(
+                "source: `schema`.`name`\n",
+                'source: "`schema`.`name`"\n',
+                id="two_part_bare",
+            ),
+            pytest.param(
+                'source: "`db`.`schema`.`name`"\n',
+                'source: "`db`.`schema`.`name`"\n',
+                id="already_quoted_idempotent",
+            ),
+            pytest.param(
+                "source: db.schema.name\n",
+                "source: db.schema.name\n",
+                id="no_backticks",
+            ),
+            pytest.param(
+                "expr: count(`some col`)\n",
+                "expr: count(`some col`)\n",
+                id="inline_backtick_in_expr",
+            ),
+            pytest.param(
+                "  source: `db`.`s`.`n`\n",
+                '  source: "`db`.`s`.`n`"\n',
+                id="indented_mapping",
+            ),
+            pytest.param(
+                "version: 0.1\nsource: `db`.`s`.`a`\nfilter: `db`.`s`.`b`\n",
+                'version: 0.1\nsource: "`db`.`s`.`a`"\nfilter: "`db`.`s`.`b`"\n',
+                id="multiple_lines",
+            ),
+            pytest.param("", "", id="empty"),
+            pytest.param("   \n", "   \n", id="whitespace_only"),
+        ],
+    )
+    def test_yaml_quote_backtick_values(self, yaml_body, expected):
+        assert SqlUtils.yaml_quote_backtick_values(yaml_body) == expected
+
     @pytest.mark.parametrize("result, expected", [("14.x", (14, sys.maxsize)), ("12.1", (12, 1))])
     def test_extract_dbr_version(self, result, expected):
         assert SqlUtils.extract_dbr_version(result) == expected
