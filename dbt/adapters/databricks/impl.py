@@ -1091,6 +1091,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
 
