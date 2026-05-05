@@ -10,6 +10,7 @@ import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.clients.agate_helper import merge_tables
+from dbt_common.events.event_manager_client import add_callback_to_manager
 from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
@@ -1433,3 +1434,37 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
+
+
+class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
+    """The `use_materialization_v2` deprecation warning must not fire on every dbt run."""
+
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    @pytest.mark.parametrize("flag_value", [False, True])
+    def test_get_behavior_flag_no_warn_does_not_fire_event(self, adapter, flag_value):
+        """The helper must return the flag value without firing
+        BehaviorChangeEvent for `use_materialization_v2`, regardless of value."""
+        adapter.behavior.use_materialization_v2.setting = flag_value
+
+        caught = []
+
+        def record(event_msg):
+            if (
+                event_msg.info.name == "BehaviorChangeEvent"
+                and event_msg.data.flag_name == "use_materialization_v2"
+            ):
+                caught.append(event_msg)
+
+        add_callback_to_manager(record)
+
+        result = adapter.get_behavior_flag_no_warn("use_materialization_v2")
+
+        assert result == flag_value
+        assert caught == [], (
+            "get_behavior_flag_no_warn must not fire BehaviorChangeEvent for "
+            f"use_materialization_v2 (fired {len(caught)} times)"
+        )
