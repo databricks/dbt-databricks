@@ -83,7 +83,7 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
 2. **Functional Tests** (`tests/functional/`): End-to-end with real Databricks
    - Test complete dbt workflows (run, seed, test, snapshot)
    - Require live Databricks workspace
-   - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e`, `sqlw-e2e`)
+   - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e-dev`, `sqlw-e2e-dev`). Note: CI runs uc-cluster + sqlw sharded; these `*-dev` aliases run the full unsharded suite for local development.
 
 ### What to Assert in Each Test Type
 

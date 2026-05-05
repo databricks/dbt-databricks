@@ -104,17 +104,94 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
 
-  run-uc-cluster-e2e-tests:
-    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
-    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
-    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
-    # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
+  # Collects pytest test ids per profile and assigns them to N shards via
+  # scripts/shard_assign.py. Uploads `shard-assignments-{pr}` artifact that
+  # the sharded test jobs (uc-cluster, sqlwarehouse) and the gather job
+  # consume. Collection does not need workspace credentials — pytest's
+  # `--collect-only` imports test modules but never invokes the
+  # `dbt_profile_target` fixture.
+  prepare-shards:
     needs: prepare
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+
+      - name: Collect tests and assign to shards
+        run: |
+          set -euo pipefail
+          mkdir -p shard-assignments
+          for PROFILE in databricks_uc_cluster databricks_uc_sql_endpoint; do
+            echo "::group::Collecting tests for $PROFILE"
+            hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
+              | grep "::" \
+              > "shard-assignments/${PROFILE}-collected.txt"
+            echo "::endgroup::"
+            python3 scripts/shard_assign.py \
+              --profile "$PROFILE" \
+              --num-shards 2 \
+              --input "shard-assignments/${PROFILE}-collected.txt" \
+              --output-dir shard-assignments
+          done
+
+      - name: Upload shard assignments
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+          retention-days: 5
+
+  run-uc-cluster-e2e-tests:
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output. Matrix shape contract: {pr, ref, shard} — defined in the
+    # `prepare` job (pr+ref) plus the static `shard` dimension below.
+    needs:
+      - prepare
+      - prepare-shards
+    strategy:
+      fail-fast: false
+      # 2 PRs × 2 shards = 4 cells; allow them to run concurrently.
+      max-parallel: 4
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: [0, 1]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -220,8 +297,38 @@ jobs:
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run UC Cluster Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_cluster-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run UC Cluster Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
+          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
+          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
+          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
+          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_cluster \
+            -n 10 --dist=loadfile \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
 
       - name: Stop runner metrics sampler
         if: always()
@@ -234,17 +341,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: uc-cluster-test-logs-${{ matrix.target.pr }}
+          name: uc-cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    needs: prepare
+    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare`, shard
+    # is the static dimension below.
+    needs:
+      - prepare
+      - prepare-shards
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: [0, 1]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -351,8 +463,38 @@ jobs:
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run Sql Endpoint Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_sql_endpoint-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run Sql Endpoint Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
+          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
+          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
+          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
+          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_sql_endpoint \
+            -n 10 --dist=loadfile \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
 
       - name: Stop runner metrics sampler
         if: always()
@@ -365,7 +507,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: sql-endpoint-test-logs-${{ matrix.target.pr }}
+          name: sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
@@ -498,6 +640,89 @@ jobs:
           path: logs/
           retention-days: 5
 
+  # Verifies that every test assigned by `prepare-shards` was executed exactly
+  # once across the shards (sanity check on the assignment + execution
+  # pipeline). Pulls each shard's junit XML from the `*-test-logs-*` artifacts
+  # and the manifests from `shard-assignments-*`. Fails the gather job if any
+  # invariant fails — this is the canary for a silent shard-assignment bug.
+  gather-shards:
+    needs:
+      - prepare-shards
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+    if: |
+      always() &&
+      needs.prepare-shards.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Download per-shard test logs
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          pattern: "*-test-logs-${{ matrix.target.pr }}-shard-*"
+          path: shard-logs/
+          merge-multiple: false
+
+      - name: Verify shards
+        run: |
+          set -euo pipefail
+          # Layout after download-artifact (merge-multiple: false):
+          #   shard-logs/<artifact-name>/<files...>
+          # We need junit-shard-N.xml grouped by profile. Stage them.
+          mkdir -p junit/uc-cluster junit/sqlw
+
+          for d in shard-logs/uc-cluster-test-logs-${{ matrix.target.pr }}-shard-*; do
+            [ -d "$d" ] || continue
+            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+            cp "$d/junit-shard-${shard}.xml" "junit/uc-cluster/junit-shard-${shard}.xml"
+          done
+          for d in shard-logs/sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-*; do
+            [ -d "$d" ] || continue
+            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+            cp "$d/junit-shard-${shard}.xml" "junit/sqlw/junit-shard-${shard}.xml"
+          done
+
+          ANY_FAIL=0
+          echo "::group::Verify uc-cluster shards"
+          python3 scripts/shard_verify.py \
+            --manifest shard-assignments/databricks_uc_cluster-manifest.json \
+            --shard-dir shard-assignments \
+            --junit-dir junit/uc-cluster || ANY_FAIL=1
+          echo "::endgroup::"
+
+          echo "::group::Verify sqlw shards"
+          python3 scripts/shard_verify.py \
+            --manifest shard-assignments/databricks_uc_sql_endpoint-manifest.json \
+            --shard-dir shard-assignments \
+            --junit-dir junit/sqlw || ANY_FAIL=1
+          echo "::endgroup::"
+
+          if [ "$ANY_FAIL" -ne 0 ]; then
+            echo "::error::One or more shard-verification invariants failed."
+            exit 1
+          fi
+
   # Posts a per-job pass/fail summary comment back to the PR when dispatched
   # with a single PR number (the slash-command path). Skipped for batch
   # dispatches (pr_numbers contains a comma) and for schedule / git_ref runs.
@@ -508,6 +733,7 @@ jobs:
       - run-uc-cluster-e2e-tests
       - run-sqlwarehouse-e2e-tests
       - run-cluster-e2e-tests
+      - gather-shards
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
@@ -526,6 +752,7 @@ jobs:
           UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
           SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
           CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
+          GATHER_RESULT: ${{ needs.gather-shards.result }}
         with:
           script: |
             const ICONS = { success: ':white_check_mark:', skipped: ':fast_forward:' };
@@ -533,6 +760,7 @@ jobs:
               'UC cluster':          process.env.UC_RESULT,
               'SQL warehouse':       process.env.SQLW_RESULT,
               'All-purpose cluster': process.env.CLUSTER_RESULT,
+              'Shard coverage':      process.env.GATHER_RESULT,
             };
             const line = Object.entries(results)
               .map(([name, r]) => `${name} ${ICONS[r] || ':x:'} ${r}`)

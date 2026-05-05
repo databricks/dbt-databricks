@@ -84,9 +84,13 @@ python = "3.10"
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 4 --dist=loadfile tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 4 --dist=loadfile tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 4 --dist=loadfile tests/functional"
+cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+# CI for uc-cluster + sqlw runs sharded via the integration workflow's
+# `prepare-shards` job (see .github/workflows/integration.yml). The `*-dev`
+# scripts below are local-development conveniences only — CI does not call
+# them. To run the full unsharded suite locally, use these.
+uc-cluster-e2e-dev = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e-dev = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"

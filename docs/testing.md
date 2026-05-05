@@ -98,10 +98,10 @@ Hatch manages Python environments and dependencies automatically:
 # Unit tests only (fast)
 hatch run unit
 
-# Functional tests by environment
+# Functional tests by environment (local development)
 hatch run cluster-e2e           # HMS cluster
-hatch run uc-cluster-e2e        # Unity Catalog cluster
-hatch run sqlw-e2e              # SQL Warehouse
+hatch run uc-cluster-e2e-dev    # Unity Catalog cluster (CI runs this sharded)
+hatch run sqlw-e2e-dev          # SQL Warehouse (CI runs this sharded)
 
 # Unit tests across Python versions (for compatibility)
 hatch run test:unit             # All Python versions (3.9-3.12)
@@ -833,8 +833,8 @@ For debugging, use your IDE's test runner rather than pytest directly:
 For **CLI testing**, use the hatch commands which specify the correct profile:
 ```bash
 hatch run cluster-e2e        # Tests with databricks_cluster
-hatch run uc-cluster-e2e     # Tests with databricks_uc_cluster  
-hatch run sqlw-e2e           # Tests with databricks_uc_sql_endpoint
+hatch run uc-cluster-e2e-dev # Tests with databricks_uc_cluster (CI uses sharded prepare-shards path)
+hatch run sqlw-e2e-dev       # Tests with databricks_uc_sql_endpoint (CI uses sharded prepare-shards path)
 ```
 
 For **IDE test runners** (VS Code, PyCharm, etc.), you can override the default test profile by adding to your `test.env` file:
