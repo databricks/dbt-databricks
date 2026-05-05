@@ -104,17 +104,99 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
 
-  run-uc-cluster-e2e-tests:
-    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
-    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
-    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
-    # empty output. Matrix shape contract: {pr, ref} — defined in the `prepare` job.
+  # Collects pytest test ids per profile and assigns them to N shards via
+  # scripts/shard_assign.py. Uploads `shard-assignments-{pr}` artifact that
+  # the sharded test jobs (uc-cluster, sqlwarehouse) and the gather job
+  # consume. Collection does not need workspace credentials — pytest's
+  # `--collect-only` imports test modules but never invokes the
+  # `dbt_profile_target` fixture.
+  prepare-shards:
     needs: prepare
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+
+      - name: Collect tests and assign to shards
+        run: |
+          set -euo pipefail
+          mkdir -p shard-assignments
+          declare -A NUM_SHARDS=(
+            [databricks_cluster]=2
+            [databricks_uc_cluster]=3
+            [databricks_uc_sql_endpoint]=3
+          )
+          for PROFILE in databricks_cluster databricks_uc_cluster databricks_uc_sql_endpoint; do
+            echo "::group::Collecting tests for $PROFILE"
+            hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
+              | grep "::" \
+              > "shard-assignments/${PROFILE}-collected.txt"
+            echo "::endgroup::"
+            python3 scripts/shard_assign.py \
+              --profile "$PROFILE" \
+              --num-shards "${NUM_SHARDS[$PROFILE]}" \
+              --input "shard-assignments/${PROFILE}-collected.txt" \
+              --output-dir shard-assignments
+          done
+
+      - name: Upload shard assignments
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+          retention-days: 5
+
+  run-uc-cluster-e2e-tests:
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output. Matrix shape contract: {pr, ref, shard} — defined in the
+    # `prepare` job (pr+ref) plus the static `shard` dimension below.
+    needs:
+      - prepare
+      - prepare-shards
+    strategy:
+      fail-fast: false
+      # 2 PRs × 2 shards = 4 cells; allow them to run concurrently.
+      max-parallel: 4
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: [0, 1, 2]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -127,11 +209,71 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
+
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -160,24 +302,66 @@ jobs:
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run UC Cluster Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_cluster-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run UC Cluster Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
+          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
+          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
+          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
+          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_cluster \
+            -n 10 --dist=loadfile \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
+
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload UC Cluster Test Logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: uc-cluster-test-logs-${{ matrix.target.pr }}
+          name: uc-cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    needs: prepare
+    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare`, shard
+    # is the static dimension below.
+    needs:
+      - prepare
+      - prepare-shards
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: [0, 1, 2]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -191,11 +375,71 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
+
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -224,24 +468,67 @@ jobs:
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run Sql Endpoint Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_sql_endpoint-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run Sql Endpoint Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
+          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
+          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
+          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
+          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_sql_endpoint \
+            -n 10 --dist=loadfile \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
+
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload SQL Endpoint Test Logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: sql-endpoint-test-logs-${{ matrix.target.pr }}
+          name: sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
   run-cluster-e2e-tests:
-    needs: prepare
+    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare`, shard
+    # is the static dimension below.
+    needs:
+      - prepare
+      - prepare-shards
     strategy:
       fail-fast: false
-      max-parallel: 2
+      # 2 PRs × 2 shards = 4 cells; allow them to run concurrently.
+      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: [0, 1]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -253,11 +540,71 @@ jobs:
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       UV_FROZEN: "1"
+      DBT_DATABRICKS_HTTP_TRACE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           ref: ${{ matrix.target.ref }}
+
+      - name: Start runner metrics sampler
+        run: |
+          mkdir -p logs
+          # One-time system snapshot. Captures nproc, CPU model, memory total,
+          # kernel, OS release, network routes, ulimits, and runner identity so
+          # later analysis doesn't have to infer core count from jiffy rate.
+          {
+            echo "=== uname -a ==="; uname -a
+            echo "=== nproc ==="; nproc
+            echo "=== /proc/cpuinfo (first ~50 lines) ==="; head -50 /proc/cpuinfo
+            echo "=== /proc/meminfo (first 5 lines) ==="; head -5 /proc/meminfo
+            echo "=== /etc/os-release ==="; cat /etc/os-release
+            echo "=== ip route ==="; ip route show
+            echo "=== ulimit -a ==="; ulimit -a
+            echo "=== runner identity ==="
+            echo "RUNNER_NAME=${RUNNER_NAME:-}"
+            echo "RUNNER_OS=${RUNNER_OS:-}"
+            echo "RUNNER_ARCH=${RUNNER_ARCH:-}"
+            echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+            echo "GITHUB_JOB=${GITHUB_JOB:-}"
+            echo "HOSTNAME=$(hostname)"
+            echo "DATE_UTC=$(date -u --iso-8601=seconds)"
+          } > logs/runner-info.txt 2>&1
+
+          NCORES=$(nproc)
+          NETIF=$(ip route show default | awk '/default/ {print $5; exit}')
+          [ -z "$NETIF" ] && NETIF=eth0
+
+          # Sampler. /proc/stat aggregate is the first line ("cpu ..."); per-CPU
+          # are subsequent "cpu0 ...", "cpu1 ..." lines. We capture the aggregate
+          # plus all per-core lines as a JSON-array column so we don't have to
+          # commit to a fixed number of cores in the schema.
+          (
+            echo -e "ts\tload1\tload5\tload15\tmem_avail_kb\tmem_total_kb\tcpu_user\tcpu_nice\tcpu_system\tcpu_idle\tcpu_iowait\tcpu_irq\tcpu_softirq\tcpu_steal\tprocs_running\tprocs_blocked\trx_bytes\ttx_bytes\tper_cpu_busy_idle"
+            while true; do
+              ts=$(date -u +%s)
+              read load1 load5 load15 _ _ < /proc/loadavg
+              cpu=$(awk 'NR==1{printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",$2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat)
+              # procs_running, procs_blocked from /proc/stat tail
+              procs=$(awk '/^procs_running/{r=$2} /^procs_blocked/{b=$2} END{printf "%s\t%s", r, b}' /proc/stat)
+              mem=$(awk '/^MemAvailable:/{ma=$2} /^MemTotal:/{mt=$2} END {printf "%s\t%s",ma,mt}' /proc/meminfo)
+              net=$(awk -v ifc="$NETIF:" '$1==ifc{printf "%s\t%s",$2,$10}' /proc/net/dev)
+              [ -z "$net" ] && net="0	0"
+              # Per-CPU: emit a compact "cpu0:busy:idle;cpu1:busy:idle;..." string.
+              percpu=$(awk '
+                /^cpu[0-9]+ / {
+                  busy = $2 + $3 + $4 + $6 + $7 + $8 + $9
+                  idle = $5
+                  printf "%s%s:%d:%d", sep, $1, busy, idle
+                  sep = ";"
+                }
+              ' /proc/stat)
+              printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$ts" "$load1" "$load5" "$load15" "$mem" "$cpu" "$procs" "$net" "$percpu"
+              sleep 5
+            done
+          ) > logs/runner-metrics.tsv 2>&1 &
+          echo $! > /tmp/sampler.pid
+          disown
 
       - name: Setup Python Dependencies
         id: deps
@@ -286,16 +633,154 @@ jobs:
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run Cluster Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_cluster-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run Cluster Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
+          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
+          DBT_DATABRICKS_HTTP_PATH="$DBT_DATABRICKS_CLUSTER_HTTP_PATH" \
+          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
+          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_cluster \
+            -n 10 --dist=loadfile \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
+
+      - name: Stop runner metrics sampler
+        if: always()
+        run: |
+          if [ -f /tmp/sampler.pid ]; then
+            kill "$(cat /tmp/sampler.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload Cluster Test Logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: cluster-test-logs-${{ matrix.target.pr }}
+          name: cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
+
+  # Verifies that every test assigned by `prepare-shards` was executed exactly
+  # once across the shards (sanity check on the assignment + execution
+  # pipeline). Pulls each shard's junit XML from the `*-test-logs-*` artifacts
+  # and the manifests from `shard-assignments-*`. Fails the gather job if any
+  # invariant fails — this is the canary for a silent shard-assignment bug.
+  gather-shards:
+    # `prepare` is in needs because the matrix below references
+    # `needs.prepare.outputs.targets`. Without it, GHA fails to resolve the
+    # matrix expansion and silently SKIPS the job (no `skipped` entry in the
+    # run jobs list either) — verified the hard way in exp-7's first attempt.
+    needs:
+      - prepare
+      - prepare-shards
+      - run-cluster-e2e-tests
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+    if: |
+      always() &&
+      needs.prepare-shards.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Download per-shard test logs
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          pattern: "*-test-logs-${{ matrix.target.pr }}-shard-*"
+          path: shard-logs/
+          merge-multiple: false
+
+      - name: Verify shards
+        run: |
+          set -euo pipefail
+          # Layout after download-artifact (merge-multiple: false):
+          #   shard-logs/<artifact-name>/<files...>
+          # We need junit-shard-N.xml grouped by profile. Stage them.
+          mkdir -p junit/cluster junit/uc-cluster junit/sqlw
+
+          for d in shard-logs/cluster-test-logs-${{ matrix.target.pr }}-shard-*; do
+            [ -d "$d" ] || continue
+            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+            cp "$d/junit-shard-${shard}.xml" "junit/cluster/junit-shard-${shard}.xml"
+          done
+          for d in shard-logs/uc-cluster-test-logs-${{ matrix.target.pr }}-shard-*; do
+            [ -d "$d" ] || continue
+            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+            cp "$d/junit-shard-${shard}.xml" "junit/uc-cluster/junit-shard-${shard}.xml"
+          done
+          for d in shard-logs/sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-*; do
+            [ -d "$d" ] || continue
+            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+            cp "$d/junit-shard-${shard}.xml" "junit/sqlw/junit-shard-${shard}.xml"
+          done
+
+          ANY_FAIL=0
+          echo "::group::Verify cluster shards"
+          python3 scripts/shard_verify.py \
+            --manifest shard-assignments/databricks_cluster-manifest.json \
+            --shard-dir shard-assignments \
+            --junit-dir junit/cluster || ANY_FAIL=1
+          echo "::endgroup::"
+
+          echo "::group::Verify uc-cluster shards"
+          python3 scripts/shard_verify.py \
+            --manifest shard-assignments/databricks_uc_cluster-manifest.json \
+            --shard-dir shard-assignments \
+            --junit-dir junit/uc-cluster || ANY_FAIL=1
+          echo "::endgroup::"
+
+          echo "::group::Verify sqlw shards"
+          python3 scripts/shard_verify.py \
+            --manifest shard-assignments/databricks_uc_sql_endpoint-manifest.json \
+            --shard-dir shard-assignments \
+            --junit-dir junit/sqlw || ANY_FAIL=1
+          echo "::endgroup::"
+
+          if [ "$ANY_FAIL" -ne 0 ]; then
+            echo "::error::One or more shard-verification invariants failed."
+            exit 1
+          fi
 
   # Posts a per-job pass/fail summary comment back to the PR when dispatched
   # with a single PR number (the slash-command path). Skipped for batch
@@ -307,6 +792,7 @@ jobs:
       - run-uc-cluster-e2e-tests
       - run-sqlwarehouse-e2e-tests
       - run-cluster-e2e-tests
+      - gather-shards
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
@@ -325,6 +811,7 @@ jobs:
           UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
           SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
           CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
+          GATHER_RESULT: ${{ needs.gather-shards.result }}
         with:
           script: |
             const ICONS = { success: ':white_check_mark:', skipped: ':fast_forward:' };
@@ -332,6 +819,7 @@ jobs:
               'UC cluster':          process.env.UC_RESULT,
               'SQL warehouse':       process.env.SQLW_RESULT,
               'All-purpose cluster': process.env.CLUSTER_RESULT,
+              'Shard coverage':      process.env.GATHER_RESULT,
             };
             const line = Object.entries(results)
               .map(([name, r]) => `${name} ${ICONS[r] || ':x:'} ${r}`)

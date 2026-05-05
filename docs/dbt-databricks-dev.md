@@ -178,8 +178,8 @@ hatch run mypy                    # Type checking only
 hatch run unit                    # Unit tests (Python 3.9)
 hatch run test:unit               # Unit tests (all Python versions)
 hatch run cluster-e2e             # Functional tests (HMS cluster)
-hatch run uc-cluster-e2e          # Functional tests (Unity Catalog)
-hatch run sqlw-e2e                # Functional tests (SQL Warehouse)
+hatch run uc-cluster-e2e-dev      # Functional tests (Unity Catalog) — CI runs this sharded
+hatch run sqlw-e2e-dev            # Functional tests (SQL Warehouse) — CI runs this sharded
 
 # Building
 hatch build -c                    # Build wheel and sdist (cleans dist folder first)
