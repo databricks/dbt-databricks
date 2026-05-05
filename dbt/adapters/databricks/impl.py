@@ -1326,8 +1326,7 @@ class DatabricksDescribeJsonMetadata:
             parts = re.split(r"(?<=\))\s*REFERENCES\s*(?=`)", body, maxsplit=1)
             if len(parts) != 2:
                 raise DbtRuntimeError(
-                    f"FOREIGN KEY constraint '{name}' is missing a REFERENCES "
-                    f"clause: {body!r}"
+                    f"FOREIGN KEY constraint '{name}' is missing a REFERENCES clause: {body!r}"
                 )
             # Worked example:
             #   from_cols  = ["x", "y"]
@@ -1337,8 +1336,7 @@ class DatabricksDescribeJsonMetadata:
             n = len(from_cols)
             if n == 0:
                 raise DbtRuntimeError(
-                    f"FOREIGN KEY constraint '{name}' has no from-columns: "
-                    f"{body!r}"
+                    f"FOREIGN KEY constraint '{name}' has no from-columns: {body!r}"
                 )
             # Layout in the right half: catalog, schema, table, *to_cols.
             # Anything other than exactly (3 + n) tokens means the referenced
@@ -1554,7 +1552,7 @@ class DatabricksDescribeJsonMetadata:
             m = cls._CONSTRAINT_BOUNDARY.search(inner, name_start)
             if not m:
                 break
-            name = inner[name_start: m.start()].strip()
+            name = inner[name_start : m.start()].strip()
 
             # Walk the body forward to find the block's outer closing `)`.
             # Body parens are balanced, so depth returns to 0 only at that `)`.
@@ -1599,9 +1597,9 @@ class DatabricksDescribeJsonMetadata:
             if i >= len(inner):
                 break
 
-            body = inner[m.start() + 1: i].strip()
+            body = inner[m.start() + 1 : i].strip()
             pairs.append((name, body))
-            pos = i + 1   # advance past the block's outer `)`
+            pos = i + 1  # advance past the block's outer `)`
 
         # For the worked example, pairs is now:
         #   [("p-a,b@c(d", "PRIMARY KEY (`id``a`)"),
@@ -1623,5 +1621,3 @@ class DatabricksDescribeJsonMetadata:
               returns ["cat", "sch", "tbl", "a", "b"]
         """
         return [m.group(1).replace("``", "`") for m in cls._BACKTICKED.finditer(s)]
-
-

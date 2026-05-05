@@ -526,9 +526,7 @@ class TestParseForeignKeyConstraints:
 
     def test_at_sign_in_constraint_name(self):
         json_metadata = {
-            "table_constraints": (
-                "[(fk@1,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
-            )
+            "table_constraints": ("[(fk@1,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]")
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
         assert len(result.rows) == 1
@@ -538,9 +536,7 @@ class TestParseForeignKeyConstraints:
 
     def test_comma_in_constraint_name(self):
         json_metadata = {
-            "table_constraints": (
-                "[(a,b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
-            )
+            "table_constraints": ("[(a,b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]")
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
         assert len(result.rows) == 1
@@ -550,9 +546,7 @@ class TestParseForeignKeyConstraints:
 
     def test_paren_in_constraint_name(self):
         json_metadata = {
-            "table_constraints": (
-                "[(a(b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
-            )
+            "table_constraints": ("[(a(b,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]")
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
         assert len(result.rows) == 1
@@ -562,9 +556,7 @@ class TestParseForeignKeyConstraints:
 
     def test_backtick_in_constraint_name(self):
         json_metadata = {
-            "table_constraints": (
-                "[(p`a,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]"
-            )
+            "table_constraints": ("[(p`a,FOREIGN KEY (`ref_id`) REFERENCES `c`.`s`.`t` (`id`))]")
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
         assert len(result.rows) == 1
@@ -589,8 +581,7 @@ class TestParseForeignKeyConstraints:
         """CJK ideographs inside backticked catalog/schema/table/column."""
         json_metadata = {
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`用户_id`)"
-                " REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
+                "[(fk1,FOREIGN KEY (`用户_id`) REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
             )
         }
         result = DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
@@ -677,9 +668,7 @@ class TestParseForeignKeyConstraints:
     def test_mismatched_column_counts_raises(self):
         """from-cols count must equal to-cols count; mismatch must raise."""
         json_metadata = {
-            "table_constraints": (
-                "[(fk1,FOREIGN KEY (`a`, `b`) REFERENCES `c`.`s`.`t` (`x`))]"
-            )
+            "table_constraints": ("[(fk1,FOREIGN KEY (`a`, `b`) REFERENCES `c`.`s`.`t` (`x`))]")
         }
         with pytest.raises(DbtRuntimeError, match="3-part"):
             DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
@@ -1222,9 +1211,7 @@ class TestParserToConstraintsProcessor:
         assert config == ConstraintsConfig(
             set_non_nulls={"id`a"},
             set_constraints={
-                PrimaryKeyConstraint(
-                    type=ConstraintType.primary_key, name="pk1", columns=["id`a"]
-                ),
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name="pk1", columns=["id`a"]),
             },
         )
 
@@ -1232,9 +1219,7 @@ class TestParserToConstraintsProcessor:
         """From-column literally named ref`id (emitted as `ref``id`)."""
         json_metadata = {
             "columns": [{"name": "ref`id", "nullable": True}],
-            "table_constraints": (
-                "[(fk1,FOREIGN KEY (`ref``id`) REFERENCES `c`.`s`.`t` (`id`))]"
-            ),
+            "table_constraints": ("[(fk1,FOREIGN KEY (`ref``id`) REFERENCES `c`.`s`.`t` (`id`))]"),
         }
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
         config = ConstraintsProcessor.from_relation_results(self._build_results(metadata))
@@ -1315,8 +1300,7 @@ class TestParserToConstraintsProcessor:
         json_metadata = {
             "columns": [{"name": "cliënt_id", "nullable": True}],
             "table_constraints": (
-                "[(cliënt_fk,FOREIGN KEY (`cliënt_id`)"
-                " REFERENCES `c`.`s`.`klanten` (`id`))]"
+                "[(cliënt_fk,FOREIGN KEY (`cliënt_id`) REFERENCES `c`.`s`.`klanten` (`id`))]"
             ),
         }
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
@@ -1339,8 +1323,7 @@ class TestParserToConstraintsProcessor:
         json_metadata = {
             "columns": [{"name": "用户_id", "nullable": True}],
             "table_constraints": (
-                "[(fk1,FOREIGN KEY (`用户_id`)"
-                " REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
+                "[(fk1,FOREIGN KEY (`用户_id`) REFERENCES `主目录`.`架构`.`用户` (`编号`))]"
             ),
         }
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
