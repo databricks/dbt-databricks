@@ -792,7 +792,6 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
 
-
     @available
     def get_behavior_flag_no_warn(self, behavior_flag_name: str) -> bool:
         """Get the value of a behavior flag without triggering a warning.
