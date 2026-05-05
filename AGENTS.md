@@ -85,6 +85,12 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
    - Require live Databricks workspace
    - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e`, `sqlw-e2e`)
 
+### What to Assert in Each Test Type
+
+Functional tests assert user-visible outcomes: the model materializes and the resulting rows are correct. Unit and macro tests assert implementation details like the exact SQL a macro generates or the exact text of a warning.
+
+When there is nothing meaningful to assert in either category, the change does not need a test.
+
 ### Test Environments
 
 - **HMS Cluster** (`databricks_cluster`): Legacy Hive Metastore
