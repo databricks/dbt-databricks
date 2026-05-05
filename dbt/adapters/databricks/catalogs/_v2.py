@@ -33,5 +33,5 @@ class HiveMetastoreDatabricksConfig(dbtClassMixin):
     def __post_init__(self) -> None:
         if self.file_format.lower() not in {"delta", "parquet", "hudi"}:
             raise DbtValidationError(
-                f"file_format must be one of: {sorted(f.upper() for f in {'delta', 'parquet', 'hudi'})}"
+                f"file_format must be one of: {sorted({'delta', 'parquet', 'hudi'})}"
             )

@@ -41,11 +41,11 @@ from dbt.adapters.databricks.behaviors.columns import (
     GetColumnsByDescribe,
 )
 from dbt.adapters.databricks.catalogs import (
-    HiveMetastoreDatabricksConfig,
-    UnityDatabricksConfig,
     DatabricksCatalogRelation,
     HiveMetastoreCatalogIntegration,
+    HiveMetastoreDatabricksConfig,
     UnityCatalogIntegration,
+    UnityDatabricksConfig,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
