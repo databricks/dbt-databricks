@@ -14,7 +14,6 @@ class UnityDatabricksConfig(dbtClassMixin):
     def __post_init__(self) -> None:
         if not self.file_format.strip():
             raise DbtValidationError("'file_format' must be non-empty")
-        # file_format depends on use_uniform — see dbt-adapters issue #9648
         if self.use_uniform:
             if self.file_format.lower() != "delta":
                 raise DbtValidationError("file_format must be 'delta' when 'use_uniform' is true")
