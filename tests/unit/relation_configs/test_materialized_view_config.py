@@ -1,7 +1,8 @@
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 from agate import Row, Table
 
+from dbt.adapters.databricks.impl import MaterializedViewAPI
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
@@ -144,3 +145,17 @@ class TestMaterializedViewConfig:
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
         }
+
+
+class TestMaterializedViewAPIDescribeRelation:
+    def test_describe_relation_fetches_tags(self):
+        # Without fetching tags here, an MV with `databricks_tags` would show a
+        # spurious tag diff on every run, routing to ALTER instead of REFRESH.
+        adapter = MagicMock()
+        adapter.execute_macro.return_value = MagicMock()
+
+        results = MaterializedViewAPI._describe_relation(adapter, MagicMock())
+
+        assert "information_schema.tags" in results
+        macro_names = {call.args[0] for call in adapter.execute_macro.call_args_list}
+        assert "fetch_tags" in macro_names
