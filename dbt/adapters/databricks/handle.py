@@ -1,7 +1,9 @@
 import decimal
+import os
 import re
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
@@ -26,6 +28,56 @@ CursorWrapperOp = Callable[["CursorWrapper"], None]
 ConnectionOp = Callable[[Optional[Connection]], None]
 LogOp = Callable[[], str]
 FailLogOp = Callable[[Exception], str]
+
+
+# Databricks sets these environment variables when dbt runs inside a Databricks
+# workflow job task.  Reading them once per process is sufficient since they are
+# constant for the lifetime of the task execution.
+_JOB_RUN_ENV_VARS = {
+    "job_id": "DATABRICKS_JOB_ID",
+    "run_id": "DATABRICKS_RUN_ID",
+    "task_key": "DATABRICKS_TASK_KEY",
+}
+
+
+def _get_job_run_context() -> dict[str, Optional[str]]:
+    """Return Databricks job-run context from environment variables.
+
+    Returns a dict with all three keys; values are ``None`` when the
+    corresponding environment variable is not set (i.e. dbt is running
+    outside of a Databricks Job).
+    """
+    return {key: os.environ.get(env_var) for key, env_var in _JOB_RUN_ENV_VARS.items()}
+
+
+@dataclass
+class DatabricksAdapterResponse(AdapterResponse):
+    """Extends the base adapter response with Databricks Job context.
+
+    When dbt runs inside a Databricks workflow task, the runtime exposes
+    ``DATABRICKS_JOB_ID``, ``DATABRICKS_RUN_ID``, and ``DATABRICKS_TASK_KEY``
+    as environment variables.  Including them in the adapter response makes
+    them available in ``run_results.json`` so that downstream tooling can
+    correlate a dbt run with the originating Databricks Job execution.
+
+    Outside of a Databricks Job context the fields are ``None`` and omitted
+    from serialization, keeping backward compatibility.
+    """
+
+    job_id: Optional[str] = None
+    run_id: Optional[str] = None
+    task_key: Optional[str] = None
+
+    @classmethod
+    def from_cursor(cls, cursor: Any) -> "DatabricksAdapterResponse":
+        ctx = _get_job_run_context()
+        return cls(
+            _message="OK",
+            query_id=getattr(cursor, "query_id", None) or "N/A",
+            job_id=ctx.get("job_id"),
+            run_id=ctx.get("run_id"),
+            task_key=ctx.get("task_key"),
+        )
 
 
 class CursorWrapper:
@@ -79,7 +131,7 @@ class CursorWrapper:
         return self._safe_execute(lambda cursor: cursor.fetchmany(size))
 
     def get_response(self) -> AdapterResponse:
-        return AdapterResponse(_message="OK", query_id=self._cursor.query_id or "N/A")
+        return DatabricksAdapterResponse.from_cursor(self._cursor)
 
     T = TypeVar("T")
 
