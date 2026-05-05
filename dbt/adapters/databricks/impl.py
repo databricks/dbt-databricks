@@ -43,7 +43,9 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
     HiveMetastoreCatalogIntegration,
+    HiveMetastoreDatabricksConfig,
     UnityCatalogIntegration,
+    UnityDatabricksConfig,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
@@ -233,6 +235,10 @@ class DatabricksAdapter(SparkAdapter):
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
+    CATALOG_V2_CONFIGS = {
+        "unity": UnityDatabricksConfig,
+        "hive_metastore": HiveMetastoreDatabricksConfig,
+    }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
