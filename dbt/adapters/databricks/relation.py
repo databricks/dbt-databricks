@@ -146,13 +146,11 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def is_hudi(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
 
     @property
     def is_iceberg(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
 
     @property
     def owner(self) -> Optional[str]:

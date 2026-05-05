@@ -264,6 +264,22 @@ class TestRelationsFunctions:
         )
         assert relation.is_iceberg is False
 
+    def test_is_iceberg_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_iceberg_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_iceberg is False
+
+    def test_is_hudi_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_hudi_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_hudi is False
+
     @pytest.mark.parametrize(
         "type_, is_delta, is_iceberg, expected_can_be_replaced",
         [

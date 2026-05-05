@@ -6,9 +6,14 @@
 
 ### Fixes
 
+- Fix latent AssertionError when evaluating `is_hudi` or `is_iceberg` properties on relations without metadata
 - Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
 - Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
+- Stop emitting the `insert_overwrite will perform a dynamic insert overwrite` warning on every `insert_overwrite` run on SQL warehouses; warn instead only when `use_replace_on_for_insert_overwrite` is enabled but the cluster's DBR version does not support REPLACE ON ([#1305](https://github.com/databricks/dbt-databricks/issues/1305))
 - Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
+- Fix spurious `use_managed_iceberg` behavior-change warning firing on every run for projects that don't use Iceberg ([#1266](https://github.com/databricks/dbt-databricks/issues/1266))
+- Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
+- Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
 - Fix `dbt docs generate` failing with `RuntimeError: Tables contain columns with the same names ... but different types` during catalog merge across schemas ([#1392](https://github.com/databricks/dbt-databricks/issues/1392))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
