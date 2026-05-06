@@ -270,7 +270,7 @@ jobs:
             --color=yes -v \
             --profile databricks_uc_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 30 \
+            --reruns 1 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -369,7 +369,7 @@ jobs:
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 30 \
+            --reruns 1 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -466,7 +466,7 @@ jobs:
             --color=yes -v \
             --profile databricks_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 30 \
+            --reruns 1 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
