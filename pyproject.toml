@@ -33,17 +33,6 @@ dependencies = [
     "pydantic>=1.10.0, <2.13.0",
 ]
 
-[project.optional-dependencies]
-test = [
-    "dbt-tests-adapter",
-    "freezegun",
-    "pytest",
-    "pytest-cov",
-    "pytest-dotenv",
-    "pytest-rerunfailures",
-    "pytest-xdist",
-]
-
 [project.urls]
 homepage = "https://github.com/databricks/dbt-databricks"
 changelog = "https://github.com/databricks/dbt-databricks/blob/main/CHANGELOG.md"
@@ -76,13 +65,19 @@ check-sdist = [
 
 [tool.hatch.envs.default]
 installer = "uv"
-features = ["test"]
 dependencies = [
-    "debugpy",
+    "dbt-tests-adapter",
+    "pytest",
+    "pytest-xdist",
+    "pytest-rerunfailures",
+    "pytest-dotenv",
+    "freezegun",
     "mypy>=1.18.2",
     "pre-commit",
     "ruff==0.14.2",
     "types-requests",
+    "debugpy",
+    "pytest-cov",
 ]
 python = "3.10"
 
