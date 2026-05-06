@@ -161,12 +161,17 @@ jobs:
             [databricks_uc_cluster]=3
             [databricks_uc_sql_endpoint]=3
           )
-          for PROFILE in databricks_cluster databricks_uc_cluster databricks_uc_sql_endpoint; do
-            echo "::group::Collecting tests for $PROFILE"
-            hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
-              | grep "::" \
-              > "shard-assignments/${PROFILE}-collected.txt"
-            echo "::endgroup::"
+          # Run the 3 collects in parallel — they import the same test tree but
+          # write disjoint files, so no race. Saves ~30-40s on every run.
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            (
+              hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
+                | grep "::" \
+                > "shard-assignments/${PROFILE}-collected.txt"
+            ) &
+          done
+          wait
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
             python3 scripts/shard_assign.py \
               --profile "$PROFILE" \
               --num-shards "${NUM_SHARDS[$PROFILE]}" \
@@ -535,46 +540,27 @@ jobs:
           set -euo pipefail
           # Layout after download-artifact (merge-multiple: false):
           #   shard-logs/<artifact-name>/<files...>
-          # We need junit-shard-N.xml grouped by profile. Stage them.
-          mkdir -p junit/cluster junit/uc-cluster junit/sqlw
-
-          for d in shard-logs/cluster-test-logs-${{ matrix.target.pr }}-shard-*; do
-            [ -d "$d" ] || continue
-            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
-            cp "$d/junit-shard-${shard}.xml" "junit/cluster/junit-shard-${shard}.xml"
-          done
-          for d in shard-logs/uc-cluster-test-logs-${{ matrix.target.pr }}-shard-*; do
-            [ -d "$d" ] || continue
-            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
-            cp "$d/junit-shard-${shard}.xml" "junit/uc-cluster/junit-shard-${shard}.xml"
-          done
-          for d in shard-logs/sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-*; do
-            [ -d "$d" ] || continue
-            shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
-            cp "$d/junit-shard-${shard}.xml" "junit/sqlw/junit-shard-${shard}.xml"
-          done
-
+          # Map: artifact-prefix -> staging-subdir -> manifest profile.
+          declare -a TRIPLES=(
+            "cluster:cluster:databricks_cluster"
+            "uc-cluster:uc-cluster:databricks_uc_cluster"
+            "sql-endpoint:sqlw:databricks_uc_sql_endpoint"
+          )
           ANY_FAIL=0
-          echo "::group::Verify cluster shards"
-          python3 scripts/shard_verify.py \
-            --manifest shard-assignments/databricks_cluster-manifest.json \
-            --shard-dir shard-assignments \
-            --junit-dir junit/cluster || ANY_FAIL=1
-          echo "::endgroup::"
-
-          echo "::group::Verify uc-cluster shards"
-          python3 scripts/shard_verify.py \
-            --manifest shard-assignments/databricks_uc_cluster-manifest.json \
-            --shard-dir shard-assignments \
-            --junit-dir junit/uc-cluster || ANY_FAIL=1
-          echo "::endgroup::"
-
-          echo "::group::Verify sqlw shards"
-          python3 scripts/shard_verify.py \
-            --manifest shard-assignments/databricks_uc_sql_endpoint-manifest.json \
-            --shard-dir shard-assignments \
-            --junit-dir junit/sqlw || ANY_FAIL=1
-          echo "::endgroup::"
+          for triple in "${TRIPLES[@]}"; do
+            IFS=: read -r prefix subdir profile <<< "$triple"
+            mkdir -p "junit/$subdir"
+            for d in shard-logs/${prefix}-test-logs-${{ matrix.target.pr }}-shard-*; do
+              [ -d "$d" ] || continue
+              shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+              cp "$d/junit-shard-${shard}.xml" "junit/${subdir}/junit-shard-${shard}.xml"
+            done
+            echo "::group::Verify ${subdir} shards"
+            python3 scripts/shard_verify.py \
+              --manifest "shard-assignments/${profile}-manifest.json" \
+              --junit-dir "junit/${subdir}" || ANY_FAIL=1
+            echo "::endgroup::"
+          done
 
           if [ "$ANY_FAIL" -ne 0 ]; then
             echo "::error::One or more shard-verification invariants failed."

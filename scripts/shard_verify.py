@@ -5,9 +5,7 @@ Inputs:
 - A directory of junit XML files written by `pytest --junitxml=...`,
   one per shard (e.g. `junit-shard-0.xml`, `junit-shard-1.xml`).
 - The manifest JSON written by `shard_assign.py` — this is the source of
-  truth for the assigned nodeid set (per-shard `nodeids` field). The shard
-  txt files contain file paths (the input that was fed to pytest), which
-  are not used for verification.
+  truth for the assigned nodeid set (per-shard `nodeids` field).
 
 Invariants asserted:
   I1  Coverage:   union of nodeids actually executed == set of all assigned
@@ -39,14 +37,6 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--manifest", required=True, help="Path to *-manifest.json from shard_assign")
-    p.add_argument(
-        "--shard-dir",
-        required=False,
-        default=None,
-        help="(Deprecated, kept for backward-compat with the calling YAML.) "
-        "Directory containing the *-shard-N.txt files. Verification reads "
-        "assigned nodeids from the manifest instead — this flag is ignored.",
-    )
     p.add_argument(
         "--junit-dir",
         required=True,

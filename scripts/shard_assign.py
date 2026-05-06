@@ -84,11 +84,7 @@ def sha256_str(s: str) -> str:
 def hash_mod_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
     """Stateless: shard = sha256(file_path) mod N. Same answer regardless of
     other files' loads; can be very uneven at small N."""
-    out: dict[str, int] = {}
-    for fp in file_to_tests:
-        digest_int = int(hashlib.sha256(fp.encode("utf-8")).hexdigest(), 16)
-        out[fp] = digest_int % num_shards
-    return out
+    return {fp: int(sha256_str(fp), 16) % num_shards for fp in file_to_tests}
 
 
 def lpt_test_count_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
@@ -167,7 +163,6 @@ def main() -> int:
     # order is preserved as collected by pytest (we do NOT sort within a file
     # — see module docstring for why).
     sorted_files = sorted(file_to_tests.keys())
-    all_nodeids_sorted = sorted(all_nodeids)
 
     # Apply algorithm — operates on the whole file_to_tests dict and returns
     # {file_path: shard_idx}. We then materialize per-shard file & nodeid
@@ -207,7 +202,7 @@ def main() -> int:
             }
             for i in range(args.num_shards)
         ],
-        "all_nodeids_sha256": sha256_str("\n".join(all_nodeids_sorted)),
+        "all_nodeids_sha256": sha256_str("\n".join(sorted(all_nodeids))),
     }
     manifest_path = output_dir / f"{args.profile}-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
