@@ -176,7 +176,9 @@ jobs:
               --profile "$PROFILE" \
               --num-shards "${NUM_SHARDS[$PROFILE]}" \
               --input "shard-assignments/${PROFILE}-collected.txt" \
-              --output-dir shard-assignments
+              --output-dir shard-assignments \
+              --algo lpt_historical_time \
+              --timings scripts/test_timings.json
           done
 
       - name: Upload shard assignments

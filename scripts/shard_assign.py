@@ -24,17 +24,24 @@ worker) and avoids splitting tests within a class that may share cluster
 state.
 
 Algorithms (selected via --algo):
+- lpt_historical_time: greedy LPT on per-file historical wall-time. Sort
+  files by historical time descending; assign each file to the shard with
+  the smallest accumulated time so far. Requires --timings PATH pointing
+  to `scripts/test_timings.json` (built by `scripts/refresh_timings.py`
+  from a previous green run's junit XMLs). Files missing from the timings
+  use the per-profile mean as fallback (handles new tests without breaking
+  the algorithm). This is the algorithm CI uses; see worklog for predicted
+  vs measured skew.
 - lpt_test_count (default): greedy Longest-Processing-Time on per-file test
   count. Sort files by test count descending; assign each file to the shard
   with the smallest accumulated test count so far. Deterministic tiebreak
   (lower shard index wins on ties). Inputs already available from
   `pytest --collect-only`. Graham's bound: within 4/3 of optimal makespan
-  on test-count weight.
+  on test-count weight, but test-count is a noisy proxy for time. Used as
+  fallback when no timings file is available (e.g. brand-new profile).
 - hash_mod: shard = sha256(file_path) mod N. Stable, no inputs needed; very
   uneven balance at our scale (89 files / 2-3 shards) — kept for A/B testing
   and as a fallback. See `.claude/ideas/test-sharding-heuristics.md`.
-- (future) lpt_historical_time: takes a historical-timings JSON, packs files
-  into shards to balance total runtime. Not implemented in this version.
 
 Outputs into --output-dir:
 - <profile>-shard-<i>.txt : file path list, one per line, for i in 0..N-1
@@ -74,6 +81,7 @@ import hashlib
 import json
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -94,24 +102,50 @@ def lpt_test_count_assign(file_to_tests: dict[str, list[str]], num_shards: int) 
     for determinism). Walk the sorted list; assign each file to the shard
     with the smallest accumulated load so far (tiebreak on equal-load: lower
     shard index, again for determinism)."""
-    files_sorted = sorted(
-        file_to_tests.keys(),
-        key=lambda fp: (-len(file_to_tests[fp]), fp),
-    )
-    shards_load = [0] * num_shards
+    return _greedy_lpt(file_to_tests, num_shards, lambda fp: len(file_to_tests[fp]))
+
+
+def make_lpt_historical_time_assign(
+    timings: dict[str, float],
+) -> Callable[[dict[str, list[str]], int], dict[str, int]]:
+    """Build a greedy-LPT assigner using historical per-file wall time as
+    the weight. Files not present in `timings` get the per-profile mean
+    so brand-new tests don't crash the algorithm."""
+    if not timings:
+        raise ValueError("lpt_historical_time requires non-empty timings dict")
+    mean = sum(timings.values()) / len(timings)
+
+    def assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
+        return _greedy_lpt(file_to_tests, num_shards, lambda fp: timings.get(fp, mean))
+
+    return assign
+
+
+def _greedy_lpt(
+    file_to_tests: dict[str, list[str]],
+    num_shards: int,
+    weight: Callable[[str], float],
+) -> dict[str, int]:
+    """Shared LPT body. Sort by descending weight (tiebreak: file path);
+    walk; assign each file to the lightest shard so far (tiebreak: lower
+    shard index)."""
+    files_sorted = sorted(file_to_tests.keys(), key=lambda fp: (-weight(fp), fp))
+    shards_load: list[float] = [0.0] * num_shards
     out: dict[str, int] = {}
     for fp in files_sorted:
-        # min over (load, idx): when loads tie, the lower idx wins.
         idx = min(range(num_shards), key=lambda i: (shards_load[i], i))
         out[fp] = idx
-        shards_load[idx] += len(file_to_tests[fp])
+        shards_load[idx] += weight(fp)
     return out
 
 
-ALGORITHMS = {
+# Stateless algorithms; lpt_historical_time is constructed at runtime in main()
+# from --timings and listed separately in ALGORITHM_CHOICES.
+STATELESS_ALGORITHMS: dict[str, Callable[[dict[str, list[str]], int], dict[str, int]]] = {
     "lpt_test_count": lpt_test_count_assign,
     "hash_mod": hash_mod_assign,
 }
+ALGORITHM_CHOICES = ["lpt_historical_time", *STATELESS_ALGORITHMS.keys()]
 
 
 def parse_args() -> argparse.Namespace:
@@ -123,8 +157,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--algo",
         default="lpt_test_count",
-        choices=sorted(ALGORITHMS.keys()),
+        choices=sorted(ALGORITHM_CHOICES),
         help="Shard assignment algorithm (default: lpt_test_count)",
+    )
+    p.add_argument(
+        "--timings",
+        default=None,
+        help=(
+            "Path to test_timings.json (built by refresh_timings.py). "
+            "Required when --algo is lpt_historical_time."
+        ),
     )
     return p.parse_args()
 
@@ -169,7 +211,26 @@ def main() -> int:
     # lists, walking sorted_files so the in-shard file order is alphabetical
     # (deterministic). Within a file, nodeid order is whatever pytest emitted
     # (collection order, NOT alphabetical — see module docstring).
-    algo_fn = ALGORITHMS[args.algo]
+    if args.algo == "lpt_historical_time":
+        if not args.timings:
+            print("ERROR: --algo lpt_historical_time requires --timings PATH", file=sys.stderr)
+            return 2
+        timings_path = Path(args.timings)
+        if not timings_path.exists():
+            print(f"ERROR: timings file not found: {timings_path}", file=sys.stderr)
+            return 2
+        timings_doc = json.loads(timings_path.read_text())
+        profile_timings = timings_doc.get(args.profile, {})
+        if not profile_timings:
+            print(
+                f"ERROR: no timings for profile '{args.profile}' in {timings_path}. "
+                f"Run scripts/refresh_timings.py for this profile first.",
+                file=sys.stderr,
+            )
+            return 2
+        algo_fn = make_lpt_historical_time_assign(profile_timings)
+    else:
+        algo_fn = STATELESS_ALGORITHMS[args.algo]
     file_to_shard = algo_fn(file_to_tests, args.num_shards)
     shards_files: list[list[str]] = [[] for _ in range(args.num_shards)]
     shards_tests: list[list[str]] = [[] for _ in range(args.num_shards)]
