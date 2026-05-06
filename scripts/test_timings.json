@@ -1,12 +1,4 @@
 {
-  "_meta": {
-    "source": {
-      "databricks_cluster": "exp-9 run 25418581604",
-      "databricks_uc_cluster": "exp-9 run 25418581604",
-      "databricks_uc_sql_endpoint": "exp-9 run 25418581604"
-    },
-    "generated_at": "2026-05-06T09:05:46.135223+00:00"
-  },
   "databricks_cluster": {
     "tests/functional/adapter/aliases/test_aliases.py": 129.266,
     "tests/functional/adapter/basic/test_adapter_methods.py": 114.38,

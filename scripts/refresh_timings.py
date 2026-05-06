@@ -16,16 +16,18 @@ Usage (one profile per invocation; updates the JSON in place):
     --output scripts/test_timings.json \\
     /tmp/junits/cluster-test-logs-1438-shard-*/junit-shard-*.xml
 
-The output JSON has a profile-keyed dict of file_path -> cumulative wall (sec):
+The output JSON is a profile-keyed dict of file_path -> cumulative wall (sec):
 
   {
-    "_meta": {"generated_at": "<iso>", "source": {<profile>: "<note>"}},
     "databricks_cluster": {
       "tests/functional/adapter/python_model/test_python_model.py": 2832.5,
       ...
     },
     ...
   }
+
+Provenance (when generated, from which run) lives in `git log` for this file —
+not embedded in the JSON itself.
 
 `shard_assign.py` reads this and uses it as file weights for greedy LPT.
 For files not present in the timings (e.g. brand-new tests), it falls back
@@ -39,7 +41,6 @@ import json
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -83,11 +84,6 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Path to test_timings.json (read-modify-write; created if missing)",
     )
-    p.add_argument(
-        "--source-note",
-        default="",
-        help="Free-form note recorded under _meta.source[profile] (e.g. 'exp-9 run 25418581604')",
-    )
     p.add_argument("junits", nargs="+", help="Junit XML files for this profile")
     return p.parse_args()
 
@@ -108,19 +104,11 @@ def main() -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if output_path.exists():
-        existing = json.loads(output_path.read_text())
-    else:
-        existing = {"_meta": {"source": {}}}
-
-    existing["_meta"]["generated_at"] = datetime.now(timezone.utc).isoformat()
-    existing["_meta"].setdefault("source", {})
-    if args.source_note:
-        existing["_meta"]["source"][args.profile] = args.source_note
+    existing = json.loads(output_path.read_text()) if output_path.exists() else {}
     # Round to ms for compactness; per-test variance is far above 1 ms anyway.
     existing[args.profile] = {fp: round(t, 3) for fp, t in sorted(by_file.items())}
 
-    output_path.write_text(json.dumps(existing, indent=2, sort_keys=False) + "\n")
+    output_path.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n")
 
     total = sum(by_file.values())
     print(f"profile={args.profile} files={len(by_file)} total_wall={total / 60:.1f}m")

@@ -129,23 +129,25 @@ def _greedy_lpt(
     """Shared LPT body. Sort by descending weight (tiebreak: file path);
     walk; assign each file to the lightest shard so far (tiebreak: lower
     shard index)."""
-    files_sorted = sorted(file_to_tests.keys(), key=lambda fp: (-weight(fp), fp))
+    # Materialize weights once so each file is weighed exactly once even if
+    # the weight callable does non-trivial work or isn't pure.
+    weights = {fp: weight(fp) for fp in file_to_tests}
+    files_sorted = sorted(weights, key=lambda fp: (-weights[fp], fp))
     shards_load: list[float] = [0.0] * num_shards
     out: dict[str, int] = {}
     for fp in files_sorted:
         idx = min(range(num_shards), key=lambda i: (shards_load[i], i))
         out[fp] = idx
-        shards_load[idx] += weight(fp)
+        shards_load[idx] += weights[fp]
     return out
 
 
 # Stateless algorithms; lpt_historical_time is constructed at runtime in main()
-# from --timings and listed separately in ALGORITHM_CHOICES.
+# because it needs --timings input.
 STATELESS_ALGORITHMS: dict[str, Callable[[dict[str, list[str]], int], dict[str, int]]] = {
     "lpt_test_count": lpt_test_count_assign,
     "hash_mod": hash_mod_assign,
 }
-ALGORITHM_CHOICES = ["lpt_historical_time", *STATELESS_ALGORITHMS.keys()]
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,7 +159,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--algo",
         default="lpt_test_count",
-        choices=sorted(ALGORITHM_CHOICES),
+        choices=sorted(["lpt_historical_time", *STATELESS_ALGORITHMS]),
         help="Shard assignment algorithm (default: lpt_test_count)",
     )
     p.add_argument(
