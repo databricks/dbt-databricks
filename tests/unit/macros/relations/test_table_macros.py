@@ -339,3 +339,39 @@ class TestCreateTableAs(MacroTestBase):
             "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
         )
         assert sql == expected
+
+
+class TestFileFormatClause(MacroTestBase):
+    """Regression tests for `file_format_clause` short-circuit behavior.
+
+    For non-Iceberg models, the macro must not read `adapter.behavior.use_managed_iceberg`,
+    since that access fires a BehaviorChangeEvent deprecation warning on every run.
+    """
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "file_format.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations", "macros"]
+
+    def test_file_format_clause_does_not_access_flag_for_non_iceberg(self, template_bundle):
+        """Non-Iceberg relations must short-circuit before reading the behavior flag."""
+
+        class ErrorOnUseManagedIcebergAccess:
+            @property
+            def use_managed_iceberg(self):
+                raise AssertionError(
+                    "use_managed_iceberg must not be accessed when table_format != 'iceberg'"
+                )
+
+        template_bundle.context["adapter"].behavior = ErrorOnUseManagedIcebergAccess()
+        catalog_relation = unity_relation(
+            table_format=constants.DEFAULT_TABLE_FORMAT,
+            file_format=constants.DELTA_FILE_FORMAT,
+        )
+
+        sql = self.run_macro(template_bundle.template, "file_format_clause", catalog_relation)
+
+        assert sql == "using delta"

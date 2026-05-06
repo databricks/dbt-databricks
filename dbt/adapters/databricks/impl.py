@@ -248,7 +248,9 @@ class DatabricksAdapter(SparkAdapter):
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
         # Store the use_managed_iceberg flag in GlobalState for the session
-        GlobalState.set_use_managed_iceberg(bool(self.behavior.use_managed_iceberg))
+        GlobalState.set_use_managed_iceberg(
+            self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+        )
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -262,8 +264,7 @@ class DatabricksAdapter(SparkAdapter):
 
     def supports(self, capability: Capability) -> bool:
         if capability == Capability.MicrobatchConcurrency:
-            # `.no_warn` avoids a BehaviorChangeEvent on dbt-core's per-parse probe.
-            return self.behavior.use_concurrent_microbatch.no_warn
+            return self.get_behavior_flag_no_warn(USE_CONCURRENT_MICROBATCH["name"])
         return super().supports(capability)
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
@@ -281,7 +282,7 @@ class DatabricksAdapter(SparkAdapter):
                     ", 'table', or 'snapshot'."
                 )
             if (
-                self.behavior.use_managed_iceberg
+                self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
                 and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
             ):
                 raise DbtConfigError(
@@ -290,7 +291,7 @@ class DatabricksAdapter(SparkAdapter):
                 )
             # UniForm refers to Delta tables with Iceberg compatibility.
             # Native managed Iceberg tables don't need Delta properties.
-            return not self.behavior.use_managed_iceberg
+            return not self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         else:
             return False
 
@@ -740,10 +741,26 @@ class DatabricksAdapter(SparkAdapter):
 
         return handle_missing_objects(exec, None)
 
+    # Force Text type for catalog metadata columns. Without this, agate's
+    # value-driven type inference can mark a metadata column as Number in one
+    # schema (e.g. all-numeric column names, all-null comments) and Text in
+    # another, causing `catch_as_completed`'s merge to raise on the conflict.
+    CATALOG_TEXT_ONLY_COLUMNS = (
+        "table_database",
+        "table_schema",
+        "table_name",
+        "table_type",
+        "table_owner",
+        "table_comment",
+        "column_name",
+        "column_type",
+        "comment",
+    )
+
     def _get_schema_for_catalog(self, catalog: str, schema: str, identifier: str) -> "Table":
         # Lazy load to improve startup time
         from agate import Table
-        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER
+        from dbt_common.clients.agate_helper import DEFAULT_TYPE_TESTER, build_type_tester
 
         columns: list[dict[str, Any]] = []
 
@@ -756,7 +773,12 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 columns.extend(self._get_columns_for_catalog(relation, information))
-        return Table.from_object(columns, column_types=DEFAULT_TYPE_TESTER)
+        # An empty input produces a 0-column table; force-typing absent columns
+        # would emit one RuntimeWarning per name. Skip the override in that case.
+        column_types = (
+            build_type_tester(self.CATALOG_TEXT_ONLY_COLUMNS) if columns else DEFAULT_TYPE_TESTER
+        )
+        return Table.from_object(columns, column_types=column_types)
 
     def _get_columns_for_catalog(  # type: ignore[override]
         self, relation: DatabricksRelation, information: str
@@ -769,6 +791,16 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
+
+    def get_behavior_flag_no_warn(self, behavior_flag_name: str) -> bool:
+        """Get the value of a behavior flag without triggering a warning.
+
+        dbt logs a warning the first time a behavior flag with a False value is accessed. Use
+        this method to access the value of a behavior flag without triggering a warning.
+        """
+        # As intended - This method will error out if the behavior flag is missing.
+        behavior_flag = getattr(self.behavior, behavior_flag_name)
+        return behavior_flag.no_warn
 
     def add_query(
         self,
@@ -1080,6 +1112,7 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         return results
 
