@@ -104,12 +104,8 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
 
-  # Collects pytest test ids per profile and assigns them to N shards via
-  # scripts/shard_assign.py. Uploads `shard-assignments-{pr}` artifact that
-  # the sharded test jobs (uc-cluster, sqlwarehouse) and the gather job
-  # consume. Collection does not need workspace credentials — pytest's
-  # `--collect-only` imports test modules but never invokes the
-  # `dbt_profile_target` fixture.
+  # Collects test ids per profile and partitions files into shards.
+  # `--collect-only` imports test modules but never hits the workspace.
   prepare-shards:
     needs: prepare
     if: needs.prepare.outputs.targets != '[]'
@@ -199,8 +195,6 @@ jobs:
       - prepare-shards
     strategy:
       fail-fast: false
-      # 2 PRs × 2 shards = 4 cells; allow them to run concurrently.
-      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1, 2]
@@ -298,7 +292,6 @@ jobs:
       - prepare-shards
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1, 2]
@@ -397,8 +390,6 @@ jobs:
       - prepare-shards
     strategy:
       fail-fast: false
-      # 2 PRs × 2 shards = 4 cells; allow them to run concurrently.
-      max-parallel: 4
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: [0, 1]
@@ -487,11 +478,6 @@ jobs:
           path: logs/
           retention-days: 5
 
-  # Verifies that every test assigned by `prepare-shards` was executed exactly
-  # once across the shards (sanity check on the assignment + execution
-  # pipeline). Pulls each shard's junit XML from the `*-test-logs-*` artifacts
-  # and the manifests from `shard-assignments-*`. Fails the gather job if any
-  # invariant fails — this is the canary for a silent shard-assignment bug.
   gather-shards:
     # `prepare` is in needs because the matrix below references
     # `needs.prepare.outputs.targets`. Without it, GHA fails to resolve the

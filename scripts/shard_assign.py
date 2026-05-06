@@ -1,77 +1,23 @@
 #!/usr/bin/env python3
-"""Assign pytest test files to N shards for parallel matrix execution.
+"""Partition pytest test FILES (not individual tests) into N shards for
+matrix execution.
 
-Reads a list of pytest nodeids (one per line, format `path/to/test_x.py::Class::method`)
-and partitions the *files* they live in into N shards. The output the CI
-pipeline consumes is a list of file paths per shard (one path per line),
-which is fed to `pytest` so that pytest discovers tests within each file
-in declaration order.
+Reads pytest --collect-only nodeids, groups by file, assigns each file to a
+shard via the chosen algorithm, and writes a per-shard list of file paths
+(consumed by `xargs ... pytest < shard.txt`). File-level granularity
+preserves --dist=loadfile fixture sharing; passing file paths (not nodeids)
+keeps pytest's file-declaration order intact (some test classes have
+order-dependent fixtures).
 
-Why file paths and not nodeids: when pytest is given individual nodeids on
-its command line, it runs them in argv order, not in file-declaration
-order. `shard_assign.py` originally sorted nodeids alphabetically before
-writing, which silently re-ordered tests within a file — that broke order-
-dependent fixtures (notably dbt-tests-adapter's `test_constraints` class,
-where `correct_column_data_types` overwrites `constraints_schema.yml` and
-must run *after* the `wrong_*` tests). Passing file paths lets pytest
-control within-file order, matching the behaviour of an unsharded
-`pytest tests/functional` run. See worklog exp-7/8 RCA section.
+Algorithms:
+- lpt_historical_time: greedy LPT on historical per-file wall time. Reads
+  --timings (built by scripts/refresh_timings.py); falls back to per-profile
+  mean for files not in the timings.
+- lpt_test_count (default): greedy LPT on per-file test count. No external
+  data needed.
 
-Sharding granularity is **file-level** by design: all tests in the same
-`.py` file land in the same shard. This preserves pytest-xdist
-`--dist=loadfile` semantics (class-level setup/teardown stays on one
-worker) and avoids splitting tests within a class that may share cluster
-state.
-
-Algorithms (selected via --algo):
-- lpt_historical_time: greedy LPT on per-file historical wall-time. Sort
-  files by historical time descending; assign each file to the shard with
-  the smallest accumulated time so far. Requires --timings PATH pointing
-  to `scripts/test_timings.json` (built by `scripts/refresh_timings.py`
-  from a previous green run's junit XMLs). Files missing from the timings
-  use the per-profile mean as fallback (handles new tests without breaking
-  the algorithm). This is the algorithm CI uses; see worklog for predicted
-  vs measured skew.
-- lpt_test_count (default): greedy Longest-Processing-Time on per-file test
-  count. Sort files by test count descending; assign each file to the shard
-  with the smallest accumulated test count so far. Deterministic tiebreak
-  (lower shard index wins on ties). Inputs already available from
-  `pytest --collect-only`. Graham's bound: within 4/3 of optimal makespan
-  on test-count weight, but test-count is a noisy proxy for time. Used as
-  fallback when no timings file is available (e.g. brand-new profile).
-- hash_mod: shard = sha256(file_path) mod N. Stable, no inputs needed; very
-  uneven balance at our scale (89 files / 2-3 shards) — kept for A/B testing
-  and as a fallback. See `.claude/ideas/test-sharding-heuristics.md`.
-
-Outputs into --output-dir:
-- <profile>-shard-<i>.txt : file path list, one per line, for i in 0..N-1
-- <profile>-manifest.json : structured assignment record (see below)
-
-Manifest schema:
-{
-  "profile": str,
-  "num_shards": int,
-  "algorithm": str,
-  "total_tests": int,
-  "total_files": int,
-  "shards": [
-    {
-      "index": int,
-      "tests": int,
-      "files": int,
-      "file_list": [str, ...],         # file paths assigned to this shard
-      "nodeids": [str, ...],           # full nodeid list (source of truth for shard_verify)
-      "file_list_sha256": str,
-    },
-    ...
-  ],
-  "all_nodeids_sha256": str
-}
-
-The two sha256 fields let the gather phase verify (a) the files-per-shard set
-hasn't drifted (e.g., a worker writing to the wrong shard file) and (b) the
-full nodeid universe matches what was assigned (no tests added/removed
-between assignment and execution).
+Outputs `<profile>-shard-<i>.txt` (file paths) and `<profile>-manifest.json`
+(includes per-shard nodeids for shard_verify, plus sha256 checksums).
 """
 
 from __future__ import annotations
@@ -89,28 +35,16 @@ def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def hash_mod_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
-    """Stateless: shard = sha256(file_path) mod N. Same answer regardless of
-    other files' loads; can be very uneven at small N."""
-    return {fp: int(sha256_str(fp), 16) % num_shards for fp in file_to_tests}
-
-
 def lpt_test_count_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
-    """Greedy LPT on per-file test count.
-
-    Sort files by test count descending (tiebreak: file path, alphabetical,
-    for determinism). Walk the sorted list; assign each file to the shard
-    with the smallest accumulated load so far (tiebreak on equal-load: lower
-    shard index, again for determinism)."""
+    """Greedy LPT weighted by per-file test count."""
     return _greedy_lpt(file_to_tests, num_shards, lambda fp: len(file_to_tests[fp]))
 
 
 def make_lpt_historical_time_assign(
     timings: dict[str, float],
 ) -> Callable[[dict[str, list[str]], int], dict[str, int]]:
-    """Build a greedy-LPT assigner using historical per-file wall time as
-    the weight. Files not present in `timings` get the per-profile mean
-    so brand-new tests don't crash the algorithm."""
+    """Greedy LPT weighted by historical per-file wall time. Files missing
+    from `timings` use the mean — handles brand-new tests."""
     if not timings:
         raise ValueError("lpt_historical_time requires non-empty timings dict")
     mean = sum(timings.values()) / len(timings)
@@ -126,11 +60,8 @@ def _greedy_lpt(
     num_shards: int,
     weight: Callable[[str], float],
 ) -> dict[str, int]:
-    """Shared LPT body. Sort by descending weight (tiebreak: file path);
-    walk; assign each file to the lightest shard so far (tiebreak: lower
-    shard index)."""
-    # Materialize weights once so each file is weighed exactly once even if
-    # the weight callable does non-trivial work or isn't pure.
+    # Materialize weights once: every file is weighed exactly once even if
+    # `weight` is impure or expensive.
     weights = {fp: weight(fp) for fp in file_to_tests}
     files_sorted = sorted(weights, key=lambda fp: (-weights[fp], fp))
     shards_load: list[float] = [0.0] * num_shards
@@ -142,11 +73,8 @@ def _greedy_lpt(
     return out
 
 
-# Stateless algorithms; lpt_historical_time is constructed at runtime in main()
-# because it needs --timings input.
 STATELESS_ALGORITHMS: dict[str, Callable[[dict[str, list[str]], int], dict[str, int]]] = {
     "lpt_test_count": lpt_test_count_assign,
-    "hash_mod": hash_mod_assign,
 }
 
 
