@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Aggregate per-file historical wall-time from a previous run's pytest junit
-XMLs into `scripts/test_timings.json`. Used as input to `shard_assign.py`'s
+XMLs into `.github/test_timings.json`. Used as input to `shard_assign.py`'s
 `lpt_historical_time` algorithm so file partitioning balances on actual
 runtime instead of test count.
 
@@ -10,10 +10,10 @@ Usage (one profile per invocation; updates the JSON in place):
   gh run download <run_id> --repo databricks/dbt-databricks \\
     -p '*-test-logs-*-shard-*' -D /tmp/junits
 
-  # 2) Aggregate into scripts/test_timings.json
+  # 2) Aggregate into .github/test_timings.json
   python scripts/refresh_timings.py \\
     --profile databricks_cluster \\
-    --output scripts/test_timings.json \\
+    --output .github/test_timings.json \\
     /tmp/junits/cluster-test-logs-1438-shard-*/junit-shard-*.xml
 
 The output JSON is a profile-keyed dict of file_path -> cumulative wall (sec):

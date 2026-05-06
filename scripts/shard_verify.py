@@ -18,10 +18,6 @@ Invariants asserted:
                  total_tests.
 
 Exits 0 if all four pass; 1 otherwise. Always prints a summary table.
-
-Note: junit's `<testcase>` is emitted whether the test passed, failed, or
-was skipped (skip emits a `<skipped/>` child). So coverage is independent
-of pass/fail status.
 """
 
 from __future__ import annotations

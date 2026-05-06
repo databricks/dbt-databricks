@@ -111,7 +111,6 @@ jobs:
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     runs-on:
@@ -157,8 +156,6 @@ jobs:
             [databricks_uc_cluster]=3
             [databricks_uc_sql_endpoint]=3
           )
-          # Run the 3 collects in parallel — they import the same test tree but
-          # write disjoint files, so no race. Saves ~30-40s on every run.
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             (
               hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
@@ -174,7 +171,7 @@ jobs:
               --input "shard-assignments/${PROFILE}-collected.txt" \
               --output-dir shard-assignments \
               --algo lpt_historical_time \
-              --timings scripts/test_timings.json
+              --timings .github/test_timings.json
           done
 
       - name: Upload shard assignments

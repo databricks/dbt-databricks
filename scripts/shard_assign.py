@@ -73,9 +73,7 @@ def _greedy_lpt(
     return out
 
 
-STATELESS_ALGORITHMS: dict[str, Callable[[dict[str, list[str]], int], dict[str, int]]] = {
-    "lpt_test_count": lpt_test_count_assign,
-}
+ALGORITHM_CHOICES = ("lpt_historical_time", "lpt_test_count")
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,7 +85,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--algo",
         default="lpt_test_count",
-        choices=sorted(["lpt_historical_time", *STATELESS_ALGORITHMS]),
+        choices=ALGORITHM_CHOICES,
         help="Shard assignment algorithm (default: lpt_test_count)",
     )
     p.add_argument(
@@ -131,16 +129,8 @@ def main() -> int:
         print(f"ERROR: no valid nodeids in {input_path}", file=sys.stderr)
         return 2
 
-    # File assignment is deterministic on file path order; within-file nodeid
-    # order is preserved as collected by pytest (we do NOT sort within a file
-    # — see module docstring for why).
     sorted_files = sorted(file_to_tests.keys())
 
-    # Apply algorithm — operates on the whole file_to_tests dict and returns
-    # {file_path: shard_idx}. We then materialize per-shard file & nodeid
-    # lists, walking sorted_files so the in-shard file order is alphabetical
-    # (deterministic). Within a file, nodeid order is whatever pytest emitted
-    # (collection order, NOT alphabetical — see module docstring).
     if args.algo == "lpt_historical_time":
         if not args.timings:
             print("ERROR: --algo lpt_historical_time requires --timings PATH", file=sys.stderr)
@@ -160,7 +150,7 @@ def main() -> int:
             return 2
         algo_fn = make_lpt_historical_time_assign(profile_timings)
     else:
-        algo_fn = STATELESS_ALGORITHMS[args.algo]
+        algo_fn = lpt_test_count_assign
     file_to_shard = algo_fn(file_to_tests, args.num_shards)
     shards_files: list[list[str]] = [[] for _ in range(args.num_shards)]
     shards_tests: list[list[str]] = [[] for _ in range(args.num_shards)]
