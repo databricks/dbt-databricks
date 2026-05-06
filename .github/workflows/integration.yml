@@ -317,7 +317,7 @@ jobs:
             exit 1
           fi
           echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
-          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
 
       - name: Run UC Cluster Functional Tests (shard ${{ matrix.shard }})
         run: |
@@ -483,7 +483,7 @@ jobs:
             exit 1
           fi
           echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
-          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
 
       - name: Run Sql Endpoint Functional Tests (shard ${{ matrix.shard }})
         run: |
@@ -648,7 +648,7 @@ jobs:
             exit 1
           fi
           echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
-          echo "Tests in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
 
       - name: Run Cluster Functional Tests (shard ${{ matrix.shard }})
         run: |

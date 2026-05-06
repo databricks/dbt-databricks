@@ -4,12 +4,14 @@
 Inputs:
 - A directory of junit XML files written by `pytest --junitxml=...`,
   one per shard (e.g. `junit-shard-0.xml`, `junit-shard-1.xml`).
-- The manifest JSON written by `shard_assign.py` and the per-shard nodeid
-  list files it wrote.
+- The manifest JSON written by `shard_assign.py` — this is the source of
+  truth for the assigned nodeid set (per-shard `nodeids` field). The shard
+  txt files contain file paths (the input that was fed to pytest), which
+  are not used for verification.
 
 Invariants asserted:
   I1  Coverage:   union of nodeids actually executed == set of all assigned
-                  nodeids from manifest's per-shard txt files.
+                  nodeids from the manifest.
   I2  Uniqueness: every nodeid appears in exactly one shard's junit (no
                   duplicate execution).
   I3  Containment: each shard's executed nodeids ⊆ its assigned nodeids
@@ -23,6 +25,7 @@ Note: junit's `<testcase>` is emitted whether the test passed, failed, or
 was skipped (skip emits a `<skipped/>` child). So coverage is independent
 of pass/fail status.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,22 +41,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--manifest", required=True, help="Path to *-manifest.json from shard_assign")
     p.add_argument(
         "--shard-dir",
-        required=True,
-        help="Directory containing the *-shard-N.txt assignment files "
-        "(same dir as manifest by convention)",
+        required=False,
+        default=None,
+        help="(Deprecated, kept for backward-compat with the calling YAML.) "
+        "Directory containing the *-shard-N.txt files. Verification reads "
+        "assigned nodeids from the manifest instead — this flag is ignored.",
     )
     p.add_argument(
         "--junit-dir",
         required=True,
-        help="Directory containing junit XML files (one per shard, named "
-        "junit-shard-N.xml)",
+        help="Directory containing junit XML files (one per shard, named junit-shard-N.xml)",
     )
     return p.parse_args()
 
 
-def junit_to_nodeid_candidates(
-    file_attr: str, classname: str, name: str
-) -> list[str]:
+def junit_to_nodeid_candidates(file_attr: str, classname: str, name: str) -> list[str]:
     """Return candidate pytest nodeids from junit `<testcase>` attributes.
 
     pytest junit XML omits `file=` in some versions; classname encodes the
@@ -132,7 +134,6 @@ def parse_junit(
 def main() -> int:
     args = parse_args()
     manifest_path = Path(args.manifest)
-    shard_dir = Path(args.shard_dir)
     junit_dir = Path(args.junit_dir)
 
     manifest = json.loads(manifest_path.read_text())
@@ -140,15 +141,19 @@ def main() -> int:
     n_shards = manifest["num_shards"]
     expected_total = manifest["total_tests"]
 
-    # Load assigned nodeids per shard
+    # Load assigned nodeids per shard from the manifest (source of truth).
     assigned_per_shard: list[set[str]] = []
     for i in range(n_shards):
-        f = shard_dir / f"{profile}-shard-{i}.txt"
-        if not f.exists():
-            print(f"ERROR: missing shard file: {f}", file=sys.stderr)
+        shard = manifest["shards"][i]
+        nodeids = shard.get("nodeids")
+        if nodeids is None:
+            print(
+                f"ERROR: manifest is missing 'nodeids' for shard {i} — "
+                f"regenerate with the current shard_assign.py.",
+                file=sys.stderr,
+            )
             return 1
-        nodeids = {ln.strip() for ln in f.read_text().splitlines() if ln.strip()}
-        assigned_per_shard.append(nodeids)
+        assigned_per_shard.append(set(nodeids))
     assigned_all = set().union(*assigned_per_shard)
 
     # Load executed nodeids per shard from junit
@@ -171,8 +176,7 @@ def main() -> int:
     total_executed = sum(len(s) for s in executed_per_shard)
     if total_executed != expected_total:
         failures.append(
-            f"I4: total executed = {total_executed}, "
-            f"manifest total_tests = {expected_total}"
+            f"I4: total executed = {total_executed}, manifest total_tests = {expected_total}"
         )
 
     # I2 — uniqueness across shards
@@ -192,13 +196,11 @@ def main() -> int:
     extra = executed_all - assigned_all
     if missing:
         failures.append(
-            f"I1: {len(missing)} assigned nodeids never executed "
-            f"(first 5: {sorted(missing)[:5]})"
+            f"I1: {len(missing)} assigned nodeids never executed (first 5: {sorted(missing)[:5]})"
         )
     if extra:
         failures.append(
-            f"I1: {len(extra)} executed nodeids were NOT assigned "
-            f"(first 5: {sorted(extra)[:5]})"
+            f"I1: {len(extra)} executed nodeids were NOT assigned (first 5: {sorted(extra)[:5]})"
         )
 
     # I3 — containment per shard
@@ -213,14 +215,13 @@ def main() -> int:
     # Print summary
     print(f"# Shard verification — profile={profile} num_shards={n_shards}")
     print(f"  manifest total_tests = {expected_total}")
-    print(f"  shard | assigned | executed | skipped")
+    print("  shard | assigned | executed | skipped")
     for i in range(n_shards):
         print(
             f"  {i:>5} | {len(assigned_per_shard[i]):>8} "
             f"| {len(executed_per_shard[i]):>8} | {skipped_per_shard[i]:>7}"
         )
-    print(f"  total | {len(assigned_all):>8} | {total_executed:>8} | "
-          f"{sum(skipped_per_shard):>7}")
+    print(f"  total | {len(assigned_all):>8} | {total_executed:>8} | {sum(skipped_per_shard):>7}")
 
     if failures:
         print("\nFAILED:")

@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
-"""Assign pytest test nodeids to N shards for parallel matrix execution.
+"""Assign pytest test files to N shards for parallel matrix execution.
 
 Reads a list of pytest nodeids (one per line, format `path/to/test_x.py::Class::method`)
-and partitions them into N shard files plus a manifest JSON describing the
-assignment.
+and partitions the *files* they live in into N shards. The output the CI
+pipeline consumes is a list of file paths per shard (one path per line),
+which is fed to `pytest` so that pytest discovers tests within each file
+in declaration order.
 
-Sharding granularity is **file-level**: all tests in the same `.py` file land
-in the same shard. This preserves pytest-xdist `--dist=loadfile` semantics
-(class-level setup/teardown stays on one worker) and avoids splitting tests
-within a class that may share cluster state.
+Why file paths and not nodeids: when pytest is given individual nodeids on
+its command line, it runs them in argv order, not in file-declaration
+order. `shard_assign.py` originally sorted nodeids alphabetically before
+writing, which silently re-ordered tests within a file — that broke order-
+dependent fixtures (notably dbt-tests-adapter's `test_constraints` class,
+where `correct_column_data_types` overwrites `constraints_schema.yml` and
+must run *after* the `wrong_*` tests). Passing file paths lets pytest
+control within-file order, matching the behaviour of an unsharded
+`pytest tests/functional` run. See worklog exp-7/8 RCA section.
+
+Sharding granularity is **file-level** by design: all tests in the same
+`.py` file land in the same shard. This preserves pytest-xdist
+`--dist=loadfile` semantics (class-level setup/teardown stays on one
+worker) and avoids splitting tests within a class that may share cluster
+state.
 
 Algorithms (selected via --algo):
 - hash_mod (default): shard = sha256(file_path) mod N. Stable, no inputs needed.
@@ -16,7 +29,7 @@ Algorithms (selected via --algo):
   shards to balance total runtime. Not implemented in this version.
 
 Outputs into --output-dir:
-- <profile>-shard-<i>.txt : nodeid list, one per line, for i in 0..N-1
+- <profile>-shard-<i>.txt : file path list, one per line, for i in 0..N-1
 - <profile>-manifest.json : structured assignment record (see below)
 
 Manifest schema:
@@ -27,7 +40,14 @@ Manifest schema:
   "total_tests": int,
   "total_files": int,
   "shards": [
-    {"index": int, "tests": int, "files": int, "file_list_sha256": str},
+    {
+      "index": int,
+      "tests": int,
+      "files": int,
+      "file_list": [str, ...],         # file paths assigned to this shard
+      "nodeids": [str, ...],           # full nodeid list (source of truth for shard_verify)
+      "file_list_sha256": str,
+    },
     ...
   ],
   "all_nodeids_sha256": str
@@ -38,6 +58,7 @@ hasn't drifted (e.g., a worker writing to the wrong shard file) and (b) the
 full nodeid universe matches what was assigned (no tests added/removed
 between assignment and execution).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -109,10 +130,10 @@ def main() -> int:
         print(f"ERROR: no valid nodeids in {input_path}", file=sys.stderr)
         return 2
 
-    # Sort everything for deterministic output regardless of input order
+    # File assignment is deterministic on file path order; within-file nodeid
+    # order is preserved as collected by pytest (we do NOT sort within a file
+    # — see module docstring for why).
     sorted_files = sorted(file_to_tests.keys())
-    for fp in sorted_files:
-        file_to_tests[fp].sort()
     all_nodeids_sorted = sorted(all_nodeids)
 
     # Apply algorithm
@@ -124,16 +145,13 @@ def main() -> int:
         shards_files[idx].append(fp)
         shards_tests[idx].extend(file_to_tests[fp])
 
-    # Sort each shard's tests for deterministic output
-    for s in shards_tests:
-        s.sort()
-
-    # Write per-shard nodeid files
-    for i, tests in enumerate(shards_tests):
+    # Write per-shard FILE-PATH files (consumed by `xargs ... pytest < shard.txt`)
+    for i, files in enumerate(shards_files):
         out = output_dir / f"{args.profile}-shard-{i}.txt"
-        out.write_text("\n".join(tests) + ("\n" if tests else ""))
+        out.write_text("\n".join(files) + ("\n" if files else ""))
 
-    # Build manifest
+    # Build manifest. The per-shard `nodeids` field is the source of truth
+    # used by shard_verify to compute the I1-I4 invariants.
     manifest = {
         "profile": args.profile,
         "num_shards": args.num_shards,
@@ -145,6 +163,8 @@ def main() -> int:
                 "index": i,
                 "tests": len(shards_tests[i]),
                 "files": len(shards_files[i]),
+                "file_list": shards_files[i],
+                "nodeids": shards_tests[i],
                 "file_list_sha256": sha256_str("\n".join(sorted(shards_files[i]))),
             }
             for i in range(args.num_shards)
@@ -158,8 +178,7 @@ def main() -> int:
     sum_tests = sum(s["tests"] for s in manifest["shards"])
     if sum_tests != manifest["total_tests"]:
         print(
-            f"ERROR: assignment lost tests: total={manifest['total_tests']} "
-            f"assigned={sum_tests}",
+            f"ERROR: assignment lost tests: total={manifest['total_tests']} assigned={sum_tests}",
             file=sys.stderr,
         )
         return 1
@@ -169,10 +188,7 @@ def main() -> int:
     print(f"  total: {manifest['total_tests']} tests across {manifest['total_files']} files")
     for s in manifest["shards"]:
         pct = s["tests"] / manifest["total_tests"] * 100
-        print(
-            f"  shard {s['index']}: {s['tests']:>4} tests ({pct:5.1f}%), "
-            f"{s['files']:>3} files"
-        )
+        print(f"  shard {s['index']}: {s['tests']:>4} tests ({pct:5.1f}%), {s['files']:>3} files")
     print(f"  manifest: {manifest_path}")
     return 0
 
