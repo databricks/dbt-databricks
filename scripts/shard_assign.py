@@ -24,9 +24,17 @@ worker) and avoids splitting tests within a class that may share cluster
 state.
 
 Algorithms (selected via --algo):
-- hash_mod (default): shard = sha256(file_path) mod N. Stable, no inputs needed.
-- (future) time_weighted: takes a historical-timings JSON, packs files into
-  shards to balance total runtime. Not implemented in this version.
+- lpt_test_count (default): greedy Longest-Processing-Time on per-file test
+  count. Sort files by test count descending; assign each file to the shard
+  with the smallest accumulated test count so far. Deterministic tiebreak
+  (lower shard index wins on ties). Inputs already available from
+  `pytest --collect-only`. Graham's bound: within 4/3 of optimal makespan
+  on test-count weight.
+- hash_mod: shard = sha256(file_path) mod N. Stable, no inputs needed; very
+  uneven balance at our scale (89 files / 2-3 shards) — kept for A/B testing
+  and as a fallback. See `.claude/ideas/test-sharding-heuristics.md`.
+- (future) lpt_historical_time: takes a historical-timings JSON, packs files
+  into shards to balance total runtime. Not implemented in this version.
 
 Outputs into --output-dir:
 - <profile>-shard-<i>.txt : file path list, one per line, for i in 0..N-1
@@ -73,15 +81,40 @@ def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def hash_mod_shard(file_path: str, num_shards: int) -> int:
-    """Default algorithm: shard = sha256(file_path) interpreted as a big int,
-    mod N. Stable across runs."""
-    digest_int = int(hashlib.sha256(file_path.encode("utf-8")).hexdigest(), 16)
-    return digest_int % num_shards
+def hash_mod_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
+    """Stateless: shard = sha256(file_path) mod N. Same answer regardless of
+    other files' loads; can be very uneven at small N."""
+    out: dict[str, int] = {}
+    for fp in file_to_tests:
+        digest_int = int(hashlib.sha256(fp.encode("utf-8")).hexdigest(), 16)
+        out[fp] = digest_int % num_shards
+    return out
+
+
+def lpt_test_count_assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
+    """Greedy LPT on per-file test count.
+
+    Sort files by test count descending (tiebreak: file path, alphabetical,
+    for determinism). Walk the sorted list; assign each file to the shard
+    with the smallest accumulated load so far (tiebreak on equal-load: lower
+    shard index, again for determinism)."""
+    files_sorted = sorted(
+        file_to_tests.keys(),
+        key=lambda fp: (-len(file_to_tests[fp]), fp),
+    )
+    shards_load = [0] * num_shards
+    out: dict[str, int] = {}
+    for fp in files_sorted:
+        # min over (load, idx): when loads tie, the lower idx wins.
+        idx = min(range(num_shards), key=lambda i: (shards_load[i], i))
+        out[fp] = idx
+        shards_load[idx] += len(file_to_tests[fp])
+    return out
 
 
 ALGORITHMS = {
-    "hash_mod": hash_mod_shard,
+    "lpt_test_count": lpt_test_count_assign,
+    "hash_mod": hash_mod_assign,
 }
 
 
@@ -93,9 +126,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", required=True, help="Directory to write shard files + manifest")
     p.add_argument(
         "--algo",
-        default="hash_mod",
+        default="lpt_test_count",
         choices=sorted(ALGORITHMS.keys()),
-        help="Shard assignment algorithm",
+        help="Shard assignment algorithm (default: lpt_test_count)",
     )
     return p.parse_args()
 
@@ -136,12 +169,17 @@ def main() -> int:
     sorted_files = sorted(file_to_tests.keys())
     all_nodeids_sorted = sorted(all_nodeids)
 
-    # Apply algorithm
+    # Apply algorithm — operates on the whole file_to_tests dict and returns
+    # {file_path: shard_idx}. We then materialize per-shard file & nodeid
+    # lists, walking sorted_files so the in-shard file order is alphabetical
+    # (deterministic). Within a file, nodeid order is whatever pytest emitted
+    # (collection order, NOT alphabetical — see module docstring).
     algo_fn = ALGORITHMS[args.algo]
+    file_to_shard = algo_fn(file_to_tests, args.num_shards)
     shards_files: list[list[str]] = [[] for _ in range(args.num_shards)]
     shards_tests: list[list[str]] = [[] for _ in range(args.num_shards)]
     for fp in sorted_files:
-        idx = algo_fn(fp, args.num_shards)
+        idx = file_to_shard[fp]
         shards_files[idx].append(fp)
         shards_tests[idx].extend(file_to_tests[fp])
 
