@@ -190,6 +190,10 @@ jobs:
     needs:
       - prepare
       - prepare-shards
+    # Skip when `prepare` emits an empty targets array (nightly skip-if-unchanged).
+    # Without this, GitHub Actions treats a job with a zero-combination matrix as
+    # a failure, so every already-tested nightly run gets reported as failed.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       matrix:
@@ -288,6 +292,8 @@ jobs:
     needs:
       - prepare
       - prepare-shards
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       matrix:
@@ -387,6 +393,8 @@ jobs:
     needs:
       - prepare
       - prepare-shards
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
       matrix:
