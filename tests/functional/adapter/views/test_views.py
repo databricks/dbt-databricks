@@ -89,6 +89,21 @@ class BaseUpdateColumnComments(BaseUpdateView):
         assert results[0][2] == "This is an id column"
 
 
+class BaseUpdateQueryPreservesColumnComments(BaseUpdateView):
+    """Regression for #1357: ALTER VIEW AS wipes column comments; they must be reapplied."""
+
+    def test_view_update_query_preserves_column_comments(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.altered_view_sql, "models", "initial_view.sql")
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "describe extended {database}.{schema}.initial_view",
+            fetch="all",
+        )
+        assert results[0][2] == "This is the id column"
+
+
 class BaseRemoveTags(BaseUpdateView):
     def test_view_update_remove_tags(self, project):
         util.run_dbt(["build"])
@@ -177,6 +192,22 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterQueryPreservesColumnComments(BaseUpdateQueryPreservesColumnComments):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
