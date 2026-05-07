@@ -146,3 +146,23 @@ models:
     config:
       liquid_clustered_by: []
 """
+
+metadata_fetch_mv_seed_csv = """id,value
+1,100
+2,200
+""".lstrip()
+
+metadata_fetch_materialized_view_without_tags_sql = """
+{{ config(
+    materialized='materialized_view',
+) }}
+select * from {{ ref('mv_metadata_fetch_seed') }}
+"""
+
+metadata_fetch_materialized_view_with_tags_sql = """
+{{ config(
+    materialized='materialized_view',
+    databricks_tags={'classification': 'internal'},
+) }}
+select * from {{ ref('mv_metadata_fetch_seed') }}
+"""

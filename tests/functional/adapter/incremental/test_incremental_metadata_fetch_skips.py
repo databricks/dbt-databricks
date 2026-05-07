@@ -1,4 +1,5 @@
 import pytest
+from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
 from tests.functional.adapter.helpers import (
@@ -44,8 +45,13 @@ class TestIncrementalMetadataFetchRequiresTableTags:
         # The first run creates the relation; the second run exercises the existing-relation
         # path where adapter.get_relation_config() may attempt metadata fetches.
         util.run_dbt(["run"])
-        _, logs = util.run_dbt_and_capture(["run"], expect_pass=False)
-        util.assert_message_in_logs("fetch_tags should not be called", logs)
+
+        run_execution_results = util.run_dbt(["run"], expect_pass=False)
+        assert len(run_execution_results.results) == 1
+        result = run_execution_results.results[0]
+
+        assert result.status == RunStatus.Error
+        assert "tags should not be called" in result.message
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -65,5 +71,10 @@ class TestIncrementalMetadataFetchRequiresColumnTags:
         # The first run creates the relation; the second run exercises the existing-relation
         # path where adapter.get_relation_config() may attempt metadata fetches.
         util.run_dbt(["run"])
-        _, logs = util.run_dbt_and_capture(["run"], expect_pass=False)
-        util.assert_message_in_logs("fetch_column_tags should not be called", logs)
+
+        run_execution_results = util.run_dbt(["run"], expect_pass=False)
+        assert len(run_execution_results.results) == 1
+        result = run_execution_results.results[0]
+
+        assert result.status == RunStatus.Error
+        assert "tags should not be called" in result.message

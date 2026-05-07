@@ -1,4 +1,5 @@
 import pytest
+from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
 from tests.functional.adapter.helpers import FAIL_IF_TAG_FETCH_CALLED_MACROS
@@ -68,5 +69,10 @@ class TestViewMetadataFetchRequiresTags:
         # The first run creates the view; the second run exercises the existing-relation
         # alter/config-diff path where adapter.get_relation_config() may fetch tags.
         util.run_dbt(["run"])
-        _, logs = util.run_dbt_and_capture(["run"], expect_pass=False)
-        util.assert_message_in_logs("fetch_tags should not be called", logs)
+
+        run_execution_results = util.run_dbt(["run"], expect_pass=False)
+        assert len(run_execution_results.results) == 1
+        result = run_execution_results.results[0]
+
+        assert result.status == RunStatus.Error
+        assert "fetch_tags should not be called" in result.message
