@@ -154,7 +154,7 @@ class TestMaterializedViewAPIDescribeRelation:
         adapter = MagicMock()
         adapter.execute_macro.return_value = MagicMock()
 
-        results = MaterializedViewAPI._describe_relation(adapter, MagicMock())
+        results = MaterializedViewAPI._describe_relation(adapter, MagicMock(), Mock())
 
         assert "information_schema.tags" in results
         macro_names = {call.args[0] for call in adapter.execute_macro.call_args_list}
