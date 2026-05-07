@@ -1100,15 +1100,15 @@ class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        full_relation_config = super().get_from_relation(adapter, relation, model_config)
+        relation_config = super().get_from_relation(adapter, relation, model_config)
 
         # Ensure any current refreshes are completed before returning the relation config
-        tblproperties = cast(TblPropertiesConfig, full_relation_config.config["tblproperties"])
+        tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
         if tblproperties.pipeline_id:
             adapter.connections.api_client.dlt_pipelines.poll_for_completion(
                 tblproperties.pipeline_id
             )
-        return full_relation_config
+        return relation_config
 
 
 class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
