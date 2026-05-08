@@ -76,7 +76,6 @@ altered_view_sql = """
 select id from {{ ref('seed') }};
 """
 
-
 view_without_tags_sql = """
 {{ config(materialized='view') }}
 
@@ -90,4 +89,11 @@ view_with_tags_sql = """
 ) }}
 
 select cast(1 as bigint) as id
+"""
+
+seed_with_extra_csv = """id,msg,extra
+1,hello,a
+2,goodbye,b
+2,yo,c
+3,anyway,d
 """
