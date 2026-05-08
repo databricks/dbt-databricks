@@ -23,7 +23,4 @@
       {{ alter_column_comment(target_relation, columns_to_persist) }}
     {% endif %}
   {% endif %}
-  {% if column_comments %}
-    {{ alter_column_comments(target_relation, column_comments.comments) }}
-  {% endif %}
 {% endmacro %}

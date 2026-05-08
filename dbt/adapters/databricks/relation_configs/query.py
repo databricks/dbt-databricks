@@ -22,6 +22,13 @@ class QueryConfig(DatabricksComponentConfig):
         return None
 
 
+class ViewQueryConfig(QueryConfig):
+    def get_diff(self, other: "ViewQueryConfig") -> "ViewQueryConfig":
+        # Return self so the view query always appears changed in the diff.
+        # View query diffing is unreliable (star selects, upstream schema changes etc.)
+        return self
+
+
 class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     name: ClassVar[str] = "query"
 
@@ -50,3 +57,15 @@ class DescribeQueryProcessor(QueryProcessor):
         table = result["describe_extended"]
         row = next(x for x in table if x[0] == "View Text")
         return QueryConfig(query=SqlUtils.clean_sql(row[1]))
+
+
+class ViewQueryProcessor(QueryProcessor):
+    @classmethod
+    def from_relation_results(cls, result: RelationResults) -> ViewQueryConfig:
+        base = super().from_relation_results(result)
+        return ViewQueryConfig(query=base.query)
+
+    @classmethod
+    def from_relation_config(cls, relation_config: RelationConfig) -> ViewQueryConfig:
+        base = super().from_relation_config(relation_config)
+        return ViewQueryConfig(query=base.query)
