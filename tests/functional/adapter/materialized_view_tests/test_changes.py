@@ -9,11 +9,13 @@ from dbt.tests.adapter.materialized_view.changes import (
     MaterializedViewChangesContinueMixin,
     MaterializedViewChangesFailMixin,
 )
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -84,6 +86,19 @@ class TestMaterializedViewApplyChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesApplyMixin
 ):
     pass
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewApplyChangesDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestMaterializedViewApplyChanges
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value},
+            "flags": {"use_describe_as_json": True},
+        }
 
 
 @pytest.mark.dlt

@@ -13,6 +13,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
 )
 
 from tests.functional.adapter.constraints import fixtures as override_fixtures
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 
 
 class DatabricksConstraintsBase:
@@ -199,6 +200,20 @@ class TestIncrementalForeignKeyExpressionConstraint:
         util.run_dbt(["run", "--select", "raw_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalForeignKeyExpressionConstraintDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestIncrementalForeignKeyExpressionConstraint
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": False,
+                "use_describe_as_json": True,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")

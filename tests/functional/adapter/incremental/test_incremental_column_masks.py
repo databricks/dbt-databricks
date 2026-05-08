@@ -1,7 +1,10 @@
 import pytest
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV2Mixin,
+    RequiresDescribeAsJsonCapabilityMixin,
+)
 from tests.functional.adapter.incremental import fixtures
 
 
@@ -61,3 +64,17 @@ class TestIncrementalColumnMasks(MaterializationV2Mixin):
         assert result[0][1] == "hello"  # name (unmasked)
         assert result[0][2] == "********@example.com"  # email (partially masked)
         assert result[0][3] == "*****"  # password (masked)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalColumnMasksDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestIncrementalColumnMasks
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json": True,
+            }
+        }

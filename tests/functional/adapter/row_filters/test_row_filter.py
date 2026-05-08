@@ -1,7 +1,11 @@
 import pytest
 from dbt.tests.util import run_dbt, write_file
 
-from tests.functional.adapter.fixtures import MaterializationV1Mixin, MaterializationV2Mixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV1Mixin,
+    MaterializationV2Mixin,
+    RequiresDescribeAsJsonCapabilityMixin,
+)
 from tests.functional.adapter.row_filters.fixtures import (
     base_model_mv,
     base_model_sql,
@@ -142,6 +146,20 @@ class TestIncrementalRowFilter(RowFilterMixin):
         assert len(filters) == 0
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalRowFilterDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestIncrementalRowFilter
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json": True,
+            }
+        }
+
+
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewRowFilter(RowFilterMixin):
     """Test row filters on materialized view models."""
@@ -175,6 +193,20 @@ class TestMaterializedViewRowFilter(RowFilterMixin):
         run_dbt(["run"])
         filters = self.get_row_filters(project, "base_model")
         assert len(filters) == 0
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewRowFilterDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestMaterializedViewRowFilter
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json": True,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -226,6 +258,20 @@ class TestStreamingTableRowFilter(RowFilterMixin):
         run_dbt(["run"])
         filters = self.get_row_filters(project, "base_model")
         assert len(filters) == 0
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTableRowFilterDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestStreamingTableRowFilter
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json": True,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")
