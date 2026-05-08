@@ -48,6 +48,45 @@ class TestSqlUtils:
                 id="no_backticks",
             ),
             pytest.param(
+                (
+                    "version: 0.1\n"
+                    "source: `prod_db`.`analytics`.`orders`\n"
+                    "joins:\n"
+                    "  - name: customers\n"
+                    "    source: prod_db.analytics.customers\n"
+                    "    on: orders.customer_id = customers.id\n"
+                    "  - name: products\n"
+                    "    source: `prod_db`.`analytics`.`products` # primary product table\n"
+                    "    on: orders.product_id = products.id\n"
+                    "filter: orders.status = 'completed'\n"
+                    "dimensions:\n"
+                    "  - name: order_year\n"
+                    "    expr: year(orders.created_at)\n"
+                    "measures:\n"
+                    "  - name: order_count\n"
+                    "    expr: count(`orders`.`id`)\n"
+                ),
+                (
+                    "version: 0.1\n"
+                    'source: "`prod_db`.`analytics`.`orders`"\n'
+                    "joins:\n"
+                    "  - name: customers\n"
+                    "    source: prod_db.analytics.customers\n"
+                    "    on: orders.customer_id = customers.id\n"
+                    "  - name: products\n"
+                    '    source: "`prod_db`.`analytics`.`products`" # primary product table\n'
+                    "    on: orders.product_id = products.id\n"
+                    "filter: orders.status = 'completed'\n"
+                    "dimensions:\n"
+                    "  - name: order_year\n"
+                    "    expr: year(orders.created_at)\n"
+                    "measures:\n"
+                    "  - name: order_count\n"
+                    "    expr: count(`orders`.`id`)\n"
+                ),
+                id="realistic_mixed_metric_view",
+            ),
+            pytest.param(
                 "expr: count(`some col`)\n",
                 "expr: count(`some col`)\n",
                 id="inline_backtick_in_expr",
@@ -58,9 +97,39 @@ class TestSqlUtils:
                 id="indented_mapping",
             ),
             pytest.param(
-                "version: 0.1\nsource: `db`.`s`.`a`\nfilter: `db`.`s`.`b`\n",
-                'version: 0.1\nsource: "`db`.`s`.`a`"\nfilter: "`db`.`s`.`b`"\n',
-                id="multiple_lines",
+                "source: `schema`.`name` # a comment\n",
+                'source: "`schema`.`name`" # a comment\n',
+                id="trailing_comment",
+            ),
+            pytest.param(
+                "source : `db`.`s`.`n`\n",
+                'source : "`db`.`s`.`n`"\n',
+                id="space_before_colon",
+            ),
+            pytest.param(
+                "source  :   `db`.`s`.`n`\n",
+                'source  :   "`db`.`s`.`n`"\n',
+                id="multiple_spaces_around_colon",
+            ),
+            pytest.param(
+                "joins:\n  - name: foo\n    source: `db`.`s`.`n`\n    on: a = b\n",
+                'joins:\n  - name: foo\n    source: "`db`.`s`.`n`"\n    on: a = b\n',
+                id="joins_nested_source",
+            ),
+            pytest.param(
+                "name: `foo`\nfilter: `db`.`s`.`b`\n",
+                "name: `foo`\nfilter: `db`.`s`.`b`\n",
+                id="non_source_keys_untouched",
+            ),
+            pytest.param(
+                "data_source: `db`.`s`.`n`\n",
+                "data_source: `db`.`s`.`n`\n",
+                id="key_with_source_substring_untouched",
+            ),
+            pytest.param(
+                "source: `db`.`s`.`a` # primary\nsource: `db`.`s`.`b`\n",
+                'source: "`db`.`s`.`a`" # primary\nsource: "`db`.`s`.`b`"\n',
+                id="multi_line_mixed_comment",
             ),
             pytest.param("", "", id="empty"),
             pytest.param("   \n", "   \n", id="whitespace_only"),

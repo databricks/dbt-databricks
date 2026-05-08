@@ -267,8 +267,10 @@ class SqlUtils:
     """
 
     DBR_VERSION_REGEX = re.compile(r"([1-9][0-9]*)\.(x|0|[1-9][0-9]*)")
-    YAML_BACKTICK_VALUE_REGEX = re.compile(
-        r"^(?P<indent>[ \t]*)(?P<key>\w+:[ \t]+)(?P<value>`[^`\n]+`(?:\.`[^`\n]+`)*)[ \t]*$",
+    YAML_SOURCE_BACKTICK_VALUE_REGEX = re.compile(
+        r"^(?P<before> *source *: +)"
+        r"(?P<value>`[^`\n]+`(?:\.`[^`\n]+`)*)"
+        r"(?P<after> *(?:#[^\n]*)?)$",
         re.MULTILINE,
     )
     user_agent = f"dbt-databricks/{__version__}"
@@ -301,10 +303,13 @@ class SqlUtils:
 
     @staticmethod
     def yaml_quote_backtick_values(yaml_body: str) -> str:
-        """Wrap backtick-rendered SQL identifiers in YAML double quotes (see #1361)."""
+        """Wrap backtick-rendered SQL identifiers on metric_view `source:` lines in
+        YAML double quotes (see #1361). Other keys are left untouched."""
         if "`" not in yaml_body:
             return yaml_body
-        return SqlUtils.YAML_BACKTICK_VALUE_REGEX.sub(r'\g<indent>\g<key>"\g<value>"', yaml_body)
+        return SqlUtils.YAML_SOURCE_BACKTICK_VALUE_REGEX.sub(
+            r'\g<before>"\g<value>"\g<after>', yaml_body
+        )
 
     @staticmethod
     def prepare_connection_arguments(
