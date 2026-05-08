@@ -54,12 +54,8 @@ jobs:
       labels: linux-ubuntu-latest
     outputs:
       targets: ${{ steps.parse.outputs.targets }}
-      # Shard arrays are the single source of truth for shard counts. Test jobs
-      # reference these for `matrix.shard`; the matching `count_*` outputs feed
-      # `max-parallel` (GHA expressions have no `length()` function on arrays).
-      # Both are emitted from the same bash variable in `parse`, so a one-line
-      # edit there reshapes the per-profile shard fan-out everywhere.
-      # `prepare-shards` also derives its NUM_SHARDS map from these outputs.
+      # `count_*` is emitted alongside `shards_*` because GHA expressions have
+      # no `length()` for arrays — `max-parallel` can't derive it from the array.
       shards_cluster: ${{ steps.parse.outputs.shards_cluster }}
       shards_uc_cluster: ${{ steps.parse.outputs.shards_uc_cluster }}
       shards_uc_sql_endpoint: ${{ steps.parse.outputs.shards_uc_sql_endpoint }}
@@ -209,7 +205,7 @@ jobs:
   # matrix's shard count so a multi-PR batch dispatch stays inside this slot.
   gate:
     needs: prepare
-    if: needs.prepare.outputs.targets != '[]' && needs.prepare.outputs.targets != ''
+    if: needs.prepare.outputs.targets != '[]'
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -226,12 +222,7 @@ jobs:
     # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
     # `needs: prepare` propagates the external-fork skip cleanly, and forcing
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
-    # empty output. Matrix shape contract: {pr, ref, shard} — pr+ref from
-    # `prepare.outputs.targets`, shard from `prepare.outputs.shards_uc_cluster`.
-    # `needs: gate` enforces the global bounded FIFO; `max-parallel` is the
-    # shard count from `prepare.outputs.count_uc_cluster` so a single PR's
-    # shards run in parallel but a multi-PR batch dispatch stays inside the
-    # gate's "one PR's worth of compute" intent.
+    # empty output.
     needs:
       - prepare
       - prepare-shards
@@ -334,8 +325,6 @@ jobs:
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare.outputs.targets`,
-    # shard from `prepare.outputs.shards_uc_sql_endpoint`.
     needs:
       - prepare
       - prepare-shards
@@ -437,8 +426,6 @@ jobs:
           retention-days: 5
 
   run-cluster-e2e-tests:
-    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare.outputs.targets`,
-    # shard from `prepare.outputs.shards_cluster`.
     needs:
       - prepare
       - prepare-shards
