@@ -331,17 +331,10 @@ class TestStreamingTableLiquidClusteringChanges:
             type=DatabricksRelationType.StreamingTable,
         )
 
-    @pytest.fixture(scope="class", autouse=True)
-    def setup(self, project, liquid_clustered_st):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--models", liquid_clustered_st.identifier, "--full-refresh"])
-
-        yield
-
-        project.run_sql(f"drop schema if exists {project.test_schema} cascade")
-
     def test_liquid_clustering_change_is_applied(self, project, liquid_clustered_st):
         """Changing liquid_clustered_by on an existing ST should apply via ALTER."""
+        util.run_dbt(["seed"])
+        util.run_dbt(["run", "--models", liquid_clustered_st.identifier, "--full-refresh"])
         util.write_file(fixtures.liquid_clustered_st_schema_v2, "models", "schema.yml")
         util.run_dbt(["run", "--models", liquid_clustered_st.identifier])
 

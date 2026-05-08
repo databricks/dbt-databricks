@@ -251,7 +251,9 @@ class DatabricksAdapter(SparkAdapter):
         self.add_catalog_integration(constants.DEFAULT_HIVE_METASTORE_CATALOG)
 
         # Store the use_managed_iceberg flag in GlobalState for the session
-        GlobalState.set_use_managed_iceberg(bool(self.behavior.use_managed_iceberg))
+        GlobalState.set_use_managed_iceberg(
+            self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+        )
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -264,9 +266,8 @@ class DatabricksAdapter(SparkAdapter):
         ]
 
     def supports(self, capability: Capability) -> bool:
-        # Gate MicrobatchConcurrency on the use_concurrent_microbatch behavior flag.
         if capability == Capability.MicrobatchConcurrency:
-            return bool(self.behavior.use_concurrent_microbatch)
+            return self.get_behavior_flag_no_warn(USE_CONCURRENT_MICROBATCH["name"])
         return super().supports(capability)
 
     def quote(self, identifier):  # type: ignore[override,no-untyped-def]
@@ -284,7 +285,7 @@ class DatabricksAdapter(SparkAdapter):
                     ", 'table', or 'snapshot'."
                 )
             if (
-                self.behavior.use_managed_iceberg
+                self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
                 and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
             ):
                 raise DbtConfigError(
@@ -293,7 +294,7 @@ class DatabricksAdapter(SparkAdapter):
                 )
             # UniForm refers to Delta tables with Iceberg compatibility.
             # Native managed Iceberg tables don't need Delta properties.
-            return not self.behavior.use_managed_iceberg
+            return not self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         else:
             return False
 
@@ -772,6 +773,16 @@ class DatabricksAdapter(SparkAdapter):
             as_dict["column_name"] = as_dict.pop("column", None)
             as_dict["column_type"] = as_dict.pop("dtype")
             yield as_dict
+
+    def get_behavior_flag_no_warn(self, behavior_flag_name: str) -> bool:
+        """Get the value of a behavior flag without triggering a warning.
+
+        dbt logs a warning the first time a behavior flag with a False value is accessed. Use
+        this method to access the value of a behavior flag without triggering a warning.
+        """
+        # As intended - This method will error out if the behavior flag is missing.
+        behavior_flag = getattr(self.behavior, behavior_flag_name)
+        return behavior_flag.no_warn
 
     def add_query(
         self,

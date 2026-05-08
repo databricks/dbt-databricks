@@ -1,0 +1,88 @@
+# Integration Test Trigger
+#
+# Listens for `/integration-test` PR comments and dispatches the integration
+# test workflow against the PR head. Works uniformly for internal and forked
+# PRs because the dispatch runs in the main repo context (which has access to
+# the Databricks secrets).
+#
+# Authorization: only users whose author_association is OWNER, MEMBER, or
+# COLLABORATOR can trigger a run. Anyone else gets a reply comment explaining
+# that only maintainers can run this.
+name: Integration Test Trigger
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    # Exact command match, or the command followed by whitespace (so maintainers
+    # can add context like `/integration-test please retry the sqlw flake`) —
+    # never matches `/integration-test-foo`.
+    if: |
+      github.event.issue.pull_request &&
+      (github.event.comment.body == '/integration-test' || startsWith(github.event.comment.body, '/integration-test ')) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - name: React to comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });
+
+      - name: Dispatch integration workflow
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        with:
+          script: |
+            const prNumber = String(context.payload.issue.number);
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'integration.yml',
+              ref: 'main',
+              inputs: { pr_numbers: prNumber },
+            });
+            const actionsUrl =
+              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/workflows/integration.yml`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: `Integration tests dispatched for PR #${prNumber} by @${context.payload.comment.user.login}. ` +
+                    `Track progress in the [Actions tab](${actionsUrl}).`,
+            });
+
+  reject:
+    if: |
+      github.event.issue.pull_request &&
+      (github.event.comment.body == '/integration-test' || startsWith(github.event.comment.body, '/integration-test ')) &&
+      !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - name: Reply with maintainer-only notice
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: `Sorry @${context.payload.comment.user.login}, only repo maintainers can trigger integration tests. ` +
+                    `A maintainer will run \`/integration-test\` once they've reviewed the changes.`,
+            });
