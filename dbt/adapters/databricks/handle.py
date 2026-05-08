@@ -52,17 +52,7 @@ def _get_job_run_context() -> dict[str, Optional[str]]:
 
 @dataclass
 class DatabricksAdapterResponse(AdapterResponse):
-    """Extends the base adapter response with Databricks Job context.
-
-    When dbt runs inside a Databricks workflow task, the runtime exposes
-    ``DATABRICKS_JOB_ID``, ``DATABRICKS_RUN_ID``, and ``DATABRICKS_TASK_KEY``
-    as environment variables.  Including them in the adapter response makes
-    them available in ``run_results.json`` so that downstream tooling can
-    correlate a dbt run with the originating Databricks Job execution.
-
-    Outside of a Databricks Job context the fields are ``None`` and omitted
-    from serialization, keeping backward compatibility.
-    """
+    """Extends the base adapter response with Databricks Job context."""
 
     job_id: Optional[str] = None
     run_id: Optional[str] = None
