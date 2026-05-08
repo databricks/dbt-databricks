@@ -171,17 +171,13 @@ jobs:
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
       - name: Collect tests and assign to shards
-        env:
-          SHARDS_CLUSTER: ${{ needs.prepare.outputs.shards_cluster }}
-          SHARDS_UC_CLUSTER: ${{ needs.prepare.outputs.shards_uc_cluster }}
-          SHARDS_UC_SQL_ENDPOINT: ${{ needs.prepare.outputs.shards_uc_sql_endpoint }}
         run: |
           set -euo pipefail
           mkdir -p shard-assignments
           declare -A NUM_SHARDS=(
-            [databricks_cluster]=$(jq 'length' <<< "$SHARDS_CLUSTER")
-            [databricks_uc_cluster]=$(jq 'length' <<< "$SHARDS_UC_CLUSTER")
-            [databricks_uc_sql_endpoint]=$(jq 'length' <<< "$SHARDS_UC_SQL_ENDPOINT")
+            [databricks_cluster]=${{ needs.prepare.outputs.count_cluster }}
+            [databricks_uc_cluster]=${{ needs.prepare.outputs.count_uc_cluster }}
+            [databricks_uc_sql_endpoint]=${{ needs.prepare.outputs.count_uc_sql_endpoint }}
           )
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             (
