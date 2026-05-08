@@ -24,6 +24,9 @@
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set contract_config = config.get('contract') -%}
   {%- if contract_config and contract_config.enforced -%}
+    {%- do exceptions.warn(
+         "contract.enforced=true on materialized_view '" ~ model.name ~ "': not supported by dbt (https://docs.getdbt.com/docs/mesh/govern/model-contracts). dbt-databricks provides best-effort support that may change without notice."
+       ) -%}
     {%- set model_constraints = model.get('constraints', []) -%}
   {%- else -%}
     {%- set model_constraints = [] -%}
