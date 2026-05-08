@@ -1400,6 +1400,29 @@ class TestDescribeRelationMetadataFetchPlanning:
         assert "fetch_tags" in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
 
+    def test_incremental_describe_relation_fetches_table_tags_from_project_level_cascade(self):
+        # Project-level databricks_tags cascade onto a model that doesn't declare
+        # its own.
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        model = Mock()
+        model.config.extra = {"databricks_tags": {"team": "platform"}}
+        relation_config = IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsProcessor.from_relation_config(model),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags={}),
+            }
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
     def test_incremental_describe_relation_fetches_only_column_tags_when_present(self):
         adapter = self._create_adapter()
         relation = self._create_incremental_relation()
