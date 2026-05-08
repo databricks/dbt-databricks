@@ -55,12 +55,17 @@ jobs:
     outputs:
       targets: ${{ steps.parse.outputs.targets }}
       # Shard arrays are the single source of truth for shard counts. Test jobs
-      # reference these for both `matrix.shard` and `max-parallel` so a multi-PR
-      # batch dispatch is capped at one PR's worth of cells in flight at a time.
-      # `prepare-shards` derives its bash NUM_SHARDS map from these outputs too.
+      # reference these for `matrix.shard`; the matching `count_*` outputs feed
+      # `max-parallel` (GHA expressions have no `length()` function on arrays).
+      # Both are emitted from the same bash variable in `parse`, so a one-line
+      # edit there reshapes the per-profile shard fan-out everywhere.
+      # `prepare-shards` also derives its NUM_SHARDS map from these outputs.
       shards_cluster: ${{ steps.parse.outputs.shards_cluster }}
       shards_uc_cluster: ${{ steps.parse.outputs.shards_uc_cluster }}
       shards_uc_sql_endpoint: ${{ steps.parse.outputs.shards_uc_sql_endpoint }}
+      count_cluster: ${{ steps.parse.outputs.count_cluster }}
+      count_uc_cluster: ${{ steps.parse.outputs.count_uc_cluster }}
+      count_uc_sql_endpoint: ${{ steps.parse.outputs.count_uc_sql_endpoint }}
     steps:
       - name: Parse targets
         id: parse
@@ -110,10 +115,17 @@ jobs:
           targets+="]"
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
-          # Shard arrays — change here to reshape the per-profile shard fan-out.
-          echo "shards_cluster=[0, 1]" >> "$GITHUB_OUTPUT"
-          echo "shards_uc_cluster=[0, 1, 2]" >> "$GITHUB_OUTPUT"
-          echo "shards_uc_sql_endpoint=[0, 1, 2]" >> "$GITHUB_OUTPUT"
+          # Shard fan-out — single source of truth. Reshape here and matrix +
+          # max-parallel + prepare-shards NUM_SHARDS all follow.
+          shards_cluster='[0, 1]'
+          shards_uc_cluster='[0, 1, 2]'
+          shards_uc_sql_endpoint='[0, 1, 2]'
+          for profile in cluster uc_cluster uc_sql_endpoint; do
+            arr_var="shards_${profile}"
+            arr="${!arr_var}"
+            echo "shards_${profile}=${arr}" >> "$GITHUB_OUTPUT"
+            echo "count_${profile}=$(jq 'length' <<< "$arr")" >> "$GITHUB_OUTPUT"
+          done
 
   # Collects test ids per profile and partitions files into shards.
   # `--collect-only` imports test modules but never hits the workspace.
@@ -220,9 +232,10 @@ jobs:
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
     # empty output. Matrix shape contract: {pr, ref, shard} — pr+ref from
     # `prepare.outputs.targets`, shard from `prepare.outputs.shards_uc_cluster`.
-    # `needs: gate` enforces the global bounded FIFO; `max-parallel = length(shards)`
-    # so a single PR's shards run in parallel but a multi-PR batch dispatch
-    # stays inside the gate's "one PR's worth of compute" intent.
+    # `needs: gate` enforces the global bounded FIFO; `max-parallel` is the
+    # shard count from `prepare.outputs.count_uc_cluster` so a single PR's
+    # shards run in parallel but a multi-PR batch dispatch stays inside the
+    # gate's "one PR's worth of compute" intent.
     needs:
       - prepare
       - prepare-shards
@@ -233,7 +246,7 @@ jobs:
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
-      max-parallel: ${{ length(fromJSON(needs.prepare.outputs.shards_uc_cluster)) }}
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_cluster) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_cluster) }}
@@ -335,7 +348,7 @@ jobs:
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
-      max-parallel: ${{ length(fromJSON(needs.prepare.outputs.shards_uc_sql_endpoint)) }}
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_sql_endpoint) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_sql_endpoint) }}
@@ -438,7 +451,7 @@ jobs:
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
-      max-parallel: ${{ length(fromJSON(needs.prepare.outputs.shards_cluster)) }}
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_cluster) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
         shard: ${{ fromJSON(needs.prepare.outputs.shards_cluster) }}
