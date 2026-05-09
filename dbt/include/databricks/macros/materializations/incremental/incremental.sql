@@ -16,7 +16,7 @@
   {% set is_replaceable_format = is_delta or is_iceberg %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
-  {% if adapter.behavior.use_materialization_v2 %}
+  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {{ log("USING V2 MATERIALIZATION") }}
     {#-- Set vars --#}
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
