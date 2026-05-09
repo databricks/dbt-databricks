@@ -129,7 +129,7 @@ class TestCursorWrapper:
         response = wrapper.get_response()
         assert isinstance(response, DatabricksAdapterResponse)
         assert response.job_id == "123"
-        assert response.run_id == "456"
+        assert response.task_run_id == "456"
         assert response.task_key == "my_task"
         assert response.query_id == "qid"
 
@@ -140,7 +140,7 @@ class TestCursorWrapper:
         response = wrapper.get_response()
         assert isinstance(response, DatabricksAdapterResponse)
         assert response.job_id is None
-        assert response.run_id is None
+        assert response.task_run_id is None
         assert response.task_key is None
 
     def test_with__no_exception(self, cursor):
@@ -253,19 +253,19 @@ class TestGetJobRunContext:
     )
     def test_all_vars_set(self):
         ctx = _get_job_run_context()
-        assert ctx == {"job_id": "111", "run_id": "222", "task_key": "etl"}
+        assert ctx == {"job_id": "111", "task_run_id": "222", "task_key": "etl"}
 
     @patch.dict(os.environ, {"DATABRICKS_JOB_ID": "111"}, clear=True)
     def test_partial_vars(self):
         ctx = _get_job_run_context()
         assert ctx["job_id"] == "111"
-        assert ctx["run_id"] is None
+        assert ctx["task_run_id"] is None
         assert ctx["task_key"] is None
 
     @patch.dict(os.environ, {}, clear=True)
     def test_no_vars(self):
         ctx = _get_job_run_context()
-        assert ctx == {"job_id": None, "run_id": None, "task_key": None}
+        assert ctx == {"job_id": None, "task_run_id": None, "task_key": None}
 
 
 class TestDatabricksAdapterResponse:
@@ -284,7 +284,7 @@ class TestDatabricksAdapterResponse:
         assert resp._message == "OK"
         assert resp.query_id == "q1"
         assert resp.job_id == "10"
-        assert resp.run_id == "20"
+        assert resp.task_run_id == "20"
         assert resp.task_key == "transform"
 
     def test_from_cursor__no_context(self):
@@ -295,7 +295,7 @@ class TestDatabricksAdapterResponse:
         assert resp._message == "OK"
         assert resp.query_id == "q2"
         assert resp.job_id is None
-        assert resp.run_id is None
+        assert resp.task_run_id is None
         assert resp.task_key is None
 
     def test_from_cursor__no_query_id(self):

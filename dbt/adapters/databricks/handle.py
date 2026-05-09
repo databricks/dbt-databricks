@@ -35,7 +35,7 @@ FailLogOp = Callable[[Exception], str]
 # constant for the lifetime of the task execution.
 _JOB_RUN_ENV_VARS = {
     "job_id": "DATABRICKS_JOB_ID",
-    "run_id": "DATABRICKS_RUN_ID",
+    "task_run_id": "DATABRICKS_RUN_ID",
     "task_key": "DATABRICKS_TASK_KEY",
 }
 
@@ -55,7 +55,7 @@ class DatabricksAdapterResponse(AdapterResponse):
     """Extends the base adapter response with Databricks Job context."""
 
     job_id: Optional[str] = None
-    run_id: Optional[str] = None
+    task_run_id: Optional[str] = None
     task_key: Optional[str] = None
 
     @classmethod
@@ -65,7 +65,7 @@ class DatabricksAdapterResponse(AdapterResponse):
             _message="OK",
             query_id=getattr(cursor, "query_id", None) or "N/A",
             job_id=ctx.get("job_id"),
-            run_id=ctx.get("run_id"),
+            task_run_id=ctx.get("task_run_id"),
             task_key=ctx.get("task_key"),
         )
 
