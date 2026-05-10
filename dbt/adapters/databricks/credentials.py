@@ -311,10 +311,20 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def authenticate_with_sdk_auth_type(self) -> Config:
-        """Pass auth_type directly to the Databricks SDK, enabling any auth method the SDK
-        supports (e.g. azure-cli, azure-msi, databricks-cli, metadata-service) without requiring
-        code changes here when the SDK adds new mechanisms."""
-        return Config(host=self.host, auth_type=self.auth_type)
+        """Pass auth_type and any explicitly-set credentials to the Databricks SDK, enabling any
+        auth method the SDK supports (e.g. azure-cli, azure-msi, oauth-m2m, databricks-cli)
+        without requiring code changes here when the SDK adds new mechanisms."""
+        kwargs: dict[str, Any] = {"host": self.host, "auth_type": self.auth_type}
+        # Only forward client_id when the user explicitly set it (not the dbt-internal default).
+        if self.client_id and self.client_id != CLIENT_ID:
+            kwargs["client_id"] = self.client_id
+        if self.client_secret:
+            kwargs["client_secret"] = self.client_secret
+        if self.azure_client_id:
+            kwargs["azure_client_id"] = self.azure_client_id
+        if self.azure_client_secret:
+            kwargs["azure_client_secret"] = self.azure_client_secret
+        return Config(**kwargs)
 
     def legacy_authenticate_with_azure_client_secret(self) -> Config:
         return Config(

@@ -262,6 +262,15 @@ class TestSdkAuthTypePassthrough:
         manager, mock_config = self._make_manager("azure-msi")
         mock_config.assert_called_once_with(host="my.cloud.databricks.com", auth_type="azure-msi")
 
+    def test_azure_msi_with_user_assigned_identity(self):
+        """azure_client_id should be forwarded for user-assigned managed identities."""
+        manager, mock_config = self._make_manager("azure-msi", azure_client_id="my-msi-client-id")
+        mock_config.assert_called_once_with(
+            host="my.cloud.databricks.com",
+            auth_type="azure-msi",
+            azure_client_id="my-msi-client-id",
+        )
+
     def test_databricks_cli_passed_to_sdk(self):
         manager, mock_config = self._make_manager("databricks-cli")
         mock_config.assert_called_once_with(
@@ -273,6 +282,26 @@ class TestSdkAuthTypePassthrough:
         mock_config.assert_called_once_with(
             host="my.cloud.databricks.com", auth_type="metadata-service"
         )
+
+    def test_explicit_oauth_m2m_forwards_credentials(self):
+        """When auth_type=oauth-m2m is set explicitly, client_id and client_secret are forwarded."""
+        manager, mock_config = self._make_manager(
+            "oauth-m2m",
+            client_id="my-client-id",
+            client_secret="my-client-secret",
+        )
+        mock_config.assert_called_once_with(
+            host="my.cloud.databricks.com",
+            auth_type="oauth-m2m",
+            client_id="my-client-id",
+            client_secret="my-client-secret",
+        )
+
+    def test_default_client_id_not_forwarded(self):
+        """The internal dbt CLIENT_ID default must not be forwarded to the SDK."""
+        manager, mock_config = self._make_manager("azure-cli")
+        call_kwargs = mock_config.call_args.kwargs
+        assert "client_id" not in call_kwargs
 
     def test_oauth_still_uses_external_browser(self):
         """'oauth' is a dbt alias for external-browser — backward compat must be preserved."""
