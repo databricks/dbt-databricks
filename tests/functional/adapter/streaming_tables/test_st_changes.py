@@ -1,18 +1,18 @@
 from typing import Optional
 
 import pytest
+from dbt.adapters.base.relation import BaseRelation
+from dbt.tests import util
+from dbt.tests.adapter.materialized_view.files import (
+    MY_SEED,
+)
 from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 
-from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from dbt.tests import util
-from dbt.tests.adapter.materialized_view.files import (
-    MY_SEED,
-)
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -134,6 +134,10 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
     def test_change_is_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
+        # This tries to update column definitions (e.g. comment) but should be ignored for
+        # streaming tables. No explicit assertion needed, the job succeeding is sufficient
+        util.write_file(fixtures.streaming_table_schema, "models", "schema.yml")
+
         self.change_config_via_alter(project, my_streaming_table)
         _, logs = util.run_dbt_and_capture(["--debug", "run", "--models", my_streaming_table.name])
 
@@ -239,3 +243,11 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
         )
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs, False)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
+
+    def test_idempotent_run_does_not_fail(self, project, my_streaming_table):
+        assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        _, log = util.run_dbt_and_capture(
+            ["--debug", "run", "--models", my_streaming_table.identifier]
+        )
+        assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
+        util.assert_message_in_logs("REFRESHING STREAMING TABLE", log)

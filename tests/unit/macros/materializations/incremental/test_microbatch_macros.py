@@ -14,6 +14,17 @@ class TestMicrobatchMacros(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/materializations/incremental"]
 
+    @pytest.fixture(autouse=True)
+    def setup_mock_capability(self, context):
+        """Mock the adapter's has_dbr_capability to support insert_by_name by default"""
+
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == "insert_by_name":
+                return True  # Default to DBR 12.2+
+            return False
+
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
+
     @pytest.fixture
     def mock_temp(self):
         relation = Mock()
@@ -50,8 +61,9 @@ class TestMicrobatchMacros(MacroTestBase):
 
         expected = """
         insert into `some_database`.`some_schema`.`some_table`
-        replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
-            and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
+        by name replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
+            and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00'
+            table `temp_table`
 """
 
         self.assert_sql_equal(result, expected)
@@ -75,7 +87,8 @@ class TestMicrobatchMacros(MacroTestBase):
 
         expected = """
         insert into `some_database`.`some_schema`.`some_table`
-        replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00' table `temp_table`
+        by name replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
+            table `temp_table`
 """
 
         self.assert_sql_equal(result, expected)
@@ -99,7 +112,8 @@ class TestMicrobatchMacros(MacroTestBase):
 
         expected = """
         insert into `some_database`.`some_schema`.`some_table`
-        replace where cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
+        by name replace where cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00'
+            table `temp_table`
 """
 
         self.assert_sql_equal(result, expected)
@@ -125,9 +139,10 @@ class TestMicrobatchMacros(MacroTestBase):
 
         expected = """
         insert into `some_database`.`some_schema`.`some_table`
-        replace where col1 = 'value'
+        by name replace where col1 = 'value'
             and col2 > 100 and cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
-            and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00' table `temp_table`
+            and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00'
+            table `temp_table`
 """
 
         self.assert_sql_equal(result, expected)
@@ -151,7 +166,37 @@ class TestMicrobatchMacros(MacroTestBase):
 
         expected = """
         insert into `some_database`.`some_schema`.`some_table`
-        table `temp_table`
+        by name table `temp_table`
+"""
+
+        self.assert_sql_equal(result, expected)
+
+    def test_databricks__get_incremental_microbatch_sql_without_insert_by_name(
+        self, template_bundle, context, config, mock_arg_dict
+    ):
+        """Test that BY NAME is omitted when the DBR version doesn't support insert_by_name"""
+
+        context["adapter"].has_dbr_capability = Mock(return_value=False)
+
+        context["model"] = {"config": {"event_time": "event_timestamp"}}
+        config["__dbt_internal_microbatch_event_time_start"] = "2023-01-01 00:00:00"
+        config["__dbt_internal_microbatch_event_time_end"] = "2023-01-02 00:00:00"
+
+        context["return"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "databricks__get_incremental_microbatch_sql",
+            mock_arg_dict,
+        )
+
+        result = context["return"].call_args[0][0]
+
+        expected = """
+        insert into `some_database`.`some_schema`.`some_table`
+        replace where cast(event_timestamp as TIMESTAMP) >= '2023-01-01 00:00:00'
+            and cast(event_timestamp as TIMESTAMP) < '2023-01-02 00:00:00'
+            table `temp_table`
 """
 
         self.assert_sql_equal(result, expected)

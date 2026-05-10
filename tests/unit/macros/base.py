@@ -6,6 +6,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader, PackageLoader, Template
 
 from dbt.adapters.databricks.column import DatabricksColumn
+from dbt.adapters.databricks.relation import DatabricksRelationType
 
 
 class TemplateBundle:
@@ -39,18 +40,38 @@ class MacroTestBase:
         """
         This is the default context used in all tests.
         """
+        # Create a mock adapter with a working quote method
+        mock_adapter = Mock()
+        mock_adapter.quote = lambda identifier: f"`{identifier}`"
+
+        # Create a mock for api.Relation.create that returns a relation with proper render method
+        def mock_relation_create(database=None, schema=None, identifier=None, type=None):
+            mock_relation = Mock()
+            if database and schema and type == "table":
+                mock_relation.render = Mock(return_value=f"{schema}.{identifier}")
+            elif database and schema:
+                mock_relation.render = Mock(return_value=f"`{database}`.`{schema}`.`{identifier}`")
+            elif schema:
+                mock_relation.render = Mock(return_value=f"{schema}.{identifier}")
+            else:
+                mock_relation.render = Mock(return_value=identifier)
+            return mock_relation
+
+        mock_api = Mock(Column=DatabricksColumn)
+        mock_api.Relation.create = mock_relation_create
+
         context = {
             "validation": Mock(),
             "model": Mock(),
             "exceptions": Mock(),
             "config": Mock(),
             "statement": lambda r, caller: r,
-            "adapter": Mock(),
+            "adapter": mock_adapter,
             "var": Mock(),
             "log": Mock(return_value=""),
             "return": lambda r: r,
             "is_incremental": Mock(return_value=False),
-            "api": Mock(Column=DatabricksColumn),
+            "api": mock_api,
             "local_md5": lambda s: f"hash({s})",
         }
         return context
@@ -180,7 +201,7 @@ class MacroTestBase:
         relation.identifier = "some_table"
         relation.render = Mock(return_value="`some_database`.`some_schema`.`some_table`")
         relation.without_identifier = Mock(return_value="`some_database`.`some_schema`")
-        relation.type = "table"
+        relation.type = DatabricksRelationType.Table
         return relation
 
     @pytest.fixture

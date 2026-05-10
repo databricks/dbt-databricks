@@ -35,6 +35,7 @@
         {% set on_configuration_change = config.get('on_configuration_change') %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
         {% if configuration_changes is none %}
+            {{ log("REFRESHING STREAMING TABLE: " ~ target_relation) }}
             {% set build_sql = refresh_streaming_table(target_relation, sql) %}
 
         {% elif on_configuration_change == 'apply' %}
@@ -63,13 +64,19 @@
     {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
     {% set grant_config = config.get('grants') %}
+    {% set tags = config.get('databricks_tags') %}
 
     {{ execute_multiple_statements(build_sql) }}
+
+    {%- do apply_tags(target_relation, tags) -%}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
 
-    {% do persist_docs(target_relation, model, for_relation=False) %}
+    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+    {% if column_tags and column_tags.set_column_tags %}
+        {{ apply_column_tags(target_relation, column_tags) }}
+    {% endif %}
 
     {{ run_hooks(post_hooks, inside_transaction=True) }}
 

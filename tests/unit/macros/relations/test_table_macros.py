@@ -1,6 +1,8 @@
 import pytest
 
+from dbt.adapters.databricks import constants
 from tests.unit.macros.base import MacroTestBase
+from tests.unit.utils import unity_relation
 
 
 class TestCreateTableAs(MacroTestBase):
@@ -14,7 +16,12 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
-        return ["file_format.sql", "tblproperties.sql", "location.sql", "liquid_clustering.sql"]
+        return [
+            "file_format.sql",
+            "tblproperties.sql",
+            "location.sql",
+            "liquid_clustering.sql",
+        ]
 
     @pytest.fixture
     def context(self, template) -> dict:
@@ -24,7 +31,8 @@ class TestCreateTableAs(MacroTestBase):
         mocking macros.
         If you need to mock a macro, see the use of is_incremental in default_context.
         """
-        template.globals["adapter"].update_tblproperties_for_iceberg.return_value = {}
+        template.globals["adapter"].is_uniform.return_value = False
+        template.globals["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {}
         return template.globals
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
@@ -40,6 +48,7 @@ class TestCreateTableAs(MacroTestBase):
         )
 
     def test_macros_create_table_as(self, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         sql = self.render_create_table_as(template_bundle)
         assert (
             sql == f"create or replace table {template_bundle.relation.render()}"
@@ -47,10 +56,13 @@ class TestCreateTableAs(MacroTestBase):
         )
 
     def test_macros_create_table_as_with_iceberg(self, template_bundle):
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
-            "delta.enableIcebergCompatV2": "true",
-            "delta.universalFormat.enabledFormats": "iceberg",
-        }
+        catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = (
+            catalog_relation.iceberg_table_properties  # type: ignore
+        )
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = False
         sql = self.render_create_table_as(template_bundle)
         assert sql == self.clean_sql(
             f"create or replace table {template_bundle.relation.render()} using delta"
@@ -58,10 +70,14 @@ class TestCreateTableAs(MacroTestBase):
             "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
         )
 
-    @pytest.mark.parametrize("format", ["parquet", "hudi"])
+    @pytest.mark.parametrize("format", [constants.PARQUET_FILE_FORMAT, constants.HUDI_FILE_FORMAT])
     def test_macros_create_table_as_file_format(self, format, config, template_bundle):
-        config["file_format"] = format
-        config["location_root"] = "/mnt/root"
+        catalog_relation = unity_relation(
+            file_format=format,
+            location_root="/mnt/root",
+            location_path=template_bundle.relation.identifier,
+        )
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
         sql = self.render_create_table_as(template_bundle)
         expected = (
             f"create table {template_bundle.relation.render()} using {format} location "
@@ -70,6 +86,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_options(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["options"] = {"compression": "gzip"}
         sql = self.render_create_table_as(template_bundle)
         expected = self.clean_sql(
@@ -80,9 +97,14 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_hudi_unique_key(self, config, template_bundle):
-        config["file_format"] = "hudi"
+        catalog_relation = unity_relation(
+            file_format=constants.HUDI_FILE_FORMAT,
+            location_root="/mnt/root",
+            location_path=template_bundle.relation.identifier,
+        )
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+
         config["unique_key"] = "id"
-        config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = self.clean_sql(
@@ -96,10 +118,14 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_hudi_unique_key_primary_key_match(
         self, config, template_bundle
     ):
-        config["file_format"] = "hudi"
+        catalog_relation = unity_relation(
+            file_format=constants.HUDI_FILE_FORMAT,
+            location_root="/mnt/root",
+            location_path=template_bundle.relation.identifier,
+        )
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
         config["unique_key"] = "id"
         config["options"] = {"primaryKey": "id"}
-        config["location_root"] = "/mnt/root"
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id")
 
         expected = self.clean_sql(
@@ -112,13 +138,15 @@ class TestCreateTableAs(MacroTestBase):
     def test_macros_create_table_as_hudi_unique_key_primary_key_mismatch(
         self, config, template_bundle
     ):
-        config["file_format"] = "hudi"
+        catalog_relation = unity_relation(file_format=constants.HUDI_FILE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
         config["unique_key"] = "uuid"
         config["options"] = {"primaryKey": "id"}
         sql = self.render_create_table_as(template_bundle, sql="select 1 as id, 2 as uuid")
         assert "mock.raise_compiler_error()" in sql
 
     def test_macros_create_table_as_partition(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["partition_by"] = "partition_1"
         sql = self.render_create_table_as(template_bundle)
 
@@ -129,6 +157,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_partitions(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["partition_by"] = ["partition_1", "partition_2"]
         sql = self.render_create_table_as(template_bundle)
         expected = (
@@ -139,6 +168,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_cluster(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["clustered_by"] = "cluster_1"
         config["buckets"] = "1"
         sql = self.render_create_table_as(template_bundle)
@@ -151,6 +181,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_clusters(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         sql = self.render_create_table_as(template_bundle)
@@ -163,6 +194,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_liquid_cluster(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["liquid_clustered_by"] = "cluster_1"
         sql = self.render_create_table_as(template_bundle)
         expected = self.clean_sql(
@@ -173,6 +205,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_liquid_clusters(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         sql = self.render_create_table_as(template_bundle)
@@ -184,6 +217,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_liquid_cluster_auto(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["auto_liquid_cluster"] = True
         sql = self.render_create_table_as(template_bundle)
         expected = self.clean_sql(
@@ -194,6 +228,7 @@ class TestCreateTableAs(MacroTestBase):
         assert sql == expected
 
     def test_macros_create_table_as_comment(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
         config["persist_docs"] = {"relation": True}
         template_bundle.context["model"].description = "Description Test"
 
@@ -204,21 +239,27 @@ class TestCreateTableAs(MacroTestBase):
             "using delta comment 'Description Test' as select 1"
         )
 
-        assert sql == expected
+        assert expected == sql
 
     def test_macros_create_table_as_all_delta(self, config, template_bundle):
-        config["location_root"] = "/mnt/root"
+        catalog_relation = unity_relation(
+            file_format=constants.DELTA_FILE_FORMAT,
+            location_root="/mnt/root",
+            location_path=template_bundle.relation.identifier,
+        )
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+
         config["partition_by"] = ["partition_1", "partition_2"]
         config["liquid_clustered_by"] = ["cluster_1", "cluster_2"]
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
             "delta.appendOnly": "true"
         }
         template_bundle.context["model"].description = "Description Test"
 
-        config["file_format"] = "delta"
         sql = self.render_create_table_as(template_bundle)
 
         expected = self.clean_sql(
@@ -233,20 +274,26 @@ class TestCreateTableAs(MacroTestBase):
             "as select 1"
         )
 
-        assert sql == expected
+        assert expected == sql
 
     def test_macros_create_table_as_all_hudi(self, config, template_bundle):
-        config["location_root"] = "/mnt/root"
+        catalog_relation = unity_relation(
+            file_format=constants.HUDI_FILE_FORMAT,
+            location_root="/mnt/root",
+            location_path=template_bundle.relation.identifier,
+        )
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+
         config["partition_by"] = ["partition_1", "partition_2"]
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].update_tblproperties_for_iceberg.return_value = {
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
             "delta.appendOnly": "true"
         }
         template_bundle.context["model"].description = "Description Test"
 
-        config["file_format"] = "hudi"
         sql = self.render_create_table_as(template_bundle)
 
         expected = self.clean_sql(
@@ -259,5 +306,72 @@ class TestCreateTableAs(MacroTestBase):
             "tblproperties ('delta.appendOnly' = 'true' ) "
             "as select 1"
         )
-
         assert sql == expected
+
+    def test_macros_create_table_as_managed_iceberg(self, config, template_bundle):
+        """Test that USING ICEBERG is generated when managed Iceberg flag is enabled"""
+        catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = True
+
+        sql = self.render_create_table_as(template_bundle)
+        expected = (
+            f"create or replace table {template_bundle.relation.render()} using iceberg as select 1"
+        )
+        assert sql == expected
+
+    def test_macros_create_table_as_uniform_iceberg(self, config, template_bundle):
+        """Test that USING DELTA is still used when managed Iceberg flag is disabled (default)"""
+        catalog_relation = unity_relation(table_format=constants.ICEBERG_TABLE_FORMAT)
+        template_bundle.context["adapter"].build_catalog_relation.return_value = catalog_relation
+        template_bundle.context["adapter"].behavior.use_managed_iceberg = False
+        # Mock the UniForm properties return
+        template_bundle.context["adapter"].is_uniform.return_value = True
+        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
+            "delta.enableIcebergCompatV2": "true",
+            "delta.universalFormat.enabledFormats": "iceberg",
+        }
+
+        sql = self.render_create_table_as(template_bundle)
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using delta "
+            "tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
+            "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
+        )
+        assert sql == expected
+
+
+class TestFileFormatClause(MacroTestBase):
+    """Regression tests for `file_format_clause` short-circuit behavior.
+
+    For non-Iceberg models, the macro must not read `adapter.behavior.use_managed_iceberg`,
+    since that access fires a BehaviorChangeEvent deprecation warning on every run.
+    """
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "file_format.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations", "macros"]
+
+    def test_file_format_clause_does_not_access_flag_for_non_iceberg(self, template_bundle):
+        """Non-Iceberg relations must short-circuit before reading the behavior flag."""
+
+        class ErrorOnUseManagedIcebergAccess:
+            @property
+            def use_managed_iceberg(self):
+                raise AssertionError(
+                    "use_managed_iceberg must not be accessed when table_format != 'iceberg'"
+                )
+
+        template_bundle.context["adapter"].behavior = ErrorOnUseManagedIcebergAccess()
+        catalog_relation = unity_relation(
+            table_format=constants.DEFAULT_TABLE_FORMAT,
+            file_format=constants.DELTA_FILE_FORMAT,
+        )
+
+        sql = self.run_macro(template_bundle.template, "file_format_clause", catalog_relation)
+
+        assert sql == "using delta"

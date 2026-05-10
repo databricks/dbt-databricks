@@ -1,9 +1,14 @@
 import uuid
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+
+from .util import PYDANTIC_IS_V1
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
+
+JOB_PERMISSIONS = {"CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
+NOTEBOOK_PERMISSIONS = {"CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
 
 
 class PythonJobConfig(BaseModel):
@@ -19,6 +24,14 @@ class PythonJobConfig(BaseModel):
         extra = "allow"
 
 
+class PythonPackagesConfig(BaseModel):
+    """Pydantic model for python packages configuration."""
+
+    packages: list[str]
+    notebook_scoped: bool
+    index_url: Optional[str] = None
+
+
 class PythonModelConfig(BaseModel):
     """
     Pydantic model for a Python model configuration.
@@ -29,6 +42,7 @@ class PythonModelConfig(BaseModel):
     timeout: int = Field(DEFAULT_TIMEOUT, gt=0)
     job_cluster_config: dict[str, Any] = Field(default_factory=dict)
     access_control_list: list[dict[str, str]] = Field(default_factory=list)
+    notebook_access_control_list: list[dict[str, str]] = Field(default_factory=list)
     packages: list[str] = Field(default_factory=list)
     index_url: Optional[str] = None
     additional_libs: list[dict[str, Any]] = Field(default_factory=list)
@@ -36,8 +50,41 @@ class PythonModelConfig(BaseModel):
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None
     create_notebook: bool = False
+    notebook_scoped_libraries: bool = False
     environment_key: Optional[str] = None
     environment_dependencies: list[str] = Field(default_factory=list)
+
+    @validator("access_control_list")
+    def validate_job_permissions(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
+        for acl in v:
+            if "permission_level" not in acl:
+                raise ValueError("permission_level is required in access_control_list")
+            if acl["permission_level"] not in JOB_PERMISSIONS:
+                raise ValueError(
+                    f"Invalid permission_level in access_control_list: {acl['permission_level']}. "
+                    f"Must be one of {JOB_PERMISSIONS}"
+                )
+        return v
+
+    @validator("notebook_access_control_list")
+    def validate_notebook_permissions(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
+        for acl in v:
+            if "permission_level" not in acl:
+                raise ValueError("permission_level is required in notebook_access_control_list")
+            if acl["permission_level"] not in NOTEBOOK_PERMISSIONS:
+                raise ValueError(
+                    f"Invalid permission_level in notebook_access_control_list: "
+                    f"{acl['permission_level']}. Must be one of {NOTEBOOK_PERMISSIONS}"
+                )
+        return v
+
+    @property
+    def python_packages_config(self) -> PythonPackagesConfig:
+        return PythonPackagesConfig(
+            packages=self.packages,
+            index_url=self.index_url,
+            notebook_scoped=self.notebook_scoped_libraries,
+        )
 
 
 class ParsedPythonModel(BaseModel):
@@ -56,4 +103,7 @@ class ParsedPythonModel(BaseModel):
         return f"{self.catalog}-{self.schema_}-{self.identifier}-{uuid.uuid4()}"
 
     class Config:
-        allow_population_by_field_name = True
+        if PYDANTIC_IS_V1:
+            allow_population_by_field_name = True
+        else:
+            populate_by_name = True

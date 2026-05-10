@@ -1,61 +1,121 @@
 from unittest.mock import Mock
 
 import pytest
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.api_client import CommandContextApi
-from tests.unit.api_client.api_test_base import ApiTestBase
 
 
-class TestCommandContextApi(ApiTestBase):
+class TestCommandContextApi:
+    @pytest.fixture
+    def workspace_client(self):
+        return Mock()
+
     @pytest.fixture
     def cluster_api(self):
         return Mock()
 
     @pytest.fixture
-    def api(self, session, host, cluster_api):
-        return CommandContextApi(session, host, cluster_api)
+    def library_api(self):
+        return Mock()
 
-    def test_create__non_200(self, api, cluster_api, session):
+    @pytest.fixture
+    def api(self, workspace_client, cluster_api, library_api):
+        return CommandContextApi(workspace_client, cluster_api, library_api)
+
+    def test_create__exception(self, api, cluster_api, library_api, workspace_client):
         cluster_api.status.return_value = "RUNNING"
-        self.assert_non_200_raises_error(lambda: api.create("cluster_id"), session)
+        library_api.all_libraries_installed.return_value = True
+        workspace_client.command_execution.create.side_effect = Exception("API Error")
 
-    def test_create__cluster_running(self, api, cluster_api, session):
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            api.create("cluster_id")
+
+        assert "Error creating an execution context" in str(exc_info.value)
+
+    def test_create__cluster_running(self, api, cluster_api, library_api, workspace_client):
         cluster_api.status.return_value = "RUNNING"
-        session.post.return_value.status_code = 200
-        session.post.return_value.json.return_value = {"id": "context_id"}
-        id = api.create("cluster_id")
-        session.post.assert_called_once_with(
-            "https://host/api/1.2/contexts/create",
-            json={"clusterId": "cluster_id", "language": "python"},
-            params=None,
-        )
-        assert id == "context_id"
+        library_api.all_libraries_installed.return_value = True
 
-    def test_create__cluster_terminated(self, api, cluster_api, session):
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id immediately available and result() waits for RUNNING
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        mock_response = Mock()
+        mock_response.id = "context_id"
+        mock_waiter.result.return_value = mock_response
+        workspace_client.command_execution.create.return_value = mock_waiter
+
+        context_id = api.create("cluster_id")
+
+        assert context_id == "context_id"
+        workspace_client.command_execution.create.assert_called_once()
+        cluster_api.wait_for_cluster.assert_not_called()
+
+    def test_create__cluster_running_with_pending_libraries(
+        self, api, cluster_api, library_api, workspace_client
+    ):
+        cluster_api.status.return_value = "RUNNING"
+        library_api.all_libraries_installed.return_value = False
+
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id immediately available and result() waits for RUNNING
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        mock_response = Mock()
+        mock_response.id = "context_id"
+        mock_waiter.result.return_value = mock_response
+        workspace_client.command_execution.create.return_value = mock_waiter
+
+        context_id = api.create("cluster_id")
+
+        assert context_id == "context_id"
+        workspace_client.command_execution.create.assert_called_once()
+        cluster_api.wait_for_cluster.assert_called_once_with("cluster_id")
+
+    def test_create__cluster_terminated(self, api, cluster_api, workspace_client):
         cluster_api.status.return_value = "TERMINATED"
-        session.post.return_value.status_code = 200
-        session.post.return_value.json.return_value = {"id": "context_id"}
+
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id immediately available and result() waits for RUNNING
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        mock_response = Mock()
+        mock_response.id = "context_id"
+        mock_waiter.result.return_value = mock_response
+        workspace_client.command_execution.create.return_value = mock_waiter
+
         api.create("cluster_id")
 
         cluster_api.start.assert_called_once_with("cluster_id")
 
-    def test_create__cluster_pending(self, api, cluster_api, session):
+    def test_create__cluster_pending(self, api, cluster_api, workspace_client):
         cluster_api.status.return_value = "PENDING"
-        session.post.return_value.status_code = 200
-        session.post.return_value.json.return_value = {"id": "context_id"}
+
+        # Mock the Wait object returned by create()
+        # The Wait object has context_id immediately available and result() waits for RUNNING
+        mock_waiter = Mock()
+        mock_waiter.context_id = "context_id"
+        mock_response = Mock()
+        mock_response.id = "context_id"
+        mock_waiter.result.return_value = mock_response
+        workspace_client.command_execution.create.return_value = mock_waiter
+
         api.create("cluster_id")
 
         cluster_api.wait_for_cluster.assert_called_once_with("cluster_id")
 
-    def test_destroy__non_200(self, api, session):
-        self.assert_non_200_raises_error(lambda: api.destroy("cluster_id", "context_id"), session)
+    def test_destroy__exception(self, api, workspace_client):
+        workspace_client.command_execution.destroy.side_effect = Exception("API Error")
 
-    def test_destroy__200(self, api, session):
-        session.post.return_value.status_code = 200
+        with pytest.raises(DbtRuntimeError) as exc_info:
+            api.destroy("cluster_id", "context_id")
+
+        assert "Error deleting an execution context" in str(exc_info.value)
+
+    def test_destroy__success(self, api, workspace_client):
         api.destroy("cluster_id", "context_id")
 
-        session.post.assert_called_once_with(
-            "https://host/api/1.2/contexts/destroy",
-            json={"clusterId": "cluster_id", "contextId": "context_id"},
-            params=None,
+        workspace_client.command_execution.destroy.assert_called_once_with(
+            cluster_id="cluster_id", context_id="context_id"
         )

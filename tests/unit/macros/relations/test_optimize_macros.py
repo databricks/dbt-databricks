@@ -12,6 +12,10 @@ class TestOptimizeMacros(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations", "macros"]
 
+    @pytest.fixture(autouse=True)
+    def setup_adapter_mocks(self, default_context):
+        default_context["adapter"].resolve_file_format.return_value = "delta"
+
     def test_macros_get_optimize_sql(self, config, template_bundle):
         config["zorder"] = "foo"
         sql = self.render_bundle(template_bundle, "get_optimize_sql")

@@ -1,14 +1,14 @@
 from typing import ClassVar, Optional
 
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class QueryConfig(DatabricksComponentConfig):
@@ -42,3 +42,11 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
             raise DbtRuntimeError(
                 f"Cannot compile model {relation_config.identifier} with no SQL query"
             )
+
+
+class DescribeQueryProcessor(QueryProcessor):
+    @classmethod
+    def from_relation_results(cls, result: RelationResults) -> QueryConfig:
+        table = result["describe_extended"]
+        row = next(x for x in table if x[0] == "View Text")
+        return QueryConfig(query=SqlUtils.clean_sql(row[1]))

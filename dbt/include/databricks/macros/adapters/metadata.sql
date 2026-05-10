@@ -23,7 +23,28 @@ SHOW TABLE EXTENDED IN {{ schema_relation.without_identifier()|lower }} LIKE '{{
 {% endmacro %}
 
 {% macro show_tables_sql(relation) %}
+
 SHOW TABLES IN {{ relation.render() }}
+{% endmacro %}
+
+{% macro databricks__list_schemas(database) -%}
+  {{ return(run_query_as(list_schemas_sql(database), 'list_schemas')) }}
+{% endmacro %}
+
+{% macro list_schemas_sql(database) %}
+{% if database %}
+  SHOW SCHEMAS IN {{ adapter.quote(database) }}
+{% else %}
+  SHOW SCHEMAS
+{% endif %}
+{% endmacro %}
+
+{% macro databricks__check_schema_exists(database, schema) %}
+  {{ return(run_query_as(check_schema_exists_sql(database, schema), 'check_schema_exists')) }}
+{% endmacro %}
+
+{% macro check_schema_exists_sql(database, schema) %}
+  SHOW SCHEMAS IN {{ adapter.quote(database) }} LIKE '{{ schema }}'
 {% endmacro %}
 
 {% macro show_views(relation) %}
@@ -53,7 +74,7 @@ SELECT
   '{{ relation.identifier }}' AS identifier,
   max(timestamp) AS last_modified,
   {{ current_timestamp() }} AS snapshotted_at
-  FROM (DESCRIBE HISTORY {{ relation.schema|lower }}.{{ relation.identifier|lower }})
+  FROM (DESCRIBE HISTORY {{ relation.render() }})
       {% if not loop.last %}
 UNION ALL
       {% endif %}
@@ -96,7 +117,17 @@ SELECT
   table_name,
   if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
   lower(data_source_format) AS file_format,
-  table_owner
+  table_owner,
+  if(
+    table_type IN (
+      'EXTERNAL',
+      'MANAGED',
+      'MANAGED_SHALLOW_CLONE',
+      'EXTERNAL_SHALLOW_CLONE'
+    ),
+    lower(table_type),
+    NULL
+  ) AS databricks_table_type
 FROM `system`.`information_schema`.`tables`
 WHERE table_catalog = '{{ relation.database|lower }}' 
   AND table_schema = '{{ relation.schema|lower }}'

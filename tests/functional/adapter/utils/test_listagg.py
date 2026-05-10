@@ -1,9 +1,9 @@
 # requires modification
-import pytest
-
 import dbt.tests.adapter.utils.fixture_listagg as fixtures
-import tests.functional.adapter.utils.fixture_listagg as fixture_overrides
+import pytest
 from dbt.tests.adapter.utils.test_listagg import BaseListagg
+
+import tests.functional.adapter.utils.fixture_listagg as fixture_overrides
 
 
 # SparkSQL does not support 'order by' for its 'listagg' equivalent

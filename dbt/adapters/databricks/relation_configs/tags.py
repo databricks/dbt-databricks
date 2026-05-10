@@ -1,29 +1,25 @@
 from typing import ClassVar, Optional
 
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
 
-from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
-from dbt.adapters.relation_configs.config_base import RelationResults
 
 
 class TagsConfig(DatabricksComponentConfig):
     """Component encapsulating the tblproperties of a relation."""
 
     set_tags: dict[str, str]
-    unset_tags: list[str] = []
 
     def get_diff(self, other: "TagsConfig") -> Optional["TagsConfig"]:
-        to_unset = []
-        for k in other.set_tags.keys():
-            if k not in self.set_tags:
-                to_unset.append(k)
-        if self.set_tags != other.set_tags or to_unset:
-            return TagsConfig(set_tags=self.set_tags, unset_tags=to_unset)
+        # Tags are now "set only" - we never unset tags, only add or update them
+        if any(item not in other.set_tags.items() for item in self.set_tags.items()):
+            return TagsConfig(set_tags=self.set_tags)
         return None
 
 

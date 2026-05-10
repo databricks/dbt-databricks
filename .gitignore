@@ -20,3 +20,9 @@ logs/
 *.sublime*
 .python-version
 .hatch
+.coverage*
+CLAUDE.md
+.claude/
+.cursor
+
+docs/plans/

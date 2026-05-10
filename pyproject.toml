@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "The Databricks adapter plugin for dbt"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Databricks", email = "feedback@databricks.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -16,20 +16,21 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "databricks-sdk>=0.41, <0.48.0",
-    "databricks-sql-connector[pyarrow]>=4.0.0, <5.0.0",
-    "dbt-adapters>=1.9.0, <2.0",
-    "dbt-common>=1.12.0, <2.0",
-    "dbt-core>=1.9.0, <2.0",
-    "dbt-spark>=1.9.0, <2.0",
-    "keyring>=23.13.0",
-    "pydantic>=1.10.0",
+    "click>=8.2.0, <9.0.0",
+    "databricks-sdk>=0.68.0, <0.78.0",
+    "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.6",
+    "dbt-adapters>=1.22.0, <1.23.0",
+    "dbt-common>=1.37.0, <1.38.0",
+    "dbt-core>=1.11.2, <1.11.9",
+    "dbt-spark>=1.10.0, <1.11.0",
+    "keyring>=23.13.0, <25.6.0",
+    "pydantic>=1.10.0, <2.13.0",
 ]
 
 [project.urls]
@@ -63,39 +64,38 @@ check-sdist = [
 ]
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
-    "dbt_common @ git+https://github.com/dbt-labs/dbt-common.git",
-    "dbt-adapters @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-adapters",
-    "dbt-core @ git+https://github.com/dbt-labs/dbt-core.git@main#subdirectory=core",
-    "dbt-tests-adapter @ git+https://github.com/dbt-labs/dbt-adapters.git@main#subdirectory=dbt-tests-adapter",
-    "dbt-spark @ git+https://github.com/dbt-labs/dbt-adapters.git#subdirectory=dbt-spark",
+    "dbt-tests-adapter",
     "pytest",
     "pytest-xdist",
+    "pytest-rerunfailures",
     "pytest-dotenv",
     "freezegun",
-    "mypy",
+    "mypy>=1.18.2",
     "pre-commit",
-    "ruff",
+    "ruff==0.14.2",
     "types-requests",
     "debugpy",
-    "pydantic>=1.10.0, <2",
+    "pytest-cov",
 ]
-path = ".hatch"
-python = "3.9"
+python = "3.10"
 
 [tool.hatch.envs.default.scripts]
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
-unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n auto --dist=loadscope tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n auto --dist=loadscope tests/functional"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 tests/unit"
+# `*-dev` scripts run the unsharded suite locally; CI shards via integration.yml.
+cluster-e2e-dev = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+uc-cluster-e2e-dev = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e-dev = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 [tool.ruff]
 line-length = 100
@@ -130,3 +130,8 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = ["databricks.*", "agate.*", "jinja2.*", "yaml.*"]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+relative_files = true
+branch = true
+source = ["dbt"]

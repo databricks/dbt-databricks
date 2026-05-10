@@ -1,8 +1,307 @@
-## dbt-databricks 1.10.2 (TBD)
+## dbt-databricks 1.11.8 (TBD)
+
+### Features
+
+- Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
+
+### Fixes
+
+- Fix latent AssertionError when evaluating `is_hudi` or `is_iceberg` properties on relations without metadata
+- Validate relation identifier length at creation time and raise a clear error when it exceeds Databricks' 255-character limit ([#1309](https://github.com/databricks/dbt-databricks/issues/1309))
+- Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
+- Stop emitting the `insert_overwrite will perform a dynamic insert overwrite` warning on every `insert_overwrite` run on SQL warehouses; warn instead only when `use_replace_on_for_insert_overwrite` is enabled but the cluster's DBR version does not support REPLACE ON ([#1305](https://github.com/databricks/dbt-databricks/issues/1305))
+- Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
+- Fix spurious `use_materialization_v2` behavior-change warning firing on table, view, seed, and incremental materializations ([#1089](https://github.com/databricks/dbt-databricks/issues/1089))
+- Fix spurious `use_managed_iceberg` behavior-change warning firing on every run for projects that don't use Iceberg ([#1266](https://github.com/databricks/dbt-databricks/issues/1266))
+- Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
+- Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
+- Fix `dbt docs generate` failing with `RuntimeError: Tables contain columns with the same names ... but different types` during catalog merge across schemas ([#1392](https://github.com/databricks/dbt-databricks/issues/1392))
+
+## dbt-databricks 1.11.7 (Apr 17, 2026)
+
+### Features
+
+- Enable Notebook scoped python packages installation
+
+### Fixes
+
+- Fix capability detection (e.g., `table_format='iceberg'`) failing on named compute (`databricks_compute`) due to lazy DBR version caching ([#1355](https://github.com/databricks/dbt-databricks/pull/1355))
+- Fix `workflow_job` Python model submission method failing with dictionary attribute error ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
+- Fix `TestWorkflowJob` functional test that was unreachable on all profiles due to incorrect skip list, wrong model fixture, and invalid `max_retries` parameter ([#1360](https://github.com/databricks/dbt-databricks/issues/1360))
+- Fix column order mismatch in microbatch and replace_where incremental strategies by using INSERT BY NAME syntax ([#1338](https://github.com/databricks/dbt-databricks/issues/1338))
+- Fix `dbt run --empty` failing with inline `ref()` / `source()` aliases ([dbt-labs/dbt-adapters#660](https://github.com/dbt-labs/dbt-adapters/issues/660))
+
+### Under the Hood
+
+- Bump `databricks-sql-connector` upper bound to `<4.1.6`, enabling users to opt into `_respect_server_retry_after_header` (available in connector 4.1.5) for server-directed retry behavior via `connection_parameters` ([#1363](https://github.com/databricks/dbt-databricks/pull/1363))
+- Bump upper bound of dbt-core to `<1.11.9` to include dbt-core 1.11.8
+
+## dbt-databricks 1.11.6 (Mar 10, 2026)
+
+### Features
+
+- Enable concurrent microbatch execution via `MicrobatchConcurrency` capability,
+  gated behind the `use_concurrent_microbatch` behavior flag (default: `false`).
+  Opt in via `flags: {use_concurrent_microbatch: true}` in `dbt_project.yml`
+  ([#914](https://github.com/databricks/dbt-databricks/issues/914))
+- Run `optimize` on snapshots when `liquid_clustered_by`, `zorder`, or `auto_liquid_cluster` config is set, matching existing behavior for tables and incremental models ([#1335](https://github.com/databricks/dbt-databricks/issues/1335))
+  
+### Fixes
+
+- Fix constraints (e.g. primary key, not null) being applied to tables/incrementals/materialized views when `contract.enforced: false` ([#1343](https://github.com/databricks/dbt-databricks/pull/1343))
+- Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
+- Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
+- Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
+
+## dbt-databricks 1.11.5 (Feb 19, 2026)
+
+### Fixes
+
+- Fix foreign-key on an incremental table to a primary key on a non-incremental table being lost after incremental run
+
+### Under the Hood
+
+- Allow for dbt-core 1.11.6
+
+## dbt-databricks 1.11.4 (Jan 12, 2026)
+
+### Features
+
+- Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
+
+### Fixes
+
+- Fix `hard_deletes: invalidate` incorrectly invalidating active records in snapshots (thanks @Zurbste!) ([#1281](https://github.com/databricks/dbt-databricks/issues/1281))
+- Fix serverless Python model environment configuration: use `environment_version` instead of deprecated `client` field. Users can now specify custom environment versions via `python_job_config.environments`. ([#1286](https://github.com/databricks/dbt-databricks/pull/1286))
+
+### Under the Hood
+
+- Update dependency version pins
+
+## dbt-databricks 1.11.3 (Dec 5, 2025)
+
+### Fixes
+
+- Truncate (128 charactesr max) and escape special characters for default query tag values
+
+## dbt-databricks 1.11.2 (Nov 18, 2025)
+
+### Fixes
+
+- pin 'click' to work around pip install issue in Lakeflow
+
+## dbt-databricks 1.11.1 (Nov 17, 2025)
+
+### Features
+
+- Add support for `hard_deletes='new_record'` in snapshot materializations, enabling tracking of deleted source records with dedicated deletion records marked by `dbt_is_deleted` column (thanks @randypitcherii!) ([#1176](https://github.com/databricks/dbt-databricks/issues/1176), [#1263](https://github.com/databricks/dbt-databricks/pull/1263))
+  - Implements complete support for all three `hard_deletes` modes: `ignore` (default), `invalidate`, and `new_record`
+  - `new_record` mode creates deletion records with actual source column values and `dbt_is_deleted=true` for full audit trail
+  - `invalidate` mode uses Delta Lake's `WHEN NOT MATCHED BY SOURCE` clause to set `dbt_valid_to` on deleted records
+  - Uses Databricks native BOOLEAN type for `dbt_is_deleted` column for improved type safety and performance
+
+### Fixes
+
+- Fix bug that was applying UniForm tblproperties on managed Iceberg tables causing materializations to fail
+- Switch to a more reliable mechanism for checking schema existence (forward-ported from 1.10.15) ([1261](https://github.com/databricks/dbt-databricks/pull/1261))
+
+### Under the hood
+
+- Add validation for query tag value length and auto-escape special characters
+- Add `@@` prefix to system query tag keys
+
+## dbt-databricks 1.11.0 (Oct 29, 2025)
+
+### Features
+
+- Support databricks_tags for MV/STs
+- Add support for scalar SQL functions (SQL UDFs) ([1197](https://github.com/databricks/dbt-databricks/pull/1197))
+- Add liquid clustering config for materialized views and streaming tables (thanks @reflection!) ([1101](https://github.com/databricks/dbt-databricks/pull/1101))
+- Add official support for `insert_overwrite` incremental strategy for SQL warehouses. This strategy now uses `REPLACE ON` syntax for all compute types (previously `INSERT OVERWRITE`). This behavior is gated behind behavior flag `use_replace_on_for_insert_overwrite` which default `true` ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+- Add support for Databricks query tags
+- Add support for managed iceberg when `table_format` is set to `iceberg`. This behavior is gated behind behavior flag `use_managed_iceberg` which defaults to `false`
+- Support delete+insert incremental strategy (thanks @canbekley!) ([1217](https://github.com/databricks/dbt-databricks/issues/1217))
+
+### Fixes
+
+- **BREAKING:** Fix column order mismatch bug in incremental models by using INSERT BY NAME syntax ([#1211](https://github.com/databricks/dbt-databricks/issues/1211))
+  - When using `on_schema_change: sync_all_columns`, dbt previously used positional column matching in INSERT statements, causing values to be inserted into wrong columns when column order changed
+  - Now uses Databricks `INSERT BY NAME` syntax to match columns by name instead of position, preventing data corruption
+  - **Breaking Change**: Requires Databricks Runtime 12.2 LTS or higher
+  - Users on older runtimes should pin to dbt-databricks 1.10.x
+  - Affects all incremental strategies: `append`, `insert_overwrite`, `replace_where`, and `merge` (via table creation)
+- Fix case-sensitivity issues with column name handling in persist_docs and config diff operations ([#1215](https://github.com/databricks/dbt-databricks/issues/1215))
+  - Fixed KeyError when column names in models had different casing than YAML schema definitions
+  - Improved efficiency of column tags and comments change detection to use case-insensitive comparison
+- Use backtick quoting for everything to avoid errors with special characters ([1186](https://github.com/databricks/dbt-databricks/pull/1186))
+- Ensure column compare always uses lower case names (since Databricks stores internally as lower case) ([1190](https://github.com/databricks/dbt-databricks/pull/1190))
+- Fix incompatible schema error during streaming table creation ([1235](https://github.com/databricks/dbt-databricks/issues/1235))
+- Reintroduce support for external so as not to break users ([1240](1240))
+
+### Under the Hood
+
+- Materialized views now uses `CREATE OR REPLACE` where appropriate, instead of DROP + CREATE
+- Refactor to use Databricks SDK for API calls ([1185](https://github.com/databricks/dbt-databricks/pull/1185))
+- Update dependency versions, and start using uv ([1199](https://github.com/databricks/dbt-databricks/pull/1199))
+- Upgrade ruff and mypy ([1207](https://github.com/databricks/dbt-databricks/pull/1207))
+- Allow create or replace semantics on full refresh in Mat V2 ([1210](https://github.com/databricks/dbt-databricks/pull/1210))
+- Add centralized DBR capability system for managing version-dependent features with per-compute caching ([#1218](https://github.com/databricks/dbt-databricks/pull/1218))
+- **BREAKING:** Removing the 'use_info_schema_for_columns' behavior flag, as we have a better mechanism for getting complex type information - DESCRIBE EXTENDED ... AS JSON. This is a breaking change because it requires a modern DBR (or SQL Warehouse) in order to function ([1226](https://github.com/databricks/dbt-databricks/pull/1226))
+- Use atomic `CREATE OR REPLACE` instead of DROP + CREATE for managed Iceberg tables
+- Drop support for python 3.9, adds 3.13 ([1240](https://github.com/databricks/dbt-databricks/pull/1240))
+  -- **BREAKING:** Flipping the default for USE_USER_FOLDER_FOR_PYTHON to true ([1248](https://github.com/databricks/dbt-databricks/pull/1248))
+
+## dbt-databricks 1.10.14 (October 22, 2025)
+
+### Under the hood
+
+- Update dependency versions ([1227](https://github.com/databricks/dbt-databricks/pull/1227))
+
+## dbt-databricks 1.10.13 (October 21, 2025)
+
+### Fixes
+
+- Fix issue causing MV/STs to always trigger as having their config changed ([1181](http://github.com/databricks/dbt-databricks/pull/1181))
+- Fix pydantic v2 deprecation warning "Valid config keys have changed in V2" (thanks @Korijn!) ([1194](https://github.com/databricks/dbt-databricks/pull/1194))
+- Fix snapshots not applying databricks_tags config ([1192](https://github.com/databricks/dbt-databricks/pull/1192))
+- Fix to respect varchar and char when using describe extended as json ([1220](https://github.com/databricks/dbt-databricks/pull/1220))
+
+### Under the hood
+
+- Update dependency versions ([1223](https://github.com/databricks/dbt-databricks/pull/1223))
+
+## dbt-databricks 1.10.12 (September 8, 2025)
+
+### Under the hood
+
+- Update dependency versions ([1178](https://github.com/databricks/dbt-databricks/pull/1178))
+
+## dbt-databricks 1.10.11 (September 2, 2025)
+
+### Fixes
+
+- Improve ANSI mode error handling for Python models and add debug instrumentation ([1157](https://github.com/databricks/dbt-databricks/pull/1157))
+- Remove external path on intermediate tables for incremental models (with Materialization V2) ([1161](https://github.com/databricks/dbt-databricks/pull/1161))
+- Fix get_columns_in_relation branching logic for streaming tables to prevent it from running `AS JSON`
+- Fix model-level compute override connection logic that was causing invalid spark configs to be set on SQL warehouses
+
+### Under the hood
+
+- Improve performance of schema enumeration/validation ([1168](https://github.com/databricks/dbt-databricks/pull/1168))
+
+## dbt-databricks 1.10.10 (August 20, 2025)
+
+### Fixes
+
+- Gate column comment syntax on DBR version for better compatibility ([1151](https://github.com/databricks/dbt-databricks/pull/1151))
+
+### Documentation
+
+- Update Databricks Job documentation to match current terminology ([1145](https://github.com/databricks/dbt-databricks/pull/1145))
+
+## dbt-databricks 1.10.9 (August 7, 2025)
+
+### Features
+
+- Support column tags for views using `ALTER TABLE`
+
+### Under the hood
+
+- Revert `REPLACE USING` syntax being used for insert overwrite ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+
+## dbt-databricks 1.10.8 (August 4, 2025)
+
+### Features
+
+- Support insert_overwrite incremental strategy for SQL warehouses ([1025](https://github.com/databricks/dbt-databricks/issues/1025))
+
+### Fixes
+
+- Add fallback logic for known error types for `DESCRIBE TABLE EXTENDED .. AS JSON` for better reliability ([1128](https://github.com/databricks/dbt-databricks/issues/1128))
+- Fix no-op logic for views that is causing some incremental materializations to be skipped ([1122](https://github.com/databricks/dbt-databricks/issues/1122))
+- Fix check constraints keep getting replaced [issue-1109](https://github.com/databricks/dbt-databricks/issues/1109)
+
+### Under the Hood
+
+- Simplify connection management to align with base adapter. Connections are no longer cached per-thread
+
+## dbt-databricks 1.10.7 (July 31, 2025)
+
+### Features
+
+- feat: add pr linting to enforce conventional commits [issue-1111](https://github.com/databricks/dbt-databricks/issues/1083)
+
+### Fixes
+
+- Do not use `DESCRIBE TABLE EXTENDED .. AS JSON` for STs when DBR version < 17.1. Do not use at all for MVs (not yet supported)
+
+## dbt-databricks 1.10.6 (July 30, 2025)
+
+### Fixes
+
+- Fix bug introduced by the fix for https://github.com/databricks/dbt-databricks/issues/1083. `DESCRIBE TABLE EXTENDED .. AS JSON` is now only used for DBR versions 16.2 and above
+
+## dbt-databricks 1.10.5 (July 25, 2025)
+
+### Features
+
+- Add cloning support for the the external tables (thanks @samgans!) ([1079](https://github.com/databricks/dbt-databricks/pull/1079))
+
+### Fixes
+
+- Fix inefficient query when getting column schema for MV/STs ([1074](https://github.com/databricks/dbt-databricks/issues/1074))
+- Fix bug causing false positives in diffing constraints between existing relation and model config for incremental runs ([1081](https://github.com/databricks/dbt-databricks/issues/1081))
+- Fix bug causing "main is not being called during running model" errors for some view updates ([1077](https://github.com/databricks/dbt-databricks/issues/1077))
+- Fix bug that causes materialization (V2) to fail when data type is long enough to be truncated by DESCRIBE TABLE ([1083](https://github.com/databricks/dbt-databricks/issues/1083))
+- Fix the bugs with external tabls cloning [1095](https://github.com/databricks/dbt-databricks/pull/1095) (thanks @samgans!)
+- Fix MV/ST materializations with complex data types ([1100](https://github.com/databricks/dbt-databricks/issues/1100))
+
+### Under the Hood
+
+- Dropping primary key constraints in incremental runs now trigger cascading deletes (i.e. foreign key constraints referencing it will also be dropped)
+
+## dbt-databricks 1.10.4 (June 24, 2025)
+
+### Features
+
+- Support column tags (with Materialization V2) ([649](https://github.com/databricks/dbt-databricks/issues/649))
+- Support column masking (with Materialization V2) ([670](https://github.com/databricks/dbt-databricks/issues/670))
+
+### Fixes
+
+- Fix bug where schema update causes insert_overwrite strategy to fail on subsequent runs ([1057](https://github.com/databricks/dbt-databricks/issues/1057))
+- Fix ACL permissions not applied to notebook jobs created by DBT Python model ([1015](https://github.com/databricks/dbt-databricks/pull/1015))
+- Fix bug where model run fails if catalog contains a metric view ([1045](https://github.com/databricks/dbt-databricks/issues/1045))
+- Disable removing table tags and column tags to allow dbt tags to coexist with automatically added Databricks tags ([1069](https://github.com/databricks/dbt-databricks/issues/1069))
+- Fix bug where python model run starts before all libraries are installed on the cluster ([1028](https://github.com/databricks/dbt-databricks/issues/1028))
+- Fix bug where incorrect insert overwrite exception was being thrown when overriding compute at model level ([1032](https://github.com/databricks/dbt-databricks/issues/1032))
+- Fix bug that was causing failures when multiple foreign key constraints are defined in a model ([1034](https://github.com/databricks/dbt-databricks/issues/1034))
+- Fix location_root config not being treated case sensitive ([1037](https://github.com/databricks/dbt-databricks/issues/1037))
+- Fix column comments for streaming tables and materialized views ([1049](https://github.com/databricks/dbt-databricks/issues/1049))
+
+### Under the Hood
+
+- Update to dbt-core 1.10.1
+- Update to dbt-common 1.24.0
+
+## dbt-databricks 1.10.3 (June 4, 2025)
+
+### Fixes
+
+- Fix for breaking change in dbt-adapters
+
+## dbt-databricks 1.10.2 (May 21, 2025)
+
+### Features
+
+- Support constraint updates on incremental runs (with Materialization V2) ([1013](https://github.com/databricks/dbt-databricks/pull/1013))
+- Add catalog integration support - set table formats, file formats, and locations in `catalogs.yml` ([1012](https://github.com/databricks/dbt-databricks/pull/1012))
 
 ### Fixes
 
 - Fix bug with multiple not_null constraints defined on the model level ([1008](https://github.com/databricks/dbt-databricks/pull/1008))
+- Fix bug with temp tables not being dropped after python model is materialized ([1010](https://github.com/databricks/dbt-databricks/issues/1010))
+- Fix bug with alter view dispatch where dbt could not find the approprate macro ([1029](https://github.com/databricks/dbt-databricks/pull/1029))
 
 ## dbt-databricks 1.10.1 (Apr 29, 2025)
 

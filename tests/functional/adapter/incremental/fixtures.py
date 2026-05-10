@@ -223,6 +223,12 @@ overwrite_expected = """id,msg
 3,anyway
 """
 
+upsert_expected_no_msg = """id,msg
+1,hello
+2,null
+3,null
+"""
+
 upsert_expected = """id,msg
 1,hello
 2,yo
@@ -244,6 +250,24 @@ exclude_upsert_expected = """id,msg,color
 replace_where_expected = """id,msg,color
 1,hello,blue
 3,anyway,purple
+"""
+
+delete_insert_expected = """id,msg
+1,hello
+2,yo
+3,anyway
+"""
+
+delete_insert_update_schema_expected = """id
+1
+2
+3
+"""
+
+delete_insert_with_predicates_expected = """id,msg,color
+1,hello,blue
+2,welcome,yellow
+2,back,orange
 """
 
 skip_matched_expected = """id,msg,color
@@ -303,6 +327,26 @@ select cast(3 as bigint) as id, 'anyway' as msg
 {% endif %}
 """
 
+update_schema_model = """
+{{ config(
+    materialized = 'incremental'
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id
+union all
+select cast(3 as bigint) as id
+
+{% endif %}
+"""
+
 upsert_model = """
 {{ config(
     materialized = 'incremental',
@@ -343,6 +387,32 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+delete_insert_with_predicates_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_strategy = 'delete+insert',
+    incremental_predicates = 'id >= 2',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
+
+{% else %}
+
+-- `id = 1` is not getting updated because of the predicate filter
+select cast(1 as bigint) as id, 'hey' as msg, 'black' as color
+union all
+select cast(2 as bigint) as id, 'welcome' as msg, 'yellow' as color
+union all
+select cast(2 as bigint) as id, 'back' as msg, 'orange' as color
 
 {% endif %}
 """
@@ -529,6 +599,7 @@ import pandas
 def model(dbt, spark):
     dbt.config(
         materialized='incremental',
+        submission_method='serverless_cluster',
     )
     data = [[1,2]] * 10
     return spark.createDataFrame(data, schema=['test', 'test2'])
@@ -538,33 +609,33 @@ python_schema = """version: 2
 models:
   - name: tags
     config:
+      use_notebook: true
       tags: ["python"]
       databricks_tags:
         a: b
         c: d
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_schema2 = """version: 2
 models:
   - name: tags
     config:
+      unique_tmp_table_suffix: true
       tags: ["python"]
       databricks_tags:
         c: e
         d: f
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_tblproperties_schema = """version: 2
 models:
   - name: tblproperties
     config:
+      use_notebook: true
       tags: ["python"]
       tblproperties:
         a: b
         c: d
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 python_tblproperties_schema2 = """version: 2
@@ -575,7 +646,6 @@ models:
       tblproperties:
         c: e
         d: f
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 lc_python_schema = """version: 2
@@ -583,7 +653,6 @@ models:
   - name: simple_python_model
     config:
       liquid_clustered_by: test
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 lc_python_schema2 = """version: 2
@@ -591,7 +660,6 @@ models:
   - name: simple_python_model
     config:
       liquid_clustered_by: test2
-      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
 """
 
 replace_table = """
@@ -619,4 +687,556 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 replace_expected = """id,msg,color
 1,hello,blue
 2,goodbye,red
+"""
+
+non_null_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'hello' as msg
+
+{% else %}
+
+select cast(2 as bigint) as id, cast(NULL as string) as msg
+
+{% endif %}
+"""
+
+
+schema_without_non_null_constraint = """
+version: 2
+
+models:
+  - name: non_null_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+"""
+
+schema_with_non_null_constraint = """
+version: 2
+
+models:
+  - name: non_null_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+        constraints:
+          - type: not_null
+"""
+
+check_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(6 as bigint) as id
+
+{% else %}
+
+select cast(3 as bigint) as id
+
+{% endif %}
+"""
+
+schema_without_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+"""
+
+schema_with_check_constraint = """
+version: 2
+
+models:
+  - name: check_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+    constraints:
+      - type: check
+        name: id_greater_than_5
+        expression: id > 5
+"""
+
+primary_key_constraint_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+"""
+
+schema_with_single_column_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model
+        columns: [id]
+"""
+
+schema_with_single_column_primary_key_constraint_removed = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+"""
+
+schema_with_composite_primary_key_constraint = """
+version: 2
+
+models:
+  - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: msg
+        data_type: string
+    constraints:
+      - type: primary_key
+        name: pk_model_updated
+        columns: [id, version]
+"""
+
+fk_referenced_from_table = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+{% if not is_incremental() %}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'hello' as msg
+
+{% else %}
+
+select
+    cast(2 as bigint) as id,
+    cast(2 as int) as version,
+    'world' as msg
+
+{% endif %}
+"""
+
+fk_referenced_to_table = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    cast(1 as int) as version,
+    'parent' as type
+"""
+
+fk_referenced_to_table_2 = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select
+    cast(1 as bigint) as id,
+    'hello' as name
+"""
+
+constraint_schema_without_fk_constraint = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_from_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+"""
+
+constraint_schema_with_fk_constraints = """
+version: 2
+
+models:
+  - name: fk_referenced_to_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    constraints:
+      - type: primary_key
+        columns: [id, version]
+        name: pk_parent
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: version
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: type
+        data_type: string
+
+  - name: fk_referenced_to_table_2
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    constraints:
+      - type: primary_key
+        columns: [id]
+        name: pk_parent_2
+    columns:
+      - name: id
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: name
+        data_type: string
+
+  - name: fk_referenced_from_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
+    columns:
+      - name: id
+        data_type: bigint
+      - name: version
+        data_type: int
+      - name: msg
+        data_type: string
+    constraints:
+      - type: foreign_key
+        name: fk_to_parent
+        columns: [id, version]
+        to: ref('fk_referenced_to_table')
+        to_columns: [id, version]
+      - type: foreign_key
+        name: fk_to_parent_2
+        columns: [id]
+        to: ref('fk_referenced_to_table_2')
+        to_columns: [id]
+"""
+
+
+column_mask_sql = """
+{{ config(
+    materialized = 'incremental',
+    incremental_strategy = 'merge',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id, 'hello' as name, 'john.doe@example.com' as email,
+'password123' as password
+"""
+
+column_mask_base = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+            function: full_mask
+        - name: email
+          column_mask:
+            function: full_mask
+        - name: password
+"""
+
+column_mask_valid_mask_updates = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+        - name: email
+          column_mask:
+            function: email_mask
+        - name: password
+          column_mask:
+            function: full_mask
+"""
+
+column_mask_invalid_update = """
+version: 2
+
+models:
+  - name: column_mask_sql
+    columns:
+        - name: id
+        - name: name
+          column_mask:
+        - name: email
+        - name: password
+          column_mask:
+            function: full_mask
+            using_columns: "id"
+"""
+
+column_tags_a = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "system"
+        - name: msg
+        - name: color
+          databricks_tags:
+            pii: "false"
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_b = """
+version: 2
+
+models:
+  - name: merge_update_columns
+    columns:
+        - name: id
+          databricks_tags:
+            pii: "false"
+            source: "application"
+        - name: msg
+          databricks_tags:
+            pii: "true"
+        - name: color
+    config:
+      http_path: "{{ env_var('DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH') }}"
+"""
+
+column_tags_python_model = """
+import pandas
+
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+        submission_method='serverless_cluster',
+    )
+    data = [[1, 'hello', 'blue']]
+    return spark.createDataFrame(data, schema=['id', 'msg', 'color'])
+"""
+
+warn_unenforced_override_sql = """
+select "abc" as id
+"""
+
+warn_unenforced_override_model = """
+version: 2
+
+models:
+  - name: model_a
+    config:
+      materialized: incremental
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: string
+        constraints:
+          - type: not_null
+    constraints:
+      - type: primary_key
+        columns:
+          - id
+        name: model_a_pk
+        warn_unenforced: false
+
+  - name: model_b
+    config:
+        materialized: table
+        contract:
+          enforced: true
+    columns:
+      - name: id
+        data_type: string
+    constraints:
+      - type: foreign_key
+        columns:
+          - id
+        name: model_b_fk
+        to: ref('model_a')
+        to_columns: [id]
+        warn_unenforced: false
+"""
+
+# Fixtures for testing that constraints are NOT applied without contract enforcement.
+# This is a regression test for https://github.com/databricks/dbt-databricks/issues/1342
+# The model inserts a NULL into the PK column. If the PK constraint were incorrectly applied,
+# Databricks would reject this with "Cannot create the primary key ... because its child
+# column(s) is nullable."
+pk_without_contract_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select cast(null as bigint) as id, 'hello' as msg
+"""
+
+schema_with_pk_without_contract = """
+version: 2
+
+models:
+  - name: pk_without_contract_sql
+    columns:
+      - name: id
+      - name: msg
+    constraints:
+      - type: primary_key
+        name: pk_no_contract
+        columns: [id]
+"""
+
+non_incremental_target_of_fk = """
+{{ config(
+    materialized='table',
+) }}
+
+SELECT 'a' AS str_key;
+"""
+
+incremental_fk_sql = """
+{{ config(
+    materialized='incremental',
+    unique_key=['fk_col'],
+    incremental_strategy='delete+insert',
+    on_schema_change='fail'
+) }}
+
+SELECT
+    'a' AS fk_col
+"""
+
+incremental_fk_on_non_incremental_target_schema_yml = """
+version: 2
+
+models:
+  - name: non_incremental_target_of_fk
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: str_key
+        data_type: string
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_target_key
+            warn_unenforced: false
+
+  - name: incremental_fk
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: fk_col
+        data_type: string
+        constraints:
+          - type: foreign_key
+            to: ref('non_incremental_target_of_fk')
+            to_columns: ["str_key"]
+            name: fk
+            warn_unenforced: false
 """

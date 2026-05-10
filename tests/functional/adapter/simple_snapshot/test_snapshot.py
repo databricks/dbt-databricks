@@ -1,10 +1,10 @@
 from typing import Optional
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.simple_snapshot.test_snapshot import BaseSimpleSnapshot, BaseSnapshotCheck
 from dbt.tests.util import run_dbt
+
 from tests.functional.adapter.simple_snapshot import fixtures
 
 
@@ -30,6 +30,13 @@ class TestSnapshot(BaseSimpleSnapshot):
 
 class TestSnapshotCheck(BaseSnapshotCheck):
     pass
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestSnapshotLiquidClustering(TestSnapshot):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"snapshots": {"+liquid_clustered_by": "id"}}
 
 
 @pytest.mark.skip_profile("databricks_cluster")

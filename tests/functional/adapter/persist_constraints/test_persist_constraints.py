@@ -1,7 +1,7 @@
 import pytest
-
 from dbt.contracts.results import RunResult, RunStatus
 from dbt.tests import util
+
 from tests.functional.adapter.persist_constraints import fixtures
 
 

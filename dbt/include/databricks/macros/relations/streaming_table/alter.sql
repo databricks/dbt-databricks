@@ -40,6 +40,10 @@
         {%- if alter_statement -%}
             {{ return_statements.append(alter_statement) }}
         {%- endif -%}
+        {%- set tags = configuration_changes.changes["tags"] -%}
+        {%- if tags and tags.set_tags and tags.set_tags != [] -%}
+            {{ return_statements.append(alter_set_tags(relation, tags.set_tags)) }}
+        {%- endif -%}
         {% do return(return_statements) %}
     {%- endif -%}
 {% endmacro %}
@@ -52,6 +56,7 @@
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}
+    {{ liquid_clustered_cols() }}
     {% if comment -%}
         {{ get_create_sql_comment(comment) }}
     {%- endif %}

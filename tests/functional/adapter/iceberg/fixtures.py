@@ -69,3 +69,29 @@ invalid_iceberg_format = """
 }}
 select 1 as id
 """
+
+incremental_iceberg_base = """
+{{
+  config(
+    materialized = "incremental",
+    table_format = "iceberg",
+    incremental_strategy = "merge",
+    unique_key = "id",
+  )
+}}
+select 1 as id, 'initial' as status
+"""
+
+incremental_iceberg_update = """
+{{
+  config(
+    materialized = "incremental",
+    table_format = "iceberg",
+    incremental_strategy = "merge",
+    unique_key = "id",
+  )
+}}
+select 1 as id, 'updated' as status
+union all
+select 2 as id, 'new' as status
+"""

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from dbt.tests import util
 from dbt.tests.adapter.simple_seed import seeds
 from dbt.tests.adapter.simple_seed.test_seed import (
@@ -17,6 +16,7 @@ from dbt.tests.adapter.simple_seed.test_seed import (
     BaseTestEmptySeed,
     SeedTestBase,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.simple_seed import fixtures
 

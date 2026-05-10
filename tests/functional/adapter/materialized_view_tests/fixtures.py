@@ -1,6 +1,7 @@
 from typing import Optional
 
 from dbt.adapters.base import BaseRelation
+
 from dbt.adapters.databricks.relation import DatabricksRelationType
 
 
@@ -43,4 +44,105 @@ materialized_view = """
     },
 ) }}
 select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_schema = """
+version: 2
+
+models:
+  - name: my_materialized_view
+    columns:
+      - name: id
+        data_type: bigint
+        description: "The unique identifier for each record"
+        constraints:
+          - type: not_null
+      - name: value
+        data_type: bigint
+    constraints:
+        - type: primary_key
+          columns: [id]
+    config:
+      contract:
+        enforced: true
+      persist_docs:
+        relation: true
+        columns: true
+"""
+
+complex_types_materialized_view = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {
+        'cron': '0 0 * * * ? *',
+        'time_zone': 'Etc/UTC'
+    },
+) }}
+SELECT
+  named_struct(
+    'field1', map('a', 1, 'b', 2),
+    'field2', array(10, 20, 30),
+    'field3', 3,
+    'field4', 4,
+    'field5', 5,
+    'field6', 6,
+    'field7', 7,
+    'field8', 8,
+    'field9', 9,
+    'field10', 10,
+    'field11', 11,
+    'field12', 12,
+    'field13', 13,
+    'field14', 14,
+    'field15', 15,
+    'field16', 16,
+    'field17', 17,
+    'field18', 18,
+    'field19', 19,
+    'field20', 20,
+    'field21', 21,
+    'field22', 22,
+    'field23', 23,
+    'field24', 24,
+    'field25', 25,
+    'field26', 26,
+    'field27', 27,
+    'field28', 28,
+    'field29', 29,
+    'field30', 30
+  ) AS my_struct;
+"""
+
+liquid_clustered_mv = """
+{{ config(
+    materialized='materialized_view',
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+liquid_clustered_mv_schema_v1 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: id
+"""
+
+liquid_clustered_mv_schema_v2 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: [id, value]
+"""
+
+liquid_clustered_mv_schema_v3 = """
+version: 2
+
+models:
+  - name: liquid_clustered_mv
+    config:
+      liquid_clustered_by: []
 """

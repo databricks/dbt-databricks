@@ -25,6 +25,8 @@ class TestCreateViewAs(MacroTestBase):
     def test_macros_create_view_as_tblproperties(self, config, template_bundle):
         config["tblproperties"] = {"tblproperties_to_view": "true"}
         template_bundle.context["get_columns_in_query"] = Mock(return_value=[])
+        template_bundle.context["column_mask_exists"] = Mock(return_value=False)
+        template_bundle.context["column_tags_exist"] = Mock(return_value=False)
 
         sql = self.render_create_view_as(template_bundle)
         expected = (

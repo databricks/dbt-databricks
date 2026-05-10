@@ -1,9 +1,9 @@
 import pytest
-
 from dbt.tests.adapter.incremental import fixtures
 from dbt.tests.adapter.incremental.test_incremental_on_schema_change import (
     BaseIncrementalOnSchemaChange,
 )
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.incremental import fixtures as fixture_overrides
 

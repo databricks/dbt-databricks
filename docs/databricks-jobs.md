@@ -1,6 +1,6 @@
-# Running a dbt project as a job in Databricks Workflows
+# Running a dbt project as a job in Databricks Jobs
 
-Databricks Workflows is a highly-reliable, managed orchestrator that lets you author and schedule DAGs of notebooks, Python scripts as well as dbt projects as production jobs.
+Databricks Lakeflow Jobs is a highly-reliable, managed orchestrator that lets you author and schedule DAGs of notebooks, Python scripts as well as dbt projects as production jobs.
 
 In this guide, you will learn how to update an existing dbt project to run as a job, retrieve dbt run artifacts using the Jobs API and debug common issues.
 
@@ -18,7 +18,7 @@ When you run a dbt project as a Databricks Job, the dbt CLI runs on a single-nod
 - Install and configure the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/index.html)
 - Install [jq](https://stedolan.github.io/jq/download/), a popular open source tool for parsing JSON from the command line
 
-Note: previously dbt tasks on Databricks Workflows could target jobs clusters for compute.
+Note: previously dbt tasks on Databricks Jobs could target jobs clusters for compute.
 That is [no longer supported](https://docs.databricks.com/en/workflows/jobs/how-to/use-dbt-in-workflows.html#advanced-run-dbt-with-a-custom-profile).
 Job clusters can only be used for running the dbt-cli.
 

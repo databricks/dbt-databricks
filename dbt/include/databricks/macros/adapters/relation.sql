@@ -26,7 +26,8 @@
   {% set tmp_identifier = base_relation.identifier ~ suffix %}
   {% set language = model['language'] %}
   {%- if language == 'sql' -%}
-    {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view') %}
+    {% set temporary = not base_relation.is_hive_metastore() %}
+    {% set tmp_relation = api.Relation.create(identifier=tmp_identifier, type='view', temporary=temporary) %}
   {%- else -%}
     {% set tmp_relation = api.Relation.create(database=base_relation.database, schema=base_relation.schema, identifier=tmp_identifier, type='table') %}
   {%- endif -%}
@@ -48,7 +49,8 @@
       database=database,
       schema=schema,
       identifier=identifier,
-      type=type
+      type=type,
+      temporary=False
   ) -%}
   {% do return([false, new_relation]) %}
 {% endmacro %}

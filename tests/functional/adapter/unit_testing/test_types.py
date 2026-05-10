@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests.adapter.unit_testing.test_types import BaseUnitTestingTypes
 
 

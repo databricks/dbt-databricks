@@ -1,8 +1,8 @@
 import os
 
 import pytest
-
 from dbt.tests import util
+
 from tests.functional.adapter.incremental import fixtures
 
 # We're only testing parquet with SQL Warehouse to ensure that the tests are not run in parallel
@@ -70,7 +70,6 @@ class TestAppendParquetHive(AppendBase):
         }
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class InsertOverwriteBase(IncrementalBase):
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -93,12 +92,10 @@ class InsertOverwriteBase(IncrementalBase):
         util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteDelta(InsertOverwriteBase):
     pass
 
 
-@pytest.mark.skip_profile("databricks_uc_sql_endpoint")
 class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -106,13 +103,91 @@ class TestInsertOverwriteWithPartitionsDelta(InsertOverwriteBase):
             "models": {
                 "+incremental_strategy": "insert_overwrite",
                 "+partition_by": "id",
-            }
+            },
         }
 
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
             "upsert_expected.csv": fixtures.upsert_expected,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
+
+
+class TestInsertOverwriteWithLiquidClusteringDelta(InsertOverwriteBase):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+liquid_clustered_by": "id",
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "upsert_expected.csv": fixtures.upsert_expected,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "upsert_expected"])
+
+
+class TestInsertOverwriteChangeSchema(InsertOverwriteBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "overwrite_model.sql": fixtures.update_schema_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+partition_by": "id",
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "overwrite_expected.csv": fixtures.upsert_expected_no_msg,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(project.adapter, ["overwrite_model", "overwrite_expected"])
+
+
+# Only runs under SQL warehouse profile, but overrides compute at model level
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "insert_overwrite",
+                "+partition_by": "id",
+                "+databricks_compute": "alternate_uc_cluster",
+            },
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "upsert_expected.csv": fixtures.upsert_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "overwrite_model.sql": fixtures.base_model,
         }
 
     def test_incremental(self, project):
@@ -348,4 +423,79 @@ class TestMergeSchemaEvolution(IncrementalBase):
         util.check_relations_equal(
             project.adapter,
             ["merge_schema_evolution", "merge_schema_evolution_expected"],
+        )
+
+
+class TestDeleteInsert(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.base_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+incremental_strategy": "delete+insert", "+unique_key": "id"}}
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
+class TestDeleteInsertUpdateSchema(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.update_schema_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_update_schema_expected,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "delete+insert",
+                "+unique_key": "id",
+                "+on_schema_change": "sync_all_columns",
+                "+tblproperties": {"delta.columnMapping.mode": "name"},
+            }
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
+class TestDeleteInsertWithPredicates(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.delete_insert_with_predicates_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_with_predicates_expected,
+        }
+
+    def test_delete_insert(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
         )

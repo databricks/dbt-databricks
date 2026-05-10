@@ -1,5 +1,6 @@
 import pytest
 from dbt_common.contracts.constraints import ConstraintType
+from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.constraints import (
@@ -7,7 +8,13 @@ from dbt.adapters.databricks.constraints import (
     CustomConstraint,
     PrimaryKeyConstraint,
 )
-from dbt.adapters.databricks.relation import DatabricksQuotePolicy, DatabricksRelation
+from dbt.adapters.databricks.relation import (
+    MAX_CHARACTERS_IN_IDENTIFIER,
+    DatabricksQuotePolicy,
+    DatabricksRelation,
+    DatabricksRelationType,
+    DatabricksTableType,
+)
 
 
 class TestDatabricksRelation:
@@ -57,6 +64,57 @@ class TestDatabricksRelation:
         assert relation.database is None
         assert relation.schema, "some_schema"
         assert relation.identifier, "some_table"
+
+    def test_pre_deserialize__external_type_migration(self):
+        """Test that 'external' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.External
+        assert relation.is_external_table
+
+    def test_pre_deserialize__managed_type_migration(self):
+        """Test that 'managed' as type is converted to table with databricks_table_type."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "managed",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        assert relation.databricks_table_type == DatabricksTableType.Managed
+
+    def test_pre_deserialize__external_with_existing_table_type(self):
+        """Test that existing databricks_table_type is preserved."""
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "external",
+            "databricks_table_type": "external_shallow_clone",
+        }
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.type == DatabricksRelationType.Table
+        # Should preserve the existing databricks_table_type
+        assert relation.databricks_table_type == DatabricksTableType.ExternalShallowClone
 
     def test_render__all_present(self):
         data = {
@@ -184,6 +242,72 @@ class TestRelationsFunctions:
     def test_is_hive_metastore(self, database, expected):
         assert relation.is_hive_metastore(database) is expected
 
+    def test_is_external_table(self):
+        relation = DatabricksRelation.create(
+            identifier="external_table", databricks_table_type="external"
+        )
+        assert relation.is_external_table is True
+
+    def test_is_iceberg(self):
+        relation = DatabricksRelation.create(
+            identifier="iceberg_table",
+            type="table",
+            metadata={"Provider": "iceberg"},
+        )
+        assert relation.is_iceberg is True
+
+    def test_is_iceberg_false_for_delta(self):
+        relation = DatabricksRelation.create(
+            identifier="delta_table",
+            type="table",
+            metadata={"Provider": "delta"},
+        )
+        assert relation.is_iceberg is False
+
+    def test_is_iceberg_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_iceberg_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_iceberg is False
+
+    def test_is_hudi_no_metadata(self):
+        relation = DatabricksRelation.create(
+            identifier="no_metadata_hudi_table",
+            type="table",
+            metadata=None,
+        )
+        assert relation.is_hudi is False
+
+    @pytest.mark.parametrize(
+        "type_, is_delta, is_iceberg, expected_can_be_replaced",
+        [
+            ("table", True, False, True),  # Delta table
+            ("table", False, True, True),  # Iceberg table
+            ("table", True, True, True),  # Both (shouldn't happen in practice)
+            ("table", False, False, False),  # Other table format
+            ("view", False, False, True),  # View
+            ("materialized_view", False, False, True),  # Materialized view
+        ],
+    )
+    def test_can_be_replaced(self, type_, is_delta, is_iceberg, expected_can_be_replaced):
+        metadata = {}
+        if is_delta:
+            metadata["Provider"] = "delta"
+        elif is_iceberg:
+            metadata["Provider"] = "iceberg"
+        else:
+            metadata["Provider"] = "parquet"
+
+        relation = DatabricksRelation.create(
+            identifier="test_table",
+            type=type_,
+            is_delta=is_delta,
+            metadata=metadata,
+        )
+        assert relation.can_be_replaced is expected_can_be_replaced
+
     @pytest.mark.parametrize(
         "input, expected",
         [
@@ -262,3 +386,37 @@ class TestConstraints:
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
         assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
+
+
+class TestIdentifierLengthValidation:
+    def test_valid_identifier_length(self):
+        identifier = "a" * MAX_CHARACTERS_IN_IDENTIFIER
+        rel = DatabricksRelation.create(identifier=identifier, type="table")
+        assert rel.identifier == identifier
+
+    def test_identifier_too_long_raises(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        with pytest.raises(DbtRuntimeError, match="maximum identifier length of 255 characters"):
+            DatabricksRelation.create(identifier=identifier, type="table")
+
+    def test_long_identifier_without_type_is_allowed(self):
+        identifier = "a" * (MAX_CHARACTERS_IN_IDENTIFIER + 1)
+        rel = DatabricksRelation.create(identifier=identifier)
+        assert rel.identifier == identifier
+
+    def test_none_identifier_is_allowed(self):
+        rel = DatabricksRelation.create(identifier=None, type="table")
+        assert rel.identifier is None
+
+
+class TestDatabricksRenderLimited:
+    def test_render_limited_with_empty_no_alias(self):
+        relation = DatabricksRelation.create(
+            database="test_catalog",
+            schema="test_schema",
+            identifier="test_model",
+            limit=0,
+        )
+        result = relation.render_limited()
+        expected = "(select * from `test_catalog`.`test_schema`.`test_model` where false limit 0)"
+        assert result == expected

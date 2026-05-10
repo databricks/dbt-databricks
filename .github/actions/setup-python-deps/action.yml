@@ -1,0 +1,39 @@
+name: "Setup Python Dependencies"
+description: |
+  Restores pre-cached Python dependencies and enables offline mode.
+  Outputs cache-hit so callers can fall back to setup-jfrog-pypi on miss.
+
+outputs:
+  cache-hit:
+    description: "Whether the dependency cache was restored and offline mode enabled"
+    value: ${{ steps.uv-cache.outputs.cache-matched-key != '' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore uv and pip cache
+      id: uv-cache
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cache/uv
+          ~/.cache/pip
+          ~/.cache/pip-wheelhouse
+        key: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-latest
+        restore-keys: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
+
+    - name: Restore pre-commit cache
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-deps-${{ hashFiles('.pre-commit-config.yaml') }}-latest
+        restore-keys: pre-commit-deps-${{ hashFiles('.pre-commit-config.yaml') }}-
+
+    - name: Enable offline mode
+      if: steps.uv-cache.outputs.cache-matched-key != ''
+      shell: bash
+      run: |
+        echo "UV_OFFLINE=true" >> "$GITHUB_ENV"
+        echo "UV_INDEX_URL=https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
+        echo "PIP_NO_INDEX=1" >> "$GITHUB_ENV"
+        echo "PIP_FIND_LINKS=$HOME/.cache/pip-wheelhouse" >> "$GITHUB_ENV"

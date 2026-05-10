@@ -1,27 +1,62 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
 from pydantic import BaseModel
 from typing_extensions import override
 
-from dbt.adapters.base import PythonJobHelper
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.python_models.python_config import ParsedPythonModel
+from dbt.adapters.databricks.python_models.python_config import (
+    ParsedPythonModel,
+    PythonPackagesConfig,
+)
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 
 DEFAULT_TIMEOUT = 60 * 60 * 24
+NOTEBOOK_SEPARATOR = "\n\n# COMMAND ----------\n\n"
 
 
 class PythonSubmitter(ABC):
     """Interface for submitting Python models to run on Databricks."""
 
+    def __init__(self, packages_config: PythonPackagesConfig) -> None:
+        self.packages_config = packages_config
+
     @abstractmethod
     def submit(self, compiled_code: str) -> None:
         """Submit the compiled code to Databricks."""
         pass
+
+    def _prepare_code_with_notebook_scoped_packages(
+        self, compiled_code: str, separator: str = NOTEBOOK_SEPARATOR
+    ) -> str:
+        """
+        Prepend notebook-scoped package installation commands to the compiled code.
+
+        If notebook-scoped flag is not set, or if there are no packages to install,
+        returns the original compiled code.
+        """
+        if not self.packages_config.packages or not self.packages_config.notebook_scoped:
+            return compiled_code
+
+        index_url = (
+            f"--index-url {self.packages_config.index_url}"
+            if self.packages_config.index_url
+            else ""
+        )
+        # Build the %pip install command for notebook-scoped packages
+        packages = " ".join(self.packages_config.packages)
+        pip_install_cmd = f"%pip install {index_url} -q {packages}".replace("  ", " ")
+        logger.debug(f"Adding notebook-scoped package installation: {pip_install_cmd}")
+
+        # Add extra restart python command for Databricks runtimes 13.0 and above
+        restart_cmd = "dbutils.library.restartPython()"
+
+        # Prepend the pip install command to the compiled code
+        return f"{pip_install_cmd}{separator}{restart_cmd}{separator}{compiled_code}"
 
 
 class BaseDatabricksHelper(PythonJobHelper):
@@ -34,7 +69,7 @@ class BaseDatabricksHelper(PythonJobHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,
@@ -63,15 +98,23 @@ class PythonCommandSubmitter(PythonSubmitter):
     """Submitter for Python models using the Command API."""
 
     def __init__(
-        self, api_client: DatabricksApiClient, tracker: PythonRunTracker, cluster_id: str
+        self,
+        api_client: DatabricksApiClient,
+        tracker: PythonRunTracker,
+        cluster_id: str,
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
         self.cluster_id = cluster_id
+        super().__init__(parsed_model.config.python_packages_config)
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Command API.")
+
+        # Prepare code with notebook-scoped package installation if needed
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
 
         context_id = self.api_client.command_contexts.create(self.cluster_id)
         command_exec: Optional[CommandExecution] = None
@@ -81,7 +124,6 @@ class PythonCommandSubmitter(PythonSubmitter):
             )
 
             self.tracker.insert_command(command_exec)
-            # poll until job finish
             self.api_client.commands.poll_for_completion(command_exec)
 
         finally:
@@ -98,13 +140,51 @@ class PythonNotebookUploader:
         self.catalog = parsed_model.catalog
         self.schema = parsed_model.schema_
         self.identifier = parsed_model.identifier
+        self.job_grants = (
+            parsed_model.config.python_job_config.grants
+            if parsed_model.config.python_job_config
+            else {}
+        )
+        self.notebook_access_control_list = parsed_model.config.notebook_access_control_list
 
     def upload(self, compiled_code: str) -> str:
         """Upload the compiled code to the Databricks workspace."""
+        logger.debug(
+            f"[Notebook Upload Debug] Creating workspace dir for "
+            f"catalog={self.catalog}, schema={self.schema}"
+        )
         workdir = self.api_client.workspace.create_python_model_dir(self.catalog, self.schema)
         file_path = f"{workdir}{self.identifier}"
+        logger.debug(f"[Notebook Upload Debug] Uploading notebook to path: {file_path}")
+
+        # Log notebook content length
+        logger.debug(f"[Notebook Upload Debug] Notebook content length: {len(compiled_code)} chars")
+
         self.api_client.workspace.upload_notebook(file_path, compiled_code)
+        logger.debug(f"[Notebook Upload Debug] Successfully uploaded notebook to {file_path}")
+
+        if self.job_grants or self.notebook_access_control_list:
+            logger.debug("[Notebook Upload Debug] Setting permissions for notebook")
+            self.set_notebook_permissions(file_path)
+
         return file_path
+
+    def set_notebook_permissions(self, notebook_path: str) -> None:
+        try:
+            permission_builder = PythonPermissionBuilder(self.api_client)
+
+            access_control_list = permission_builder.build_permissions(
+                self.job_grants, self.notebook_access_control_list, target_type="notebook"
+            )
+
+            if access_control_list:
+                logger.debug(f"Setting permissions on notebook: {notebook_path}")
+                self.api_client.notebook_permissions.put(notebook_path, access_control_list)
+        except Exception as e:
+            logger.error(f"Failed to set permissions on notebook {notebook_path}: {str(e)}")
+            raise DbtRuntimeError(
+                f"Failed to set permissions on notebook: path={notebook_path}, error: {str(e)}"
+            )
 
 
 class PythonJobDetails(BaseModel):
@@ -117,6 +197,9 @@ class PythonJobDetails(BaseModel):
 
 class PythonPermissionBuilder:
     """Class for building access control list for Python jobs."""
+
+    JOB_PERMISSIONS = {"IS_OWNER", "CAN_VIEW", "CAN_MANAGE_RUN", "CAN_MANAGE"}
+    NOTEBOOK_PERMISSIONS = {"CAN_READ", "CAN_RUN", "CAN_EDIT", "CAN_MANAGE"}
 
     def __init__(
         self,
@@ -136,15 +219,24 @@ class PythonPermissionBuilder:
     def _build_job_permission(
         job_grants: list[dict[str, Any]], permission: str
     ) -> list[dict[str, Any]]:
+        """Build the access control list for the job."""
+
         return [{**grant, **{"permission_level": permission}} for grant in job_grants]
+
+    def _filter_permissions(
+        self, acls: list[dict[str, Any]], valid_permissions: set[str]
+    ) -> list[dict[str, Any]]:
+        return [
+            acl
+            for acl in acls
+            if "permission_level" in acl and acl["permission_level"] in valid_permissions
+        ]
 
     def build_job_permissions(
         self,
         job_grants: dict[str, list[dict[str, Any]]],
-        acls: list[dict[str, str]],
+        acls: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Build the access control list for the job."""
-
         access_control_list = []
         owner, permissions_attribute = self._get_job_owner_for_config()
         access_control_list.append(
@@ -164,23 +256,63 @@ class PythonPermissionBuilder:
             self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
         )
 
-        return access_control_list + acls
+        combined_acls = access_control_list + acls
+        return self._filter_permissions(combined_acls, self.JOB_PERMISSIONS)
+
+    def build_notebook_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
+        access_control_list = []
+
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("view", []), "CAN_READ")
+        )
+        access_control_list.extend(self._build_job_permission(job_grants.get("run", []), "CAN_RUN"))
+        access_control_list.extend(
+            self._build_job_permission(job_grants.get("manage", []), "CAN_MANAGE")
+        )
+
+        combined_acls = access_control_list + acls
+        filtered_acls = self._filter_permissions(combined_acls, self.NOTEBOOK_PERMISSIONS)
+
+        return [acl for acl in filtered_acls if acl.get("permission_level") != "IS_OWNER"]
+
+    def build_permissions(
+        self,
+        job_grants: dict[str, list[dict[str, Any]]],
+        acls: list[dict[str, str]],
+        target_type: str = "job",
+    ) -> list[dict[str, Any]]:
+        if target_type == "notebook":
+            return self.build_notebook_permissions(job_grants, acls)
+        else:
+            return self.build_job_permissions(job_grants, acls)
 
 
 def get_library_config(
     packages: list[str],
     index_url: Optional[str],
     additional_libraries: list[dict[str, Any]],
+    notebook_scoped_libraries: bool = False,
 ) -> dict[str, Any]:
-    """Update the job configuration with the required libraries."""
+    """
+    Update the job configuration with the required libraries.
+
+    If notebook_scoped_libraries is True, packages are not included in the library config
+    as they will be installed via %pip install in the notebook itself.
+    """
 
     libraries = []
 
-    for package in packages:
-        if index_url:
-            libraries.append({"pypi": {"package": package, "repo": index_url}})
-        else:
-            libraries.append({"pypi": {"package": package}})
+    # Only add packages to cluster-level libraries if not using notebook-scoped
+    if not notebook_scoped_libraries:
+        for package in packages:
+            if index_url:
+                libraries.append({"pypi": {"package": package, "repo": index_url}})
+            else:
+                libraries.append({"pypi": {"package": package}})
 
     for library in additional_libraries:
         libraries.append(library)
@@ -200,14 +332,17 @@ class PythonJobConfigCompiler:
     ) -> None:
         self.api_client = api_client
         self.permission_builder = permission_builder
+        self.access_control_list = parsed_model.config.access_control_list
         self.run_name = parsed_model.run_name
         packages = parsed_model.config.packages
         index_url = parsed_model.config.index_url
         additional_libraries = parsed_model.config.additional_libs
-        library_config = get_library_config(packages, index_url, additional_libraries)
+        notebook_scoped_libraries = parsed_model.config.notebook_scoped_libraries
+        library_config = get_library_config(
+            packages, index_url, additional_libraries, notebook_scoped_libraries
+        )
         self.cluster_spec = {**cluster_spec, **library_config}
         self.job_grants = parsed_model.config.python_job_config.grants
-        self.acls = parsed_model.config.access_control_list
         self.additional_job_settings = parsed_model.config.python_job_config.dict()
         self.environment_key = parsed_model.config.environment_key
         self.environment_deps = parsed_model.config.environment_dependencies
@@ -228,13 +363,13 @@ class PythonJobConfigCompiler:
                 additional_job_config["environments"] = [
                     {
                         "environment_key": self.environment_key,
-                        "spec": {"client": "2", "dependencies": self.environment_deps},
+                        "spec": {"environment_version": "4", "dependencies": self.environment_deps},
                     }
                 ]
-        job_spec.update(self.cluster_spec)  # updates 'new_cluster' config
+        job_spec.update(self.cluster_spec)
 
         access_control_list = self.permission_builder.build_job_permissions(
-            self.job_grants, self.acls
+            self.job_grants, self.access_control_list
         )
         if access_control_list:
             job_spec["access_control_list"] = access_control_list
@@ -254,11 +389,13 @@ class PythonNotebookSubmitter(PythonSubmitter):
         tracker: PythonRunTracker,
         uploader: PythonNotebookUploader,
         config_compiler: PythonJobConfigCompiler,
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
         self.uploader = uploader
         self.config_compiler = config_compiler
+        super().__init__(parsed_model.config.python_packages_config)
 
     @staticmethod
     def create(
@@ -275,21 +412,39 @@ class PythonNotebookSubmitter(PythonSubmitter):
             parsed_model,
             cluster_spec,
         )
-        return PythonNotebookSubmitter(api_client, tracker, notebook_uploader, config_compiler)
+        return PythonNotebookSubmitter(
+            api_client, tracker, notebook_uploader, config_compiler, parsed_model
+        )
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Job Run API.")
 
+        # Prepare code with notebook-scoped package installation if needed
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
+
         file_path = self.uploader.upload(compiled_code)
         job_config = self.config_compiler.compile(file_path)
 
-        # submit job
         run_id = self.api_client.job_runs.submit(
             job_config.run_name, job_config.job_spec, **job_config.additional_job_config
         )
         self.tracker.insert_run_id(run_id)
+
         try:
+            if "access_control_list" in job_config.job_spec:
+                try:
+                    job_id = self.api_client.job_runs.get_job_id_from_run_id(run_id)
+                    logger.debug(f"Setting permissions on job: {job_id}")
+                    self.api_client.workflow_permissions.patch(
+                        job_id, job_config.job_spec["access_control_list"]
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to set permissions on job {run_id}: {str(e)}")
+                    raise DbtRuntimeError(
+                        f"Failed to set permissions on job: run_id={run_id}, error: {str(e)}"
+                    )
+
             self.api_client.job_runs.poll_for_completion(run_id)
         finally:
             self.tracker.remove_run_id(run_id)
@@ -325,7 +480,7 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
         self.credentials.validate_creds()
         self.parsed_model = ParsedPythonModel(**parsed_model)
 
-        self.api_client = DatabricksApiClient.create(
+        self.api_client = DatabricksApiClient(
             credentials,
             self.parsed_model.config.timeout,
             self.parsed_model.config.user_folder_for_python,
@@ -350,7 +505,12 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
                 {"existing_cluster_id": self.cluster_id},
             )
         else:
-            return PythonCommandSubmitter(self.api_client, self.tracker, self.cluster_id or "")
+            return PythonCommandSubmitter(
+                self.api_client,
+                self.tracker,
+                self.cluster_id or "",
+                self.parsed_model,
+            )
 
     @override
     def validate_config(self) -> None:
@@ -446,9 +606,6 @@ class PythonWorkflowCreator:
         workflow_spec: dict[str, Any],
         existing_job_id: Optional[str],
     ) -> str:
-        """
-        :return: tuple of job_id and whether the job is new
-        """
         if not existing_job_id:
             workflow_name = workflow_spec["name"]
             response_jobs = self.workflows.search_by_name(workflow_name)
@@ -481,6 +638,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         workflow_creater: PythonWorkflowCreator,
         job_grants: dict[str, list[dict[str, str]]],
         acls: list[dict[str, str]],
+        parsed_model: ParsedPythonModel,
     ) -> None:
         self.api_client = api_client
         self.tracker = tracker
@@ -490,6 +648,7 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
         self.workflow_creater = workflow_creater
         self.job_grants = job_grants
         self.acls = acls
+        super().__init__(parsed_model.config.python_packages_config)
 
     @staticmethod
     def create(
@@ -508,27 +667,55 @@ class PythonNotebookWorkflowSubmitter(PythonSubmitter):
             workflow_creater,
             parsed_model.config.python_job_config.grants,
             parsed_model.config.access_control_list,
+            parsed_model,
         )
 
     @override
     def submit(self, compiled_code: str) -> None:
         logger.debug("Submitting Python model using the Workflow API.")
 
+        # Log the compiled code for debugging (first 500 chars)
+        if compiled_code:
+            preview_len = min(500, len(compiled_code))
+            logger.debug(
+                f"[Workflow Debug] Compiled code preview: {compiled_code[:preview_len]}..."
+            )
+        compiled_code = self._prepare_code_with_notebook_scoped_packages(compiled_code)
+
         file_path = self.uploader.upload(compiled_code)
+        logger.debug(f"[Workflow Debug] Uploaded notebook to: {file_path}")
 
         workflow_config, existing_job_id = self.config_compiler.compile(file_path)
+        logger.debug(f"[Workflow Debug] Workflow config: {workflow_config}")
+        logger.debug(f"[Workflow Debug] Existing job ID: {existing_job_id}")
+
         job_id = self.workflow_creater.create_or_update(workflow_config, existing_job_id)
+        logger.debug(f"[Workflow Debug] Created/updated job ID: {job_id}")
 
         access_control_list = self.permission_builder.build_job_permissions(
             self.job_grants, self.acls
         )
+        logger.debug(f"[Workflow Debug] Setting ACL: {access_control_list}")
         self.api_client.workflow_permissions.put(job_id, access_control_list)
 
+        logger.debug(f"[Workflow Debug] Running job {job_id} with queueing enabled")
         run_id = self.api_client.workflows.run(job_id, enable_queueing=True)
+        logger.debug(f"[Workflow Debug] Started workflow run with ID: {run_id}")
         self.tracker.insert_run_id(run_id)
 
         try:
+            logger.debug(f"[Workflow Debug] Polling for completion of run {run_id}")
             self.api_client.job_runs.poll_for_completion(run_id)
+            logger.debug(f"[Workflow Debug] Workflow run {run_id} completed successfully")
+        except Exception as e:
+            logger.error(f"[Workflow Debug] Workflow run {run_id} failed with error: {e}")
+            # Try to get more info about the failure
+            try:
+                run_info = self.api_client.job_runs.get_run_info(run_id)
+                logger.error(f"[Workflow Debug] Run info for failed run: {run_info}")
+            except Exception:
+                pass
+            raise
         finally:
             self.tracker.remove_run_id(run_id)
 

@@ -1,11 +1,11 @@
 from importlib import metadata
 
 import pytest
-from packaging import version
-
 from dbt.tests.adapter.incremental.test_incremental_microbatch import (
     BaseMicrobatch,
 )
+from packaging import version
+
 from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.microbatch import fixtures
 

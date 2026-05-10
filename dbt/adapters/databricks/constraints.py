@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
+from dbt.adapters.base import ConstraintSupport
+from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -9,9 +12,6 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
-
-from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
 
 # Support constants
 CONSTRAINT_SUPPORT = {
@@ -27,6 +27,7 @@ CONSTRAINT_SUPPORT = {
 T = TypeVar("T", bound="TypedConstraint")
 
 
+@dataclass
 class TypedConstraint(ModelLevelConstraint, ABC):
     """Constraint that enforces type because it has render logic"""
 
@@ -60,6 +61,27 @@ class TypedConstraint(ModelLevelConstraint, ABC):
         return DbtValidationError(
             f"{self.str_type} constraint '{name}' is missing required field(s): {fields}"
         )
+
+    # Enables set equality checks, especially for convenient unit testing
+    def __hash__(self) -> int:
+        # Create a tuple of all the fields that should be used for equality comparison
+        fields = (
+            self.type,
+            self.name,
+            tuple(self.columns) if self.columns else None,
+            self.expression,
+            self.to,
+            tuple(self.to_columns) if self.to_columns else None,
+        )
+        return hash(fields)
+
+    def __eq__(self, other: Any) -> bool:
+        """Override equality to only compare fields used in hash calculation.
+
+        This ensures hash/equality contract is maintained and prevents issues
+        with set operations when warn_unenforced/warn_unsupported differ.
+        """
+        return self.__hash__() == other.__hash__()
 
 
 class CustomConstraint(TypedConstraint):
@@ -97,12 +119,14 @@ class ForeignKeyConstraint(TypedConstraint):
             )
 
     def _render_suffix(self) -> str:
-        suffix = f"FOREIGN KEY ({', '.join(self.columns)})"
         if self.expression:
-            suffix += f" {self.expression}"
-        else:
-            suffix += f" REFERENCES {self.to} ({', '.join(self.to_columns)})"
-        return suffix
+            if self.expression.strip().startswith("("):
+                return f"FOREIGN KEY {self.expression}"
+            return f"FOREIGN KEY ({', '.join(self.columns)}) {self.expression}"
+        return (
+            f"FOREIGN KEY ({', '.join(self.columns)}) REFERENCES "
+            + f"{self.to} ({', '.join(self.to_columns)})"
+        )
 
 
 class CheckConstraint(TypedConstraint):
@@ -113,11 +137,13 @@ class CheckConstraint(TypedConstraint):
             self.name: str = f"chk_{str(uuid4()).split('-')[0]}"
         if not self.expression:
             raise self._render_error([["expression"]])
-        if self.expression[0] != "(" or self.expression[-1] != ")":
-            self.expression: str = f"({self.expression})"
 
     def _render_suffix(self) -> str:
-        return f"CHECK {self.expression}"
+        assert self.expression is not None  # Validated in _validate()
+        if self.expression[0] != "(" or self.expression[-1] != ")":
+            return f"CHECK ({self.expression})"
+        else:
+            return f"CHECK {self.expression}"
 
 
 # Base support and enforcement
@@ -184,9 +210,7 @@ def parse_column_constraints(
             if constraint["type"] == ConstraintType.not_null:
                 column_names.add(column["name"])
             else:
-                constraint["columns"] = [
-                    f"`{column['name']}`" if column.get("quote") else column["name"]
-                ]
+                constraint["columns"] = [column["name"]]
                 constraints.append(parse_constraint(constraint))
 
     return column_names, constraints

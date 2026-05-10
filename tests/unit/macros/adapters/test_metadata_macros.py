@@ -34,10 +34,12 @@ class TestMetadataMacros(MacroTestBase):
         relation1 = Mock()
         relation1.schema = "test_schema1"
         relation1.identifier = "test_table1"
+        relation1.render = Mock(return_value="`test_schema1`.`test_table1`")
 
         relation2 = Mock()
         relation2.schema = "test_schema2"
         relation2.identifier = "test_table2"
+        relation2.render = Mock(return_value="`test_schema2`.`test_table2`")
 
         return [relation1, relation2]
 
@@ -106,14 +108,14 @@ class TestMetadataMacros(MacroTestBase):
               'test_table1' AS identifier,
               max(timestamp) AS last_modified,
               current_timestamp() AS snapshotted_at
-            FROM (DESCRIBE HISTORY test_schema1.test_table1)
+            FROM (DESCRIBE HISTORY `test_schema1`.`test_table1`)
             UNION ALL
             SELECT
               'test_schema2' AS schema,
               'test_table2' AS identifier,
               max(timestamp) AS last_modified,
               current_timestamp() AS snapshotted_at
-            FROM (DESCRIBE HISTORY test_schema2.test_table2)
+            FROM (DESCRIBE HISTORY `test_schema2`.`test_table2`)
         """
         self.assert_sql_equal(result, expected_sql)
 
@@ -137,7 +139,8 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
             WHERE table_catalog = 'some_database'
               AND table_schema = 'some_schema'
@@ -155,11 +158,43 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
-            WHERE table_catalog = 'test_db' 
+            WHERE table_catalog = 'test_db'
               AND table_schema = 'test_schema'
         """  # noqa
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_list_schemas_sql_with_database(self, template_bundle):
+        result = self.run_macro(template_bundle.template, "list_schemas_sql", "my_catalog")
+
+        expected_sql = "SHOW SCHEMAS IN `my_catalog`"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_list_schemas_sql_with_hyphenated_database(self, template_bundle):
+        result = self.run_macro(
+            template_bundle.template, "list_schemas_sql", "data_engineering-uc-dev"
+        )
+
+        expected_sql = "SHOW SCHEMAS IN `data_engineering-uc-dev`"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_list_schemas_sql_without_database(self, template_bundle):
+        result = self.run_macro(template_bundle.template, "list_schemas_sql", None)
+
+        expected_sql = "SHOW SCHEMAS"
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_check_schema_exists_sql_with_hyphenated_database(self, template_bundle):
+        result = self.run_macro(
+            template_bundle.template,
+            "check_schema_exists_sql",
+            "data_engineering-uc-dev",
+            "my_schema",
+        )
+
+        expected_sql = "SHOW SCHEMAS IN `data_engineering-uc-dev` LIKE 'my_schema'"
         self.assert_sql_equal(result, expected_sql)
 
     def test_case_sensitivity(self, template_bundle):
@@ -176,9 +211,10 @@ class TestMetadataMacros(MacroTestBase):
               table_name,
               if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), 'table', lower(table_type)) AS table_type,
               lower(data_source_format) AS file_format,
-              table_owner
+              table_owner,
+              if(table_type IN ('EXTERNAL', 'MANAGED', 'MANAGED_SHALLOW_CLONE', 'EXTERNAL_SHALLOW_CLONE'), lower(table_type), null) AS databricks_table_type
             FROM `system`.`information_schema`.`tables`
-            WHERE table_catalog = 'test_db' 
+            WHERE table_catalog = 'test_db'
               AND table_schema = 'test_schema'
               AND table_name = 'test_table'
         """  # noqa

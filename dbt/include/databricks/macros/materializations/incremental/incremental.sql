@@ -1,25 +1,28 @@
 {% materialization incremental, adapter='databricks', supported_languages=['sql', 'python'] -%}
   {{ log("MATERIALIZING INCREMENTAL") }}
-  
+
+  {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
+
   {% set existing_relation = load_relation_with_metadata(this) %}
   {% set target_relation = this.incorporate(type='table') %}
-  {% set file_format = get_file_format() %}
-  {% set incremental_strategy = get_incremental_strategy(file_format) %}
+  {% set incremental_strategy = get_incremental_strategy(catalog_relation.file_format) %}
   {% set grant_config = config.get('grants') %}
   {% set full_refresh = should_full_refresh() %}
   {% set partition_by = config.get('partition_by') %}
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
-  {% set is_delta = (file_format == 'delta' and existing_relation.is_delta) %}
+  {% set is_delta = (catalog_relation.file_format == 'delta' and existing_relation.is_delta) %}
+  {% set is_iceberg = (catalog_relation.file_format == 'iceberg' and existing_relation.is_iceberg) %}
+  {% set is_replaceable_format = is_delta or is_iceberg %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
-  {% if adapter.behavior.use_materialization_v2 %}
+  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {{ log("USING V2 MATERIALIZATION") }}
     {#-- Set vars --#}
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
     {{ log("Safe create: " ~ safe_create) }}
     {% set should_replace = existing_relation.is_dlt or existing_relation.is_view or full_refresh %}
-    {% set is_replaceable = existing_relation.can_be_replaced and is_delta and config.get("location_root") %}
+    {% set is_replaceable = existing_relation.can_be_replaced and is_replaceable_format %}
 
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
@@ -59,9 +62,18 @@
       {{ process_config_changes(target_relation) }}
       {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', intermediate_relation) -%}
           {{ build_sql }}
@@ -72,6 +84,10 @@
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
+
+    {% if language == 'python' %}
+      {{ drop_relation_if_exists(intermediate_relation) }}
+    {% endif %}
 
     {{ run_post_hooks() }}
 
@@ -99,7 +115,7 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
       {#-- Relation must be dropped & recreated --#}
-      {% if not is_delta %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+      {% if not is_replaceable_format %} {#-- If Delta or Iceberg, we will `create or replace` below, so no need to drop --#}
         {% do adapter.drop_relation(existing_relation) %}
       {% endif %}
       {%- call statement('main', language=language) -%}
@@ -133,9 +149,18 @@
               'incremental_predicates': incremental_predicates}) -%}
       {%- set build_sql = strategy_sql_macro_func(strategy_arg_dict) -%}
       {%- if language == 'sql' -%}
-        {%- call statement('main') -%}
-          {{ build_sql }}
-        {%- endcall -%}
+        {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
+        {%- if build_sql is sequence and build_sql is not string -%}
+          {%- for sql_statement in build_sql -%}
+            {%- call statement('main') -%}
+              {{ sql_statement }}
+            {%- endcall -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- call statement('main') -%}
+            {{ build_sql }}
+          {%- endcall -%}
+        {%- endif -%}
       {%- elif language == 'python' -%}
         {%- call statement_with_staging_table('main', temp_relation) -%}
           {{ build_sql }}
@@ -152,14 +177,20 @@
         {% set tags = _configuration_changes.changes.get("tags", None) %}
         {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
         {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
+        {% set constraints = _configuration_changes.changes.get("constraints") %}
         {% if tags is not none %}
-          {% do apply_tags(target_relation, tags.set_tags, tags.unset_tags) %}
+          {% do apply_tags(target_relation, tags.set_tags) %}
         {%- endif -%}
         {% if tblproperties is not none %}
           {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
         {%- endif -%}
         {% if liquid_clustering is not none %}
           {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
+        {% endif %}
+        {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
+        {% set contract_config = config.get('contract') %}
+        {% if constraints and contract_config and contract_config.enforced and not target_relation.is_hive_metastore() %}
+          {{ apply_constraints(target_relation, constraints) }}
         {% endif %}
       {%- endif -%}
       {% do persist_docs(target_relation, model, for_relation=True) %}
@@ -186,7 +217,7 @@
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
   {% else %}
-    {{ exceptions.raise_compiler_error('INSERT OVERWRITE is only properly supported on all-purpose clusters.  On SQL Warehouses, this strategy would be equivalent to using the table materialization.') }}
+    {{ exceptions.warn("insert_overwrite is supported on SQL warehouses with DBR 17.1+. On older DBR versions, this strategy would be equivalent to using the table materialization.") }}
   {% endif %}
 {% endmacro %}
 
@@ -200,7 +231,7 @@
           'unique_key': unique_key,
           'dest_columns': none,
           'incremental_predicates': incremental_predicates}) -%}
-  {{ strategy_sql_macro_func(strategy_arg_dict) }}
+  {% do return(strategy_sql_macro_func(strategy_arg_dict)) %}
 {% endmacro %}
 
 {% macro process_config_changes(target_relation) %}

@@ -2,21 +2,22 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
+from dbt.adapters.contracts.relation import (
+    ComponentName,
+)
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
+from dbt.adapters.utils import classproperty
 from dbt_common.contracts.constraints import ConstraintType
 from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
-from dbt.adapters.contracts.relation import (
-    ComponentName,
-)
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
 from dbt.adapters.databricks.utils import remove_undefined
-from dbt.adapters.spark.impl import KEY_TABLE_OWNER, KEY_TABLE_STATISTICS
-from dbt.adapters.utils import classproperty
 
 KEY_TABLE_PROVIDER = "Provider"
+MAX_CHARACTERS_IN_IDENTIFIER = 255
 
 
 @dataclass
@@ -40,10 +41,20 @@ class DatabricksRelationType(StrEnum):
     MaterializedView = "materialized_view"
     Foreign = "foreign"
     StreamingTable = "streaming_table"
+    MetricView = "metric_view"
+    Function = "function"
+    Unknown = "unknown"
+
+    def render(self) -> str:
+        """Return the type formatted for SQL statements (replace underscores with spaces)"""
+        return self.value.replace("_", " ").upper()
+
+
+class DatabricksTableType(StrEnum):
     External = "external"
+    Managed = "managed"
     ManagedShallowClone = "managed_shallow_clone"
     ExternalShallowClone = "external_shallow_clone"
-    Unknown = "unknown"
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -62,12 +73,32 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
+    require_alias: bool = False
     is_delta: Optional[bool] = None
     create_constraints: list[TypedConstraint] = field(default_factory=list)
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
     renameable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
-    replaceable_relations = (DatabricksRelationType.Table, DatabricksRelationType.View)
+    replaceable_relations = (
+        DatabricksRelationType.Table,
+        DatabricksRelationType.View,
+        DatabricksRelationType.MaterializedView,
+    )
+    databricks_table_type: Optional[DatabricksTableType] = None
+    temporary: Optional[bool] = False
+
+    def __post_init__(self) -> None:
+        if self.identifier and self.type:
+            if len(self.identifier) > self.relation_max_name_length():
+                raise DbtRuntimeError(
+                    f"Databricks has a maximum identifier length of "
+                    f"{self.relation_max_name_length()} characters. "
+                    "Use a shorter name or configure a custom alias."
+                )
+
+    @classmethod
+    def relation_max_name_length(cls) -> int:
+        return MAX_CHARACTERS_IN_IDENTIFIER
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -76,13 +107,26 @@ class DatabricksRelation(BaseRelation):
             data["path"]["database"] = None
         else:
             data["path"]["database"] = remove_undefined(data["path"]["database"])
+
+        # Similarly handle other table types that might come in as relation types
+        table_type_values = {
+            "managed",
+            "managed_shallow_clone",
+            "external_shallow_clone",
+            "external",
+        }
+        if data.get("type") in table_type_values:
+            if "databricks_table_type" not in data:
+                data["databricks_table_type"] = data["type"]
+            data["type"] = "table"
+
         return data
 
     def has_information(self) -> bool:
         return self.metadata is not None
 
     def is_hive_metastore(self) -> bool:
-        return is_hive_metastore(self.database)
+        return is_hive_metastore(self.database, self.temporary)
 
     @property
     def is_materialized_view(self) -> bool:
@@ -93,13 +137,20 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.StreamingTable
 
     @property
+    def is_external_table(self) -> bool:
+        return self.databricks_table_type == DatabricksTableType.External
+
+    @property
     def is_dlt(self) -> bool:
         return self.is_materialized_view or self.is_streaming_table
 
     @property
     def is_hudi(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
+
+    @property
+    def is_iceberg(self) -> bool:
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
 
     @property
     def owner(self) -> Optional[str]:
@@ -113,8 +164,9 @@ class DatabricksRelation(BaseRelation):
     def can_be_replaced(self) -> bool:
         return (
             self.type == DatabricksRelationType.View
-            or self.is_delta is True
-            and self.type == DatabricksRelationType.Table
+            or self.type == DatabricksRelationType.MaterializedView
+            or (self.is_delta is True and self.type == DatabricksRelationType.Table)
+            or (self.is_iceberg is True and self.type == DatabricksRelationType.Table)
         )
 
     @property
@@ -153,6 +205,10 @@ class DatabricksRelation(BaseRelation):
     def get_relation_type(cls) -> Type[DatabricksRelationType]:  # noqa
         return DatabricksRelationType
 
+    @classproperty
+    def get_databricks_table_type(cls) -> Type[DatabricksTableType]:  # noqa
+        return DatabricksTableType
+
     def information_schema(self, view_name: Optional[str] = None) -> InformationSchema:
         # some of our data comes from jinja, where things can be `Undefined`.
         if not isinstance(view_name, str):
@@ -188,8 +244,8 @@ class DatabricksRelation(BaseRelation):
         return super().render().lower()
 
 
-def is_hive_metastore(database: Optional[str]) -> bool:
-    return database is None or database.lower() == "hive_metastore"
+def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:
+    return (database is None or database.lower() == "hive_metastore") and not temporary
 
 
 def extract_identifiers(relations: Iterable[BaseRelation]) -> set[str]:

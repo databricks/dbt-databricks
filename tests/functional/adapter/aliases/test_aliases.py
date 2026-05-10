@@ -1,5 +1,4 @@
 import pytest
-
 from dbt.tests.adapter.aliases import fixtures as dbt_fixtures
 from dbt.tests.adapter.aliases.test_aliases import (
     BaseAliasErrors,
@@ -7,6 +6,7 @@ from dbt.tests.adapter.aliases.test_aliases import (
     BaseSameAliasDifferentDatabases,
     BaseSameAliasDifferentSchemas,
 )
+
 from tests.functional.adapter.aliases import fixtures as databricks_fixtures
 
 macro_override = {
@@ -28,7 +28,7 @@ class TestDatabricksAliasErrors(BaseAliasErrors):
 
 
 class TestDatabricksSameAliasDifferentSchemas(BaseSameAliasDifferentSchemas):
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def clean_up(self, project):
         yield
         with project.adapter.connection_named("__test"):
@@ -53,7 +53,7 @@ class TestDatabricksSameAliasDifferentSchemas(BaseSameAliasDifferentSchemas):
 
 
 class TestDatabricksSameAliasDifferentDatabases(BaseSameAliasDifferentDatabases):
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def clean_up(self, project):
         yield
         with project.adapter.connection_named("__test"):
