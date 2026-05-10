@@ -242,17 +242,15 @@ class TestValidateCreds:
 class TestSdkAuthTypePassthrough:
     """Verify that explicit auth_type values are forwarded to the Databricks SDK Config."""
 
+    BASE = dict(host="my.cloud.databricks.com", http_path="/sql/1.0/warehouses/abc")
+
     def _make_manager(self, auth_type: str, **kwargs):
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
-            manager = DatabricksCredentialManager(
-                host="my.cloud.databricks.com",
-                client_id=CLIENT_ID,
-                client_secret="",
-                auth_type=auth_type,
-                **kwargs,
+            creds = DatabricksCredentials(
+                database="db", schema="sch", auth_type=auth_type, **self.BASE, **kwargs
             )
-            return manager, mock_config
+            return creds._credentials_manager, mock_config
 
     def test_azure_cli_passed_to_sdk(self):
         manager, mock_config = self._make_manager("azure-cli")
@@ -271,10 +269,30 @@ class TestSdkAuthTypePassthrough:
             azure_client_id="my-msi-client-id",
         )
 
+    def test_azure_msi_with_tenant(self):
+        """azure_tenant_id should be forwarded when set."""
+        manager, mock_config = self._make_manager("azure-msi", azure_tenant_id="my-tenant")
+        mock_config.assert_called_once_with(
+            host="my.cloud.databricks.com",
+            auth_type="azure-msi",
+            azure_tenant_id="my-tenant",
+        )
+
     def test_databricks_cli_passed_to_sdk(self):
         manager, mock_config = self._make_manager("databricks-cli")
         mock_config.assert_called_once_with(
             host="my.cloud.databricks.com", auth_type="databricks-cli"
+        )
+
+    def test_databricks_cli_with_profile(self):
+        """databricks_cli_profile maps to the SDK's 'profile' kwarg."""
+        manager, mock_config = self._make_manager(
+            "databricks-cli", databricks_cli_profile="my-profile"
+        )
+        mock_config.assert_called_once_with(
+            host="my.cloud.databricks.com",
+            auth_type="databricks-cli",
+            profile="my-profile",
         )
 
     def test_metadata_service_passed_to_sdk(self):
@@ -297,23 +315,35 @@ class TestSdkAuthTypePassthrough:
             client_secret="my-client-secret",
         )
 
-    def test_default_client_id_not_forwarded(self):
-        """The internal dbt CLIENT_ID default must not be forwarded to the SDK."""
-        manager, mock_config = self._make_manager("azure-cli")
+    def test_google_credentials_forwarded(self):
+        manager, mock_config = self._make_manager(
+            "google-credentials", google_service_account="sa@project.iam.gserviceaccount.com"
+        )
+        mock_config.assert_called_once_with(
+            host="my.cloud.databricks.com",
+            auth_type="google-credentials",
+            google_service_account="sa@project.iam.gserviceaccount.com",
+        )
+
+    def test_databricks_sdk_parameters_forwarded(self):
+        """Extra params in databricks_sdk_parameters are merged into Config kwargs."""
+        manager, mock_config = self._make_manager(
+            "azure-cli", databricks_sdk_parameters={"azure_environment": "usgovernment"}
+        )
         call_kwargs = mock_config.call_args.kwargs
-        assert "client_id" not in call_kwargs
+        assert call_kwargs.get("azure_environment") == "usgovernment"
 
     def test_oauth_still_uses_external_browser(self):
         """'oauth' is a dbt alias for external-browser — backward compat must be preserved."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
-            DatabricksCredentialManager(
+            DatabricksCredentials(
                 host="my.cloud.databricks.com",
-                client_id=CLIENT_ID,
-                client_secret="",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
                 auth_type="oauth",
             )
-            # external-browser path passes auth_type="external-browser"
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("auth_type") == "external-browser"
 
@@ -321,10 +351,11 @@ class TestSdkAuthTypePassthrough:
         """PAT auth must still work regardless of any other config."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
-            DatabricksCredentialManager(
+            DatabricksCredentials(
                 host="my.cloud.databricks.com",
-                client_id=CLIENT_ID,
-                client_secret="",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
                 token="mytoken",
                 auth_type="azure-cli",  # token takes precedence
             )

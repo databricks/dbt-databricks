@@ -2,12 +2,11 @@ import itertools
 import json
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, cast
 
 from dbt.adapters.contracts.connection import Credentials
 from dbt_common.exceptions import DbtConfigError, DbtValidationError
-from mashumaro import DataClassDictMixin
 from requests import PreparedRequest
 from requests.auth import AuthBase
 
@@ -37,16 +36,44 @@ class DatabricksCredentials(Credentials):
     schema: Optional[str] = None  # type: ignore[assignment]
     host: Optional[str] = None
     http_path: Optional[str] = None
+
+    # ---- authentication ----
+    # PAT
     token: Optional[str] = None
+    # OAuth / M2M
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
+    # Azure
     azure_client_id: Optional[str] = None
     azure_client_secret: Optional[str] = None
+    azure_tenant_id: Optional[str] = None
+    azure_environment: Optional[str] = None
+    azure_use_msi: Optional[bool] = None
+    azure_workspace_resource_id: Optional[str] = None
+    # Google / GCP
+    google_credentials: Optional[str] = None
+    google_service_account: Optional[str] = None
+    # Metadata service / OIDC
+    metadata_service_url: Optional[str] = None
+    oidc_token_env: Optional[str] = None
+    oidc_token_filepath: Optional[str] = None
+    # Basic auth
+    username: Optional[str] = None
+    password: Optional[str] = None
+    # Databricks CLI / config file
+    databricks_cli_profile: Optional[str] = None  # maps to SDK's 'profile'
+    config_file: Optional[str] = None
+    # Auth type selector (supports all Databricks SDK auth_type values;
+    # 'oauth' is a legacy dbt alias for 'external-browser').
+    auth_type: Optional[str] = None
+    # Escape hatch: any additional Databricks SDK Config kwargs not modelled above.
+    databricks_sdk_parameters: Optional[dict[str, Any]] = None
+
+    # ---- connection / dbt ----
     oauth_redirect_url: Optional[str] = None
     oauth_scopes: Optional[list[str]] = None
     session_properties: Optional[dict[str, Any]] = None
     connection_parameters: Optional[dict[str, Any]] = None
-    auth_type: Optional[str] = None
 
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
@@ -130,7 +157,7 @@ class DatabricksCredentials(Credentials):
         if "_socket_timeout" not in connection_parameters:
             connection_parameters["_socket_timeout"] = 600
         self.connection_parameters = connection_parameters
-        self._credentials_manager = DatabricksCredentialManager.create_from(self)
+        self._credentials_manager = DatabricksCredentialManager(credentials=self)
 
     def validate_creds(self) -> None:
         for key in ["host", "http_path"]:
@@ -150,6 +177,40 @@ class DatabricksCredentials(Credentials):
                 "The config 'azure_client_id' and 'azure_client_secret' "
                 "must be both present or both absent"
             )
+
+    def to_sdk_config_kwargs(self) -> dict[str, Any]:
+        """Return kwargs suitable for passing to databricks.sdk.core.Config.
+
+        This is the single place to update when adding support for a new SDK
+        auth field: add the field to DatabricksCredentials above, then add
+        one entry here.  databricks_sdk_parameters is merged last so users
+        can override or supply anything not explicitly modelled.
+        """
+        pairs: dict[str, Any] = {
+            "host": self.host,
+            "token": self.token,
+            "auth_type": self.auth_type,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "azure_client_id": self.azure_client_id,
+            "azure_client_secret": self.azure_client_secret,
+            "azure_tenant_id": self.azure_tenant_id,
+            "azure_environment": self.azure_environment,
+            "azure_use_msi": self.azure_use_msi,
+            "azure_workspace_resource_id": self.azure_workspace_resource_id,
+            "google_credentials": self.google_credentials,
+            "google_service_account": self.google_service_account,
+            "metadata_service_url": self.metadata_service_url,
+            "oidc_token_env": self.oidc_token_env,
+            "oidc_token_filepath": self.oidc_token_filepath,
+            "username": self.username,
+            "password": self.password,
+            "profile": self.databricks_cli_profile,
+            "config_file": self.config_file,
+        }
+        kwargs = {k: v for k, v in pairs.items() if v is not None}
+        kwargs.update(self.databricks_sdk_parameters or {})
+        return kwargs
 
     @classmethod
     def get_invocation_env(cls) -> Optional[str]:
@@ -263,84 +324,67 @@ PySQLCredentialProvider = Callable[[], Callable[[], dict[str, str]]]
 
 
 @dataclass
-class DatabricksCredentialManager(DataClassDictMixin):
-    host: str
-    client_id: str
-    client_secret: str
-    azure_client_id: Optional[str] = None
-    azure_client_secret: Optional[str] = None
-    oauth_redirect_url: str = REDIRECT_URL
-    oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
-    token: Optional[str] = None
-    auth_type: Optional[str] = None
+class DatabricksCredentialManager:
+    """Wraps DatabricksCredentials and resolves a databricks.sdk.core.Config.
 
-    @classmethod
-    def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
-        return DatabricksCredentialManager(
-            host=credentials.host or "",
-            token=credentials.token,
-            client_id=credentials.client_id or CLIENT_ID,
-            client_secret=credentials.client_secret or "",
-            azure_client_id=credentials.azure_client_id,
-            azure_client_secret=credentials.azure_client_secret,
-            oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
-            oauth_scopes=credentials.oauth_scopes or SCOPES,
-            auth_type=credentials.auth_type,
-        )
+    Auth dispatch priority (first match wins — preserves backward compat):
+      1. token              -> PAT
+      2. azure_client_id + azure_client_secret -> Azure service principal
+      3. explicit auth_type (anything except the legacy 'oauth' alias)
+                            -> SDK unified auth via to_sdk_config_kwargs()
+      4. no client_secret   -> external-browser (U2M OAuth)
+      5. client_secret      -> try oauth-m2m / legacy-azure-client-secret
+    """
+
+    credentials: DatabricksCredentials
 
     def authenticate_with_pat(self) -> Config:
         return Config(
-            host=self.host,
-            token=self.token,
+            host=self.credentials.host,
+            token=self.credentials.token,
         )
 
     def authenticate_with_oauth_m2m(self) -> Config:
         return Config(
-            host=self.host,
-            client_id=self.client_id,
-            client_secret=self.client_secret,
+            host=self.credentials.host,
+            client_id=self.credentials.client_id or CLIENT_ID,
+            client_secret=self.credentials.client_secret or "",
             auth_type="oauth-m2m",
         )
 
     def authenticate_with_external_browser(self) -> Config:
         return Config(
-            host=self.host,
-            client_id=self.client_id,
-            client_secret=self.client_secret,
+            host=self.credentials.host,
+            client_id=self.credentials.client_id or CLIENT_ID,
+            client_secret=self.credentials.client_secret or "",
             auth_type="external-browser",
-        )
-
-    def authenticate_with_sdk_auth_type(self) -> Config:
-        """Pass auth_type and any explicitly-set credentials to the Databricks SDK, enabling any
-        auth method the SDK supports (e.g. azure-cli, azure-msi, oauth-m2m, databricks-cli)
-        without requiring code changes here when the SDK adds new mechanisms."""
-        kwargs: dict[str, Any] = {"host": self.host, "auth_type": self.auth_type}
-        # Only forward client_id when the user explicitly set it (not the dbt-internal default).
-        if self.client_id and self.client_id != CLIENT_ID:
-            kwargs["client_id"] = self.client_id
-        if self.client_secret:
-            kwargs["client_secret"] = self.client_secret
-        if self.azure_client_id:
-            kwargs["azure_client_id"] = self.azure_client_id
-        if self.azure_client_secret:
-            kwargs["azure_client_secret"] = self.azure_client_secret
-        return Config(**kwargs)
-
-    def legacy_authenticate_with_azure_client_secret(self) -> Config:
-        return Config(
-            host=self.host,
-            azure_client_id=self.client_id,
-            azure_client_secret=self.client_secret,
-            auth_type="azure-client-secret",
         )
 
     def authenticate_with_azure_client_secret(self) -> Config:
         return Config(
-            host=self.host,
-            azure_client_id=self.azure_client_id,
-            azure_client_secret=self.azure_client_secret,
+            host=self.credentials.host,
+            azure_client_id=self.credentials.azure_client_id,
+            azure_client_secret=self.credentials.azure_client_secret,
             auth_type="azure-client-secret",
         )
+
+    def legacy_authenticate_with_azure_client_secret(self) -> Config:
+        return Config(
+            host=self.credentials.host,
+            azure_client_id=self.credentials.client_id,
+            azure_client_secret=self.credentials.client_secret,
+            auth_type="azure-client-secret",
+        )
+
+    def authenticate_with_sdk_auth_type(self) -> Config:
+        """Delegate entirely to the Databricks SDK using all credential fields.
+
+        Supports any auth_type the SDK recognises (e.g. azure-cli, azure-msi,
+        databricks-cli, google-credentials, metadata-service, …).  New SDK auth
+        methods become available automatically once the corresponding profile
+        fields are added to DatabricksCredentials.to_sdk_config_kwargs().
+        """
+        return Config(**self.credentials.to_sdk_config_kwargs())
 
     def __post_init__(self) -> None:
         if not hasattr(self, "_config"):
@@ -348,13 +392,14 @@ class DatabricksCredentialManager(DataClassDictMixin):
         if self._config is not None:
             return
 
-        if self.token:
+        creds = self.credentials
+        if creds.token:
             self._config = self.authenticate_with_pat()
-        elif self.azure_client_id and self.azure_client_secret:
+        elif creds.azure_client_id and creds.azure_client_secret:
             self._config = self.authenticate_with_azure_client_secret()
-        elif self.auth_type and self.auth_type not in ("oauth",):
+        elif creds.auth_type and creds.auth_type not in ("oauth",):
             self._config = self.authenticate_with_sdk_auth_type()
-        elif not self.client_secret:
+        elif not creds.client_secret:
             self._config = self.authenticate_with_external_browser()
         else:
             auth_methods = {
@@ -363,7 +408,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
             }
 
             # If the secret starts with dose, high chance is it is a databricks secret
-            if self.client_secret.startswith("dose"):
+            if (creds.client_secret or "").startswith("dose"):
                 auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
             else:
                 auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
