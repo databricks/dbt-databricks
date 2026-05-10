@@ -348,7 +348,7 @@ class DatabricksCredentialManager:
         return Config(
             host=self.credentials.host,
             client_id=self.credentials.client_id or CLIENT_ID,
-            client_secret=self.credentials.client_secret or "",
+            client_secret=self.credentials.client_secret,
             auth_type="oauth-m2m",
         )
 
@@ -356,7 +356,7 @@ class DatabricksCredentialManager:
         return Config(
             host=self.credentials.host,
             client_id=self.credentials.client_id or CLIENT_ID,
-            client_secret=self.credentials.client_secret or "",
+            client_secret=self.credentials.client_secret,
             auth_type="external-browser",
         )
 
@@ -408,7 +408,7 @@ class DatabricksCredentialManager:
             }
 
             # If the secret starts with dose, high chance is it is a databricks secret
-            if (creds.client_secret or "").startswith("dose"):
+            if creds.client_secret.startswith("dose"):  # type: ignore[union-attr]
                 auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
             else:
                 auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
