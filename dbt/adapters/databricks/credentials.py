@@ -136,10 +136,6 @@ class DatabricksCredentials(Credentials):
         for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
-        if not self.token and self.auth_type != "oauth":
-            raise DbtConfigError(
-                "The config `auth_type: oauth` is required when not using access token"
-            )
 
         if not self.client_id and self.client_secret:
             raise DbtConfigError(
@@ -314,6 +310,12 @@ class DatabricksCredentialManager(DataClassDictMixin):
             auth_type="external-browser",
         )
 
+    def authenticate_with_sdk_auth_type(self) -> Config:
+        """Pass auth_type directly to the Databricks SDK, enabling any auth method the SDK
+        supports (e.g. azure-cli, azure-msi, databricks-cli, metadata-service) without requiring
+        code changes here when the SDK adds new mechanisms."""
+        return Config(host=self.host, auth_type=self.auth_type)
+
     def legacy_authenticate_with_azure_client_secret(self) -> Config:
         return Config(
             host=self.host,
@@ -340,6 +342,8 @@ class DatabricksCredentialManager(DataClassDictMixin):
             self._config = self.authenticate_with_pat()
         elif self.azure_client_id and self.azure_client_secret:
             self._config = self.authenticate_with_azure_client_secret()
+        elif self.auth_type and self.auth_type not in ("oauth",):
+            self._config = self.authenticate_with_sdk_auth_type()
         elif not self.client_secret:
             self._config = self.authenticate_with_external_browser()
         else:
