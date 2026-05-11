@@ -1,3 +1,9 @@
+## dbt-databricks 1.11.9 (TBD)
+
+### Features
+
+- Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#722](https://github.com/databricks/dbt-databricks/issues/722))
+
 ## dbt-databricks 1.11.8 (May 11, 2026)
 
 ### Features
