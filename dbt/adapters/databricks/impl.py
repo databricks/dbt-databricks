@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
@@ -29,7 +29,7 @@ from dbt.adapters.spark.impl import (
     SparkAdapter,
 )
 from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
+from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -76,6 +76,7 @@ from dbt.adapters.databricks.relation_configs.incremental import IncrementalTabl
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
+from dbt.adapters.databricks.relation_configs.metric_view import MetricViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
@@ -178,7 +179,9 @@ class DatabricksConfig(AdapterConfig):
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
-    databricks_tags: Optional[dict[str, str]] = None
+    databricks_tags: Optional[dict[str, str]] = field(
+        default=None, metadata=MergeBehavior.Update.meta()
+    )
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
@@ -980,6 +983,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.View:
             return ViewAPI.get_from_relation(self, relation, model_config)
+        elif relation.type == DatabricksRelationType.MetricView:
+            return MetricViewAPI.get_from_relation(self, relation, model_config)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -995,6 +1000,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)
+        elif model.config.materialized == "metric_view":
+            return MetricViewAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -1144,6 +1151,9 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:
             results["information_schema.tags"] = None
+
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         return results
 
 
@@ -1170,6 +1180,7 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+        results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         return results
 
 
@@ -1223,6 +1234,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                 "fetch_foreign_key_constraints", kwargs=kwargs
             )
             results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
@@ -1263,6 +1275,28 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
+        kwargs = {"table_name": relation}
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+        return results
+
+
+class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
+    relation_type = DatabricksRelationType.MetricView
+
+    @classmethod
+    def config_type(cls) -> type[MetricViewConfig]:
+        return MetricViewConfig
+
+    @classmethod
+    def _describe_relation(
+        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+    ) -> RelationResults:
+        results = {}
+        kwargs = {"relation": relation}
+        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs

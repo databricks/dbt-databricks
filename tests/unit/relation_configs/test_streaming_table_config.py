@@ -7,6 +7,7 @@ from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClu
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
+from dbt.adapters.databricks.relation_configs.row_filter import RowFilterConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
@@ -47,6 +48,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -75,6 +77,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -88,6 +91,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -99,6 +103,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -116,6 +121,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -127,6 +133,7 @@ class TestStreamingTableConfig:
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
             }
         )
 
@@ -142,4 +149,5 @@ class TestStreamingTableConfig:
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
             "query": QueryConfig(query="select * from foo"),
+            "row_filter": RowFilterConfig(),
         }

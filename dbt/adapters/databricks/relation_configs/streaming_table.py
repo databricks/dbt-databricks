@@ -16,6 +16,7 @@ from dbt.adapters.databricks.relation_configs.partitioning import (
 )
 from dbt.adapters.databricks.relation_configs.query import DescribeQueryProcessor
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig, RefreshProcessor
+from dbt.adapters.databricks.relation_configs.row_filter import RowFilterProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
@@ -29,8 +30,9 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         CommentProcessor,
         TblPropertiesProcessor,
         RefreshProcessor,
-        DescribeQueryProcessor,
         TagsProcessor,
+        DescribeQueryProcessor,
+        RowFilterProcessor,
     ]
 
     def get_changeset(

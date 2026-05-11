@@ -29,7 +29,7 @@ Set your IDE's Python interpreter to `.hatch/dbt-databricks/bin/python`
 ```bash
 hatch run code-quality           # Format, lint, type-check
 hatch run unit                   # Run unit tests
-hatch run cluster-e2e            # Run functional tests
+hatch run cluster-e2e-dev        # Run functional tests
 ```
 
 > 📖 **See [Testing Guide](testing.md)** for comprehensive testing documentation
@@ -119,7 +119,7 @@ hatch run cluster-e2e            # Run functional tests
 
    ```bash
    hatch run unit                    # Always run unit tests
-   hatch run cluster-e2e             # Run functional tests if adapter changes
+   hatch run cluster-e2e-dev         # Run functional tests if adapter changes
    ```
 
 5. **Update documentation** if needed (code comments, this guide)
@@ -177,9 +177,9 @@ hatch run mypy                    # Type checking only
 # Testing
 hatch run unit                    # Unit tests (Python 3.9)
 hatch run test:unit               # Unit tests (all Python versions)
-hatch run cluster-e2e             # Functional tests (HMS cluster)
-hatch run uc-cluster-e2e          # Functional tests (Unity Catalog)
-hatch run sqlw-e2e                # Functional tests (SQL Warehouse)
+hatch run cluster-e2e-dev         # Functional tests (HMS cluster) — CI runs this sharded
+hatch run uc-cluster-e2e-dev      # Functional tests (Unity Catalog) — CI runs this sharded
+hatch run sqlw-e2e-dev            # Functional tests (SQL Warehouse) — CI runs this sharded
 
 # Building
 hatch build -c                    # Build wheel and sdist (cleans dist folder first)
