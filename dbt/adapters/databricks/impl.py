@@ -1191,8 +1191,8 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
-            # To be backward compatible model_config can be None. In that case, tags should be fetched
-            # to maintain backward compatibility.
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
             table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
             if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
                 results["information_schema.tags"] = adapter.execute_macro(
@@ -1201,8 +1201,8 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             else:
                 results["information_schema.tags"] = None
 
-            # To be backward compatible model_config can be None. In that case, tags should be fetched
-            # to maintain backward compatibility.
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
             column_tag_config = (
                 model_config.config.get(ColumnTagsProcessor.name) if model_config else None
             )
