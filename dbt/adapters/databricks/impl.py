@@ -1291,14 +1291,23 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
+
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         return results
