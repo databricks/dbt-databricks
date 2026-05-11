@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add catalogs.yml v2 support via `Capability.CatalogsV2` and `_v2_to_v1_type` hook; move `use_uniform` × `file_format` cross-validation into `UnityCatalogIntegration.__init__` and file_format enum validation into `HiveMetastoreCatalogIntegration.__init__` (requires `use_catalogs_v2` flag in dbt-core and dbt-adapters >= 1.24)
+- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core)
 - Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
 
 ### Fixes
