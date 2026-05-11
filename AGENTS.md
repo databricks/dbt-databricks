@@ -61,7 +61,7 @@ For other platforms: see https://hatch.pypa.io/latest/install/
 ```bash
 hatch run code-quality           # Format, lint, type-check
 hatch run unit                   # Run unit tests
-hatch run cluster-e2e            # Run functional tests
+hatch run cluster-e2e-dev        # Run functional tests
 
 # For specific tests, use pytest directly:
 hatch run pytest path/to/test_file.py::TestClass::test_method -v
@@ -83,7 +83,7 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
 2. **Functional Tests** (`tests/functional/`): End-to-end with real Databricks
    - Test complete dbt workflows (run, seed, test, snapshot)
    - Require live Databricks workspace
-   - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e`, `sqlw-e2e`)
+   - Run with: `hatch run cluster-e2e-dev` (or `uc-cluster-e2e-dev`, `sqlw-e2e-dev`).
 
 ### What to Assert in Each Test Type
 
