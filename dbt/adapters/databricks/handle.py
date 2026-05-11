@@ -54,6 +54,8 @@ def _get_job_run_context() -> dict[str, Optional[str]]:
         headers = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return empty
+    if not isinstance(headers, dict):
+        return empty
 
     def _str_or_none(value: Any) -> Optional[str]:
         return str(value) if value is not None else None
@@ -63,9 +65,10 @@ def _get_job_run_context() -> dict[str, Optional[str]]:
     if isinstance(encoded, str):
         try:
             decoded = json.loads(base64.b64decode(encoded))
-            job_run_id = _str_or_none(decoded.get("job_run_id"))
         except (ValueError, json.JSONDecodeError, TypeError):
-            pass
+            decoded = None
+        if isinstance(decoded, dict):
+            job_run_id = _str_or_none(decoded.get("job_run_id"))
 
     return {
         "job_id": _str_or_none(headers.get("X-Databricks-Dbsql-Job-Id")),

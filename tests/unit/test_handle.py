@@ -349,6 +349,29 @@ class TestGetJobRunContext:
             ctx = _get_job_run_context()
         assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
 
+    @pytest.mark.parametrize("raw", ["null", "[]", "123", '"foo"', "true"])
+    def test_outer_json_non_object(self, raw):
+        """Outer JSON is valid but not an object — must not raise."""
+        with patch.dict(os.environ, {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": raw}):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": None, "job_run_id": None, "task_run_id": None}
+
+    @pytest.mark.parametrize("inner_payload", [b"[1,2,3]", b"null", b"123", b'"x"', b"true"])
+    def test_inner_base64_json_non_object(self, inner_payload):
+        """Inner base64 decodes to valid but non-object JSON — job_run_id stays None,
+        outer fields still resolve."""
+        bad_source = base64.b64encode(inner_payload).decode()
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers(
+                    source_override=bad_source
+                )
+            },
+        ):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
+
 
 class TestDatabricksAdapterResponse:
     @patch.dict(os.environ, {}, clear=True)
