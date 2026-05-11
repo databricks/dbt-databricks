@@ -2,7 +2,7 @@
 
 ### Features
 
-- Declare `CATALOG_V2_CONFIGS` on `DatabricksAdapter` with `UnityDatabricksConfig` and `HiveMetastoreDatabricksConfig` to support parse-time validation of catalogs.yml v2 (requires `use_catalogs_v2` behavior flag in dbt-core)
+- Add catalogs.yml v2 support via `Capability.CatalogsV2` and `_v2_to_v1_type` hook; move `use_uniform` × `file_format` cross-validation into `UnityCatalogIntegration.__init__` and file_format enum validation into `HiveMetastoreCatalogIntegration.__init__` (requires `use_catalogs_v2` flag in dbt-core and dbt-adapters >= 1.24)
 - Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
 
 ### Fixes
