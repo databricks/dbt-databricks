@@ -14,3 +14,9 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [types-requests]
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.6
+    hooks:
+      - id: uv-lock
+        args: [--check]
