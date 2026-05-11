@@ -5,12 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import keyring.backend
 import pytest
-
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.credentials import (
-    CLIENT_ID,
-    DatabricksCredentialManager,
     DatabricksCredentials,
 )
 
