@@ -4,7 +4,6 @@ from typing import Any, Dict, Optional
 import pytest
 
 from dbt.adapters.capability import Capability, Support
-from dbt.adapters.catalogs import CatalogIntegrationConfig
 from dbt.adapters.databricks.catalogs import (
     HiveMetastoreCatalogIntegration,
     UnityCatalogIntegration,
@@ -84,6 +83,12 @@ def test_unity_parquet_with_uniform_raises():
 
 def test_unity_blank_location_root_raises():
     cfg = _Config(file_format="parquet", adapter_properties={"location_root": "  "})
+    with pytest.raises(DbtValidationError, match="location_root cannot be blank"):
+        UnityCatalogIntegration(cfg)
+
+
+def test_unity_empty_location_root_raises():
+    cfg = _Config(file_format="parquet", adapter_properties={"location_root": ""})
     with pytest.raises(DbtValidationError, match="location_root cannot be blank"):
         UnityCatalogIntegration(cfg)
 

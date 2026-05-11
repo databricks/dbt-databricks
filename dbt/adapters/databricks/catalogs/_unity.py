@@ -14,7 +14,8 @@ class UnityCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        if location_root := config.adapter_properties.get("location_root"):
+        location_root = config.adapter_properties.get("location_root")
+        if location_root is not None:
             if not str(location_root).strip():
                 raise DbtValidationError(
                     f"Catalog '{config.name}' unity/databricks location_root cannot be blank"
