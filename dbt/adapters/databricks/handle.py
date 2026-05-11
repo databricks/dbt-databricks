@@ -33,8 +33,6 @@ FailLogOp = Callable[[Exception], str]
 
 
 # Set by the Databricks Jobs `dbt_task` runtime on the dbt CLI subprocess.
-# The value is a JSON string carrying the job/run identifiers as attribution
-# headers. Absent when dbt runs anywhere else (local CLI, notebook task, etc.).
 _DBT_TASK_HEADERS_ENV = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 
@@ -78,14 +76,9 @@ def _get_job_run_context() -> dict[str, Optional[str]]:
 
 @dataclass
 class DatabricksAdapterResponse(AdapterResponse):
-    """Extends ``AdapterResponse`` with Databricks `dbt_task` run identifiers.
-
-    The three id fields are populated only when dbt runs as a Databricks Jobs
-    `dbt_task`. They join to ``system.lakeflow`` like so:
-
-    * ``job_id``      → ``system.lakeflow.jobs.job_id``
-    * ``job_run_id``  → ``system.lakeflow.job_run_timeline.run_id``
-    * ``task_run_id`` → ``system.lakeflow.job_task_run_timeline.run_id``
+    """Extends ``AdapterResponse`` with Databricks `dbt_task` run identifiers,
+    so dbt runs can be linked to Databricks `system.lakeflow.*` tables for
+    additional execution info. Populated only when dbt runs as a `dbt_task`.
     """
 
     job_id: Optional[str] = None

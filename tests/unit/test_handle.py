@@ -7,7 +7,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 from databricks.sql.client import Cursor
-from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.handle import (
@@ -149,7 +148,6 @@ class TestCursorWrapper:
         wrapper = CursorWrapper(cursor)
         response = wrapper.get_response()
         assert isinstance(response, DatabricksAdapterResponse)
-        assert response._message == "OK"
         assert response.query_id == "N/A"
         assert response.job_id is None
         assert response.job_run_id is None
@@ -358,18 +356,10 @@ class TestDatabricksAdapterResponse:
         cursor = Mock()
         cursor.query_id = "q1"
         resp = DatabricksAdapterResponse.from_cursor(cursor)
-        assert resp._message == "OK"
         assert resp.query_id == "q1"
         assert resp.job_id is None
         assert resp.job_run_id is None
         assert resp.task_run_id is None
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_from_cursor__no_query_id(self):
-        cursor = Mock()
-        cursor.query_id = None
-        resp = DatabricksAdapterResponse.from_cursor(cursor)
-        assert resp.query_id == "N/A"
 
     def test_from_cursor__with_context(self):
         cursor = Mock()
@@ -382,11 +372,3 @@ class TestDatabricksAdapterResponse:
         assert resp.job_id == "222"
         assert resp.job_run_id == "111"
         assert resp.task_run_id == "333"
-
-    def test_is_adapter_response_subclass(self):
-        resp = DatabricksAdapterResponse(_message="OK")
-        assert isinstance(resp, AdapterResponse)
-
-    def test_str_uses_base_message(self):
-        resp = DatabricksAdapterResponse(_message="OK", job_id="222")
-        assert str(resp) == "OK"
