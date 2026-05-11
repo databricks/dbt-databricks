@@ -2,6 +2,7 @@ from typing import Optional
 
 from dbt.adapters.catalogs import CatalogIntegration, CatalogIntegrationConfig
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.databricks import constants, parse_model
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
@@ -14,8 +15,22 @@ class UnityCatalogIntegration(CatalogIntegration):
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
         if location_root := config.adapter_properties.get("location_root"):
+            if not str(location_root).strip():
+                raise DbtValidationError(
+                    f"Catalog '{config.name}' unity/databricks location_root cannot be blank"
+                )
             self.external_volume: Optional[str] = location_root
         self.file_format: Optional[str] = config.file_format
+        use_uniform = config.adapter_properties.get("use_uniform", False)
+        ff = (config.file_format or "").lower()
+        if use_uniform and ff != "delta":
+            raise DbtValidationError(
+                f"Catalog '{config.name}' unity/databricks use_uniform: true requires file_format: delta"
+            )
+        if not use_uniform and ff and ff != "parquet":
+            raise DbtValidationError(
+                f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) requires file_format: parquet"
+            )
 
     @property
     def location_root(self) -> Optional[str]:

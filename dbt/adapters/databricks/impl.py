@@ -43,9 +43,7 @@ from dbt.adapters.databricks.behaviors.columns import (
 from dbt.adapters.databricks.catalogs import (
     DatabricksCatalogRelation,
     HiveMetastoreCatalogIntegration,
-    HiveMetastoreDatabricksConfig,
     UnityCatalogIntegration,
-    UnityDatabricksConfig,
 )
 from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.connections import (
@@ -228,6 +226,7 @@ class DatabricksAdapter(SparkAdapter):
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+            Capability.CatalogsV2: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -235,9 +234,9 @@ class DatabricksAdapter(SparkAdapter):
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
-    CATALOG_V2_CONFIGS = {
-        "unity": UnityDatabricksConfig,
-        "hive_metastore": HiveMetastoreDatabricksConfig,
+    _V2_TO_V1_TYPE: ClassVar[dict[str, str]] = {
+        "unity": constants.UNITY_CATALOG_TYPE,
+        "hive_metastore": constants.HIVE_METASTORE_CATALOG_TYPE,
     }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
@@ -257,6 +256,9 @@ class DatabricksAdapter(SparkAdapter):
         GlobalState.set_use_managed_iceberg(
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
+
+    def _v2_to_v1_type(self, catalog_type: str) -> str:
+        return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:

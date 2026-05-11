@@ -2,9 +2,12 @@ from typing import Optional
 
 from dbt.adapters.catalogs import CatalogIntegration, CatalogIntegrationConfig
 from dbt.adapters.contracts.relation import RelationConfig
+from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.databricks import constants, parse_model
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+
+_VALID_HIVE_FILE_FORMATS = {"delta", "parquet", "hudi"}
 
 
 class HiveMetastoreCatalogIntegration(CatalogIntegration):
@@ -14,6 +17,11 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
         self.file_format: Optional[str] = config.file_format
+        if config.file_format and config.file_format.lower() not in _VALID_HIVE_FILE_FORMATS:
+            raise DbtValidationError(
+                f"Catalog '{config.name}' hive_metastore/databricks file_format "
+                f"must be one of {sorted(_VALID_HIVE_FILE_FORMATS)}, got '{config.file_format}'"
+            )
 
     @property
     def location_root(self) -> Optional[str]:
