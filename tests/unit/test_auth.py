@@ -324,6 +324,17 @@ class TestAuthDispatch:
                 dict(host=_HOST, token="mytoken", extra_param="value"),
                 id="sdk_params_forwarded_with_pat",
             ),
+            # ---- oauth_scopes forwarded as 'scopes' ----
+            pytest.param(
+                dict(auth_type="oauth", oauth_scopes=["all-apis"]),
+                dict(host=_HOST, auth_type="external-browser", client_id=CLIENT_ID, scopes=["all-apis"]),
+                id="oauth_scopes_external_browser",
+            ),
+            pytest.param(
+                dict(auth_type="oauth-m2m", client_id="my-sp", client_secret="dose_secret", oauth_scopes=["all-apis", "offline_access"]),
+                dict(host=_HOST, auth_type="oauth-m2m", client_id="my-sp", client_secret="dose_secret", scopes=["all-apis", "offline_access"]),
+                id="oauth_scopes_m2m",
+            ),
         ],
     )
     def test_config_kwargs(self, creds_kwargs, expected_kwargs):

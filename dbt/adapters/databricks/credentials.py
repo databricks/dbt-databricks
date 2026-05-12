@@ -20,9 +20,7 @@ DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
 EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
-REDIRECT_URL = "http://localhost:8020"
 CLIENT_ID = "dbt-databricks"
-SCOPES = ["all-apis", "offline_access"]
 MAX_NT_PASSWORD_SIZE = 1280
 
 # When using an Azure App Registration with the SPA platform, the refresh token will
@@ -70,7 +68,6 @@ class DatabricksCredentials(Credentials):
     databricks_sdk_parameters: Optional[dict[str, Any]] = None
 
     # ---- connection / dbt ----
-    oauth_redirect_url: Optional[str] = None
     oauth_scopes: Optional[list[str]] = None
     session_properties: Optional[dict[str, Any]] = None
     connection_parameters: Optional[dict[str, Any]] = None
@@ -229,6 +226,7 @@ class DatabricksCredentials(Credentials):
             "password": self.password,
             "profile": self.databricks_cli_profile,
             "config_file": self.config_file,
+            "scopes": self.oauth_scopes,
         }
         kwargs = {k: v for k, v in pairs.items() if v is not None}
 
