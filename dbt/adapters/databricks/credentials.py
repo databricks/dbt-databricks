@@ -368,9 +368,12 @@ class DatabricksCredentialManager:
     def _resolve_client_secret_heuristic(self) -> Config:
         """Try oauth-m2m and legacy-azure-client-secret in heuristic order.
 
-        Only reached for profiles that set client_secret without an explicit
-        auth_type and without dedicated azure_client_* fields — a legacy
-        configuration predating Databricks unified auth.
+        DEPRECATED. Only reached for profiles that set client_secret without an
+        explicit auth_type and without dedicated azure_client_* fields — a
+        legacy configuration predating Databricks unified auth.  Note that
+        extra fields (azure_tenant_id, oauth_scopes, etc.) are intentionally
+        not forwarded here to preserve identical legacy behaviour; set
+        auth_type explicitly to get the full field set forwarded.
         """
         creds = self.credentials
         client_id = creds.client_id or CLIENT_ID
@@ -427,7 +430,14 @@ class DatabricksCredentialManager:
         self._config: Optional[Config] = None
         creds = self.credentials
 
+        # Legacy heuristic: client_secret without auth_type predates Databricks unified auth.
+        # Deprecated — set auth_type explicitly (e.g. 'oauth-m2m' or 'azure-client-secret').
         if creds.client_secret and not creds.auth_type and not creds.azure_client_secret:
+            logger.warning(
+                "Implicit auth selection from 'client_secret' alone is deprecated. "
+                "Please set 'auth_type' explicitly (e.g. auth_type: oauth-m2m or "
+                "auth_type: azure-client-secret) to silence this warning."
+            )
             self._config = self._resolve_client_secret_heuristic()
         else:
             self._config = Config(**creds.to_sdk_config_kwargs())

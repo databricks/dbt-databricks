@@ -72,8 +72,8 @@ The method is selected automatically based on which fields are present in your p
 | Personal Access Token (PAT) | `token` |
 | Azure service principal | `azure_client_id` + `azure_client_secret` |
 | Any explicit SDK auth type | `auth_type` (see values below) |
-| OAuth user-to-machine (browser) | _(none of the above — opens browser)_ |
-| OAuth M2M / legacy Azure SP | `client_secret` (tries both automatically) |
+| OAuth user-to-machine (browser) | `client_id` only (no `client_secret`), or _(none of the above — opens browser)_ |
+| OAuth M2M / legacy Azure SP | `client_secret` without `auth_type` _(deprecated — set `auth_type` explicitly)_ |
 
 #### `auth_type` values
 
@@ -129,6 +129,13 @@ databricks_sdk_parameters:
 ```
 
 New auth methods added to the Databricks Python SDK are available automatically via `auth_type` + `databricks_sdk_parameters` without requiring an adapter update.
+
+> **Deprecated:** Omitting `auth_type` when using `client_secret` triggers a legacy heuristic that guesses between `oauth-m2m` and `azure-client-secret` based on the secret format. This produces a deprecation warning at runtime. Migrate by setting `auth_type` explicitly:
+> ```yaml
+> auth_type: oauth-m2m       # for Databricks OAuth M2M service principals
+> # or
+> auth_type: azure-client-secret  # for Azure AD service principals
+> ```
 
 ### Documentation
 
