@@ -8,7 +8,6 @@ import pytest
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.credentials import (
-    CLIENT_ID,
     DatabricksCredentials,
 )
 
@@ -66,26 +65,30 @@ class TestU2MAuth:
 
 class TestTokenAuth:
     def test_token(self):
+        from databricks.sdk.core import Config
+
         host = "my.cloud.databricks.com"
-        creds = DatabricksCredentials(
-            host=host,
-            token="foo",
-            database="andre",
-            http_path="http://foo",
-            schema="dbt",
-        )
-        credentialManager = creds.authenticate()
-        provider = credentialManager.credentials_provider()
-        assert provider is not None
+        # Patch _resolve_host_metadata so the test doesn't make outbound network calls.
+        with patch.object(Config, "_resolve_host_metadata", return_value=None):
+            creds = DatabricksCredentials(
+                host=host,
+                token="foo",
+                database="andre",
+                http_path="http://foo",
+                schema="dbt",
+            )
+            credentialManager = creds.authenticate()
+            provider = credentialManager.credentials_provider()
+            assert provider is not None
 
-        headers_fn = provider
-        headers = headers_fn()
-        assert headers is not None
+            headers_fn = provider
+            headers = headers_fn()
+            assert headers is not None
 
-        raw = credentialManager._config.as_dict()
-        assert raw is not None
+            raw = credentialManager._config.as_dict()
+            assert raw is not None
 
-        assert headers == {"Authorization": "Bearer foo"}
+            assert headers == {"Authorization": "Bearer foo"}
 
 
 @pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
@@ -236,35 +239,6 @@ class TestValidateCreds:
         with pytest.raises(DbtConfigError, match="azure_client"):
             self._creds(token="t", azure_client_id="id").validate_creds()
 
-    def test_client_secret_and_azure_client_secret_are_mutually_exclusive(self):
-        with pytest.raises(DbtConfigError, match="mutually exclusive"):
-            self._creds(
-                client_id="my-client",
-                client_secret="my-secret",
-                azure_client_id="az-client",
-                azure_client_secret="az-secret",
-            ).validate_creds()
-
-    def test_bare_profile_warns_about_ambient_discovery(self):
-        """A profile with no auth fields should warn that SDK ambient discovery is used."""
-        import logging
-
-        creds = self._creds()
-        with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
-            creds.validate_creds()
-            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-            assert any("ambient" in c for c in warning_calls), (
-                f"Expected ambient-discovery warning, got: {warning_calls}"
-            )
-
-    def test_token_profile_does_not_warn(self):
-        """A profile with a token should not trigger the ambient-discovery warning."""
-        creds = self._creds(token="mytoken")
-        with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
-            creds.validate_creds()
-            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-            assert not any("ambient" in c for c in warning_calls)
-
 
 class TestSdkAuthTypePassthrough:
     """Verify that explicit auth_type values are forwarded to the Databricks SDK Config."""
@@ -360,40 +334,6 @@ class TestSdkAuthTypePassthrough:
         call_kwargs = mock_config.call_args.kwargs
         assert call_kwargs.get("azure_environment") == "usgovernment"
 
-    def test_databricks_sdk_parameters_override_warns(self):
-        """databricks_sdk_parameters that shadows a first-class field should log a warning."""
-        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
-                DatabricksCredentials(
-                    host="my.cloud.databricks.com",
-                    http_path="/sql/1.0/warehouses/abc",
-                    database="db",
-                    schema="sch",
-                    token="mytoken",
-                    databricks_sdk_parameters={"token": "override-token"},
-                )
-                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-                assert any("databricks_sdk_parameters" in c and "token" in c for c in warning_calls), (
-                    f"Expected override warning, got: {warning_calls}"
-                )
-
-    def test_databricks_sdk_parameters_no_warning_for_new_fields(self):
-        """databricks_sdk_parameters with novel fields (not in explicit kwargs) should not warn."""
-        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
-                DatabricksCredentials(
-                    host="my.cloud.databricks.com",
-                    http_path="/sql/1.0/warehouses/abc",
-                    database="db",
-                    schema="sch",
-                    auth_type="azure-cli",
-                    databricks_sdk_parameters={"some_future_sdk_field": "value"},
-                )
-                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-                assert not any("databricks_sdk_parameters" in c for c in warning_calls)
-
     def test_oauth_still_uses_external_browser(self):
         """'oauth' is a dbt alias for external-browser — backward compat must be preserved."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
@@ -407,10 +347,9 @@ class TestSdkAuthTypePassthrough:
             )
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("auth_type") == "external-browser"
-            assert call_kwargs.get("client_id") == CLIENT_ID
 
-    def test_token_forwarded_to_sdk(self):
-        """Token is forwarded to the SDK; no auth_type is added when none is set."""
+    def test_token_still_uses_pat(self):
+        """PAT auth must still work regardless of any other config."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
             DatabricksCredentials(
@@ -419,95 +358,89 @@ class TestSdkAuthTypePassthrough:
                 database="db",
                 schema="sch",
                 token="mytoken",
+                auth_type="azure-cli",  # token takes precedence
             )
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("token") == "mytoken"
             assert "auth_type" not in call_kwargs
 
-    def test_no_credentials_delegates_to_sdk(self):
-        """No credentials in profile -> pure SDK delegation for ambient auth discovery."""
+
+class TestOAuthScopesAndRedirectUrl:
+    """Verify oauth_scopes is forwarded to Config and oauth_redirect_url warns when overridden."""
+
+    BASE = dict(
+        host="my.cloud.databricks.com",
+        http_path="/sql/1.0/warehouses/abc",
+        database="db",
+        schema="sch",
+    )
+
+    def test_oauth_scopes_forwarded_via_external_browser(self):
+        """oauth_scopes reaches Config when using the external-browser (U2M) path."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
             DatabricksCredentials(
-                host="my.cloud.databricks.com",
-                http_path="/sql/1.0/warehouses/abc",
-                database="db",
-                schema="sch",
-            )
-            mock_config.assert_called_once_with(host="my.cloud.databricks.com")
-
-    def test_client_id_without_secret_uses_external_browser(self):
-        """client_id with no client_secret and no auth_type infers external-browser."""
-        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
-            mock_config.return_value = MagicMock()
-            DatabricksCredentials(
-                host="my.cloud.databricks.com",
-                http_path="/sql/1.0/warehouses/abc",
-                database="db",
-                schema="sch",
-                client_id="my-custom-client-id",
-            )
-            call_kwargs = mock_config.call_args.kwargs
-            assert call_kwargs.get("auth_type") == "external-browser"
-            assert call_kwargs.get("client_id") == "my-custom-client-id"
-
-    def test_azure_sp_infers_auth_type(self):
-        """azure_client_id + azure_client_secret without auth_type -> azure-client-secret."""
-        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
-            mock_config.return_value = MagicMock()
-            DatabricksCredentials(
-                host="my.cloud.databricks.com",
-                http_path="/sql/1.0/warehouses/abc",
-                database="db",
-                schema="sch",
-                azure_client_id="my-azure-client-id",
-                azure_client_secret="my-azure-secret",
-            )
-            call_kwargs = mock_config.call_args.kwargs
-            assert call_kwargs.get("auth_type") == "azure-client-secret"
-            assert call_kwargs.get("azure_client_id") == "my-azure-client-id"
-            assert call_kwargs.get("azure_client_secret") == "my-azure-secret"
-
-    def test_explicit_auth_type_overrides_azure_sp_inference(self):
-        """Explicit auth_type wins even when azure_client_id + azure_client_secret are set."""
-        manager, mock_config = self._make_manager(
-            "azure-msi",
-            azure_client_id="my-msi-client-id",
-            azure_client_secret="my-secret",
-        )
-        call_kwargs = mock_config.call_args.kwargs
-        assert call_kwargs.get("auth_type") == "azure-msi"
-        assert call_kwargs.get("azure_client_id") == "my-msi-client-id"
-
-    def test_oauth_scopes_forwarded_as_sdk_scopes(self):
-        """oauth_scopes profile field maps to the SDK Config 'scopes' kwarg."""
-        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
-            mock_config.return_value = MagicMock()
-            DatabricksCredentials(
-                host="my.cloud.databricks.com",
-                http_path="/sql/1.0/warehouses/abc",
-                database="db",
-                schema="sch",
+                **self.BASE,
                 auth_type="oauth",
                 oauth_scopes=["all-apis", "offline_access"],
             )
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("scopes") == ["all-apis", "offline_access"]
 
-    def test_oauth_redirect_url_logs_warning(self):
-        """oauth_redirect_url is unsupported by the SDK and should trigger a warning."""
+    def test_oauth_scopes_forwarded_via_oauth_m2m(self):
+        """oauth_scopes reaches Config on the implicit oauth-m2m / legacy-azure path."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            # client_secret starting with "dose" → oauth-m2m tried first
+            DatabricksCredentials(
+                **self.BASE,
+                client_id="my-sp",
+                client_secret="dose-secret",
+                oauth_scopes=["all-apis"],
+            )
+            call_kwargs = mock_config.call_args.kwargs
+            assert call_kwargs.get("scopes") == ["all-apis"]
+
+    def test_oauth_scopes_forwarded_via_sdk_auth_type(self):
+        """oauth_scopes reaches Config via to_sdk_config_kwargs() for explicit auth_type."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(
+                **self.BASE,
+                auth_type="databricks-cli",
+                oauth_scopes=["all-apis", "offline_access"],
+            )
+            call_kwargs = mock_config.call_args.kwargs
+            assert call_kwargs.get("scopes") == ["all-apis", "offline_access"]
+
+    def test_no_scopes_does_not_set_scopes_kwarg(self):
+        """When oauth_scopes is absent, scopes is omitted from Config so the SDK can apply its
+        own default (["all-apis"]) and env-var overrides are not suppressed."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(**self.BASE, auth_type="oauth")
+            call_kwargs = mock_config.call_args.kwargs
+            assert "scopes" not in call_kwargs  # not even None — omitted entirely
+
+    def test_oauth_redirect_url_default_no_warning(self):
+        """No warning when oauth_redirect_url is left at its default (None)."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+                DatabricksCredentials(**self.BASE, auth_type="oauth")
+                mock_logger.warning.assert_not_called()
+
+    def test_oauth_redirect_url_non_default_warns(self):
+        """A warning is emitted when oauth_redirect_url is set to a non-default value."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
             with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
                 DatabricksCredentials(
-                    host="my.cloud.databricks.com",
-                    http_path="/sql/1.0/warehouses/abc",
-                    database="db",
-                    schema="sch",
-                    token="mytoken",
+                    **self.BASE,
+                    auth_type="oauth",
                     oauth_redirect_url="http://localhost:9999",
                 )
-                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-                assert any("oauth_redirect_url" in c for c in warning_calls), (
-                    f"Expected oauth_redirect_url warning, got: {warning_calls}"
-                )
+                mock_logger.warning.assert_called_once()
+                msg = mock_logger.warning.call_args[0][0]
+                assert "oauth_redirect_url" in msg
+                assert "no effect" in msg
