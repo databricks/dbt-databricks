@@ -58,3 +58,10 @@ altered_view_sql = """
 {{ config(materialized='view') }}
 select id from {{ ref('seed') }};
 """
+
+seed_with_extra_csv = """id,msg,extra
+1,hello,a
+2,goodbye,b
+2,yo,c
+3,anyway,d
+"""
