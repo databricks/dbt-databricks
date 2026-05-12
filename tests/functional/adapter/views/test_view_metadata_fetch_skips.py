@@ -2,33 +2,18 @@ import pytest
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.helpers import FAIL_IF_TAG_FETCH_CALLED_MACROS
-
-VIEW_WITHOUT_TAGS_SQL = """
-{{ config(materialized='view') }}
-
-select cast(1 as bigint) as id
-"""
-
-VIEW_WITH_TAGS_SQL = """
-{{ config(
-    materialized='view',
-    databricks_tags={'classification': 'internal'}
-) }}
-
-select cast(1 as bigint) as id
-"""
-
+from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
+from tests.functional.adapter.views.fixtures import view_with_tags_sql, view_without_tags_sql
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestViewMetadataFetchSkips:
     @pytest.fixture(scope="class")
     def models(self):
-        return {"view_metadata_fetch.sql": VIEW_WITHOUT_TAGS_SQL}
+        return {"view_metadata_fetch.sql": view_without_tags_sql}
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"fail_if_tag_fetch_called.sql": FAIL_IF_TAG_FETCH_CALLED_MACROS}
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -50,11 +35,11 @@ class TestViewMetadataFetchSkips:
 class TestViewMetadataFetchRequiresTags:
     @pytest.fixture(scope="class")
     def models(self):
-        return {"view_metadata_fetch.sql": VIEW_WITH_TAGS_SQL}
+        return {"view_metadata_fetch.sql": view_with_tags_sql}
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"fail_if_tag_fetch_called.sql": FAIL_IF_TAG_FETCH_CALLED_MACROS}
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):

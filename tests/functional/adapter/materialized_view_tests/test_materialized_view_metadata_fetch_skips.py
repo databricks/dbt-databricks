@@ -2,7 +2,7 @@ import pytest
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.helpers import FAIL_IF_TAG_FETCH_CALLED_MACROS
+from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -19,7 +19,7 @@ class TestMaterializedViewMetadataFetchSkips:
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"fail_if_tag_fetch_called.sql": FAIL_IF_TAG_FETCH_CALLED_MACROS}
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     def test_second_materialized_view_run_succeeds_without_tag_fetches(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
@@ -42,7 +42,7 @@ class TestMaterializedViewMetadataFetchRequiresTags:
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"fail_if_tag_fetch_called.sql": FAIL_IF_TAG_FETCH_CALLED_MACROS}
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     def test_second_materialized_view_run_fails_when_tag_fetch_is_required(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
