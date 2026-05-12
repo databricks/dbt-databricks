@@ -185,11 +185,30 @@ class DatabricksCredentials(Credentials):
         auth field: add the field to DatabricksCredentials above, then add
         one entry here.  databricks_sdk_parameters is merged last so users
         can override or supply anything not explicitly modelled.
+
+        Auth-type inference (applied when auth_type is not explicitly set):
+          - 'oauth' is a legacy dbt alias; translated to 'external-browser'.
+          - azure_client_id + azure_client_secret  -> 'azure-client-secret'
+          - client_id present, no client_secret    -> 'external-browser'
+        When auth_type resolves to 'external-browser' and no client_id is
+        provided, the dbt-databricks registered OAuth app id is used.
         """
+        # Resolve effective auth_type, translating the legacy dbt alias.
+        auth_type = self.auth_type
+        if auth_type == "oauth":
+            auth_type = "external-browser"
+
+        # Safety nets: infer auth_type from credential fields when not set.
+        if not auth_type:
+            if self.azure_client_id and self.azure_client_secret:
+                auth_type = "azure-client-secret"
+            elif self.client_id and not self.client_secret:
+                auth_type = "external-browser"
+
         pairs: dict[str, Any] = {
             "host": self.host,
             "token": self.token,
-            "auth_type": self.auth_type,
+            "auth_type": auth_type,
             "client_id": self.client_id,
             "client_secret": self.client_secret,
             "azure_client_id": self.azure_client_id,
@@ -209,6 +228,12 @@ class DatabricksCredentials(Credentials):
             "config_file": self.config_file,
         }
         kwargs = {k: v for k, v in pairs.items() if v is not None}
+
+        # Default to the dbt-databricks OAuth app when doing external-browser
+        # and the user hasn't provided their own client_id.
+        if auth_type == "external-browser" and "client_id" not in kwargs:
+            kwargs["client_id"] = CLIENT_ID
+
         kwargs.update(self.databricks_sdk_parameters or {})
         return kwargs
 
@@ -327,117 +352,84 @@ PySQLCredentialProvider = Callable[[], Callable[[], dict[str, str]]]
 class DatabricksCredentialManager:
     """Wraps DatabricksCredentials and resolves a databricks.sdk.core.Config.
 
-    Auth dispatch priority (first match wins — preserves backward compat):
-      1. token              -> PAT
-      2. azure_client_id + azure_client_secret -> Azure service principal
-      3. explicit auth_type (anything except the legacy 'oauth' alias)
-                            -> SDK unified auth via to_sdk_config_kwargs()
-      4. no client_secret   -> external-browser (U2M OAuth)
-      5. client_secret      -> try oauth-m2m / legacy-azure-client-secret
+    Dispatch (first match wins):
+      1. client_secret present with no explicit auth_type and no azure_client_secret
+         -> legacy heuristic (oauth-m2m vs legacy-azure-client-secret)
+      2. everything else -> Config(**credentials.to_sdk_config_kwargs())
+         to_sdk_config_kwargs() encodes all auth-type inference and the
+         'oauth' alias translation, so PAT (token), Azure SP, explicit
+         auth_type, env-var discovery, and future SDK methods all go
+         through this single path.
     """
 
     credentials: DatabricksCredentials
 
-    def authenticate_with_pat(self) -> Config:
-        return Config(
-            host=self.credentials.host,
-            token=self.credentials.token,
-        )
+    def _resolve_client_secret_heuristic(self) -> Config:
+        """Try oauth-m2m and legacy-azure-client-secret in heuristic order.
 
-    def authenticate_with_oauth_m2m(self) -> Config:
-        return Config(
-            host=self.credentials.host,
-            client_id=self.credentials.client_id or CLIENT_ID,
-            client_secret=self.credentials.client_secret,
-            auth_type="oauth-m2m",
-        )
-
-    def authenticate_with_external_browser(self) -> Config:
-        return Config(
-            host=self.credentials.host,
-            client_id=self.credentials.client_id or CLIENT_ID,
-            client_secret=self.credentials.client_secret,
-            auth_type="external-browser",
-        )
-
-    def authenticate_with_azure_client_secret(self) -> Config:
-        return Config(
-            host=self.credentials.host,
-            azure_client_id=self.credentials.azure_client_id,
-            azure_client_secret=self.credentials.azure_client_secret,
-            auth_type="azure-client-secret",
-        )
-
-    def legacy_authenticate_with_azure_client_secret(self) -> Config:
-        return Config(
-            host=self.credentials.host,
-            azure_client_id=self.credentials.client_id,
-            azure_client_secret=self.credentials.client_secret,
-            auth_type="azure-client-secret",
-        )
-
-    def authenticate_with_sdk_auth_type(self) -> Config:
-        """Delegate entirely to the Databricks SDK using all credential fields.
-
-        Supports any auth_type the SDK recognises (e.g. azure-cli, azure-msi,
-        databricks-cli, google-credentials, metadata-service, …).  New SDK auth
-        methods become available automatically once the corresponding profile
-        fields are added to DatabricksCredentials.to_sdk_config_kwargs().
+        Only reached for profiles that set client_secret without an explicit
+        auth_type and without dedicated azure_client_* fields — a legacy
+        configuration predating Databricks unified auth.
         """
-        return Config(**self.credentials.to_sdk_config_kwargs())
+        creds = self.credentials
+        client_id = creds.client_id or CLIENT_ID
+
+        def _oauth_m2m() -> Config:
+            return Config(
+                host=creds.host,
+                client_id=client_id,
+                client_secret=creds.client_secret,
+                auth_type="oauth-m2m",
+            )
+
+        def _legacy_azure() -> Config:
+            return Config(
+                host=creds.host,
+                azure_client_id=client_id,
+                azure_client_secret=creds.client_secret,
+                auth_type="azure-client-secret",
+            )
+
+        # Secrets starting with "dose" are Databricks OAuth secrets.
+        if creds.client_secret.startswith("dose"):
+            auth_sequence = [("oauth-m2m", _oauth_m2m), ("legacy-azure-client-secret", _legacy_azure)]
+        else:
+            auth_sequence = [("legacy-azure-client-secret", _legacy_azure), ("oauth-m2m", _oauth_m2m)]
+
+        exceptions = []
+        for i, (name, fn) in enumerate(auth_sequence):
+            try:
+                config = fn()
+                if name == "legacy-azure-client-secret":
+                    logger.warning(
+                        "You are using Azure Service Principal, "
+                        "please use 'azure_client_id' and 'azure_client_secret' instead."
+                    )
+                return config
+            except Exception as e:
+                exceptions.append((name, e))
+                next_name = auth_sequence[i + 1][0] if i + 1 < len(auth_sequence) else None
+                if next_name:
+                    logger.warning(
+                        f"Failed to authenticate with {name}, "
+                        f"trying {next_name} next. Error: {e}"
+                    )
+                else:
+                    logger.error(
+                        f"Failed to authenticate with {name}. "
+                        f"No more authentication methods to try. Error: {e}"
+                    )
+                    raise Exception(f"All authentication methods failed. Details: {exceptions}")
+        raise RuntimeError("unreachable")
 
     def __post_init__(self) -> None:
-        if not hasattr(self, "_config"):
-            self._config: Optional[Config] = None
-        if self._config is not None:
-            return
-
+        self._config: Optional[Config] = None
         creds = self.credentials
-        if creds.token:
-            self._config = self.authenticate_with_pat()
-        elif creds.azure_client_id and creds.azure_client_secret:
-            self._config = self.authenticate_with_azure_client_secret()
-        elif creds.auth_type and creds.auth_type not in ("oauth",):
-            self._config = self.authenticate_with_sdk_auth_type()
-        elif not creds.client_secret:
-            self._config = self.authenticate_with_external_browser()
+
+        if creds.client_secret and not creds.auth_type and not creds.azure_client_secret:
+            self._config = self._resolve_client_secret_heuristic()
         else:
-            auth_methods = {
-                "oauth-m2m": self.authenticate_with_oauth_m2m,
-                "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
-            }
-
-            # If the secret starts with dose, high chance is it is a databricks secret
-            if creds.client_secret.startswith("dose"):  # type: ignore[union-attr]
-                auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
-            else:
-                auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
-
-            exceptions = []
-            for i, auth_type in enumerate(auth_sequence):
-                try:
-                    # The Config constructor will implicitly init auth and throw if failed
-                    self._config = auth_methods[auth_type]()
-                    if auth_type == "legacy-azure-client-secret":
-                        logger.warning(
-                            "You are using Azure Service Principal, "
-                            "please use 'azure_client_id' and 'azure_client_secret' instead."
-                        )
-                    break  # Exit loop if authentication is successful
-                except Exception as e:
-                    exceptions.append((auth_type, e))
-                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
-                    if next_auth_type:
-                        logger.warning(
-                            f"Failed to authenticate with {auth_type}, "
-                            f"trying {next_auth_type} next. Error: {e}"
-                        )
-                    else:
-                        logger.error(
-                            f"Failed to authenticate with {auth_type}. "
-                            f"No more authentication methods to try. Error: {e}"
-                        )
-                        raise Exception(f"All authentication methods failed. Details: {exceptions}")
+            self._config = Config(**creds.to_sdk_config_kwargs())
 
     @property
     def api_client(self) -> WorkspaceClient:

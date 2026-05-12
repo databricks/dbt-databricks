@@ -8,6 +8,7 @@ import pytest
 from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.credentials import (
+    CLIENT_ID,
     DatabricksCredentials,
 )
 
@@ -343,9 +344,10 @@ class TestSdkAuthTypePassthrough:
             )
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("auth_type") == "external-browser"
+            assert call_kwargs.get("client_id") == CLIENT_ID
 
-    def test_token_still_uses_pat(self):
-        """PAT auth must still work regardless of any other config."""
+    def test_token_forwarded_to_sdk(self):
+        """Token is forwarded to the SDK; no auth_type is added when none is set."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             mock_config.return_value = MagicMock()
             DatabricksCredentials(
@@ -354,8 +356,62 @@ class TestSdkAuthTypePassthrough:
                 database="db",
                 schema="sch",
                 token="mytoken",
-                auth_type="azure-cli",  # token takes precedence
             )
             call_kwargs = mock_config.call_args.kwargs
             assert call_kwargs.get("token") == "mytoken"
             assert "auth_type" not in call_kwargs
+
+    def test_no_credentials_delegates_to_sdk(self):
+        """No credentials in profile -> pure SDK delegation for ambient auth discovery."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(
+                host="my.cloud.databricks.com",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
+            )
+            mock_config.assert_called_once_with(host="my.cloud.databricks.com")
+
+    def test_client_id_without_secret_uses_external_browser(self):
+        """client_id with no client_secret and no auth_type infers external-browser."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(
+                host="my.cloud.databricks.com",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
+                client_id="my-custom-client-id",
+            )
+            call_kwargs = mock_config.call_args.kwargs
+            assert call_kwargs.get("auth_type") == "external-browser"
+            assert call_kwargs.get("client_id") == "my-custom-client-id"
+
+    def test_azure_sp_infers_auth_type(self):
+        """azure_client_id + azure_client_secret without auth_type -> azure-client-secret."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(
+                host="my.cloud.databricks.com",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
+                azure_client_id="my-azure-client-id",
+                azure_client_secret="my-azure-secret",
+            )
+            call_kwargs = mock_config.call_args.kwargs
+            assert call_kwargs.get("auth_type") == "azure-client-secret"
+            assert call_kwargs.get("azure_client_id") == "my-azure-client-id"
+            assert call_kwargs.get("azure_client_secret") == "my-azure-secret"
+
+    def test_explicit_auth_type_overrides_azure_sp_inference(self):
+        """Explicit auth_type wins even when azure_client_id + azure_client_secret are set."""
+        manager, mock_config = self._make_manager(
+            "azure-msi",
+            azure_client_id="my-msi-client-id",
+            azure_client_secret="my-secret",
+        )
+        call_kwargs = mock_config.call_args.kwargs
+        assert call_kwargs.get("auth_type") == "azure-msi"
+        assert call_kwargs.get("azure_client_id") == "my-msi-client-id"
