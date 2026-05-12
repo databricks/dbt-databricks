@@ -23,6 +23,7 @@ from dbt.adapters.databricks.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     DatabricksRelationInfo,
     IncrementalTableAPI,
+    MaterializedViewAPI,
     ViewAPI,
     get_identifier_list_string,
 )
@@ -36,6 +37,7 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsProcessor,
 )
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
@@ -1353,6 +1355,15 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
+    def _create_mv_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_mv_model",
+            type=DatabricksRelationType.MaterializedView,
+        )
+
+    @staticmethod
     def _create_incremental_config(
         tags: dict[str, str] | None = None,
         column_tags: dict[str, dict[str, str]] | None = None,
@@ -1367,6 +1378,10 @@ class TestDescribeRelationMetadataFetchPlanning:
     @staticmethod
     def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
         return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
+        return MaterializedViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
 
     @staticmethod
     def _called_macro_names(adapter: Mock) -> list[str]:
@@ -1503,6 +1518,31 @@ class TestDescribeRelationMetadataFetchPlanning:
         relation_config = self._create_view_config(tags={"classification": "internal"})
 
         results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
+
+    def test_mv_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config()
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_mv_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config(tags={"classification": "internal"})
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
         assert results["information_schema.tags"] == "fetch_tags_result"
         called_macro_names = self._called_macro_names(adapter)

@@ -5,6 +5,7 @@ from dbt.tests import util
 from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
 from tests.functional.adapter.views.fixtures import view_with_tags_sql, view_without_tags_sql
 
+
 @pytest.mark.skip_profile("databricks_cluster")
 class TestViewMetadataFetchSkips:
     @pytest.fixture(scope="class")
