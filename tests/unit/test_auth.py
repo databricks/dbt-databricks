@@ -220,24 +220,109 @@ class TestAuthDispatch:
                 dict(host=_HOST, auth_type="azure-client-secret", azure_client_id="my-sp", azure_client_secret="azure_secret"),
                 id="legacy_heuristic_nondose_prefix",
             ),
-            # ---- OAuth external-browser — Config kwargs change in the refactor ----
-            # Legacy: no-client-secret path always calls authenticate_with_external_browser
-            # which passes client_secret="" explicitly and ignores auth_type in dispatch.
+            # ---- OAuth external-browser — updated: empty client_secret no longer leaked ----
+            # Legacy produced: {host, auth_type="external-browser", client_id=CLIENT_ID, client_secret=""}
             pytest.param(
                 dict(auth_type="oauth"),
-                dict(host=_HOST, auth_type="external-browser", client_id=CLIENT_ID, client_secret=""),
+                dict(host=_HOST, auth_type="external-browser", client_id=CLIENT_ID),
                 id="oauth_alias",
             ),
             pytest.param(
                 dict(auth_type="oauth", client_id="my-app"),
-                dict(host=_HOST, auth_type="external-browser", client_id="my-app", client_secret=""),
+                dict(host=_HOST, auth_type="external-browser", client_id="my-app"),
                 id="oauth_alias_with_custom_client_id",
             ),
-            # Legacy: no credentials → same external-browser fallback with empty client_secret.
+            # Legacy passed client_secret="" explicitly; refactor preserves external-browser
+            # fallback but no longer leaks the empty string into Config.
             pytest.param(
                 dict(),
-                dict(host=_HOST, auth_type="external-browser", client_id=CLIENT_ID, client_secret=""),
+                dict(host=_HOST, auth_type="external-browser", client_id=CLIENT_ID),
                 id="no_credentials",
+            ),
+            # ---- New behaviors: client_id alone infers external-browser ----
+            pytest.param(
+                dict(client_id="my-app"),
+                dict(host=_HOST, auth_type="external-browser", client_id="my-app"),
+                id="client_id_only_infers_external_browser",
+            ),
+            # ---- New behaviors: explicit SDK auth_type passthrough ----
+            # Legacy ignored auth_type in dispatch and fell through to external-browser.
+            pytest.param(
+                dict(auth_type="azure-cli"),
+                dict(host=_HOST, auth_type="azure-cli"),
+                id="azure_cli",
+            ),
+            pytest.param(
+                dict(auth_type="azure-msi"),
+                dict(host=_HOST, auth_type="azure-msi"),
+                id="azure_msi",
+            ),
+            pytest.param(
+                dict(auth_type="azure-msi", azure_client_id="my-msi-id"),
+                dict(host=_HOST, auth_type="azure-msi", azure_client_id="my-msi-id"),
+                id="azure_msi_user_assigned_identity",
+            ),
+            pytest.param(
+                dict(auth_type="azure-msi", azure_tenant_id="my-tenant"),
+                dict(host=_HOST, auth_type="azure-msi", azure_tenant_id="my-tenant"),
+                id="azure_msi_with_tenant",
+            ),
+            pytest.param(
+                dict(auth_type="databricks-cli"),
+                dict(host=_HOST, auth_type="databricks-cli"),
+                id="databricks_cli",
+            ),
+            pytest.param(
+                dict(auth_type="databricks-cli", databricks_cli_profile="prod"),
+                dict(host=_HOST, auth_type="databricks-cli", profile="prod"),
+                id="databricks_cli_with_profile",
+            ),
+            pytest.param(
+                dict(auth_type="google-credentials", google_service_account="sa@project.iam.gserviceaccount.com"),
+                dict(host=_HOST, auth_type="google-credentials", google_service_account="sa@project.iam.gserviceaccount.com"),
+                id="google_credentials",
+            ),
+            pytest.param(
+                dict(auth_type="metadata-service"),
+                dict(host=_HOST, auth_type="metadata-service"),
+                id="metadata_service",
+            ),
+            # ---- New behaviors: fields forwarded that legacy dropped ----
+            # explicit auth_type="oauth-m2m" now bypasses heuristic (legacy: non-dose heuristic
+            # would have chosen legacy-azure-client-secret for "my-secret")
+            pytest.param(
+                dict(auth_type="oauth-m2m", client_id="my-sp", client_secret="my-secret"),
+                dict(host=_HOST, auth_type="oauth-m2m", client_id="my-sp", client_secret="my-secret"),
+                id="explicit_oauth_m2m_bypasses_heuristic",
+            ),
+            # legacy: auth_type dropped when token present → {host, token}
+            pytest.param(
+                dict(token="mytoken", auth_type="azure-cli"),
+                dict(host=_HOST, token="mytoken", auth_type="azure-cli"),
+                id="token_and_auth_type_both_forwarded",
+            ),
+            # legacy: azure_client_id+secret → azure-client-secret regardless of auth_type
+            pytest.param(
+                dict(auth_type="azure-msi", azure_client_id="my-msi-id", azure_client_secret="my-secret"),
+                dict(host=_HOST, auth_type="azure-msi", azure_client_id="my-msi-id", azure_client_secret="my-secret"),
+                id="explicit_auth_type_overrides_azure_sp_inference",
+            ),
+            # legacy: azure_tenant_id not forwarded in Azure SP path
+            pytest.param(
+                dict(azure_client_id="az-id", azure_client_secret="az-secret", azure_tenant_id="my-tenant"),
+                dict(host=_HOST, auth_type="azure-client-secret", azure_client_id="az-id", azure_client_secret="az-secret", azure_tenant_id="my-tenant"),
+                id="azure_sp_with_tenant",
+            ),
+            # legacy: databricks_sdk_parameters ignored
+            pytest.param(
+                dict(auth_type="azure-cli", databricks_sdk_parameters={"azure_environment": "usgovernment"}),
+                dict(host=_HOST, auth_type="azure-cli", azure_environment="usgovernment"),
+                id="sdk_params_merged",
+            ),
+            pytest.param(
+                dict(token="mytoken", databricks_sdk_parameters={"extra_param": "value"}),
+                dict(host=_HOST, token="mytoken", extra_param="value"),
+                id="sdk_params_forwarded_with_pat",
             ),
         ],
     )
@@ -292,3 +377,20 @@ class TestValidateCreds:
     def test_azure_credentials_must_be_paired(self):
         with pytest.raises(DbtConfigError, match="azure_client"):
             self._creds(token="t", azure_client_id="id").validate_creds()
+
+    # ---- New behaviors: any SDK auth_type now accepted without a token ----
+
+    def test_azure_cli_auth_type_valid(self):
+        self._creds(auth_type="azure-cli").validate_creds()
+
+    def test_azure_msi_auth_type_valid(self):
+        self._creds(auth_type="azure-msi").validate_creds()
+
+    def test_databricks_cli_auth_type_valid(self):
+        self._creds(auth_type="databricks-cli").validate_creds()
+
+    def test_google_credentials_auth_type_valid(self):
+        self._creds(auth_type="google-credentials").validate_creds()
+
+    def test_metadata_service_auth_type_valid(self):
+        self._creds(auth_type="metadata-service").validate_creds()
