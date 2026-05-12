@@ -236,6 +236,35 @@ class TestValidateCreds:
         with pytest.raises(DbtConfigError, match="azure_client"):
             self._creds(token="t", azure_client_id="id").validate_creds()
 
+    def test_client_secret_and_azure_client_secret_are_mutually_exclusive(self):
+        with pytest.raises(DbtConfigError, match="mutually exclusive"):
+            self._creds(
+                client_id="my-client",
+                client_secret="my-secret",
+                azure_client_id="az-client",
+                azure_client_secret="az-secret",
+            ).validate_creds()
+
+    def test_bare_profile_warns_about_ambient_discovery(self):
+        """A profile with no auth fields should warn that SDK ambient discovery is used."""
+        import logging
+
+        creds = self._creds()
+        with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+            creds.validate_creds()
+            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("ambient" in c for c in warning_calls), (
+                f"Expected ambient-discovery warning, got: {warning_calls}"
+            )
+
+    def test_token_profile_does_not_warn(self):
+        """A profile with a token should not trigger the ambient-discovery warning."""
+        creds = self._creds(token="mytoken")
+        with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+            creds.validate_creds()
+            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert not any("ambient" in c for c in warning_calls)
+
 
 class TestSdkAuthTypePassthrough:
     """Verify that explicit auth_type values are forwarded to the Databricks SDK Config."""
@@ -331,6 +360,40 @@ class TestSdkAuthTypePassthrough:
         call_kwargs = mock_config.call_args.kwargs
         assert call_kwargs.get("azure_environment") == "usgovernment"
 
+    def test_databricks_sdk_parameters_override_warns(self):
+        """databricks_sdk_parameters that shadows a first-class field should log a warning."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+                DatabricksCredentials(
+                    host="my.cloud.databricks.com",
+                    http_path="/sql/1.0/warehouses/abc",
+                    database="db",
+                    schema="sch",
+                    token="mytoken",
+                    databricks_sdk_parameters={"token": "override-token"},
+                )
+                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+                assert any("databricks_sdk_parameters" in c and "token" in c for c in warning_calls), (
+                    f"Expected override warning, got: {warning_calls}"
+                )
+
+    def test_databricks_sdk_parameters_no_warning_for_new_fields(self):
+        """databricks_sdk_parameters with novel fields (not in explicit kwargs) should not warn."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+                DatabricksCredentials(
+                    host="my.cloud.databricks.com",
+                    http_path="/sql/1.0/warehouses/abc",
+                    database="db",
+                    schema="sch",
+                    auth_type="azure-cli",
+                    databricks_sdk_parameters={"some_future_sdk_field": "value"},
+                )
+                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+                assert not any("databricks_sdk_parameters" in c for c in warning_calls)
+
     def test_oauth_still_uses_external_browser(self):
         """'oauth' is a dbt alias for external-browser — backward compat must be preserved."""
         with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
@@ -415,3 +478,36 @@ class TestSdkAuthTypePassthrough:
         call_kwargs = mock_config.call_args.kwargs
         assert call_kwargs.get("auth_type") == "azure-msi"
         assert call_kwargs.get("azure_client_id") == "my-msi-client-id"
+
+    def test_oauth_scopes_forwarded_as_sdk_scopes(self):
+        """oauth_scopes profile field maps to the SDK Config 'scopes' kwarg."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            DatabricksCredentials(
+                host="my.cloud.databricks.com",
+                http_path="/sql/1.0/warehouses/abc",
+                database="db",
+                schema="sch",
+                auth_type="oauth",
+                oauth_scopes=["all-apis", "offline_access"],
+            )
+            call_kwargs = mock_config.call_args.kwargs
+            assert call_kwargs.get("scopes") == ["all-apis", "offline_access"]
+
+    def test_oauth_redirect_url_logs_warning(self):
+        """oauth_redirect_url is unsupported by the SDK and should trigger a warning."""
+        with patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.return_value = MagicMock()
+            with patch("dbt.adapters.databricks.credentials.logger") as mock_logger:
+                DatabricksCredentials(
+                    host="my.cloud.databricks.com",
+                    http_path="/sql/1.0/warehouses/abc",
+                    database="db",
+                    schema="sch",
+                    token="mytoken",
+                    oauth_redirect_url="http://localhost:9999",
+                )
+                warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+                assert any("oauth_redirect_url" in c for c in warning_calls), (
+                    f"Expected oauth_redirect_url warning, got: {warning_calls}"
+                )

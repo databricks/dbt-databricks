@@ -178,6 +178,29 @@ class DatabricksCredentials(Credentials):
                 "must be both present or both absent"
             )
 
+        if self.client_secret and self.azure_client_secret:
+            raise DbtConfigError(
+                "The configs 'client_secret' and 'azure_client_secret' are mutually exclusive. "
+                "Use 'client_id'/'client_secret' for OAuth M2M, or "
+                "'azure_client_id'/'azure_client_secret' for Azure service principal."
+            )
+
+        _explicit_auth_fields = [
+            self.token,
+            self.client_id,
+            self.client_secret,
+            self.azure_client_id,
+            self.auth_type,
+            self.username,
+        ]
+        if not any(_explicit_auth_fields):
+            logger.warning(
+                "No explicit Databricks credentials found in profile. "
+                "Delegating authentication to the Databricks SDK ambient credential chain "
+                "(environment variables, ~/.databrickscfg, instance metadata, etc.). "
+                "Set 'token', 'auth_type', or another credential field to suppress this warning."
+            )
+
     def to_sdk_config_kwargs(self) -> dict[str, Any]:
         """Return kwargs suitable for passing to databricks.sdk.core.Config.
 
@@ -205,6 +228,12 @@ class DatabricksCredentials(Credentials):
             elif self.client_id and not self.client_secret:
                 auth_type = "external-browser"
 
+        if self.oauth_redirect_url:
+            logger.warning(
+                "The 'oauth_redirect_url' profile field is not supported by the Databricks SDK "
+                "and will be ignored. Remove it from your profile to suppress this warning."
+            )
+
         pairs: dict[str, Any] = {
             "host": self.host,
             "token": self.token,
@@ -226,6 +255,8 @@ class DatabricksCredentials(Credentials):
             "password": self.password,
             "profile": self.databricks_cli_profile,
             "config_file": self.config_file,
+            # oauth_scopes maps to the SDK's 'scopes' field.
+            "scopes": self.oauth_scopes,
         }
         kwargs = {k: v for k, v in pairs.items() if v is not None}
 
@@ -234,7 +265,15 @@ class DatabricksCredentials(Credentials):
         if auth_type == "external-browser" and "client_id" not in kwargs:
             kwargs["client_id"] = CLIENT_ID
 
-        kwargs.update(self.databricks_sdk_parameters or {})
+        extra = self.databricks_sdk_parameters or {}
+        overridden = set(extra.keys()) & set(kwargs.keys())
+        if overridden:
+            logger.warning(
+                f"'databricks_sdk_parameters' overrides the following explicitly-set profile "
+                f"fields: {sorted(overridden)}. Remove them from 'databricks_sdk_parameters' "
+                f"and set them as top-level profile fields instead to avoid confusion."
+            )
+        kwargs.update(extra)
         return kwargs
 
     @classmethod
