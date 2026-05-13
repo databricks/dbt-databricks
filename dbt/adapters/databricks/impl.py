@@ -431,8 +431,12 @@ class DatabricksAdapter(SparkAdapter):
         """Fetch the JSON metadata for a relation using DESCRIBE TABLE EXTENDED AS JSON."""
         kwargs = {"relation": relation}
         describe_results = self.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
-        json_metadata = json.loads(describe_results.rows[0].get("json_metadata"))
-        return json_metadata
+        try:
+            return json.loads(describe_results.rows[0].get("json_metadata"))
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse json metadata from describe table extended as json"
+            ) from e
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})

@@ -11,7 +11,12 @@ from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.clients.agate_helper import merge_tables
 from dbt_common.events.event_manager_client import add_callback_to_manager
-from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
+from dbt_common.exceptions import (
+    DbtConfigError,
+    DbtDatabaseError,
+    DbtRuntimeError,
+    DbtValidationError,
+)
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
@@ -1309,6 +1314,65 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             mock_get_columns.assert_called_with(
                 adapter, unity_relation, "get_columns_comments_as_json"
             )
+
+
+class TestFetchJsonMetadata(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+
+    def _macro_result(self, json_metadata):
+        """Build a minimal execute_macro return value with one row carrying json_metadata."""
+        row = Mock()
+        row.get = Mock(return_value=json_metadata)
+        result = Mock()
+        result.rows = [row]
+        return result
+
+    def test_valid_json_metadata_parsed(self, adapter, relation):
+        """Happy path: well-formed json_metadata is returned as a dict."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result('{"a": 1}')):
+            assert adapter.fetch_json_metadata(relation) == {"a": 1}
+
+    def test_malformed_json_wrapped(self, adapter, relation):
+        """A malformed JSON string triggers json.JSONDecodeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result("not-json")):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_none_json_metadata_wrapped(self, adapter, relation):
+        """A missing json_metadata column (None) triggers TypeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result(None)):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_empty_rows_wrapped(self, adapter, relation):
+        """No rows from execute_macro triggers IndexError, wrapped by the adapter."""
+        empty_result = Mock()
+        empty_result.rows = []
+        with patch.object(adapter, "execute_macro", return_value=empty_result):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
 
 
 class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
