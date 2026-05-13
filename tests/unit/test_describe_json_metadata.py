@@ -334,6 +334,14 @@ class TestParsePrimaryKeyConstraints:
         assert result.rows[0]["constraint_name"] == "pk1"
         assert result.rows[0]["column_name"] == "cliënt_id"
 
+    def test_unexpected_exception_wrapped(self):
+        """A non-string constraint triggers an inner AttributeError that the wrapper converts."""
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Failed to parse primary key constraints from describe table extended as json",
+        ):
+            DatabricksDescribeJsonMetadata.parse_primary_key_constraints({"table_constraints": 123})
+
 
 class TestParseForeignKeyConstraints:
     def test_single_column_foreign_key(self):
@@ -673,6 +681,14 @@ class TestParseForeignKeyConstraints:
         with pytest.raises(DbtRuntimeError, match="3-part"):
             DatabricksDescribeJsonMetadata.parse_foreign_key_constraints(json_metadata)
 
+    def test_unexpected_exception_wrapped(self):
+        """A non-string constraints triggers an inner AttributeError that the wrapper converts."""
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Failed to parse foreign key constraints from describe table extended as json",
+        ):
+            DatabricksDescribeJsonMetadata.parse_foreign_key_constraints({"table_constraints": 123})
+
 
 class TestParseNonNullConstraints:
     def test_mixed_nullable(self):
@@ -719,6 +735,16 @@ class TestParseNonNullConstraints:
         """Test parsing of non-null constraints when there is no 'columns' key in the input."""
         result = DatabricksDescribeJsonMetadata.parse_non_null_constraints({})
         assert len(result.rows) == 0
+
+    def test_unexpected_exception_wrapped(self):
+        """A column entry missing 'name' triggers an inner KeyError that the wrapper converts."""
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Failed to parse non-null constraints from describe table extended as json",
+        ):
+            DatabricksDescribeJsonMetadata.parse_non_null_constraints(
+                {"columns": [{"nullable": False}]}
+            )
 
 
 class TestParseColumnMasks:
@@ -846,6 +872,16 @@ class TestParseColumnMasks:
         assert result.rows[0][2] is None
         assert result.rows[0]["using_columns"] is None
 
+    def test_unexpected_exception_wrapped(self):
+        """A mask missing 'function_name' triggers an inner KeyError that the wrapper converts."""
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Failed to parse column masks from describe table extended as json",
+        ):
+            DatabricksDescribeJsonMetadata.parse_column_masks(
+                {"column_masks": [{"column_name": "x"}]}
+            )
+
 
 class TestParseRowFilter:
     def test_row_filter_with_single_target_column(self):
@@ -879,6 +915,21 @@ class TestParseRowFilter:
     def test_no_row_filter_field(self):
         result = DatabricksDescribeJsonMetadata.parse_row_filter(PLAIN_TABLE_JSON)
         assert len(result.rows) == 0
+
+    def test_unexpected_exception_wrapped(self):
+        """A missing 'function_name' triggers an inner KeyError that the wrapper converts."""
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Failed to parse row filter from describe table extended as json",
+        ):
+            DatabricksDescribeJsonMetadata.parse_row_filter(
+                {
+                    "catalog_name": "c",
+                    "schema_name": "s",
+                    "table_name": "t",
+                    "row_filter": {"column_names": ["x"]},
+                }
+            )
 
 
 class TestParseViewDescription:

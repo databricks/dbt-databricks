@@ -1328,6 +1328,18 @@ class DatabricksDescribeJsonMetadata:
     @classmethod
     def parse_column_masks(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of column masks (info_schema format)."""
+        try:
+            return cls._parse_column_masks(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse column masks from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_column_masks(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of column masks (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Table as AgateTable
         from agate import Text as AgateText
@@ -1349,6 +1361,18 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
+        try:
+            return cls._parse_foreign_key_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse foreign key constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Table as AgateTable
@@ -1425,6 +1449,18 @@ class DatabricksDescribeJsonMetadata:
     @classmethod
     def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
+        try:
+            return cls._parse_non_null_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse non-null constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Table as AgateTable
         from agate import Text as AgateText
@@ -1440,6 +1476,18 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
+        try:
+            return cls._parse_primary_key_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse primary key constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Table as AgateTable
@@ -1470,6 +1518,18 @@ class DatabricksDescribeJsonMetadata:
     @classmethod
     def parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
         """Parse json metadata into an agate Row for the view description (info_schema format)."""
+        try:
+            return cls._parse_view_description(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse view description from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
+        """Parse json metadata into an agate Row for the view description (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Row as AgateRow
 
@@ -1481,6 +1541,18 @@ class DatabricksDescribeJsonMetadata:
 
     @classmethod
     def parse_row_filter(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of row filter (info_schema format)."""
+        try:
+            return cls._parse_row_filter(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse row filter from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_row_filter(cls, json_metadata: dict[str, Any]) -> "Table":
         """Parse json metadata into an agate Table of row filter (info_schema format)."""
         # Lazy load to improve startup time
         from agate import Table as AgateTable
