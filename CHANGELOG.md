@@ -14,6 +14,7 @@
 ### Under the Hood
 
 - **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+- Skip `information_schema.tags` and `information_schema.column_tags` metadata fetches when table tags and column tags are not configured on a model. ([#1387](https://github.com/databricks/dbt-databricks/pull/1387))
 
 ## dbt-databricks 1.11.8 (TBD)
 
