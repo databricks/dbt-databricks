@@ -154,14 +154,13 @@ USE_CONCURRENT_MICROBATCH = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
-USE_DESCRIBE_AS_JSON = BehaviorFlag(
-    name="use_describe_as_json",
+USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA = BehaviorFlag(
+    name="use_describe_as_json_for_relation_metadata",
     default=False,
     description=(
         "Use DESCRIBE TABLE EXTENDED AS JSON when supported to fetch "
-        "relation metadata such as constraints, column masks, row filters, "
-        "and view definition. When disabled, falls back to "
-        "information_schema queries and dedicated SHOW/DESCRIBE macros."
+        "relation metadata like constraints, column masks, row filters, "
+        "view definition, etc. When disabled, falls back to information_schema queries."
     ),
 )  # type: ignore[typeddict-item]
 
@@ -275,7 +274,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
             USE_MANAGED_ICEBERG,
             USE_CONCURRENT_MICROBATCH,
-            USE_DESCRIBE_AS_JSON,
+            USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA,
         ]
 
     def supports(self, capability: Capability) -> bool:
@@ -424,7 +423,7 @@ class DatabricksAdapter(SparkAdapter):
             not relation.is_hive_metastore()
             and not relation.is_foreign_table
             and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
-            and bool(self.behavior.use_describe_as_json.no_warn)
+            and bool(self.behavior.use_describe_as_json_for_relation_metadata.no_warn)
         )
 
     def fetch_json_metadata(self, relation: DatabricksRelation) -> dict[str, Any]:

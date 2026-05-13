@@ -155,7 +155,7 @@ class TestIncrementalRowFilterDescribeJsonOn(
         return {
             "flags": {
                 "use_materialization_v2": True,
-                "use_describe_as_json": True,
+                "use_describe_as_json_for_relation_metadata": True,
             }
         }
 
@@ -204,7 +204,7 @@ class TestMaterializedViewRowFilterDescribeJsonOn(
         return {
             "flags": {
                 "use_materialization_v2": True,
-                "use_describe_as_json": True,
+                "use_describe_as_json_for_relation_metadata": True,
             }
         }
 
@@ -269,7 +269,7 @@ class TestStreamingTableRowFilterDescribeJsonOn(
         return {
             "flags": {
                 "use_materialization_v2": True,
-                "use_describe_as_json": True,
+                "use_describe_as_json_for_relation_metadata": True,
             }
         }
 

@@ -1389,7 +1389,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
             identifier="table",
             type=DatabricksRelation.Table,
         )
-        adapter.behavior.use_describe_as_json = Mock(no_warn=True)
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
         with patch.object(adapter, "has_capability", return_value=True):
             assert adapter.is_describe_as_json_supported(relation) is True
 
@@ -1400,7 +1400,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
             identifier="table",
             type=DatabricksRelation.Table,
         )
-        adapter.behavior.use_describe_as_json = Mock(no_warn=True)
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
         with patch.object(adapter, "has_capability", return_value=False):
             assert adapter.is_describe_as_json_supported(relation) is False
 
@@ -1411,7 +1411,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
             identifier="table",
             type=DatabricksRelation.Table,
         )
-        adapter.behavior.use_describe_as_json = Mock(no_warn=True)
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
         with patch.object(adapter, "has_capability", return_value=True):
             assert adapter.is_describe_as_json_supported(relation) is False
 
@@ -1422,7 +1422,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
             identifier="table",
             type=DatabricksRelationType.Foreign,
         )
-        adapter.behavior.use_describe_as_json = Mock(no_warn=True)
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
         with patch.object(adapter, "has_capability", return_value=True):
             assert adapter.is_describe_as_json_supported(relation) is False
 
@@ -1433,7 +1433,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
             identifier="table",
             type=DatabricksRelation.Table,
         )
-        adapter.behavior.use_describe_as_json = Mock(no_warn=False)
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=False)
         with patch.object(adapter, "has_capability", return_value=True):
             assert adapter.is_describe_as_json_supported(relation) is False
 

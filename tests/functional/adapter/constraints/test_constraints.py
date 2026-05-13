@@ -211,7 +211,7 @@ class TestIncrementalForeignKeyExpressionConstraintDescribeJsonOn(
         return {
             "flags": {
                 "use_materialization_v2": False,
-                "use_describe_as_json": True,
+                "use_describe_as_json_for_relation_metadata": True,
             }
         }
 

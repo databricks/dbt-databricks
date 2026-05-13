@@ -137,7 +137,7 @@ class TestUpdateViewViaAlterDescriptionDescribeJsonOn(
         return {
             "flags": {
                 "use_materialization_v2": True,
-                "use_describe_as_json": True,
+                "use_describe_as_json_for_relation_metadata": True,
             },
             "models": {
                 "+view_update_via_alter": True,

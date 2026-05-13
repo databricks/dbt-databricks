@@ -169,7 +169,7 @@ class TestStreamingTableChangesApplyDescribeJsonOn(
     def project_config_update(self):
         return {
             "models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value},
-            "flags": {"use_describe_as_json": True},
+            "flags": {"use_describe_as_json_for_relation_metadata": True},
         }
 
 
