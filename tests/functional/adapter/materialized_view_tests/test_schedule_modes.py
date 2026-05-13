@@ -11,52 +11,6 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from tests.functional.adapter.materialized_view_tests import fixtures
 
-MV_EVERY_2_HOURS = """
-{{ config(
-    materialized='materialized_view',
-    schedule = {'every': '2 HOURS'},
-) }}
-select * from {{ ref('my_seed') }}
-"""
-
-MV_ON_UPDATE_BARE = """
-{{ config(
-    materialized='materialized_view',
-    schedule = {'on_update': True},
-) }}
-select * from {{ ref('my_seed') }}
-"""
-
-MV_ON_UPDATE_RATE_LIMITED = """
-{{ config(
-    materialized='materialized_view',
-    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
-) }}
-select * from {{ ref('my_seed') }}
-"""
-
-MV_CRON = """
-{{ config(
-    materialized='materialized_view',
-    schedule = {'cron': '0 0 * * * ? *'},
-) }}
-select * from {{ ref('my_seed') }}
-"""
-
-MV_NO_SCHEDULE = """
-{{ config(materialized='materialized_view') }}
-select * from {{ ref('my_seed') }}
-"""
-
-MV_EVERY_WITH_TBLPROPS = """
-{{ config(
-    materialized='materialized_view',
-    schedule = {'every': '2 HOURS'},
-    tblproperties={'lifecycle_marker': 'v1'},
-) }}
-select * from {{ ref('my_seed') }}
-"""
-
 
 def _get_refresh_config(project, identifier):
     relation = project.adapter.Relation.create(
@@ -81,9 +35,9 @@ class TestMaterializedViewScheduleModes:
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {
-            "mv_every.sql": MV_EVERY_2_HOURS,
-            "mv_on_update_bare.sql": MV_ON_UPDATE_BARE,
-            "mv_on_update_rate_limited.sql": MV_ON_UPDATE_RATE_LIMITED,
+            "mv_every.sql": fixtures.materialized_view_every_2_hours,
+            "mv_on_update_bare.sql": fixtures.materialized_view_on_update_bare,
+            "mv_on_update_rate_limited.sql": fixtures.materialized_view_on_update_rate_limited,
         }
 
     def test_every_mode_roundtrip(self, project):
@@ -122,7 +76,7 @@ class TestMaterializedViewManualMode:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"mv_manual.sql": MV_NO_SCHEDULE}
+        yield {"mv_manual.sql": fixtures.materialized_view_no_schedule}
 
     def test_manual_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -143,7 +97,7 @@ class TestMaterializedViewDropAndReadd:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"mv_drop_readd.sql": MV_CRON}
+        yield {"mv_drop_readd.sql": fixtures.materialized_view_cron_no_tz}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -153,17 +107,13 @@ class TestMaterializedViewDropAndReadd:
         util.run_dbt(["seed"])
         util.run_dbt(["run", "--models", "mv_drop_readd"])
 
-        no_schedule = """
-{{ config(materialized='materialized_view') }}
-select * from {{ ref('my_seed') }}
-"""
-        util.write_file(no_schedule, "models", "mv_drop_readd.sql")
+        util.write_file(fixtures.materialized_view_no_schedule, "models", "mv_drop_readd.sql")
         util.run_dbt(["run", "--models", "mv_drop_readd"])
 
         refresh = _get_refresh_config(project, "mv_drop_readd")
         assert refresh.mode.value == "manual"
 
-        util.write_file(MV_EVERY_2_HOURS, "models", "mv_drop_readd.sql")
+        util.write_file(fixtures.materialized_view_every_2_hours, "models", "mv_drop_readd.sql")
         util.run_dbt(["run", "--models", "mv_drop_readd"])
 
         refresh = _get_refresh_config(project, "mv_drop_readd")
@@ -183,7 +133,7 @@ class TestMaterializedViewScheduleLifecycle:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"mv_lifecycle.sql": MV_NO_SCHEDULE}
+        yield {"mv_lifecycle.sql": fixtures.materialized_view_no_schedule}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -196,31 +146,35 @@ class TestMaterializedViewScheduleLifecycle:
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "manual"
 
-        util.write_file(MV_CRON, "models", "mv_lifecycle.sql")
+        util.write_file(fixtures.materialized_view_cron_no_tz, "models", "mv_lifecycle.sql")
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "cron"
         assert refresh.cron == "0 0 * * * ? *"
         assert refresh == RefreshConfig(cron="0 0 * * * ? *")
 
-        util.write_file(MV_ON_UPDATE_RATE_LIMITED, "models", "mv_lifecycle.sql")
+        util.write_file(
+            fixtures.materialized_view_on_update_rate_limited, "models", "mv_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "on_update"
         assert refresh.at_most_every is not None
         assert "900" in refresh.at_most_every
 
-        util.write_file(MV_EVERY_2_HOURS, "models", "mv_lifecycle.sql")
+        util.write_file(fixtures.materialized_view_every_2_hours, "models", "mv_lifecycle.sql")
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "every"
 
-        util.write_file(MV_EVERY_WITH_TBLPROPS, "models", "mv_lifecycle.sql")
+        util.write_file(
+            fixtures.materialized_view_every_with_tblproperties, "models", "mv_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "every"
 
-        util.write_file(MV_NO_SCHEDULE, "models", "mv_lifecycle.sql")
+        util.write_file(fixtures.materialized_view_no_schedule, "models", "mv_lifecycle.sql")
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "manual"

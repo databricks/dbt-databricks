@@ -135,3 +135,39 @@ select * from stream {{{{ ref('my_seed') }}}}
 
 
 EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
+
+
+streaming_table_every_2_hours = streaming_table_with_every("2 HOURS")
+
+streaming_table_on_update_bare = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'on_update': True},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_on_update_rate_limited = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_cron_no_tz = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'cron': '0 0 * * * ? *'},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_every_with_tblproperties = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'every': '2 HOURS'},
+    tblproperties={'lifecycle_marker': 'v1'},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""

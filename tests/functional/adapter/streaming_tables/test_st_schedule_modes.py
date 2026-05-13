@@ -11,52 +11,6 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
 )
 from tests.functional.adapter.streaming_tables import fixtures
 
-ST_EVERY_2_HOURS = """
-{{ config(
-    materialized='streaming_table',
-    schedule = {'every': '2 HOURS'},
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-ST_ON_UPDATE_BARE = """
-{{ config(
-    materialized='streaming_table',
-    schedule = {'on_update': True},
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-ST_ON_UPDATE_RATE_LIMITED = """
-{{ config(
-    materialized='streaming_table',
-    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-ST_CRON = """
-{{ config(
-    materialized='streaming_table',
-    schedule = {'cron': '0 0 * * * ? *'},
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-ST_NO_SCHEDULE = """
-{{ config(materialized='streaming_table') }}
-select * from stream {{ ref('my_seed') }}
-"""
-
-ST_EVERY_WITH_TBLPROPS = """
-{{ config(
-    materialized='streaming_table',
-    schedule = {'every': '2 HOURS'},
-    tblproperties={'lifecycle_marker': 'v1'},
-) }}
-select * from stream {{ ref('my_seed') }}
-"""
-
 
 def _get_refresh_config(project, identifier):
     relation = project.adapter.Relation.create(
@@ -81,9 +35,9 @@ class TestStreamingTableScheduleModes:
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {
-            "st_every.sql": ST_EVERY_2_HOURS,
-            "st_on_update_bare.sql": ST_ON_UPDATE_BARE,
-            "st_on_update_rate_limited.sql": ST_ON_UPDATE_RATE_LIMITED,
+            "st_every.sql": fixtures.streaming_table_every_2_hours,
+            "st_on_update_bare.sql": fixtures.streaming_table_on_update_bare,
+            "st_on_update_rate_limited.sql": fixtures.streaming_table_on_update_rate_limited,
         }
 
     def test_every_mode_roundtrip(self, project):
@@ -122,7 +76,7 @@ class TestStreamingTableManualMode:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"st_manual.sql": ST_NO_SCHEDULE}
+        yield {"st_manual.sql": fixtures.streaming_table}
 
     def test_manual_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -143,7 +97,7 @@ class TestStreamingTableDropAndReadd:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"st_drop_readd.sql": ST_CRON}
+        yield {"st_drop_readd.sql": fixtures.streaming_table_cron_no_tz}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -153,17 +107,13 @@ class TestStreamingTableDropAndReadd:
         util.run_dbt(["seed"])
         util.run_dbt(["run", "--models", "st_drop_readd"])
 
-        no_schedule = """
-{{ config(materialized='streaming_table') }}
-select * from stream {{ ref('my_seed') }}
-"""
-        util.write_file(no_schedule, "models", "st_drop_readd.sql")
+        util.write_file(fixtures.streaming_table, "models", "st_drop_readd.sql")
         util.run_dbt(["run", "--models", "st_drop_readd"])
 
         refresh = _get_refresh_config(project, "st_drop_readd")
         assert refresh.mode.value == "manual"
 
-        util.write_file(ST_EVERY_2_HOURS, "models", "st_drop_readd.sql")
+        util.write_file(fixtures.streaming_table_every_2_hours, "models", "st_drop_readd.sql")
         util.run_dbt(["run", "--models", "st_drop_readd"])
 
         refresh = _get_refresh_config(project, "st_drop_readd")
@@ -183,7 +133,7 @@ class TestStreamingTableScheduleLifecycle:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {"st_lifecycle.sql": ST_NO_SCHEDULE}
+        yield {"st_lifecycle.sql": fixtures.streaming_table}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -196,31 +146,35 @@ class TestStreamingTableScheduleLifecycle:
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "manual"
 
-        util.write_file(ST_CRON, "models", "st_lifecycle.sql")
+        util.write_file(fixtures.streaming_table_cron_no_tz, "models", "st_lifecycle.sql")
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "cron"
         assert refresh.cron == "0 0 * * * ? *"
         assert refresh == RefreshConfig(cron="0 0 * * * ? *")
 
-        util.write_file(ST_ON_UPDATE_RATE_LIMITED, "models", "st_lifecycle.sql")
+        util.write_file(
+            fixtures.streaming_table_on_update_rate_limited, "models", "st_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "on_update"
         assert refresh.at_most_every is not None
         assert "900" in refresh.at_most_every
 
-        util.write_file(ST_EVERY_2_HOURS, "models", "st_lifecycle.sql")
+        util.write_file(fixtures.streaming_table_every_2_hours, "models", "st_lifecycle.sql")
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "every"
 
-        util.write_file(ST_EVERY_WITH_TBLPROPS, "models", "st_lifecycle.sql")
+        util.write_file(
+            fixtures.streaming_table_every_with_tblproperties, "models", "st_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "every"
 
-        util.write_file(ST_NO_SCHEDULE, "models", "st_lifecycle.sql")
+        util.write_file(fixtures.streaming_table, "models", "st_lifecycle.sql")
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "manual"

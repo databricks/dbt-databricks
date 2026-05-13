@@ -162,6 +162,47 @@ select * from {{{{ ref('my_seed') }}}}
 EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
 
 
+materialized_view_every_2_hours = materialized_view_with_every("2 HOURS")
+
+materialized_view_on_update_bare = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'on_update': True},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_on_update_rate_limited = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_cron_no_tz = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'cron': '0 0 * * * ? *'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_no_schedule = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_every_with_tblproperties = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'every': '2 HOURS'},
+    tblproperties={'lifecycle_marker': 'v1'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+
 metadata_fetch_mv_seed_csv = """id,value
 1,100
 2,200
