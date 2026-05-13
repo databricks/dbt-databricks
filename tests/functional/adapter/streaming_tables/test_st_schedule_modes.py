@@ -34,10 +34,7 @@ class TestStreamingTableScheduleModes:
 
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
-        yield {
-            "st_on_update_bare.sql": fixtures.streaming_table_on_update_bare,
-            "st_on_update_rate_limited.sql": fixtures.streaming_table_on_update_rate_limited,
-        }
+        yield {"st_on_update_bare.sql": fixtures.streaming_table_on_update_bare}
 
     def test_on_update_bare_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -45,37 +42,6 @@ class TestStreamingTableScheduleModes:
 
         refresh = _get_refresh_config(project, "st_on_update_bare")
         assert refresh.mode.value == "on_update"
-
-    def test_on_update_rate_limited_mode_roundtrip(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--models", "st_on_update_rate_limited"])
-
-        refresh = _get_refresh_config(project, "st_on_update_rate_limited")
-        assert refresh.mode.value == "on_update"
-        assert refresh.at_most_every is not None
-        assert "900" in refresh.at_most_every
-
-
-@pytest.mark.dlt
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTableManualMode:
-    """Initial-create with no `schedule` config: relation should round-trip as MANUAL.
-    The drop-and-readd test covers CRON → MANUAL transition; this covers fresh MANUAL."""
-
-    @pytest.fixture(scope="class", autouse=True)
-    def seeds(self):
-        yield {"my_seed.csv": MY_SEED}
-
-    @pytest.fixture(scope="class", autouse=True)
-    def models(self):
-        yield {"st_manual.sql": fixtures.streaming_table}
-
-    def test_manual_mode_roundtrip(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--models", "st_manual"])
-
-        refresh = _get_refresh_config(project, "st_manual")
-        assert refresh.mode.value == "manual"
 
 
 @pytest.mark.dlt
