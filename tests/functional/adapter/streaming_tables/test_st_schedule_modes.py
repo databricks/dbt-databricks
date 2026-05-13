@@ -35,17 +35,9 @@ class TestStreamingTableScheduleModes:
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {
-            "st_every.sql": fixtures.streaming_table_every_2_hours,
             "st_on_update_bare.sql": fixtures.streaming_table_on_update_bare,
             "st_on_update_rate_limited.sql": fixtures.streaming_table_on_update_rate_limited,
         }
-
-    def test_every_mode_roundtrip(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--models", "st_every"])
-
-        refresh = _get_refresh_config(project, "st_every")
-        assert refresh.mode.value == "every"
 
     def test_on_update_bare_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -113,7 +105,9 @@ class TestStreamingTableDropAndReadd:
         refresh = _get_refresh_config(project, "st_drop_readd")
         assert refresh.mode.value == "manual"
 
-        util.write_file(fixtures.streaming_table_every_2_hours, "models", "st_drop_readd.sql")
+        util.write_file(
+            fixtures.streaming_table_with_every("2 HOURS"), "models", "st_drop_readd.sql"
+        )
         util.run_dbt(["run", "--models", "st_drop_readd"])
 
         refresh = _get_refresh_config(project, "st_drop_readd")
@@ -162,7 +156,9 @@ class TestStreamingTableScheduleLifecycle:
         assert refresh.at_most_every is not None
         assert "900" in refresh.at_most_every
 
-        util.write_file(fixtures.streaming_table_every_2_hours, "models", "st_lifecycle.sql")
+        util.write_file(
+            fixtures.streaming_table_with_every("2 HOURS"), "models", "st_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "every"

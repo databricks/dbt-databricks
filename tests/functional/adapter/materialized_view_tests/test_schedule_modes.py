@@ -35,17 +35,9 @@ class TestMaterializedViewScheduleModes:
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {
-            "mv_every.sql": fixtures.materialized_view_every_2_hours,
             "mv_on_update_bare.sql": fixtures.materialized_view_on_update_bare,
             "mv_on_update_rate_limited.sql": fixtures.materialized_view_on_update_rate_limited,
         }
-
-    def test_every_mode_roundtrip(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run", "--models", "mv_every"])
-
-        refresh = _get_refresh_config(project, "mv_every")
-        assert refresh.mode.value == "every"
 
     def test_on_update_bare_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -113,7 +105,9 @@ class TestMaterializedViewDropAndReadd:
         refresh = _get_refresh_config(project, "mv_drop_readd")
         assert refresh.mode.value == "manual"
 
-        util.write_file(fixtures.materialized_view_every_2_hours, "models", "mv_drop_readd.sql")
+        util.write_file(
+            fixtures.materialized_view_with_every("2 HOURS"), "models", "mv_drop_readd.sql"
+        )
         util.run_dbt(["run", "--models", "mv_drop_readd"])
 
         refresh = _get_refresh_config(project, "mv_drop_readd")
@@ -162,7 +156,9 @@ class TestMaterializedViewScheduleLifecycle:
         assert refresh.at_most_every is not None
         assert "900" in refresh.at_most_every
 
-        util.write_file(fixtures.materialized_view_every_2_hours, "models", "mv_lifecycle.sql")
+        util.write_file(
+            fixtures.materialized_view_with_every("2 HOURS"), "models", "mv_lifecycle.sql"
+        )
         util.run_dbt(["run", "--models", "mv_lifecycle"])
         refresh = _get_refresh_config(project, "mv_lifecycle")
         assert refresh.mode.value == "every"

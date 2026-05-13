@@ -137,8 +137,6 @@ select * from stream {{{{ ref('my_seed') }}}}
 EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
 
 
-streaming_table_every_2_hours = streaming_table_with_every("2 HOURS")
-
 streaming_table_on_update_bare = """
 {{ config(
     materialized='streaming_table',

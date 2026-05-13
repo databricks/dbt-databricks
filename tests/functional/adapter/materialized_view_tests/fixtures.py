@@ -162,8 +162,6 @@ select * from {{{{ ref('my_seed') }}}}
 EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
 
 
-materialized_view_every_2_hours = materialized_view_with_every("2 HOURS")
-
 materialized_view_on_update_bare = """
 {{ config(
     materialized='materialized_view',
