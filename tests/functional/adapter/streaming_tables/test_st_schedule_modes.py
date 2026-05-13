@@ -5,9 +5,11 @@ from dbt.tests import util
 from dbt.tests.adapter.materialized_view.files import MY_SEED
 
 from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
+from tests.functional.adapter.streaming_tables import fixtures
 
 ST_EVERY_2_HOURS = """
 {{ config(
@@ -36,7 +38,7 @@ select * from stream {{ ref('my_seed') }}
 ST_CRON = """
 {{ config(
     materialized='streaming_table',
-    schedule = {'cron': '0 0 * * * ? *', 'time_zone_value': 'Etc/UTC'},
+    schedule = {'cron': '0 0 * * * ? *'},
 ) }}
 select * from stream {{ ref('my_seed') }}
 """
@@ -199,6 +201,7 @@ class TestStreamingTableScheduleLifecycle:
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "cron"
         assert refresh.cron == "0 0 * * * ? *"
+        assert refresh == RefreshConfig(cron="0 0 * * * ? *")
 
         util.write_file(ST_ON_UPDATE_RATE_LIMITED, "models", "st_lifecycle.sql")
         util.run_dbt(["run", "--models", "st_lifecycle"])
@@ -221,3 +224,44 @@ class TestStreamingTableScheduleLifecycle:
         util.run_dbt(["run", "--models", "st_lifecycle"])
         refresh = _get_refresh_config(project, "st_lifecycle")
         assert refresh.mode.value == "manual"
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestStreamingTableEveryAcceptedInputs:
+    """Walk one streaming table through each EVERY unit the regex accepts (HOUR / DAY /
+    WEEK) and confirm dbt round-trips each against a real warehouse. Uses
+    `on_configuration_change: apply` so each iteration is an ALTER, not a fresh CREATE."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def seeds(self):
+        yield {"my_seed.csv": MY_SEED}
+
+    @pytest.fixture(scope="class", autouse=True)
+    def models(self):
+        yield {"st_every_inputs.sql": fixtures.streaming_table_with_every("2 HOURS")}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"on_configuration_change": "apply"}}
+
+    def test_every_accepted_input_round_trips(self, project):
+        util.run_dbt(["seed"])
+
+        for every_value in fixtures.EVERY_ACCEPTED_INPUTS:
+            util.write_file(
+                fixtures.streaming_table_with_every(every_value),
+                "models",
+                "st_every_inputs.sql",
+            )
+            util.run_dbt(["run", "--models", "st_every_inputs"])
+            refresh = _get_refresh_config(project, "st_every_inputs")
+            expected = RefreshConfig(every=every_value)
+            assert refresh == expected, (
+                f"warehouse did not accept or correctly store every={every_value!r}:"
+                f" got {refresh!r}"
+            )
+            assert expected.get_diff(refresh) is None, (
+                f"every={every_value!r} produces a spurious diff on re-run:"
+                f" {expected.get_diff(refresh)!r}"
+            )

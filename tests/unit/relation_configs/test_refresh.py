@@ -141,6 +141,20 @@ class TestRefreshConfigEquality:
         b = RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
         assert a == b
 
+    def test_eq__cron_no_tz_equals_etc_utc(self):
+        # Empirically: a CRON created without a TZ comes back from DESCRIBE EXTENDED as
+        # 'Etc/UTC'. Implicit-UTC desired must compare equal to the stored 'Etc/UTC'.
+        desired = RefreshConfig(cron="*/5 * * * *")
+        existing = RefreshConfig(cron="*/5 * * * *", time_zone_value="Etc/UTC")
+        assert desired == existing
+        assert hash(desired) == hash(existing)
+
+    def test_eq__cron_utc_equals_etc_utc(self):
+        a = RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
+        b = RefreshConfig(cron="*/5 * * * *", time_zone_value="Etc/UTC")
+        assert a == b
+        assert hash(a) == hash(b)
+
     def test_eq__cron_different_expr_not_equal(self):
         a = RefreshConfig(cron="*/5 * * * *", time_zone_value="UTC")
         b = RefreshConfig(cron="0 * * * *", time_zone_value="UTC")
@@ -313,6 +327,72 @@ class TestRefreshProcessorNewShapes:
             )
         }
         RefreshProcessor.from_relation_results(results)
+
+    @pytest.mark.parametrize(
+        "server_value,user_input,expected_seconds",
+        [
+            # Server normalizes every TRIGGER interval to integer SECOND, regardless of input unit.
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 60 SECOND", "1 MINUTE", 60),
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 300 SECOND", "5 MINUTES", 300),
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 3600 SECOND", "1 HOUR", 3600),
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 3600 SECOND", "60 MINUTES", 3600),
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 7200 SECOND", "2 HOURS", 7200),
+            ("TRIGGER ON UPDATE AT MOST EVERY INTERVAL 86400 SECOND", "1 DAY", 86400),
+        ],
+    )
+    def test_from_results__trigger_seconds_normalization_matches_user_input(
+        self, server_value, user_input, expected_seconds
+    ):
+        results = {
+            "describe_extended": fixtures.gen_describe_extended(
+                detailed_table_info=[["Refresh Schedule", server_value]]
+            )
+        }
+        parsed = RefreshProcessor.from_relation_results(results)
+        assert parsed.mode == RefreshMode.ON_UPDATE
+        assert parsed.at_most_every == f"{expected_seconds} SECOND"
+        # The user's input must round-trip to no-diff with the server-stored value.
+        assert parsed == RefreshConfig(on_update=True, at_most_every=user_input)
+
+    @pytest.mark.parametrize(
+        "server_value,user_every",
+        [
+            # Server emits plural unit and preserves the integer. Input singular vs plural in dbt
+            # config must round-trip equal to the stored plural form.
+            ("EVERY 1 HOURS", "1 HOUR"),
+            ("EVERY 2 HOURS", "2 HOURS"),
+            ("EVERY 1 DAYS", "1 DAY"),
+            ("EVERY 7 DAYS", "7 DAYS"),
+            ("EVERY 1 WEEKS", "1 WEEK"),
+            ("EVERY 8 WEEKS", "8 WEEKS"),
+        ],
+    )
+    def test_from_results__every_plural_round_trip(self, server_value, user_every):
+        results = {
+            "describe_extended": fixtures.gen_describe_extended(
+                detailed_table_info=[["Refresh Schedule", server_value]]
+            )
+        }
+        parsed = RefreshProcessor.from_relation_results(results)
+        assert parsed.mode == RefreshMode.EVERY
+        assert parsed == RefreshConfig(every=user_every)
+
+    def test_from_results__cron_etc_utc_round_trips_implicit_utc(self):
+        # Empirical: SCHEDULE CRON '...' (no time zone) is stored as 'Etc/UTC' in the server.
+        # A dbt config without time_zone_value must round-trip with no diff.
+        results = {
+            "describe_extended": fixtures.gen_describe_extended(
+                detailed_table_info=[
+                    ["Refresh Schedule", "CRON '0 0 * * * ? *' AT TIME ZONE 'Etc/UTC'"]
+                ]
+            )
+        }
+        parsed = RefreshProcessor.from_relation_results(results)
+        assert parsed.mode == RefreshMode.CRON
+        assert parsed.time_zone_value == "Etc/UTC"
+        assert parsed == RefreshConfig(cron="0 0 * * * ? *")
+        # No-diff check protects against the historical no-op ALTER on every dbt run.
+        assert RefreshConfig(cron="0 0 * * * ? *").get_diff(parsed) is None
 
 
 class TestFromRelationConfigNewShapes:

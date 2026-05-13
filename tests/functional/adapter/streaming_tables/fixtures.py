@@ -121,3 +121,17 @@ models:
     config:
       liquid_clustered_by: []
 """
+
+
+def streaming_table_with_every(every_value: str) -> str:
+    """Render a streaming-table model with `schedule = {'every': <value>}`."""
+    return f"""
+{{{{ config(
+    materialized='streaming_table',
+    schedule = {{'every': '{every_value}'}},
+) }}}}
+select * from stream {{{{ ref('my_seed') }}}}
+"""
+
+
+EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]

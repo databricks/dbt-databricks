@@ -37,6 +37,14 @@ _SECONDS_PER_UNIT = {
     "WEEK": 604800,
 }
 _EVERY_UNITS = {"HOUR", "DAY", "WEEK"}
+# Databricks treats an absent time zone as UTC and emits 'Etc/UTC' back in DESCRIBE EXTENDED;
+# these all canonicalize to the same UTC for equality.
+_UTC_ALIASES = {"UTC", "ETC/UTC"}
+
+
+def _canonical_tz(tz: Optional[str]) -> str:
+    s = (tz or "UTC").upper()
+    return "UTC" if s in _UTC_ALIASES else s
 
 
 def _parse_quantity(value: str) -> tuple[int, str]:
@@ -139,10 +147,10 @@ class RefreshConfig(DatabricksComponentConfig):
         if self.mode == RefreshMode.MANUAL:
             return True
         if self.mode == RefreshMode.CRON:
-            # Databricks treats no time zone as UTC.
-            tz_self = (self.time_zone_value or "UTC").upper()
-            tz_other = (other.time_zone_value or "UTC").upper()
-            return self.cron == other.cron and tz_self == tz_other
+            # Server fills 'Etc/UTC' when no time zone is given, so None/UTC/Etc/UTC all match.
+            return self.cron == other.cron and _canonical_tz(self.time_zone_value) == _canonical_tz(
+                other.time_zone_value
+            )
         if self.mode == RefreshMode.EVERY:
             assert self.every is not None and other.every is not None
             return _every_canonical(self.every) == _every_canonical(other.every)
@@ -155,7 +163,13 @@ class RefreshConfig(DatabricksComponentConfig):
 
     def __hash__(self) -> int:
         return hash(
-            (self.cron, self.time_zone_value, self.every, self.on_update, self.at_most_every)
+            (
+                self.cron,
+                _canonical_tz(self.time_zone_value),
+                self.every,
+                self.on_update,
+                self.at_most_every,
+            )
         )
 
     def get_diff(self, other: "RefreshConfig") -> Optional["RefreshConfig"]:

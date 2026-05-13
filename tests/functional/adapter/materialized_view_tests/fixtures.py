@@ -146,3 +146,17 @@ models:
     config:
       liquid_clustered_by: []
 """
+
+
+def materialized_view_with_every(every_value: str) -> str:
+    """Render an MV model with `schedule = {'every': <value>}`."""
+    return f"""
+{{{{ config(
+    materialized='materialized_view',
+    schedule = {{'every': '{every_value}'}},
+) }}}}
+select * from {{{{ ref('my_seed') }}}}
+"""
+
+
+EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
