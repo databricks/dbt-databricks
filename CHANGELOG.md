@@ -13,9 +13,14 @@
 - Fix `RefreshConfig.__eq__` self/other typo where two configs with the same `cron` but different `time_zone_value` compared equal
 - Fix streaming-table DROP-SCHEDULE path that was silently filtered out of the changeset
 
+### Fixes
+
+- Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
+
 ### Under the Hood
 
 - **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+- Skip `information_schema.tags` and `information_schema.column_tags` metadata fetches when table tags and column tags are not configured on a model. ([#1387](https://github.com/databricks/dbt-databricks/pull/1387))
 
 ## dbt-databricks 1.11.8 (TBD)
 

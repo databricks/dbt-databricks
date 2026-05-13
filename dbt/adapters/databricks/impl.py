@@ -81,6 +81,9 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
+from dbt.adapters.databricks.relation_configs.tags import (
+    TagsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import (
@@ -967,17 +970,21 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
-    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+    def get_relation_config(
+        self,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
+    ) -> DatabricksRelationConfigBase:
         if relation.type == DatabricksRelationType.MaterializedView:
-            return MaterializedViewAPI.get_from_relation(self, relation)
+            return MaterializedViewAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.StreamingTable:
-            return StreamingTableAPI.get_from_relation(self, relation)
+            return StreamingTableAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.Table:
-            return IncrementalTableAPI.get_from_relation(self, relation)
+            return IncrementalTableAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.View:
-            return ViewAPI.get_from_relation(self, relation)
+            return ViewAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.MetricView:
-            return MetricViewAPI.get_from_relation(self, relation)
+            return MetricViewAPI.get_from_relation(self, relation, model_config)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -1008,6 +1015,10 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
+
+    @available.parse(lambda *a, **k: "")
+    def yaml_quote_backtick_values(self, yaml_body: str) -> str:
+        return SqlUtils.yaml_quote_backtick_values(yaml_body)
 
     @available
     def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
@@ -1060,12 +1071,15 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
         assert relation.type == cls.relation_type
-        results = cls._describe_relation(adapter, relation)
+        results = cls._describe_relation(adapter, relation, model_config)
         return cls.config_type().from_results(results)
 
     @classmethod
@@ -1077,7 +1091,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     @classmethod
     @abstractmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         """Describe the relation and return the results."""
 
@@ -1087,11 +1104,14 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super().get_from_relation(adapter, relation)
+        relation_config = super().get_from_relation(adapter, relation, model_config)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
@@ -1111,7 +1131,10 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1123,9 +1146,18 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
+        # To be backward compatible model_config can be None. In that case, tags should be fetched
+        # to maintain backward compatibility.
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         return results
 
 
@@ -1138,7 +1170,10 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1162,16 +1197,37 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
-            results["information_schema.column_tags"] = adapter.execute_macro(
-                "fetch_column_tags", kwargs=kwargs
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
+            table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+            if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+                results["information_schema.tags"] = adapter.execute_macro(
+                    "fetch_tags", kwargs=kwargs
+                )
+            else:
+                results["information_schema.tags"] = None
+
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
+            column_tag_config = (
+                model_config.config.get(ColumnTagsProcessor.name) if model_config else None
             )
+            if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+                results["information_schema.column_tags"] = adapter.execute_macro(
+                    "fetch_column_tags", kwargs=kwargs
+                )
+            else:
+                results["information_schema.column_tags"] = None
+
             results["non_null_constraint_columns"] = adapter.execute_macro(
                 "fetch_non_null_constraint_columns", kwargs=kwargs
             )
@@ -1201,7 +1257,10 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
@@ -1209,7 +1268,15 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         results["information_schema.views"] = get_first_row(
             adapter.execute_macro("get_view_description", kwargs=kwargs)
         )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+
+        # To be backward compatible model_config can be None. In that case, tags should be fetched
+        # to maintain backward compatibility.
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
@@ -1228,14 +1295,25 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
+        kwargs = {"relation": relation}
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
+
         return results

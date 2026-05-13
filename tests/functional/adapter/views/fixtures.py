@@ -58,3 +58,19 @@ altered_view_sql = """
 {{ config(materialized='view') }}
 select id from {{ ref('seed') }};
 """
+
+
+view_without_tags_sql = """
+{{ config(materialized='view') }}
+
+select cast(1 as bigint) as id
+"""
+
+view_with_tags_sql = """
+{{ config(
+    materialized='view',
+    databricks_tags={'classification': 'internal'}
+) }}
+
+select cast(1 as bigint) as id
+"""
