@@ -8,9 +8,14 @@
 - Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting tag values to empty strings `""` or `None`. ([#1339](https://github.com/databricks/dbt-databricks/pull/1339))
 - Fetch relation metadata like constraints, column masks, row filters, etc with a single `DESCRIBE TABLE EXTENDED ... AS JSON` call, replacing multiple `information_schema` queries. Falls back to `information_schema` on older runtimes. Gated behind a behavior flag, off by default. ([#1432](https://github.com/databricks/dbt-databricks/pull/1432))
 
+### Fixes
+
+- Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
+
 ### Under the Hood
 
 - **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+- Skip `information_schema.tags` and `information_schema.column_tags` metadata fetches when table tags and column tags are not configured on a model. ([#1387](https://github.com/databricks/dbt-databricks/pull/1387))
 
 ## dbt-databricks 1.11.8 (TBD)
 
