@@ -90,7 +90,6 @@
 ### Features
 
 - Add `query_id` to `SQLQueryStatus` events to improve query tracing and debugging
-- Add support for Row Filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
 
 ### Fixes
 
