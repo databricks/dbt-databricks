@@ -13,13 +13,14 @@ from typing import Optional
 class DBRCapability(Enum):
     """Named capabilities that depend on DBR version."""
 
-    TIMESTAMPDIFF = "timestampdiff"
-    ICEBERG = "iceberg"
     COMMENT_ON_COLUMN = "comment_on_column"
-    JSON_COLUMN_METADATA = "json_column_metadata"
-    STREAMING_TABLE_JSON_METADATA = "streaming_table_json_metadata"
+    DESCRIBE_TABLE_EXTENDED_AS_JSON = "describe_table_extended_as_json"
+    ICEBERG = "iceberg"
     INSERT_BY_NAME = "insert_by_name"
+    JSON_COLUMN_METADATA = "json_column_metadata"
     REPLACE_ON = "replace_on"
+    STREAMING_TABLE_JSON_METADATA = "streaming_table_json_metadata"
+    TIMESTAMPDIFF = "timestampdiff"
 
 
 @dataclass
@@ -60,6 +61,9 @@ class DBRCapabilities:
         ),
         DBRCapability.REPLACE_ON: CapabilitySpec(
             min_version=(17, 1),
+        ),
+        DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON: CapabilitySpec(
+            min_version=(17, 3),
         ),
     }
 
