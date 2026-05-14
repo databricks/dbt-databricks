@@ -2,6 +2,7 @@ import pytest
 from dbt.contracts.results import RunStatus
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 from tests.functional.adapter.incremental import fixtures
 
 
@@ -28,6 +29,20 @@ class TestIncrementalSetNonNullConstraint:
         results = util.run_dbt(["run"], expect_pass=False)
         assert results.results[0].status == RunStatus.Error
         assert "DELTA_NOT_NULL_CONSTRAINT_VIOLATED" in results.results[0].message
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalSetNonNullConstraintDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestIncrementalSetNonNullConstraint
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -173,6 +188,20 @@ class TestIncrementalUpdatePrimaryKeyConstraint:
         assert primary_key_constraints[1][1] == "version"
         # Verify previous constraint was removed
         assert not any(constraint[0] == "pk_model" for constraint in primary_key_constraints)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalUpdatePrimaryKeyConstraintDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestIncrementalUpdatePrimaryKeyConstraint
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")

@@ -23,8 +23,8 @@ class BaseTestTags:
             " where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
-        assert len(results) == 2
-        expected_tags = {("a", "b"), ("c", "d")}
+        assert len(results) == 3
+        expected_tags = {("a", "b"), ("c", "d"), ("k", "")}
         actual_tags = set((row[0], row[1]) for row in results)
         assert actual_tags == expected_tags
 
@@ -56,10 +56,28 @@ class BaseTestTagsUpdateViaAlter(MaterializationV2Mixin):
             " where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
-        assert len(results) == 3
-        expected_tags = {("a", "b"), ("c", "d"), ("e", "f")}
+        assert len(results) == 4
+        expected_tags = {("a", "b"), ("c", "d"), ("k", ""), ("e", "f")}
         actual_tags = set((row[0], row[1]) for row in results)
         assert actual_tags == expected_tags
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestTableTagsMerged(BaseTestTags):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"tags.sql": fixtures.tags_merged_sql}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+databricks_tags": {
+                    "a": "b",
+                    "c": "TO_BE_REPLACED_AT_MODEL_LEVEL",
+                }
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -151,7 +169,7 @@ class TestStreamingTableTagsUpdateViaAlter:
             " where schema_name = '{schema}' and table_name='tags'",
             fetch="all",
         )
-        assert len(results) == 3
+        assert len(results) == 4
 
 
 @pytest.mark.python
