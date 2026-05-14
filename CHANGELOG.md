@@ -16,6 +16,7 @@
 - Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
 - Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))
 - Fix `dbt docs generate` failing with `RuntimeError: Tables contain columns with the same names ... but different types` during catalog merge across schemas ([#1392](https://github.com/databricks/dbt-databricks/issues/1392))
+- Fix view materialization incorrectly producing a no-op instead of forcing recreation when `--full-refresh` is provided alongside `view_update_via_alter: true` and `use_materialization_v2: true` ([#1404](https://github.com/databricks/dbt-databricks/issues/1404))
 
 ## dbt-databricks 1.11.7 (Apr 17, 2026)
 
