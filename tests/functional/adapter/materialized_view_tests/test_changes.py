@@ -100,6 +100,16 @@ class TestMaterializedViewApplyChangesDescribeJsonOn(
             "flags": {"use_describe_as_json_for_relation_metadata": True},
         }
 
+    @pytest.mark.skip(reason="Full-refresh bypasses get_configuration_changes(); JSON path unused")
+    def test_full_refresh_occurs_with_changes(self):
+        pass
+
+    @pytest.mark.skip(
+        reason="Alter test only mutates refresh schedule. view_text is parsed but not asserted on"
+    )
+    def test_change_is_applied_via_alter(self):
+        pass
+
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")

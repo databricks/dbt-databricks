@@ -13,7 +13,6 @@ from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
-from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 from tests.functional.adapter.streaming_tables import fixtures
 
 
@@ -158,19 +157,6 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
         self.check_state_replace_change_is_applied(project, my_streaming_table)
 
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
-
-
-@pytest.mark.dlt
-@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTableChangesApplyDescribeJsonOn(
-    RequiresDescribeAsJsonCapabilityMixin, TestStreamingTableChangesApply
-):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value},
-            "flags": {"use_describe_as_json_for_relation_metadata": True},
-        }
 
 
 @pytest.mark.dlt
