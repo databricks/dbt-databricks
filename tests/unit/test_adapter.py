@@ -1449,6 +1449,7 @@ class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
         with patch.object(adapter, "has_capability", return_value=True):
             assert adapter.is_describe_as_json_supported(relation) is False
 
+
 class TestDescribeRelationMetadataFetchPlanning:
     @staticmethod
     def _create_adapter(describe_as_json_supported: bool = False):
