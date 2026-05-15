@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.1 (TBD)
+
+### Fixes
+
+- Use pydantic v1-compatible API in `refresh.py` so the adapter works on environments shipping pydantic v1.
+
 ## dbt-databricks 1.12.0 (May 14, 2026)
 
 ### Features
