@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.1 (TBD)
 
+### Under the Hood
+
+- Raise `databricks-sdk` upper bound to `<0.109.0` to support the latest SDK release.
+
 ### Fixes
 
 - Use pydantic v1-compatible API in `refresh.py` so the adapter works on environments shipping pydantic v1.
