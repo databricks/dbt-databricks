@@ -3,6 +3,7 @@
 ### Fixes
 
 - Use pydantic v1-compatible API in `refresh.py` so the adapter works on environments shipping pydantic v1.
+- Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1331](https://github.com/databricks/dbt-databricks/issues/1331))
 
 ## dbt-databricks 1.12.0 (May 14, 2026)
 
