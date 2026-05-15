@@ -11,6 +11,7 @@
 
 ### Fixes
 
+- Fix `QueryProcessor` crashing with `IndexError: string index out of range` when `view_definition` is empty or missing, such as when reading from streaming-table sources or freshly-created materialized views ([#1459](https://github.com/databricks/dbt-databricks/issues/1459))
 - Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
 - Fix `RefreshConfig.__eq__` self/other typo where two configs with the same `cron` but different `time_zone_value` compared equal
 - Fix streaming-table DROP-SCHEDULE path that was silently filtered out of the changeset
