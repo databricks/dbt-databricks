@@ -1,10 +1,4 @@
-## dbt-databricks 1.12.1 (TBD)
-
-### Fixes
-
-- Use pydantic v1-compatible API in `refresh.py` so the adapter works on environments shipping pydantic v1.
-
-## dbt-databricks 1.12.0 (May 14, 2026)
+## dbt-databricks 1.12.0 (May 18, 2026)
 
 ### Features
 
@@ -20,6 +14,7 @@
 - Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
 - Fix `RefreshConfig.__eq__` self/other typo where two configs with the same `cron` but different `time_zone_value` compared equal
 - Fix streaming-table DROP-SCHEDULE path that was silently filtered out of the changeset
+- Use pydantic v1-compatible API in `refresh.py` so the adapter imports on environments shipping pydantic v1 ([#1461](https://github.com/databricks/dbt-databricks/pull/1461))
 
 ### Under the Hood
 
