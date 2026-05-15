@@ -2,6 +2,11 @@
 # runs `dbt parse`, catching constraint ranges that admit versions
 # the code doesn't support. Default test paths resolve to
 # highest-compatible versions, so lower bounds drift untested.
+#
+# Runs post-merge rather than on PRs because fork PRs cannot issue
+# the OIDC token required by the JFrog proxy and protected runner.
+# Acceptable compromise: a bad merge sits on the target branch
+# briefly before the gate fires, but well before any release tag.
 
 name: Min-Deps Parse
 
