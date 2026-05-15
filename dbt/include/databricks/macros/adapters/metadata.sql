@@ -129,9 +129,17 @@ SELECT
     NULL
   ) AS databricks_table_type
 FROM `system`.`information_schema`.`tables`
-WHERE table_catalog = '{{ relation.database|lower }}' 
+WHERE table_catalog = '{{ relation.database|lower }}'
   AND table_schema = '{{ relation.schema|lower }}'
   {%- if relation.identifier %}
   AND table_name = '{{ relation.identifier|lower }}'
   {% endif %}
+{% endmacro %}
+
+{% macro describe_table_extended_as_json(relation) %}
+    {{ return(run_query_as(describe_table_extended_as_json_sql(relation), 'describe_table_extended_as_json')) }}
+{% endmacro %}
+
+{% macro describe_table_extended_as_json_sql(relation) %}
+DESCRIBE TABLE EXTENDED {{ relation.render() }} AS JSON
 {% endmacro %}

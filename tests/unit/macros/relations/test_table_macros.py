@@ -12,7 +12,12 @@ class TestCreateTableAs(MacroTestBase):
 
     @pytest.fixture(scope="class")
     def macro_folders_to_load(self) -> list:
-        return ["macros/relations/table", "macros/relations", "macros"]
+        return [
+            "macros/relations/table",
+            "macros/relations",
+            "macros",
+            "macros/relations/components",
+        ]
 
     @pytest.fixture(scope="class")
     def databricks_template_names(self) -> list:
@@ -21,6 +26,7 @@ class TestCreateTableAs(MacroTestBase):
             "tblproperties.sql",
             "location.sql",
             "liquid_clustering.sql",
+            "row_filter.sql",
         ]
 
     @pytest.fixture

@@ -29,10 +29,11 @@
   {#-- We don't enrich the relation with model constraints because they are not supported for streaming tables --#}
   CREATE STREAMING TABLE {{ relation.render() }}
     {{ get_column_and_constraints_sql(relation, columns_and_constraints[0]) }}
+    {{ get_create_row_filter_clause(relation) }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ liquid_clustered_cols() }}
     {{ get_create_sql_comment(comment) }}
     {{ get_create_sql_tblproperties(tblproperties) }}
-    {{ get_create_sql_refresh_schedule(refresh.cron, refresh.time_zone_value) }}
+    {{ get_create_sql_refresh_schedule(refresh) }}
     AS {{ sql }}
 {% endmacro %}
