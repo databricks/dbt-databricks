@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Use pydantic v1-compatible API in `refresh.py` so the adapter imports on Databricks Jobs DBR 15.4 LTS (ships pydantic v1.10.x); previously failed with `ImportError: cannot import name 'model_validator' from 'pydantic'`.
+- Use pydantic v1-compatible API in `refresh.py` so the adapter works on environments shipping pydantic v1.
 
 ## dbt-databricks 1.12.0 (May 14, 2026)
 
