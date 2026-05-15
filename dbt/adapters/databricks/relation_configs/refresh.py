@@ -101,7 +101,6 @@ class RefreshConfig(DatabricksComponentConfig):
     # affect identity.
     is_altered: bool = False
 
-    # v1's @root_validator (still supported in v2) so this works on DBR 15.4 LTS's pydantic 1.10.x.
     @root_validator(skip_on_failure=True)
     def _validate_mode_fields(cls, values: dict) -> dict:
         modes_set = [name for name in _MODE_FIELDS if values.get(name)]
