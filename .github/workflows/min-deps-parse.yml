@@ -10,6 +10,7 @@ on:
     branches:
       - "main"
       - "*.latest"
+  pull_request:  # TEMP: remove before merge — only here to prove the gate works on this PR
   workflow_dispatch:
 
 permissions:
