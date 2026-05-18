@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Optional
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
-from pydantic import model_validator
+from pydantic import root_validator
 
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
@@ -40,6 +40,9 @@ _EVERY_UNITS = {"HOUR", "DAY", "WEEK"}
 # Databricks treats an absent time zone as UTC and emits 'Etc/UTC' back in DESCRIBE EXTENDED;
 # these all canonicalize to the same UTC for equality.
 _UTC_ALIASES = {"UTC", "ETC/UTC"}
+
+# Mutually-exclusive mode discriminators on RefreshConfig.
+_MODE_FIELDS = ("cron", "every", "on_update")
 
 
 def _canonical_tz(tz: Optional[str]) -> str:
@@ -98,33 +101,27 @@ class RefreshConfig(DatabricksComponentConfig):
     # affect identity.
     is_altered: bool = False
 
-    @model_validator(mode="after")
-    def _validate_mode_fields(self) -> "RefreshConfig":
-        modes_set = [name for name, value in self._mode_signals() if value]
+    @root_validator(skip_on_failure=True)
+    def _validate_mode_fields(cls, values: dict) -> dict:
+        modes_set = [name for name in _MODE_FIELDS if values.get(name)]
         if len(modes_set) > 1:
             raise DbtRuntimeError(
                 f"Refresh schedule must specify at most one of cron / every / on_update;"
                 f" got {modes_set}."
             )
-        if self.time_zone_value is not None and self.cron is None:
+        if values.get("time_zone_value") is not None and values.get("cron") is None:
             raise DbtRuntimeError("`time_zone_value` is only valid when `cron` is set.")
-        if self.at_most_every is not None:
-            if not self.on_update:
+        at_most_every = values.get("at_most_every")
+        if at_most_every is not None:
+            if not values.get("on_update"):
                 raise DbtRuntimeError("`at_most_every` is only valid when `on_update` is True.")
-            seconds = _interval_seconds(self.at_most_every)
+            seconds = _interval_seconds(at_most_every)
             if seconds < 60:
                 raise DbtRuntimeError(
                     f"`at_most_every` must be at least 60 seconds (1 minute);"
-                    f" got {self.at_most_every!r} ({seconds}s)."
+                    f" got {at_most_every!r} ({seconds}s)."
                 )
-        return self
-
-    def _mode_signals(self) -> tuple[tuple[str, Any], ...]:
-        return (
-            ("cron", self.cron),
-            ("every", self.every),
-            ("on_update", self.on_update),
-        )
+        return values
 
     @property
     def mode(self) -> RefreshMode:
@@ -176,8 +173,8 @@ class RefreshConfig(DatabricksComponentConfig):
         if self == other:
             return None
         is_altered = self.mode != RefreshMode.MANUAL and other.mode != RefreshMode.MANUAL
-        # model_construct skips re-validation; only is_altered changes, other fields stay valid.
-        return self.model_construct(**{**self.model_dump(), "is_altered": is_altered})
+        # copy() skips re-validation; only is_altered changes, other fields stay valid.
+        return self.copy(update={"is_altered": is_altered})
 
 
 class RefreshProcessor(DatabricksComponentProcessor[RefreshConfig]):
