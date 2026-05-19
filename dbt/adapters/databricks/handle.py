@@ -10,6 +10,7 @@ from dbt_common.exceptions import DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
+from databricks.sql.exc import SessionEvictedError
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
@@ -291,13 +292,33 @@ class DatabricksHandle:
         """
         Ensure that a previously opened cursor is closed and that a new one is created
         before executing the given function.
+
         Also ensures that we do not continue to execute SQL after a connection cleanup
         has been requested.
-        """
 
+        On server-side session eviction (`SessionEvictedError`) we reopen the underlying
+        connection exactly once and retry. Any further error, including a second
+        `SessionEvictedError`, propagates to the caller. Handles constructed without
+        `conn_args` (e.g. some unit-test patterns) do not attempt recovery — the
+        eviction propagates immediately.
+        """
         if not self.open:
             raise DbtRuntimeError("Attempting to execute on a closed connection")
         assert self._conn, "Should not be possible for _conn to be None if open"
+
+        try:
+            return self._open_cursor(f)
+        except SessionEvictedError as e:
+            if self._conn_args is None:
+                raise
+            logger.info(f"{self} - {e} - attempting one-shot reopen")
+            self._reopen()
+            return self._open_cursor(f)
+
+    def _open_cursor(self, f: CursorExecOp) -> CursorWrapper:
+        """Close any prior cursor, open a new one on the current connection,
+        and run `f` against it. Wrapped by `_safe_execute` which adds one-shot
+        recovery on server-side session eviction."""
         if self._cursor:
             self._cursor.close()
         self._cursor = CursorWrapper(f(self._conn.cursor()))

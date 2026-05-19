@@ -4,9 +4,11 @@ from unittest.mock import Mock
 
 import pytest
 from databricks.sql.client import Cursor
+from databricks.sql.exc import DatabaseError, SessionEvictedError
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks import handle as handle_mod
 from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
 
 
@@ -247,6 +249,10 @@ class TestDatabricksHandle:
     def cursor(self):
         return Mock()
 
+    @pytest.fixture
+    def conn_args(self):
+        return {"server_hostname": "h", "http_path": "/p"}
+
     def test_safe_execute__closed(self, conn):
         handle = DatabricksHandle(conn, True)
         handle.open = False
@@ -334,41 +340,25 @@ class TestDatabricksHandle:
         handle = DatabricksHandle(conn, is_cluster=True)
         assert handle._conn_args is None
 
-    def test_reopen_replaces_underlying_conn(self, monkeypatch):
+    def test_reopen_replaces_underlying_conn(self, monkeypatch, conn_args):
         """_reopen() must swap self._conn for a fresh dbsql.connect() result."""
         original_conn = Mock()
         new_conn = Mock()
-        import dbt.adapters.databricks.handle as handle_mod
-        monkeypatch.setattr(
-            handle_mod.dbsql, "connect", Mock(return_value=new_conn)
-        )
-        handle = DatabricksHandle(
-            original_conn,
-            is_cluster=True,
-            conn_args={"server_hostname": "h", "http_path": "/p"},
-        )
+        monkeypatch.setattr(handle_mod.dbsql, "connect", Mock(return_value=new_conn))
+        handle = DatabricksHandle(original_conn, is_cluster=True, conn_args=conn_args)
         handle._reopen()
         assert handle._conn is new_conn
         assert handle._conn is not original_conn
         assert handle.open is True
 
-    def test_reopen_swallows_close_errors(self, monkeypatch):
+    def test_reopen_swallows_close_errors(self, monkeypatch, conn_args):
         """_reopen() must NOT raise when self._conn.close() raises — the server
         has already evicted the session, so the close attempt is expected to fail."""
         bad_close_conn = Mock()
-        bad_close_conn.close.side_effect = Exception(
-            "Invalid SessionHandle: SessionHandle [abc]"
-        )
+        bad_close_conn.close.side_effect = Exception("Invalid SessionHandle: SessionHandle [abc]")
         new_conn = Mock()
-        import dbt.adapters.databricks.handle as handle_mod
-        monkeypatch.setattr(
-            handle_mod.dbsql, "connect", Mock(return_value=new_conn)
-        )
-        handle = DatabricksHandle(
-            bad_close_conn,
-            is_cluster=True,
-            conn_args={"server_hostname": "h", "http_path": "/p"},
-        )
+        monkeypatch.setattr(handle_mod.dbsql, "connect", Mock(return_value=new_conn))
+        handle = DatabricksHandle(bad_close_conn, is_cluster=True, conn_args=conn_args)
         # Must not raise
         handle._reopen()
         bad_close_conn.close.assert_called_once()
@@ -380,3 +370,71 @@ class TestDatabricksHandle:
         handle = DatabricksHandle(Mock(), is_cluster=True)
         with pytest.raises(DbtRuntimeError, match="_reopen called without captured conn_args"):
             handle._reopen()
+
+    def test_safe_execute_does_not_retry_on_non_session_evicted_error(
+        self, conn, cursor, monkeypatch, conn_args
+    ):
+        """A plain DatabaseError (e.g. syntax error) must propagate; no reopen attempt."""
+        conn.cursor.return_value = cursor
+        cursor.execute.side_effect = DatabaseError("Syntax error in SQL")
+
+        connect_mock = Mock()
+        monkeypatch.setattr(handle_mod.dbsql, "connect", connect_mock)
+
+        handle = DatabricksHandle(conn, is_cluster=True, conn_args=conn_args)
+        with pytest.raises(DatabaseError, match="Syntax error"):
+            handle._safe_execute(lambda c: c.execute("BAD SQL"))
+        # _reopen must NOT have been called
+        connect_mock.assert_not_called()
+        assert handle._conn is conn
+
+    def test_safe_execute_retries_once_on_session_evicted_error(self, monkeypatch, conn_args):
+        """First execute raises SessionEvictedError; reopen + retry must succeed."""
+        first_conn = Mock()
+        first_cursor = Mock()
+        first_cursor.execute.side_effect = SessionEvictedError(
+            "Invalid SessionHandle: SessionHandle [abc]"
+        )
+        first_conn.cursor.return_value = first_cursor
+
+        new_conn = Mock()
+        new_conn.cursor.return_value = Mock()
+
+        connect_mock = Mock(return_value=new_conn)
+        monkeypatch.setattr(handle_mod.dbsql, "connect", connect_mock)
+
+        handle = DatabricksHandle(first_conn, is_cluster=True, conn_args=conn_args)
+        handle._safe_execute(lambda c: c.execute("SELECT 1"))  # must not raise
+
+        connect_mock.assert_called_once()
+        assert handle._conn is new_conn
+
+    def test_safe_execute_does_not_retry_twice(self, monkeypatch, conn_args):
+        """If even the retry attempt raises SessionEvictedError, propagate."""
+
+        def make_evicting_conn():
+            c = Mock()
+            cur = Mock()
+            cur.execute.side_effect = SessionEvictedError("evicted again")
+            c.cursor.return_value = cur
+            return c
+
+        first_conn = make_evicting_conn()
+        retry_conn = make_evicting_conn()
+        connect_mock = Mock(return_value=retry_conn)
+        monkeypatch.setattr(handle_mod.dbsql, "connect", connect_mock)
+
+        handle = DatabricksHandle(first_conn, is_cluster=True, conn_args=conn_args)
+        with pytest.raises(SessionEvictedError, match="evicted again"):
+            handle._safe_execute(lambda c: c.execute("SELECT 1"))
+
+        connect_mock.assert_called_once()
+
+    def test_safe_execute_without_conn_args_does_not_retry(self, conn, cursor):
+        """A handle without captured conn_args (e.g. unit tests with mocks)
+        must propagate SessionEvictedError immediately — no recovery."""
+        conn.cursor.return_value = cursor
+        cursor.execute.side_effect = SessionEvictedError("evicted")
+        handle = DatabricksHandle(conn, is_cluster=True)  # no conn_args
+        with pytest.raises(SessionEvictedError):
+            handle._safe_execute(lambda c: c.execute("SELECT 1"))
