@@ -118,12 +118,14 @@ class DatabricksHandle:
         self,
         conn: Connection,
         is_cluster: bool,
+        conn_args: Optional[dict[str, Any]] = None,
     ):
         self._conn = conn
         self.open = True
         self._cursor: Optional[CursorWrapper] = None
         self._dbr_version: Optional[tuple[int, int]] = None
         self._is_cluster = is_cluster
+        self._conn_args = conn_args
 
     @property
     def dbr_version(self) -> tuple[int, int]:
@@ -212,7 +214,7 @@ class DatabricksHandle:
         if not conn:
             logger.warning(f"Failed to create connection for {conn_args.get('http_path')}")
             return None
-        connection = DatabricksHandle(conn, is_cluster=is_cluster)
+        connection = DatabricksHandle(conn, is_cluster=is_cluster, conn_args=conn_args)
         logger.debug(f"{connection} - Created")
 
         return connection

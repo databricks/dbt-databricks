@@ -324,3 +324,12 @@ class TestDatabricksHandle:
         handle.close()
         cursor.close.assert_called_once()
         conn.close.assert_called_once()
+
+    def test_handle_stashes_conn_args(self, conn):
+        conn_args = {"server_hostname": "h", "http_path": "/p", "_socket_timeout": 600}
+        handle = DatabricksHandle(conn, is_cluster=True, conn_args=conn_args)
+        assert handle._conn_args == conn_args
+
+    def test_handle_default_conn_args_is_none(self, conn):
+        handle = DatabricksHandle(conn, is_cluster=True)
+        assert handle._conn_args is None
