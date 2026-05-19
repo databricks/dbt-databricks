@@ -196,6 +196,56 @@ class DatabricksHandle:
             lambda ex: f"{self} - Exception while closing: {ex}",
         )
 
+    def _session_id_safe(self) -> str:
+        """Best-effort session_id read for log lines; returns '<unknown>'
+        rather than raising during transitional states."""
+        try:
+            return self.session_id
+        except Exception:
+            return "<unknown>"
+
+    def _reopen(self) -> None:
+        """Reopen the underlying databricks.sql Connection after server-side
+        session eviction.
+
+        Does NOT call the server's CloseSession — the session has already
+        been evicted; the CloseSession RPC would mirror-fail. Instead we
+        call self._conn.close() via utils.handle_exceptions_as_warning so
+        any local close errors are swallowed.
+
+        What is preserved: catalog, schema, session_configuration,
+        query_tags, http_headers, auth — every captured `conn_args` key.
+        What is LOST: in-session state set by SQL SET statements, registered
+        temp views or UDFs. dbt's per-model connection_named() boundary
+        means in-session state isn't expected to outlive a single model.
+        """
+        if self._conn_args is None:
+            raise DbtRuntimeError(
+                f"{self} - _reopen called without captured conn_args; "
+                "handle must be constructed via from_connection_args"
+            )
+
+        old_session_id = self._session_id_safe()
+        logger.info(f"{self} - Session evicted server-side; reopening connection")
+
+        utils.handle_exceptions_as_warning(
+            lambda: self._conn.close(),
+            lambda ex: f"{self} - close during _reopen raised (expected on eviction): {ex}",
+        )
+        self._cursor = None
+        self._dbr_version = None
+
+        new_conn = dbsql.connect(**self._conn_args)
+        if new_conn is None:
+            raise DbtRuntimeError(f"{self} - _reopen: dbsql.connect returned None")
+        self._conn = new_conn
+        self.open = True
+
+        logger.info(
+            f"{self} - Reopened after eviction: old session={old_session_id} "
+            f"new session={self._session_id_safe()}"
+        )
+
     def rollback(self) -> None:
         """
         Required for interface compatibility, but not implemented.

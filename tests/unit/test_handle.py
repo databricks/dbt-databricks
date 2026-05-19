@@ -333,3 +333,50 @@ class TestDatabricksHandle:
     def test_handle_default_conn_args_is_none(self, conn):
         handle = DatabricksHandle(conn, is_cluster=True)
         assert handle._conn_args is None
+
+    def test_reopen_replaces_underlying_conn(self, monkeypatch):
+        """_reopen() must swap self._conn for a fresh dbsql.connect() result."""
+        original_conn = Mock()
+        new_conn = Mock()
+        import dbt.adapters.databricks.handle as handle_mod
+        monkeypatch.setattr(
+            handle_mod.dbsql, "connect", Mock(return_value=new_conn)
+        )
+        handle = DatabricksHandle(
+            original_conn,
+            is_cluster=True,
+            conn_args={"server_hostname": "h", "http_path": "/p"},
+        )
+        handle._reopen()
+        assert handle._conn is new_conn
+        assert handle._conn is not original_conn
+        assert handle.open is True
+
+    def test_reopen_swallows_close_errors(self, monkeypatch):
+        """_reopen() must NOT raise when self._conn.close() raises — the server
+        has already evicted the session, so the close attempt is expected to fail."""
+        bad_close_conn = Mock()
+        bad_close_conn.close.side_effect = Exception(
+            "Invalid SessionHandle: SessionHandle [abc]"
+        )
+        new_conn = Mock()
+        import dbt.adapters.databricks.handle as handle_mod
+        monkeypatch.setattr(
+            handle_mod.dbsql, "connect", Mock(return_value=new_conn)
+        )
+        handle = DatabricksHandle(
+            bad_close_conn,
+            is_cluster=True,
+            conn_args={"server_hostname": "h", "http_path": "/p"},
+        )
+        # Must not raise
+        handle._reopen()
+        bad_close_conn.close.assert_called_once()
+        assert handle._conn is new_conn
+
+    def test_reopen_without_conn_args_raises(self):
+        """A handle constructed without conn_args cannot be reopened —
+        the data needed to reconnect was never captured."""
+        handle = DatabricksHandle(Mock(), is_cluster=True)
+        with pytest.raises(DbtRuntimeError, match="_reopen called without captured conn_args"):
+            handle._reopen()
