@@ -10,7 +10,7 @@ from dbt_common.exceptions import DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
-from databricks.sql.exc import SessionEvictedError
+from databricks.sql.exc import DatabaseError
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
@@ -27,6 +27,25 @@ CursorWrapperOp = Callable[["CursorWrapper"], None]
 ConnectionOp = Callable[[Optional[Connection]], None]
 LogOp = Callable[[], str]
 FailLogOp = Callable[[Exception], str]
+
+
+# Server-defined error-message patterns that indicate the Thrift session has
+# been evicted server-side (idle timeout, cluster restart, etc.). The Databricks
+# Thrift server reports these via `ERROR_STATUS` with a known message format
+# rather than the dedicated `INVALID_HANDLE_STATUS`, so message inspection is
+# the only on-wire discriminator. Matches the existing close-time pattern in
+# `databricks.sql.session.Session.close()` and `DatabricksSession.close()` in
+# the Databricks JDBC driver.
+_STALE_SESSION_PATTERNS = ("Invalid SessionHandle", "does not exist")
+
+
+def _is_stale_session_error(exc: BaseException) -> bool:
+    """True iff `exc` is a `DatabaseError` whose message names one of the
+    server's known session-eviction signatures."""
+    if not isinstance(exc, DatabaseError):
+        return False
+    msg = str(exc)
+    return any(p in msg for p in _STALE_SESSION_PATTERNS)
 
 
 class CursorWrapper:
@@ -296,11 +315,19 @@ class DatabricksHandle:
         Also ensures that we do not continue to execute SQL after a connection cleanup
         has been requested.
 
-        On server-side session eviction (`SessionEvictedError`) we reopen the underlying
-        connection exactly once and retry. Any further error, including a second
-        `SessionEvictedError`, propagates to the caller. Handles constructed without
-        `conn_args` (e.g. some unit-test patterns) do not attempt recovery — the
-        eviction propagates immediately.
+        On server-side session eviction (recognised by the message patterns in
+        `_is_stale_session_error`) we reopen the underlying connection exactly once
+        and retry. Any further error propagates to the caller. Handles constructed
+        without `conn_args` (e.g. some unit-test patterns) do not attempt recovery.
+
+        We substring-match the server's error message because the Databricks Thrift
+        server reports session eviction via the generic `ERROR_STATUS` code rather
+        than the dedicated `INVALID_HANDLE_STATUS` — the only on-wire signal is
+        the message text. The connector (databricks-sql-python) and JDBC driver
+        use the same approach at close-time; this extends it to execute-time at
+        the adapter layer, where we know the dbt application semantics make
+        reopen safe (per-model `connection_named()` boundary, no shared in-session
+        SET state).
         """
         if not self.open:
             raise DbtRuntimeError("Attempting to execute on a closed connection")
@@ -308,8 +335,8 @@ class DatabricksHandle:
 
         try:
             return self._open_cursor(f)
-        except SessionEvictedError as e:
-            if self._conn_args is None:
+        except DatabaseError as e:
+            if self._conn_args is None or not _is_stale_session_error(e):
                 raise
             logger.info(f"{self} - {e} - attempting one-shot reopen")
             self._reopen()

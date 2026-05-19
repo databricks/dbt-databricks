@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 from databricks.sql.client import Cursor
-from databricks.sql.exc import DatabaseError, SessionEvictedError
+from databricks.sql.exc import DatabaseError
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -388,11 +388,12 @@ class TestDatabricksHandle:
         connect_mock.assert_not_called()
         assert handle._conn is conn
 
-    def test_safe_execute_retries_once_on_session_evicted_error(self, monkeypatch, conn_args):
-        """First execute raises SessionEvictedError; reopen + retry must succeed."""
+    def test_safe_execute_retries_once_on_invalid_session_handle(self, monkeypatch, conn_args):
+        """First execute raises DatabaseError matching the eviction signature;
+        reopen + retry must succeed."""
         first_conn = Mock()
         first_cursor = Mock()
-        first_cursor.execute.side_effect = SessionEvictedError(
+        first_cursor.execute.side_effect = DatabaseError(
             "Invalid SessionHandle: SessionHandle [abc]"
         )
         first_conn.cursor.return_value = first_cursor
@@ -409,13 +410,33 @@ class TestDatabricksHandle:
         connect_mock.assert_called_once()
         assert handle._conn is new_conn
 
+    def test_safe_execute_retries_on_session_does_not_exist_variant(self, monkeypatch, conn_args):
+        """Older server variant of the eviction message must also trigger retry."""
+        first_conn = Mock()
+        first_cursor = Mock()
+        first_cursor.execute.side_effect = DatabaseError(
+            "Session abc-123 does not exist!"
+        )
+        first_conn.cursor.return_value = first_cursor
+
+        new_conn = Mock()
+        new_conn.cursor.return_value = Mock()
+        connect_mock = Mock(return_value=new_conn)
+        monkeypatch.setattr(handle_mod.dbsql, "connect", connect_mock)
+
+        handle = DatabricksHandle(first_conn, is_cluster=True, conn_args=conn_args)
+        handle._safe_execute(lambda c: c.execute("SELECT 1"))
+
+        connect_mock.assert_called_once()
+        assert handle._conn is new_conn
+
     def test_safe_execute_does_not_retry_twice(self, monkeypatch, conn_args):
-        """If even the retry attempt raises SessionEvictedError, propagate."""
+        """If even the retry attempt raises another eviction DatabaseError, propagate."""
 
         def make_evicting_conn():
             c = Mock()
             cur = Mock()
-            cur.execute.side_effect = SessionEvictedError("evicted again")
+            cur.execute.side_effect = DatabaseError("Invalid SessionHandle: evicted again")
             c.cursor.return_value = cur
             return c
 
@@ -425,16 +446,16 @@ class TestDatabricksHandle:
         monkeypatch.setattr(handle_mod.dbsql, "connect", connect_mock)
 
         handle = DatabricksHandle(first_conn, is_cluster=True, conn_args=conn_args)
-        with pytest.raises(SessionEvictedError, match="evicted again"):
+        with pytest.raises(DatabaseError, match="evicted again"):
             handle._safe_execute(lambda c: c.execute("SELECT 1"))
 
         connect_mock.assert_called_once()
 
     def test_safe_execute_without_conn_args_does_not_retry(self, conn, cursor):
         """A handle without captured conn_args (e.g. unit tests with mocks)
-        must propagate SessionEvictedError immediately — no recovery."""
+        must propagate the eviction DatabaseError immediately — no recovery."""
         conn.cursor.return_value = cursor
-        cursor.execute.side_effect = SessionEvictedError("evicted")
+        cursor.execute.side_effect = DatabaseError("Invalid SessionHandle: evicted")
         handle = DatabricksHandle(conn, is_cluster=True)  # no conn_args
-        with pytest.raises(SessionEvictedError):
+        with pytest.raises(DatabaseError, match="Invalid SessionHandle"):
             handle._safe_execute(lambda c: c.execute("SELECT 1"))
