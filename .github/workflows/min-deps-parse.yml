@@ -1,0 +1,59 @@
+# Installs dbt-databricks at lowest-direct dependency resolution and
+# runs `dbt parse`, catching constraint ranges that admit versions
+# the code doesn't support. Default test paths resolve to
+# highest-compatible versions, so lower bounds drift untested.
+#
+# Runs post-merge rather than on PRs because fork PRs cannot issue
+# the OIDC token required by the JFrog proxy and protected runner.
+# Acceptable compromise: a bad merge sits on the target branch
+# briefly before the gate fires, but well before any release tag.
+
+name: Min-Deps Parse
+
+on:
+  push:
+    branches:
+      - "main"
+      - "*.latest"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  parse-at-lowest-direct:
+    name: dbt parse at lowest-direct resolution
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install dbt-databricks at lowest-direct dep resolution
+        run: |
+          uv venv --python 3.10
+          uv pip install --resolution lowest-direct .
+
+      - name: dbt parse against min-deps fixture
+        run: .venv/bin/dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke
