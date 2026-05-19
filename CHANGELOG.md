@@ -7,6 +7,7 @@
 ### Under the Hood
 
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
+- Honor `incremental_apply_config_changes` in the V1 incremental merge path, allowing users to skip metadata diff queries (tags, column_tags, constraints, column_masks, tblproperties, describe_extended) when set to `false`. Matches the existing V2 behavior. ([#1402](https://github.com/databricks/dbt-databricks/issues/1402))
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 
