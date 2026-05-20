@@ -976,12 +976,17 @@ class DatabricksAdapter(SparkAdapter):
         existing_columns: list[DatabricksColumn],
         model_columns: dict[str, dict[str, Any]],
         model_constraints: list[dict[str, Any]],
+        contract_enforced: bool = False,
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
-        not_null_set, parsed_constraints = constraints.parse_constraints(
-            list(model_columns.values()), model_constraints
-        )
+        if contract_enforced:
+            not_null_set, parsed_constraints = constraints.parse_constraints(
+                list(model_columns.values()), model_constraints
+            )
+        else:
+            not_null_set = set()
+            parsed_constraints = []
 
         # Create a case-insensitive lookup for model column names
         model_columns_lower = {k.lower(): k for k in model_columns.keys()}

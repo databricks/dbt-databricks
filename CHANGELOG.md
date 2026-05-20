@@ -4,6 +4,14 @@
 
 - Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
 
+### Fixes
+
+- Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
+
+### Under the Hood
+
+- **BREAKING:** users who relied on column-level constraints (NOT NULL, primary key, foreign key, check) being applied under `use_materialization_v2: true` without `contract.enforced: true` must now set `contract.enforced: true` explicitly on the model.
+
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
 ### Features
