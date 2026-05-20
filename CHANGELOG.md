@@ -3,17 +3,20 @@
 ### Features
 
 - Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
+- Support for SPOG (Single Point of Gateway) hosts. Account-level vanity URLs (e.g. `peco.azuredatabricks.net`) with `?o=<workspace-id>` in `http_path` now route correctly for both data-plane (SQL) and control-plane (REST/Jobs/Workspace API) traffic. Opt-in via dep ceiling bumps: requires `databricks-sql-connector >= 4.2.6` and `databricks-sdk >= 0.104.0`. `dbt debug` surfaces SPOG status and dep-version suitability inline. Misconfiguration (SPOG host without `?o=`, non-SPOG host with `?o=`, SPOG host with old deps) fails with a pointed `DbtConfigError`.
 
 ### Fixes
 
 - Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
 - Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
 - Fix snapshots not applying `databricks_tags` on columns ([#1442](https://github.com/databricks/dbt-databricks/pull/1442) closes [#1441](https://github.com/databricks/dbt-databricks/issues/1441))
+- `EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX` now stops the capture at `?` / `&`, so any trailing query string on `http_path` no longer corrupts the extracted cluster id. Latent issue on legacy hosts; the fix unblocks SPOG cluster paths.
 
 ### Under the Hood
 
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+- New `dbt/adapters/databricks/spog/` package: `extract` (parse `?o=` from http_path), `capabilities` (detect SPOG-capable connector/sdk), `probe` (discovery probe with retry/backoff), `decision` (the §8 decision matrix called from `connection.open()`).
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 

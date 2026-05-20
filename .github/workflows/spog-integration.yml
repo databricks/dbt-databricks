@@ -1,0 +1,81 @@
+# SPOG Integration Tests for dbt-databricks
+#
+# Runs the SPOG-specific functional tests against the SPOG (Single Point of
+# Gateway) test workspace at peco.azuredatabricks.net, re-using the existing
+# CI secrets for host/token (same underlying Azure workspace; only `host`
+# and the `?o=` suffix on `http_path` differ).
+#
+# Triggering:
+# 1. Manually from the Actions tab (workflow_dispatch).
+# 2. On schedule (weekly, alongside the main integration cadence).
+# 3. From the integration-trigger workflow with target=spog (future).
+#
+# This is intentionally a separate, focused workflow rather than a parallel
+# job in integration.yml. The full-mirror matrix (running every functional
+# test against the SPOG target) is tracked as a follow-up in
+# .claude/ideas/spog-future-tasks.md §2; this workflow ships the minimum
+# viable SPOG CI gate (the new tests under tests/functional/adapter/spog/).
+name: SPOG Integration Tests
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly: Saturday 22:00 UTC. Cheap signal that SPOG keeps working
+    # against peco.azuredatabricks.net without consuming nightly capacity.
+    - cron: "0 22 * * 6"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spog-integration:
+    name: SPOG Functional Tests
+    runs-on: ubuntu-latest
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_HOST_NAME }}
+      DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
+      DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_CATALOG }}
+      DBT_DATABRICKS_UC_INITIAL_SCHEMA: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_SCHEMA }}
+      # SPOG-specific: host swap + workspace id for the ?o= suffix.
+      DBT_DATABRICKS_SPOG_HOST_NAME: peco.azuredatabricks.net
+      DBT_DATABRICKS_SPOG_WORKSPACE_ID: "6436897454825492"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+
+      - name: Force SPOG-capable connector and SDK pins
+        run: |
+          # The pyproject ceilings already allow these; force-install to
+          # exercise the SPOG code path even if pip would have resolved lower.
+          hatch run pip install \
+            'databricks-sql-connector[pyarrow]>=4.2.6,<4.3.0' \
+            'databricks-sdk>=0.104.0,<0.105.0'
+
+      - name: Run SPOG-specific functional tests
+        run: |
+          mkdir -p logs
+          hatch run pytest tests/functional/adapter/spog \
+            --color=yes -v \
+            --profile databricks_uc_sql_endpoint_spog \
+            --junitxml=logs/junit-spog.xml
+
+      - name: Upload SPOG Test Logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: spog-test-logs
+          path: logs/
+          retention-days: 14
