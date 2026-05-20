@@ -1271,6 +1271,29 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
+    def test_get_columns_foreign_table_uses_legacy_logic(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        foreign_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelationType.Foreign,
+        )
+        # Foreign/federated tables don't support AS JSON — always use legacy logic
+        with patch.object(adapter, "has_capability", return_value=True):
+            mock_get_columns.return_value = [
+                {"col_name": "federated_col", "data_type": "string", "comment": ""},
+            ]
+            result = adapter.get_columns_in_relation(foreign_relation)
+        mock_get_columns.assert_called_with(adapter, foreign_relation, "get_columns_comments")
+        assert len(result) == 1
+        assert result[0].column == "federated_col"
+        assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
         with patch.object(adapter, "has_capability", return_value=True):
