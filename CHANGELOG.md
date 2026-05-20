@@ -6,7 +6,7 @@
 
 ### Fixes
 
-- Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
+- Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#1470](https://github.com/databricks/dbt-databricks/pull/1470) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
 
 ### Under the Hood
 
