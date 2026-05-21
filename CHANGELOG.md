@@ -1,3 +1,13 @@
+## dbt-databricks 1.12.1 (TBD)
+
+### Features
+
+- Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
+
+### Fixes
+
+- Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
+
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
 ### Features
