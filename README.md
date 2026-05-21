@@ -61,6 +61,82 @@ your_profile_name:
       token: [dapiXXXXXXXXXXXXXXXXXXXXXXX]
 ```
 
+### Authentication
+
+The adapter supports all [Databricks unified authentication](https://docs.databricks.com/dev-tools/auth/unified-auth.html) methods. For a full setup walkthrough, see the **[Connect to Databricks](https://docs.getdbt.com/docs/core/connect-data-platform/databricks-setup)** guide on docs.getdbt.com.
+
+The method is selected automatically based on which fields are present in your profile. Priority order (first match wins):
+
+| Method | Required profile fields |
+|---|---|
+| Personal Access Token (PAT) | `token` |
+| Azure service principal | `azure_client_id` + `azure_client_secret` |
+| Any explicit SDK auth type | `auth_type` (see values below) |
+| OAuth user-to-machine (browser) | `client_id` only (no `client_secret`), or _(none of the above — opens browser)_ |
+| OAuth M2M / legacy Azure SP | `client_secret` without `auth_type` _(deprecated — set `auth_type` explicitly)_ |
+
+#### `auth_type` values
+
+Set `auth_type` in your profile to delegate entirely to the Databricks SDK for that auth method:
+
+| `auth_type` value | Description |
+|---|---|
+| `oauth` | U2M browser login (legacy dbt alias for `external-browser`) |
+| `oauth-m2m` | Service principal via OAuth M2M; requires `client_id` + `client_secret` |
+| `azure-cli` | Azure CLI (`az login`) |
+| `azure-msi` | Azure Managed Service Identity |
+| `databricks-cli` | Databricks CLI credential chain |
+| `google-credentials` | Google service account |
+| `metadata-service` | Databricks metadata service |
+
+#### Auth-specific profile fields
+
+```nofmt
+# OAuth M2M / service principal
+client_id: ...
+client_secret: ...
+
+# Azure service principal (explicit)
+azure_client_id: ...
+azure_client_secret: ...
+
+# Azure common options
+azure_tenant_id: ...
+azure_environment: ...          # e.g. usgovernment
+azure_workspace_resource_id: ...
+
+# Azure MSI (user-assigned identity)
+auth_type: azure-msi
+azure_client_id: ...            # omit for system-assigned
+
+# Databricks CLI
+auth_type: databricks-cli
+databricks_cli_profile: ...     # optional: named profile in ~/.databrickscfg
+
+# Google
+auth_type: google-credentials
+google_credentials: ...         # path to service account JSON
+google_service_account: ...
+
+# Metadata service / OIDC
+metadata_service_url: ...
+oidc_token_env: ...
+oidc_token_filepath: ...
+
+# Escape hatch: any extra Databricks SDK Config kwarg not listed above
+databricks_sdk_parameters:
+  some_sdk_field: value
+```
+
+New auth methods added to the Databricks Python SDK are available automatically via `auth_type` + `databricks_sdk_parameters` without requiring an adapter update.
+
+> **Deprecated:** Omitting `auth_type` when using `client_secret` triggers a legacy heuristic that guesses between `oauth-m2m` and `azure-client-secret` based on the secret format. This produces a deprecation warning at runtime. Migrate by setting `auth_type` explicitly:
+> ```yaml
+> auth_type: oauth-m2m       # for Databricks OAuth M2M service principals
+> # or
+> auth_type: azure-client-secret  # for Azure AD service principals
+> ```
+
 ### Documentation
 
 For comprehensive documentation on Databricks-specific features, configurations, and capabilities:

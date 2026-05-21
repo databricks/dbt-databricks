@@ -29,7 +29,6 @@ from databricks.sdk.service.workspace import ImportFormat, Language
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version
 from dbt.adapters.databricks.credentials import (
-    DatabricksCredentialManager,
     DatabricksCredentials,
 )
 from dbt.adapters.databricks.logging import logger
@@ -945,7 +944,7 @@ class DatabricksApiClient:
         use_user_folder: bool = False,
         polling_interval: int = DEFAULT_POLLING_INTERVAL,
     ):
-        workspace_client = DatabricksCredentialManager.create_from(credentials).api_client
+        workspace_client = credentials.authenticate().api_client
         self.libraries = LibraryApi(workspace_client)
         self.clusters = ClusterApi(workspace_client, self.libraries)
         self.command_contexts = CommandContextApi(workspace_client, self.clusters, self.libraries)
