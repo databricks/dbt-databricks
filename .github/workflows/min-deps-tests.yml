@@ -1,7 +1,5 @@
 # Installs dbt-databricks at lowest-direct dependency resolution from the
-# committed lock and runs parse + unit suites. Functional tests are out of
-# scope here -- they need sharding + more nuanced orchestration and will be
-# added in a follow-up PR.
+# committed lock and runs parse + unit suites.
 #
 # Runs post-merge rather than on PRs because fork PRs cannot issue the
 # OIDC token required by the JFrog proxy and protected runner.
