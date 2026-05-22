@@ -1,0 +1,49 @@
+# Fails the PR when pyproject.toml changed without re-running
+# scripts/regenerate_min_deps_lock.sh. Runs on every PR that touches
+# either file (or the script/workflow themselves).
+
+name: Min-Deps Lock Drift Check
+
+on:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "requirements.lowest-direct.txt"
+      - "scripts/regenerate_min_deps_lock.sh"
+      - ".github/workflows/min-deps-lock-drift.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  drift-check:
+    name: lock matches pyproject.toml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+
+      - name: Regenerate lock
+        run: scripts/regenerate_min_deps_lock.sh
+
+      - name: Fail if lock drifted
+        run: |
+          if ! git diff --exit-code requirements.lowest-direct.txt; then
+            echo
+            echo "ERROR: requirements.lowest-direct.txt is out of sync with pyproject.toml."
+            echo "Run 'scripts/regenerate_min_deps_lock.sh' locally and commit the result."
+            exit 1
+          fi

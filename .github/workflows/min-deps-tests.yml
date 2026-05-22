@@ -1,0 +1,118 @@
+# Installs dbt-databricks at lowest-direct dependency resolution from the
+# committed lock and runs the parse smoke + unit suite. Functional tests
+# are gated behind workflow_dispatch initially; promote to push-trigger
+# once runtime + cache hit rate are characterized.
+#
+# Runs post-merge rather than on PRs because fork PRs cannot issue the
+# OIDC token required by the JFrog proxy and protected runner.
+
+name: Min-Deps Tests
+
+on:
+  push:
+    branches:
+      - "main"
+      - "*.latest"
+  workflow_dispatch:
+    inputs:
+      run_functional:
+        description: "Also run the functional suite (slow, needs warehouse)"
+        required: false
+        default: "false"
+
+permissions:
+  id-token: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  parse-and-unit-at-lowest-direct:
+    name: parse + unit at lowest-direct resolution
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install hatch
+        run: pipx install hatch
+
+      - name: Cache hatch envs
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/hatch
+          key: hatch-min-deps-${{ runner.os }}-py3.10-${{ hashFiles('pyproject.toml', 'requirements.lowest-direct.txt') }}
+
+      - name: Create min-deps env
+        run: hatch env create min-deps
+
+      - name: Min-deps parse smoke
+        run: hatch run min-deps:parse
+
+      - name: Min-deps unit tests
+        run: hatch run min-deps:unit
+
+  functional-at-lowest-direct:
+    name: functional at lowest-direct resolution (manual)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_functional == 'true'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 60
+    needs: parse-and-unit-at-lowest-direct
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
+      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install hatch
+        run: pipx install hatch
+
+      - name: Cache hatch envs
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/hatch
+          key: hatch-min-deps-${{ runner.os }}-py3.10-${{ hashFiles('pyproject.toml', 'requirements.lowest-direct.txt') }}
+
+      - name: Min-deps functional tests (SQL warehouse profile)
+        run: hatch run min-deps:e2e
