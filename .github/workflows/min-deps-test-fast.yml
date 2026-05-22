@@ -1,10 +1,12 @@
-# Installs dbt-databricks at lowest-direct dependency resolution from the
-# committed lock and runs parse + unit suites.
+# Fast min-deps signal: installs dbt-databricks at lowest-direct dependency
+# resolution from the committed lock and runs parse + unit suites on every
+# merge to main / *.latest. Sharded functional coverage lives in the
+# companion min-deps-test-slow.yml on a nightly schedule.
 #
 # Runs post-merge rather than on PRs because fork PRs cannot issue the
 # OIDC token required by the JFrog proxy and protected runner.
 
-name: Min-Deps Tests
+name: Min-Deps Tests (fast)
 
 on:
   push:
