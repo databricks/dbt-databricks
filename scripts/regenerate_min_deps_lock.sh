@@ -9,6 +9,7 @@ uv pip compile pyproject.toml \
     --group test \
     --resolution lowest-direct \
     --python 3.10 \
+    --universal \
     --format requirements.txt \
     --no-emit-index-url \
     --generate-hashes \
