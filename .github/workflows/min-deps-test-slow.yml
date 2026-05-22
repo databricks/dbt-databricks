@@ -8,15 +8,17 @@
 #
 # Triggering: schedule only. No PR-trigger and no workflow_dispatch yet
 # because the warm dep cache only covers highest-compatible wheels; runs
-# pay the JFrog download cost in full. The schedule is offset from
-# integration.yml's 21:30 UTC nightly so the two don't contend for runners
-# or warehouse capacity -- softprops/turnstyle only serializes runs of the
-# same workflow, so cross-workflow staggering is manual via cron.
+# pay the JFrog download cost in full. The schedule runs 2h ahead of
+# integration.yml's 21:30 UTC nightly so any min-deps regression surfaces
+# before the regular nightly fires -- a typical run finishes in well under
+# an hour, leaving headroom before integration.yml starts.
+# softprops/turnstyle only serializes runs of the same workflow, so
+# cross-workflow staggering is manual via cron.
 
 name: Min-Deps Tests (slow)
 on:
   schedule:
-    - cron: "30 2 * * *"   # 02:30 UTC, ~5h after integration.yml's nightly
+    - cron: "30 19 * * *"   # 19:30 UTC, 2h before integration.yml's nightly
 
 permissions:
   id-token: write
@@ -156,7 +158,7 @@ jobs:
           retention-days: 5
 
   # Serialize min-deps-slow runs across the repo. Cross-workflow staggering
-  # against integration.yml is handled by the cron schedule (5h offset),
+  # against integration.yml is handled by the cron schedule (2h ahead),
   # since turnstyle only locks against the same workflow.
   gate:
     needs: prepare
