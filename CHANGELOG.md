@@ -1,3 +1,19 @@
+## dbt-databricks 1.12.1 (TBD)
+
+### Features
+
+- Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
+
+### Fixes
+
+- Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
+- Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
+
+### Under the Hood
+
+- Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+- Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
 ### Features
