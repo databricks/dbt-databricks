@@ -46,7 +46,12 @@ from dbt.adapters.databricks.events.connection_events import (
     ConnectionCreateError,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
-from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
+from dbt.adapters.databricks.handle import (
+    CursorWrapper,
+    DatabricksAdapterResponse,
+    DatabricksHandle,
+    SqlUtils,
+)
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
@@ -540,7 +545,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         if isinstance(cursor, CursorWrapper):
             return cursor.get_response()
         else:
-            return AdapterResponse("OK")
+            return DatabricksAdapterResponse.from_cursor(cursor)
 
     def clear_transaction(self) -> None:
         """Noop."""
