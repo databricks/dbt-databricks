@@ -85,7 +85,11 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
    - Require live Databricks workspace
    - Run with: `hatch run cluster-e2e-dev` (or `uc-cluster-e2e-dev`, `sqlw-e2e-dev`).
 
-3. **Lowest-direct dependency tests** (`hatch run min-deps:X`): Same unit + functional suites run against the committed lower-bound lock (`requirements.lowest-direct.txt`). Catches drift where wide dep ranges in `pyproject.toml` admit versions the code no longer supports. See [docs/testing.md → Testing against lowest-direct dependencies](docs/testing.md#testing-against-lowest-direct-dependencies).
+3. **Lowest-direct dependency tests** (`hatch run min-deps:X`): Same unit + functional suites against the committed lower-bound lock
+   - Catches drift where wide dep ranges in `pyproject.toml` admit versions the code no longer supports
+   - Lock lives in `requirements.lowest-direct.txt`
+   - Run with: `hatch run min-deps:unit`, `hatch run min-deps:parse`, `hatch run min-deps:e2e`
+   - Details: [docs/testing.md → Testing against lowest-direct dependencies](docs/testing.md#testing-against-lowest-direct-dependencies)
 
 ### What to Assert in Each Test Type
 
