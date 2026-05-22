@@ -12,6 +12,8 @@ name: Min-Deps Tests (slow)
 on:
   schedule:
     - cron: "30 19 * * *"   # 19:30 UTC, 2h before integration.yml's nightly
+  # TEMPORARY (PR #1476 validation only): remove before merge.
+  pull_request:
 
 permissions:
   id-token: write
@@ -43,23 +45,29 @@ jobs:
         id: parse
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           DEFAULT_REF: ${{ github.ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           entry() { printf '{"pr":"%s","ref":"%s"}' "$1" "$2"; }
           targets="["
-          # Nightly skip-if-unchanged: if this main SHA already has a green
-          # min-deps-slow run, emit empty targets so the matrix jobs skip.
-          already_tested=$(curl -sfS \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/min-deps-test-slow.yml/runs?branch=main&status=success&head_sha=$GITHUB_SHA" \
-            | jq -r '.total_count // 0')
-          if [[ "$already_tested" -gt 0 ]]; then
-            echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            # Nightly skip-if-unchanged: if this main SHA already has a green
+            # min-deps-slow run, emit empty targets so the matrix jobs skip.
+            already_tested=$(curl -sfS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/min-deps-test-slow.yml/runs?branch=main&status=success&head_sha=$GITHUB_SHA" \
+              | jq -r '.total_count // 0')
+            if [[ "$already_tested" -gt 0 ]]; then
+              echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
+            else
+              targets+=$(entry "nightly" "$DEFAULT_REF")
+            fi
           else
-            targets+=$(entry "nightly" "$DEFAULT_REF")
+            # TEMPORARY (PR #1476 validation only): remove this else branch before merge.
+            targets+=$(entry "validation" "$DEFAULT_REF")
           fi
           targets+="]"
           echo "targets=$targets" >> "$GITHUB_OUTPUT"

@@ -14,6 +14,8 @@ on:
       - "main"
       - "*.latest"
   workflow_dispatch:
+  # TEMPORARY (PR #1476 validation only): remove before merge.
+  pull_request:
 
 permissions:
   id-token: write
