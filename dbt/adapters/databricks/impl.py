@@ -51,7 +51,7 @@ from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
 )
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -90,6 +90,7 @@ from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
+    is_cluster_http_path,
     quote,
     redact_credentials,
 )
@@ -268,6 +269,25 @@ class DatabricksAdapter(SparkAdapter):
         GlobalState.set_use_managed_iceberg(
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
+
+        # Warehouses always meet capability cutoffs at parse time; clusters keep the
+        # conservative False until a real connection is available.
+        # `_parse_replacements_` is injected by AdapterMeta, so mypy can't resolve it here.
+        self._parse_replacements_ = {
+            **self.__class__._parse_replacements_,  # type: ignore[has-type]
+            "has_dbr_capability": self._has_dbr_capability_parse,
+        }
+
+    def _has_dbr_capability_parse(self, capability_name: str) -> bool:
+        """Parse-time stub: True only on SQL warehouses for warehouse-supported capabilities."""
+        creds = self.config.credentials
+        if is_cluster_http_path(creds.http_path, creds.cluster_id):
+            return False
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            return False
+        return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
