@@ -76,11 +76,38 @@ check-wheel = [
     "twine check dist/*",
     "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
     "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
 ]
 check-sdist = [
     "check-wheel-contents dist/*.whl --ignore W007,W008",
     "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
     "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
+]
+
+[tool.hatch.envs.verify-min-deps]
+detached = true
+python = "3.10"
+dependencies = ["wheel", "twine", "check-wheel-contents"]
+
+[tool.hatch.envs.verify-min-deps.scripts]
+# Each script installs the lowest-direct lock first (idempotent),
+# then validates the built artifact against it.
+install-lock = "python -m pip install --no-deps --require-hashes -r requirements.lowest-direct.txt"
+check-all = ["- check-wheel", "- check-sdist"]
+check-wheel = [
+    "install-lock",
+    "twine check dist/*",
+    "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --no-deps --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
+]
+check-sdist = [
+    "install-lock",
+    "check-wheel-contents dist/*.whl --ignore W007,W008",
+    "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --no-deps --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
 ]
 
 [tool.hatch.envs.default]
