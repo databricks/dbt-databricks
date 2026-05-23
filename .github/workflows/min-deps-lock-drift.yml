@@ -1,15 +1,15 @@
-# Fails the PR when pyproject.toml changed without re-running
-# scripts/regenerate_min_deps_lock.sh. Runs on every internal PR that
-# touches either file (or the script/workflow themselves).
-#
-# Fork PRs are skipped because the protected runner group requires a
-# JFrog OIDC token that fork-PR workflows cannot mint. Maintainers should
-# re-run the regen script on fork-PR branches before approving.
+# Fails post-merge when pyproject.toml changed without re-running
+# scripts/regenerate_min_deps_lock.sh. Runs on push to main / *.latest
+# because the protected runner group requires a JFrog OIDC token that
+# fork-PR workflows cannot mint.
 
 name: Min-Deps Lock Drift Check
 
 on:
-  pull_request:
+  push:
+    branches:
+      - "main"
+      - "*.latest"
     paths:
       - "pyproject.toml"
       - "requirements.lowest-direct.txt"
@@ -27,7 +27,6 @@ defaults:
 jobs:
   drift-check:
     name: lock matches pyproject.toml
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
