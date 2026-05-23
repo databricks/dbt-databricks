@@ -617,6 +617,11 @@ class JobRunsApi:
             self._handle_non_terminated_failure(
                 run, life_cycle_state, state_message, result_state or ""
             )
+        elif result_state not in (None, "SUCCESS", "SUCCESS_WITH_FAILURES"):
+            raise DbtRuntimeError(
+                f"Python model run ended in result_state {result_state}"
+                f" (run_id: {run.run_id})\nState message: {state_message}"
+            )
 
     def cancel(self, run_id: str) -> None:
         logger.debug(f"Cancelling run id {run_id}")
