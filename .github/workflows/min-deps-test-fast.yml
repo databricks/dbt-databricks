@@ -1,10 +1,11 @@
 # Fast min-deps signal: installs dbt-databricks at lowest-direct dependency
-# resolution from the committed lock and runs parse + unit suites on every
-# merge to main / *.latest. Sharded functional coverage lives in the
-# companion min-deps-test-slow.yml on a nightly schedule.
+# resolution from the committed lock and runs parse + unit suites. Fires
+# on every merge to main / *.latest (always) and on internal PRs (early
+# signal); fork PRs are skipped at the job level because they cannot mint
+# the JFrog OIDC token the protected runner needs.
 #
-# Runs post-merge rather than on PRs because fork PRs cannot issue the
-# OIDC token required by the JFrog proxy and protected runner.
+# Sharded functional coverage lives in the companion min-deps-test-slow.yml
+# on a nightly schedule.
 
 name: Min-Deps Tests (fast)
 
@@ -13,6 +14,7 @@ on:
     branches:
       - "main"
       - "*.latest"
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -26,6 +28,8 @@ defaults:
 jobs:
   parse:
     name: parse at lowest-direct
+    # Fork PRs cannot mint the JFrog OIDC token; skip them on pull_request.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -59,6 +63,8 @@ jobs:
 
   unit:
     name: unit at lowest-direct
+    # Fork PRs cannot mint the JFrog OIDC token; skip them on pull_request.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
