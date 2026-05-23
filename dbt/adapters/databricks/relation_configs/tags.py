@@ -22,6 +22,12 @@ class TagsConfig(DatabricksComponentConfig):
             return TagsConfig(set_tags=self.set_tags)
         return None
 
+    def requires_server_metadata_for_diff(self) -> bool:
+        """
+        Indicates whether server metadata is required to compute the diff for this component.
+        """
+        return self.set_tags is not None and len(self.set_tags) > 0
+
 
 class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
     name: ClassVar[str] = "tags"
@@ -33,7 +39,7 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
 
         if table:
             for row in table.rows:
-                tags[str(row[0])] = str(row[1])
+                tags[str(row[0])] = "" if row[1] is None else str(row[1])
 
         return TagsConfig(set_tags=tags)
 
@@ -43,7 +49,7 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
         if not tags:
             return TagsConfig(set_tags=dict())
         if isinstance(tags, dict):
-            tags = {str(k): str(v) for k, v in tags.items()}
+            tags = {str(k): "" if v is None else str(v) for k, v in tags.items()}
             return TagsConfig(set_tags=tags)
         else:
             raise DbtRuntimeError("databricks_tags must be a dictionary")

@@ -1,4 +1,43 @@
-## dbt-databricks 1.11.8 (TBD)
+## dbt-databricks 1.12.1 (TBD)
+
+### Features
+
+- Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
+
+### Fixes
+
+- Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
+- Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
+
+### Under the Hood
+
+- Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+- Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+
+## dbt-databricks 1.12.0 (May 18, 2026)
+
+### Features
+
+- Add support for metric views as a materialization ([#1285](https://github.com/databricks/dbt-databricks/pull/1285))
+- Add support for row filters ([#1294](https://github.com/databricks/dbt-databricks/pull/1294))
+- Add support for Python UDFs ([#1336](https://github.com/databricks/dbt-databricks/pull/1336))
+- Add support for key-only `databricks_tags` for table and column tagging. This can now be configured by setting tag values to empty strings `""` or `None`. ([#1339](https://github.com/databricks/dbt-databricks/pull/1339))
+- Fetch relation metadata like constraints, column masks, row filters, etc with a single `DESCRIBE TABLE EXTENDED ... AS JSON` call, replacing multiple `information_schema` queries. Falls back to `information_schema` on older runtimes. Gated behind `use_describe_as_json_for_relation_metadata` behavior flag, off by default. ([#1432](https://github.com/databricks/dbt-databricks/pull/1432))
+- Support `SCHEDULE EVERY` and `TRIGGER ON UPDATE` refresh modes for materialized views and streaming tables, with parser and diff coverage so relations whose actual refresh is not CRON no longer crash on subsequent runs ([#1293](https://github.com/databricks/dbt-databricks/issues/1293))
+
+### Fixes
+
+- Fix `metric_view` failing with `METRIC_VIEW_INVALID_VIEW_DEFINITION` when models use bare `{{ ref(...) }}` for the `source:` field ([#1361](https://github.com/databricks/dbt-databricks/issues/1361))
+- Fix `RefreshConfig.__eq__` self/other typo where two configs with the same `cron` but different `time_zone_value` compared equal
+- Fix streaming-table DROP-SCHEDULE path that was silently filtered out of the changeset
+- Use pydantic v1-compatible API in `refresh.py` so the adapter imports on environments shipping pydantic v1 ([#1461](https://github.com/databricks/dbt-databricks/pull/1461))
+
+### Under the Hood
+
+- **BREAKING:** `databricks_tags` defined at different hierarchy levels (e.g. project-level and model-level) now merge additively instead of the child config completely replacing the parent.
+- Skip `information_schema.tags` and `information_schema.column_tags` metadata fetches when table tags and column tags are not configured on a model. ([#1387](https://github.com/databricks/dbt-databricks/pull/1387))
+
+## dbt-databricks 1.11.8 (May 11, 2026)
 
 ### Features
 
@@ -11,6 +50,7 @@
 - Fix spurious `MicrobatchConcurrency` behavior-change warning firing on every run regardless of whether the project contained microbatch models ([#1406](https://github.com/databricks/dbt-databricks/issues/1406))
 - Stop emitting the `insert_overwrite will perform a dynamic insert overwrite` warning on every `insert_overwrite` run on SQL warehouses; warn instead only when `use_replace_on_for_insert_overwrite` is enabled but the cluster's DBR version does not support REPLACE ON ([#1305](https://github.com/databricks/dbt-databricks/issues/1305))
 - Fix DBR capability cache being permanently poisoned by a transient version-query failure ([#1398](https://github.com/databricks/dbt-databricks/issues/1398))
+- Fix spurious `use_materialization_v2` behavior-change warning firing on table, view, seed, and incremental materializations ([#1089](https://github.com/databricks/dbt-databricks/issues/1089))
 - Fix spurious `use_managed_iceberg` behavior-change warning firing on every run for projects that don't use Iceberg ([#1266](https://github.com/databricks/dbt-databricks/issues/1266))
 - Warn when `contract.enforced: true` is set on a `materialized_view` model ([#1279](https://github.com/databricks/dbt-databricks/issues/1279))
 - Fix `materialized_view` models with `databricks_tags` silently going stale on `dbt run`. `MaterializedViewAPI._describe_relation` was not fetching `information_schema.tags`, so existing tags always parsed as empty, producing a spurious tag diff that routed the materialization to `ALTER ... SET TAGS` instead of `REFRESH MATERIALIZED VIEW` ([#1419](https://github.com/databricks/dbt-databricks/issues/1419))

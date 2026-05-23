@@ -20,6 +20,7 @@ from dbt.adapters.databricks.relation_configs.query import (
 from dbt.adapters.databricks.relation_configs.refresh import (
     RefreshProcessor,
 )
+from dbt.adapters.databricks.relation_configs.row_filter import RowFilterProcessor
 from dbt.adapters.databricks.relation_configs.tags import TagsProcessor
 from dbt.adapters.databricks.relation_configs.tblproperties import (
     TblPropertiesProcessor,
@@ -35,6 +36,7 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
         RefreshProcessor,
         QueryProcessor,
         TagsProcessor,
+        RowFilterProcessor,
     ]
 
     def get_changeset(
@@ -42,7 +44,7 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
     ) -> Optional[DatabricksRelationChangeSet]:
         changes: dict[str, DatabricksComponentConfig] = {}
         requires_refresh = False
-        updateable_component_keys = ["refresh", "tags"]
+        updateable_component_keys = ["refresh", "tags", "row_filter"]
 
         for component in self.config_components:
             key = component.name

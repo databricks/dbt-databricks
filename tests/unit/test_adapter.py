@@ -10,7 +10,13 @@ import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.clients.agate_helper import merge_tables
-from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
+from dbt_common.events.event_manager_client import add_callback_to_manager
+from dbt_common.exceptions import (
+    DbtConfigError,
+    DbtDatabaseError,
+    DbtRuntimeError,
+    DbtValidationError,
+)
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
@@ -19,7 +25,11 @@ from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
 from dbt.adapters.databricks.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     DatabricksRelationInfo,
+    IncrementalTableAPI,
+    MaterializedViewAPI,
+    ViewAPI,
     get_identifier_list_string,
 )
 from dbt.adapters.databricks.relation import (
@@ -27,6 +37,14 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelationType,
     DatabricksTableType,
 )
+from dbt.adapters.databricks.relation_configs.column_tags import (
+    ColumnTagsConfig,
+    ColumnTagsProcessor,
+)
+from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
+from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
 
@@ -1310,6 +1328,356 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             )
 
 
+class TestFetchJsonMetadata(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+
+    def _macro_result(self, json_metadata):
+        """Build a minimal execute_macro return value with one row carrying json_metadata."""
+        row = Mock()
+        row.get = Mock(return_value=json_metadata)
+        result = Mock()
+        result.rows = [row]
+        return result
+
+    def test_valid_json_metadata_parsed(self, adapter, relation):
+        """Happy path: well-formed json_metadata is returned as a dict."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result('{"a": 1}')):
+            assert adapter.fetch_json_metadata(relation) == {"a": 1}
+
+    def test_malformed_json_wrapped(self, adapter, relation):
+        """A malformed JSON string triggers json.JSONDecodeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result("not-json")):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_none_json_metadata_wrapped(self, adapter, relation):
+        """A missing json_metadata column (None) triggers TypeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result(None)):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_empty_rows_wrapped(self, adapter, relation):
+        """No rows from execute_macro triggers IndexError, wrapped by the adapter."""
+        empty_result = Mock()
+        empty_result.rows = []
+        with patch.object(adapter, "execute_macro", return_value=empty_result):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+
+class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    def test_supported_for_uc_table_with_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is True
+
+    def test_not_supported_without_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=False):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_hive_metastore(self, adapter):
+        relation = DatabricksRelation.create(
+            database="hive_metastore",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_foreign_table(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelationType.Foreign,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_when_behavior_flag_disabled(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=False)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+
+class TestDescribeRelationMetadataFetchPlanning:
+    @staticmethod
+    def _create_adapter(describe_as_json_supported: bool = False):
+        adapter = Mock()
+        adapter.is_describe_as_json_supported.return_value = describe_as_json_supported
+
+        def execute_macro(macro_name, kwargs=None):
+            if macro_name == "get_view_description":
+                return Mock(rows=[("view_description",)])
+            return f"{macro_name}_result"
+
+        adapter.execute_macro.side_effect = execute_macro
+        return adapter
+
+    @staticmethod
+    def _create_incremental_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_incremental_model",
+            type=DatabricksRelationType.Table,
+        )
+
+    @staticmethod
+    def _create_view_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_view_model",
+            type=DatabricksRelationType.View,
+        )
+
+    @staticmethod
+    def _create_mv_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_mv_model",
+            type=DatabricksRelationType.MaterializedView,
+        )
+
+    @staticmethod
+    def _create_incremental_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> IncrementalTableConfig:
+        return IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
+
+    @staticmethod
+    def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
+        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
+        return MaterializedViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _called_macro_names(adapter: Mock) -> list[str]:
+        return [call.args[0] for call in adapter.execute_macro.call_args_list]
+
+    def test_incremental_describe_relation_skips_both_tag_queries_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_table_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(tags={"classification": "internal"})
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_table_tags_from_project_level_cascade(self):
+        # Project-level databricks_tags cascade onto a model that doesn't declare
+        # its own.
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        model = Mock()
+        model.config.extra = {"databricks_tags": {"team": "platform"}}
+        relation_config = IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsProcessor.from_relation_config(model),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags={}),
+            }
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_column_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            column_tags={"id": {"classification": "internal"}}
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_both_tag_queries_when_both_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_skips_tag_queries_for_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation(database="hive_metastore")
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert "information_schema.tags" not in results
+        assert "information_schema.column_tags" not in results
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_view_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config()
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_view_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config(tags={"classification": "internal"})
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
+
+    def test_mv_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config()
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_mv_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config(tags={"classification": "internal"})
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
+
+
 class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
     @pytest.fixture
     def adapter(self):
@@ -1433,3 +1801,37 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
+
+
+class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
+    """The `use_materialization_v2` deprecation warning must not fire on every dbt run."""
+
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    @pytest.mark.parametrize("flag_value", [False, True])
+    def test_get_behavior_flag_no_warn_does_not_fire_event(self, adapter, flag_value):
+        """The helper must return the flag value without firing
+        BehaviorChangeEvent for `use_materialization_v2`, regardless of value."""
+        adapter.behavior.use_materialization_v2.setting = flag_value
+
+        caught = []
+
+        def record(event_msg):
+            if (
+                event_msg.info.name == "BehaviorChangeEvent"
+                and event_msg.data.flag_name == "use_materialization_v2"
+            ):
+                caught.append(event_msg)
+
+        add_callback_to_manager(record)
+
+        result = adapter.get_behavior_flag_no_warn("use_materialization_v2")
+
+        assert result == flag_value
+        assert caught == [], (
+            "get_behavior_flag_no_warn must not fire BehaviorChangeEvent for "
+            f"use_materialization_v2 (fired {len(caught)} times)"
+        )
