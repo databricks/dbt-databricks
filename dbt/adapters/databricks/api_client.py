@@ -483,7 +483,7 @@ class JobRunsApi:
     ) -> str:
         logger.debug(
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
-            " and additional_job_settings={additional_job_settings}"
+            f" and additional_job_settings={additional_job_settings}"
         )
         try:
             tasks = self._convert_job_spec_to_tasks(job_spec)

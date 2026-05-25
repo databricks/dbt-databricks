@@ -331,10 +331,15 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def __post_init__(self) -> None:
+        # Defer Config construction to first use so dbt parse/list/compile
+        # stay offline.
         if not hasattr(self, "_config"):
             self._config: Optional[Config] = None
+
+    def _ensure_config(self) -> Config:
+        """Build (or return cached) SDK Config. Triggers authentication."""
         if self._config is not None:
-            return
+            return self._config
 
         if self.token:
             self._config = self.authenticate_with_pat()
@@ -380,9 +385,13 @@ class DatabricksCredentialManager(DataClassDictMixin):
                         )
                         raise Exception(f"All authentication methods failed. Details: {exceptions}")
 
+        # Narrow Optional[Config] for the return type.
+        assert self._config is not None
+        return self._config
+
     @property
     def api_client(self) -> WorkspaceClient:
-        return WorkspaceClient(config=self._config)
+        return WorkspaceClient(config=self._ensure_config())
 
     @property
     def credentials_provider(self) -> PySQLCredentialProvider:
@@ -393,14 +402,10 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     @property
     def header_factory(self) -> CredentialsProvider:
-        if self._config is None:
-            raise RuntimeError("Config is not initialized")
-        header_factory = self._config._header_factory
+        header_factory = self._ensure_config()._header_factory
         assert header_factory is not None, "Header factory is not set."
         return header_factory
 
     @property
     def config(self) -> Config:
-        if self._config is None:
-            raise RuntimeError("Config is not initialized")
-        return self._config
+        return self._ensure_config()

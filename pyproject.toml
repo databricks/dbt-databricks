@@ -23,13 +23,14 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.2.0, <9.0.0",
-    "databricks-sdk>=0.68.0, <0.78.0",
-    "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.6",
+    "databricks-sdk>=0.68.0, <0.105.0",
+    "databricks-sql-connector[pyarrow]>=4.1.1, <4.3.0",
     "dbt-adapters>=1.22.0, <1.23.0",
     "dbt-common>=1.37.0, <1.38.0",
     "dbt-core>=1.11.2, <1.11.9",
     "dbt-spark>=1.10.0, <1.11.0",
     "keyring>=23.13.0, <25.6.0",
+    "packaging>=21.0, <26.0",
     "pydantic>=1.10.0, <2.13.0",
 ]
 
@@ -69,6 +70,7 @@ dependencies = [
     "dbt-tests-adapter",
     "pytest",
     "pytest-xdist",
+    "pytest-rerunfailures",
     "pytest-dotenv",
     "freezegun",
     "mypy>=1.18.2",
@@ -84,13 +86,14 @@ python = "3.10"
 setup-precommit = "pre-commit install"
 code-quality = "pre-commit run --all-files"
 unit = "pytest --color=yes -v --profile databricks_cluster -n 10 tests/unit"
-cluster-e2e = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
-uc-cluster-e2e = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
-sqlw-e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
+# `*-dev` scripts run the unsharded suite locally; CI shards via integration.yml.
+cluster-e2e-dev = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadfile tests/functional"
+uc-cluster-e2e-dev = "pytest --color=yes -v --profile databricks_uc_cluster -n 10 --dist=loadfile tests/functional"
+sqlw-e2e-dev = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
+unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]

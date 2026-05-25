@@ -2,6 +2,7 @@ import pytest
 from agate import Row
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 from tests.functional.adapter.views import fixtures
 
 
@@ -117,6 +118,27 @@ class TestUpdateViewViaAlterDescription(BaseUpdateDescription):
     def project_config_update(self):
         return {
             "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterDescriptionDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestUpdateViewViaAlterDescription
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            },
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
