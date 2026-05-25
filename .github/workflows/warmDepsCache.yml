@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "uv.lock"
+      - "requirements.lowest-direct.txt"
       - "pyproject.toml"
       - ".pre-commit-config.yaml"
   schedule:
@@ -63,7 +64,7 @@ jobs:
 
           git remote add fork "https://github.com/${FORK_REPO}.git"
           git fetch --depth=1 fork "${FORK_REF}"
-          git checkout FETCH_HEAD -- uv.lock pyproject.toml .pre-commit-config.yaml
+          git checkout FETCH_HEAD -- uv.lock requirements.lowest-direct.txt pyproject.toml .pre-commit-config.yaml
 
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
@@ -93,6 +94,8 @@ jobs:
           hatch env create test.py3.12
           hatch env create test.py3.13
           hatch env create verify
+          hatch env create min-deps
+          hatch env create verify-min-deps
 
       - name: Warm pre-commit cache
         run: hatch run pre-commit install-hooks
@@ -114,6 +117,8 @@ jobs:
           hatch run pip download --dest ~/.cache/pip-wheelhouse \
             setuptools wheel twine check-wheel-contents \
             -r /tmp/runtime-deps.txt
+          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+            --no-deps --require-hashes -r requirements.lowest-direct.txt
 
       - name: Build package
         run: hatch -v build
@@ -123,7 +128,7 @@ jobs:
         shell: bash
         run: |
           TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
-          LOCK_HASH="${{ hashFiles('uv.lock', 'pyproject.toml') }}"
+          LOCK_HASH="${{ hashFiles('uv.lock', 'requirements.lowest-direct.txt', 'pyproject.toml') }}"
           echo "python-deps-key=python-deps-${LOCK_HASH}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
 
           PRECOMMIT_HASH="${{ hashFiles('.pre-commit-config.yaml') }}"
