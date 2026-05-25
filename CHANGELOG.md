@@ -8,6 +8,7 @@
 
 - Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
 - Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
+- Fix snapshots not applying `databricks_tags` on columns ([#1442](https://github.com/databricks/dbt-databricks/pull/1442) closes [#1441](https://github.com/databricks/dbt-databricks/issues/1441))
 - Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#1470](https://github.com/databricks/dbt-databricks/pull/1470) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
 
 ### Under the Hood
