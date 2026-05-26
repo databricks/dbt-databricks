@@ -101,10 +101,19 @@ jobs:
         run: hatch run pre-commit install-hooks
 
       - name: Create pip wheelhouse
+        # Use setup-python's Python 3.10 directly, NOT `hatch run pip`.
+        # With `installer = "uv"` on the default env, uv-created venvs have
+        # no pip, so `hatch run pip` falls back to hatch's bundled pip
+        # running on hatch's own Python 3.12. That pip evaluates
+        # `python_version < "3.11"` as False and silently drops conditional
+        # deps (e.g. tomli) — breaking offline env recreation in PR jobs.
         run: |
           set -euo pipefail
           mkdir -p ~/.cache/pip-wheelhouse
-          hatch run python -c "
+          # Bootstrap tomli for the pyproject.toml parser below (Python 3.10
+          # has no stdlib tomllib). One-shot install into the runner Python.
+          python -m pip install --quiet tomli
+          python -c "
           try:
               import tomllib
           except ImportError:
@@ -114,11 +123,21 @@ jobs:
           for dep in data['project']['dependencies']:
               print(dep)
           " > /tmp/runtime-deps.txt
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+          python -m pip download --dest ~/.cache/pip-wheelhouse \
             setuptools wheel twine check-wheel-contents \
             -r /tmp/runtime-deps.txt
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+          python -m pip download --dest ~/.cache/pip-wheelhouse \
             --no-deps --require-hashes -r requirements.lowest-direct.txt
+
+      - name: Verify wheelhouse covers verify-min-deps offline install
+        # Guard against silent dep drops: confirm pip can install the
+        # verify-min-deps env's dependency set from the wheelhouse alone
+        # (no index). If this step fails, fork PRs would fail offline.
+        run: |
+          set -euo pipefail
+          python -m pip install --dry-run --no-index \
+            --find-links ~/.cache/pip-wheelhouse \
+            wheel twine check-wheel-contents
 
       - name: Build package
         run: hatch -v build
