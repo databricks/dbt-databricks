@@ -5,6 +5,12 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 22 * * 6"  # Weekly: Saturday 22:00 UTC.
+  # Temporary: fire on push to the SPOG dev branch so we can validate the
+  # workflow end-to-end before merge. Drop this block when the PR lands —
+  # workflow_dispatch + schedule will be enough once the file is on main.
+  push:
+    branches:
+      - sd-db/spog-impl
 
 permissions:
   id-token: write
