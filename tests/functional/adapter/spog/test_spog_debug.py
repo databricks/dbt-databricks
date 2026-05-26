@@ -10,8 +10,15 @@ import pytest
 
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
 
+
+def _resolved_http_path() -> str | None:
+    return os.getenv("DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH") or os.getenv(
+        "DBT_DATABRICKS_HTTP_PATH"
+    )
+
+
 pytestmark = pytest.mark.skipif(
-    extract_workspace_id(os.getenv("DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH")) is None,
+    extract_workspace_id(_resolved_http_path()) is None,
     reason="http_path has no ?o= — not a SPOG target; skipping SPOG functional tests",
 )
 
@@ -23,7 +30,7 @@ class TestSpogDebugOutput:
         run_dbt(["debug"], expect_pass=True)
         captured = capsys.readouterr()
         output = captured.out + captured.err
-        workspace_id = extract_workspace_id(os.environ["DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH"])
+        workspace_id = extract_workspace_id(_resolved_http_path())
         assert "SPOG host" in output
         assert "workspace_id" in output
         assert workspace_id in output
