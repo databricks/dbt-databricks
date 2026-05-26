@@ -19,9 +19,6 @@ jobs:
     name: SPOG Functional Tests
     runs-on: ubuntu-latest
     env:
-      # The SPOG host (and SPOG-flavored http_path with ?o=<workspace-id>) come
-      # from SPOG-specific secrets, but we plug them into the standard env var
-      # names so the same profile machinery the rest of the tests use applies.
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_SPOG_HOST_NAME }}
       DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_SPOG_HTTP_PATH }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
