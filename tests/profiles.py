@@ -9,8 +9,6 @@ def get_databricks_cluster_target(profile_type: str):
         return databricks_uc_cluster_target()
     elif profile_type == "databricks_uc_sql_endpoint":
         return databricks_uc_sql_endpoint_target()
-    elif profile_type == "databricks_uc_sql_endpoint_spog":
-        return databricks_uc_sql_endpoint_spog_target()
     else:
         raise ValueError(f"Invalid profile type '{profile_type}'")
 
@@ -80,22 +78,3 @@ def databricks_uc_sql_endpoint_target():
         catalog=os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main"),
         schema=os.getenv("DBT_DATABRICKS_UC_INITIAL_SCHEMA", "default_schema"),
     )
-
-
-def databricks_uc_sql_endpoint_spog_target():
-    """SPOG variant of databricks_uc_sql_endpoint_target.
-
-    Re-uses the legacy target's host/http_path/token then overlays the SPOG
-    host and appends ?o=<workspace-id> to http_path. Driven by:
-      DBT_DATABRICKS_SPOG_HOST_NAME       (e.g. peco.azuredatabricks.net)
-      DBT_DATABRICKS_SPOG_WORKSPACE_ID    (e.g. 6436897454825492)
-    Falls back to the legacy host/http_path when those are unset so the
-    matrix degrades gracefully on developer machines.
-    """
-    spog_host = os.getenv("DBT_DATABRICKS_SPOG_HOST_NAME")
-    spog_ws_id = os.getenv("DBT_DATABRICKS_SPOG_WORKSPACE_ID")
-    base = databricks_uc_sql_endpoint_target()
-    if spog_host and spog_ws_id:
-        base["host"] = spog_host
-        base["http_path"] = base["http_path"] + f"?o={spog_ws_id}"
-    return base

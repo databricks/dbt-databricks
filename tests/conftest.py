@@ -31,14 +31,9 @@ def dbt_profile_target(request):
 @pytest.fixture(autouse=True)
 def skip_by_profile_type(request):
     profile_type = request.config.getoption("--profile")
-    # SPOG variants share skip semantics with their base profile: tests that
-    # don't work on `databricks_uc_sql_endpoint` also don't work on
-    # `databricks_uc_sql_endpoint_spog` (the SPOG path is just a routing
-    # difference, not a compute-shape difference).
-    base_profile = profile_type.removesuffix("_spog")
     if request.node.get_closest_marker("skip_profile"):
         for skip_profile_type in request.node.get_closest_marker("skip_profile").args:
-            if skip_profile_type in (profile_type, base_profile):
+            if skip_profile_type == profile_type:
                 pytest.skip(f"skipped on '{profile_type}' profile")
 
 

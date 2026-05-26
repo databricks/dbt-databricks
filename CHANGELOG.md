@@ -16,7 +16,6 @@
 
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
-- New `dbt/adapters/databricks/spog/` package: `extract` (parse `?o=` from http_path), `capabilities` (detect SPOG-capable connector/sdk), `probe` (discovery probe with retry/backoff), `decision` (the §8 decision matrix called from `connection.open()`).
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
