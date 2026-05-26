@@ -100,6 +100,37 @@ jobs:
       - name: Warm pre-commit cache
         run: hatch run pre-commit install-hooks
 
+      - name: DIAGNOSE pip + marker eval
+        run: |
+          set +e
+          echo "=== which pip / pip --version ==="
+          hatch run sh -c 'command -v pip && pip --version'
+          echo
+          echo "=== uv pip --version ==="
+          hatch run uv pip --help >/dev/null 2>&1 && hatch run uv --version
+          echo
+          echo "=== python --version + sys ==="
+          hatch run python -c "import sys; print(sys.executable); print('version_info=', sys.version_info); print('platform=', sys.platform)"
+          echo
+          echo "=== packaging.markers.default_environment() ==="
+          hatch run python -c "from packaging.markers import default_environment; import json; print(json.dumps(default_environment(), indent=2))"
+          echo
+          echo "=== marker eval (python_version < 3.11) ==="
+          hatch run python -c "from packaging.markers import Marker; print(Marker('python_version < \"3.11\"').evaluate())"
+          echo "=== marker eval (python_full_version <= 3.11) ==="
+          hatch run python -c "from packaging.markers import Marker; print(Marker('python_full_version <= \"3.11\"').evaluate())"
+          echo
+          echo "=== pip download --dry-run --verbose check-wheel-contents (resolution trace) ==="
+          mkdir -p /tmp/diag
+          hatch run pip download --dest /tmp/diag --verbose --dry-run check-wheel-contents 2>&1 | tail -200
+          echo
+          echo "=== pip download (real, isolated dir) for check-wheel-contents ==="
+          mkdir -p /tmp/diag-real
+          hatch run pip download --dest /tmp/diag-real check-wheel-contents 2>&1 | grep -E "(Collecting|Saved|Ignoring|Successfully)" || true
+          echo
+          echo "=== files written to /tmp/diag-real ==="
+          ls /tmp/diag-real || true
+
       - name: Create pip wheelhouse
         run: |
           set -euo pipefail
