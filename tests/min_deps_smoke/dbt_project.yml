@@ -1,3 +1,4 @@
+# Trivial fork-PR test change (revert before merge).
 name: 'min_deps_smoke'
 version: '1.0.0'
 config-version: 2
