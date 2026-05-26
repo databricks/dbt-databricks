@@ -27,13 +27,14 @@ jobs:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
     timeout-minutes: 25
+    environment: azure-prod
     env:
       UV_FROZEN: "1"
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_SPOG_HOST_NAME }}
       DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH }}?o=${{ secrets.DBT_DATABRICKS_SPOG_WORKSPACE_ID }}
-      DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
-      DBT_DATABRICKS_UC_INITIAL_CATALOG: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_CATALOG }}
-      DBT_DATABRICKS_UC_INITIAL_SCHEMA: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_SCHEMA }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
     steps:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
