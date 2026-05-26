@@ -1,10 +1,11 @@
 # SPOG Integration Tests for dbt-databricks.
-# A full SPOG mirror of the functional matrix is a possible future expansion.
+# Runs the full UC-SQL-endpoint functional matrix against the SPOG vanity
+# host so every code path is exercised under SPOG routing.
 name: SPOG Integration Tests
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 22 * * 6"  # Weekly: Saturday 22:00 UTC.
+    - cron: "30 21 * * 0"  # Weekly: Sunday 21:30 UTC (Monday 03:00 IST).
   # Temporary: fire on push to the SPOG dev branch so we can validate the
   # workflow end-to-end before merge. Drop this block when the PR lands —
   # workflow_dispatch + schedule will be enough once the file is on main.
@@ -21,12 +22,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  spog-integration:
-    name: SPOG Functional Tests
+  spog-uc-sql-endpoint:
+    name: SPOG UC SQL Endpoint Functional Tests
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 90
     environment: azure-prod
     env:
       UV_FROZEN: "1"
@@ -35,6 +36,7 @@ jobs:
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
     steps:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -55,12 +57,15 @@ jobs:
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
 
-      - name: Run SPOG-specific functional tests
+      - name: Run UC SQL endpoint functional tests against SPOG
         run: |
           mkdir -p logs
-          hatch run pytest tests/functional/adapter/spog \
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+            hatch run pytest tests/functional \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
+            -n 10 --dist=loadfile \
+            --reruns 1 --reruns-delay 60 \
             --junitxml=logs/junit-spog.xml
 
       - name: Upload SPOG Test Logs
