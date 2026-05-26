@@ -1,12 +1,8 @@
 # Min-deps variant of main.yml's Tests and Code Checks workflow. Runs
 # unit tests + a build+verify+smoke-parse job against the committed
-# lowest-direct lock. Fires on every merge to main / *.latest (always)
-# and on internal PRs (early signal); fork PRs are skipped at the job
-# level because they cannot mint the JFrog OIDC token the protected
-# runner needs.
-#
-# Sharded functional coverage lives in the companion min-deps-test-slow.yml
-# on a nightly schedule.
+# lowest-direct lock. Fires on every push to main / *.latest and on
+# every PR (including forks) — dependencies are served from the
+# pre-populated cache (see warmDepsCache.yml) when available.
 
 name: Tests and Code Checks (Min-Deps)
 
@@ -15,12 +11,23 @@ on:
     branches:
       - "main"
       - "*.latest"
+      - "releases/*"
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
   pull_request:
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ contains(github.event_name, 'pull_request') && github.event.pull_request.head.ref || github.sha }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -29,12 +36,10 @@ defaults:
 jobs:
   unit:
     name: unit test / python 3.10
-    # Fork PRs cannot mint the JFrog OIDC token; skip them on pull_request.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     env:
       UV_FROZEN: "1"
@@ -43,7 +48,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
@@ -64,12 +74,9 @@ jobs:
 
   build:
     name: Build and Verify Packages
-    # Fork PRs cannot mint the JFrog OIDC token; skip them on pull_request.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    timeout-minutes: 15
 
     env:
       UV_FROZEN: "1"
@@ -78,7 +85,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
