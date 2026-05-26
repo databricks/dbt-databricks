@@ -89,12 +89,12 @@ from dbt.adapters.databricks.relation_configs.tags import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
+from dbt.adapters.databricks.spog import probe
 from dbt.adapters.databricks.spog.capabilities import (
     connector_supports_spog,
     sdk_supports_workspace_id,
 )
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
-from dbt.adapters.databricks.spog.probe import probe_host
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -1140,7 +1140,7 @@ class DatabricksAdapter(SparkAdapter):
             except metadata.PackageNotFoundError:
                 return "<not installed>"
 
-        host_metadata = probe_host(host)
+        host_metadata = probe.probe_host(host)
         is_spog = host_metadata.host_type == "unified"
         workspace_id = extract_workspace_id(http_path)
         connector_v = _pkg_version_or_missing("databricks-sql-connector")

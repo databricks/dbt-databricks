@@ -113,6 +113,17 @@ class DatabricksAdapterBase:
 
 
 class TestDatabricksAdapter(DatabricksAdapterBase):
+    @pytest.fixture(autouse=True)
+    def _stub_spog_probe(self):
+        """Stub `probe_host` to keep connection-open tests offline."""
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with patch(
+            "dbt.adapters.databricks.spog.probe.probe_host",
+            return_value=HostMetadata(host_type=None),
+        ):
+            yield
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
@@ -1846,7 +1857,7 @@ class TestDebugEmitSpogBlock:
 
         with (
             patch(
-                "dbt.adapters.databricks.impl.probe_host",
+                "dbt.adapters.databricks.spog.probe.probe_host",
                 return_value=HostMetadata(host_type="unified", account_id="acct"),
             ),
             patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
@@ -1871,7 +1882,7 @@ class TestDebugEmitSpogBlock:
 
         with (
             patch(
-                "dbt.adapters.databricks.impl.probe_host",
+                "dbt.adapters.databricks.spog.probe.probe_host",
                 return_value=HostMetadata(host_type="workspace"),
             ),
             patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
@@ -1892,7 +1903,7 @@ class TestDebugEmitSpogBlock:
 
         with (
             patch(
-                "dbt.adapters.databricks.impl.probe_host",
+                "dbt.adapters.databricks.spog.probe.probe_host",
                 return_value=HostMetadata(host_type="unified"),
             ),
             patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=False),
@@ -1910,7 +1921,7 @@ class TestDebugEmitSpogBlock:
         from dbt.adapters.databricks.impl import DatabricksAdapter
 
         with (
-            patch("dbt.adapters.databricks.impl.probe_host") as mock_probe,
+            patch("dbt.adapters.databricks.spog.probe.probe_host") as mock_probe,
             patch("dbt.adapters.databricks.impl.logger") as mock_logger,
         ):
             DatabricksAdapter.debug_emit_spog_block(host="", http_path="")

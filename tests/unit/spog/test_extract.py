@@ -2,6 +2,10 @@ from dbt.adapters.databricks.spog.extract import extract_workspace_id
 
 
 class TestExtractWorkspaceId:
+    """`?o=<id>` is the only canonical SPOG marker. The cluster path
+    `/o/<id>/` segment is *not* a SPOG declaration — the connector's
+    `_extract_spog_headers` only reads `?o=`, so we mirror that contract."""
+
     def test_warehouse_path_with_o_param(self):
         assert (
             extract_workspace_id("/sql/1.0/warehouses/abc123?o=6436897454825492")
@@ -38,21 +42,10 @@ class TestExtractWorkspaceId:
         # parse_qs returns ['a', 'b']; we take the first to be deterministic
         assert extract_workspace_id("/path?o=a&o=b") == "a"
 
-    def test_cluster_path_without_o_param_extracts_from_path(self):
-        # Cluster paths embed the workspace id in /o/<id>/. SPOG hosts route
-        # correctly with these because the workspace is already in the URL.
+    def test_cluster_path_without_o_returns_none(self):
+        """Cluster paths encode workspace id in `/o/<id>/` but that is *not*
+        a SPOG opt-in — only `?o=` is. Users on cluster paths must add
+        `?o=<workspace-id>` to declare SPOG intent."""
         assert (
-            extract_workspace_id("/sql/protocolv1/o/6436897454825492/1214-195625-oc3mas1h")
-            == "6436897454825492"
+            extract_workspace_id("/sql/protocolv1/o/6436897454825492/1214-195625-oc3mas1h") is None
         )
-
-    def test_cluster_path_no_leading_slash_extracts_from_path(self):
-        assert (
-            extract_workspace_id("sql/protocolv1/o/6436897454825492/1214-195625-oc3mas1h")
-            == "6436897454825492"
-        )
-
-    def test_warehouse_path_without_o_returns_none(self):
-        # Warehouse path with no ?o= encodes no workspace id anywhere.
-        # SPOG decision matrix will treat this as misconfig on a SPOG host.
-        assert extract_workspace_id("/sql/1.0/warehouses/abc123") is None

@@ -3,7 +3,7 @@
 ### Features
 
 - Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
-- Support for SPOG (Single Point of Gateway) hosts. Account-level vanity URLs (e.g. `peco.azuredatabricks.net`) with `?o=<workspace-id>` in `http_path` now route correctly for both data-plane (SQL) and control-plane (REST/Jobs/Workspace API) traffic. Opt-in via dep ceiling bumps: requires `databricks-sql-connector >= 4.2.6` and `databricks-sdk >= 0.104.0`. `dbt debug` surfaces SPOG status and dep-version suitability inline. Misconfiguration (SPOG host without `?o=`, non-SPOG host with `?o=`, SPOG host with old deps) fails with a pointed `DbtConfigError`.
+- Add support for SPOG (Single Point of Gateway) hosts: account-level vanity URLs with `?o=<workspace-id>` in `http_path` route correctly for both data-plane (SQL) and control-plane (REST/Jobs/Workspace API) traffic. Requires `databricks-sql-connector >= 4.2.6` and `databricks-sdk >= 0.104.0`. ([#1479](https://github.com/databricks/dbt-databricks/pull/1479))
 
 ### Fixes
 

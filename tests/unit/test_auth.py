@@ -70,18 +70,7 @@ class TestEnsureConfigTriggersTheRightAuth:
     """Connect-time counterpart to TestParseTimeIsOffline: when something
     actually does need the config (e.g. opening a connection), `_ensure_config`
     must build it via the correct auth method per credential shape. This also
-    exercises every branch of the selection logic in `_ensure_config`.
-
-    SPOG workspace-id plumbing is covered in tests/unit/spog/; gate it off here
-    so these assertions stay focused on auth-method routing."""
-
-    @pytest.fixture(autouse=True)
-    def _no_workspace_id_plumbing(self):
-        with mock.patch(
-            "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
-            return_value=False,
-        ):
-            yield
+    exercises every branch of the selection logic in `_ensure_config`."""
 
     def test_pat_uses_pat_auth(self):
         creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
