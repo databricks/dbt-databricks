@@ -12,8 +12,13 @@ from dbt.adapters.databricks.spog.extract import extract_workspace_id
 
 
 def _resolved_http_path() -> str | None:
-    return os.getenv("DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH") or os.getenv(
-        "DBT_DATABRICKS_HTTP_PATH"
+    # Cover all four env-var shapes the live workflows set per profile:
+    # warehouse (UC_ENDPOINT or generic HTTP_PATH), UC cluster, plain cluster.
+    return (
+        os.getenv("DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH")
+        or os.getenv("DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH")
+        or os.getenv("DBT_DATABRICKS_CLUSTER_HTTP_PATH")
+        or os.getenv("DBT_DATABRICKS_HTTP_PATH")
     )
 
 

@@ -1,16 +1,18 @@
-"""SPOG functional test: probe failure falls back to legacy and the run still succeeds.
+"""SPOG functional test: probe failure is non-fatal — dbt debug still succeeds.
 
 Patches `probe_host` directly so we don't touch `requests.get` globally —
 the SDK uses the shared `requests` module too, so a global stub would
 also blow up auth.
+
+Profile-agnostic: inherits the active --profile from the test invocation
+so it runs identically on databricks_cluster, databricks_uc_cluster, and
+databricks_uc_sql_endpoint shards.
 """
 
 import os
 from unittest import mock
 
 import pytest
-
-from tests.profiles import databricks_uc_sql_endpoint_target
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("DBT_DATABRICKS_HOST_NAME"),
@@ -19,10 +21,6 @@ pytestmark = pytest.mark.skipif(
 
 
 class TestSpogProbeFailureFallback:
-    @pytest.fixture(scope="class")
-    def dbt_profile_target(self):
-        return databricks_uc_sql_endpoint_target()
-
     def test_probe_failure_run_succeeds(self, project):
         from dbt.tests.util import run_dbt
 
