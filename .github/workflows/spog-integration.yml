@@ -17,21 +17,33 @@ concurrency:
 jobs:
   spog-integration:
     name: SPOG Functional Tests
-    runs-on: ubuntu-latest
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 25
     env:
+      UV_FROZEN: "1"
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DBT_DATABRICKS_SPOG_HOST_NAME }}
       DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_UC_ENDPOINT_HTTP_PATH }}?o=${{ secrets.DBT_DATABRICKS_SPOG_WORKSPACE_ID }}
       DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
       DBT_DATABRICKS_UC_INITIAL_CATALOG: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_CATALOG }}
       DBT_DATABRICKS_UC_INITIAL_SCHEMA: ${{ secrets.DBT_DATABRICKS_UC_INITIAL_SCHEMA }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
