@@ -10,12 +10,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "30 21 * * 0"  # Weekly: Sunday 21:30 UTC (Monday 03:00 IST).
-  # Temporary: fire on push to the SPOG dev branch so we can validate the
-  # workflow end-to-end before merge. Drop this block when the PR lands —
-  # workflow_dispatch + schedule will be enough once the file is on main.
-  push:
-    branches:
-      - sd-db/spog-impl
 
 permissions:
   id-token: write
@@ -274,6 +268,7 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
+      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
