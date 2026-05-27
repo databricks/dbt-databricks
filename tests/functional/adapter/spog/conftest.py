@@ -4,7 +4,20 @@ from urllib.parse import parse_qsl, urlencode
 
 import pytest
 
+from dbt.adapters.databricks.spog.capabilities import (
+    connector_supports_spog,
+    sdk_supports_workspace_id,
+)
 from tests.profiles import get_databricks_cluster_target
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_spog_deps():
+    if not (connector_supports_spog() and sdk_supports_workspace_id()):
+        pytest.skip(
+            "SPOG functional tests require databricks-sdk and databricks-sql-connector "
+            "with SPOG support installed."
+        )
 
 
 def _workspace_id() -> str:
