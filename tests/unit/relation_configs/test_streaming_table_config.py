@@ -31,7 +31,9 @@ class TestStreamingTableConfig:
                     ["View Text", "select * from foo", None],
                 ],
             ),
-            "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
+            "show_tblproperties": fixtures.gen_tblproperties(
+                [["prop", "1"], ["other", "other"], ["dbt.tblproperties.managedKeys", "other,prop"]]
+            ),
             "information_schema.tags": Table(
                 rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
             ),
@@ -44,7 +46,13 @@ class TestStreamingTableConfig:
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment"),
-                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "tblproperties": TblPropertiesConfig(
+                    tblproperties={
+                        "prop": "1",
+                        "other": "other",
+                        "dbt.tblproperties.managedKeys": "other,prop",
+                    }
+                ),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
@@ -73,7 +81,13 @@ class TestStreamingTableConfig:
                 "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
                 "liquid_clustering": LiquidClusteringConfig(),
                 "comment": CommentConfig(comment="This is the table comment", persist=False),
-                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "tblproperties": TblPropertiesConfig(
+                    tblproperties={
+                        "prop": "1",
+                        "other": "other",
+                        "dbt.tblproperties.managedKeys": "other,prop",
+                    }
+                ),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "query": QueryConfig(query="select * from foo"),
