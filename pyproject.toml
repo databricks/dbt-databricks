@@ -68,6 +68,7 @@ dev = [
 
 [tool.hatch.envs.verify]
 detached = true
+python = "3.10"
 dependencies = ["wheel", "twine", "check-wheel-contents"]
 
 [tool.hatch.envs.verify.scripts]
