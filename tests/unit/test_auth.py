@@ -1,11 +1,155 @@
 import os
 import tempfile
 from os.path import join
+from unittest import mock
 
 import keyring.backend
 import pytest
+from databricks.sdk import config as _sdk_config
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+
+# databricks-sdk >=0.103 added a network probe to Config(); on older SDKs
+# this symbol doesn't exist and the lazy `_ensure_config` path is unnecessary.
+_REQUIRES_LAZY_CONFIG = pytest.mark.skipif(
+    not hasattr(_sdk_config, "get_host_metadata"),
+    reason="lazy _ensure_config is only required when Config() does a network probe",
+)
+
+
+_COMMON_KWARGS = {
+    "host": "yourorg.databricks.com",
+    "database": "andre",
+    "http_path": "sql/protocolv1/o/1234567890123456/1234-cluster",
+    "schema": "dbt",
+}
+
+
+@_REQUIRES_LAZY_CONFIG
+class TestParseTimeIsOffline:
+    """`dbt parse/list/compile` must stay fully offline. Building
+    `DatabricksCredentials` is on that path, so for every supported auth
+    method we verify that constructing the credentials never calls
+    `Config()` (which is what triggers the SDK's network I/O)."""
+
+    def test_pat_credentials_init_does_not_call_config(self):
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(token="foo", **_COMMON_KWARGS)
+            mock_config.assert_not_called()
+
+    def test_oauth_m2m_credentials_init_does_not_call_config(self):
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(
+                client_id="cid",
+                client_secret="dose-secret",
+                **_COMMON_KWARGS,
+            )
+            mock_config.assert_not_called()
+
+    def test_external_browser_credentials_init_does_not_call_config(self):
+        # client_id with no client_secret triggers external-browser auth
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(client_id="cid", **_COMMON_KWARGS)
+            mock_config.assert_not_called()
+
+    def test_azure_client_secret_credentials_init_does_not_call_config(self):
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(
+                azure_client_id="acid",
+                azure_client_secret="asecret",
+                **_COMMON_KWARGS,
+            )
+            mock_config.assert_not_called()
+
+
+@_REQUIRES_LAZY_CONFIG
+class TestEnsureConfigTriggersTheRightAuth:
+    """Connect-time counterpart to TestParseTimeIsOffline: when something
+    actually does need the config (e.g. opening a connection), `_ensure_config`
+    must build it via the correct auth method per credential shape. This also
+    exercises every branch of the selection logic in `_ensure_config`."""
+
+    def test_pat_uses_pat_auth(self):
+        creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(host=_COMMON_KWARGS["host"], token="foo")
+
+    def test_explicit_azure_uses_azure_client_secret(self):
+        creds = DatabricksCredentials(
+            azure_client_id="acid",
+            azure_client_secret="asecret",
+            auth_type="oauth",
+            **_COMMON_KWARGS,
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                azure_client_id="acid",
+                azure_client_secret="asecret",
+                auth_type="azure-client-secret",
+            )
+
+    def test_client_id_only_uses_external_browser(self):
+        creds = DatabricksCredentials(client_id="cid", auth_type="oauth", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                client_secret="",
+                auth_type="external-browser",
+            )
+
+    def test_dose_secret_tries_oauth_m2m_first(self):
+        creds = DatabricksCredentials(
+            client_id="cid",
+            client_secret="dose-secret",
+            auth_type="oauth",
+            **_COMMON_KWARGS,
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                client_secret="dose-secret",
+                auth_type="oauth-m2m",
+            )
+
+    def test_non_dose_secret_tries_legacy_azure_first(self):
+        creds = DatabricksCredentials(
+            client_id="cid",
+            client_secret="plain-secret",
+            auth_type="oauth",
+            **_COMMON_KWARGS,
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                azure_client_id="cid",
+                azure_client_secret="plain-secret",
+                auth_type="azure-client-secret",
+            )
+
+    def test_falls_back_to_second_method_when_first_raises(self):
+        creds = DatabricksCredentials(
+            client_id="cid",
+            client_secret="plain-secret",
+            auth_type="oauth",
+            **_COMMON_KWARGS,
+        )
+        fake_config = mock.MagicMock()
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            mock_config.side_effect = [RuntimeError("first method fails"), fake_config]
+            creds.authenticate().config
+            assert mock_config.call_count == 2
+            # First call: legacy-azure (default order for non-dose secret).
+            assert mock_config.call_args_list[0].kwargs["auth_type"] == "azure-client-secret"
+            # Second call: oauth-m2m fallback.
+            assert mock_config.call_args_list[1].kwargs["auth_type"] == "oauth-m2m"
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")

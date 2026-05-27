@@ -23,13 +23,14 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.2.0, <9.0.0",
-    "databricks-sdk>=0.68.0, <0.78.0",
-    "databricks-sql-connector[pyarrow]>=4.1.1, <4.1.6",
+    "databricks-sdk>=0.68.0, <0.105.0",
+    "databricks-sql-connector[pyarrow]>=4.1.1, <4.3.0",
     "dbt-adapters>=1.22.0, <1.23.0",
     "dbt-common>=1.37.0, <1.38.0",
     "dbt-core>=1.11.2, <1.11.9",
     "dbt-spark>=1.10.0, <1.11.0",
     "keyring>=23.13.0, <25.6.0",
+    "packaging>=21.0, <26.0",
     "pydantic>=1.10.0, <2.13.0",
 ]
 
@@ -46,6 +47,25 @@ path = "dbt/adapters/databricks/__version__.py"
 [tool.hatch.build]
 include = ["/dbt"]
 
+[dependency-groups]
+test = [
+    "dbt-tests-adapter>=1.19.0",
+    "pytest>=8.3.5",
+    "pytest-xdist>=3.6.1",
+    "pytest-rerunfailures>=14.0",
+    "pytest-dotenv>=0.5.2",
+    "freezegun>=1.5.1",
+    "pytest-cov>=6.0.0",
+]
+dev = [
+    {include-group = "test"},
+    "mypy>=1.18.2",
+    "pre-commit",
+    "ruff==0.14.2",
+    "types-requests",
+    "debugpy",
+]
+
 [tool.hatch.envs.verify]
 detached = true
 dependencies = ["wheel", "twine", "check-wheel-contents"]
@@ -56,29 +76,43 @@ check-wheel = [
     "twine check dist/*",
     "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
     "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
 ]
 check-sdist = [
     "check-wheel-contents dist/*.whl --ignore W007,W008",
     "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --force-reinstall --find-links=dist/",
     "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
+]
+
+[tool.hatch.envs.verify-min-deps]
+detached = true
+python = "3.10"
+dependencies = ["wheel", "twine", "check-wheel-contents"]
+
+[tool.hatch.envs.verify-min-deps.scripts]
+# Each script installs the lowest-direct lock first (idempotent),
+# then validates the built artifact against it.
+install-lock = "python -m pip install --no-deps --require-hashes -r requirements.lowest-direct.txt"
+check-all = ["- check-wheel", "- check-sdist"]
+check-wheel = [
+    "install-lock",
+    "twine check dist/*",
+    "find ./dist/dbt_databricks-*.whl -maxdepth 1 -type f | xargs python -m pip install --no-deps --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
+]
+check-sdist = [
+    "install-lock",
+    "check-wheel-contents dist/*.whl --ignore W007,W008",
+    "find ./dist/dbt_databricks-*.gz -maxdepth 1 -type f | xargs python -m pip install --no-deps --force-reinstall --find-links=dist/",
+    "pip freeze | grep dbt-databricks",
+    "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke",
 ]
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-    "dbt-tests-adapter",
-    "pytest",
-    "pytest-xdist",
-    "pytest-rerunfailures",
-    "pytest-dotenv",
-    "freezegun",
-    "mypy>=1.18.2",
-    "pre-commit",
-    "ruff==0.14.2",
-    "types-requests",
-    "debugpy",
-    "pytest-cov",
-]
+dependency-groups = ["dev"]
 python = "3.10"
 
 [tool.hatch.envs.default.scripts]
@@ -91,11 +125,25 @@ uc-cluster-e2e-dev = "pytest --color=yes -v --profile databricks_uc_cluster -n 1
 sqlw-e2e-dev = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
-unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit --cov=dbt"
+unit = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit"
+unit-with-cov = "pytest --color=yes -v --profile databricks_cluster -n auto --dist=loadscope tests/unit --cov=dbt"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]
+
+[tool.hatch.envs.min-deps]
+installer = "uv"
+python = "3.10"
+template = "min-deps"
+dependency-groups = ["test"]
+post-install-commands = [
+    "uv pip install --no-deps --exact --require-hashes -r requirements.lowest-direct.txt",
+]
+
+[tool.hatch.envs.min-deps.scripts]
+parse = "dbt parse --project-dir tests/min_deps_smoke --profiles-dir tests/min_deps_smoke"
+unit = "pytest --color=yes -v --profile databricks_cluster -n 10 --dist=loadscope tests/unit"
+e2e = "pytest --color=yes -v --profile databricks_uc_sql_endpoint -n 10 --dist=loadfile tests/functional"
 
 [tool.ruff]
 line-length = 100

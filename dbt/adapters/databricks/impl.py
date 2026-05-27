@@ -1,3 +1,4 @@
+import json
 import posixpath
 import re
 from abc import ABC, abstractmethod
@@ -5,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
@@ -29,8 +30,8 @@ from dbt.adapters.spark.impl import (
     SparkAdapter,
 )
 from dbt_common.behavior_flags import BehaviorFlag
-from dbt_common.contracts.config.base import BaseConfig
-from dbt_common.exceptions import DbtConfigError, DbtInternalError
+from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
+from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -50,7 +51,7 @@ from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
 )
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.python_models.python_submissions import (
@@ -76,15 +77,20 @@ from dbt.adapters.databricks.relation_configs.incremental import IncrementalTabl
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
+from dbt.adapters.databricks.relation_configs.metric_view import MetricViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import (
     StreamingTableConfig,
 )
 from dbt.adapters.databricks.relation_configs.table_format import TableFormat
+from dbt.adapters.databricks.relation_configs.tags import (
+    TagsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
+    is_cluster_http_path,
     quote,
     redact_credentials,
 )
@@ -152,6 +158,16 @@ USE_CONCURRENT_MICROBATCH = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA = BehaviorFlag(
+    name="use_describe_as_json_for_relation_metadata",
+    default=False,
+    description=(
+        "Use DESCRIBE TABLE EXTENDED AS JSON when supported to fetch "
+        "relation metadata like constraints, column masks, row filters, "
+        "view definition, etc. When disabled, falls back to information_schema queries."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -175,7 +191,9 @@ class DatabricksConfig(AdapterConfig):
     options: Optional[dict[str, str]] = None
     merge_update_columns: Optional[str] = None
     merge_exclude_columns: Optional[str] = None
-    databricks_tags: Optional[dict[str, str]] = None
+    databricks_tags: Optional[dict[str, str]] = field(
+        default=None, metadata=MergeBehavior.Update.meta()
+    )
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
@@ -252,6 +270,25 @@ class DatabricksAdapter(SparkAdapter):
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
 
+        # Warehouses always meet capability cutoffs at parse time; clusters keep the
+        # conservative False until a real connection is available.
+        # `_parse_replacements_` is injected by AdapterMeta, so mypy can't resolve it here.
+        self._parse_replacements_ = {
+            **self.__class__._parse_replacements_,  # type: ignore[has-type]
+            "has_dbr_capability": self._has_dbr_capability_parse,
+        }
+
+    def _has_dbr_capability_parse(self, capability_name: str) -> bool:
+        """Parse-time stub: True only on SQL warehouses for warehouse-supported capabilities."""
+        creds = self.config.credentials
+        if is_cluster_http_path(creds.http_path, creds.cluster_id):
+            return False
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            return False
+        return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
@@ -260,6 +297,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_REPLACE_ON_FOR_INSERT_OVERWRITE,
             USE_MANAGED_ICEBERG,
             USE_CONCURRENT_MICROBATCH,
+            USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA,
         ]
 
     def supports(self, capability: Capability) -> bool:
@@ -399,6 +437,28 @@ class DatabricksAdapter(SparkAdapter):
                 f"{capability.value} requires {min_version}. "
                 f"Current connection does not meet this requirement."
             )
+
+    def is_describe_as_json_supported(self, relation: DatabricksRelation) -> bool:
+        """
+        Check if DESCRIBE TABLE EXTENDED AS JSON can be used for the relation.
+        """
+        return (
+            not relation.is_hive_metastore()
+            and not relation.is_foreign_table
+            and self.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
+            and bool(self.behavior.use_describe_as_json_for_relation_metadata.no_warn)
+        )
+
+    def fetch_json_metadata(self, relation: DatabricksRelation) -> dict[str, Any]:
+        """Fetch the JSON metadata for a relation using DESCRIBE TABLE EXTENDED AS JSON."""
+        kwargs = {"relation": relation}
+        describe_results = self.execute_macro("describe_table_extended_as_json", kwargs=kwargs)
+        try:
+            return json.loads(describe_results.rows[0].get("json_metadata"))
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse json metadata from describe table extended as json"
+            ) from e
 
     def list_schemas(self, database: Optional[str]) -> list[str]:
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -964,15 +1024,21 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
-    def get_relation_config(self, relation: DatabricksRelation) -> DatabricksRelationConfigBase:
+    def get_relation_config(
+        self,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
+    ) -> DatabricksRelationConfigBase:
         if relation.type == DatabricksRelationType.MaterializedView:
-            return MaterializedViewAPI.get_from_relation(self, relation)
+            return MaterializedViewAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.StreamingTable:
-            return StreamingTableAPI.get_from_relation(self, relation)
+            return StreamingTableAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.Table:
-            return IncrementalTableAPI.get_from_relation(self, relation)
+            return IncrementalTableAPI.get_from_relation(self, relation, model_config)
         elif relation.type == DatabricksRelationType.View:
-            return ViewAPI.get_from_relation(self, relation)
+            return ViewAPI.get_from_relation(self, relation, model_config)
+        elif relation.type == DatabricksRelationType.MetricView:
+            return MetricViewAPI.get_from_relation(self, relation, model_config)
         else:
             raise NotImplementedError(f"Relation type {relation.type} is not supported.")
 
@@ -988,6 +1054,8 @@ class DatabricksAdapter(SparkAdapter):
             return IncrementalTableAPI.get_from_relation_config(model)
         elif model.config.materialized == "view":
             return ViewAPI.get_from_relation_config(model)
+        elif model.config.materialized == "metric_view":
+            return MetricViewAPI.get_from_relation_config(model)
         else:
             raise NotImplementedError(
                 f"Materialization {model.config.materialized} is not supported."
@@ -1001,6 +1069,10 @@ class DatabricksAdapter(SparkAdapter):
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
         return SqlUtils.clean_sql(sql)
+
+    @available.parse(lambda *a, **k: "")
+    def yaml_quote_backtick_values(self, yaml_body: str) -> str:
+        return SqlUtils.yaml_quote_backtick_values(yaml_body)
 
     @available
     def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
@@ -1053,12 +1125,15 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
         assert relation.type == cls.relation_type
-        results = cls._describe_relation(adapter, relation)
+        results = cls._describe_relation(adapter, relation, model_config)
         return cls.config_type().from_results(results)
 
     @classmethod
@@ -1070,7 +1145,10 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
     @classmethod
     @abstractmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         """Describe the relation and return the results."""
 
@@ -1080,11 +1158,14 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
 class DeltaLiveTableAPIBase(RelationAPIBase[DatabricksRelationConfig]):
     @classmethod
     def get_from_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> DatabricksRelationConfig:
         """Get the relation config from the relation."""
 
-        relation_config = super().get_from_relation(adapter, relation)
+        relation_config = super().get_from_relation(adapter, relation, model_config)
 
         # Ensure any current refreshes are completed before returning the relation config
         tblproperties = cast(TblPropertiesConfig, relation_config.config["tblproperties"])
@@ -1104,7 +1185,10 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1113,11 +1197,29 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         )
 
         kwargs = {"relation": relation}
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+
+        # To be backward compatible model_config can be None. In that case, tags should be fetched
+        # to maintain backward compatibility.
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
+        if adapter.is_describe_as_json_supported(relation):
+            json_metadata = adapter.fetch_json_metadata(relation)
+            results["information_schema.views"] = (
+                DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            )
+            results["row_filters"] = DatabricksDescribeJsonMetadata.parse_row_filter(json_metadata)
+        else:
+            results["information_schema.views"] = get_first_row(
+                adapter.execute_macro("get_view_description", kwargs=kwargs)
+            )
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
         return results
 
 
@@ -1130,7 +1232,10 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         kwargs = {"table_name": relation}
         results: RelationResults = dict()
@@ -1141,6 +1246,13 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
         kwargs = {"relation": relation}
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
+        if adapter.is_describe_as_json_supported(relation):
+            json_metadata = adapter.fetch_json_metadata(relation)
+            results["row_filters"] = DatabricksDescribeJsonMetadata.parse_row_filter(json_metadata)
+        else:
+            results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         return results
 
 
@@ -1153,32 +1265,65 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
-            results["information_schema.column_tags"] = adapter.execute_macro(
-                "fetch_column_tags", kwargs=kwargs
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
+            table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+            if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+                results["information_schema.tags"] = adapter.execute_macro(
+                    "fetch_tags", kwargs=kwargs
+                )
+            else:
+                results["information_schema.tags"] = None
+
+            # To be backward compatible model_config can be None. In that case, tags should be
+            # fetched to maintain backward compatibility.
+            column_tag_config = (
+                model_config.config.get(ColumnTagsProcessor.name) if model_config else None
             )
-            results["non_null_constraint_columns"] = adapter.execute_macro(
-                "fetch_non_null_constraint_columns", kwargs=kwargs
-            )
-            results["primary_key_constraints"] = adapter.execute_macro(
-                "fetch_primary_key_constraints", kwargs=kwargs
-            )
-            results["foreign_key_constraints"] = adapter.execute_macro(
-                "fetch_foreign_key_constraints", kwargs=kwargs
-            )
-            results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+            if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+                results["information_schema.column_tags"] = adapter.execute_macro(
+                    "fetch_column_tags", kwargs=kwargs
+                )
+            else:
+                results["information_schema.column_tags"] = None
+
+            if adapter.is_describe_as_json_supported(relation):
+                json_metadata = adapter.fetch_json_metadata(relation)
+                relation_metadata = DatabricksDescribeJsonMetadata.from_json_metadata(json_metadata)
+                results["non_null_constraint_columns"] = relation_metadata.non_null_constraints
+                results["primary_key_constraints"] = relation_metadata.primary_key_constraints
+                results["foreign_key_constraints"] = relation_metadata.foreign_key_constraints
+                results["column_masks"] = relation_metadata.column_masks
+                results["row_filters"] = relation_metadata.row_filters
+            else:
+                results["non_null_constraint_columns"] = adapter.execute_macro(
+                    "fetch_non_null_constraint_columns", kwargs=kwargs
+                )
+                results["primary_key_constraints"] = adapter.execute_macro(
+                    "fetch_primary_key_constraints", kwargs=kwargs
+                )
+                results["foreign_key_constraints"] = adapter.execute_macro(
+                    "fetch_foreign_key_constraints", kwargs=kwargs
+                )
+                results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
+                results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
+
         return results
 
 
@@ -1191,15 +1336,32 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
 
     @classmethod
     def _describe_relation(
-        cls, adapter: DatabricksAdapter, relation: DatabricksRelation
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
         results = {}
         kwargs = {"relation": relation}
 
-        results["information_schema.views"] = get_first_row(
-            adapter.execute_macro("get_view_description", kwargs=kwargs)
-        )
-        results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        # To be backward compatible model_config can be None. In that case, tags should be fetched
+        # to maintain backward compatibility.
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
+        if adapter.is_describe_as_json_supported(relation):
+            json_metadata = adapter.fetch_json_metadata(relation)
+            results["information_schema.views"] = (
+                DatabricksDescribeJsonMetadata.parse_view_description(json_metadata)
+            )
+        else:
+            results["information_schema.views"] = get_first_row(
+                adapter.execute_macro("get_view_description", kwargs=kwargs)
+            )
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         kwargs = {"table_name": relation}
@@ -1207,3 +1369,477 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
         )
         return results
+
+
+class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
+    relation_type = DatabricksRelationType.MetricView
+
+    @classmethod
+    def config_type(cls) -> type[MetricViewConfig]:
+        return MetricViewConfig
+
+    @classmethod
+    def _describe_relation(
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+        model_config: Optional[DatabricksRelationConfigBase] = None,
+    ) -> RelationResults:
+        results = {}
+        kwargs = {"relation": relation}
+        results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
+
+        kwargs = {"relation": relation}
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
+        kwargs = {"table_name": relation}
+        results["describe_extended"] = adapter.execute_macro(
+            DESCRIBE_TABLE_EXTENDED_MACRO_NAME, kwargs=kwargs
+        )
+
+        return results
+
+
+@dataclass
+class DatabricksDescribeJsonMetadata:
+    column_masks: Optional["Table"] = None
+    foreign_key_constraints: Optional["Table"] = None
+    non_null_constraints: Optional["Table"] = None
+    primary_key_constraints: Optional["Table"] = None
+    row_filters: Optional["Table"] = None
+    view_description: Optional["Row"] = None
+
+    @classmethod
+    def from_json_metadata(cls, json_metadata: dict[str, Any]) -> "DatabricksDescribeJsonMetadata":
+        """Parse and convert the json metadata into structured metadata for the adapter to use."""
+        return DatabricksDescribeJsonMetadata(
+            column_masks=cls.parse_column_masks(json_metadata),
+            foreign_key_constraints=cls.parse_foreign_key_constraints(json_metadata),
+            non_null_constraints=cls.parse_non_null_constraints(json_metadata),
+            primary_key_constraints=cls.parse_primary_key_constraints(json_metadata),
+            row_filters=cls.parse_row_filter(json_metadata),
+            view_description=cls.parse_view_description(json_metadata),
+        )
+
+    @classmethod
+    def parse_column_masks(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of column masks (info_schema format)."""
+        try:
+            return cls._parse_column_masks(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse column masks from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_column_masks(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of column masks (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
+        raw_masks = json_metadata.get("column_masks", [])
+        rows = []
+        for mask in raw_masks:
+            column_name = mask["column_name"]
+            fn = mask["function_name"]
+            mask_name = f"{fn['catalog_name']}.{fn['schema_name']}.{fn['function_name']}"
+            using_columns = ",".join(mask.get("using_column_names", []))
+            rows.append((column_name, mask_name, using_columns or None))
+
+        return AgateTable(
+            rows=rows,
+            column_names=["column_name", "mask_name", "using_columns"],
+            column_types=[AgateText(), AgateText(), AgateText()],
+        )
+
+    @classmethod
+    def parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
+        try:
+            return cls._parse_foreign_key_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse foreign key constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_foreign_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of FK constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
+        rows: list[list[str]] = []
+        # For the worked example, _split_constraints yields:
+        #   ("p-a,b@c(d", "PRIMARY KEY ...")  -> skipped, leading token != FOREIGN
+        #   ("fk1",       "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)")
+        for name, body in cls._split_constraints(json_metadata.get("table_constraints", "")):
+            # `re.match` (not `re.search`) so the keyword must be the body's
+            # leading token — never a column-name false-positive.
+            if not re.match(r"FOREIGN\s+KEY\b", body):
+                continue
+            # Structurally-anchored split: REFERENCES sits between the
+            # closing `)` of the from-cols and the opening `` ` `` of the
+            # qualified relation. Lookbehind/lookahead require those chars,
+            # so a column whose name contains the substring REFERENCES
+            # (e.g. `MY_REFERENCES_COL`) cannot mis-split, and surrounding
+            # whitespace is optional.
+            #
+            # Worked example FK body splits as:
+            #   parts[0] = "FOREIGN KEY (`x`, `y`)"
+            #   parts[1] = "`cat`.`sch`.`tbl` (`a`, `b`)"
+            parts = re.split(r"(?<=\))\s*REFERENCES\s*(?=`)", body, maxsplit=1)
+            if len(parts) != 2:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' is missing a REFERENCES clause: {body!r}"
+                )
+            # Worked example:
+            #   from_cols  = ["x", "y"]
+            #   ref_tokens = ["cat", "sch", "tbl", "a", "b"]
+            from_cols = cls._extract_backticked(parts[0])
+            ref_tokens = cls._extract_backticked(parts[1])
+            n = len(from_cols)
+            if n == 0:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' has no from-columns: {body!r}"
+                )
+            # Layout in the right half: catalog, schema, table, *to_cols.
+            # Anything other than exactly (3 + n) tokens means the referenced
+            # name is not a fully-qualified `catalog`.`schema`.`table` or the
+            # to-column count doesn't match the from-column count.
+            #
+            # Worked example: n=2, len(ref_tokens)=5, 5 == 2+3 ✓
+            if len(ref_tokens) != n + 3:
+                raise DbtRuntimeError(
+                    f"FOREIGN KEY constraint '{name}' must reference a 3-part "
+                    f"`catalog`.`schema`.`table` with matching column counts "
+                    f"(from={n}, ref tokens={len(ref_tokens)}): {body!r}"
+                )
+            # Worked example unpack:
+            #   to_catalog="cat", to_schema="sch", to_table="tbl", to_cols=["a","b"]
+            to_catalog, to_schema, to_table, *to_cols = ref_tokens
+            # Worked example zip yields two rows:
+            #   ["fk1", "x", "cat", "sch", "tbl", "a"]
+            #   ["fk1", "y", "cat", "sch", "tbl", "b"]
+            for from_col, to_col in zip(from_cols, to_cols):
+                rows.append([name, from_col, to_catalog, to_schema, to_table, to_col])
+
+        return AgateTable(
+            rows=rows,
+            column_names=[
+                "constraint_name",
+                "from_column",
+                "to_catalog",
+                "to_schema",
+                "to_table",
+                "to_column",
+            ],
+            column_types=[AgateText()] * 6,
+        )
+
+    @classmethod
+    def parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
+        try:
+            return cls._parse_non_null_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse non-null constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_non_null_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of non-null constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
+        columns = json_metadata.get("columns", [])
+
+        non_null_cols = [column["name"] for column in columns if not column.get("nullable")]
+        return AgateTable(
+            rows=[[col] for col in non_null_cols],
+            column_names=["column_name"],
+            column_types=[AgateText()],
+        )
+
+    @classmethod
+    def parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
+        try:
+            return cls._parse_primary_key_constraints(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse primary key constraints from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_primary_key_constraints(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of PK constraints (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
+        rows: list[list[str]] = []
+        # `_split_constraints` yields, for the worked example:
+        #   ("p-a,b@c(d", "PRIMARY KEY (`id``a`)") and
+        #   ("fk1",       "FOREIGN KEY ...")
+        for name, body in cls._split_constraints(json_metadata.get("table_constraints", "")):
+            # `re.match` (anchored at start) so the keyword must be the body's
+            # leading token. The FK body's leading token is "FOREIGN", so it
+            # is skipped here without inspecting its contents.
+            if re.match(r"PRIMARY\s+KEY\b", body):
+                # Worked example: body = "PRIMARY KEY (`id``a`)".
+                # _extract_backticked returns ["id`a"] (one column, with the
+                # doubled backtick un-escaped to a literal `).
+                # Row appended: ["p-a,b@c(d", "id`a"].
+                for col in cls._extract_backticked(body):
+                    rows.append([name, col])
+
+        return AgateTable(
+            rows=rows,
+            column_names=["constraint_name", "column_name"],
+            column_types=[AgateText(), AgateText()],
+        )
+
+    @classmethod
+    def parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
+        """Parse json metadata into an agate Row for the view description (info_schema format)."""
+        try:
+            return cls._parse_view_description(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse view description from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_view_description(cls, json_metadata: dict[str, Any]) -> "Row":
+        """Parse json metadata into an agate Row for the view description (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Row as AgateRow
+
+        view_text = json_metadata.get("view_text", None)
+        if view_text is None:
+            return AgateRow(values=set())
+        else:
+            return AgateRow(values=(view_text,), keys=("view_definition",))
+
+    @classmethod
+    def parse_row_filter(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of row filter (info_schema format)."""
+        try:
+            return cls._parse_row_filter(json_metadata)
+        except DbtRuntimeError:
+            raise
+        except Exception as e:
+            raise DbtRuntimeError(
+                "Failed to parse row filter from describe table extended as json"
+            ) from e
+
+    @classmethod
+    def _parse_row_filter(cls, json_metadata: dict[str, Any]) -> "Table":
+        """Parse json metadata into an agate Table of row filter (info_schema format)."""
+        # Lazy load to improve startup time
+        from agate import Table as AgateTable
+        from agate import Text as AgateText
+
+        row_filter_metadata = json_metadata.get("row_filter")
+        rows: list[Any] = []
+        column_names = [
+            "table_catalog",
+            "table_schema",
+            "table_name",
+            "filter_name",
+            "target_columns",
+        ]
+        column_types = [AgateText(), AgateText(), AgateText(), AgateText(), AgateText()]
+
+        if not row_filter_metadata:
+            return AgateTable(rows=rows, column_names=column_names, column_types=column_types)
+
+        table_catalog = json_metadata["catalog_name"]
+        table_schema = json_metadata["schema_name"]
+        table_name = json_metadata["table_name"]
+
+        function_name = row_filter_metadata["function_name"]
+        filter_name = (
+            function_name["catalog_name"]
+            + "."
+            + function_name["schema_name"]
+            + "."
+            + function_name["function_name"]
+        )
+        filter_column_names = row_filter_metadata["column_names"]
+
+        rows.append(
+            [table_catalog, table_schema, table_name, filter_name, ",".join(filter_column_names)]
+        )
+
+        return AgateTable(
+            rows=rows,
+            column_names=column_names,
+            column_types=column_types,
+        )
+
+    # ---------------------------------------------------------------------
+    # WORKED EXAMPLE — referenced by all parser comments below.
+    #
+    # Input:
+    #   table_constraints =
+    #     "[(p-a,b@c(d,PRIMARY KEY (`id``a`)),"
+    #     " (fk1,FOREIGN KEY (`x`, `y`)"
+    #     "  REFERENCES `cat`.`sch`.`tbl` (`a`, `b`))]"
+    #
+    # Single fixture, every corner case:
+    #   - constraint name with hyphen, comma, paren, @ ("p-a,b@c(d")
+    #   - column name with literal backtick, escaped as `` ("id``a" -> id`a)
+    #   - composite FK (two from-columns paired with two to-columns)
+    #   - two constraints in one array (PK first, FK second)
+    #
+    # Expected parse:
+    #   PK rows:  [("p-a,b@c(d", "id`a")]
+    #   FK rows:  [("fk1", "x", "cat", "sch", "tbl", "a"),
+    #              ("fk1", "y", "cat", "sch", "tbl", "b")]
+    # ---------------------------------------------------------------------
+
+    # Boundary anchor: the comma that precedes the body keyword. A constraint
+    # name cannot contain `,PRIMARY KEY` or `,FOREIGN KEY` because the space
+    # inside the keyword pair is illegal in a name, so this never fires inside
+    # a name. In the example, the name "p-a,b@c(d" contains TWO commas — the
+    # regex skips both because neither is followed by the keyword.
+    _CONSTRAINT_BOUNDARY = re.compile(r",\s*(?:PRIMARY|FOREIGN)\s+KEY\b")
+
+    # A backticked identifier with embedded doubled-backticks treated as a
+    # single literal `. In the example, `id``a` matches as ONE token whose
+    # group(1) is "id``a"; the `.replace("``", "`")` step in
+    # `_extract_backticked` un-escapes it to "id`a".
+    _BACKTICKED = re.compile(r"`((?:[^`]|``)*)`")
+
+    @classmethod
+    def _split_constraints(cls, table_constraints: str) -> list[tuple[str, str]]:
+        """Yield (name, body) pairs from a Databricks table_constraints value.
+
+        The constraint name is captured as raw text — characters inside it
+        (commas, parens, backticks, @, hyphens) are not interpreted. The body
+        is then walked with paren-depth + backtick-state tracking to find the
+        block's outer closing `)`.
+
+        See WORKED EXAMPLE block above for the fixture used in the comments
+        below.
+        """
+        # Strip surrounding `[` `]`. For the worked example:
+        #   inner = "(p-a,b@c(d,PRIMARY KEY (`id``a`)),"
+        #           " (fk1,FOREIGN KEY (`x`, `y`)"
+        #           "  REFERENCES `cat`.`sch`.`tbl` (`a`, `b`))"
+        s = table_constraints.strip()
+        if not (s.startswith("[") and s.endswith("]")):
+            return []
+        inner = s[1:-1]
+
+        pairs: list[tuple[str, str]] = []
+        pos = 0
+        while pos < len(inner):
+            # Skip whitespace + inter-block commas. Iter 1: `inner[0]` is
+            # already `(`, loop is a no-op. Iter 2: consumes `, ` between
+            # the two constraint blocks and stops at the next `(`.
+            while pos < len(inner) and (inner[pos].isspace() or inner[pos] == ","):
+                pos += 1
+            if pos >= len(inner) or inner[pos] != "(":
+                break
+
+            # Step into the block. Iter 1: name_start points one past `(`.
+            # The boundary regex finds the FIRST `,PRIMARY KEY` or
+            # `,FOREIGN KEY` — never inside the name. The two commas inside
+            # "p-a,b@c(d" are skipped because they aren't followed by the
+            # keyword pair (the pair contains a space, illegal in a name).
+            #
+            # Iter 1: name = "p-a,b@c(d"
+            # Iter 2: name = "fk1"
+            name_start = pos + 1
+            m = cls._CONSTRAINT_BOUNDARY.search(inner, name_start)
+            if not m:
+                break
+            name = inner[name_start : m.start()].strip()
+
+            # Walk the body forward to find the block's outer closing `)`.
+            # Body parens are balanced, so depth returns to 0 only at that `)`.
+            # Backticks come paired in the body (or doubled to mean a literal).
+            #
+            # Iter 1 walk through "PRIMARY KEY (`id``a`)":
+            #   '(' depth 0 -> 1
+            #   '`'   in_bt True
+            #   'id'  literal chars
+            #   '``'  DOUBLED — skipped as one unit, in_bt stays True
+            #   'a'   literal char
+            #   '`'   in_bt False
+            #   ')'   depth 1 -> 0
+            #   ')'   depth 0 -> BREAK (this is the block's outer closer)
+            # -> body = "PRIMARY KEY (`id``a`)"
+            #
+            # Iter 2 walk through the FK body:
+            #   '(' 0->1, `\`x\``, ',', `\`y\``, ')' 1->0,
+            #   ' REFERENCES ' (depth 0, no parens),
+            #   `\`cat\`.\`sch\`.\`tbl\`` (backticks toggle in pairs),
+            #   '(' 0->1, `\`a\``, ',', `\`b\``, ')' 1->0,
+            #   ')' depth 0 -> BREAK
+            # -> body = "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)"
+            depth = 0
+            in_bt = False
+            i = m.start() + 1
+            while i < len(inner):
+                c = inner[i]
+                if c == "`":
+                    if i + 1 < len(inner) and inner[i + 1] == "`":
+                        i += 2  # doubled = literal, don't toggle
+                        continue
+                    in_bt = not in_bt
+                elif not in_bt:
+                    if c == "(":
+                        depth += 1
+                    elif c == ")":
+                        if depth == 0:
+                            break  # this is the block's outer closer
+                        depth -= 1
+                i += 1
+            if i >= len(inner):
+                break
+
+            body = inner[m.start() + 1 : i].strip()
+            pairs.append((name, body))
+            pos = i + 1  # advance past the block's outer `)`
+
+        # For the worked example, pairs is now:
+        #   [("p-a,b@c(d", "PRIMARY KEY (`id``a`)"),
+        #    ("fk1",       "FOREIGN KEY (`x`, `y`) REFERENCES `cat`.`sch`.`tbl` (`a`, `b`)")]
+        return pairs
+
+    @classmethod
+    def _extract_backticked(cls, s: str) -> list[str]:
+        """Every backticked identifier in s, with doubled backticks unescaped.
+
+        Worked-example calls:
+          - On PK body "PRIMARY KEY (`id``a`)":
+              regex matches once, group(1) = "id``a";
+              .replace("``", "`") -> "id`a";
+              returns ["id`a"]   (one column, with the literal backtick)
+          - On FK left half "FOREIGN KEY (`x`, `y`)":
+              returns ["x", "y"]
+          - On FK right half "`cat`.`sch`.`tbl` (`a`, `b`)":
+              returns ["cat", "sch", "tbl", "a", "b"]
+        """
+        return [m.group(1).replace("``", "`") for m in cls._BACKTICKED.finditer(s)]

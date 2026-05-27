@@ -1,0 +1,9 @@
+min_deps_smoke:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      schema: min_deps_smoke
+      host: fake.databricks.test
+      http_path: /sql/1.0/warehouses/fake
+      token: fake-token

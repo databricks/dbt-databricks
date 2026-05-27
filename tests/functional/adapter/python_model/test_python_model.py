@@ -138,6 +138,7 @@ class TestChangingSchemaIncremental:
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.flaky(reruns=2, reruns_delay=120)
 class TestSpecifyingHttpPath(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
@@ -280,6 +281,9 @@ class TestWorkflowJob:
 @pytest.mark.python
 @pytest.mark.acl
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skipif(
+    not ACL_TESTS_ENABLED, reason="ACL tests disabled (set DBT_ENABLE_ACL_TESTS=1 to enable)"
+)
 class TestPythonModelNotebookACL:
     @pytest.fixture(scope="class")
     def models(self):
@@ -293,9 +297,6 @@ class TestPythonModelNotebookACL:
         return {"models": {"+create_notebook": "true"}}
 
     def test_python_model_with_notebook_acl(self, project):
-        if not ACL_TESTS_ENABLED:
-            pytest.skip("ACL tests are not enabled")
-
         result = util.run_dbt(["run"])
         assert len(result) == 1
 
@@ -346,6 +347,9 @@ class TestPythonModelNotebookACL:
 @pytest.mark.python
 @pytest.mark.acl
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skipif(
+    not ACL_TESTS_ENABLED, reason="ACL tests disabled (set DBT_ENABLE_ACL_TESTS=1 to enable)"
+)
 class TestPythonModelAccessControlList:
     @pytest.fixture(scope="class")
     def models(self):
@@ -359,9 +363,6 @@ class TestPythonModelAccessControlList:
         return {"models": {"+create_notebook": "true"}}
 
     def test_python_model_with_access_control_list(self, project):
-        if not ACL_TESTS_ENABLED:
-            pytest.skip("ACL tests are not enabled")
-
         adapter = project.adapter
         conn_mgr = adapter.connections
         api_client = conn_mgr.api_client

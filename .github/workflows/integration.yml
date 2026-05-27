@@ -54,6 +54,14 @@ jobs:
       labels: linux-ubuntu-latest
     outputs:
       targets: ${{ steps.parse.outputs.targets }}
+      # `count_*` is emitted alongside `shards_*` because GHA expressions have
+      # no `length()` for arrays — `max-parallel` can't derive it from the array.
+      shards_cluster: ${{ steps.parse.outputs.shards_cluster }}
+      shards_uc_cluster: ${{ steps.parse.outputs.shards_uc_cluster }}
+      shards_uc_sql_endpoint: ${{ steps.parse.outputs.shards_uc_sql_endpoint }}
+      count_cluster: ${{ steps.parse.outputs.count_cluster }}
+      count_uc_cluster: ${{ steps.parse.outputs.count_uc_cluster }}
+      count_uc_sql_endpoint: ${{ steps.parse.outputs.count_uc_sql_endpoint }}
     steps:
       - name: Parse targets
         id: parse
@@ -103,6 +111,17 @@ jobs:
           targets+="]"
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "Parsed targets: $targets"
+          # Shard fan-out — single source of truth. Reshape here and matrix +
+          # max-parallel + prepare-shards NUM_SHARDS all follow.
+          shards_cluster='[0, 1]'
+          shards_uc_cluster='[0, 1, 2]'
+          shards_uc_sql_endpoint='[0, 1, 2]'
+          for profile in cluster uc_cluster uc_sql_endpoint; do
+            arr_var="shards_${profile}"
+            arr="${!arr_var}"
+            echo "shards_${profile}=${arr}" >> "$GITHUB_OUTPUT"
+            echo "count_${profile}=$(jq 'length' <<< "$arr")" >> "$GITHUB_OUTPUT"
+          done
 
   # Collects test ids per profile and partitions files into shards.
   # `--collect-only` imports test modules but never hits the workspace.
@@ -152,9 +171,9 @@ jobs:
           set -euo pipefail
           mkdir -p shard-assignments
           declare -A NUM_SHARDS=(
-            [databricks_cluster]=2
-            [databricks_uc_cluster]=3
-            [databricks_uc_sql_endpoint]=3
+            [databricks_cluster]=${{ needs.prepare.outputs.count_cluster }}
+            [databricks_uc_cluster]=${{ needs.prepare.outputs.count_uc_cluster }}
+            [databricks_uc_sql_endpoint]=${{ needs.prepare.outputs.count_uc_sql_endpoint }}
           )
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             (
@@ -181,24 +200,43 @@ jobs:
           path: shard-assignments/
           retention-days: 5
 
+  # Serialize integration runs across the repo. Others wait FIFO by run id and
+  # abort after `abort-after-seconds`. Per-job `max-parallel` matches each
+  # matrix's shard count so a multi-PR batch dispatch stays inside this slot.
+  gate:
+    needs: prepare
+    if: needs.prepare.outputs.targets != '[]'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for integration slot
+        uses: softprops/turnstyle@15f9da4059166900981058ba251e0b652511c68f  # v3.2.2
+        with:
+          same-branch-only: false
+          poll-interval-seconds: 30
+          abort-after-seconds: 14400
+
   run-uc-cluster-e2e-tests:
     # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
     # `needs: prepare` propagates the external-fork skip cleanly, and forcing
     # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
-    # empty output. Matrix shape contract: {pr, ref, shard} — defined in the
-    # `prepare` job (pr+ref) plus the static `shard` dimension below.
+    # empty output.
     needs:
       - prepare
       - prepare-shards
+      - gate
     # Skip when `prepare` emits an empty targets array (nightly skip-if-unchanged).
     # Without this, GitHub Actions treats a job with a zero-combination matrix as
     # a failure, so every already-tested nightly run gets reported as failed.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_cluster) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
-        shard: [0, 1, 2]
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_cluster) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -287,18 +325,18 @@ jobs:
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare`, shard
-    # is the static dimension below.
     needs:
       - prepare
       - prepare-shards
+      - gate
     # See run-uc-cluster-e2e-tests for empty-matrix rationale.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_sql_endpoint) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
-        shard: [0, 1, 2]
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_sql_endpoint) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -388,18 +426,18 @@ jobs:
           retention-days: 5
 
   run-cluster-e2e-tests:
-    # Matrix shape contract: {pr, ref, shard} — pr+ref from `prepare`, shard
-    # is the static dimension below.
     needs:
       - prepare
       - prepare-shards
+      - gate
     # See run-uc-cluster-e2e-tests for empty-matrix rationale.
     if: needs.prepare.outputs.targets != '[]'
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_cluster) }}
       matrix:
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
-        shard: [0, 1]
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_cluster) }}
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
