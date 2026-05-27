@@ -22,9 +22,5 @@ def connector_supports_spog() -> bool:
 
 @cache
 def sdk_supports_workspace_id() -> bool:
-    """True iff the installed databricks-sdk exposes a `workspace_id` attribute on Config.
-
-    `workspace_id` was introduced as a Config attribute in databricks-sdk v0.103.0.
-    We could have done a precise version check, but this is simpler and more reliable.
-    """
+    """True iff the installed databricks-sdk exposes a `workspace_id` attribute on Config."""
     return hasattr(Config, "workspace_id")

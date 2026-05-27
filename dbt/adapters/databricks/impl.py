@@ -1158,7 +1158,7 @@ class DatabricksAdapter(SparkAdapter):
         )
         logger.info(
             f"  databricks-sdk version: {sdk_v} "
-            f"({'supported' if sdk_ok else 'NOT supported (>= 0.104.0 required for SPOG)'})"
+            f"({'supported' if sdk_ok else 'NOT supported (>= 0.76.0 required for SPOG)'})"
         )
 
 
