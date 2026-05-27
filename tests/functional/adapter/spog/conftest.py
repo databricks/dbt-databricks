@@ -1,5 +1,4 @@
 import os
-import re
 from copy import deepcopy
 from urllib.parse import parse_qsl, urlencode
 
@@ -9,17 +8,25 @@ from tests.profiles import get_databricks_cluster_target
 
 
 def _workspace_id() -> str:
-    if workspace_id := os.getenv("TEST_PECO_SPOG_WORKSPACE_ID"):
-        return workspace_id
+    workspace_id = os.getenv("TEST_PECO_SPOG_WORKSPACE_ID")
+    if not workspace_id:
+        raise RuntimeError("SPOG functional tests require TEST_PECO_SPOG_WORKSPACE_ID to be set.")
+    return workspace_id
 
-    match = re.match(r"^.*-(\d+)\..*$", os.getenv("DBT_DATABRICKS_HOST_NAME", ""))
-    if match:
-        return match.group(1)
 
-    raise RuntimeError(
-        "SPOG functional tests require TEST_PECO_SPOG_WORKSPACE_ID or a SPOG host "
-        "containing the workspace id."
-    )
+def _spog_host() -> str:
+    """Return the SPOG host to point tests at.
+
+    Prefers TEST_PECO_SPOG_HOST so the default (non-SPOG) integration workflow
+    can still exercise SPOG routing. Falls back to DBT_DATABRICKS_HOST_NAME,
+    which the SPOG-specific workflow already sets to a SPOG vanity URL.
+    """
+    host = os.getenv("TEST_PECO_SPOG_HOST") or os.getenv("DBT_DATABRICKS_HOST_NAME")
+    if not host:
+        raise RuntimeError(
+            "SPOG functional tests require TEST_PECO_SPOG_HOST or DBT_DATABRICKS_HOST_NAME."
+        )
+    return host
 
 
 def _with_workspace_id(http_path: str | None, workspace_id: str) -> str:
@@ -34,6 +41,7 @@ def _with_workspace_id(http_path: str | None, workspace_id: str) -> str:
 
 def _spog_target(profile_type: str, workspace_id: str) -> dict:
     target = get_databricks_cluster_target(profile_type)
+    target["host"] = _spog_host()
     target["http_path"] = _with_workspace_id(target.get("http_path"), workspace_id)
     return target
 
