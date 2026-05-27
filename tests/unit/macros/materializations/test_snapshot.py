@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from tests.unit.macros.base import MacroTestBase
 
@@ -23,26 +24,23 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         context["get_snapshot_table_column_names"] = lambda: Cols()
         context["get_dbt_valid_to_current"] = lambda s, c: "nullif('u', 'u') as dbt_valid_to"
-        
+
         strategy = Mock()
         strategy.scd_id = "'some_scd_id'"
         strategy.updated_at = "'u'"
         strategy.hard_deletes = "ignore"
-        
-        sql = self.run_macro(template, "databricks__build_snapshot_table", strategy, "select 1 as a")
-        
+
+        sql = self.run_macro(
+            template, "databricks__build_snapshot_table", strategy, "select 1 as a"
+        )
+
         expected = """
         select
             'some_scd_id' as dbt_scd_id,
             'u' as dbt_updated_at,
             'u' as dbt_valid_from,
             nullif('u', 'u') as dbt_valid_to,
-            * except (
-                dbt_scd_id,
-                dbt_updated_at,
-                dbt_valid_from,
-                dbt_valid_to
-            )
+            *
         from (
             select 1 as a
         ) sbq
@@ -51,7 +49,7 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         # explicit check for column ordering
         scd_id_pos = sql.index("dbt_scd_id")
-        wildcard_pos = sql.index("* except")
+        wildcard_pos = sql.index("*")
         assert scd_id_pos < wildcard_pos, (
             "Meta-columns must appear before * in SELECT to ensure they fall "
             "within Databricks' first-32-column statistics window"
@@ -67,14 +65,16 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         context["get_snapshot_table_column_names"] = lambda: Cols()
         context["get_dbt_valid_to_current"] = lambda s, c: "nullif('u', 'u') as dbt_valid_to"
-        
+
         strategy = Mock()
         strategy.scd_id = "'some_scd_id'"
         strategy.updated_at = "'u'"
         strategy.hard_deletes = "new_record"
-        
-        sql = self.run_macro(template, "databricks__build_snapshot_table", strategy, "select 1 as a")
-        
+
+        sql = self.run_macro(
+            template, "databricks__build_snapshot_table", strategy, "select 1 as a"
+        )
+
         expected = """
         select
             'some_scd_id' as dbt_scd_id,
@@ -82,13 +82,7 @@ class TestBuildSnapshotTable(MacroTestBase):
             'u' as dbt_valid_from,
             nullif('u', 'u') as dbt_valid_to,
             false as dbt_is_deleted,
-            * except (
-                dbt_scd_id,
-                dbt_updated_at,
-                dbt_valid_from,
-                dbt_valid_to,
-                dbt_is_deleted
-            )
+            *
         from (
             select 1 as a
         ) sbq
@@ -97,7 +91,7 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         # explicit check for column ordering
         scd_id_pos = sql.index("dbt_scd_id")
-        wildcard_pos = sql.index("* except")
+        wildcard_pos = sql.index("*")
         assert scd_id_pos < wildcard_pos, (
             "Meta-columns must appear before * in SELECT to ensure they fall "
             "within Databricks' first-32-column statistics window"
@@ -113,14 +107,16 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         context["get_snapshot_table_column_names"] = lambda: Cols()
         context["get_dbt_valid_to_current"] = lambda s, c: "nullif('u', 'u') as end_date"
-        
+
         strategy = Mock()
         strategy.scd_id = "'some_scd_id'"
         strategy.updated_at = "'u'"
         strategy.hard_deletes = "new_record"
-        
-        sql = self.run_macro(template, "databricks__build_snapshot_table", strategy, "select 1 as a")
-        
+
+        sql = self.run_macro(
+            template, "databricks__build_snapshot_table", strategy, "select 1 as a"
+        )
+
         expected = """
         select
             'some_scd_id' as _scd_id,
@@ -128,13 +124,7 @@ class TestBuildSnapshotTable(MacroTestBase):
             'u' as start_date,
             nullif('u', 'u') as end_date,
             false as is_deleted,
-            * except (
-                _scd_id,
-                _updated_at,
-                start_date,
-                end_date,
-                is_deleted
-            )
+            *
         from (
             select 1 as a
         ) sbq
@@ -144,14 +134,10 @@ class TestBuildSnapshotTable(MacroTestBase):
         # check that original defaults aren't there
         assert "_scd_id" in sql
         assert "dbt_scd_id" not in sql
-        
-        scd_id_pos = sql.index("_scd_id")
-        wildcard_pos = sql.index("* except")
-        assert scd_id_pos < wildcard_pos, "Meta-columns must precede wildcard"
 
-        except_clause = sql[sql.index("except"):sql.index("from (")]
-        assert "_scd_id" in except_clause
-        assert "dbt_scd_id" not in except_clause
+        scd_id_pos = sql.index("_scd_id")
+        wildcard_pos = sql.index("*")
+        assert scd_id_pos < wildcard_pos, "Meta-columns must precede wildcard"
 
     def test_build_snapshot_table_custom_column_names_ignore(self, template, context):
         class Cols:
@@ -163,26 +149,23 @@ class TestBuildSnapshotTable(MacroTestBase):
 
         context["get_snapshot_table_column_names"] = lambda: Cols()
         context["get_dbt_valid_to_current"] = lambda s, c: "nullif('u', 'u') as end_date"
-        
+
         strategy = Mock()
         strategy.scd_id = "'some_scd_id'"
         strategy.updated_at = "'u'"
         strategy.hard_deletes = "ignore"
-        
-        sql = self.run_macro(template, "databricks__build_snapshot_table", strategy, "select 1 as a")
-        
+
+        sql = self.run_macro(
+            template, "databricks__build_snapshot_table", strategy, "select 1 as a"
+        )
+
         expected = """
         select
             'some_scd_id' as _scd_id,
             'u' as _updated_at,
             'u' as start_date,
             nullif('u', 'u') as end_date,
-            * except (
-                _scd_id,
-                _updated_at,
-                start_date,
-                end_date
-            )
+            *
         from (
             select 1 as a
         ) sbq
@@ -192,11 +175,7 @@ class TestBuildSnapshotTable(MacroTestBase):
         # check that original defaults aren't there
         assert "_scd_id" in sql
         assert "dbt_scd_id" not in sql
-        
-        scd_id_pos = sql.index("_scd_id")
-        wildcard_pos = sql.index("* except")
-        assert scd_id_pos < wildcard_pos, "Meta-columns must precede wildcard"
 
-        except_clause = sql[sql.index("except"):sql.index("from (")]
-        assert "_scd_id" in except_clause
-        assert "dbt_scd_id" not in except_clause
+        scd_id_pos = sql.index("_scd_id")
+        wildcard_pos = sql.index("*")
+        assert scd_id_pos < wildcard_pos, "Meta-columns must precede wildcard"

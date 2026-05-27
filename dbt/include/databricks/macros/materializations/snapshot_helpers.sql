@@ -59,15 +59,7 @@
         {%- if hard_deletes == 'new_record' %}
         false as {{ columns.dbt_is_deleted }},
         {%- endif %}
-        * except (
-            {{ columns.dbt_scd_id }},
-            {{ columns.dbt_updated_at }},
-            {{ columns.dbt_valid_from }},
-            {{ columns.dbt_valid_to }}
-            {%- if hard_deletes == 'new_record' -%}
-            , {{ columns.dbt_is_deleted }}
-            {%- endif %}
-        )
+        *
     from (
         {{ sql }}
     ) sbq
