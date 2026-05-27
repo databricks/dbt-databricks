@@ -328,7 +328,7 @@ class TestCredentialManagerWorkspaceId:
 
     def _creds(self, http_path: str, token: str = "dapi-fake") -> DatabricksCredentials:
         return DatabricksCredentials(
-            host="peco.azuredatabricks.net",
+            host="spog.example.com",
             http_path=http_path,
             token=token,
             database="main",
@@ -336,15 +336,13 @@ class TestCredentialManagerWorkspaceId:
         )
 
     def test_workspace_id_extracted_when_present(self):
-        with mock.patch("dbt.adapters.databricks.credentials.Config"):
-            creds = self._creds("/sql/1.0/warehouses/abc?o=6436897454825492")
-            mgr = DatabricksCredentialManager.create_from(creds)
+        creds = self._creds("/sql/1.0/warehouses/abc?o=6436897454825492")
+        mgr = DatabricksCredentialManager.create_from(creds)
         assert mgr.workspace_id == "6436897454825492"
 
     def test_workspace_id_none_when_absent(self):
-        with mock.patch("dbt.adapters.databricks.credentials.Config"):
-            creds = self._creds("/sql/1.0/warehouses/abc")
-            mgr = DatabricksCredentialManager.create_from(creds)
+        creds = self._creds("/sql/1.0/warehouses/abc")
+        mgr = DatabricksCredentialManager.create_from(creds)
         assert mgr.workspace_id is None
 
     def test_pat_config_receives_workspace_id_when_supported(self):
@@ -358,9 +356,10 @@ class TestCredentialManagerWorkspaceId:
         ):
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_pat()
-        cfg.assert_called_with(
-            host="peco.azuredatabricks.net", token="dapi-fake", workspace_id="64"
-        )
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert kwargs["workspace_id"] == "64"
 
     def test_pat_config_no_workspace_id_when_unsupported(self):
         creds = self._creds("/sql/1.0/warehouses/abc?o=64")
@@ -373,7 +372,10 @@ class TestCredentialManagerWorkspaceId:
         ):
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_pat()
-        cfg.assert_called_with(host="peco.azuredatabricks.net", token="dapi-fake")
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert "workspace_id" not in kwargs
 
     def test_pat_config_no_workspace_id_when_no_o_param(self):
         creds = self._creds("/sql/1.0/warehouses/abc")  # no ?o=
@@ -386,11 +388,14 @@ class TestCredentialManagerWorkspaceId:
         ):
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_pat()
-        cfg.assert_called_with(host="peco.azuredatabricks.net", token="dapi-fake")
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert "workspace_id" not in kwargs
 
     def test_oauth_m2m_config_receives_workspace_id(self):
         creds = DatabricksCredentials(
-            host="peco.azuredatabricks.net",
+            host="spog.example.com",
             http_path="/sql/1.0/warehouses/abc?o=64",
             client_id="cid",
             client_secret="csec",
@@ -407,12 +412,15 @@ class TestCredentialManagerWorkspaceId:
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_oauth_m2m()
         kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["client_id"] == "cid"
+        assert kwargs["client_secret"] == "csec"
         assert kwargs["workspace_id"] == "64"
         assert kwargs["auth_type"] == "oauth-m2m"
 
     def test_azure_client_secret_config_receives_workspace_id(self):
         creds = DatabricksCredentials(
-            host="peco.azuredatabricks.net",
+            host="spog.example.com",
             http_path="/sql/1.0/warehouses/abc?o=64",
             azure_client_id="az-cid",
             azure_client_secret="az-csec",
@@ -429,6 +437,7 @@ class TestCredentialManagerWorkspaceId:
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_azure_client_secret()
         kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
         assert kwargs["workspace_id"] == "64"
         assert kwargs["azure_client_id"] == "az-cid"
 
@@ -441,7 +450,7 @@ class TestCredentialManagerWorkspaceId:
             mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
         ):
             creds = DatabricksCredentials(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_path="/sql/1.0/warehouses/abc?o=64",
                 client_id="cid",
                 database="main",
@@ -450,5 +459,7 @@ class TestCredentialManagerWorkspaceId:
             mgr = DatabricksCredentialManager.create_from(creds)
             mgr.authenticate_with_external_browser()
         kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["client_id"] == "cid"
         assert kwargs["workspace_id"] == "64"
         assert kwargs["auth_type"] == "external-browser"

@@ -1865,7 +1865,7 @@ class TestDebugEmitSpogBlock:
             patch("dbt.adapters.databricks.impl.logger") as mock_logger,
         ):
             DatabricksAdapter.debug_emit_spog_block(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_path="/sql/1.0/warehouses/abc?o=6436897454825492",
             )
 
@@ -1890,7 +1890,7 @@ class TestDebugEmitSpogBlock:
             patch("dbt.adapters.databricks.impl.logger") as mock_logger,
         ):
             DatabricksAdapter.debug_emit_spog_block(
-                host="legacy.azuredatabricks.net",
+                host="legacy.example.com",
                 http_path="/sql/1.0/warehouses/abc",
             )
         joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
@@ -1911,7 +1911,7 @@ class TestDebugEmitSpogBlock:
             patch("dbt.adapters.databricks.impl.logger") as mock_logger,
         ):
             DatabricksAdapter.debug_emit_spog_block(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_path="/sql/1.0/warehouses/abc?o=64",
             )
         joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)

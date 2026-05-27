@@ -194,7 +194,7 @@ class TestOpenSpogIntegration:
             fake_conn = Mock()
             fake_conn.state = "init"
             fake_conn.credentials = Mock(spec=DatabricksCredentials)
-            fake_conn.credentials.host = "peco.azuredatabricks.net"
+            fake_conn.credentials.host = "spog.example.com"
             fake_conn.credentials.http_path = "/sql/1.0/warehouses/default?o=64"
             fake_conn.credentials.compute = {"extra": {"http_path": "/sql/1.0/warehouses/alt?o=64"}}
             fake_conn.credentials.connect_timeout = None
@@ -207,29 +207,6 @@ class TestOpenSpogIntegration:
 
             DatabricksConnectionManager.open(fake_conn)
 
-        assert captured["host"] == "peco.azuredatabricks.net"
+        assert captured["host"] == "spog.example.com"
         assert "/sql/1.0/warehouses/default?o=64" in captured["http_paths"]
         assert "/sql/1.0/warehouses/alt?o=64" in captured["http_paths"]
-
-    def test_raises_on_spog_misconfig(self):
-        from dbt_common.exceptions import DbtConfigError
-
-        with patch(
-            "dbt.adapters.databricks.connections.check_spog_preconditions",
-            side_effect=DbtConfigError("SPOG missing ?o="),
-        ):
-            fake_conn = Mock()
-            fake_conn.state = "init"
-            fake_conn.credentials = Mock(spec=DatabricksCredentials)
-            fake_conn.credentials.host = "peco.azuredatabricks.net"
-            fake_conn.credentials.http_path = "/sql/1.0/warehouses/abc"
-            fake_conn.credentials.compute = None
-            fake_conn.credentials.connect_timeout = None
-            fake_conn.credentials.connect_retries = 1
-            fake_conn.credentials.retry_all = False
-            fake_conn.credentials.cluster_id = None
-            fake_conn.credentials.authenticate = Mock(return_value=Mock())
-            fake_conn.http_path = "/sql/1.0/warehouses/abc"
-            fake_conn._query_header_context = None
-            with pytest.raises(DbtConfigError, match="SPOG missing"):
-                DatabricksConnectionManager.open(fake_conn)

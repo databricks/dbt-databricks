@@ -1,11 +1,7 @@
 import os
 import re
 
-# In SPOG mode the workspace id can't be parsed from the vanity hostname,
-# so the caller provides it via DBT_DATABRICKS_SPOG_WORKSPACE_ID; we also
-# append ?o=<wsid> to the cluster paths so the SDK control plane carries
-# workspace context. Legacy mode derives the wsid from the hostname.
-spog_workspace_id = os.getenv("DBT_DATABRICKS_SPOG_WORKSPACE_ID")
+spog_workspace_id = os.getenv("TEST_PECO_SPOG_WORKSPACE_ID")
 
 if spog_workspace_id:
     workspace_id = spog_workspace_id

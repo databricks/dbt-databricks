@@ -47,10 +47,9 @@ def probe_host(host: str) -> HostMetadata:
             if attempt < 2:
                 time.sleep((0.5 * (2**attempt)) + random.random() * 0.25)
 
-    logger.warning(
-        f"SPOG discovery probe to {url!r} failed after 3 attempts "
-        f"(last error: {last_exc}). Proceeding as a non-SPOG host. "
-        f"If {host} is a SPOG (unified) workspace, routing errors may follow; "
-        f"verify network reachability to /.well-known/databricks-config."
+    logger.info(
+        f"SPOG discovery probe to {url!r} failed after 3 attempts (last error: {last_exc}). "
+        f"Proceeding as a non-SPOG host. If {host} is a SPOG (unified) workspace, routing "
+        f"errors may follow; verify network reachability to /.well-known/databricks-config."
     )
     return HostMetadata(host_type=None)

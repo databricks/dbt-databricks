@@ -44,7 +44,7 @@ class TestCheckSpogPreconditions:
     def test_spog_happy_path(self, patch_decision):
         patch_decision(host_type="unified")
         ws_id = decision.check_spog_preconditions(
-            host="peco.azuredatabricks.net",
+            host="spog.example.com",
             http_paths=["/sql/1.0/warehouses/abc?o=64"],
         )
         assert ws_id == "64"
@@ -53,7 +53,7 @@ class TestCheckSpogPreconditions:
         patch_decision(host_type="unified")
         with mock.patch("dbt.adapters.databricks.spog.decision.logger") as mock_logger:
             ws_id = decision.check_spog_preconditions(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_paths=["/sql/1.0/warehouses/abc"],
             )
         assert ws_id is None
@@ -63,7 +63,7 @@ class TestCheckSpogPreconditions:
         patch_decision(host_type="workspace")
         with mock.patch("dbt.adapters.databricks.spog.decision.logger") as mock_logger:
             ws_id = decision.check_spog_preconditions(
-                host="legacy.azuredatabricks.net",
+                host="legacy.example.com",
                 http_paths=["/sql/1.0/warehouses/abc?o=64"],
             )
         assert ws_id == "64"
@@ -89,7 +89,7 @@ class TestCheckSpogPreconditions:
             mock.patch("dbt.adapters.databricks.spog.probe.probe_host") as probe,
         ):
             result = decision.check_spog_preconditions(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_paths=["/sql/1.0/warehouses/abc?o=64"],
             )
         assert result is None
@@ -102,7 +102,7 @@ class TestCheckSpogPreconditions:
         patch_decision(host_type="workspace")
         with mock.patch("dbt.adapters.databricks.spog.decision.logger") as mock_logger:
             ws_id = decision.check_spog_preconditions(
-                host="legacy.azuredatabricks.net",
+                host="legacy.example.com",
                 http_paths=[
                     "/sql/1.0/warehouses/default",
                     "/sql/protocolv1/o/6436897454825492/0605-cluster",
@@ -115,7 +115,7 @@ class TestCheckSpogPreconditions:
         patch_decision(host_type="workspace")
         assert (
             decision.check_spog_preconditions(
-                host="legacy.azuredatabricks.net",
+                host="legacy.example.com",
                 http_paths=["/sql/1.0/warehouses/abc"],
             )
             is None
@@ -144,7 +144,7 @@ class TestCheckSpogPreconditions:
     def test_multi_compute_consistent_returns_id(self, patch_decision):
         patch_decision(host_type="unified")
         ws_id = decision.check_spog_preconditions(
-            host="peco.azuredatabricks.net",
+            host="spog.example.com",
             http_paths=[
                 "/sql/1.0/warehouses/a?o=64",
                 "/sql/1.0/warehouses/b?o=64",
@@ -159,7 +159,7 @@ class TestCheckSpogPreconditions:
         patch_decision(host_type="unified")
         with pytest.raises(DbtConfigError, match=r"conflicting"):
             decision.check_spog_preconditions(
-                host="peco.azuredatabricks.net",
+                host="spog.example.com",
                 http_paths=[
                     "/sql/1.0/warehouses/a?o=64",
                     "/sql/1.0/warehouses/b?o=99",
