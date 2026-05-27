@@ -51,14 +51,23 @@
     {%- set columns = config.get("snapshot_table_column_names") or get_snapshot_table_column_names() -%}
     {%- set hard_deletes = strategy.hard_deletes -%}
 
-    select *,
+    select
         {{ strategy.scd_id }} as {{ columns.dbt_scd_id }},
         {{ strategy.updated_at }} as {{ columns.dbt_updated_at }},
         {{ strategy.updated_at }} as {{ columns.dbt_valid_from }},
-        {{ get_dbt_valid_to_current(strategy, columns) }}
-        {%- if hard_deletes == 'new_record' -%}
-        , false as {{ columns.dbt_is_deleted }}
+        {{ get_dbt_valid_to_current(strategy, columns) }},
+        {%- if hard_deletes == 'new_record' %}
+        false as {{ columns.dbt_is_deleted }},
         {%- endif %}
+        * except (
+            {{ columns.dbt_scd_id }},
+            {{ columns.dbt_updated_at }},
+            {{ columns.dbt_valid_from }},
+            {{ columns.dbt_valid_to }}
+            {%- if hard_deletes == 'new_record' -%}
+            , {{ columns.dbt_is_deleted }}
+            {%- endif %}
+        )
     from (
         {{ sql }}
     ) sbq
