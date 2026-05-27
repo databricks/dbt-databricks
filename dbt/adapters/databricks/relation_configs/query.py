@@ -28,7 +28,7 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
     @classmethod
     def from_relation_results(cls, result: RelationResults) -> QueryConfig:
         view_definition = result["information_schema.views"]["view_definition"].strip()
-        if view_definition[0] == "(" and view_definition[-1] == ")":
+        if view_definition and view_definition[0] == "(" and view_definition[-1] == ")":
             view_definition = view_definition[1:-1]
         return QueryConfig(query=SqlUtils.clean_sql(view_definition))
 
