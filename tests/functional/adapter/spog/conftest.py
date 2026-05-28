@@ -19,12 +19,12 @@ def _require_spog_test_env():
             "with SPOG support installed."
         )
     if os.getenv("TEST_PECO_SPOG_NATIVE") == "1":
-        pytest.skip(
-            "SPOG override tests are redundant on a SPOG-native profile."
-        )
+        pytest.skip("SPOG override tests are redundant on a SPOG-native profile.")
 
 
 def _workspace_id() -> str:
+    """Return the SPOG workspace ID to point tests at.
+    """
     workspace_id = os.getenv("TEST_PECO_SPOG_WORKSPACE_ID")
     if not workspace_id:
         raise RuntimeError("SPOG functional tests require TEST_PECO_SPOG_WORKSPACE_ID to be set.")
@@ -33,15 +33,11 @@ def _workspace_id() -> str:
 
 def _spog_host() -> str:
     """Return the SPOG host to point tests at.
-
-    Prefers TEST_PECO_SPOG_HOST so the default (non-SPOG) integration workflow
-    can still exercise SPOG routing. Falls back to DBT_DATABRICKS_HOST_NAME,
-    which the SPOG-specific workflow already sets to a SPOG vanity URL.
     """
     host = os.getenv("TEST_PECO_SPOG_HOST")
     if not host:
         raise RuntimeError(
-            "SPOG functional tests require TEST_PECO_SPOG_HOST or DBT_DATABRICKS_HOST_NAME."
+            "SPOG functional tests require TEST_PECO_SPOG_HOST to be set."
         )
     return host
 

@@ -1,9 +1,12 @@
 import os
 import re
 
+spog_native = os.getenv("TEST_PECO_SPOG_NATIVE") == "1"
 spog_workspace_id = os.getenv("TEST_PECO_SPOG_WORKSPACE_ID")
 
-if spog_workspace_id:
+if spog_native:
+    if not spog_workspace_id:
+        raise RuntimeError("TEST_PECO_SPOG_NATIVE requires TEST_PECO_SPOG_WORKSPACE_ID.")
     workspace_id = spog_workspace_id
 else:
     workspace_re = re.compile(r"^.*-(\d+)\..*$")
@@ -13,7 +16,7 @@ else:
 
 cluster_id = os.getenv("TEST_PECO_CLUSTER_ID")
 uc_cluster_id = os.getenv("TEST_PECO_UC_CLUSTER_ID")
-suffix = f"?o={workspace_id}" if spog_workspace_id else ""
+suffix = f"?o={workspace_id}" if spog_native else ""
 http_path = f"sql/protocolv1/o/{workspace_id}/{cluster_id}{suffix}"
 uc_http_path = f"sql/protocolv1/o/{workspace_id}/{uc_cluster_id}{suffix}"
 

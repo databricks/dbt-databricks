@@ -145,11 +145,6 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_cluster \
@@ -232,11 +227,6 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
@@ -317,11 +307,7 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
           DBT_DATABRICKS_HTTP_PATH="$DBT_DATABRICKS_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_cluster \
