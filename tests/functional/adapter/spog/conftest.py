@@ -23,8 +23,7 @@ def _require_spog_test_env():
 
 
 def _workspace_id() -> str:
-    """Return the SPOG workspace ID to point tests at.
-    """
+    """Return the SPOG workspace ID to point tests at."""
     workspace_id = os.getenv("TEST_PECO_SPOG_WORKSPACE_ID")
     if not workspace_id:
         raise RuntimeError("SPOG functional tests require TEST_PECO_SPOG_WORKSPACE_ID to be set.")
@@ -32,13 +31,10 @@ def _workspace_id() -> str:
 
 
 def _spog_host() -> str:
-    """Return the SPOG host to point tests at.
-    """
+    """Return the SPOG host to point tests at."""
     host = os.getenv("TEST_PECO_SPOG_HOST")
     if not host:
-        raise RuntimeError(
-            "SPOG functional tests require TEST_PECO_SPOG_HOST to be set."
-        )
+        raise RuntimeError("SPOG functional tests require TEST_PECO_SPOG_HOST to be set.")
     return host
 
 
