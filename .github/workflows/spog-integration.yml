@@ -98,6 +98,7 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_NATIVE: "1"
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
@@ -184,6 +185,7 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_NATIVE: "1"
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
@@ -268,7 +270,7 @@ jobs:
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
-      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_NATIVE: "1"
       UV_FROZEN: "1"
     steps:
       - name: Check out repository

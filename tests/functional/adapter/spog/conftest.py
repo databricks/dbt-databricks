@@ -12,11 +12,15 @@ from tests.profiles import get_databricks_cluster_target
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _require_spog_deps():
+def _require_spog_test_env():
     if not (connector_supports_spog() and sdk_supports_workspace_id()):
         pytest.skip(
             "SPOG functional tests require databricks-sdk and databricks-sql-connector "
             "with SPOG support installed."
+        )
+    if os.getenv("TEST_PECO_SPOG_NATIVE") == "1":
+        pytest.skip(
+            "SPOG override tests are redundant on a SPOG-native profile."
         )
 
 
@@ -34,7 +38,7 @@ def _spog_host() -> str:
     can still exercise SPOG routing. Falls back to DBT_DATABRICKS_HOST_NAME,
     which the SPOG-specific workflow already sets to a SPOG vanity URL.
     """
-    host = os.getenv("TEST_PECO_SPOG_HOST") or os.getenv("DBT_DATABRICKS_HOST_NAME")
+    host = os.getenv("TEST_PECO_SPOG_HOST")
     if not host:
         raise RuntimeError(
             "SPOG functional tests require TEST_PECO_SPOG_HOST or DBT_DATABRICKS_HOST_NAME."
