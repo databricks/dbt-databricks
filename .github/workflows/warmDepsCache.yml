@@ -101,10 +101,13 @@ jobs:
         run: hatch run pre-commit install-hooks
 
       - name: Create pip wheelhouse
+        # verify / verify-min-deps envs use pip (not uv), so they install
+        # offline from this wheelhouse via PIP_FIND_LINKS. Route pip-download
+        # through verify-min-deps env to use its bin/pip on Python 3.10.
         run: |
           set -euo pipefail
           mkdir -p ~/.cache/pip-wheelhouse
-          hatch run python -c "
+          hatch -e verify-min-deps run python -c "
           try:
               import tomllib
           except ImportError:
@@ -114,11 +117,30 @@ jobs:
           for dep in data['project']['dependencies']:
               print(dep)
           " > /tmp/runtime-deps.txt
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+          hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
             setuptools wheel twine check-wheel-contents \
             -r /tmp/runtime-deps.txt
-          hatch run pip download --dest ~/.cache/pip-wheelhouse \
+          hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
             --no-deps --require-hashes -r requirements.lowest-direct.txt
+
+      - name: Verify all hatch envs can be re-created offline from the cache
+        # Prune + recreate offline mirrors what PR jobs do. Failing here
+        # means the cache is incomplete; fail warm, not the fork PR.
+        env:
+          UV_OFFLINE: "true"
+          PIP_NO_INDEX: "1"
+          PIP_FIND_LINKS: /home/runner/.cache/pip-wheelhouse
+        run: |
+          set -euo pipefail
+          hatch env prune
+          hatch env create default
+          hatch env create test.py3.10
+          hatch env create test.py3.11
+          hatch env create test.py3.12
+          hatch env create test.py3.13
+          hatch env create verify
+          hatch env create min-deps
+          hatch env create verify-min-deps
 
       - name: Build package
         run: hatch -v build
