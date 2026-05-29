@@ -200,3 +200,65 @@ class TestAdapterCapabilities:
             "supports(MicrobatchConcurrency) must not fire BehaviorChangeEvent "
             f"(fired {len(caught)} times)"
         )
+
+
+class TestHasDbrCapabilityParseStub:
+    """Parse-time stub for has_dbr_capability."""
+
+    def _make_adapter(self, http_path: str) -> DatabricksAdapter:
+        project_cfg = {
+            "name": "test_project",
+            "version": "0.1",
+            "profile": "test",
+            "project-root": "/tmp/dbt/does-not-exist",
+            "config-version": 2,
+        }
+        profile_cfg = {
+            "outputs": {
+                "test": {
+                    "type": "databricks",
+                    "catalog": "main",
+                    "schema": "analytics",
+                    "host": "test.databricks.com",
+                    "http_path": http_path,
+                    "token": "dapi" + "X" * 32,
+                }
+            },
+            "target": "test",
+        }
+        config = config_from_parts_or_dicts(project_cfg, profile_cfg)
+        return DatabricksAdapter(config, get_context("spawn"))
+
+    @pytest.fixture
+    def cluster_adapter(self) -> DatabricksAdapter:
+        return self._make_adapter("sql/protocolv1/o/1234567890123456/1234-567890-test123")
+
+    @pytest.fixture
+    def warehouse_adapter(self) -> DatabricksAdapter:
+        return self._make_adapter("/sql/1.0/warehouses/abc123")
+
+    def test_warehouse_returns_true_for_sql_warehouse_supported_capability(self, warehouse_adapter):
+        stub = warehouse_adapter._parse_replacements_["has_dbr_capability"]
+        assert stub("timestampdiff") is True
+        assert stub("insert_by_name") is True
+        assert stub("comment_on_column") is True
+        assert stub("replace_on") is True
+        assert stub("iceberg") is True
+
+    def test_warehouse_returns_false_for_unsupported_capability(self, warehouse_adapter):
+        # STREAMING_TABLE_JSON_METADATA is cluster-only (sql_warehouse_supported=False).
+        stub = warehouse_adapter._parse_replacements_["has_dbr_capability"]
+        assert stub("streaming_table_json_metadata") is False
+
+    def test_cluster_returns_false_for_all_capabilities(self, cluster_adapter):
+        stub = cluster_adapter._parse_replacements_["has_dbr_capability"]
+        assert stub("timestampdiff") is False
+        assert stub("insert_by_name") is False
+        assert stub("comment_on_column") is False
+        assert stub("streaming_table_json_metadata") is False
+
+    def test_unknown_capability_returns_false(self, warehouse_adapter, cluster_adapter):
+        # Runtime method raises ValueError; parse stub silently returns False.
+        for adapter in (warehouse_adapter, cluster_adapter):
+            stub = adapter._parse_replacements_["has_dbr_capability"]
+            assert stub("not_a_real_capability") is False
