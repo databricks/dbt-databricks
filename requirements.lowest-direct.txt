@@ -441,13 +441,13 @@ dbt-common==1.37.2 \
     #   dbt-adapters
     #   dbt-core
     #   dbt-spark
+    #   dbt-tests-adapter
 dbt-core==1.11.2 \
     --hash=sha256:3306fee149b9f4e648071f2c9a46c0551100e1c829f13ad7ce026eb7226ad454 \
     --hash=sha256:ac332fd61a4494494f48e1bbdc0696e309e79036b94eb0a929233bb71f4b3898
     # via
     #   dbt-databricks (pyproject.toml)
     #   dbt-spark
-    #   dbt-tests-adapter
 dbt-extractor==0.6.0 \
     --hash=sha256:05bcfab7ebd70296ceb31742e8333ba66a2c939de44e61a7088bebafa939aaf6 \
     --hash=sha256:080fd1edf123926ed97929c65a75874d0fea687ccd5d3ebbc9e81b339f099604 \
@@ -481,9 +481,9 @@ dbt-spark==1.10.0 \
     --hash=sha256:5d3755d832476ad5d4e3c2fe55247fa39763e990e186673fd88da7be989f0048 \
     --hash=sha256:95f4af4b5647553115eb6ca02539a3a1ad50b34bf2c6f3a766371f7de164578c
     # via dbt-databricks (pyproject.toml)
-dbt-tests-adapter==1.19.0 \
-    --hash=sha256:25ccdefbf31164d2af76745edc245385e4bc7081d23836c5986bdd91e773deb6 \
-    --hash=sha256:5cbd4b6acff4534adc38cfd61d1892c3bc259378657904ce42773588c3be8e34
+dbt-tests-adapter==1.20.0 \
+    --hash=sha256:333d0d08c1690278a8cf681989f6359a7a8a5b3da464f14430c3ea3ea32fa5ff \
+    --hash=sha256:91562371852790a647c59270136a4461bfda7e7484f349fcd3473f0a1d6059c6
     # via dbt-databricks (pyproject.toml:test)
 deepdiff==8.6.2 \
     --hash=sha256:186dcbd181e4d76cef11ab05f802d0056c5d6083c5a6748c1473e9d7481e183e \

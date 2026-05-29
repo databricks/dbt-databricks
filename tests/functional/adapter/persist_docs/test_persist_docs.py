@@ -169,7 +169,7 @@ class TestPersistDocsColumnMissing(DatabricksPersistDocsMixin):
 
     @pytest.fixture(scope="class")
     def properties(self):
-        return {"schema.yml": fixtures._PROPERITES__SCHEMA_MISSING_COL}
+        return {"schema.yml": fixtures._PROPERTIES__SCHEMA_MISSING_COL}
 
     @pytest.fixture(scope="class")
     def table_relation(self, project):
