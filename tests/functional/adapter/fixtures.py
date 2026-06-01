@@ -19,6 +19,12 @@ fail_if_tag_and_column_tag_fetch_called_macros = """
 {% endmacro %}
 """
 
+fail_if_get_columns_as_json_called_macros = """
+{% macro get_columns_comments_as_json(relation) %}
+  {{ exceptions.raise_compiler_error("get_columns_comments_as_json should not be called") }}
+{% endmacro %}
+"""
+
 
 class MaterializationV1Mixin:
     @pytest.fixture(scope="class")

@@ -1286,6 +1286,7 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
                 {"col_name": "federated_col", "data_type": "string", "comment": ""},
             ]
             result = adapter.get_columns_in_relation(foreign_relation)
+        assert mock_get_columns.call_count == 1
         mock_get_columns.assert_called_with(adapter, foreign_relation, "get_columns_comments")
         assert len(result) == 1
         assert result[0].column == "federated_col"
