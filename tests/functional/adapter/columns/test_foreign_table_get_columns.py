@@ -30,9 +30,7 @@ class TestForeignTableGetColumns(RequiresDescribeAsJsonCapabilityMixin):
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {
-            "fail_if_get_columns_as_json_called.sql": fail_if_get_columns_as_json_called_macros
-        }
+        return {"fail_if_get_columns_as_json_called.sql": fail_if_get_columns_as_json_called_macros}
 
     @pytest.fixture(scope="class", autouse=True)
     def setup(self, project):
@@ -46,9 +44,7 @@ class TestForeignTableGetColumns(RequiresDescribeAsJsonCapabilityMixin):
             DatabricksColumn(column="name", dtype="string"),
         ]
 
-    def test_foreign_table_get_columns_returns_expected_columns(
-        self, project, expected_columns
-    ):
+    def test_foreign_table_get_columns_returns_expected_columns(self, project, expected_columns):
         # No real federated table in CI — reuse the managed table above but mark
         # the relation Foreign so get_columns_in_relation exercises that code path.
         foreign_relation = DatabricksRelation.create(
