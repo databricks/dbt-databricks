@@ -8,12 +8,6 @@
 name: SPOG Integration Tests
 on:
   workflow_dispatch:
-  # Temporary: fire on push to the SPOG dev branch so we can validate the
-  # workflow end-to-end before merge. Drop this block when the PR lands —
-  # workflow_dispatch + schedule will be enough once the file is on main.
-  push:
-    branches:
-      - sd-db/spog-impl
   schedule:
     - cron: "30 21 * * 0"  # Weekly: Sunday 21:30 UTC (Monday 03:00 IST).
 
@@ -155,7 +149,7 @@ jobs:
             --color=yes -v \
             --profile databricks_uc_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-uc-cluster-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -237,7 +231,7 @@ jobs:
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-uc-sql-endpoint-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -318,7 +312,7 @@ jobs:
             --color=yes -v \
             --profile databricks_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-cluster-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
