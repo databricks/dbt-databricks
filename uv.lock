@@ -650,7 +650,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "dbt-tests-adapter", specifier = ">=1.19.0" },
+    { name = "dbt-tests-adapter", specifier = ">=1.20.0" },
     { name = "debugpy" },
     { name = "freezegun", specifier = ">=1.5.1" },
     { name = "mypy", specifier = ">=1.18.2" },
@@ -664,7 +664,7 @@ dev = [
     { name = "types-requests" },
 ]
 test = [
-    { name = "dbt-tests-adapter", specifier = ">=1.19.0" },
+    { name = "dbt-tests-adapter", specifier = ">=1.20.0" },
     { name = "freezegun", specifier = ">=1.5.1" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
@@ -745,18 +745,17 @@ wheels = [
 
 [[package]]
 name = "dbt-tests-adapter"
-version = "1.19.7"
+version = "1.20.0"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
 dependencies = [
     { name = "dbt-adapters" },
     { name = "dbt-common" },
-    { name = "dbt-core" },
     { name = "freezegun" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/84/308803bda5fea9f9ee914d4bdd5016bb01b716254ec8d01a4cf61f1b76ed/dbt_tests_adapter-1.19.7.tar.gz", hash = "sha256:d8c80d0fba32a7c86396a4a34f4b0cef676c742f92628fe6b347859308a523b4", size = 170716, upload-time = "2026-03-03T17:25:08.17Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/83/ede118214addb99e8c45338d8b18e30a22872fc8c3043f429a538232e529/dbt_tests_adapter-1.20.0.tar.gz", hash = "sha256:91562371852790a647c59270136a4461bfda7e7484f349fcd3473f0a1d6059c6", size = 175324, upload-time = "2026-05-22T09:23:56.379Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/06/fe0a1d46e2bee6ca463abc483ce6a39112eea4eb0ff0a3243c3a3f973971/dbt_tests_adapter-1.19.7-py3-none-any.whl", hash = "sha256:5220e3545bbc0136e00fe8e1a70d85b7c0311547d763737d7ce38641efc7bac1", size = 244411, upload-time = "2026-03-03T17:25:06.335Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/53/860853817edbc50168af0e4520f6c203270e92e20f9edb2ca82c62116f3d/dbt_tests_adapter-1.20.0-py3-none-any.whl", hash = "sha256:333d0d08c1690278a8cf681989f6359a7a8a5b3da464f14430c3ea3ea32fa5ff", size = 250410, upload-time = "2026-05-22T09:23:54.353Z" },
 ]
 
 [[package]]
