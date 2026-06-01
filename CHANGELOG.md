@@ -18,6 +18,7 @@
 - Raise the `dbt-tests-adapter` test-dependency floor to `>=1.20.0` to pick up its `persist_docs` fixture typo fix (test-only, no runtime impact) ([#1490](https://github.com/databricks/dbt-databricks/pull/1490))
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+- Stabilize the `TestChangingSchema*` Python-model functional tests under min-deps (dbt-core 1.11.2), where a sibling class's source schema.yml could leak into their parse and fail with `EnvVarMissingError`. ([#1488](https://github.com/databricks/dbt-databricks/pull/1488))
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
