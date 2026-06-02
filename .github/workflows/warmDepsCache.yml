@@ -12,9 +12,6 @@
 name: Warm Python Dependency Cache
 
 on:
-  # TEMP (remove before merge): validate the offline-build fix on this PR by
-  # warming the cache into the PR merge-ref scope so the test jobs can restore it.
-  pull_request:
   push:
     branches: [main]
     paths:
