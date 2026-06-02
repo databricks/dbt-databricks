@@ -118,7 +118,7 @@ jobs:
               print(dep)
           " > /tmp/runtime-deps.txt
           hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
-            setuptools wheel twine check-wheel-contents \
+            hatchling setuptools wheel twine check-wheel-contents \
             -r /tmp/runtime-deps.txt
           hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
             --no-deps --require-hashes -r requirements.lowest-direct.txt
