@@ -11,6 +11,7 @@
 - Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
 - Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
 - Fix snapshots not applying `databricks_tags` on columns ([#1442](https://github.com/databricks/dbt-databricks/pull/1442) closes [#1441](https://github.com/databricks/dbt-databricks/issues/1441))
+- Skip `DESCRIBE TABLE EXTENDED ... AS JSON` for foreign/federated tables in `get_columns_in_relation`, avoiding repeated failures and extra latency on those sources ([#1472](https://github.com/databricks/dbt-databricks/pull/1472))
 - `EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX` now stops the capture at `?` / `&`, so any trailing query string on `http_path` no longer corrupts the extracted cluster id. Latent issue on legacy hosts; the fix unblocks SPOG cluster paths.
 
 ### Under the Hood
