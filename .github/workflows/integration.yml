@@ -160,11 +160,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Collect tests and assign to shards
         run: |
@@ -276,11 +279,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -377,11 +383,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -476,11 +485,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
