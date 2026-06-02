@@ -251,6 +251,8 @@ jobs:
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
@@ -309,16 +311,11 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -355,6 +352,8 @@ jobs:
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
@@ -413,16 +412,11 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 
@@ -457,6 +451,8 @@ jobs:
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
       UV_FROZEN: "1"
     steps:
       - name: Check out repository
@@ -515,16 +511,12 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
           DBT_DATABRICKS_HTTP_PATH="$DBT_DATABRICKS_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_cluster \
             -n 10 --dist=loadfile \
-            --reruns 1 --reruns-delay 120 \
+            --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
 

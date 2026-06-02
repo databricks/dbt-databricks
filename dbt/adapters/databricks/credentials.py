@@ -15,10 +15,12 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, CredentialsProvider
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.spog.capabilities import sdk_supports_workspace_id
+from dbt.adapters.databricks.spog.extract import extract_workspace_id
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 DBT_DATABRICKS_INVOCATION_ENV_REGEX = re.compile("^[A-z0-9\\-]+$")
-EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/(.*)")
+EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX = re.compile(r"/?sql/protocolv1/o/\d+/([^?&]+)")
 DBT_DATABRICKS_HTTP_SESSION_HEADERS = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
 
 REDIRECT_URL = "http://localhost:8020"
@@ -277,6 +279,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
+    workspace_id: Optional[str] = None
 
     @classmethod
     def create_from(cls, credentials: DatabricksCredentials) -> "DatabricksCredentialManager":
@@ -290,44 +293,62 @@ class DatabricksCredentialManager(DataClassDictMixin):
             oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
             oauth_scopes=credentials.oauth_scopes or SCOPES,
             auth_type=credentials.auth_type,
+            workspace_id=extract_workspace_id(credentials.http_path),
         )
 
+    def _config_kwargs(self, **base: Any) -> dict[str, Any]:
+        """Conditionally add workspace_id to Config kwargs when the SDK supports it.
+
+        SPOG (account-level vanity hosts) needs `workspace_id` plumbed into the
+        SDK Config so REST calls carry the X-Databricks-Org-Id header. We only
+        add it when (a) one was extracted from http_path's `?o=` and (b) the
+        installed SDK exposes the field.
+        """
+        if self.workspace_id and sdk_supports_workspace_id():
+            base["workspace_id"] = self.workspace_id
+        return base
+
     def authenticate_with_pat(self) -> Config:
-        return Config(
-            host=self.host,
-            token=self.token,
-        )
+        return Config(**self._config_kwargs(host=self.host, token=self.token))
 
     def authenticate_with_oauth_m2m(self) -> Config:
         return Config(
-            host=self.host,
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            auth_type="oauth-m2m",
+            **self._config_kwargs(
+                host=self.host,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                auth_type="oauth-m2m",
+            )
         )
 
     def authenticate_with_external_browser(self) -> Config:
         return Config(
-            host=self.host,
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            auth_type="external-browser",
+            **self._config_kwargs(
+                host=self.host,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                auth_type="external-browser",
+            )
         )
 
     def legacy_authenticate_with_azure_client_secret(self) -> Config:
         return Config(
-            host=self.host,
-            azure_client_id=self.client_id,
-            azure_client_secret=self.client_secret,
-            auth_type="azure-client-secret",
+            **self._config_kwargs(
+                host=self.host,
+                azure_client_id=self.client_id,
+                azure_client_secret=self.client_secret,
+                auth_type="azure-client-secret",
+            )
         )
 
     def authenticate_with_azure_client_secret(self) -> Config:
         return Config(
-            host=self.host,
-            azure_client_id=self.azure_client_id,
-            azure_client_secret=self.azure_client_secret,
-            auth_type="azure-client-secret",
+            **self._config_kwargs(
+                host=self.host,
+                azure_client_id=self.azure_client_id,
+                azure_client_secret=self.azure_client_secret,
+                auth_type="azure-client-secret",
+            )
         )
 
     def __post_init__(self) -> None:
