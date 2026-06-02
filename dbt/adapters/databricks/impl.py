@@ -644,6 +644,7 @@ class DatabricksAdapter(SparkAdapter):
             # TODO: Replace with streaming table capability check when 17.1 is current version
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
+            or relation.is_foreign_table
         )
         return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 

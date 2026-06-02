@@ -52,3 +52,17 @@ models:
       - name: string_col
         data_type: string
 """
+
+foreign_table_source_model = """
+{{ config(materialized='table') }}
+select cast(1 as bigint) as id, 'federated' as name
+"""
+
+foreign_table_source_schema = """
+version: 2
+models:
+  - name: foreign_table_source
+    columns:
+      - name: id
+      - name: name
+"""
