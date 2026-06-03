@@ -51,9 +51,11 @@ from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
 )
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -87,6 +89,12 @@ from dbt.adapters.databricks.relation_configs.tags import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
+from dbt.adapters.databricks.spog import probe
+from dbt.adapters.databricks.spog.capabilities import (
+    connector_supports_spog,
+    sdk_supports_workspace_id,
+)
+from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -644,6 +652,7 @@ class DatabricksAdapter(SparkAdapter):
             # TODO: Replace with streaming table capability check when 17.1 is current version
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
+            or relation.is_foreign_table
         )
         return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
@@ -1106,6 +1115,52 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 return constants.DELTA_FILE_FORMAT
         return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
+
+    def debug_query(self) -> None:
+        """Override for DebugTask: emit SPOG diagnostic block, then `select 1`."""
+        creds = cast(DatabricksCredentials, self.config.credentials)
+        DatabricksAdapter.debug_emit_spog_block(
+            host=creds.host or "",
+            http_path=creds.http_path or "",
+        )
+        self.execute("select 1 as id")
+
+    @staticmethod
+    def debug_emit_spog_block(host: str, http_path: str) -> None:
+        """Print a SPOG status block: host_type, workspace_id, dep versions.
+
+        Visible in `dbt debug` output. Makes "is SPOG working here?" a
+        one-command answer for support escalations.
+        """
+        if not host:
+            return
+
+        def _pkg_version_or_missing(name: str) -> str:
+            try:
+                return metadata.version(name)
+            except metadata.PackageNotFoundError:
+                return "<not installed>"
+
+        host_metadata = probe.probe_host(host)
+        is_spog = host_metadata.host_type == "unified"
+        workspace_id = extract_workspace_id(http_path)
+        connector_v = _pkg_version_or_missing("databricks-sql-connector")
+        sdk_v = _pkg_version_or_missing("databricks-sdk")
+        connector_ok = connector_supports_spog()
+        sdk_ok = sdk_supports_workspace_id()
+
+        logger.info(
+            f"  SPOG host (host_type={host_metadata.host_type!r}): {'yes' if is_spog else 'no'}"
+        )
+        logger.info(f"  workspace_id (from ?o= in http_path): {workspace_id!r}")
+        logger.info(
+            f"  databricks-sql-connector version: {connector_v} "
+            f"({'supported' if connector_ok else 'NOT supported (>= 4.2.6 required for SPOG)'})"
+        )
+        logger.info(
+            f"  databricks-sdk version: {sdk_v} "
+            f"({'supported' if sdk_ok else 'NOT supported (>= 0.76.0 required for SPOG)'})"
+        )
 
 
 @dataclass(frozen=True)
