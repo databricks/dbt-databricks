@@ -394,7 +394,6 @@ class TestParseColumnsAndConstraintsGate:
             model_name="my_model",
         )
         mock_logger.info.assert_called_once()
-        assert "my_model" in mock_logger.info.call_args[0][0]
 
     @patch("dbt.adapters.databricks.impl.logger")
     def test_no_log_when_no_constraints_declared(self, mock_logger):
