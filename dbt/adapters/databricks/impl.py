@@ -54,6 +54,7 @@ from dbt.adapters.databricks.connections import (
 from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -997,6 +998,7 @@ class DatabricksAdapter(SparkAdapter):
         model_columns: dict[str, dict[str, Any]],
         model_constraints: list[dict[str, Any]],
         contract_enforced: bool = False,
+        model_name: str = "",
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
@@ -1007,6 +1009,12 @@ class DatabricksAdapter(SparkAdapter):
         else:
             not_null_set = set()
             parsed_constraints = []
+            if any(col.get("constraints") for col in model_columns.values()):
+                model_ref = f" on '{model_name}'" if model_name else ""
+                logger.info(
+                    f"Skipping column-level constraints{model_ref}: set `contract.enforced: "
+                    "true` to apply NOT NULL / primary key / foreign key / check constraints."
+                )
 
         # Create a case-insensitive lookup for model column names
         model_columns_lower = {k.lower(): k for k in model_columns.keys()}

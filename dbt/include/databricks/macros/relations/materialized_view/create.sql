@@ -32,7 +32,7 @@
   {%- else -%}
     {%- set model_constraints = [] -%}
   {%- endif -%}
-  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints, contract_enforced) -%}
+  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints, contract_enforced, model.name) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
   create or replace materialized view {{ target_relation.render() }}

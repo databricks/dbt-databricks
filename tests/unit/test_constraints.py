@@ -383,3 +383,37 @@ class TestParseColumnsAndConstraintsGate:
             [],
         )
         assert parsed == []
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_logs_info_when_constraints_skipped(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=False,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_called_once()
+        assert "my_model" in mock_logger.info.call_args[0][0]
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_no_log_when_no_constraints_declared(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            {"id": {"name": "id", "data_type": "int"}},
+            [],
+            contract_enforced=False,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_not_called()
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_no_skip_log_when_enforced(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=True,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_not_called()
