@@ -13,6 +13,7 @@
 - Fix snapshots not applying `databricks_tags` on columns ([#1442](https://github.com/databricks/dbt-databricks/pull/1442) closes [#1441](https://github.com/databricks/dbt-databricks/issues/1441))
 - Skip `DESCRIBE TABLE EXTENDED ... AS JSON` for foreign/federated tables in `get_columns_in_relation`, avoiding repeated failures and extra latency on those sources ([#1472](https://github.com/databricks/dbt-databricks/pull/1472))
 - `EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX` now stops the capture at `?` / `&`, so any trailing query string on `http_path` no longer corrupts the extracted cluster id. Latent issue on legacy hosts; the fix unblocks SPOG cluster paths.
+- Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#1470](https://github.com/databricks/dbt-databricks/pull/1470) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
 
 ### Under the Hood
 
@@ -20,6 +21,7 @@
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Stabilize the `TestChangingSchema*` Python-model functional tests under min-deps (dbt-core 1.11.2), where a sibling class's source schema.yml could leak into their parse and fail with `EnvVarMissingError`. ([#1488](https://github.com/databricks/dbt-databricks/pull/1488))
+- **BREAKING:** users who relied on column-level constraints (NOT NULL, primary key, foreign key, check) being applied under `use_materialization_v2: true` without `contract.enforced: true` must now set `contract.enforced: true` explicitly on the model.
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
