@@ -46,6 +46,7 @@ class TblPropertiesConfig(DatabricksComponentConfig):
         "spark.sql.internal.pipelines.parentTableId",
         "delta.enableDeletionVectors",
         "delta.feature.deletionVectors",
+        "delta.parquet.compression.codec",
     ]
 
     def __eq__(self, __value: Any) -> bool:
