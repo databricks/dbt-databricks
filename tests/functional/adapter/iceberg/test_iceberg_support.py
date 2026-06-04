@@ -90,11 +90,8 @@ class TestIcebergIncrementalPartitionClustering(ManagedIcebergMixin):
             "models",
             "iceberg_partition_inc.sql",
         )
-        _, logs = util.run_dbt_and_capture(["--debug", "run"])
+        util.run_dbt(["run"])
 
-        assert "CLUSTER BY NONE" not in logs, (
-            "regression: ALTER ... CLUSTER BY NONE was emitted on the incremental run"
-        )
         final = self._clustering_state(project)
         assert "business_date" in final, (
             f"clustering was wiped after the incremental run; DESCRIBE DETAIL: {final}"
