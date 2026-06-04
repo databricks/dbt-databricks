@@ -6,6 +6,7 @@
 
 ### Fixes
 
+- Fix managed Iceberg incremental models configured with `partition_by` silently losing their clustering after the first incremental run. Managed Iceberg stores `partition_by` as liquid clustering server-side, so the reconciler now treats `partition_by` as the desired clustering and no longer issues a spurious `ALTER TABLE ... CLUSTER BY NONE` ([#1496](https://github.com/databricks/dbt-databricks/pull/1496) closes [#1495](https://github.com/databricks/dbt-databricks/issues/1495))
 - Ignore the server-set `delta.parquet.compression.codec` tblproperty when diffing relation configs, so streaming tables and materialized views are not flagged as changed after the backend started stamping it automatically ([#1489](https://github.com/databricks/dbt-databricks/pull/1489))
 - Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
 - Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
