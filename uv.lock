@@ -493,7 +493,7 @@ wheels = [
 
 [[package]]
 name = "databricks-sql-connector"
-version = "4.2.6"
+version = "4.2.7"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple/" }
 dependencies = [
     { name = "lz4" },
@@ -507,9 +507,9 @@ dependencies = [
     { name = "thrift" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/2f/2c1a96b1d40d53dc9a0abf639c823895b6da76b1b5dc2f2230df2ae1aa6c/databricks_sql_connector-4.2.6.tar.gz", hash = "sha256:65e59f08e55dcc563c05e02e2321d5171dd9482e5792328d99ac097377795d01", size = 189069, upload-time = "2026-04-23T10:40:33.878Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/2c/14609368f1552a7c05ffedd6da852810c6d11e9801ae1dcd9ea7cd937475/databricks_sql_connector-4.2.7.tar.gz", hash = "sha256:cc104c44e04af02fbd8e25228d5096f094f9a00c11afd57cd99354dc6f3993a6", size = 216950, upload-time = "2026-06-04T06:17:48.712Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/4f/4ea282af1e413d26e47b9e987c1cbef1d3fc599da81eb54ac2bf74b6b822/databricks_sql_connector-4.2.6-py3-none-any.whl", hash = "sha256:61e0f425c990a0ec52c31165ea7dd0582cc0ad90c5fbd5fc9bea59bb38faeb00", size = 216743, upload-time = "2026-04-23T10:40:32.216Z" },
+    { url = "https://files.pythonhosted.org/packages/31/80/4fabcf33b91c360c95c7acac6e7e628e2e7f5fbcdb932a40c88ed0f4cb4c/databricks_sql_connector-4.2.7-py3-none-any.whl", hash = "sha256:0e1c1fb2893116b9cab9a6231b314ed02150c47fc32619e9ae8388a133addc64", size = 246414, upload-time = "2026-06-04T06:17:47.045Z" },
 ]
 
 [package.optional-dependencies]
@@ -638,7 +638,7 @@ test = [
 requires-dist = [
     { name = "click", specifier = ">=8.2.0,<9.0.0" },
     { name = "databricks-sdk", specifier = ">=0.68.0,<0.105.0" },
-    { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.3.0" },
+    { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.2.8" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.23.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
     { name = "dbt-core", specifier = ">=1.11.2,<1.11.9" },
