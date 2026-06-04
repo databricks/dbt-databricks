@@ -43,9 +43,7 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
         cluster_by = cls._as_list(base.get_config_value(relation_config, "liquid_clustered_by"))
 
         # Managed Iceberg stores `partition_by` as liquid clustering keys server-side, so the
-        # existing relation reports them as clusteringColumns. Treat partition_by as the desired
-        # clustering here, otherwise the reconciler sees a phantom removal and wipes it with
-        # `CLUSTER BY NONE`. See https://github.com/databricks/dbt-databricks/issues/1495.
+        # existing relation reports them as clusteringColumns.
         if not cluster_by and cls._is_managed_iceberg(relation_config):
             cluster_by = cls._as_list(base.get_config_value(relation_config, "partition_by"))
 
