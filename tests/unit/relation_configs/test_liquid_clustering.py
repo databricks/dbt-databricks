@@ -54,6 +54,18 @@ class TestLiquidClusteringProcessor:
         spec = LiquidClusteringProcessor.from_relation_config(model)
         assert spec == LiquidClusteringConfig(cluster_by=["business_date"], auto_cluster=False)
 
+    def test_from_model_node__managed_iceberg_table_format_case_insensitive(self):
+        # table_format is casefolded by the create path (parse_model._get), so a model
+        # written as "Iceberg"/"ICEBERG" must still be detected as managed Iceberg.
+        GlobalState.set_use_managed_iceberg(True)
+        model = Mock()
+        model.config.extra = {
+            "table_format": "Iceberg",
+            "partition_by": ["business_date"],
+        }
+        spec = LiquidClusteringProcessor.from_relation_config(model)
+        assert spec == LiquidClusteringConfig(cluster_by=["business_date"], auto_cluster=False)
+
     def test_from_model_node__managed_iceberg_partition_by_string(self):
         GlobalState.set_use_managed_iceberg(True)
         model = Mock()

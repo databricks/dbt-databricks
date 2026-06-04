@@ -60,7 +60,8 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
     @staticmethod
     def _is_managed_iceberg(relation_config: RelationConfig) -> bool:
         table_format = base.get_config_value(relation_config, "table_format")
-        return table_format == constants.ICEBERG_TABLE_FORMAT and bool(
+        normalized = table_format.casefold() if isinstance(table_format, str) else table_format
+        return normalized == constants.ICEBERG_TABLE_FORMAT and bool(
             GlobalState.get_use_managed_iceberg()
         )
 
