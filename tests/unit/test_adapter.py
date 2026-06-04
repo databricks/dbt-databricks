@@ -113,6 +113,17 @@ class DatabricksAdapterBase:
 
 
 class TestDatabricksAdapter(DatabricksAdapterBase):
+    @pytest.fixture(autouse=True)
+    def _stub_spog_probe(self):
+        """Stub `probe_host` to keep connection-open tests offline."""
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with patch(
+            "dbt.adapters.databricks.spog.probe.probe_host",
+            return_value=HostMetadata(host_type=None),
+        ):
+            yield
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
@@ -1271,6 +1282,30 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
+    def test_get_columns_foreign_table_uses_legacy_logic(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        foreign_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelationType.Foreign,
+        )
+        # Foreign/federated tables don't support AS JSON — always use legacy logic
+        with patch.object(adapter, "has_capability", return_value=True):
+            mock_get_columns.return_value = [
+                {"col_name": "federated_col", "data_type": "string", "comment": ""},
+            ]
+            result = adapter.get_columns_in_relation(foreign_relation)
+        assert mock_get_columns.call_count == 1
+        mock_get_columns.assert_called_with(adapter, foreign_relation, "get_columns_comments")
+        assert len(result) == 1
+        assert result[0].column == "federated_col"
+        assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
         with patch.object(adapter, "has_capability", return_value=True):
@@ -1835,3 +1870,84 @@ class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
             "get_behavior_flag_no_warn must not fire BehaviorChangeEvent for "
             f"use_materialization_v2 (fired {len(caught)} times)"
         )
+
+
+class TestDebugEmitSpogBlock:
+    """Verify debug_emit_spog_block surfaces SPOG status diagnostics."""
+
+    def test_spog_host_with_capable_deps(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified", account_id="acct"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=6436897454825492",
+            )
+
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "SPOG host" in joined
+        assert "yes" in joined
+        assert "6436897454825492" in joined
+        assert "supported" in joined
+        assert "NOT supported" not in joined
+
+    def test_non_spog_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="workspace"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="legacy.example.com",
+                http_path="/sql/1.0/warehouses/abc",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        # 'no' for the SPOG host line
+        assert "SPOG host" in joined and "no" in joined
+
+    def test_spog_host_with_old_connector_flags_unsupported(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=False),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=64",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "NOT supported" in joined
+
+    def test_no_op_on_empty_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+
+        with (
+            patch("dbt.adapters.databricks.spog.probe.probe_host") as mock_probe,
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(host="", http_path="")
+        mock_probe.assert_not_called()
+        mock_logger.info.assert_not_called()
