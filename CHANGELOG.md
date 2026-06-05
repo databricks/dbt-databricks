@@ -14,6 +14,7 @@
 - Skip `DESCRIBE TABLE EXTENDED ... AS JSON` for foreign/federated tables in `get_columns_in_relation`, avoiding repeated failures and extra latency on those sources ([#1472](https://github.com/databricks/dbt-databricks/pull/1472))
 - `EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX` now stops the capture at `?` / `&`, so any trailing query string on `http_path` no longer corrupts the extracted cluster id. Latent issue on legacy hosts; the fix unblocks SPOG cluster paths.
 - Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#1470](https://github.com/databricks/dbt-databricks/pull/1470) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
+- Fix managed Iceberg incremental models configured with `partition_by` silently losing their clustering after the first incremental run. Managed Iceberg stores `partition_by` as liquid clustering server-side, so the reconciler now treats `partition_by` as the desired clustering and no longer issues a spurious `ALTER TABLE ... CLUSTER BY NONE` ([#1496](https://github.com/databricks/dbt-databricks/pull/1496) closes [#1495](https://github.com/databricks/dbt-databricks/issues/1495))
 
 ### Under the Hood
 

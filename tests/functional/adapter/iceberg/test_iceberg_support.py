@@ -59,6 +59,45 @@ class TestIcebergWithParquet(InvalidIcebergConfig):
         return {"first_model.sql": fixtures.invalid_iceberg_format}
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIcebergIncrementalPartitionClustering(ManagedIcebergMixin):
+    """Regression test for https://github.com/databricks/dbt-databricks/issues/1495.
+
+    Managed Iceberg normalizes `partition_by` into liquid clustering keys server-side.
+    The clustering must survive the first incremental MERGE.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "iceberg_partition_inc.sql": fixtures.incremental_iceberg_partition_base,
+            "schema.yml": fixtures.incremental_iceberg_partition_schema,
+        }
+
+    def _clustering_state(self, project, table="iceberg_partition_inc"):
+        rows = project.run_sql(f"describe detail {table}", fetch="all")
+        return " | ".join(str(cell) for cell in rows[0])
+
+    def test_clustering_survives_incremental_run(self, project):
+        util.run_dbt(["run"])
+        initial = self._clustering_state(project)
+        assert "business_date" in initial, (
+            f"expected clustering on business_date after CREATE, got: {initial}"
+        )
+
+        util.write_file(
+            fixtures.incremental_iceberg_partition_update,
+            "models",
+            "iceberg_partition_inc.sql",
+        )
+        util.run_dbt(["run"])
+
+        final = self._clustering_state(project)
+        assert "business_date" in final, (
+            f"clustering was wiped after the incremental run; DESCRIBE DETAIL: {final}"
+        )
+
+
 class TestManagedIcebergTables(TestIcebergTables, ManagedIcebergMixin):
     pass
 
