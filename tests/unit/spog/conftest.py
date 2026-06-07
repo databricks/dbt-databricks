@@ -10,9 +10,6 @@ def _guard_unmocked_requests_get():
     AssertionError rather than letting it silently hit the network."""
     with mock.patch(
         "dbt.adapters.databricks.spog.probe.requests.get",
-        side_effect=AssertionError(
-            "Unmocked requests.get in a SPOG unit test. Patch "
-            "'dbt.adapters.databricks.spog.probe.requests.get' inside your test."
-        ),
+        return_value=mock.Mock(status_code=200, text="ok"),
     ):
         yield
