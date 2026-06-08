@@ -1,10 +1,12 @@
 import pytest
-from dbt.tests.util import get_manifest, run_dbt
+from dbt.tests.util import get_manifest, read_file, run_dbt
 
 from tests.functional.adapter.metric_views.fixtures import (
     basic_metric_view,
     metric_view_bare_ref,
+    metric_view_doc_block,
     metric_view_with_config,
+    metric_view_with_doc,
     metric_view_with_filter,
     source_table,
 )
@@ -235,6 +237,45 @@ class TestMetricViewBareRef:
 
         # Run-success alone doesn't catch a non-functional view.
         metric_view_name = f"{project.database}.{project.test_schema}.bare_ref_metrics"
+        query_result = project.run_sql(
+            f"SELECT MEASURE(total_orders) FROM {metric_view_name}",
+            fetch="all",
+        )
+        assert query_result and query_result[0][0] == 3
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMetricViewWithDoc:
+    """Regression for #1501: doc() resolves in a metric_view body.
+
+    dbt-core only exposes doc() in the schema-YAML render context, so a metric
+    view body (rendered as model SQL) previously failed with "'doc' is undefined".
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "metric_view_docs.md": metric_view_doc_block,
+            "doc_metrics.sql": metric_view_with_doc,
+        }
+
+    def test_doc_resolves_in_metric_view(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        assert all(r.status == "success" for r in results), (
+            f"Expected all models to succeed, got: "
+            f"{[(r.node.name, r.status, r.message) for r in results]}"
+        )
+
+        # The doc block contents must be substituted into the compiled body,
+        # with no unresolved doc() call left behind.
+        compiled = read_file("target", "compiled", "test", "models", "doc_metrics.sql")
+        assert "Order lifecycle status, reused from a doc block." in compiled
+        assert "doc(" not in compiled
+
+        # The view must still be functional after the substitution.
+        metric_view_name = f"{project.database}.{project.test_schema}.doc_metrics"
         query_result = project.run_sql(
             f"SELECT MEASURE(total_orders) FROM {metric_view_name}",
             fetch="all",
