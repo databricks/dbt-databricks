@@ -18,6 +18,7 @@
 
 ### Under the Hood
 
+- Make the incremental constraint functional tests rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`, half-built relations) from the failed attempt (test-only, no runtime impact). ([#1503](https://github.com/databricks/dbt-databricks/pull/1503))
 - Make the column-tag functional tests rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (updated `schema.yml`, leftover column tags, a running streaming-table query) from the failed attempt (test-only, no runtime impact). ([#1499](https://github.com/databricks/dbt-databricks/pull/1499))
 - Raise the `dbt-tests-adapter` test-dependency floor to `>=1.20.0` to pick up its `persist_docs` fixture typo fix (test-only, no runtime impact) ([#1490](https://github.com/databricks/dbt-databricks/pull/1490))
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
