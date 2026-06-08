@@ -2,12 +2,19 @@ import pytest
 from dbt.contracts.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
+from tests.functional.adapter.fixtures import (
+    RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
+)
 from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetNonNullConstraint:
+class TestIncrementalSetNonNullConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("non_null_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -46,7 +53,11 @@ class TestIncrementalSetNonNullConstraintDescribeJsonOn(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalUnsetNonNullConstraint:
+class TestIncrementalUnsetNonNullConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("non_null_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -82,7 +93,11 @@ class TestIncrementalUnsetNonNullConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetCheckConstraint:
+class TestIncrementalSetCheckConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("check_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -107,7 +122,11 @@ class TestIncrementalSetCheckConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRemoveCheckConstraint:
+class TestIncrementalRemoveCheckConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("check_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -146,13 +165,17 @@ class TestIncrementalRemoveCheckConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalUpdatePrimaryKeyConstraint:
+class TestIncrementalUpdatePrimaryKeyConstraint(RerunSafeMixin):
     primary_key_constraint_sql = """
         SELECT constraint_name, column_name
         FROM {database}.information_schema.key_column_usage
         WHERE constraint_schema = '{schema}'
         ORDER BY ordinal_position
     """
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("primary_key_constraint_sql",)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -205,7 +228,12 @@ class TestIncrementalUpdatePrimaryKeyConstraintDescribeJsonOn(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestCascadingConstraintDrop:
+class TestCascadingConstraintDrop(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # ref_table holds the FK to primary_key_constraint_sql, so drop it first.
+        return ("ref_table", "primary_key_constraint_sql")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -258,7 +286,12 @@ referential_constraint_sql = """
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetForeignKeyConstraint:
+class TestIncrementalSetForeignKeyConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # fk_referenced_from_table holds the FKs, so drop it before its parents.
+        return ("fk_referenced_from_table", "fk_referenced_to_table", "fk_referenced_to_table_2")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -323,7 +356,12 @@ class TestIncrementalDiff:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRemoveForeignKeyConstraint:
+class TestIncrementalRemoveForeignKeyConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # fk_referenced_from_table holds the FKs, so drop it before its parents.
+        return ("fk_referenced_from_table", "fk_referenced_to_table", "fk_referenced_to_table_2")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
