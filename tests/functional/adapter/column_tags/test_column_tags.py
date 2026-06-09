@@ -2,10 +2,14 @@ import pytest
 from dbt.tests import util
 
 from tests.functional.adapter.column_tags import fixtures
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
 
 
-class ColumnTagsMixin(MaterializationV2Mixin):
+class ColumnTagsMixin(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("base_model",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -98,6 +102,13 @@ class TestStreamingTableColumnTags(ColumnTagsMixin):
     @pytest.fixture(scope="class", autouse=True)
     def setup_streaming_table_seed(self, project):
         util.run_dbt(["seed"])
+
+    @pytest.fixture(autouse=True)
+    def stop_streaming_query(self, project):
+        # Drop base_model on teardown to stop its streaming query promptly, so it
+        # can't orphan and cascade failures into other tests on the same xdist worker.
+        yield
+        self._drop_relations(project, ("base_model",))
 
 
 @pytest.mark.skip_profile("databricks_cluster")
