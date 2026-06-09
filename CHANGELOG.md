@@ -22,6 +22,7 @@
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Stabilize the `TestChangingSchema*` Python-model functional tests under min-deps (dbt-core 1.11.2), where a sibling class's source schema.yml could leak into their parse and fail with `EnvVarMissingError`. ([#1488](https://github.com/databricks/dbt-databricks/pull/1488))
 - **BREAKING:** users who relied on column-level constraints (NOT NULL, primary key, foreign key, check) being applied under `use_materialization_v2: true` without `contract.enforced: true` must now set `contract.enforced: true` explicitly on the model.
+- Bump upper bound of dbt-core to `<1.11.12` to include dbt-core 1.11.9, 1.11.10, and 1.11.11 ([#PR](https://github.com/databricks/dbt-databricks/pull/PR))
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
