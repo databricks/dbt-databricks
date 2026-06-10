@@ -30,6 +30,17 @@ class TestTblPropertiesProcessor:
         spec = TblPropertiesProcessor.from_relation_results(results)
         assert spec == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
 
+    def test_from_results__drops_ignored_properties(self):
+        # Properties set by Databricks (e.g. the server-default parquet compression codec)
+        # must be dropped so they don't show up as spurious configuration changes.
+        results = {
+            "show_tblproperties": fixtures.gen_tblproperties(
+                [["prop", "1"], ["delta.parquet.compression.codec", "zstd"]]
+            )
+        }
+        spec = TblPropertiesProcessor.from_relation_results(results)
+        assert spec == TblPropertiesConfig(tblproperties={"prop": "1"})
+
     def test_from_model_node__without_tblproperties(self):
         model = Mock()
         model.config.extra = {}

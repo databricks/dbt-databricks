@@ -46,9 +46,15 @@ from dbt.adapters.databricks.events.connection_events import (
     ConnectionCreateError,
 )
 from dbt.adapters.databricks.events.other_events import QueryError
-from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
+from dbt.adapters.databricks.handle import (
+    CursorWrapper,
+    DatabricksAdapterResponse,
+    DatabricksHandle,
+    SqlUtils,
+)
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
+from dbt.adapters.databricks.spog.decision import check_spog_preconditions
 from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
 
 if TYPE_CHECKING:
@@ -478,6 +484,17 @@ class DatabricksConnectionManager(SparkConnectionManager):
 
         cls.credentials_manager = creds.authenticate()
 
+        # SPOG decision matrix: collect every http_path in play (default +
+        # per-compute) and validate them against the host's discovery probe.
+        # Raises DbtConfigError on misconfiguration; no-op on legacy hosts.
+        compute_paths = [
+            p for cfg in (creds.compute or {}).values() if cfg and (p := cfg.get("http_path"))
+        ]
+        check_spog_preconditions(
+            host=creds.host or "",
+            http_paths=[databricks_connection.http_path, *compute_paths],
+        )
+
         # Get merged query tags if we have query header context
         query_header_context = getattr(databricks_connection, "_query_header_context", None)
         merged_query_tags = {}
@@ -540,7 +557,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         if isinstance(cursor, CursorWrapper):
             return cursor.get_response()
         else:
-            return AdapterResponse("OK")
+            return DatabricksAdapterResponse.from_cursor(cursor)
 
     def clear_transaction(self) -> None:
         """Noop."""
