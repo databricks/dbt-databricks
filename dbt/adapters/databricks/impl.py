@@ -412,6 +412,7 @@ class DatabricksAdapter(SparkAdapter):
         return conn.has_capability(capability)
 
     @available.parse(lambda *a, **k: False)
+    @auto_record_function("AdapterHasDbrCapability", group="Available")
     def has_dbr_capability(self, capability_name: str) -> bool:
         """
         Check if a DBR capability is available for current compute.
