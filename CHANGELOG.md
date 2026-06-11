@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.2 (TBD)
+
+### Under the Hood
+
+- Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
+
 ## dbt-databricks 1.12.1 (June 10, 2026)
 
 ### Features
