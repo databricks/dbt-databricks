@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.2 (Unreleased)
+
+### Features
+
+- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core)
+
 ## dbt-databricks 1.12.1 (June 10, 2026)
 
 ### Features
@@ -55,7 +61,6 @@
 
 ### Features
 
-- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core)
 - Add `invocation_id` to the default query comment ([#1377](https://github.com/databricks/dbt-databricks/issues/1377))
 
 ### Fixes
