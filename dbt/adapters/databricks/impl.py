@@ -32,7 +32,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
-from dbt_common.record import auto_record_function
+from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -57,6 +57,7 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.record.record_types import DatabricksAdapterIsUniformRecord
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -319,6 +320,12 @@ class DatabricksAdapter(SparkAdapter):
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
+    @record_function(
+        DatabricksAdapterIsUniformRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
