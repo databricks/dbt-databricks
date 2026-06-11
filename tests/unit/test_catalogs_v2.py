@@ -2,14 +2,14 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import pytest
-
 from dbt.adapters.capability import Capability, Support
+from dbt_common.exceptions import DbtValidationError
+
 from dbt.adapters.databricks.catalogs import (
     HiveMetastoreCatalogIntegration,
     UnityCatalogIntegration,
 )
 from dbt.adapters.databricks.impl import DatabricksAdapter
-from dbt_common.exceptions import DbtValidationError
 
 
 @dataclass
