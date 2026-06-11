@@ -1478,6 +1478,11 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
         return results
 
 
+_catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+if _catalogs_v2 is not None:
+    DatabricksAdapter._capabilities[_catalogs_v2] = CapabilitySupport(support=Support.Full)
+
+
 @dataclass
 class DatabricksDescribeJsonMetadata:
     column_masks: Optional["Table"] = None
@@ -1917,8 +1922,3 @@ class DatabricksDescribeJsonMetadata:
               returns ["cat", "sch", "tbl", "a", "b"]
         """
         return [m.group(1).replace("``", "`") for m in cls._BACKTICKED.finditer(s)]
-
-
-_catalogs_v2 = getattr(Capability, "CatalogsV2", None)
-if _catalogs_v2 is not None:
-    DatabricksAdapter._capabilities[_catalogs_v2] = CapabilitySupport(support=Support.Full)
