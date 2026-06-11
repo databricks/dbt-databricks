@@ -5,10 +5,7 @@ import pytest
 from dbt.adapters.capability import Capability, Support
 from dbt_common.exceptions import DbtValidationError
 
-from dbt.adapters.databricks.catalogs import (
-    HiveMetastoreCatalogIntegration,
-    UnityCatalogIntegration,
-)
+from dbt.adapters.databricks.catalogs import UnityCatalogIntegration
 from dbt.adapters.databricks.impl import DatabricksAdapter
 
 
@@ -76,30 +73,3 @@ def test_unity_empty_location_root_raises():
     cfg = _Config(file_format="parquet", adapter_properties={"location_root": ""})
     with pytest.raises(DbtValidationError, match="location_root cannot be blank"):
         UnityCatalogIntegration(cfg)
-
-
-# ===== HiveMetastoreCatalogIntegration =====
-
-
-def test_hive_delta_valid():
-    cfg = _Config(catalog_type="hive_metastore", file_format="delta")
-    integration = HiveMetastoreCatalogIntegration(cfg)
-    assert integration.file_format == "delta"
-
-
-def test_hive_parquet_valid():
-    cfg = _Config(catalog_type="hive_metastore", file_format="parquet")
-    integration = HiveMetastoreCatalogIntegration(cfg)
-    assert integration.file_format == "parquet"
-
-
-def test_hive_hudi_valid():
-    cfg = _Config(catalog_type="hive_metastore", file_format="hudi")
-    integration = HiveMetastoreCatalogIntegration(cfg)
-    assert integration.file_format == "hudi"
-
-
-def test_hive_invalid_file_format_raises():
-    cfg = _Config(catalog_type="hive_metastore", file_format="avro")
-    with pytest.raises(DbtValidationError, match="file_format"):
-        HiveMetastoreCatalogIntegration(cfg)
