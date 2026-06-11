@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -22,7 +22,7 @@ class _Config:
     table_format: Optional[str] = "iceberg"
     external_volume: Optional[str] = None
     file_format: Optional[str] = None
-    adapter_properties: Dict[str, Any] = field(default_factory=dict)
+    adapter_properties: dict[str, Any] = field(default_factory=dict)
 
 
 # ===== Adapter-level =====
