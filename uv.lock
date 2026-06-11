@@ -639,7 +639,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.2.0,<9.0.0" },
     { name = "databricks-sdk", specifier = ">=0.68.0,<0.105.0" },
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.2.7" },
-    { name = "dbt-adapters", specifier = ">=1.22.0,<1.23.0" },
+    { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
     { name = "dbt-core", specifier = ">=1.11.2,<1.11.12" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
