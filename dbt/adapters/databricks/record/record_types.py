@@ -3,7 +3,50 @@ from typing import Any, Optional
 
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+from dbt.adapters.record.serialization import serialize_bindings
 from dbt_common.record import Record, Recorder
+
+
+@dataclasses.dataclass
+class DatabricksAdapterAddQueryParams:
+    thread_id: str
+    sql: str
+    auto_begin: bool = True
+    bindings: Optional[Any] = None
+    abridge_sql_log: bool = False
+    close_cursor: bool = False
+
+    def _to_dict(self):
+        return {
+            "thread_id": self.thread_id,
+            "sql": self.sql,
+            "auto_begin": self.auto_begin,
+            "bindings": serialize_bindings(self.bindings),
+            "abridge_sql_log": self.abridge_sql_log,
+            "close_cursor": self.close_cursor,
+        }
+
+
+@dataclasses.dataclass
+class DatabricksAdapterAddQueryResult:
+    return_val: tuple
+
+    def _to_dict(self):
+        return {
+            "return_val": {
+                "conn": "conn",
+                "cursor": "cursor",
+            }
+        }
+
+
+@Recorder.register_record_type
+class DatabricksAdapterAddQueryRecord(Record):
+    """Implements record/replay support for the DatabricksAdapter.add_query() method."""
+
+    params_cls = DatabricksAdapterAddQueryParams
+    result_cls = DatabricksAdapterAddQueryResult
+    group = "Available"
 
 
 @dataclasses.dataclass
