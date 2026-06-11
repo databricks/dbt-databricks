@@ -6,6 +6,7 @@ from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.databricks import constants, parse_model
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+from dbt.adapters.databricks.logging import logger
 
 
 class UnityCatalogIntegration(CatalogIntegration):
@@ -22,19 +23,12 @@ class UnityCatalogIntegration(CatalogIntegration):
                 )
             self.external_volume: Optional[str] = location_root
         self.file_format: Optional[str] = config.file_format
-        use_uniform = config.adapter_properties.get("use_uniform")
-        if use_uniform is not None:
-            ff = (config.file_format or "").lower()
-            if use_uniform and ff != "delta":
-                raise DbtValidationError(
-                    f"Catalog '{config.name}' unity/databricks use_uniform: true "
-                    f"requires file_format: delta"
-                )
-            if not use_uniform and ff and ff != "parquet":
-                raise DbtValidationError(
-                    f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) "
-                    f"requires file_format: parquet"
-                )
+        if config.adapter_properties.get("use_uniform") is not None:
+            logger.warning(
+                f"Catalog '{config.name}': use_uniform is not yet supported by the adapter "
+                "and has no effect. Use the use_managed_iceberg behavior flag to control "
+                "Iceberg table creation. Support for use_uniform will be added in a future release."
+            )
 
     @property
     def location_root(self) -> Optional[str]:

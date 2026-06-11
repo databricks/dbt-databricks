@@ -60,37 +60,10 @@ def test_unity_parquet_without_uniform():
     assert integration.file_format == "parquet"
 
 
-def test_unity_delta_with_uniform():
-    cfg = _Config(file_format="delta", adapter_properties={"use_uniform": True})
-    integration = UnityCatalogIntegration(cfg)
-    assert integration.file_format == "delta"
-
-
 def test_unity_with_location_root():
     cfg = _Config(file_format="parquet", adapter_properties={"location_root": "/mnt/data"})
     integration = UnityCatalogIntegration(cfg)
     assert integration.external_volume == "/mnt/data"
-
-
-def test_unity_delta_without_uniform_raises():
-    cfg = _Config(file_format="delta", adapter_properties={"use_uniform": False})
-    with pytest.raises(
-        DbtValidationError, match="use_uniform: false.*requires file_format: parquet"
-    ):
-        UnityCatalogIntegration(cfg)
-
-
-def test_unity_delta_no_use_uniform_key_ok():
-    # use_uniform absent from adapter_properties → no cross-validation (default catalog path)
-    cfg = _Config(file_format="delta")
-    integration = UnityCatalogIntegration(cfg)
-    assert integration.file_format == "delta"
-
-
-def test_unity_parquet_with_uniform_raises():
-    cfg = _Config(file_format="parquet", adapter_properties={"use_uniform": True})
-    with pytest.raises(DbtValidationError, match="use_uniform: true.*requires file_format: delta"):
-        UnityCatalogIntegration(cfg)
 
 
 def test_unity_blank_location_root_raises():
