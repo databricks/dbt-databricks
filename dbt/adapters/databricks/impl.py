@@ -236,6 +236,17 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     return _identifier
 
 
+def _adapter_capabilities() -> CapabilityDict:
+    capabilities: dict[Capability, CapabilitySupport] = {
+        Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+    }
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is not None:
+        capabilities[catalogs_v2] = CapabilitySupport(support=Support.Full)
+    return CapabilityDict(capabilities)
+
+
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -248,12 +259,7 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
-    _capabilities = CapabilityDict(
-        {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-        }
-    )
+    _capabilities = _adapter_capabilities()
 
     CATALOG_INTEGRATIONS = [
         HiveMetastoreCatalogIntegration,
@@ -1476,11 +1482,6 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
         )
 
         return results
-
-
-_catalogs_v2 = getattr(Capability, "CatalogsV2", None)
-if _catalogs_v2 is not None:
-    DatabricksAdapter._capabilities[_catalogs_v2] = CapabilitySupport(support=Support.Full)
 
 
 @dataclass

@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core)
+- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 
 ### Under the Hood
 
