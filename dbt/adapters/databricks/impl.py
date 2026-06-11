@@ -32,6 +32,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.record import auto_record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -1083,6 +1084,7 @@ class DatabricksAdapter(SparkAdapter):
             )
 
     @available
+    @auto_record_function("AdapterIsCluster", group="Available")
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
