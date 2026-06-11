@@ -73,11 +73,18 @@ def test_unity_with_location_root():
 
 
 def test_unity_delta_without_uniform_raises():
-    cfg = _Config(file_format="delta")
+    cfg = _Config(file_format="delta", adapter_properties={"use_uniform": False})
     with pytest.raises(
         DbtValidationError, match="use_uniform: false.*requires file_format: parquet"
     ):
         UnityCatalogIntegration(cfg)
+
+
+def test_unity_delta_no_use_uniform_key_ok():
+    # use_uniform absent from adapter_properties → no cross-validation (default catalog path)
+    cfg = _Config(file_format="delta")
+    integration = UnityCatalogIntegration(cfg)
+    assert integration.file_format == "delta"
 
 
 def test_unity_parquet_with_uniform_raises():

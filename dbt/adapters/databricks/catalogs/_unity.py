@@ -22,18 +22,19 @@ class UnityCatalogIntegration(CatalogIntegration):
                 )
             self.external_volume: Optional[str] = location_root
         self.file_format: Optional[str] = config.file_format
-        use_uniform = config.adapter_properties.get("use_uniform", False)
-        ff = (config.file_format or "").lower()
-        if use_uniform and ff != "delta":
-            raise DbtValidationError(
-                f"Catalog '{config.name}' unity/databricks use_uniform: true "
-                f"requires file_format: delta"
-            )
-        if not use_uniform and ff and ff != "parquet":
-            raise DbtValidationError(
-                f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) "
-                f"requires file_format: parquet"
-            )
+        use_uniform = config.adapter_properties.get("use_uniform")
+        if use_uniform is not None:
+            ff = (config.file_format or "").lower()
+            if use_uniform and ff != "delta":
+                raise DbtValidationError(
+                    f"Catalog '{config.name}' unity/databricks use_uniform: true "
+                    f"requires file_format: delta"
+                )
+            if not use_uniform and ff and ff != "parquet":
+                raise DbtValidationError(
+                    f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) "
+                    f"requires file_format: parquet"
+                )
 
     @property
     def location_root(self) -> Optional[str]:
