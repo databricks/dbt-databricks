@@ -29,7 +29,10 @@ class _Config:
 
 
 def test_catalogs_v2_capability_declared():
-    cap = DatabricksAdapter._capabilities[Capability.CatalogsV2]
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is None:
+        pytest.skip("CatalogsV2 not available in this dbt-adapters version")
+    cap = DatabricksAdapter._capabilities[catalogs_v2]
     assert cap.support == Support.Full
 
 

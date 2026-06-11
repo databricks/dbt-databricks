@@ -252,7 +252,6 @@ class DatabricksAdapter(SparkAdapter):
         {
             Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
             Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-            Capability.CatalogsV2: CapabilitySupport(support=Support.Full),
         }
     )
 
@@ -1918,3 +1917,8 @@ class DatabricksDescribeJsonMetadata:
               returns ["cat", "sch", "tbl", "a", "b"]
         """
         return [m.group(1).replace("``", "`") for m in cls._BACKTICKED.finditer(s)]
+
+
+_catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+if _catalogs_v2 is not None:
+    DatabricksAdapter._capabilities[_catalogs_v2] = CapabilitySupport(support=Support.Full)
