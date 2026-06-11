@@ -222,3 +222,99 @@ select
   'blue' as color,
   '2019-01-01' as date_day
 """
+
+
+column_constraint_gate_parent_sql = "select cast(1 as int) as id"
+
+_column_constraint_gate_parent_model_yml = """\
+  - name: parent_table
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_parent_table
+"""
+
+column_constraint_gate_child_sql = """
+select
+  cast(x'00' as binary) as hashkey,
+  cast('2026-01-01' as timestamp) as load_timestamp,
+  cast('seed' as string) as record_source,
+  cast(1 as int) as id
+"""
+
+column_constraint_gate_child_schema_yml = f"""
+version: 2
+models:
+{_column_constraint_gate_parent_model_yml}  - name: child_table
+    config:
+      materialized: table
+    constraints:
+      - type: primary_key
+        name: pk_child_table
+        columns: ["hashkey", "load_timestamp"]
+        warn_unsupported: false
+    columns:
+      - name: hashkey
+        constraints:
+          - type: not_null
+      - name: load_timestamp
+        constraints:
+          - type: not_null
+      - name: record_source
+      - name: id
+        constraints:
+          - type: foreign_key
+            name: fk_child_table_id
+            to: ref('parent_table')
+            to_columns: [id]
+"""
+
+column_constraint_gate_child_with_contract_sql = """
+{{ config(materialized='incremental') }}
+select
+  cast(x'00' as binary) as hashkey,
+  cast('2026-01-01' as timestamp) as load_timestamp,
+  cast('seed' as string) as record_source,
+  cast(1 as int) as id
+"""
+
+column_constraint_gate_child_with_contract_schema_yml = f"""
+version: 2
+models:
+{_column_constraint_gate_parent_model_yml}  - name: child_with_contract
+    config:
+      materialized: incremental
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        name: pk_child_with_contract
+        columns: ["hashkey", "load_timestamp"]
+        warn_unsupported: false
+    columns:
+      - name: hashkey
+        data_type: binary
+        constraints:
+          - type: not_null
+      - name: load_timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: record_source
+        data_type: string
+      - name: id
+        data_type: int
+        constraints:
+          - type: foreign_key
+            name: fk_child_with_contract_id
+            to: ref('parent_table')
+            to_columns: [id]
+"""

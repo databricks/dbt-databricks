@@ -3,6 +3,8 @@ from typing import ClassVar, Union
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
 
+from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.relation_configs import base
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -34,19 +36,34 @@ class LiquidClusteringProcessor(DatabricksComponentProcessor[LiquidClusteringCon
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> LiquidClusteringConfig:
-        liquid_clustered_by: Union[str, list[str], None] = base.get_config_value(
-            relation_config, "liquid_clustered_by"
-        )
         cluster_by_auto: bool = bool(
             base.get_config_value(relation_config, "auto_liquid_cluster") or False
         )
-        if not liquid_clustered_by:
-            return LiquidClusteringConfig(cluster_by=[], auto_cluster=cluster_by_auto)
-        if isinstance(liquid_clustered_by, str):
-            return LiquidClusteringConfig(
-                cluster_by=[liquid_clustered_by], auto_cluster=cluster_by_auto
-            )
-        return LiquidClusteringConfig(cluster_by=liquid_clustered_by, auto_cluster=cluster_by_auto)
+
+        cluster_by = cls._as_list(base.get_config_value(relation_config, "liquid_clustered_by"))
+
+        # Managed Iceberg stores `partition_by` as liquid clustering keys server-side, so the
+        # existing relation reports them as clusteringColumns.
+        if not cluster_by and cls._is_managed_iceberg(relation_config):
+            cluster_by = cls._as_list(base.get_config_value(relation_config, "partition_by"))
+
+        return LiquidClusteringConfig(cluster_by=cluster_by, auto_cluster=cluster_by_auto)
+
+    @staticmethod
+    def _as_list(value: Union[str, list[str], None]) -> list[str]:
+        if not value:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return list(value)
+
+    @staticmethod
+    def _is_managed_iceberg(relation_config: RelationConfig) -> bool:
+        table_format = base.get_config_value(relation_config, "table_format")
+        normalized = table_format.casefold() if isinstance(table_format, str) else table_format
+        return normalized == constants.ICEBERG_TABLE_FORMAT and bool(
+            GlobalState.get_use_managed_iceberg()
+        )
 
     @staticmethod
     def extract_cluster_by(cluster_by: str) -> list[str]:

@@ -1,8 +1,9 @@
-## dbt-databricks 1.12.1 (TBD)
+## dbt-databricks 1.12.1 (June 10, 2026)
 
 ### Features
 
 - Expose `job_id`, `job_run_id`, and `task_run_id` from the Databricks Jobs `dbt_task` runtime in `adapter_response`, enabling correlation between dbt runs and Databricks workflow executions via `run_results.json` ([#1451](https://github.com/databricks/dbt-databricks/pull/1451) closes [#722](https://github.com/databricks/dbt-databricks/issues/722))
+- Add support for SPOG (Single Point of Gateway) hosts: account-level vanity URLs with `?o=<workspace-id>` in `http_path` route correctly for both data-plane (SQL) and control-plane (REST/Jobs/Workspace API) traffic. Requires `databricks-sql-connector >= 4.2.6` and `databricks-sdk >= 0.76.0`. ([#1479](https://github.com/databricks/dbt-databricks/pull/1479))
 
 ### Fixes
 
@@ -10,13 +11,22 @@
 - Fix missing f-string prefix in `JobRunsApi.submit` debug log ([#1471](https://github.com/databricks/dbt-databricks/pull/1471))
 - Fix capability-branching macros falling through to their legacy path at parse/compile time on SQL warehouses. The parse-time stub of `has_dbr_capability` now returns `True` on warehouse profiles for capabilities flagged `sql_warehouse_supported`, so macros select the modern branch during compilation instead of the legacy fallback. ([#1449](https://github.com/databricks/dbt-databricks/pull/1449) closes [#1331](https://github.com/databricks/dbt-databricks/issues/1331))
 - Fix snapshots not applying `databricks_tags` on columns ([#1442](https://github.com/databricks/dbt-databricks/pull/1442) closes [#1441](https://github.com/databricks/dbt-databricks/issues/1441))
+- Skip `DESCRIBE TABLE EXTENDED ... AS JSON` for foreign/federated tables in `get_columns_in_relation`, avoiding repeated failures and extra latency on those sources ([#1472](https://github.com/databricks/dbt-databricks/pull/1472))
+- `EXTRACT_CLUSTER_ID_FROM_HTTP_PATH_REGEX` now stops the capture at `?` / `&`, so any trailing query string on `http_path` no longer corrupts the extracted cluster id. Latent issue on legacy hosts; the fix unblocks SPOG cluster paths.
+- Gate column-level constraints on `contract.enforced` to match the existing model-level gate, ensuring column-level NOT NULL / PK / FK / CHECK constraints are only applied when `contract.enforced: true` under `use_materialization_v2: true` ([#1470](https://github.com/databricks/dbt-databricks/pull/1470) closes [#1381](https://github.com/databricks/dbt-databricks/issues/1381))
+- Fix managed Iceberg incremental models configured with `partition_by` silently losing their clustering after the first incremental run. Managed Iceberg stores `partition_by` as liquid clustering server-side, so the reconciler now treats `partition_by` as the desired clustering and no longer issues a spurious `ALTER TABLE ... CLUSTER BY NONE` ([#1496](https://github.com/databricks/dbt-databricks/pull/1496) closes [#1495](https://github.com/databricks/dbt-databricks/issues/1495))
 
 ### Under the Hood
 
+- Make the incremental constraint functional tests rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`, half-built relations) from the failed attempt (test-only, no runtime impact). ([#1503](https://github.com/databricks/dbt-databricks/pull/1503))
+- Make the column-tag functional tests rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (updated `schema.yml`, leftover column tags, a running streaming-table query) from the failed attempt (test-only, no runtime impact). ([#1499](https://github.com/databricks/dbt-databricks/pull/1499))
 - Raise the `dbt-tests-adapter` test-dependency floor to `>=1.20.0` to pick up its `persist_docs` fixture typo fix (test-only, no runtime impact) ([#1490](https://github.com/databricks/dbt-databricks/pull/1490))
 - Defer SDK `Config` construction to connection-open time so offline paths (`dbt parse`/`list`/`compile`) don't trigger the host-metadata probe introduced in `databricks-sdk>=0.103`; as a side effect, auth errors now surface at first connection rather than during profile parsing. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
 - Bump ceilings on `databricks-sdk` (now `<0.105.0`) and `databricks-sql-connector[pyarrow]` (now `<4.3.0`) to admit newer releases; floors unchanged. ([#1474](https://github.com/databricks/dbt-databricks/pull/1474))
+- Tighten the `databricks-sql-connector` ceiling to patch level (`<4.3.0` → `<4.2.7`) so patch upgrades require an intentional bump; the locked version stays at 4.2.6. ([#1497](https://github.com/databricks/dbt-databricks/pull/1497), [#1498](https://github.com/databricks/dbt-databricks/pull/1498))
 - Stabilize the `TestChangingSchema*` Python-model functional tests under min-deps (dbt-core 1.11.2), where a sibling class's source schema.yml could leak into their parse and fail with `EnvVarMissingError`. ([#1488](https://github.com/databricks/dbt-databricks/pull/1488))
+- **BREAKING:** users who relied on column-level constraints (NOT NULL, primary key, foreign key, check) being applied under `use_materialization_v2: true` without `contract.enforced: true` must now set `contract.enforced: true` explicitly on the model.
+- Bump upper bound of dbt-core to `<1.11.12` to include dbt-core 1.11.9, 1.11.10, and 1.11.11 ([#1505](https://github.com/databricks/dbt-databricks/pull/1505))
 
 ## dbt-databricks 1.12.0 (May 18, 2026)
 
