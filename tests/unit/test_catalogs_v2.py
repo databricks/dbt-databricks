@@ -74,7 +74,9 @@ def test_unity_with_location_root():
 
 def test_unity_delta_without_uniform_raises():
     cfg = _Config(file_format="delta")
-    with pytest.raises(DbtValidationError, match="use_uniform: false.*requires file_format: parquet"):
+    with pytest.raises(
+        DbtValidationError, match="use_uniform: false.*requires file_format: parquet"
+    ):
         UnityCatalogIntegration(cfg)
 
 

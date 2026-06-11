@@ -26,11 +26,13 @@ class UnityCatalogIntegration(CatalogIntegration):
         ff = (config.file_format or "").lower()
         if use_uniform and ff != "delta":
             raise DbtValidationError(
-                f"Catalog '{config.name}' unity/databricks use_uniform: true requires file_format: delta"
+                f"Catalog '{config.name}' unity/databricks use_uniform: true "
+                f"requires file_format: delta"
             )
         if not use_uniform and ff and ff != "parquet":
             raise DbtValidationError(
-                f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) requires file_format: parquet"
+                f"Catalog '{config.name}' unity/databricks use_uniform: false (or unset) "
+                f"requires file_format: parquet"
             )
 
     @property
