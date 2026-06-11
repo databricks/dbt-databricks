@@ -57,7 +57,7 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.record.record_types import DatabricksAdapterIsUniformRecord
+from dbt.adapters.databricks.record.record_types import DatabricksAdapterIsUniformRecord, DatabricksAdapterGetRelationConfigRecord
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -1054,6 +1054,12 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
+    @record_function(
+        DatabricksAdapterGetRelationConfigRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def get_relation_config(
         self,
         relation: DatabricksRelation,
