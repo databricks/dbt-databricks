@@ -57,12 +57,16 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.record.record_types import DatabricksAdapterAddQueryRecord, DatabricksAdapterIsUniformRecord, DatabricksAdapterGetRelationConfigRecord
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
     WorkflowPythonJobHelper,
+)
+from dbt.adapters.databricks.record.record_types import (
+    DatabricksAdapterAddQueryRecord,
+    DatabricksAdapterGetRelationConfigRecord,
+    DatabricksAdapterIsUniformRecord,
 )
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,

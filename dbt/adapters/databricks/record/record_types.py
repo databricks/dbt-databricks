@@ -1,10 +1,11 @@
 import dataclasses
 from typing import Any, Optional
 
-from dbt.adapters.databricks.relation import DatabricksRelation
-from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 from dbt.adapters.record.serialization import serialize_bindings
 from dbt_common.record import Record, Recorder
+
+from dbt.adapters.databricks.relation import DatabricksRelation
+from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
 
 
 @dataclasses.dataclass
@@ -16,7 +17,7 @@ class DatabricksAdapterAddQueryParams:
     abridge_sql_log: bool = False
     close_cursor: bool = False
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "thread_id": self.thread_id,
             "sql": self.sql,
@@ -31,7 +32,7 @@ class DatabricksAdapterAddQueryParams:
 class DatabricksAdapterAddQueryResult:
     return_val: tuple
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "return_val": {
                 "conn": "conn",
@@ -54,7 +55,7 @@ class DatabricksAdapterIsUniformParams:
     thread_id: str
     config: Any
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "thread_id": self.thread_id,
             "config_model": self.config.model.to_dict(),
@@ -82,7 +83,7 @@ class DatabricksAdapterGetRelationConfigParams:
     relation: DatabricksRelation
     model_config: Optional[DatabricksRelationConfigBase]
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         from dbt.adapters.record.serialization import serialize_base_relation
 
         return {
@@ -96,20 +97,20 @@ class DatabricksAdapterGetRelationConfigParams:
 class DatabricksAdapterGetRelationConfigResult:
     return_val: Optional[dict]  # DatabricksRelationConfigBase serialized as dict, or None
 
-    def _to_dict(self):
+    def _to_dict(self) -> dict[str, Any]:
         # return_val is already converted to dict by the constructor
         return {
             "return_val": self.return_val,
         }
 
-    def __init__(self, return_val):
+    def __init__(self, return_val: Optional[Any]) -> None:
         if return_val is not None and not isinstance(return_val, dict):
             self.return_val = return_val.model_dump()
         else:
             self.return_val = return_val
 
     @classmethod
-    def _from_dict(cls, data):
+    def _from_dict(cls, data: dict[str, Any]) -> "DatabricksAdapterGetRelationConfigResult":
         return cls(return_val=data.get("return_val"))
 
 
