@@ -236,6 +236,17 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     return _identifier
 
 
+def _adapter_capabilities() -> CapabilityDict:
+    capabilities: dict[Capability, CapabilitySupport] = {
+        Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+    }
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is not None:
+        capabilities[catalogs_v2] = CapabilitySupport(support=Support.Full)
+    return CapabilityDict(capabilities)
+
+
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -248,17 +259,16 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
-    _capabilities = CapabilityDict(
-        {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-        }
-    )
+    _capabilities = _adapter_capabilities()
 
     CATALOG_INTEGRATIONS = [
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
+    _V2_TO_V1_TYPE: ClassVar[dict[str, str]] = {
+        "unity": constants.UNITY_CATALOG_TYPE,
+        "hive_metastore": constants.HIVE_METASTORE_CATALOG_TYPE,
+    }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -296,6 +306,9 @@ class DatabricksAdapter(SparkAdapter):
         except ValueError:
             return False
         return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
+
+    def _v2_to_v1_type(self, catalog_type: str) -> str:
+        return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
