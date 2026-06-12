@@ -4,6 +4,9 @@
 
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 
+### Fixes
+- Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
+
 ### Under the Hood
 
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
