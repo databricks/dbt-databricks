@@ -499,3 +499,24 @@ class TestDeleteInsertWithPredicates(IncrementalBase):
         util.check_relations_equal(
             project.adapter, ["delete_insert_model", "delete_insert_expected"]
         )
+
+
+class TestMergeWithExplicitActions(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_with_explicit_actions_expected.csv": fixtures.merge_with_explicit_actions_expected,  # noqa: E501
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_with_explicit_actions_model.sql": fixtures.merge_with_explicit_actions_model,
+        }
+
+    def test_merge(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            ["merge_with_explicit_actions_model", "merge_with_explicit_actions_expected"],
+        )
