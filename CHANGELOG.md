@@ -7,6 +7,7 @@
 ### Under the Hood
 
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
+- Make the remaining incremental functional tests (tags, column tags, tblproperties, liquid clustering, column masks, persist_docs, replace table) rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`/model files, half-built relations) from the failed attempt (test-only, no runtime impact).
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 

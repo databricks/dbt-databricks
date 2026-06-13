@@ -3,12 +3,16 @@ import os
 import pytest
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
 from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalColumnTags(MaterializationV2Mixin):
+class TestIncrementalColumnTags(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("merge_update_columns",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
