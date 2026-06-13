@@ -7,6 +7,7 @@
 ### Under the Hood
 
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
+- Reuse the columns returned by `process_schema_changes` in the incremental materialization so the downstream strategy macros (`merge`, `append`, `delete+insert`) no longer re-issue `DESCRIBE TABLE EXTENDED` on the target. Saves one metadata round-trip per incremental model. Mirrors the existing `dbt-snowflake` pattern. ([#1412](https://github.com/databricks/dbt-databricks/pull/1412))
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 
