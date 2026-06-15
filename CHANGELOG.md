@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.2 (TBD)
 
+### Fixes
+
+- Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1516](https://github.com/databricks/dbt-databricks/pull/1516) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
+
 ### Under the Hood
 
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
