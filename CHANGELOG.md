@@ -6,6 +6,7 @@
 
 ### Under the Hood
 
+- Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
