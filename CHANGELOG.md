@@ -1,8 +1,17 @@
 ## dbt-databricks 1.12.2 (TBD)
 
+### Features
+
+- Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
+
+### Fixes
+- Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
+
 ### Under the Hood
 
+- Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
+- Make the remaining incremental functional tests (tags, column tags, tblproperties, liquid clustering, column masks, persist_docs, replace table) rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`/model files, half-built relations) from the failed attempt (test-only, no runtime impact).
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 

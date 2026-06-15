@@ -1,10 +1,15 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.incremental import fixtures
 
 
-class TestIncrementalPersistDocs:
+class TestIncrementalPersistDocs(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("merge_update_columns_sql",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
