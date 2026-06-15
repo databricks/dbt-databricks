@@ -1,10 +1,15 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.incremental import fixtures
 
 
-class TestIncrementalTblproperties:
+class TestIncrementalTblproperties(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("merge_update_columns_sql",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -30,7 +35,11 @@ class TestIncrementalTblproperties:
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalPythonTblproperties:
+class TestIncrementalPythonTblproperties(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("tblproperties",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {

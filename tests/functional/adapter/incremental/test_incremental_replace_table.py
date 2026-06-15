@@ -1,11 +1,16 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_sql_endpoint")
-class TestIncrementalReplaceTable:
+class TestIncrementalReplaceTable(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("model",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {"model.sql": fixtures.replace_table}
