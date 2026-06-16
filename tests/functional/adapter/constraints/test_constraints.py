@@ -200,6 +200,45 @@ class TestIncrementalForeignKeyExpressionConstraint:
         util.run_dbt(["run", "--select", "stg_numbers"])
         util.run_dbt(["run", "--select", "stg_numbers"])
 
+        # Verify the expression-form foreign key is registered in information_schema.
+        referential_constraints = project.run_sql(
+            """
+            SELECT constraint_name
+            FROM {database}.information_schema.referential_constraints
+            WHERE constraint_schema = '{schema}'
+            """,
+            fetch="all",
+        )
+        assert any(row[0] == "fk_n" for row in referential_constraints), (
+            f"expected FK 'fk_n' from the expression-form constraint, got {referential_constraints}"
+        )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCustomConstraint:
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "custom_constraint_model.sql": override_fixtures.custom_constraint_model_sql,
+            "schema.yml": override_fixtures.custom_constraint_schema_yml,
+        }
+
+    def test_custom_constraint_applied(self, project):
+        util.run_dbt(["run"])
+        rows = project.run_sql(
+            "show tblproperties {database}.{schema}.custom_constraint_model", fetch="all"
+        )
+        constraints = {
+            row.key: row.value for row in rows if row.key.startswith("delta.constraints.")
+        }
+        assert constraints.get("delta.constraints.custom_id_positive") == "id > 0", (
+            f"custom constraint not persisted as expected; delta.constraints = {constraints}"
+        )
+
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestForeignKeyParentConstraint:

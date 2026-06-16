@@ -318,3 +318,73 @@ models:
             to: ref('parent_table')
             to_columns: [id]
 """
+
+
+# Contract-enforced table child carrying PRIMARY KEY + FOREIGN KEY + NOT NULL, so all
+# three constraint kinds can be observed in information_schema after create. Reuses the
+# column_constraint_gate parent (a table with a PK to satisfy the FK reference).
+v1_contract_child_table_sql = """
+{{ config(materialized='table') }}
+select
+  cast(1 as int) as id,
+  cast('name' as string) as name,
+  cast(1 as int) as parent_id
+"""
+
+v1_contract_child_table_schema_yml = f"""
+version: 2
+models:
+{_column_constraint_gate_parent_model_yml}  - name: v1_contract_child
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        name: pk_v1_contract_child
+        columns: ["id"]
+      - type: foreign_key
+        name: fk_v1_contract_child_parent
+        columns: ["parent_id"]
+        to: ref('parent_table')
+        to_columns: ["id"]
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: name
+        data_type: string
+        constraints:
+          - type: not_null
+      - name: parent_id
+        data_type: int
+        constraints:
+          - type: not_null
+"""
+
+
+# Contract-enforced `type: custom` constraint, rendered verbatim as
+# `add constraint <name> <expression>` and observable as a delta.constraints.* property.
+custom_constraint_model_sql = """
+{{ config(materialized="table") }}
+select 1 as id, 'blue' as color
+"""
+
+custom_constraint_schema_yml = """
+version: 2
+models:
+  - name: custom_constraint_model
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: custom
+        name: custom_id_positive
+        expression: "CHECK (id > 0)"
+    columns:
+      - name: id
+        data_type: int
+      - name: color
+        data_type: string
+"""
