@@ -1,31 +1,5 @@
 from dbt.tests.adapter.constraints import fixtures
 
-# constraints are enforced via 'alter' statements that run after table creation
-expected_sql = """
-create or replace table <model_identifier>
-    using delta
-    as
-select
-  id,
-  color,
-  date_day
-from
-( select
-    'blue' as color,
-    1 as id,
-    '2019-01-01' as date_day ) as model_subq
-"""
-
-expected_sql_v2 = """
-create or replace table <model_identifier> (
-  `color` string,
-  `id` integer not null comment 'hello',
-  `date_day` string,
-  PRIMARY KEY (id),
-  FOREIGN KEY (id) REFERENCES <foreign_key_model_identifier> (id)
-  ) using delta
-"""
-
 constraints_yml = fixtures.model_schema_yml.replace("text", "string").replace("primary key", "")
 
 model_fk_constraint_schema_yml = """

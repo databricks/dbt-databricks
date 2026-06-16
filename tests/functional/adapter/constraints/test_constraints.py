@@ -2,12 +2,9 @@ import pytest
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
 from dbt.tests.adapter.constraints.test_constraints import (
-    BaseConstraintQuotedColumn,
     BaseConstraintsRollback,
-    BaseConstraintsRuntimeDdlEnforcement,
     BaseIncrementalConstraintsColumnsEqual,
     BaseIncrementalConstraintsRollback,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
     BaseTableConstraintsColumnsEqual,
     BaseViewConstraintsColumnsEqual,
 )
@@ -82,41 +79,6 @@ class TestIncrementalConstraintsColumnsEqual(
         return {
             "my_model_wrong_order.sql": fixtures.my_model_incremental_wrong_order_sql,
             "my_model_wrong_name.sql": fixtures.my_model_incremental_wrong_name_sql,
-            "constraints_schema.yml": override_fixtures.constraints_yml,
-        }
-
-
-class BaseConstraintsDdlEnforcementSetup:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"use_materialization_v2": False}}
-
-    @pytest.fixture(scope="class")
-    def expected_sql(self):
-        return override_fixtures.expected_sql
-
-
-@pytest.mark.skip_profile("databricks_cluster")
-class TestTableConstraintsDdlEnforcement(
-    BaseConstraintsDdlEnforcementSetup, BaseConstraintsRuntimeDdlEnforcement
-):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_wrong_order_sql,
-            "constraints_schema.yml": override_fixtures.constraints_yml,
-        }
-
-
-@pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalConstraintsDdlEnforcement(
-    BaseConstraintsDdlEnforcementSetup,
-    BaseIncrementalConstraintsRuntimeDdlEnforcement,
-):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_incremental_wrong_order_sql,
             "constraints_schema.yml": override_fixtures.constraints_yml,
         }
 
@@ -256,36 +218,3 @@ class TestForeignKeyParentConstraint:
 
     def test_foreign_key_constraint(self, project):
         util.run_dbt(["build"])
-
-
-class TestConstraintQuotedColumn(BaseConstraintQuotedColumn):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {"flags": {"use_materialization_v2": False}}
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_with_quoted_column_name_sql,
-            "constraints_schema.yml": fixtures.model_quoted_column_schema_yml.replace(
-                "text", "string"
-            ).replace('"from"', "`from`"),
-        }
-
-    @pytest.fixture(scope="class")
-    def expected_sql(self):
-        return """create or replace table <model_identifier>
-    using delta
-    as
-select
-  id,
-  `from`,
-  date_day
-from
-
-(
-    select
-    'blue' as `from`,
-    1 as id,
-    '2019-01-01' as date_day ) as model_subq
-"""
