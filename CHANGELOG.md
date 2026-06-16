@@ -9,6 +9,7 @@
 
 ### Under the Hood
 
+- Add functional tests for the `query` relation-config component's change handling: a streaming table's defining-query change is applied in place via `CREATE OR REFRESH`, and re-running a materialized view with an unchanged query leaves the existing relation in place instead of rebuilding it (test-only, no runtime impact).
 - Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
 - Make the remaining incremental functional tests (tags, column tags, tblproperties, liquid clustering, column masks, persist_docs, replace table) rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`/model files, half-built relations) from the failed attempt (test-only, no runtime impact).

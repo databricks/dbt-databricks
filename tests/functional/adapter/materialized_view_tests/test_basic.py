@@ -138,6 +138,29 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         )
         assert results[0][1] == expected_struct_type
 
+    def test_unchanged_query_does_not_recreate(self, project, my_materialized_view):
+        # A false-positive query diff would force a full refresh, rebuilding the MV and moving its
+        # creation timestamp. Re-running with an unchanged query must leave the timestamp stable.
+        def created_time():
+            return project.run_sql(
+                f"""
+                SELECT created
+                FROM {project.database}.information_schema.tables
+                WHERE table_catalog = '{project.database}'
+                  AND table_schema = '{project.test_schema}'
+                  AND table_name = '{my_materialized_view.identifier}'""",
+                fetch="one",
+            )[0]
+
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        created_before = created_time()
+        assert created_before is not None
+
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        assert created_time() == created_before
+
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
