@@ -5,6 +5,7 @@
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 
 ### Fixes
+- Apply column-level `databricks_tags` when a Unity Catalog view is updated via `ALTER` (`view_update_via_alter: true`). A run whose only change was its column tags previously errored with `main is not being called during running model` because the `alter_view` path had no `column_tags` branch; it now applies the changed tags there, matching the view create path. ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
 
 ### Under the Hood

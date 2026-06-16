@@ -117,6 +117,21 @@ class TestColumnTagsView(ColumnTagsMixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsViewUpdateViaAlter(ColumnTagsMixin):
+    relation_type = "view"
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        # With view_update_via_alter, a subsequent run whose only change is its column
+        # tags takes the alter_view path instead of a full replace; the changed tags
+        # must be applied there too.
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+view_update_via_alter": True},
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsTableV1(ColumnTagsMixin):
     relation_type = "table"
 
