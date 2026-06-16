@@ -143,6 +143,11 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
 
         self.check_state_alter_change_is_applied(project, my_streaming_table)
 
+        # An alter-only change must leave the existing partitioning intact.
+        with util.get_connection(project.adapter):
+            results = project.adapter.get_relation_config(my_streaming_table)
+        assert results.config["partition_by"].partition_by == ["id"]
+
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
