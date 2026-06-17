@@ -4,7 +4,11 @@ import pytest
 from agate import Row
 from dbt.exceptions import DbtRuntimeError
 
-from dbt.adapters.databricks.relation_configs.query import QueryConfig, QueryProcessor
+from dbt.adapters.databricks.relation_configs.query import (
+    DescribeQueryProcessor,
+    QueryConfig,
+    QueryProcessor,
+)
 
 sql = "select * from foo"
 
@@ -31,6 +35,13 @@ class TestQueryProcessor:
         ):
             _ = QueryProcessor.from_relation_config(model)
 
+    def test_from_relation_results__empty_view_definition(self):
+        results = {
+            "information_schema.views": Row(["", "other"], ["view_definition", "comment"])
+        }
+        spec = QueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query="")
+
     def test_get_diff__similar_query(self):
         model = QueryConfig(query="select * from foo")
         results = {
@@ -50,3 +61,13 @@ class TestQueryProcessor:
         }
         other = QueryProcessor.from_relation_results(results)
         assert model.get_diff(other) is model
+
+
+class TestDescribeQueryProcessor:
+    def test_from_relation_results__malformed_view_text_row(self):
+        results = {"describe_extended": [("View Text",)]}
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Unexpected result from DESCRIBE EXTENDED: missing View Text value",
+        ):
+            DescribeQueryProcessor.from_relation_results(results)
