@@ -88,8 +88,21 @@ class TestIncrementalUnsetNonNullConstraint(RerunSafeMixin):
 
         # Remove the non-null constraint
         util.write_file(fixtures.schema_without_non_null_constraint, "models", "schema.yml")
-        # This would fail if the constraint was not removed
         util.run_dbt(["run"])
+
+        # The column should now be nullable (DROP NOT NULL applied, not a no-op).
+        columns_after = project.run_sql(
+            """
+            SELECT column_name
+            FROM {database}.information_schema.columns
+            WHERE table_schema = '{schema}'
+            AND is_nullable = 'NO'
+            """,
+            fetch="all",
+        )
+        assert columns_after == [], (
+            f"Expected no NOT NULL columns after removal, found {columns_after}"
+        )
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -151,17 +164,28 @@ class TestIncrementalRemoveCheckConstraint(RerunSafeMixin):
             """,
             fetch="all",
         )
-        constraint = None
-        for row in tbl_properties:
-            if str(row[0]).startswith("delta.constraints."):
-                constraint = row
-                break
-        assert constraint is not None
+        constraints = [
+            row for row in tbl_properties if str(row[0]).startswith("delta.constraints.")
+        ]
+        assert constraints != []
 
         # Remove check constraint
         util.write_file(fixtures.schema_without_check_constraint, "models", "schema.yml")
-        # This would fail if the constraint was not removed
         util.run_dbt(["run"])
+
+        # The delta.constraints.* property should be gone (DROP applied, not a no-op).
+        tbl_properties_after = project.run_sql(
+            """
+            SHOW TBLPROPERTIES {database}.{schema}.check_constraint_sql
+            """,
+            fetch="all",
+        )
+        remaining = [
+            row for row in tbl_properties_after if str(row[0]).startswith("delta.constraints.")
+        ]
+        assert remaining == [], (
+            f"Expected delta.constraints.* to be gone after removal, found {remaining}"
+        )
 
 
 @pytest.mark.skip_profile("databricks_cluster")
