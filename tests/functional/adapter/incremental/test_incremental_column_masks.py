@@ -4,12 +4,17 @@ from dbt.tests import util
 from tests.functional.adapter.fixtures import (
     MaterializationV2Mixin,
     RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
 )
 from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalColumnMasks(MaterializationV2Mixin):
+class TestIncrementalColumnMasks(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("column_mask_sql",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
