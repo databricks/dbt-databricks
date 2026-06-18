@@ -7,6 +7,7 @@
 ### Fixes
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
+- Only emit `INSERT ... BY NAME` in the `replace_where`/`microbatch` strategies on DBR 18.0+ (and SQL warehouses), since older clusters reject the `BY NAME ... REPLACE WHERE` combination with a parse error ([#1532](https://github.com/databricks/dbt-databricks/issues/1532))
 
 ### Under the Hood
 
