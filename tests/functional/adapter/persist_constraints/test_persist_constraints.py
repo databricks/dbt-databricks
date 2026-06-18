@@ -158,7 +158,7 @@ class TestInvalidCheckConstraints(TestConstraints):
 
 
 class TestInvalidColumnConstraints(TestConstraints):
-    def _test_invalid_column_constraints(self, project):
+    def test_invalid_column_constraints(self, project):
         model_name = "invalid_column_constraint"
         util.run_dbt(["seed"])
         self.run_and_check_failure(
