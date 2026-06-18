@@ -134,6 +134,28 @@ class TestColumnTagsViewUpdateViaAlter(ColumnTagsMixin):
             "models": {"+view_update_via_alter": True},
         }
 
+    def test_unchanged_rerun_keeps_column_tags(self, project):
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+
+        column_tags_query = f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'base_model'
+            ORDER BY column_name, tag_name
+            """
+        tags = project.run_sql(column_tags_query, fetch="all")
+        expected_tags = {
+            ("account_number", "pii", "true"),
+            ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
+        }
+        actual_tags = {(row[0], row[1], row[2]) for row in tags}
+        assert actual_tags == expected_tags
+
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsTableV1(ColumnTagsMixin):

@@ -8,7 +8,7 @@
 
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
-- Apply column-level `databricks_tags` when a Unity Catalog view is updated via `ALTER` (`view_update_via_alter: true`). A run whose only change was its column tags previously errored with `main is not being called during running model` because the `alter_view` path had no `column_tags` branch; it now applies the changed tags there, matching the view create path. ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
+- Fix column-level `databricks_tags` on Unity Catalog views updated via `ALTER` (`view_update_via_alter: true`), including runs where column tags were the only change and skipping reapplication when tags are already correct ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
 
 ### Under the Hood
 
