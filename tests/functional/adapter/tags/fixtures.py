@@ -65,3 +65,19 @@ models:
         c: d
         k: ""
 """
+
+snapshot_tags_sql = """
+{% snapshot tags_snapshot %}
+    {{
+        config(
+            target_database=database,
+            target_schema=schema,
+            unique_key='id',
+            strategy='check',
+            check_cols=['color'],
+            databricks_tags={'a': 'b', 'c': 'd', 'k': ''},
+        )
+    }}
+    select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+{% endsnapshot %}
+"""
