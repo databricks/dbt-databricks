@@ -5,6 +5,7 @@
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 
 ### Fixes
+- Honor the `expression` field on `primary_key` constraints on the V1 materialization path. A primary key declared with `expression: RELY` (or any trailing clause) previously had its expression silently dropped — the key was created without it. ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX))
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
 

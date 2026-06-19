@@ -178,7 +178,9 @@
         {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
       {% endif %}
     {% endif %}
-    {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ");" %}
+    {% set pk_expression = constraint.get('expression') %}
+    {% set pk_suffix = (" " ~ pk_expression) if pk_expression else "" %}
+    {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " primary key(" ~ joined_names ~ ")" ~ pk_suffix ~ ";" %}
     {% do statements.append(stmt) %}
   {% elif type == 'foreign_key' %}
 
