@@ -50,5 +50,7 @@ class DescribeQueryProcessor(QueryProcessor):
         table = result["describe_extended"]
         row = next(x for x in table if x[0] == "View Text")
         if len(row) < 2:
-            raise DbtRuntimeError("Unexpected result from DESCRIBE EXTENDED: missing View Text value")
+            raise DbtRuntimeError(
+                "Unexpected result from DESCRIBE EXTENDED: missing View Text value"
+            )
         return QueryConfig(query=SqlUtils.clean_sql(row[1]))

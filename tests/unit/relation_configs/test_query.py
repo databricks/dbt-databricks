@@ -36,9 +36,7 @@ class TestQueryProcessor:
             _ = QueryProcessor.from_relation_config(model)
 
     def test_from_relation_results__empty_view_definition(self):
-        results = {
-            "information_schema.views": Row(["", "other"], ["view_definition", "comment"])
-        }
+        results = {"information_schema.views": Row(["", "other"], ["view_definition", "comment"])}
         spec = QueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query="")
 
