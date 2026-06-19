@@ -3,6 +3,7 @@
 ### Features
 
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
+- Add `skip_optimize` model config to opt out of the post-materialization `OPTIMIZE` call without dropping `zorder` / `liquid_clustered_by` / `auto_liquid_cluster` from the table definition. Useful when `OPTIMIZE` is delegated to Predictive Optimization or scheduled out of band. Complements the existing run-wide `DATABRICKS_SKIP_OPTIMIZE` var by allowing project-, folder-, or model-level opt-out via standard dbt config inheritance ([#703](https://github.com/databricks/dbt-databricks/issues/703)).
 
 ### Fixes
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
