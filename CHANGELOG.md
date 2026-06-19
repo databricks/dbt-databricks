@@ -7,6 +7,7 @@
 ### Fixes
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
+- Stop metric views with `view_update_via_alter` from re-issuing a redundant `ALTER VIEW ... AS` on every run. `MetricViewQueryConfig.get_diff` now compares the parsed YAML structurally instead of by normalized text, so Databricks' server-side re-rendering of the stored definition (requoting `source`, rewriting flow-style lists to block style) no longer registers as a phantom change ([#1546](https://github.com/databricks/dbt-databricks/pull/1546))
 
 ### Under the Hood
 
