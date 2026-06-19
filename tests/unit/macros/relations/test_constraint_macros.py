@@ -338,6 +338,22 @@ class TestConstraintMacros(MacroTestBase):
         )
         assert expected in r
 
+    def test_macros_get_constraint_sql_primary_key_noname_with_expression(
+        self, template_bundle, model
+    ):
+        constraint = {"type": "primary_key", "expression": "RELY"}
+        column = {"name": "id"}
+
+        r = self.render_constraint_sql(template_bundle, constraint, model, column)
+
+        # clean_sql() lowercases the rendered SQL, including the hash input echoed by the mock.
+        expected = (
+            '["alter table `some_database`.`some_schema`.`some_table` add constraint '
+            "hash(primary_key;some_table;['id'];rely;) "
+            'primary key(`id`) rely;"]'
+        )
+        assert expected in r
+
     def test_macros_get_constraint_sql_foreign_key(self, template_bundle, model):
         constraint = {
             "type": "foreign_key",
