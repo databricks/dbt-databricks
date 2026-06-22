@@ -10,6 +10,7 @@
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
 - Fix PK/FK constraints declaring an `expression` (e.g. `RELY`) being dropped and re-added on every incremental run. The `expression` isn't readable from `information_schema`, so reconciliation never converged and issued `DROP CONSTRAINT ... CASCADE` each run — silently dropping dependent FKs, and erroring with `INTERNAL_ERROR` on newer Unity Catalog. PK/FK are now compared on `(name, columns)`. **Regression:** changing the `expression` on an existing PK/FK (`RELY`↔`NORELY`, or an expression-form FK's target) is no longer applied on incremental runs — use `--full-refresh`. ([#1552](https://github.com/databricks/dbt-databricks/pull/1552) closes [#1513](https://github.com/databricks/dbt-databricks/issues/1513))
+- Fix materialized views always rebuilding because Databricks-internal `tblproperties` were read as configuration drift; the diff now compares only the configured properties ([#1350](https://github.com/databricks/dbt-databricks/pull/1350) closes [#1314](https://github.com/databricks/dbt-databricks/issues/1314)).
 
 ### Under the Hood
 
@@ -127,10 +128,6 @@
 - Fix missing `optimize()` call in table v2 materialization path ([#1345](https://github.com/databricks/dbt-databricks/pull/1345))
 - Fix catalog names with special characters (e.g., hyphens) not being quoted in `SHOW SCHEMAS` commands, causing `INVALID_IDENTIFIER` errors ([#1325](https://github.com/databricks/dbt-databricks/issues/1325))
 - Fix liquid clustering rendering on streaming table materialization [#1330](https://github.com/databricks/dbt-databricks/pull/1330)
-
-### Under the Hood
-
-- Improved how diffs of tblproperties are calculated. They no longer rely on an error-prone "ignore list" of Databricks-internal tblproperties, which repeatedly broke tblproperties diffs and triggered redundant `ALTER TABLE` statements.
 
 ## dbt-databricks 1.11.5 (Feb 19, 2026)
 
