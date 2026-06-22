@@ -6,7 +6,7 @@
   {% set tags = config.get('databricks_tags') %}
   {% set sql = adapter.clean_sql(sql) %}
 
-  {% if adapter.behavior.use_materialization_v2 %}
+  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {{ run_pre_hooks() }}
     {% if existing_relation %}
       {% if relation_should_be_altered(existing_relation) %}
@@ -87,7 +87,7 @@
 
 {% macro relation_should_be_altered(existing_relation) %}
   {% set update_via_alter = config.get('view_update_via_alter', False) | as_bool %}
-  {% if existing_relation.is_view and update_via_alter %}
+  {% if (existing_relation.is_view or existing_relation.is_metric_view) and update_via_alter %}
     {% if existing_relation.is_hive_metastore() %}
       {{ exceptions.raise_compiler_error("Cannot update a view in the Hive metastore via ALTER VIEW. Please set `view_update_via_alter: false` in your model configuration.") }}
     {% endif %}

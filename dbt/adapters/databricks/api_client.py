@@ -483,7 +483,7 @@ class JobRunsApi:
     ) -> str:
         logger.debug(
             f"Submitting job with run_name={run_name} and job_spec={job_spec}"
-            " and additional_job_settings={additional_job_settings}"
+            f" and additional_job_settings={additional_job_settings}"
         )
         try:
             tasks = self._convert_job_spec_to_tasks(job_spec)
@@ -616,6 +616,11 @@ class JobRunsApi:
         if life_cycle_state != "TERMINATED":
             self._handle_non_terminated_failure(
                 run, life_cycle_state, state_message, result_state or ""
+            )
+        elif result_state not in (None, "SUCCESS", "SUCCESS_WITH_FAILURES"):
+            raise DbtRuntimeError(
+                f"Python model run ended in result_state {result_state}"
+                f" (run_id: {run.run_id})\nState message: {state_message}"
             )
 
     def cancel(self, run_id: str) -> None:
@@ -801,7 +806,10 @@ class WorkflowJobApi:
         try:
             # Convert job_spec to be compatible with jobs.create
             converted_job_spec = self._convert_job_spec_for_create(job_spec)
-            create_response = self.workspace_client.jobs.create(**converted_job_spec)
+            # Convert plain dicts to SDK dataclasses via JobSettings to avoid
+            # AttributeError when the SDK iterates and calls .as_dict() on tasks.
+            job_settings = JobSettings.from_dict(converted_job_spec)
+            create_response = self.workspace_client.jobs.create(**job_settings.as_shallow_dict())
             job_id = str(create_response.job_id)
             logger.info(f"New workflow created with job id {job_id}")
             return job_id

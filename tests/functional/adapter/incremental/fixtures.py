@@ -76,6 +76,47 @@ models:
         - name: color
 """
 
+metadata_fetch_incremental_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id
+"""
+
+metadata_fetch_no_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+"""
+
+metadata_fetch_table_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    config:
+      databricks_tags:
+        classification: internal
+    columns:
+      - name: id
+"""
+
+metadata_fetch_column_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+        databricks_tags:
+          classification: internal
+"""
+
 tblproperties_a = """
 version: 2
 
@@ -711,6 +752,10 @@ version: 2
 
 models:
   - name: non_null_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -723,6 +768,10 @@ version: 2
 
 models:
   - name: non_null_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -753,6 +802,10 @@ version: 2
 
 models:
   - name: check_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -763,6 +816,10 @@ version: 2
 
 models:
   - name: check_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -788,6 +845,10 @@ version: 2
 
 models:
   - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -808,6 +869,10 @@ version: 2
 
 models:
   - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -824,6 +889,10 @@ version: 2
 
 models:
   - name: primary_key_constraint_sql
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -889,6 +958,10 @@ version: 2
 
 models:
   - name: fk_referenced_to_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -898,6 +971,10 @@ models:
         data_type: string
 
   - name: fk_referenced_from_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -912,6 +989,10 @@ version: 2
 
 models:
   - name: fk_referenced_to_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     constraints:
       - type: primary_key
         columns: [id, version]
@@ -929,6 +1010,10 @@ models:
         data_type: string
 
   - name: fk_referenced_to_table_2
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     constraints:
       - type: primary_key
         columns: [id]
@@ -942,6 +1027,10 @@ models:
         data_type: string
 
   - name: fk_referenced_from_table
+    config:
+      contract:
+        enforced: true
+      on_schema_change: fail
     columns:
       - name: id
         data_type: bigint
@@ -1082,6 +1171,8 @@ models:
     config:
       materialized: incremental
       on_schema_change: fail
+      contract:
+        enforced: true
     columns:
       - name: id
         data_type: string
@@ -1097,6 +1188,8 @@ models:
   - name: model_b
     config:
         materialized: table
+        contract:
+          enforced: true
     columns:
       - name: id
         data_type: string
@@ -1108,6 +1201,33 @@ models:
         to: ref('model_a')
         to_columns: [id]
         warn_unenforced: false
+"""
+
+# Fixtures for testing that constraints are NOT applied without contract enforcement.
+# This is a regression test for https://github.com/databricks/dbt-databricks/issues/1342
+# The model inserts a NULL into the PK column. If the PK constraint were incorrectly applied,
+# Databricks would reject this with "Cannot create the primary key ... because its child
+# column(s) is nullable."
+pk_without_contract_sql = """
+{{ config(
+    materialized = 'incremental',
+) }}
+
+select cast(null as bigint) as id, 'hello' as msg
+"""
+
+schema_with_pk_without_contract = """
+version: 2
+
+models:
+  - name: pk_without_contract_sql
+    columns:
+      - name: id
+      - name: msg
+    constraints:
+      - type: primary_key
+        name: pk_no_contract
+        columns: [id]
 """
 
 non_incremental_target_of_fk = """

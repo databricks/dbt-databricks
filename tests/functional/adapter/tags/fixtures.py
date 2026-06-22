@@ -1,7 +1,7 @@
 tags_sql = """
 {{ config(
     materialized = 'table',
-    databricks_tags = {'a': 'b', 'c': 'd'},
+    databricks_tags = {'a': 'b', 'c': 'd', 'k': ''},
 ) }}
 
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
@@ -16,10 +16,19 @@ updated_tags_sql = """
 select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
 """
 
+tags_merged_sql = """
+{{ config(
+    materialized = 'table',
+    databricks_tags = {'c': 'd', 'k': ''},
+) }}
+
+select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+"""
+
 streaming_table_tags_sql = """
 {{ config(
     materialized='streaming_table',
-    databricks_tags = {'a': 'b', 'c': 'd'},
+    databricks_tags = {'a': 'b', 'c': 'd', 'k': ''},
 ) }}
 
 select * from stream {{ ref('my_seed') }}
@@ -54,4 +63,21 @@ models:
       databricks_tags:
         a: b
         c: d
+        k: ""
+"""
+
+snapshot_tags_sql = """
+{% snapshot tags_snapshot %}
+    {{
+        config(
+            target_database=database,
+            target_schema=schema,
+            unique_key='id',
+            strategy='check',
+            check_cols=['color'],
+            databricks_tags={'a': 'b', 'c': 'd', 'k': ''},
+        )
+    }}
+    select cast(1 as bigint) as id, 'hello' as msg, 'blue' as color
+{% endsnapshot %}
 """

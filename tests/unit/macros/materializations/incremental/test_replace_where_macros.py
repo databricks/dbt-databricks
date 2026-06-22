@@ -14,6 +14,17 @@ class TestReplaceWhereMacros(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/materializations/incremental"]
 
+    @pytest.fixture(autouse=True)
+    def setup_mock_capability(self, context):
+        """Mock the adapter's has_dbr_capability to support insert_by_name by default"""
+
+        def has_dbr_capability_side_effect(capability_name):
+            if capability_name == "insert_by_name":
+                return True  # Default to DBR 12.2+
+            return False
+
+        context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
+
     @pytest.fixture
     def mock_relations(self):
         target_relation = Mock()
@@ -37,7 +48,7 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col > '2023-01-01'
+        BY NAME REPLACE WHERE date_col > '2023-01-01'
         TABLE schema.temp_table
         """
 
@@ -59,7 +70,7 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col > '2023-01-01' and another_col != 'value'
+        BY NAME REPLACE WHERE date_col > '2023-01-01' and another_col != 'value'
         TABLE schema.temp_table
         """
 
@@ -78,7 +89,7 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        TABLE schema.temp_table
+        BY NAME TABLE schema.temp_table
         """
 
         self.assert_sql_equal(result, expected)
@@ -96,7 +107,7 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        TABLE schema.temp_table
+        BY NAME TABLE schema.temp_table
         """
 
         self.assert_sql_equal(result, expected)
@@ -118,14 +129,18 @@ class TestReplaceWhereMacros(MacroTestBase):
 
         expected = """
         INSERT INTO schema.target_table
-        REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
+        BY NAME REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
         TABLE schema.temp_table
         """  # noqa
 
         self.assert_sql_equal(result, expected)
 
-    def test_get_replace_where_sql__by_name_with_predicates(self, template_bundle, mock_relations):
-        """Test that get_replace_where_sql does not use BY NAME (removed as of recent change)"""
+    def test_get_replace_where_sql__without_insert_by_name(
+        self, template_bundle, context, mock_relations
+    ):
+        """Test that BY NAME is omitted when the DBR version doesn't support insert_by_name"""
+        context["adapter"].has_dbr_capability = Mock(return_value=False)
+
         target_relation, temp_relation = mock_relations
 
         args_dict = {

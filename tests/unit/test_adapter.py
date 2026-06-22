@@ -1,13 +1,22 @@
 import re
+import warnings
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
+import agate
 import dbt.flags as flags
 import pytest
 from agate import Row
 from dbt.config import RuntimeConfig
-from dbt_common.exceptions import DbtConfigError, DbtDatabaseError, DbtValidationError
+from dbt_common.clients.agate_helper import merge_tables
+from dbt_common.events.event_manager_client import add_callback_to_manager
+from dbt_common.exceptions import (
+    DbtConfigError,
+    DbtDatabaseError,
+    DbtRuntimeError,
+    DbtValidationError,
+)
 
 from dbt.adapters.databricks import DatabricksAdapter, __version__, constants
 from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
@@ -16,7 +25,11 @@ from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
 from dbt.adapters.databricks.impl import (
+    DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     DatabricksRelationInfo,
+    IncrementalTableAPI,
+    MaterializedViewAPI,
+    ViewAPI,
     get_identifier_list_string,
 )
 from dbt.adapters.databricks.relation import (
@@ -24,8 +37,32 @@ from dbt.adapters.databricks.relation import (
     DatabricksRelationType,
     DatabricksTableType,
 )
+from dbt.adapters.databricks.relation_configs.column_tags import (
+    ColumnTagsConfig,
+    ColumnTagsProcessor,
+)
+from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
+from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
+from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+def _catalog_row(column_name: str) -> dict:
+    """Mimics the dict shape `_get_columns_for_catalog` yields per column."""
+    return {
+        "table_database": "cat",
+        "table_schema": "schema",
+        "table_name": "model",
+        "table_type": "table",
+        "table_owner": "root",
+        "table_comment": None,
+        "column_index": 0,
+        "column_name": column_name,
+        "column_type": "bigint",
+        "comment": None,
+    }
 
 
 class DatabricksAdapterBase:
@@ -76,6 +113,17 @@ class DatabricksAdapterBase:
 
 
 class TestDatabricksAdapter(DatabricksAdapterBase):
+    @pytest.fixture(autouse=True)
+    def _stub_spog_probe(self):
+        """Stub `probe_host` to keep connection-open tests offline."""
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with patch(
+            "dbt.adapters.databricks.spog.probe.probe_host",
+            return_value=HostMetadata(host_type=None),
+        ):
+            yield
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
@@ -417,6 +465,69 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                 table = adapter._get_schema_for_catalog("database", "schema", "name")
                 assert len(table.rows) == 2
                 assert table.column_names == ("name", "type", "comment")
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__metadata_columns_are_always_text(self, _):
+        # column_name "12345" forces agate's DEFAULT_TYPE_TESTER to infer Number
+        # for column_name unless it is force-typed Text by the adapter.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = [_catalog_row("12345")]
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                table = adapter._get_schema_for_catalog("cat", "schema", "name")
+
+        types = dict(zip(table.column_names, table.column_types))
+        for col in (
+            "table_database",
+            "table_schema",
+            "table_name",
+            "table_type",
+            "table_owner",
+            "table_comment",
+            "column_name",
+            "column_type",
+            "comment",
+        ):
+            assert col in types, f"missing metadata column {col!r}"
+            assert isinstance(types[col], agate.data_types.text.Text), (
+                f"{col!r} must be Text, got {type(types[col]).__name__}"
+            )
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__results_merge_across_schemas(self, _):
+        # Two schemas whose column_name values would force agate to infer
+        # different types (Text vs Number) without the text_only override.
+        # `catch_as_completed` merges per-schema results via `merge_tables`, so
+        # a type mismatch surfaces there as the user-visible RuntimeError.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                get_columns.return_value = [_catalog_row("id")]
+                table_a = adapter._get_schema_for_catalog("cat", "schema_a", "id")
+                get_columns.return_value = [_catalog_row("12345")]
+                table_b = adapter._get_schema_for_catalog("cat", "schema_b", "id")
+
+        merged = merge_tables([table_a, table_b])
+        assert len(merged.rows) == 2
+        types = dict(zip(merged.column_names, merged.column_types))
+        assert isinstance(types["column_name"], agate.data_types.text.Text)
+
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__no_columns_emits_no_warnings(self, _):
+        # An empty schema must not spam RuntimeWarnings about forced columns
+        # missing from the (empty) table; that's the exact `dbt docs generate`
+        # scenario the fix targets.
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = []
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", RuntimeWarning)
+                    table = adapter._get_schema_for_catalog("database", "schema", "name")
+        assert len(table.rows) == 0
 
     def test_simple_catalog_relation(self):
         self.maxDiff = None
@@ -1171,6 +1282,30 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
+    def test_get_columns_foreign_table_uses_legacy_logic(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        foreign_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelationType.Foreign,
+        )
+        # Foreign/federated tables don't support AS JSON — always use legacy logic
+        with patch.object(adapter, "has_capability", return_value=True):
+            mock_get_columns.return_value = [
+                {"col_name": "federated_col", "data_type": "string", "comment": ""},
+            ]
+            result = adapter.get_columns_in_relation(foreign_relation)
+        assert mock_get_columns.call_count == 1
+        mock_get_columns.assert_called_with(adapter, foreign_relation, "get_columns_comments")
+        assert len(result) == 1
+        assert result[0].column == "federated_col"
+        assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
         with patch.object(adapter, "has_capability", return_value=True):
@@ -1228,6 +1363,356 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
             )
 
 
+class TestFetchJsonMetadata(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    @pytest.fixture
+    def relation(self):
+        return DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+
+    def _macro_result(self, json_metadata):
+        """Build a minimal execute_macro return value with one row carrying json_metadata."""
+        row = Mock()
+        row.get = Mock(return_value=json_metadata)
+        result = Mock()
+        result.rows = [row]
+        return result
+
+    def test_valid_json_metadata_parsed(self, adapter, relation):
+        """Happy path: well-formed json_metadata is returned as a dict."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result('{"a": 1}')):
+            assert adapter.fetch_json_metadata(relation) == {"a": 1}
+
+    def test_malformed_json_wrapped(self, adapter, relation):
+        """A malformed JSON string triggers json.JSONDecodeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result("not-json")):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_none_json_metadata_wrapped(self, adapter, relation):
+        """A missing json_metadata column (None) triggers TypeError, wrapped by the adapter."""
+        with patch.object(adapter, "execute_macro", return_value=self._macro_result(None)):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+    def test_empty_rows_wrapped(self, adapter, relation):
+        """No rows from execute_macro triggers IndexError, wrapped by the adapter."""
+        empty_result = Mock()
+        empty_result.rows = []
+        with patch.object(adapter, "execute_macro", return_value=empty_result):
+            with pytest.raises(
+                DbtRuntimeError,
+                match="Failed to parse json metadata from describe table extended as json",
+            ):
+                adapter.fetch_json_metadata(relation)
+
+
+class TestIsDescribeAsJsonSupported(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+            yield adapter
+
+    def test_supported_for_uc_table_with_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is True
+
+    def test_not_supported_without_capability(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=False):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_hive_metastore(self, adapter):
+        relation = DatabricksRelation.create(
+            database="hive_metastore",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_for_foreign_table(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelationType.Foreign,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=True)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+    def test_not_supported_when_behavior_flag_disabled(self, adapter):
+        relation = DatabricksRelation.create(
+            database="catalog",
+            schema="schema",
+            identifier="table",
+            type=DatabricksRelation.Table,
+        )
+        adapter.behavior.use_describe_as_json_for_relation_metadata = Mock(no_warn=False)
+        with patch.object(adapter, "has_capability", return_value=True):
+            assert adapter.is_describe_as_json_supported(relation) is False
+
+
+class TestDescribeRelationMetadataFetchPlanning:
+    @staticmethod
+    def _create_adapter(describe_as_json_supported: bool = False):
+        adapter = Mock()
+        adapter.is_describe_as_json_supported.return_value = describe_as_json_supported
+
+        def execute_macro(macro_name, kwargs=None):
+            if macro_name == "get_view_description":
+                return Mock(rows=[("view_description",)])
+            return f"{macro_name}_result"
+
+        adapter.execute_macro.side_effect = execute_macro
+        return adapter
+
+    @staticmethod
+    def _create_incremental_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_incremental_model",
+            type=DatabricksRelationType.Table,
+        )
+
+    @staticmethod
+    def _create_view_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_view_model",
+            type=DatabricksRelationType.View,
+        )
+
+    @staticmethod
+    def _create_mv_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_mv_model",
+            type=DatabricksRelationType.MaterializedView,
+        )
+
+    @staticmethod
+    def _create_incremental_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> IncrementalTableConfig:
+        return IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
+
+    @staticmethod
+    def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
+        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
+        return MaterializedViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
+    def _called_macro_names(adapter: Mock) -> list[str]:
+        return [call.args[0] for call in adapter.execute_macro.call_args_list]
+
+    def test_incremental_describe_relation_skips_both_tag_queries_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_table_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(tags={"classification": "internal"})
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_table_tags_from_project_level_cascade(self):
+        # Project-level databricks_tags cascade onto a model that doesn't declare
+        # its own.
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        model = Mock()
+        model.config.extra = {"databricks_tags": {"team": "platform"}}
+        relation_config = IncrementalTableConfig(
+            config={
+                TagsProcessor.name: TagsProcessor.from_relation_config(model),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags={}),
+            }
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_only_column_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            column_tags={"id": {"classification": "internal"}}
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_both_tag_queries_when_both_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_incremental_describe_relation_skips_tag_queries_for_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation(database="hive_metastore")
+        relation_config = self._create_incremental_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert "information_schema.tags" not in results
+        assert "information_schema.column_tags" not in results
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+        assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_view_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config()
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_view_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config(tags={"classification": "internal"})
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
+
+    def test_mv_describe_relation_skips_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config()
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "get_view_description" in called_macro_names
+        assert "fetch_tbl_properties" in called_macro_names
+
+    def test_mv_describe_relation_fetches_tag_query_when_tags_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config(tags={"classification": "internal"})
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" in called_macro_names
+        assert "get_view_description" in called_macro_names
+
+
 class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
     @pytest.fixture
     def adapter(self):
@@ -1282,7 +1767,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
         Native managed Iceberg tables don't use UniForm (Delta with Iceberg compatibility),
         so they shouldn't get Delta table properties added."""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(
             return_value=unity_catalog_relation_managed_iceberg_relation
         )
@@ -1295,7 +1780,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform returns True for UniForm Iceberg tables"""
-        adapter.behavior.use_managed_iceberg = False  # Default
+        adapter.behavior.use_managed_iceberg.setting = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1318,7 +1803,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, hive_catalog_relation
     ):
         """Test that is_uniform raises error for managed Iceberg with Hive Metastore"""
-        adapter.behavior.use_managed_iceberg = True
+        adapter.behavior.use_managed_iceberg.setting = True
         adapter.build_catalog_relation = Mock(return_value=hive_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
 
@@ -1331,7 +1816,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for insufficient DBR version"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=False)  # No ICEBERG capability
 
@@ -1342,7 +1827,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         self, adapter, mock_config, unity_catalog_relation
     ):
         """Test that is_uniform raises error for invalid materialization"""
-        adapter.behavior.use_managed_iceberg = False
+        adapter.behavior.use_managed_iceberg.setting = False
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
         mock_config.get.side_effect = lambda key: "view" if key == "materialized" else None
@@ -1351,3 +1836,118 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             DbtConfigError, match="When table_format is 'iceberg', materialized must be"
         ):
             adapter.is_uniform(mock_config)
+
+
+class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
+    """The `use_materialization_v2` deprecation warning must not fire on every dbt run."""
+
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    @pytest.mark.parametrize("flag_value", [False, True])
+    def test_get_behavior_flag_no_warn_does_not_fire_event(self, adapter, flag_value):
+        """The helper must return the flag value without firing
+        BehaviorChangeEvent for `use_materialization_v2`, regardless of value."""
+        adapter.behavior.use_materialization_v2.setting = flag_value
+
+        caught = []
+
+        def record(event_msg):
+            if (
+                event_msg.info.name == "BehaviorChangeEvent"
+                and event_msg.data.flag_name == "use_materialization_v2"
+            ):
+                caught.append(event_msg)
+
+        add_callback_to_manager(record)
+
+        result = adapter.get_behavior_flag_no_warn("use_materialization_v2")
+
+        assert result == flag_value
+        assert caught == [], (
+            "get_behavior_flag_no_warn must not fire BehaviorChangeEvent for "
+            f"use_materialization_v2 (fired {len(caught)} times)"
+        )
+
+
+class TestDebugEmitSpogBlock:
+    """Verify debug_emit_spog_block surfaces SPOG status diagnostics."""
+
+    def test_spog_host_with_capable_deps(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified", account_id="acct"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=6436897454825492",
+            )
+
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "SPOG host" in joined
+        assert "yes" in joined
+        assert "6436897454825492" in joined
+        assert "supported" in joined
+        assert "NOT supported" not in joined
+
+    def test_non_spog_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="workspace"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="legacy.example.com",
+                http_path="/sql/1.0/warehouses/abc",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        # 'no' for the SPOG host line
+        assert "SPOG host" in joined and "no" in joined
+
+    def test_spog_host_with_old_connector_flags_unsupported(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=False),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=64",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "NOT supported" in joined
+
+    def test_no_op_on_empty_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+
+        with (
+            patch("dbt.adapters.databricks.spog.probe.probe_host") as mock_probe,
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(host="", http_path="")
+        mock_probe.assert_not_called()
+        mock_logger.info.assert_not_called()

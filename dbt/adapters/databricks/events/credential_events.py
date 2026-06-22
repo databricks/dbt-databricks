@@ -12,8 +12,5 @@ class CredentialSaveError(ErrorEvent):
 
 
 class CredentialShardEvent:
-    def __init__(self, password_len: int):
-        self.password_len = password_len
-
     def __str__(self) -> str:
-        return f"Password is {self.password_len} characters, sharding it"
+        return "Sharding credentials"

@@ -27,6 +27,7 @@ class TestCreateViewAs(MacroTestBase):
         template_bundle.context["get_columns_in_query"] = Mock(return_value=[])
         template_bundle.context["column_mask_exists"] = Mock(return_value=False)
         template_bundle.context["column_tags_exist"] = Mock(return_value=False)
+        template_bundle.context["row_filter_exists"] = Mock(return_value=False)
 
         sql = self.render_create_view_as(template_bundle)
         expected = (

@@ -39,10 +39,12 @@ class ConstraintsConfig(DatabricksComponentConfig):
     def normalize_constraint(self, constraint: TypedConstraint) -> TypedConstraint:
         """
         Normalize a constraint for comparison by standardizing format
-        and removing irrelevant fields when necessary.
+        and removing fields that Databricks does not round-trip via information_schema.
         This is necessary because Databricks :
         - Reformats expressions for check constraints
         - Does not persist the `columns` in check constraints
+        - Does not expose PK/FK RELY/NORELY in information_schema (#1513)
+        - Does not persist FK `to`/`to_columns` on expression-form FKs
         """
         if isinstance(constraint, CheckConstraint):
             return CheckConstraint(
@@ -55,25 +57,53 @@ class ConstraintsConfig(DatabricksComponentConfig):
                 to_columns=constraint.to_columns,
                 columns=[],
             )
+        elif isinstance(constraint, PrimaryKeyConstraint):
+            return PrimaryKeyConstraint(
+                type=constraint.type,
+                name=constraint.name,
+                columns=constraint.columns,
+            )
+        elif isinstance(constraint, ForeignKeyConstraint):
+            return ForeignKeyConstraint(
+                type=constraint.type,
+                name=constraint.name,
+                columns=constraint.columns,
+            )
         else:
             return constraint
 
     def get_diff(self, other: "ConstraintsConfig") -> Optional["ConstraintsConfig"]:
-        self_set_constraints_normalized = {
-            self.normalize_constraint(c) for c in self.set_constraints
-        }
-        other_set_constraints_normalized = {
-            self.normalize_constraint(c) for c in other.set_constraints
-        }
+        # Diff on normalized keys; emit original constraints for ADD/DROP SQL.
+        self_by_key = {self.normalize_constraint(c): c for c in self.set_constraints}
+        other_by_key = {self.normalize_constraint(c): c for c in other.set_constraints}
 
         # Find constraints that need to be unset
-        constraints_to_unset = other_set_constraints_normalized - self_set_constraints_normalized
+        constraints_to_unset = {
+            original for key, original in other_by_key.items() if key not in self_by_key
+        }
         # Find non-nulls that need to be unset
         non_nulls_to_unset = other.set_non_nulls - self.set_non_nulls
 
         # Set constraints that exist in self but not in other
-        set_constraints = self_set_constraints_normalized - other_set_constraints_normalized
+        set_constraints = {
+            original for key, original in self_by_key.items() if key not in other_by_key
+        }
         set_non_nulls = self.set_non_nulls - other.set_non_nulls
+
+        # Reconcile same-name FKs whose target changed (`to`/`to_columns`).
+        # Skip expression-form FKs: the target lives in `expression`, which the catalog
+        # does not round-trip, so comparing `to`/`to_columns` would churn every run.
+        for key in self_by_key.keys() & other_by_key.keys():
+            model_constraint = self_by_key[key]
+            catalog_constraint = other_by_key[key]
+            if (
+                isinstance(model_constraint, ForeignKeyConstraint)
+                and model_constraint.to is not None
+                and (model_constraint.to, tuple(model_constraint.to_columns or ()))
+                != (catalog_constraint.to, tuple(catalog_constraint.to_columns or ()))
+            ):
+                set_constraints.add(model_constraint)
+                constraints_to_unset.add(catalog_constraint)
 
         if set_constraints or set_non_nulls or constraints_to_unset or non_nulls_to_unset:
             return ConstraintsConfig(
@@ -190,6 +220,20 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> ConstraintsConfig:
+        # Only read constraints from the model when contract enforcement is enabled.
+        # Without this guard, constraints that dbt-core parses and stores regardless of
+        # contract enforcement would leak through and be applied to the database.
+        # See: https://github.com/databricks/dbt-databricks/issues/1342
+        config = getattr(relation_config, "config", None)
+        contract = getattr(config, "contract", None) if config else None
+        contract_enforced = getattr(contract, "enforced", False)
+
+        if not contract_enforced:
+            return ConstraintsConfig(
+                set_non_nulls=set(),
+                set_constraints=set(),
+            )
+
         constraints = getattr(relation_config, "constraints", [])
         constraints = [
             {

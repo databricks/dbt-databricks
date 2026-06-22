@@ -10,12 +10,12 @@
   {% set target_relation = this.incorporate(type='table') %}
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
 
-  {% if adapter.behavior.use_materialization_v2 %}
+  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
     {{ run_pre_hooks() }}
-    
+
     {% call statement('main', language=language) %}
       {{ get_create_intermediate_table(intermediate_relation, compiled_code, language) }}
     {% endcall %}
@@ -62,6 +62,11 @@
       {% do apply_tblproperties(target_relation, tblproperties) %}
     {% endif %}
     {%- do apply_tags(target_relation, tags) -%}
+
+    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+    {% if column_tags and column_tags.set_column_tags %}
+      {{ apply_column_tags(target_relation, column_tags) }}
+    {% endif %}
 
     {% do persist_docs(target_relation, model, for_relation=language=='python') %}
 

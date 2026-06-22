@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
-from dbt.adapters.base.relation import BaseRelation, InformationSchema, Policy
+from dbt.adapters.base.relation import BaseRelation, FunctionConfig, InformationSchema, Policy
 from dbt.adapters.contracts.relation import (
     ComponentName,
 )
@@ -14,9 +14,11 @@ from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
 from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.utils import remove_undefined
 
 KEY_TABLE_PROVIDER = "Provider"
+MAX_CHARACTERS_IN_IDENTIFIER = 255
 
 
 @dataclass
@@ -48,6 +50,15 @@ class DatabricksRelationType(StrEnum):
         """Return the type formatted for SQL statements (replace underscores with spaces)"""
         return self.value.replace("_", " ").upper()
 
+    def render_for_alter(self) -> str:
+        """Return the type formatted for ALTER statements.
+
+        Metric views use ALTER VIEW (not ALTER METRIC VIEW) syntax.
+        """
+        if self == DatabricksRelationType.MetricView:
+            return "VIEW"
+        return self.render()
+
 
 class DatabricksTableType(StrEnum):
     External = "external"
@@ -72,6 +83,7 @@ class DatabricksRelation(BaseRelation):
     quote_policy: Policy = field(default_factory=lambda: DatabricksQuotePolicy())
     include_policy: Policy = field(default_factory=lambda: DatabricksIncludePolicy())
     quote_character: str = "`"
+    require_alias: bool = False
     is_delta: Optional[bool] = None
     create_constraints: list[TypedConstraint] = field(default_factory=list)
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
@@ -84,6 +96,19 @@ class DatabricksRelation(BaseRelation):
     )
     databricks_table_type: Optional[DatabricksTableType] = None
     temporary: Optional[bool] = False
+
+    def __post_init__(self) -> None:
+        if self.identifier and self.type:
+            if len(self.identifier) > self.relation_max_name_length():
+                raise DbtRuntimeError(
+                    f"Databricks has a maximum identifier length of "
+                    f"{self.relation_max_name_length()} characters. "
+                    "Use a shorter name or configure a custom alias."
+                )
+
+    @classmethod
+    def relation_max_name_length(cls) -> int:
+        return MAX_CHARACTERS_IN_IDENTIFIER
 
     @classmethod
     def __pre_deserialize__(cls, data: dict[Any, Any]) -> dict[Any, Any]:
@@ -118,8 +143,16 @@ class DatabricksRelation(BaseRelation):
         return self.type == DatabricksRelationType.MaterializedView
 
     @property
+    def is_metric_view(self) -> bool:
+        return self.type == DatabricksRelationType.MetricView
+
+    @property
     def is_streaming_table(self) -> bool:
         return self.type == DatabricksRelationType.StreamingTable
+
+    @property
+    def is_foreign_table(self) -> bool:
+        return self.type == DatabricksRelationType.Foreign
 
     @property
     def is_external_table(self) -> bool:
@@ -131,13 +164,11 @@ class DatabricksRelation(BaseRelation):
 
     @property
     def is_hudi(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "hudi"
 
     @property
     def is_iceberg(self) -> bool:
-        assert self.metadata is not None
-        return self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
+        return self.metadata is not None and self.metadata.get(KEY_TABLE_PROVIDER) == "iceberg"
 
     @property
     def owner(self) -> Optional[str]:
@@ -229,6 +260,35 @@ class DatabricksRelation(BaseRelation):
 
     def render(self) -> str:
         return super().render().lower()
+
+    def get_function_config(self, model: dict[str, Any]) -> Optional[FunctionConfig]:
+        if model.get("resource_type") == "function" and model.get("language") == "python":
+            config = model.get("config", {})
+            runtime_version = config.get("runtime_version")
+            entry_point = config.get("entry_point")
+
+            # Databricks does not use runtime_version or entry_point in SQL.
+            # Provide defaults to satisfy dbt-adapters validation.
+            if not runtime_version:
+                runtime_version = "3.11"
+                logger.debug(
+                    "runtime_version not specified for Python UDF; "
+                    "defaulting to '3.11' (not used in Databricks SQL)"
+                )
+            if not entry_point:
+                entry_point = model.get("name", "main")
+                logger.debug(
+                    f"entry_point not specified for Python UDF; "
+                    f"defaulting to '{entry_point}' (not used in Databricks SQL)"
+                )
+
+            return FunctionConfig(
+                language=model.get("language", ""),
+                type=config.get("type", ""),
+                runtime_version=runtime_version,
+                entry_point=entry_point,
+            )
+        return super().get_function_config(model)
 
 
 def is_hive_metastore(database: Optional[str], temporary: Optional[bool] = False) -> bool:

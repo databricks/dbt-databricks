@@ -1,50 +1,249 @@
 # Integration Tests for dbt-databricks
 #
-# This workflow runs integration tests that require Databricks secrets.
+# This workflow runs integration tests that require Databricks secrets. It is
+# never triggered by PR events directly — every PR-based run is the result of
+# a maintainer's explicit decision.
 #
-# For testing external contributions (PRs from forks):
-# 1. Go to Actions tab -> Integration Tests -> Run workflow
-# 2. Enter the PR number in the 'pr_number' field
-# 3. Click "Run workflow"
+# Triggering:
+# 1. On a PR (internal OR fork): a maintainer comments `/integration-test`.
+#    The integration-trigger workflow validates the comment author and
+#    dispatches this workflow with the PR number. The run posts a result
+#    comment back to the PR when the matrix completes.
+# 2. Manually from the Actions tab (workflow_dispatch):
+#    - One PR (e.g. "100") OR comma-separated list ("100,200,300") in pr_numbers.
+#    - Or a git_ref for ad-hoc testing.
+# 3. Nightly on `main` at 03:00 IST (21:30 UTC). The `prepare` job short-circuits
+#    if the current main SHA has already had a successful integration run,
+#    emitting an empty targets array so the matrix jobs skip cleanly.
 #
-# This approach is secure because:
-# - The workflow runs in the databricks repository context (access to secrets)
-# - The code to test is explicitly specified by maintainers
-# - No automatic execution of untrusted code with secrets
+# Security: PR-triggered runs are gated on maintainer comment authorization;
+# fork-PR code runs in the main repo context (access to secrets) only because
+# a maintainer explicitly approved it via the slash command.
 name: Integration Tests
 on:
-  pull_request:
-    # Run on PRs to the same repository (internal contributors)
-    paths-ignore:
-      - "**.MD"
-      - "**.md"
-      - "adapters/databricks/__version__.py"
-      - "tests/unit/**"
-      - ".github/workflows/main.yml"
-      - ".github/workflows/stale.yml"
-
   workflow_dispatch:
-    # Manual triggering for external contributions and ad-hoc testing
     inputs:
-      pr_number:
-        description: "PR number to test (for external contributions)"
+      pr_numbers:
+        description: "PR number(s) to test — single PR or comma-separated for batch (e.g. '100' or '100,200,300')"
         required: false
         type: string
       git_ref:
-        description: "Git ref (branch/tag/commit) to test"
+        description: "Git ref (branch/tag/commit) to test — used only when pr_numbers is empty"
         required: false
         type: string
 
+  schedule:
+    - cron: "30 21 * * *"   # 21:30 UTC = 03:00 IST
+
+permissions:
+  id-token: write
+  contents: read
+
+# Target-aware concurrency:
+# - Different PRs / batches don't cancel each other.
+# - Re-dispatch of the same PR / batch cancels the stale run.
+# - Schedule runs share the main-ref group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.pr_numbers || github.event.inputs.git_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  prepare:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    outputs:
+      targets: ${{ steps.parse.outputs.targets }}
+      # `count_*` is emitted alongside `shards_*` because GHA expressions have
+      # no `length()` for arrays — `max-parallel` can't derive it from the array.
+      shards_cluster: ${{ steps.parse.outputs.shards_cluster }}
+      shards_uc_cluster: ${{ steps.parse.outputs.shards_uc_cluster }}
+      shards_uc_sql_endpoint: ${{ steps.parse.outputs.shards_uc_sql_endpoint }}
+      count_cluster: ${{ steps.parse.outputs.count_cluster }}
+      count_uc_cluster: ${{ steps.parse.outputs.count_uc_cluster }}
+      count_uc_sql_endpoint: ${{ steps.parse.outputs.count_uc_sql_endpoint }}
+    steps:
+      - name: Parse targets
+        id: parse
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
+          INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
+          DEFAULT_REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          entry() { printf '{"pr":"%s","ref":"%s"}' "$1" "$2"; }
+          targets="["
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            # Nightly skip-if-unchanged: if this main SHA already has a green
+            # integration run, emit empty targets so the matrix jobs skip.
+            already_tested=$(curl -sfS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/integration.yml/runs?branch=main&status=success&head_sha=$GITHUB_SHA" \
+              | jq -r '.total_count // 0')
+            if [[ "$already_tested" -gt 0 ]]; then
+              echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
+            else
+              targets+=$(entry "nightly" "$DEFAULT_REF")
+            fi
+          elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
+            first=1
+            IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
+            for pr in "${prs[@]}"; do
+              pr_trimmed="${pr//[[:space:]]/}"
+              [[ -z "$pr_trimmed" ]] && continue
+              if [[ ! "$pr_trimmed" =~ ^[0-9]+$ ]]; then
+                echo "::error::Invalid PR number '$pr_trimmed' in pr_numbers='$INPUT_PR_NUMBERS' — expected digits, comma-separated."
+                exit 1
+              fi
+              [[ $first -eq 0 ]] && targets+=","
+              first=0
+              targets+=$(entry "$pr_trimmed" "refs/pull/$pr_trimmed/head")
+            done
+          elif [[ -n "${INPUT_GIT_REF//[[:space:]]/}" ]]; then
+            targets+=$(entry "manual" "$INPUT_GIT_REF")
+          else
+            targets+=$(entry "manual" "$DEFAULT_REF")
+          fi
+          targets+="]"
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "Parsed targets: $targets"
+          # Shard fan-out — single source of truth. Reshape here and matrix +
+          # max-parallel + prepare-shards NUM_SHARDS all follow.
+          shards_cluster='[0, 1]'
+          shards_uc_cluster='[0, 1, 2]'
+          shards_uc_sql_endpoint='[0, 1, 2]'
+          for profile in cluster uc_cluster uc_sql_endpoint; do
+            arr_var="shards_${profile}"
+            arr="${!arr_var}"
+            echo "shards_${profile}=${arr}" >> "$GITHUB_OUTPUT"
+            echo "count_${profile}=$(jq 'length' <<< "$arr")" >> "$GITHUB_OUTPUT"
+          done
+
+  # Collects test ids per profile and partitions files into shards.
+  # `--collect-only` imports test modules but never hits the workspace.
+  prepare-shards:
+    needs: prepare
+    if: needs.prepare.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        id: install-dependencies
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Collect tests and assign to shards
+        run: |
+          set -euo pipefail
+          mkdir -p shard-assignments
+          declare -A NUM_SHARDS=(
+            [databricks_cluster]=${{ needs.prepare.outputs.count_cluster }}
+            [databricks_uc_cluster]=${{ needs.prepare.outputs.count_uc_cluster }}
+            [databricks_uc_sql_endpoint]=${{ needs.prepare.outputs.count_uc_sql_endpoint }}
+          )
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            (
+              hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
+                | grep "::" \
+                > "shard-assignments/${PROFILE}-collected.txt"
+            ) &
+          done
+          wait
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            python3 scripts/shard_assign.py \
+              --profile "$PROFILE" \
+              --num-shards "${NUM_SHARDS[$PROFILE]}" \
+              --input "shard-assignments/${PROFILE}-collected.txt" \
+              --output-dir shard-assignments \
+              --algo lpt_historical_time \
+              --timings .github/test_timings.json
+          done
+
+      - name: Upload shard assignments
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+          retention-days: 5
+
+  # Serialize integration runs across the repo. Others wait FIFO by run id and
+  # abort after `abort-after-seconds`. Per-job `max-parallel` matches each
+  # matrix's shard count so a multi-PR batch dispatch stays inside this slot.
+  gate:
+    needs: prepare
+    if: needs.prepare.outputs.targets != '[]'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for integration slot
+        uses: softprops/turnstyle@15f9da4059166900981058ba251e0b652511c68f  # v3.2.2
+        with:
+          same-branch-only: false
+          poll-interval-seconds: 30
+          abort-after-seconds: 14400
+
   run-uc-cluster-e2e-tests:
-    runs-on: ubuntu-latest
+    # Do not add `if: always()` / `if: !cancelled()` here or on sibling test jobs —
+    # `needs: prepare` propagates the external-fork skip cleanly, and forcing
+    # evaluation would make `fromJSON(needs.prepare.outputs.targets)` fail on an
+    # empty output.
+    needs:
+      - prepare
+      - prepare-shards
+      - gate
+    # Skip when `prepare` emits an empty targets array (nightly skip-if-unchanged).
+    # Without this, GitHub Actions treats a job with a zero-combination matrix as
+    # a failure, so every already-tested nightly run gets reported as failed.
+    if: needs.prepare.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_cluster) }}
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_cluster) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -52,21 +251,26 @@ jobs:
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
+      UV_FROZEN: "1"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.10"
 
@@ -75,28 +279,71 @@ jobs:
         shell: sh
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
-        uses: pypa/hatch@install
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
-      - name: Run UC Cluster Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run uc-cluster-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_cluster-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
+
+      - name: Run UC Cluster Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_cluster \
+            -n 10 --dist=loadfile \
+            --reruns 2 --reruns-delay 120 \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
 
       - name: Upload UC Cluster Test Logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: uc-cluster-test-logs
+          name: uc-cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
   run-sqlwarehouse-e2e-tests:
-    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - prepare-shards
+      - gate
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_uc_sql_endpoint) }}
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_uc_sql_endpoint) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
@@ -105,21 +352,26 @@ jobs:
       DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
       TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
+      UV_FROZEN: "1"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.10"
 
@@ -128,49 +380,97 @@ jobs:
         shell: sh
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
-        uses: pypa/hatch@install
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
-      - name: Run Sql Endpoint Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH=$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run sqlw-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_sql_endpoint-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
+
+      - name: Run Sql Endpoint Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_sql_endpoint \
+            -n 10 --dist=loadfile \
+            --reruns 2 --reruns-delay 120 \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
 
       - name: Upload SQL Endpoint Test Logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: sql-endpoint-test-logs
+          name: sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
 
   run-cluster-e2e-tests:
-    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - prepare-shards
+      - gate
+    # See run-uc-cluster-e2e-tests for empty-matrix rationale.
+    if: needs.prepare.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.count_cluster) }}
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+        shard: ${{ fromJSON(needs.prepare.outputs.shards_cluster) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
     environment: azure-prod
-    # Only run on internal PRs or manual dispatch - skip external forks to avoid secret access failures
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
       DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
       DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
       TEST_PECO_CLUSTER_ID: ${{ secrets.TEST_PECO_CLUSTER_ID }}
       DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
+      UV_FROZEN: "1"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
-          # For pull_request: checkout the PR head commit
-          # For workflow_dispatch with pr_number: checkout that PR's head
-          # For workflow_dispatch with git_ref: checkout that ref
-          # Otherwise: checkout current branch
-          ref: ${{ github.event.pull_request.head.sha || (github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number)) || github.event.inputs.git_ref || github.ref }}
-          # Fetch enough history for PR testing
-          fetch-depth: 0
+          ref: ${{ matrix.target.ref }}
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.10"
 
@@ -179,19 +479,181 @@ jobs:
         shell: sh
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         id: install-dependencies
-        uses: pypa/hatch@install
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
-      - name: Run Cluster Functional Tests
-        run: DBT_TEST_USER=notnecessaryformosttests@example.com DBT_DATABRICKS_LOCATION_ROOT=$DBT_DATABRICKS_LOCATION_ROOT DBT_DATABRICKS_HOST_NAME=$DBT_DATABRICKS_HOST_NAME DBT_DATABRICKS_HTTP_PATH=$DBT_DATABRICKS_CLUSTER_HTTP_PATH DBT_DATABRICKS_CLIENT_ID=$DBT_DATABRICKS_CLIENT_ID DBT_DATABRICKS_CLIENT_SECRET=$DBT_DATABRICKS_CLIENT_SECRET hatch -v run cluster-e2e
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_cluster-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")  (paths are fed to pytest; tests are discovered in file-declaration order)"
+
+      - name: Run Cluster Functional Tests (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          DBT_DATABRICKS_HTTP_PATH="$DBT_DATABRICKS_CLUSTER_HTTP_PATH" \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_cluster \
+            -n 10 --dist=loadfile \
+            --reruns 2 --reruns-delay 120 \
+            --junitxml=logs/junit-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
 
       - name: Upload Cluster Test Logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: cluster-test-logs
+          name: cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
           retention-days: 5
+
+  gather-shards:
+    # `prepare` is in needs because the matrix below references
+    # `needs.prepare.outputs.targets`. Without it, GHA fails to resolve the
+    # matrix expansion and silently SKIPS the job (no `skipped` entry in the
+    # run jobs list either) — verified the hard way in exp-7's first attempt.
+    needs:
+      - prepare
+      - prepare-shards
+      - run-cluster-e2e-tests
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+    if: |
+      always() &&
+      needs.prepare-shards.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-${{ matrix.target.pr }}
+          path: shard-assignments/
+
+      - name: Download per-shard test logs
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          pattern: "*-test-logs-${{ matrix.target.pr }}-shard-*"
+          path: shard-logs/
+          merge-multiple: false
+
+      - name: Verify shards
+        run: |
+          set -euo pipefail
+          # Layout after download-artifact (merge-multiple: false):
+          #   shard-logs/<artifact-name>/<files...>
+          # Map: artifact-prefix -> staging-subdir -> manifest profile.
+          declare -a TRIPLES=(
+            "cluster:cluster:databricks_cluster"
+            "uc-cluster:uc-cluster:databricks_uc_cluster"
+            "sql-endpoint:sqlw:databricks_uc_sql_endpoint"
+          )
+          ANY_FAIL=0
+          for triple in "${TRIPLES[@]}"; do
+            IFS=: read -r prefix subdir profile <<< "$triple"
+            mkdir -p "junit/$subdir"
+            for d in shard-logs/${prefix}-test-logs-${{ matrix.target.pr }}-shard-*; do
+              [ -d "$d" ] || continue
+              shard=$(basename "$d" | sed -E 's/.*-shard-([0-9]+)$/\1/')
+              cp "$d/junit-shard-${shard}.xml" "junit/${subdir}/junit-shard-${shard}.xml"
+            done
+            echo "::group::Verify ${subdir} shards"
+            python3 scripts/shard_verify.py \
+              --manifest "shard-assignments/${profile}-manifest.json" \
+              --junit-dir "junit/${subdir}" || ANY_FAIL=1
+            echo "::endgroup::"
+          done
+
+          if [ "$ANY_FAIL" -ne 0 ]; then
+            echo "::error::One or more shard-verification invariants failed."
+            exit 1
+          fi
+
+  # Posts a per-job pass/fail summary comment back to the PR when dispatched
+  # with a single PR number (the slash-command path). Skipped for batch
+  # dispatches (pr_numbers contains a comma) and for schedule / git_ref runs.
+  # Matrix jobs' result fields are aggregated across cells, which is why this
+  # only runs for single-PR dispatches.
+  report-status:
+    needs:
+      - run-uc-cluster-e2e-tests
+      - run-sqlwarehouse-e2e-tests
+      - run-cluster-e2e-tests
+      - gather-shards
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.pr_numbers != '' &&
+      !contains(inputs.pr_numbers, ',')
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post result comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_numbers }}
+          UC_RESULT: ${{ needs.run-uc-cluster-e2e-tests.result }}
+          SQLW_RESULT: ${{ needs.run-sqlwarehouse-e2e-tests.result }}
+          CLUSTER_RESULT: ${{ needs.run-cluster-e2e-tests.result }}
+          GATHER_RESULT: ${{ needs.gather-shards.result }}
+        with:
+          script: |
+            const ICONS = { success: ':white_check_mark:', skipped: ':fast_forward:' };
+            const results = {
+              'UC cluster':          process.env.UC_RESULT,
+              'SQL warehouse':       process.env.SQLW_RESULT,
+              'All-purpose cluster': process.env.CLUSTER_RESULT,
+              'Shard coverage':      process.env.GATHER_RESULT,
+            };
+            const line = Object.entries(results)
+              .map(([name, r]) => `${name} ${ICONS[r] || ':x:'} ${r}`)
+              .join(' · ');
+            const runUrl =
+              `https://github.com/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const prNumber = process.env.PR_NUMBER.trim();
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber, 10),
+              body: `Integration results for PR #${prNumber} — ${line}\n\n[Run details](${runUrl}).`,
+            });

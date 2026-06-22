@@ -98,10 +98,10 @@ Hatch manages Python environments and dependencies automatically:
 # Unit tests only (fast)
 hatch run unit
 
-# Functional tests by environment
-hatch run cluster-e2e           # HMS cluster
-hatch run uc-cluster-e2e        # Unity Catalog cluster
-hatch run sqlw-e2e              # SQL Warehouse
+# Functional tests by environment (local development)
+hatch run cluster-e2e-dev       # HMS cluster (CI runs this sharded)
+hatch run uc-cluster-e2e-dev    # Unity Catalog cluster (CI runs this sharded)
+hatch run sqlw-e2e-dev          # SQL Warehouse (CI runs this sharded)
 
 # Unit tests across Python versions (for compatibility)
 hatch run test:unit             # All Python versions (3.9-3.12)
@@ -113,6 +113,40 @@ For more advanced testing scenarios:
 
 - **Pytest documentation**: See the [pytest documentation](https://docs.pytest.org/) for comprehensive test selection, filtering, and debugging options
 - **Hatch integration**: See [Hatch's documentation on passing arguments to scripts](https://hatch.pypa.io/latest/config/environment/overview/#scripts) for how to pass additional arguments to test commands
+
+### Testing against lowest-direct dependencies
+
+`pyproject.toml` declares wide dependency ranges. The default Hatch env resolves to the *highest* compatible version of every dep, but releases must also work at the *lowest* — the floor of each range. The `min-deps` env exercises that floor.
+
+The committed `requirements.lowest-direct.txt` pins every package (direct + transitive) to its lowest-direct resolution with hash verification.
+
+```bash
+# Run unit tests at lowest-direct resolution
+hatch run min-deps:unit
+
+# Run the parse smoke fixture
+hatch run min-deps:parse
+
+# Run functional tests at lowest-direct (SQL warehouse profile)
+hatch run min-deps:e2e
+```
+
+The `min-deps` env coexists with the default env — switching is just changing the prefix. Neither env mutates the other.
+
+#### Regenerating the lock
+
+When `pyproject.toml` dependencies change, re-run:
+
+```bash
+scripts/regenerate_min_deps_lock.sh
+```
+
+Commit the resulting `requirements.lowest-direct.txt` in the same PR. CI's `Min-Deps Lock Drift Check` workflow fails any PR where the lock is stale.
+
+#### Limitations
+
+- The lock is install-only — `uv sync` cannot consume it. All min-deps testing must go through `hatch run min-deps:X`.
+- The lock represents a *different* dependency set than `uv.lock`. They cannot be cross-validated; each guarantees determinism only within its own resolution mode.
 
 ## Writing Tests
 
@@ -832,9 +866,9 @@ For debugging, use your IDE's test runner rather than pytest directly:
 
 For **CLI testing**, use the hatch commands which specify the correct profile:
 ```bash
-hatch run cluster-e2e        # Tests with databricks_cluster
-hatch run uc-cluster-e2e     # Tests with databricks_uc_cluster  
-hatch run sqlw-e2e           # Tests with databricks_uc_sql_endpoint
+hatch run cluster-e2e-dev    # Tests with databricks_cluster
+hatch run uc-cluster-e2e-dev # Tests with databricks_uc_cluster (CI uses sharded prepare-shards path)
+hatch run sqlw-e2e-dev       # Tests with databricks_uc_sql_endpoint (CI uses sharded prepare-shards path)
 ```
 
 For **IDE test runners** (VS Code, PyCharm, etc.), you can override the default test profile by adding to your `test.env` file:

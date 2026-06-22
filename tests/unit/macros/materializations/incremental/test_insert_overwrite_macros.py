@@ -238,16 +238,17 @@ class TestInsertOverwriteMacros(MacroTestBase):
         self.assert_sql_equal(result, expected_sql)
 
     @pytest.mark.parametrize(
-        "use_replace_on_flag",
+        "use_replace_on_flag,expect_warning",
         [
-            False,  # Behavior flag disabled
-            True,  # Behavior flag enabled
+            (False, False),  # Flag disabled: user did not opt in, no warning
+            (True, True),  # Flag enabled: user expected REPLACE ON, warn about fallback
         ],
     )
     def test_get_insert_overwrite_sql__old_dbr_cluster_behavior_flag(
-        self, template, context, config, use_replace_on_flag
+        self, template, context, config, use_replace_on_flag, expect_warning
     ):
-        """Old DBR cluster always uses traditional INSERT OVERWRITE regardless of behavior flag"""
+        """Old DBR cluster always uses legacy INSERT OVERWRITE SQL regardless of flag,
+        but warns when the user opted into REPLACE ON via the flag."""
 
         # Mock has_capability to NOT support REPLACE ON (DBR < 17.1)
         def has_dbr_capability_side_effect(capability_name):
@@ -262,6 +263,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = True
         # Set the behavior flag (should not affect old DBR clusters)
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = use_replace_on_flag
+        context["exceptions"].warn.reset_mock()
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -276,15 +278,18 @@ class TestInsertOverwriteMacros(MacroTestBase):
             target_relation,
         )
 
-        # Verify it always uses traditional INSERT OVERWRITE syntax for old DBR cluster
         expected_sql = """
             insert overwrite table target_table
             partition (a)
             by name
             select * from source_table
         """
-
         self.assert_sql_equal(result, expected_sql)
+
+        if expect_warning:
+            context["exceptions"].warn.assert_called_once()
+        else:
+            context["exceptions"].warn.assert_not_called()
 
     @pytest.mark.parametrize(
         "use_replace_on_flag,expected_sql",
@@ -311,7 +316,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
     def test_get_insert_overwrite_sql__sql_warehouse_behavior_flag(
         self, template, context, config, use_replace_on_flag, expected_sql
     ):
-        """Test that SQL warehouse behavior flag controls INSERT OVERWRITE syntax"""
+        """Test that SQL warehouse behavior flag controls INSERT OVERWRITE syntax,
+        and that no warning is emitted on either path (regression for #1305)."""
 
         # Mock has_capability (SQL warehouses are assumed capable)
         def has_dbr_capability_side_effect(capability_name):
@@ -326,6 +332,7 @@ class TestInsertOverwriteMacros(MacroTestBase):
         context["adapter"].is_cluster.return_value = False
         # Set the behavior flag
         context["adapter"].behavior.use_replace_on_for_insert_overwrite = use_replace_on_flag
+        context["exceptions"].warn.reset_mock()
         config["partition_by"] = ["a"]
 
         source_relation = Mock()
@@ -341,3 +348,4 @@ class TestInsertOverwriteMacros(MacroTestBase):
         )
 
         self.assert_sql_equal(result, expected_sql)
+        context["exceptions"].warn.assert_not_called()

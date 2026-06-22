@@ -24,6 +24,14 @@ class PythonJobConfig(BaseModel):
         extra = "allow"
 
 
+class PythonPackagesConfig(BaseModel):
+    """Pydantic model for python packages configuration."""
+
+    packages: list[str]
+    notebook_scoped: bool
+    index_url: Optional[str] = None
+
+
 class PythonModelConfig(BaseModel):
     """
     Pydantic model for a Python model configuration.
@@ -42,6 +50,7 @@ class PythonModelConfig(BaseModel):
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None
     create_notebook: bool = False
+    notebook_scoped_libraries: bool = False
     environment_key: Optional[str] = None
     environment_dependencies: list[str] = Field(default_factory=list)
 
@@ -68,6 +77,14 @@ class PythonModelConfig(BaseModel):
                     f"{acl['permission_level']}. Must be one of {NOTEBOOK_PERMISSIONS}"
                 )
         return v
+
+    @property
+    def python_packages_config(self) -> PythonPackagesConfig:
+        return PythonPackagesConfig(
+            packages=self.packages,
+            index_url=self.index_url,
+            notebook_scoped=self.notebook_scoped_libraries,
+        )
 
 
 class ParsedPythonModel(BaseModel):
