@@ -6,6 +6,26 @@ from tests.functional.adapter.fixtures import ManagedIcebergMixin
 from tests.functional.adapter.iceberg import fixtures
 
 
+def get_provider(project, identifier):
+    rows = project.run_sql(
+        f"describe extended {{database}}.{{schema}}.{identifier}",
+        fetch="all",
+    )
+    for col_name, value, *_ in rows:
+        if str(col_name).strip() == "Provider":
+            return str(value).strip().lower()
+    return None
+
+
+def get_tblproperty(project, identifier, key):
+    rows = project.run_sql(
+        f"show tblproperties {{database}}.{{schema}}.{identifier}",
+        fetch="all",
+    )
+    values = [row[1] for row in rows if row[0] == key]
+    return values[0] if values else None
+
+
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIcebergTables:
     @pytest.fixture(scope="class")
@@ -21,6 +41,15 @@ class TestIcebergTables:
         util.run_dbt()
         run_results = util.run_dbt()
         assert len(run_results) == 3
+
+    def test_table_format_providers(self, project):
+        # With use_managed_iceberg off, table_format="iceberg" produces a Delta
+        # table with UniForm Iceberg metadata rather than a native Iceberg table.
+        util.run_dbt()
+        assert get_provider(project, "first_table") == "delta"
+        assert get_provider(project, "iceberg_table") == "delta"
+        uniform = get_tblproperty(project, "iceberg_table", "delta.universalFormat.enabledFormats")
+        assert uniform is not None and "iceberg" in uniform
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -99,7 +128,16 @@ class TestIcebergIncrementalPartitionClustering(ManagedIcebergMixin):
 
 
 class TestManagedIcebergTables(TestIcebergTables, ManagedIcebergMixin):
-    pass
+    def test_table_format_providers(self, project):
+        # With use_managed_iceberg on, table_format="iceberg" produces a native
+        # Iceberg table, not a UniForm-enabled Delta table.
+        util.run_dbt()
+        assert get_provider(project, "first_table") == "delta"
+        assert get_provider(project, "iceberg_table") == "iceberg"
+        assert (
+            get_tblproperty(project, "iceberg_table", "delta.universalFormat.enabledFormats")
+            is None
+        )
 
 
 class TestManagedIcebergSwap(TestIcebergSwap, ManagedIcebergMixin):

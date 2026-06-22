@@ -143,6 +143,11 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
 
         self.check_state_alter_change_is_applied(project, my_streaming_table)
 
+        # An alter-only change must leave the existing partitioning intact.
+        with util.get_connection(project.adapter):
+            results = project.adapter.get_relation_config(my_streaming_table)
+        assert results.config["partition_by"].partition_by == ["id"]
+
         util.assert_message_in_logs(f"Applying ALTER to: {my_streaming_table}", logs)
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs, False)
 
@@ -157,6 +162,28 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
         self.check_state_replace_change_is_applied(project, my_streaming_table)
 
         util.assert_message_in_logs(f"Applying REPLACE to: {my_streaming_table}", logs)
+
+    def test_query_change_is_applied(self, project, my_streaming_table):
+        self.check_start_state(project, my_streaming_table)
+
+        # A filter changes the defining query while keeping the output schema, so the new
+        # definition is applied in place rather than triggering a full rebuild.
+        initial_model = util.get_model_file(project, my_streaming_table)
+        new_model = initial_model.replace(
+            "select * from stream {{ ref('my_seed') }}",
+            "select * from stream {{ ref('my_seed') }} where id > 1",
+        )
+        assert new_model != initial_model
+        util.set_model_file(project, my_streaming_table, new_model)
+
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+
+        with util.get_connection(project.adapter):
+            results = project.adapter.get_relation_config(my_streaming_table)
+        assert isinstance(results, StreamingTableConfig)
+        assert "where" in results.config["query"].query.lower()
+        # the in-place update must not drop the rest of the config
+        assert results.config["partition_by"].partition_by == ["id"]
 
 
 @pytest.mark.dlt
