@@ -113,8 +113,8 @@ class TestTblPropertiesProcessor:
 
 class TestTblPropertiesConfig:
     def test_get_diff__empty_and_some_exist(self):
-        # tblproperties are "set only" - when config has no tblproperties and relation has tblproperties,
-        # we don't unset the existing tblproperties
+        # tblproperties are "set only" - when config has no tblproperties and the relation
+        # has some, we don't unset the existing tblproperties
         config_properties = TblPropertiesConfig(tblproperties={})
         relation_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
         diff = config_properties.get_diff(relation_properties)
