@@ -56,6 +56,27 @@ measures:
     expr: count(1)
 """
 
+metric_view_doc_block = """
+{% docs orders_status_doc %}
+Order lifecycle status, reused from a doc block.
+{% enddocs %}
+"""
+
+metric_view_with_doc = """
+{{ config(materialized='metric_view') }}
+
+version: 1.1
+source: "{{ ref('source_orders') }}"
+dimensions:
+  - name: status
+    expr: status
+    display_name: "Order Status"
+    comment: "{{ doc('orders_status_doc') }}"
+measures:
+  - name: total_orders
+    expr: count(1)
+"""
+
 metric_view_with_config = """
 {{
   config(

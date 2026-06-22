@@ -1109,6 +1109,31 @@ class DatabricksAdapter(SparkAdapter):
     def yaml_quote_backtick_values(self, yaml_body: str) -> str:
         return SqlUtils.yaml_quote_backtick_values(yaml_body)
 
+    @available.parse(lambda *a, **k: None)
+    def resolve_doc(
+        self, name: str, package: Optional[str] = None, node_package: Optional[str] = None
+    ) -> Optional[str]:
+        """Resolve a docs block by name and return its contents.
+
+        dbt-core only exposes ``doc()`` in the schema-YAML render context, not the
+        model render context. A metric view's body is YAML (with ``comment:`` /
+        ``display_name:`` fields) rendered as model SQL, so ``{{ doc(...) }}`` there
+        is otherwise undefined. The ``doc`` macro bridges to this method so a single
+        doc block can document both schema-YAML descriptions and metric-view fields.
+
+        Returns ``None`` when the block cannot be resolved -- including during parse,
+        before the manifest's doc lookup is built -- so the caller can decide how to
+        handle a miss. The ``@available.parse`` fallback keeps parse rendering a no-op.
+        """
+        resolver = self._macro_resolver
+        if resolver is None or not hasattr(resolver, "resolve_doc"):
+            return None
+        current_project = self.config.project_name
+        target_doc = resolver.resolve_doc(  # type: ignore[attr-defined]
+            name, package, current_project, node_package or current_project
+        )
+        return target_doc.block_contents if target_doc is not None else None
+
     @available
     def build_catalog_relation(self, model: RelationConfig) -> Optional[CatalogRelation]:
         """
