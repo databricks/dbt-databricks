@@ -201,12 +201,7 @@ DatabricksAdapter (impl.py)
   - Per-compute caching (different clusters can have different capabilities)
   - Named capabilities instead of magic version numbers
   - Automatic detection of DBR version and SQL warehouse environments
-- **Supported Capabilities**:
-  - `TIMESTAMPDIFF` (DBR 10.4+): Advanced date/time functions
-  - `INSERT_BY_NAME` (DBR 12.2+): Name-based column matching in INSERT
-  - `ICEBERG` (DBR 14.3+): Apache Iceberg table format
-  - `COMMENT_ON_COLUMN` (DBR 16.1+): Modern column comment syntax
-  - `JSON_COLUMN_METADATA` (DBR 16.2+): Efficient metadata retrieval
+- **Supported Capabilities**: see [`docs/dbr-capability-system.md`](docs/dbr-capability-system.md) for the canonical list (each capability's minimum DBR version and SQL-warehouse support). The authoritative source is the `DBRCapability` enum and `CAPABILITY_SPECS` in `dbr_capabilities.py`; the doc mirrors them in human-readable form.
 - **Usage in Code**:
 
   ```python
@@ -232,6 +227,7 @@ DatabricksAdapter (impl.py)
   1. Add to `DBRCapability` enum
   2. Add `CapabilitySpec` with version requirements
   3. Use `has_capability()` or `require_capability()` in code
+  4. Update `docs/dbr-capability-system.md` (the human-readable mirror of the enum/specs) whenever you add, remove, or change a capability or its version/SQL-warehouse support
 - **Important**: Each compute resource (identified by `http_path`) maintains its own capability cache
 
 #### Connection Management (`connections.py`)
