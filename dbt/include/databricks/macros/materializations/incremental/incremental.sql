@@ -108,6 +108,10 @@
       {%- endcall -%}
       {% do persist_constraints(target_relation, model) %}
       {% do apply_tags(target_relation, tags) %}
+      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+      {% if column_tags and column_tags.set_column_tags %}
+        {{ apply_column_tags(target_relation, column_tags) }}
+      {% endif %}
       {%- if language == 'python' -%}
         {%- do apply_tblproperties(target_relation, tblproperties) %}
       {%- endif -%}
@@ -126,6 +130,10 @@
         {% do persist_constraints(target_relation, model) %}
       {% endif %}
       {% do apply_tags(target_relation, tags) %}
+      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+      {% if column_tags and column_tags.set_column_tags %}
+        {{ apply_column_tags(target_relation, column_tags) }}
+      {% endif %}
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
@@ -182,6 +190,7 @@
         {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
         {% set row_filter = _configuration_changes.changes.get("row_filter") %}
         {% set constraints = _configuration_changes.changes.get("constraints") %}
+        {% set column_tags = _configuration_changes.changes.get("column_tags") %}
         {% if tags is not none %}
           {% do apply_tags(target_relation, tags.set_tags) %}
         {%- endif -%}
@@ -193,6 +202,9 @@
         {% endif %}
         {% if row_filter is not none %}
           {{ apply_row_filter(target_relation, row_filter) }}
+        {% endif %}
+        {% if column_tags %}
+          {{ apply_column_tags(target_relation, column_tags) }}
         {% endif %}
         {#- Incremental constraint application requires information_schema access (see fetch_*_constraints macros) -#}
         {% set contract_config = config.get('contract') %}
