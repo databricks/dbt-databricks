@@ -114,6 +114,26 @@ class TestIncrementalTagsUpdateViaAlter(BaseTestTagsUpdateViaAlter):
     materialized = "incremental"
 
 
+@pytest.mark.skip_profile("databricks_cluster")
+class TestSnapshotTags:
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {"tags_snapshot.sql": fixtures.snapshot_tags_sql}
+
+    def test_tags(self, project):
+        util.run_dbt(["snapshot"])
+        util.run_dbt(["snapshot"])
+        results = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
+            " where schema_name = '{schema}' and table_name='tags_snapshot'",
+            fetch="all",
+        )
+        assert len(results) == 3
+        expected_tags = {("a", "b"), ("c", "d"), ("k", "")}
+        actual_tags = set((row[0], row[1]) for row in results)
+        assert actual_tags == expected_tags
+
+
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestMaterializedViewTags(BaseTestTags):
@@ -170,6 +190,9 @@ class TestStreamingTableTagsUpdateViaAlter:
             fetch="all",
         )
         assert len(results) == 4
+        expected_tags = {("a", "b"), ("c", "d"), ("k", ""), ("e", "f")}
+        actual_tags = set((row[0], row[1]) for row in results)
+        assert actual_tags == expected_tags
 
 
 @pytest.mark.python
