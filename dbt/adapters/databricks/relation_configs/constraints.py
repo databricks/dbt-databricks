@@ -14,6 +14,7 @@ from dbt.adapters.databricks.constraints import (
     TypedConstraint,
     parse_constraints,
 )
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -45,6 +46,7 @@ class ConstraintsConfig(DatabricksComponentConfig):
         - Does not persist the `columns` in check constraints
         - Does not expose PK/FK RELY/NORELY in information_schema (#1513)
         - Does not persist FK `to`/`to_columns` on expression-form FKs
+        - Auto-names an unnamed primary key, so the model's name=None never matches (#1333)
         """
         if isinstance(constraint, CheckConstraint):
             return CheckConstraint(
@@ -58,9 +60,12 @@ class ConstraintsConfig(DatabricksComponentConfig):
                 columns=[],
             )
         elif isinstance(constraint, PrimaryKeyConstraint):
+            # A table has exactly one primary key, so match on columns only; this avoids a
+            # perpetual diff for an unnamed PK, whose server-assigned name never matches name=None.
+            # Renames of a named PK are reconciled separately in get_diff.
             return PrimaryKeyConstraint(
                 type=constraint.type,
-                name=constraint.name,
+                name=None,
                 columns=constraint.columns,
             )
         elif isinstance(constraint, ForeignKeyConstraint):
@@ -73,6 +78,15 @@ class ConstraintsConfig(DatabricksComponentConfig):
             return constraint
 
     def get_diff(self, other: "ConstraintsConfig") -> Optional["ConstraintsConfig"]:
+        for constraint in self.set_constraints:
+            if isinstance(constraint, ForeignKeyConstraint) and constraint.name is None:
+                logger.warning(
+                    f"Foreign key constraint on column(s) {constraint.columns} has no `name`. "
+                    "Databricks assigns one automatically, so dbt cannot match it on incremental "
+                    "runs and drops and recreates it every run. Assign a `name` to the foreign "
+                    "key in the model's YAML to avoid this churn."
+                )
+
         # Diff on normalized keys; emit original constraints for ADD/DROP SQL.
         self_by_key = {self.normalize_constraint(c): c for c in self.set_constraints}
         other_by_key = {self.normalize_constraint(c): c for c in other.set_constraints}
@@ -90,18 +104,23 @@ class ConstraintsConfig(DatabricksComponentConfig):
         }
         set_non_nulls = self.set_non_nulls - other.set_non_nulls
 
-        # Reconcile same-name FKs whose target changed (`to`/`to_columns`).
-        # Skip expression-form FKs: the target lives in `expression`, which the catalog
-        # does not round-trip, so comparing `to`/`to_columns` would churn every run.
+        # Reconcile what the key ignores: a *named* PK rename, and an explicit FK whose target
+        # (`to`/`to_columns`) changed. Expression-form FKs are skipped (no round-trippable target).
         for key in self_by_key.keys() & other_by_key.keys():
             model_constraint = self_by_key[key]
             catalog_constraint = other_by_key[key]
-            if (
+            renamed_named_pk = (
+                isinstance(model_constraint, PrimaryKeyConstraint)
+                and model_constraint.name is not None
+                and model_constraint.name != catalog_constraint.name
+            )
+            repointed_explicit_fk = (
                 isinstance(model_constraint, ForeignKeyConstraint)
                 and model_constraint.to is not None
                 and (model_constraint.to, tuple(model_constraint.to_columns or ()))
                 != (catalog_constraint.to, tuple(catalog_constraint.to_columns or ()))
-            ):
+            )
+            if renamed_named_pk or repointed_explicit_fk:
                 set_constraints.add(model_constraint)
                 constraints_to_unset.add(catalog_constraint)
 

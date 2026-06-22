@@ -221,10 +221,12 @@ class TestForeignKeyParentConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRelyConstraintReconciliation:
-    """A RELY expression on a primary key cannot be read back from information_schema, so it
-    must not trigger constraint reconciliation on an incremental run. Otherwise the parent PK
-    is dropped with CASCADE every run, silently dropping the child's foreign key (#1513).
+class TestIncrementalPrimaryKeyConstraintReconciliation:
+    """A primary key's non-round-trippable fields must not trigger reconciliation on an incremental
+    run. RELY (#1513) is not readable from information_schema, and an unnamed PK (#1333) is given a
+    server-assigned name the model lacks; treating either as a change drops the PK with CASCADE
+    every run, silently dropping the child's foreign key. The parent PK here is both unnamed and
+    RELY, so this guards both fixes.
     """
 
     @pytest.fixture(scope="class")
@@ -250,11 +252,11 @@ class TestIncrementalRelyConstraintReconciliation:
         )
         return {row[0] for row in rows}
 
-    def test_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
+    def test_unnamed_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
         util.run_dbt(["build"])
         assert "fk_rely_child" in self._foreign_key_names(project)
 
-        # A plain incremental re-run of the parent must not reconcile its RELY PK.
+        # A plain incremental re-run of the parent must not reconcile its unnamed RELY PK.
         util.run_dbt(["run", "--select", "rely_parent"])
 
         assert "fk_rely_child" in self._foreign_key_names(project)

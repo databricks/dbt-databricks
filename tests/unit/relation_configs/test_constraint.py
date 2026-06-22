@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from agate import Table
 from dbt.artifacts.resources.v1.components import ColumnInfo
@@ -476,3 +476,89 @@ class TestConstraintsConfig:
         other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         diff = config.get_diff(other)
         assert {(c.name, c.expression) for c in diff.set_constraints} == {("pk_n", "RELY")}
+
+    def test_get_diff__unnamed_primary_key_is_noop(self):
+        # An unnamed PK (name=None) is auto-named by Databricks, so the catalog read carries a
+        # name the model lacks; that difference must not be treated as a change (#1333).
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name=None, columns=["n"])
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="my_model_pk", columns=["n"]
+                )
+            },
+        )
+        assert config.get_diff(other) is None
+
+    def test_get_diff__primary_key_renamed_is_reconciled(self):
+        # A *named* PK whose name changes (same columns) is a deliberate rename and must still be
+        # reconciled — drop the old, add the new — unlike an unnamed PK adopting the server name.
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name="pk_new", columns=["n"])
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name="pk_old", columns=["n"])
+            },
+        )
+        diff = config.get_diff(other)
+        assert diff is not None
+        assert {c.name for c in diff.set_constraints} == {"pk_new"}
+        assert {c.name for c in diff.unset_constraints} == {"pk_old"}
+
+    def test_get_diff__unnamed_foreign_key_warns(self):
+        # Unnamed-FK churn is not fixed (FK keys keep `name`), so warn that the FK is recreated
+        # every incremental run and should be given a name.
+        config = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name=None,
+                    columns=["parent_id"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="server_fk",
+                    columns=["parent_id"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        with patch("dbt.adapters.databricks.relation_configs.constraints.logger") as mock_logger:
+            config.get_diff(other)
+        assert mock_logger.warning.called
+        assert "parent_id" in mock_logger.warning.call_args[0][0]
+
+    def test_get_diff__named_foreign_key_does_not_warn(self):
+        # A named FK that round-trips must not warn.
+        named_fk = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            name="fk_p",
+            columns=["parent_id"],
+            to="`c`.`s`.`parent`",
+            to_columns=["id"],
+        )
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints={named_fk})
+        other = ConstraintsConfig(set_non_nulls=set(), set_constraints={named_fk})
+        with patch("dbt.adapters.databricks.relation_configs.constraints.logger") as mock_logger:
+            config.get_diff(other)
+        assert not mock_logger.warning.called

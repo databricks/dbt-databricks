@@ -379,7 +379,6 @@ models:
         constraints:
           - type: not_null
           - type: primary_key
-            name: pk_rely_parent
             expression: RELY
   - name: rely_child
     config:
