@@ -30,16 +30,17 @@ class TestTblPropertiesProcessor:
         spec = TblPropertiesProcessor.from_relation_results(results)
         assert spec == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
 
-    def test_from_results__drops_ignored_properties(self):
-        # Properties set by Databricks (e.g. the server-default parquet compression codec)
-        # must be dropped so they don't show up as spurious configuration changes.
+    def test_from_results__retains_server_set_properties(self):
+        # Server-set properties are kept here; get_diff filters them out, not from_relation_results.
         results = {
             "show_tblproperties": fixtures.gen_tblproperties(
                 [["prop", "1"], ["delta.parquet.compression.codec", "zstd"]]
             )
         }
         spec = TblPropertiesProcessor.from_relation_results(results)
-        assert spec == TblPropertiesConfig(tblproperties={"prop": "1"})
+        assert spec == TblPropertiesConfig(
+            tblproperties={"prop": "1", "delta.parquet.compression.codec": "zstd"}
+        )
 
     def test_from_model_node__without_tblproperties(self):
         model = Mock()
@@ -135,5 +136,15 @@ class TestTblPropertiesConfig:
     def test_get_diff__no_changes(self):
         config_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
         relation_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff is None
+
+    def test_get_diff__ignores_server_set_properties(self):
+        # A server-set property (e.g. the default parquet compression codec) present on the
+        # relation but absent from the model config must not register as a change.
+        config_properties = TblPropertiesConfig(tblproperties={"prop": "1"})
+        relation_properties = TblPropertiesConfig(
+            tblproperties={"prop": "1", "delta.parquet.compression.codec": "zstd"}
+        )
         diff = config_properties.get_diff(relation_properties)
         assert diff is None
