@@ -15,6 +15,7 @@
 ### Under the Hood
 
 - Add functional tests for the `query` relation-config component's change handling: a streaming table's defining-query change is applied in place via `CREATE OR REFRESH`, and re-running a materialized view with an unchanged query leaves the existing relation in place instead of rebuilding it (test-only, no runtime impact).
+- Raise the `databricks-sql-connector` upper bound to `<4.3.1` to support `4.3.0` ([#1518](https://github.com/databricks/dbt-databricks/pull/1518))
 - Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
 - Raise the `databricks-sdk` upper bound to `<0.118.0` to pick up 0.117.0, which fixes `WorkspaceClient` construction failing with `CONTEXT_UNAVAILABLE_FOR_REMOTE_CLIENT` on Spark Connect clusters ([#1517](https://github.com/databricks/dbt-databricks/pull/1517) closes [#1252](https://github.com/databricks/dbt-databricks/issues/1252))
