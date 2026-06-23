@@ -13,6 +13,7 @@
 - Honor `incremental_apply_config_changes` in the V1 incremental merge path, allowing users to skip metadata diff queries (tags, column_tags, constraints, column_masks, tblproperties, describe_extended) when set to `false`. Matches the existing V2 behavior. ([1467](https://github.com/databricks/dbt-databricks/pull/1467) partially solves [#1402](https://github.com/databricks/dbt-databricks/issues/1402))
 - Fix column-level `databricks_tags` on Unity Catalog views updated via `ALTER` (`view_update_via_alter: true`) ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
 - Apply `tblproperties` to `metric_view` models at create time, not only on a later alter/replace run ([#1530](https://github.com/databricks/dbt-databricks/pull/1530) closes [#1527](https://github.com/databricks/dbt-databricks/issues/1527))
+- Only emit `INSERT ... BY NAME` in the `replace_where`/`microbatch` strategies on DBR 18.0+ (and SQL warehouses), since older clusters reject the `BY NAME ... REPLACE WHERE` combination with a parse error ([1539](https://github.com/databricks/dbt-databricks/pull/1539) closes [#1532](https://github.com/databricks/dbt-databricks/issues/1532))
 
 ### Under the Hood
 
