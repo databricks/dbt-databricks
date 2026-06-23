@@ -76,3 +76,23 @@ measures:
   - name: order_count
     expr: count(1)
 """
+
+metric_view_with_tblproperties = """
+{{
+  config(
+    materialized='metric_view',
+    tblproperties={
+      'quality': 'gold'
+    }
+  )
+}}
+
+version: 1.1
+source: "{{ ref('source_orders') }}"
+dimensions:
+  - name: status
+    expr: status
+measures:
+  - name: order_count
+    expr: count(1)
+"""
