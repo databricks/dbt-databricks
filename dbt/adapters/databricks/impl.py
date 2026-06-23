@@ -1433,6 +1433,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         else:
             results["information_schema.tags"] = None
 
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
+
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)
             results["information_schema.views"] = (

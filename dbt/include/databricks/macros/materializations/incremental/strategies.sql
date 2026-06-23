@@ -120,9 +120,11 @@
   {%- set predicates = args_dict['incremental_predicates'] -%}
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
-  {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+  {#-- BY NAME + REPLACE WHERE needs DBR 18.0+ on clusters (SPARK-54803), a higher floor than
+       plain insert_by_name; emitting it on older clusters fails to parse (issue #1532). --#}
+  {%- set has_by_name = adapter.has_dbr_capability('insert_by_name_replace_where') -%}
 INSERT INTO {{ target_relation.render() }}
-{%- if has_insert_by_name %} BY NAME{% endif %}
+{%- if has_by_name %} BY NAME{% endif %}
 {%- if predicates %}
   {%- if predicates is sequence and predicates is not string %}
  REPLACE WHERE {{ predicates | join(' and ') }}
