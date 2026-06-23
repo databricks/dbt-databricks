@@ -127,11 +127,19 @@ class TestTblPropertiesConfig:
         assert diff == TblPropertiesConfig(tblproperties={"prop": "1"})
 
     def test_get_diff__mixed_case(self):
-        # tblproperties are "set only" - only the new/updated tblproperties are included
+        # Both desired props differ from the relation, so get_diff returns the full config.
         config_properties = TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
         relation_properties = TblPropertiesConfig(tblproperties={"prop": "2", "c": "value"})
         diff = config_properties.get_diff(relation_properties)
         assert diff == TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"})
+
+    def test_get_diff__retains_already_applied_properties(self):
+        # "a" is already applied and only "c" is new, but get_diff must return the full desired
+        # config so create/refresh rendering doesn't drop already-applied properties.
+        config_properties = TblPropertiesConfig(tblproperties={"a": "1", "c": "1"})
+        relation_properties = TblPropertiesConfig(tblproperties={"a": "1"})
+        diff = config_properties.get_diff(relation_properties)
+        assert diff == TblPropertiesConfig(tblproperties={"a": "1", "c": "1"})
 
     def test_get_diff__no_changes(self):
         config_properties = TblPropertiesConfig(tblproperties={"prop": "1"})

@@ -20,9 +20,10 @@ class TblPropertiesConfig(DatabricksComponentConfig):
     pipeline_id: Optional[str] = None
 
     def get_diff(self, other: "TblPropertiesConfig") -> Optional["TblPropertiesConfig"]:
-        # tblproperties are "set only" - we never unset tblproperties, only add or update them
-        if unapplied_properties := self.tblproperties.items() - other.tblproperties.items():
-            return TblPropertiesConfig(tblproperties={k: v for k, v in unapplied_properties})
+        # Asymmetric diff ignores server-managed props (present only on `other`); return the
+        # full config, not the subset, since consumers render it as the create/refresh clause.
+        if self.tblproperties.items() - other.tblproperties.items():
+            return self
         return None
 
 

@@ -40,7 +40,7 @@ class StreamingTableChanges:
         initial_model = util.get_model_file(project, streaming_table)
         new_model = initial_model.replace(
             "'cron': '0 0 * * * ? *'", "'cron': '0 5 * * * ? *'"
-        ).replace("'key': 'value'", "'pipeline': 'altered'")
+        ).replace("'key': 'value'", "'key': 'value', 'pipeline': 'altered'")
         util.set_model_file(project, streaming_table, new_model)
 
     @staticmethod
@@ -51,7 +51,9 @@ class StreamingTableChanges:
         assert results.config["refresh"].cron == "0 5 * * * ? *"
         assert results.config["refresh"].time_zone_value == "Etc/UTC"
         assert results.config["comment"].comment is None
-        _check_tblproperties(results.config["tblproperties"], {"pipeline": "altered"})
+        _check_tblproperties(
+            results.config["tblproperties"], {"key": "value", "pipeline": "altered"}
+        )
 
     @staticmethod
     def change_config_via_replace(project, streaming_table):
