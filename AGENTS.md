@@ -181,6 +181,35 @@ class TestIncrementalModel:
         assert results[0][0] == 1
 ```
 
+## 📝 CHANGELOG Entries
+
+Every PR that changes runtime behavior updates `CHANGELOG.md` (enforced by the PR template). Add the entry under the topmost version heading (the one marked `(TBD)`), in the correct section: `### Features`, `### Fixes`, or `### Under the Hood`.
+
+Write one line, present tense, describing the user-visible effect (not the implementation):
+
+```
+- <summary> ([#<PR>](https://github.com/databricks/dbt-databricks/pull/<PR>))
+```
+
+When the PR addresses a tracked issue, link it in the same parentheses after the PR:
+
+```
+- <summary> ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+- Use `resolves` when merging the PR should close the issue (matches the PR template's `Resolves #`).
+- Use `partially resolves` when the PR only partly addresses the issue; the issue stays open, so don't put an auto-close keyword like `Resolves #` in the PR body.
+- Omit the issue link when there is no tracked issue.
+- Older entries use `closes`; leave them as-is and use `resolves` for new ones.
+
+Community (external) contributions credit the author with `(thanks @<author>!)` before the links:
+
+```
+- <summary> (thanks @<author>!) ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+Test-only PRs still get an `### Under the Hood` entry noted `(test-only, no runtime impact)`.
+
 ## 🏗 Architecture Deep Dive
 
 ### Adapter Inheritance Chain
