@@ -111,6 +111,42 @@ class TestStreamingTableConfig:
         # Based on the new logic, when there are no changes, get_changeset returns None
         assert changeset is None
 
+    def test_get_changeset__tblproperties_retains_already_applied(self):
+        # A new tblproperty is added on top of one already applied to the relation. The
+        # streaming-table alter path renders the changeset's tblproperties via
+        # CREATE OR REFRESH (get_create_st_internal), so the changeset must carry the full
+        # desired set, not just the newly added property.
+        old = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1"}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+        new = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=["col_a", "col_b"]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(comment="This is the table comment"),
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "query": QueryConfig(query="select * from foo"),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+        assert changeset is not None
+        assert changeset.changes["tblproperties"] == TblPropertiesConfig(
+            tblproperties={"prop": "1", "other": "other"}
+        )
+
     def test_get_changeset__some_changes(self):
         old = StreamingTableConfig(
             config={
