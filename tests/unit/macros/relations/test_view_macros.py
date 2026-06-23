@@ -52,6 +52,7 @@ class TestAlterView(MacroTestBase):
         context["apply_tags"] = Mock()
         context["apply_tblproperties"] = Mock()
         context["alter_query"] = Mock()
+        context["apply_column_tags"] = Mock()
 
     def render_alter_view(self, template_bundle, changes):
         return self.run_macro(
@@ -84,3 +85,11 @@ class TestAlterView(MacroTestBase):
         context["apply_tags"].assert_not_called()
         context["apply_tblproperties"].assert_not_called()
         context["alter_query"].assert_called_once()
+
+    def test_macros__alter_view_with_column_tags(self, context, template_bundle):
+        column_tags = Mock()
+        self.render_alter_view(template_bundle, {"column_tags": column_tags})
+        context["apply_tags"].assert_not_called()
+        context["apply_tblproperties"].assert_not_called()
+        context["alter_query"].assert_not_called()
+        context["apply_column_tags"].assert_called_once_with(template_bundle.relation, column_tags)
