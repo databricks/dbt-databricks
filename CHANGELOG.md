@@ -3,19 +3,24 @@
 ### Features
 
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
+- Add `skip_optimize` model config to opt out of the post-materialization `OPTIMIZE` call without dropping `zorder` / `liquid_clustered_by` / `auto_liquid_cluster` from the table definition. Useful when `OPTIMIZE` is delegated to Predictive Optimization or scheduled out of band. Complements the existing run-wide `DATABRICKS_SKIP_OPTIMIZE` var by allowing project-, folder-, or model-level opt-out via standard dbt config inheritance ([#703](https://github.com/databricks/dbt-databricks/issues/703)).
 
 ### Fixes
-
+- Honor the `expression` field on `primary_key` constraints on the V1 materialization path. A primary key declared with `expression: RELY` (or any trailing clause) previously had its expression silently dropped. ([#1551](https://github.com/databricks/dbt-databricks/pull/1551))
+- Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
-- Apply column-level `databricks_tags` for incremental models on the V1 materialization path (`use_materialization_v2: false`, the default). They were silently dropped at create and on subsequent tag changes; the V1 incremental materialization now applies them, matching the `table` materialization and the V2 path. ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
-- Fix column-level `databricks_tags` on Unity Catalog views updated via `ALTER` (`view_update_via_alter: true`), including runs where column tags were the only change and skipping reapplication when tags are already correct ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
+- Fix PK/FK constraints declaring an `expression` (e.g. `RELY`) being dropped and re-added on every incremental run. **Regression:** changing the `expression` on an existing PK/FK (`RELY`↔`NORELY`, or an expression-form FK's target) is no longer applied on incremental runs — use `--full-refresh`. ([#1552](https://github.com/databricks/dbt-databricks/pull/1552) closes [#1513](https://github.com/databricks/dbt-databricks/issues/1513))
+- Apply column-level `databricks_tags` for incremental models on the V1 materialization path ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
+- Fix column-level `databricks_tags` on Unity Catalog views updated via `ALTER` (`view_update_via_alter: true`) ([#1526](https://github.com/databricks/dbt-databricks/pull/1526) closes [#1525](https://github.com/databricks/dbt-databricks/issues/1525))
 
 ### Under the Hood
 
+- Add functional tests for the `query` relation-config component's change handling: a streaming table's defining-query change is applied in place via `CREATE OR REFRESH`, and re-running a materialized view with an unchanged query leaves the existing relation in place instead of rebuilding it (test-only, no runtime impact).
 - Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))
 - Raise the `dbt-adapters` upper bound to `<1.25.0` ([#1507](https://github.com/databricks/dbt-databricks/pull/1507))
 - Raise the `databricks-sdk` upper bound to `<0.118.0` to pick up 0.117.0, which fixes `WorkspaceClient` construction failing with `CONTEXT_UNAVAILABLE_FOR_REMOTE_CLIENT` on Spark Connect clusters ([#1517](https://github.com/databricks/dbt-databricks/pull/1517) closes [#1252](https://github.com/databricks/dbt-databricks/issues/1252))
 - Make the remaining incremental functional tests (tags, column tags, tblproperties, liquid clustering, column masks, persist_docs, replace table) rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`/model files, half-built relations) from the failed attempt (test-only, no runtime impact).
+- Add unit tests for the previously-uncovered live event/logging classes (`QueryError`, `ConnectionCreate`, `ConnectionCreateError`, and `DbtCoreHandler` log-level routing), bringing the live code in `events/` and `logging.py` to full coverage (test-only, no runtime impact). ([#1548](https://github.com/databricks/dbt-databricks/pull/1548))
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 

@@ -66,3 +66,17 @@ models:
       - name: id
       - name: name
 """
+
+type_widening_model = """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    on_schema_change='sync_all_columns',
+    tblproperties={'delta.enableTypeWidening': 'true'}
+) }}
+{% if not is_incremental() %}
+select cast(1 as bigint) as id, cast(10 as int) as measure
+{% else %}
+select cast(2 as bigint) as id, cast(3000000000 as bigint) as measure
+{% endif %}
+"""

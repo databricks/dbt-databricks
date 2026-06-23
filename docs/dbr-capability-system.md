@@ -20,6 +20,7 @@ Instead of magic version numbers, features are identified by clear names:
 - `JSON_COLUMN_METADATA` - Efficient column metadata retrieval (DBR 16.2+)
 - `REPLACE_ON` - Modern REPLACE ON syntax for incremental loads (DBR 17.1+)
 - `STREAMING_TABLE_JSON_METADATA` - Streaming table metadata support (DBR 17.1+)
+- `DESCRIBE_TABLE_EXTENDED_AS_JSON` - `DESCRIBE TABLE EXTENDED ... AS JSON` for relation metadata (DBR 17.3+)
 
 ### 🔧 Automatic Detection
 The system automatically detects:
@@ -71,6 +72,7 @@ The system automatically handles feature availability based on your compute:
 | `JSON_COLUMN_METADATA` | DBR 16.2 | ✅ | Efficient metadata retrieval |
 | `REPLACE_ON` | DBR 17.1 | ✅ | REPLACE ON syntax for incremental loads |
 | `STREAMING_TABLE_JSON_METADATA` | DBR 17.1 | ❌ | Streaming table metadata (coming soon) |
+| `DESCRIBE_TABLE_EXTENDED_AS_JSON` | DBR 17.3 | ✅ | `DESCRIBE TABLE EXTENDED ... AS JSON` for relation metadata |
 
 ## Multi-Compute Scenarios
 
@@ -97,8 +99,7 @@ Each compute resource maintains its own capability cache, ensuring features are 
 
 If you encounter an error like:
 ```
-DbtConfigError: Iceberg table format requires DBR 14.3+.
-Current connection does not meet this requirement.
+DbtConfigError: iceberg requires DBR 14.3+. Current connection does not meet this requirement.
 ```
 
 **Solutions:**

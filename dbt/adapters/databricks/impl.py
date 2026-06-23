@@ -205,6 +205,7 @@ class DatabricksConfig(AdapterConfig):
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
+    skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
     skip_non_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
