@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 
 from dbt.adapters.databricks.events.connection_events import (
+    ConnectionCreate,
+    ConnectionCreateError,
     ConnectionEvent,
 )
 
@@ -26,3 +28,15 @@ class TestConnectionEvents:
         mock.get_session_id_hex.return_value = "1234"
         event = ConnectionTestEvent(mock)
         assert str(event) == "Connection(session-id=1234) - This is a test"
+
+
+class TestConnectionCreateError:
+    def test_connection_create_error__formats_exception(self):
+        result = str(ConnectionCreateError(Exception("nope")))
+        assert "session-id=Unknown" in result
+        assert "nope" in result
+
+
+class TestConnectionCreate:
+    def test_connection_create(self):
+        assert str(ConnectionCreate("conn-1")) == "conn-1 - Creating connection"

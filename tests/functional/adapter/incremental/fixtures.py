@@ -85,6 +85,16 @@ metadata_fetch_incremental_sql = """
 select cast(1 as bigint) as id
 """
 
+metadata_fetch_incremental_skip_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_apply_config_changes = false,
+) }}
+
+select cast(1 as bigint) as id
+"""
+
 metadata_fetch_no_tags_schema = """
 version: 2
 

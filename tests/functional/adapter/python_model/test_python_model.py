@@ -121,7 +121,7 @@ class TestChangingSchema(SchemaNameVarMixin):
     def project_config_update(self):
         return {"models": {"+create_notebook": "true"}}
 
-    def test_changing_schema_with_log_validation(self, project, logs_dir):
+    def test_changing_schema(self, project):
         schema_vars = self.schema_name_vars(project)
         util.run_dbt(["run", *schema_vars])
         util.write_file(
@@ -130,12 +130,13 @@ class TestChangingSchema(SchemaNameVarMixin):
             "simple_python_model.py",
         )
         util.run_dbt(["run", *schema_vars])
-        log_file = os.path.join(logs_dir, "dbt.log")
-        with open(log_file) as f:
-            log = f.read()
-            assert "On model.test.simple_python_model:" in log
-            assert "spark.createDataFrame(data, schema=['test1', 'test3'])" in log
-            assert "Execution status: OK in" in log
+        columns = project.run_sql(
+            "SELECT column_name FROM {database}.information_schema.columns "
+            "WHERE table_schema = '{schema}' AND table_name = 'simple_python_model' "
+            "ORDER BY ordinal_position",
+            fetch="all",
+        )
+        assert [c[0] for c in columns] == ["test1", "test3"]
 
 
 @pytest.mark.python
@@ -207,6 +208,15 @@ class TestServerlessCluster(BasePythonModelTests):
             "my_python_model.py": fixtures.basic_python,
             "second_sql_model.sql": fixtures.second_sql,
         }
+
+    def test_serverless_python_model_data(self, project):
+        run_vars = ["--vars", json.dumps({"test_run_schema": project.test_schema})]
+        util.run_dbt(["seed", *run_vars])
+        util.run_dbt(["run", *run_vars])
+        # basic_python refs my_sql_model (six id=1 rows) and returns df.limit(2),
+        # so the serverless-built table must hold exactly those two rows.
+        rows = project.run_sql("SELECT id FROM {database}.{schema}.my_python_model", fetch="all")
+        assert sorted(row[0] for row in rows) == [1, 1]
 
 
 @pytest.mark.python

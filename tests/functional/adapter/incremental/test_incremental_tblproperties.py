@@ -31,6 +31,9 @@ class TestIncrementalTblproperties(RerunSafeMixin):
             results_dict[result.key] = result.value
         assert results_dict["c"] == "e"
         assert results_dict["d"] == "f"
+        # Dropping a property from config does not unset it on the table; the
+        # original value is left in place.
+        assert results_dict["a"] == "b"
 
 
 @pytest.mark.python
@@ -64,3 +67,4 @@ class TestIncrementalPythonTblproperties(RerunSafeMixin):
             results_dict[result.key] = result.value
         assert results_dict["c"] == "e"
         assert results_dict["d"] == "f"
+        assert results_dict["a"] == "b"
