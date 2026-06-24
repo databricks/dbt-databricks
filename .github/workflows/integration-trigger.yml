@@ -1,9 +1,15 @@
 # Integration Test Trigger
 #
-# Listens for `/integration-test` PR comments and dispatches the integration
-# test workflow against the PR head. Works uniformly for internal and forked
-# PRs because the dispatch runs in the main repo context (which has access to
-# the Databricks secrets).
+# Listens for `/integration-test` PR comments and dispatches the appropriate
+# integration test workflow against the PR head. Works uniformly for internal
+# and forked PRs because the dispatch runs in the main repo context (which
+# has access to the Databricks secrets).
+#
+# Routing on the first whitespace-separated arg after `/integration-test`:
+#   /integration-test                  → integration.yml          (latest deps)
+#   /integration-test min-deps         → integration-min-deps.yml (lowest-direct lock)
+#   /integration-test <anything else>  → integration.yml          (trailing text
+#                                        is free-form context, e.g. retry notes)
 #
 # Authorization: only users whose author_association is OWNER, MEMBER, or
 # COLLABORATOR can trigger a run. Anyone else gets a reply comment explaining
@@ -22,8 +28,7 @@ permissions:
 jobs:
   dispatch:
     # Exact command match, or the command followed by whitespace (so maintainers
-    # can add context like `/integration-test please retry the sqlw flake`) —
-    # never matches `/integration-test-foo`.
+    # can add context or modifiers) — never matches `/integration-test-foo`.
     if: |
       github.event.issue.pull_request &&
       (github.event.comment.body == '/integration-test' || startsWith(github.event.comment.body, '/integration-test ')) &&
@@ -47,22 +52,26 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7
         with:
           script: |
+            const rest = context.payload.comment.body.slice('/integration-test'.length).trim();
+            const isMinDeps = rest === 'min-deps' || rest.startsWith('min-deps ');
+            const workflowId = isMinDeps ? 'integration-min-deps.yml' : 'integration.yml';
+            const label = isMinDeps ? 'Min-deps integration tests' : 'Integration tests';
             const prNumber = String(context.payload.issue.number);
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'integration.yml',
+              workflow_id: workflowId,
               ref: 'main',
               inputs: { pr_numbers: prNumber },
             });
             const actionsUrl =
               `https://github.com/${context.repo.owner}/${context.repo.repo}` +
-              `/actions/workflows/integration.yml`;
+              `/actions/workflows/${workflowId}`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
-              body: `Integration tests dispatched for PR #${prNumber} by @${context.payload.comment.user.login}. ` +
+              body: `${label} dispatched for PR #${prNumber} by @${context.payload.comment.user.login}. ` +
                     `Track progress in the [Actions tab](${actionsUrl}).`,
             });
 

@@ -266,10 +266,7 @@ class TestStreamingTablesBasic(TestStreamingTablesMixin):
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestStreamingTableLiquidClustering:
-    """
-    Test liquid clustering support for streaming tables.
-    Note: These are smoke tests that verify models can be created with liquid_clustered_by config.
-    """
+    """Liquid clustering on streaming tables created with a liquid_clustered_by config."""
 
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -283,23 +280,24 @@ class TestStreamingTableLiquidClustering:
         }
 
     def test_create_with_liquid_clustering_config(self, project):
-        """Test STs can be created with liquid clustering config without errors."""
+        """A liquid_clustered_by config applies the configured clustering columns on create."""
         # Run seed to create test data (project fixture doesn't run seeds automatically)
         util.run_dbt(["seed"])
 
         util.run_dbt(["run", "--models", "liquid_clustered_st"])
 
-        # Verify the ST was created successfully by checking the relation type
-        relation_type = fixtures.query_relation_type(
-            project,
-            project.adapter.Relation.create(
-                identifier="liquid_clustered_st",
-                schema=project.test_schema,
-                database=project.database,
-                type=DatabricksRelationType.StreamingTable,
-            ),
+        relation = project.adapter.Relation.create(
+            identifier="liquid_clustered_st",
+            schema=project.test_schema,
+            database=project.database,
+            type=DatabricksRelationType.StreamingTable,
         )
-        assert relation_type == "streaming_table"
+        assert fixtures.query_relation_type(project, relation) == "streaming_table"
+
+        with util.get_connection(project.adapter):
+            config = project.adapter.get_relation_config(relation)
+        assert isinstance(config, StreamingTableConfig)
+        assert config.config["liquid_clustering"].cluster_by == ["id"]
 
 
 @pytest.mark.dlt

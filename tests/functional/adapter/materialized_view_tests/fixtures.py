@@ -37,7 +37,7 @@ materialized_view = """
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',
-        'time_zone': 'Etc/UTC'
+        'time_zone_value': 'Etc/UTC'
     },
     tblproperties={
         'key': 'value'
@@ -75,7 +75,7 @@ complex_types_materialized_view = """
     materialized='materialized_view',
     schedule = {
         'cron': '0 0 * * * ? *',
-        'time_zone': 'Etc/UTC'
+        'time_zone_value': 'Etc/UTC'
     },
 ) }}
 SELECT
@@ -145,4 +145,115 @@ models:
   - name: liquid_clustered_mv
     config:
       liquid_clustered_by: []
+"""
+
+
+def materialized_view_with_every(every_value: str) -> str:
+    """Render an MV model with `schedule = {'every': <value>}`."""
+    return f"""
+{{{{ config(
+    materialized='materialized_view',
+    schedule = {{'every': '{every_value}'}},
+) }}}}
+select * from {{{{ ref('my_seed') }}}}
+"""
+
+
+EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
+
+
+materialized_view_on_update_bare = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'on_update': True},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_on_update_rate_limited = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_cron_no_tz = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'cron': '0 0 * * * ? *'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_no_schedule = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('my_seed') }}
+"""
+
+materialized_view_every_with_tblproperties = """
+{{ config(
+    materialized='materialized_view',
+    schedule = {'every': '2 HOURS'},
+    tblproperties={'lifecycle_marker': 'v1'},
+) }}
+select * from {{ ref('my_seed') }}
+"""
+
+
+metadata_fetch_mv_seed_csv = """id,value
+1,100
+2,200
+""".lstrip()
+
+metadata_fetch_materialized_view_without_tags_sql = """
+{{ config(
+    materialized='materialized_view',
+) }}
+select * from {{ ref('mv_metadata_fetch_seed') }}
+"""
+
+metadata_fetch_materialized_view_with_tags_sql = """
+{{ config(
+    materialized='materialized_view',
+    databricks_tags={'classification': 'internal'},
+) }}
+select * from {{ ref('mv_metadata_fetch_seed') }}
+"""
+
+
+mv_norebuild_seed_csv = """id,value
+1,100
+2,200
+""".lstrip()
+
+# Updateable-change / no-rebuild fixtures: an identical query whose only difference
+# step-to-step is exactly one updateable component (tags, then refresh schedule).
+# The MV starts MANUAL (no schedule) and the refresh step moves it to EVERY 4 WEEKS.
+mv_norebuild_v1 = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+mv_norebuild_v2_tag_changed = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a', 'extra': 'b'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+mv_norebuild_v3_refresh_changed = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a', 'extra': 'b'},
+    schedule={'every': '4 WEEKS'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
 """

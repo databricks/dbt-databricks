@@ -41,6 +41,12 @@ class ColumnTagsConfig(DatabricksComponentConfig):
             return ColumnTagsConfig(set_column_tags=set_column_tags)
         return None
 
+    def requires_server_metadata_for_diff(self) -> bool:
+        """
+        Indicates whether server metadata is required to compute the diff for this component.
+        """
+        return self.set_column_tags is not None and len(self.set_column_tags) > 0
+
 
 class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
     name: ClassVar[str] = "column_tags"
@@ -55,7 +61,7 @@ class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
                 # row contains [column_name, tag_name, tag_value]
                 column_name = str(row[0])
                 tag_name = str(row[1])
-                tag_value = str(row[2])
+                tag_value = "" if row[2] is None else str(row[2])
 
                 if column_name not in set_column_tags:
                     set_column_tags[column_name] = {}
@@ -79,7 +85,7 @@ class ColumnTagsProcessor(DatabricksComponentProcessor[ColumnTagsConfig]):
             if databricks_tags:
                 if isinstance(databricks_tags, dict):
                     set_column_tags[col["name"]] = {
-                        str(k): str(v) for k, v in databricks_tags.items()
+                        str(k): "" if v is None else str(v) for k, v in databricks_tags.items()
                     }
                 else:
                     raise DbtRuntimeError("databricks_tags must be a dictionary")

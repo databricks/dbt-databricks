@@ -9,18 +9,20 @@ from dbt.tests.adapter.materialized_view.changes import (
     MaterializedViewChangesContinueMixin,
     MaterializedViewChangesFailMixin,
 )
+from dbt_common.contracts.config.materialization import OnConfigurationChangeOption
 
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
-    final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
-    }
+    # from_relation_results now returns all properties (including server-set ones), so scope the
+    # comparison to the keys the model configures rather than filtering a Databricks-internal list.
+    final_tblproperties = {k: v for k, v in tblproperties.tblproperties.items() if k in expected}
     assert final_tblproperties == expected
 
 
@@ -84,6 +86,29 @@ class TestMaterializedViewApplyChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesApplyMixin
 ):
     pass
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewApplyChangesDescribeJsonOn(
+    RequiresDescribeAsJsonCapabilityMixin, TestMaterializedViewApplyChanges
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value},
+            "flags": {"use_describe_as_json_for_relation_metadata": True},
+        }
+
+    @pytest.mark.skip(reason="Full-refresh bypasses get_configuration_changes(); JSON path unused")
+    def test_full_refresh_occurs_with_changes(self):
+        pass
+
+    @pytest.mark.skip(
+        reason="Alter test only mutates refresh schedule. view_text is parsed but not asserted on"
+    )
+    def test_change_is_applied_via_alter(self):
+        pass
 
 
 @pytest.mark.dlt

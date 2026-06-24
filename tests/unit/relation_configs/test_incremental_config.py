@@ -13,6 +13,7 @@ from dbt.adapters.databricks.relation_configs.constraints import (
 )
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
+from dbt.adapters.databricks.relation_configs.row_filter import RowFilterConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 
@@ -98,6 +99,8 @@ class TestIncrementalConfig:
                 "tblproperties": TblPropertiesConfig(
                     tblproperties={
                         "prop": "f1",
+                        "clusterByAuto": "true",
+                        "clusteringColumns": '[["col1"],[""a""]]',
                         "delta.constraints.check_name_length": "LENGTH (name) >= 1",
                     }
                 ),
@@ -143,5 +146,6 @@ class TestIncrementalConfig:
                     },
                     unset_column_masks=[],
                 ),
+                "row_filter": RowFilterConfig(),
             }
         )

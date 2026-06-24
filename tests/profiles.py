@@ -32,6 +32,7 @@ def _build_databricks_cluster_target(
         "connect_timeout": 5,
         "retry_all": True,
         "auth_type": os.getenv("DBT_DATABRICKS_AUTH_TYPE", "oauth"),
+        "threads": 4,
     }
     if catalog is not None:
         profile["catalog"] = catalog
@@ -39,13 +40,17 @@ def _build_databricks_cluster_target(
         profile["schema"] = schema
     if session_properties is not None:
         profile["session_properties"] = session_properties
-    if os.getenv("DBT_DATABRICKS_PORT"):
-        profile["connection_parameters"] = {
-            "_port": os.getenv("DBT_DATABRICKS_PORT"),
-            # If you are specifying a port for running tests, assume Docker
-            # is being used and disable TLS verification
-            "_tls_no_verify": True,
-        }
+    # Test runs gain nothing from connector telemetry, and when its background
+    # POSTs fail in CI they spam ERROR logs on otherwise-green runs. Turn it off
+    # here so the connector uses its NoopTelemetryClient.
+    connection_parameters: dict[str, Any] = {"enable_telemetry": False}
+    port = os.getenv("DBT_DATABRICKS_PORT")
+    if port:
+        connection_parameters["_port"] = port
+        # If you are specifying a port for running tests, assume Docker
+        # is being used and disable TLS verification
+        connection_parameters["_tls_no_verify"] = True
+    profile["connection_parameters"] = connection_parameters
     return profile
 
 

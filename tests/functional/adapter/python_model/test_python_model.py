@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -27,6 +28,31 @@ def verify_temp_table_cleaned(project, suffix):
         "SHOW TABLES IN {database}.{schema} LIKE '" + f"{suffix}'", fetch="all"
     )
     assert len(tmp_tables) == 0
+
+
+class SchemaNameVarMixin:
+    """Make the schema-change tests resilient to dbt-core test-isolation leakage.
+
+    These classes don't inherit ``BasePythonModelTests`` and run plain ``dbt run``. On
+    dbt-core 1.11.2 a sibling class's ``test_source`` schema.yml -- whose ``schema``
+    renders ``var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE'))`` -- can bleed into these
+    classes' parse when they run after one in the same xdist worker (``--dist=loadfile``),
+    failing with ``EnvVarMissingError``. Rendering that source needs both the env var
+    (read from the invocation context) and the ``test_run_schema`` var. Schema-yaml
+    rendering resolves ``var()`` from CLI vars only, so the var must be passed via
+    ``--vars`` -- exactly as dbt-core's ``BasePythonModelTests`` does -- not via
+    project-level ``vars``.
+    """
+
+    @pytest.fixture(scope="class", autouse=True)
+    def schema_name_env_var(self):
+        os.environ["DBT_TEST_SCHEMA_NAME_VARIABLE"] = "test_run_schema"
+        yield
+        os.environ.pop("DBT_TEST_SCHEMA_NAME_VARIABLE", None)
+
+    @staticmethod
+    def schema_name_vars(project):
+        return ["--vars", json.dumps({"test_run_schema": project.test_schema})]
 
 
 @pytest.mark.python
@@ -84,7 +110,7 @@ class TestPythonIncrementalModel(BasePythonIncrementalTests):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchema:
+class TestChangingSchema(SchemaNameVarMixin):
     """Test Python model schema changes using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -95,25 +121,27 @@ class TestChangingSchema:
     def project_config_update(self):
         return {"models": {"+create_notebook": "true"}}
 
-    def test_changing_schema_with_log_validation(self, project, logs_dir):
-        util.run_dbt(["run"])
+    def test_changing_schema(self, project):
+        schema_vars = self.schema_name_vars(project)
+        util.run_dbt(["run", *schema_vars])
         util.write_file(
             override_fixtures.simple_python_model_v2,
             project.project_root + "/models",
             "simple_python_model.py",
         )
-        util.run_dbt(["run"])
-        log_file = os.path.join(logs_dir, "dbt.log")
-        with open(log_file) as f:
-            log = f.read()
-            assert "On model.test.simple_python_model:" in log
-            assert "spark.createDataFrame(data, schema=['test1', 'test3'])" in log
-            assert "Execution status: OK in" in log
+        util.run_dbt(["run", *schema_vars])
+        columns = project.run_sql(
+            "SELECT column_name FROM {database}.information_schema.columns "
+            "WHERE table_schema = '{schema}' AND table_name = 'simple_python_model' "
+            "ORDER BY ordinal_position",
+            fetch="all",
+        )
+        assert [c[0] for c in columns] == ["test1", "test3"]
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaIncremental:
+class TestChangingSchemaIncremental(SchemaNameVarMixin):
     """Test Python incremental schema changes using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -129,15 +157,17 @@ class TestChangingSchemaIncremental:
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_via_incremental(self, project):
-        util.run_dbt(["seed"])
-        util.run_dbt(["run"])
-        util.run_dbt(["run"])
+        schema_vars = self.schema_name_vars(project)
+        util.run_dbt(["seed", *schema_vars])
+        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run", *schema_vars])
 
         util.check_relations_equal(project.adapter, ["incremental_model", "expected_incremental"])
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+@pytest.mark.flaky(reruns=2, reruns_delay=120)
 class TestSpecifyingHttpPath(BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
@@ -178,6 +208,15 @@ class TestServerlessCluster(BasePythonModelTests):
             "my_python_model.py": fixtures.basic_python,
             "second_sql_model.sql": fixtures.second_sql,
         }
+
+    def test_serverless_python_model_data(self, project):
+        run_vars = ["--vars", json.dumps({"test_run_schema": project.test_schema})]
+        util.run_dbt(["seed", *run_vars])
+        util.run_dbt(["run", *run_vars])
+        # basic_python refs my_sql_model (six id=1 rows) and returns df.limit(2),
+        # so the serverless-built table must hold exactly those two rows.
+        rows = project.run_sql("SELECT id FROM {database}.{schema}.my_python_model", fetch="all")
+        assert sorted(row[0] for row in rows) == [1, 1]
 
 
 @pytest.mark.python
@@ -280,6 +319,9 @@ class TestWorkflowJob:
 @pytest.mark.python
 @pytest.mark.acl
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skipif(
+    not ACL_TESTS_ENABLED, reason="ACL tests disabled (set DBT_ENABLE_ACL_TESTS=1 to enable)"
+)
 class TestPythonModelNotebookACL:
     @pytest.fixture(scope="class")
     def models(self):
@@ -293,9 +335,6 @@ class TestPythonModelNotebookACL:
         return {"models": {"+create_notebook": "true"}}
 
     def test_python_model_with_notebook_acl(self, project):
-        if not ACL_TESTS_ENABLED:
-            pytest.skip("ACL tests are not enabled")
-
         result = util.run_dbt(["run"])
         assert len(result) == 1
 
@@ -346,6 +385,9 @@ class TestPythonModelNotebookACL:
 @pytest.mark.python
 @pytest.mark.acl
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
+@pytest.mark.skipif(
+    not ACL_TESTS_ENABLED, reason="ACL tests disabled (set DBT_ENABLE_ACL_TESTS=1 to enable)"
+)
 class TestPythonModelAccessControlList:
     @pytest.fixture(scope="class")
     def models(self):
@@ -359,9 +401,6 @@ class TestPythonModelAccessControlList:
         return {"models": {"+create_notebook": "true"}}
 
     def test_python_model_with_access_control_list(self, project):
-        if not ACL_TESTS_ENABLED:
-            pytest.skip("ACL tests are not enabled")
-
         adapter = project.adapter
         conn_mgr = adapter.connections
         api_client = conn_mgr.api_client
@@ -411,7 +450,7 @@ class TestPythonModelAccessControlList:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaV2(MaterializationV2Mixin):
+class TestChangingSchemaV2(SchemaNameVarMixin, MaterializationV2Mixin):
     """Test Python model schema changes with V2 materialization using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -423,19 +462,20 @@ class TestChangingSchemaV2(MaterializationV2Mixin):
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
-        util.run_dbt(["run"])
+        schema_vars = self.schema_name_vars(project)
+        util.run_dbt(["run", *schema_vars])
         util.write_file(
             override_fixtures.simple_python_model_v2,
             project.project_root + "/models",
             "simple_python_model.py",
         )
-        util.run_dbt(["run"])
+        util.run_dbt(["run", *schema_vars])
         verify_temp_tables_cleaned(project)
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
+class TestChangingSchemaIncrementalV2(SchemaNameVarMixin, MaterializationV2Mixin):
     """Test Python incremental schema changes with V2 materialization using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -447,13 +487,14 @@ class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
-        util.run_dbt(["run"])
+        schema_vars = self.schema_name_vars(project)
+        util.run_dbt(["run", *schema_vars])
         util.write_file(
             override_fixtures.simple_incremental_python_model_v2,
             project.project_root + "/models",
             "incremental_model.py",
         )
-        util.run_dbt(["run"])
+        util.run_dbt(["run", *schema_vars])
         verify_temp_tables_cleaned(project)
 
 

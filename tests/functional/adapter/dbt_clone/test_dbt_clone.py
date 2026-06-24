@@ -22,7 +22,6 @@ class CleanupMixin:
             project.adapter.drop_schema(relation)
 
 
-@pytest.mark.skip("Skip until tests fixed upstream in 1.8.0 final")
 class TestClonePossible(BaseClonePossible, CleanupMixin):
     pass
 
@@ -93,14 +92,59 @@ class TestClonePersistDocs(BaseClone):
             f"describe extended {project.database}.{other_schema}.table_model",
             fetch="all",
         )
-        for row in results:
-            if row[0] == "comment":
-                assert row[1] == "This is a table model"
+        table_comment = next(row[1] for row in results if row[0].strip() == "Comment")
+        assert table_comment == "This is a table model"
 
         results = project.run_sql(
             f"describe extended {project.database}.{other_schema}.view_model",
             fetch="all",
         )
-        for row in results:
-            if row[0] == "comment":
-                assert row[1] == "This is a view model"
+        view_comment = next(row[1] for row in results if row[0].strip() == "Comment")
+        assert view_comment == "This is a view model"
+
+
+class TestCloneShallowClone(BaseClone, CleanupMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"table_model.sql": fixtures.table_model_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def _latest_version(self, project, relation):
+        history = project.run_sql(f"describe history {relation}", fetch="all")
+        operations = {row[4] for row in history}
+        return max(row[0] for row in history), operations
+
+    def test_shallow_clone(self, project, unique_schema, other_schema):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        clone_args = ["clone", "--state", "state", "--target", "otherschema"]
+        run_dbt(clone_args)
+
+        cloned = f"{project.database}.{other_schema}.table_model"
+
+        # the table branch materializes via CREATE OR REPLACE ... SHALLOW CLONE,
+        # which Delta records as a CLONE operation rather than a full rewrite
+        version, operations = self._latest_version(project, cloned)
+        assert "CLONE" in operations, f"clone history operations: {operations}"
+
+        # an existing target is left untouched without --full-refresh
+        run_dbt(clone_args)
+        noop_version, _ = self._latest_version(project, cloned)
+        assert noop_version == version
+
+        # --full-refresh re-clones in place, adding a fresh CLONE version
+        run_dbt([*clone_args, "--full-refresh"])
+        refreshed_version, refreshed_operations = self._latest_version(project, cloned)
+        assert refreshed_version > version
+        assert "CLONE" in refreshed_operations, (
+            f"full-refresh history operations: {refreshed_operations}"
+        )

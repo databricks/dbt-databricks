@@ -1,0 +1,5 @@
+name: 'min_deps_smoke'
+version: '1.0.0'
+config-version: 2
+
+profile: 'min_deps_smoke'

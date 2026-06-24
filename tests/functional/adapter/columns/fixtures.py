@@ -52,3 +52,31 @@ models:
       - name: string_col
         data_type: string
 """
+
+foreign_table_source_model = """
+{{ config(materialized='table') }}
+select cast(1 as bigint) as id, 'federated' as name
+"""
+
+foreign_table_source_schema = """
+version: 2
+models:
+  - name: foreign_table_source
+    columns:
+      - name: id
+      - name: name
+"""
+
+type_widening_model = """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    on_schema_change='sync_all_columns',
+    tblproperties={'delta.enableTypeWidening': 'true'}
+) }}
+{% if not is_incremental() %}
+select cast(1 as bigint) as id, cast(10 as int) as measure
+{% else %}
+select cast(2 as bigint) as id, cast(3000000000 as bigint) as measure
+{% endif %}
+"""
