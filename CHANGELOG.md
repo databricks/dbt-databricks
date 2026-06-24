@@ -17,6 +17,7 @@
 - Only emit `INSERT ... BY NAME` in the `replace_where`/`microbatch` strategies on DBR 18.0+ (and SQL warehouses), since older clusters reject the `BY NAME ... REPLACE WHERE` combination with a parse error ([1539](https://github.com/databricks/dbt-databricks/pull/1539) closes [#1532](https://github.com/databricks/dbt-databricks/issues/1532))
 - Fix materialized views always rebuilding because Databricks-internal `tblproperties` were read as configuration drift; the diff now compares only the configured properties ([#1350](https://github.com/databricks/dbt-databricks/pull/1350) closes [#1314](https://github.com/databricks/dbt-databricks/issues/1314)).
 - Stop metric views with `view_update_via_alter` from re-issuing a redundant `ALTER VIEW ... AS` on every run ([#1546](https://github.com/databricks/dbt-databricks/pull/1546))
+- Fix column comments being permanently dropped from views when `view_update_via_alter` issues `ALTER VIEW AS`; reapply persisted column comments after the query update ([#1357](https://github.com/databricks/dbt-databricks/issues/1357))
 
 ### Under the Hood
 
