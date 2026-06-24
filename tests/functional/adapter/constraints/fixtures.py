@@ -410,3 +410,32 @@ incremental_rely_pk_child_sql = """
 
 select 1 as parent_n, 10 as child_id
 """
+
+
+def _incremental_contract_off_pk_schema_yml(enforced):
+    return f"""
+version: 2
+models:
+  - name: contract_off_pk
+    config:
+      materialized: incremental
+      unique_key: id
+      on_schema_change: append_new_columns
+      contract:
+        enforced: {enforced}
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_contract_off
+"""
+
+
+incremental_contract_off_pk_enforced_schema_yml = _incremental_contract_off_pk_schema_yml("true")
+incremental_contract_off_pk_unenforced_schema_yml = _incremental_contract_off_pk_schema_yml("false")
+
+incremental_contract_off_pk_sql = """
+select 1 as id
+"""

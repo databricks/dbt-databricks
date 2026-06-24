@@ -6,6 +6,7 @@
 - Add `skip_optimize` model config to opt out of the post-materialization `OPTIMIZE` call without dropping `zorder` / `liquid_clustered_by` / `auto_liquid_cluster` from the table definition. Useful when `OPTIMIZE` is delegated to Predictive Optimization or scheduled out of band. Complements the existing run-wide `DATABRICKS_SKIP_OPTIMIZE` var by allowing project-, folder-, or model-level opt-out via standard dbt config inheritance ([#703](https://github.com/databricks/dbt-databricks/issues/703)).
 
 ### Fixes
+- Stop dropping existing constraints on incremental runs when `contract.enforced` is `false` ([#1557](https://github.com/databricks/dbt-databricks/pull/1557))
 - Honor the `expression` field on `primary_key` constraints on the V1 materialization path. A primary key declared with `expression: RELY` (or any trailing clause) previously had its expression silently dropped. ([#1551](https://github.com/databricks/dbt-databricks/pull/1551))
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
