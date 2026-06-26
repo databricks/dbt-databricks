@@ -1,5 +1,14 @@
-import pytest
+import re
 
+import pytest
+from dbt_common.contracts.constraints import ConstraintType
+
+from dbt.adapters.databricks.constraints import (
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    _local_md5,
+    synthesize_constraint_name,
+)
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -474,3 +483,119 @@ class TestConstraintMacros(MacroTestBase):
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
         assert "raise_compiler_error" in r
+
+
+class TestConstraintNameParity(MacroTestBase):
+    """The create-time macro (``get_constraint_sql``) and the Python ``synthesize_constraint_name``
+    are two implementations of one naming scheme: the macro names an unnamed PK/FK at create time,
+    and the Python function reproduces that name on the model side so the incremental diff matches
+    the catalog instead of churning + colliding (#1333, #1344). Until the macro is retired and the
+    two are unified into one code path, these tests pin them together so neither can drift.
+
+    The macro test harness mocks ``local_md5``; here we inject the real wrapper on the macro side so
+    both implementations hash with the same function -- the test then verifies the hash *inputs*
+    (the real drift risk) agree.
+    """
+
+    @pytest.fixture
+    def template_name(self) -> str:
+        return "constraints.sql"
+
+    @pytest.fixture
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations", "macros"]
+
+    @pytest.fixture
+    def model(self):
+        columns = {name: {"name": name, "data_type": "int"} for name in ("a", "b", "c")}
+        return {"columns": columns}
+
+    def _macro_name(self, template_bundle, constraint, *args):
+        # Swap the harness's mock local_md5 for the real one so the macro yields the real name.
+        template_bundle.context["local_md5"] = _local_md5
+        rendered = self.run_macro_raw(
+            template_bundle.template,
+            "get_constraint_sql",
+            template_bundle.relation,
+            constraint,
+            *args,
+        )
+        match = re.search(r"add constraint (\S+) ", rendered)
+        assert match, f"no constraint name found in rendered macro output: {rendered}"
+        return match.group(1)
+
+    def test_parity__foreign_key_single_column(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["a"],
+            "to": "`c`.`s`.`parent`",
+            "to_columns": ["id"],
+        }
+        py_name = synthesize_constraint_name(
+            ForeignKeyConstraint(
+                type=ConstraintType.foreign_key,
+                columns=["a"],
+                to="`c`.`s`.`parent`",
+                to_columns=["id"],
+            ),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__foreign_key_multiple_columns(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["a", "b"],
+            "to": "`c`.`s`.`parent`",
+            "to_columns": ["x", "y"],
+        }
+        py_name = synthesize_constraint_name(
+            ForeignKeyConstraint(
+                type=ConstraintType.foreign_key,
+                columns=["a", "b"],
+                to="`c`.`s`.`parent`",
+                to_columns=["x", "y"],
+            ),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__foreign_key_expression_form(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["a"],
+            "expression": "(a) REFERENCES `c`.`s`.`parent`",
+        }
+        py_name = synthesize_constraint_name(
+            ForeignKeyConstraint(
+                type=ConstraintType.foreign_key,
+                columns=["a"],
+                expression="(a) REFERENCES `c`.`s`.`parent`",
+            ),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__primary_key_single_column(self, template_bundle, model):
+        constraint = {"type": "primary_key", "columns": ["a"]}
+        py_name = synthesize_constraint_name(
+            PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["a"]),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__primary_key_multiple_columns(self, template_bundle, model):
+        constraint = {"type": "primary_key", "columns": ["a", "b"]}
+        py_name = synthesize_constraint_name(
+            PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["a", "b"]),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__primary_key_with_rely_expression(self, template_bundle, model):
+        constraint = {"type": "primary_key", "columns": ["a"], "expression": "RELY"}
+        py_name = synthesize_constraint_name(
+            PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["a"], expression="RELY"),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name

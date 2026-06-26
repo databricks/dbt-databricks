@@ -221,10 +221,12 @@ class TestForeignKeyParentConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRelyConstraintReconciliation:
-    """A RELY expression on a primary key cannot be read back from information_schema, so it
-    must not trigger constraint reconciliation on an incremental run. Otherwise the parent PK
-    is dropped with CASCADE every run, silently dropping the child's foreign key (#1513).
+class TestIncrementalPrimaryKeyConstraintReconciliation:
+    """A primary key's non-round-trippable fields must not trigger reconciliation on an incremental
+    run. RELY (#1513) is not readable from information_schema, and an unnamed PK (#1333) is given a
+    server-assigned name the model lacks; treating either as a change drops the PK with CASCADE
+    every run, silently dropping the child's foreign key. The parent PK here is both unnamed and
+    RELY, so this guards both fixes.
     """
 
     @pytest.fixture(scope="class")
@@ -250,11 +252,57 @@ class TestIncrementalRelyConstraintReconciliation:
         )
         return {row[0] for row in rows}
 
-    def test_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
+    def test_unnamed_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
         util.run_dbt(["build"])
         assert "fk_rely_child" in self._foreign_key_names(project)
 
-        # A plain incremental re-run of the parent must not reconcile its RELY PK.
+        # A plain incremental re-run of the parent must not reconcile its unnamed RELY PK.
         util.run_dbt(["run", "--select", "rely_parent"])
 
         assert "fk_rely_child" in self._foreign_key_names(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalMultipleUnnamedForeignKeys:
+    """Two unnamed foreign keys to the same parent must both survive an incremental run. Without a
+    deterministic name, the model's name=None never matches the catalog's server-assigned name, so
+    the diff drops and re-adds both every run, and the unnamed re-adds collide on the server-derived
+    name with DELTA_CONSTRAINT_ALREADY_EXISTS (#1344).
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": False}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.incremental_multiple_fk_schema_yml,
+            "multi_fk_parent.sql": override_fixtures.incremental_multiple_fk_parent_sql,
+            "multi_fk_child.sql": override_fixtures.incremental_multiple_fk_child_sql,
+        }
+
+    def _foreign_key_columns(self, project):
+        rows = project.run_sql(
+            """
+            SELECT kcu.column_name
+            FROM {database}.information_schema.key_column_usage kcu
+            JOIN {database}.information_schema.table_constraints tc
+              ON kcu.constraint_name = tc.constraint_name
+             AND kcu.constraint_schema = tc.constraint_schema
+            WHERE tc.constraint_schema = '{schema}'
+              AND tc.table_name = 'multi_fk_child'
+              AND tc.constraint_type = 'FOREIGN KEY'
+            """,
+            fetch="all",
+        )
+        return {row[0] for row in rows}
+
+    def test_multiple_unnamed_fks_survive_incremental_run(self, project):
+        util.run_dbt(["build"])
+        assert {"parent_a", "parent_b"} <= self._foreign_key_columns(project)
+
+        # The incremental re-run must not drop and re-add the unnamed FKs (they would collide).
+        util.run_dbt(["run", "--select", "multi_fk_child"])
+
+        assert {"parent_a", "parent_b"} <= self._foreign_key_columns(project)

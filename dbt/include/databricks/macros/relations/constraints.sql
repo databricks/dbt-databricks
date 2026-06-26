@@ -233,17 +233,21 @@
         {% set parent = parent_relation.render() %}
       {% endif %}
 
+      {% set parent_columns = constraint.get('to_columns') %}
       {% if not name %}
         {% if local_md5 %}
           {{ exceptions.warn("Constraint of type " ~ type ~ " with no `name` provided. Generating hash instead for relation " ~ relation.identifier) }}
-          {%- set name = local_md5("foreign_key;" ~ relation.identifier ~ ";" ~ column_names ~ ";" ~ parent ~ ";") -%}
+          {%- set hash_input = "foreign_key;" ~ relation.identifier ~ ";" ~ column_names ~ ";" ~ parent ~ ";" -%}
+          {%- if parent_columns -%}
+            {%- set hash_input = hash_input ~ parent_columns ~ ";" -%}
+          {%- endif -%}
+          {%- set name = local_md5(hash_input) -%}
         {% else %}
           {{ exceptions.raise_compiler_error("Constraint of type " ~ type ~ " with no `name` provided, and no md5 utility.") }}
-        {% endif %}    
+        {% endif %}
       {% endif %}
 
       {% set stmt = "alter table " ~ relation.render() ~ " add constraint " ~ name ~ " foreign key(" ~ joined_names ~ ") references " ~ parent %}
-      {% set parent_columns = constraint.get('to_columns') %}
       {% if parent_columns %}
         {% set quoted_parent_columns = [] %}
         {% for parent_column in parent_columns %}
