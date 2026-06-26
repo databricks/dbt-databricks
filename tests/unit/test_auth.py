@@ -5,20 +5,11 @@ from unittest import mock
 
 import keyring.backend
 import pytest
-from databricks.sdk import config as _sdk_config
 
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
     DatabricksCredentials,
 )
-
-# databricks-sdk >=0.103 added a network probe to Config(); on older SDKs
-# this symbol doesn't exist and the lazy `_ensure_config` path is unnecessary.
-_REQUIRES_LAZY_CONFIG = pytest.mark.skipif(
-    not hasattr(_sdk_config, "get_host_metadata"),
-    reason="lazy _ensure_config is only required when Config() does a network probe",
-)
-
 
 _COMMON_KWARGS = {
     "host": "yourorg.databricks.com",
@@ -28,7 +19,6 @@ _COMMON_KWARGS = {
 }
 
 
-@_REQUIRES_LAZY_CONFIG
 class TestParseTimeIsOffline:
     """`dbt parse/list/compile` must stay fully offline. Building
     `DatabricksCredentials` is on that path, so for every supported auth
@@ -65,7 +55,6 @@ class TestParseTimeIsOffline:
             mock_config.assert_not_called()
 
 
-@_REQUIRES_LAZY_CONFIG
 class TestEnsureConfigTriggersTheRightAuth:
     """Connect-time counterpart to TestParseTimeIsOffline: when something
     actually does need the config (e.g. opening a connection), `_ensure_config`
