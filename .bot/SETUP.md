@@ -67,7 +67,7 @@ PyPI/npm egress (drop the `setup-jfrog` steps) — but that's a larger change.
 ## 5. Engine version
 
 `ENGINE_REF` is pinned (lockstep) across all four workflows to
-`8abd625accfbcf89ab444ffc18a7fbee68084ed9`. **This must be ≥ the SHA that
+`9d63045eb40ec3f9fc61090411f4672373c28770`. **This must be ≥ the SHA that
 includes `databricks-bot-engine` PR #71** (configurable convention files via the
 `REPO_RULES_FILES` env var) — all four bot workflows set
 `REPO_RULES_FILES: AGENTS.md` in their run-step `env:`, and on an older engine

@@ -66,7 +66,7 @@ jobs:
       - name: Install bot engine (pinned ref) + Claude SDK/CLI
         env:
           ENGINE_PAT: ${{ secrets.BOT_ENGINE_PAT }}
-          ENGINE_REF: 8abd625accfbcf89ab444ffc18a7fbee68084ed9
+          ENGINE_REF: 9d63045eb40ec3f9fc61090411f4672373c28770
         run: |
           set -euo pipefail
           : "${ENGINE_REF:?pin the engine to a tag/SHA before activation (refusing @main)}"
