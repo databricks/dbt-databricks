@@ -84,6 +84,7 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          REPO_RULES_FILES: AGENTS.md   # repo conventions (dbt uses AGENTS.md); needs ENGINE_REF incl. bot-engine #71
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           DRY_RUN: 'false'
           RUNNER_TEMP: ${{ runner.temp }}

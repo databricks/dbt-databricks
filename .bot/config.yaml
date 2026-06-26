@@ -4,20 +4,14 @@
 # (TEST_REPO_ROOT, the checkout); denied_subpaths below are relative to it.
 #
 # The reviewer-bot needs NO .bot/ prompts (those are engine-owned); only the
-# engineer-bot is prompt-driven. The reviewer DOES read `repo_rules_files` below.
+# engineer-bot is prompt-driven. (Repo conventions come from AGENTS.md via the
+# REPO_RULES_FILES env var set in the workflows, not from this file.)
 name: dbt_databricks_bugfix
 marker_namespace: engineer-bot-dbt
 branch_prefix: ai/bugfix-issue-
 bot_login_prefix: peco-engineer-bot
 max_replies_per_thread: 5
 
-# Repo conventions injected into both bots' system prompts. dbt-databricks keeps
-# its conventions in AGENTS.md (not CLAUDE.md), so point the engine there.
-# NOTE: requires an ENGINE_REF that includes databricks-bot-engine PR #71
-# (configurable repo_rules_files). On an older engine this key is ignored and
-# the bots fall back to CLAUDE.md (absent here ⇒ no conventions injected).
-repo_rules_files:
-  - AGENTS.md
 
 # Issue-driven PR templates: {issue_number}/{issue_title}/{issue_url} come from
 # the tracking issue the maintainer labelled.

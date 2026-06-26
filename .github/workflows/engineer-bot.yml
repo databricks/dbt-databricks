@@ -111,6 +111,7 @@ jobs:
           ISSUE_URL:    ${{ github.event.issue.html_url }}
           GH_TOKEN:     ${{ steps.token.outputs.token }}
           MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          REPO_RULES_FILES: AGENTS.md   # repo conventions (dbt uses AGENTS.md); needs ENGINE_REF incl. bot-engine #71
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           RUNNER_TEMP: ${{ runner.temp }}
         run: python -m databricks_bot_engine.engineer_bot.run --phase author --bot .bot
