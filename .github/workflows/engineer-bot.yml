@@ -1,0 +1,171 @@
+# Engineer-bot — issue-triggered bug-fix bot for dbt-databricks.
+#
+# A maintainer labels an issue `engineer-bot`; this installs the engine + Claude
+# SDK, runs the bug-fix flow against THIS repo's Python source (self-verifying
+# with unit tests), and opens a fix PR. INERT until .bot/SETUP.md is complete.
+#
+# Self-contained / INLINED (public repo can't `uses:` the internal engine's
+# composites); protected runner + JFrog mirror. dbt-databricks is pure Python —
+# no .NET, no driver checkout, no live-warehouse test config: the agent
+# self-verifies with `hatch run test:unit` (unit tests need no warehouse).
+name: Engineer Bot — Fix (issue-triggered)
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write        # push the fix branch
+  pull-requests: write   # open the fix PR
+  issues: write          # comment the outcome on the issue
+  id-token: write        # JFrog OIDC exchange (setup-jfrog)
+
+concurrency:
+  # One fix run per issue; queue (don't cancel) so a re-label doesn't race.
+  group: engineer-bot-fix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    # Label IS the authorization: only maintainers (triage/write) can apply it,
+    # and issue bodies are untrusted input. `issues: [labeled]` fires ONLY for
+    # issues — labeling a PR `engineer-bot` is a pull_request event and never
+    # re-triggers this job, so the shared label can't cause a fix→PR→fix loop.
+    if: github.event.label.name == 'engineer-bot'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: [linux-ubuntu-latest]
+    timeout-minutes: 45
+    steps:
+      - name: Mint engineer-bot App token
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+          private-key: ${{ secrets.ENGINEER_BOT_PRIVATE_KEY }}
+
+      # Early "I've started" comment with a link to this run. Values via env
+      # (never interpolated) so an untrusted issue title can't inject shell.
+      - name: Comment that the bot has started
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+            --body "🤖 engineer-bot is on it — working on a fix. Progress: [run log](${RUN_URL}). I'll comment again with the outcome (and open a fix PR if I make changes)."
+
+      - name: Checkout (the fix PR is opened against this repo)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          token: ${{ steps.token.outputs.token }}   # so the fix-branch push authenticates as the bot
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Configure bot git identity
+        env:
+          # noreply attribution: <USER_ID>+<login>@users.noreply.github.com where
+          # USER_ID is the NUMERIC user id of peco-engineer-bot[bot] (NOT the App id).
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          set -euo pipefail
+          bot_login="peco-engineer-bot[bot]"
+          bot_id="$(gh api "/users/${bot_login}" --jq .id)"
+          git config user.name "${bot_login}"
+          git config user.email "${bot_id}+${bot_login}@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Configure JFrog mirror (pip + npm)
+        uses: ./.github/actions/setup-jfrog
+        with:
+          configure-pip: 'true'
+          configure-npm: 'true'
+
+      - name: Install bot engine (pinned ref) + Claude SDK/CLI
+        env:
+          ENGINE_PAT: ${{ secrets.BOT_ENGINE_PAT }}
+          ENGINE_REF: 8abd625accfbcf89ab444ffc18a7fbee68084ed9
+        run: |
+          set -euo pipefail
+          : "${ENGINE_REF:?pin the engine to a tag/SHA before activation (refusing @main)}"
+          python -m pip install --upgrade pip
+          pip install "databricks-bot-engine @ git+https://x-access-token:${ENGINE_PAT}@github.com/databricks/databricks-bot-engine@${ENGINE_REF}"
+          pip install 'claude-agent-sdk==0.2.102'
+          npm install -g @anthropic-ai/claude-code@2.1.61
+          # dbt-databricks uses hatch for its test env; install it so the agent's
+          # allowlisted `hatch run test:unit` self-verification works.
+          pip install hatch
+
+      - name: Run bug-fix author
+        id: author
+        env:
+          TEST_REPO_ROOT: ${{ github.workspace }}          # single-repo: agent edits THIS checkout
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE:  ${{ github.event.issue.title }}
+          ISSUE_BODY:   ${{ github.event.issue.body }}
+          ISSUE_URL:    ${{ github.event.issue.html_url }}
+          GH_TOKEN:     ${{ steps.token.outputs.token }}
+          MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python -m databricks_bot_engine.engineer_bot.run --phase author --bot .bot
+
+      - name: Open fix PR
+        id: publish
+        # author SELF-REPORTS change_made|no_change_needed|blocked; run_author maps
+        # that to the emitted outcome (change_made -> success). Gate publish on success.
+        if: steps.author.outputs.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          ENGINEER_BOT_APP_ID: ${{ secrets.ENGINEER_BOT_APP_ID }}
+          TEST_REPO_ROOT: ${{ github.workspace }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE:  ${{ github.event.issue.title }}
+          ISSUE_URL:    ${{ github.event.issue.html_url }}
+          TOUCHED_FILES: ${{ steps.author.outputs.touched_files }}
+          TOUCHED_COUNT: ${{ steps.author.outputs.touched_count }}
+          SUMMARY:       ${{ steps.author.outputs.summary }}
+          RED_GREEN_TESTS: ${{ steps.author.outputs.red_green_tests }}
+          OUT_OF_SCOPE:    ${{ steps.author.outputs.out_of_scope }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python -m databricks_bot_engine.engineer_bot.publish
+
+      - name: Label the fix PR for review
+        # publish applies `engineer-bot`; the reviewer gates on `review-bot`, so add
+        # that too — otherwise the fix PR is never reviewed and the loop won't close.
+        if: steps.author.outputs.outcome == 'success' && steps.publish.outputs.coverage_pr_url != ''
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PR_URL: ${{ steps.publish.outputs.coverage_pr_url }}
+        run: gh pr edit "$PR_URL" --add-label review-bot
+
+      - name: Comment outcome on the issue
+        if: always()
+        # `reason` is LLM-derived from untrusted issue text — pass via env, never
+        # interpolate into the command. Source of truth for "succeeded" is the PR
+        # URL's presence, not the publish step's exit status.
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          OUTCOME: ${{ steps.author.outputs.outcome }}
+          REASON: ${{ steps.author.outputs.reason }}
+          PR_URL: ${{ steps.publish.outputs.coverage_pr_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -n "$PR_URL" ]; then
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+                --body "engineer-bot bug-fix: outcome=\`success\`. Fix PR: ${PR_URL}. ${REASON}"
+            else
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+                --body "engineer-bot bug-fix: outcome=\`failed\` — authored a fix but no PR was opened (publish produced no PR URL). See the run log; this issue stays open for re-trigger."
+            fi
+          else
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+              --body "engineer-bot bug-fix: outcome=\`${OUTCOME}\`. ${REASON}"
+          fi

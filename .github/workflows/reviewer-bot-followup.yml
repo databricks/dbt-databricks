@@ -1,0 +1,90 @@
+# Reviewer-bot follow-up — responds to replies on the reviewer's own threads
+# (verifies the fix against the PR diff, then resolves or pushes back).
+#
+# INERT until .bot/SETUP.md is complete. The reviewer-bot App needs Contents:
+# READ & WRITE (the resolveReviewThread mutation is gated behind Contents:write,
+# NOT Pull-requests:write — a GitHub gotcha) plus Pull requests: Read & write.
+#
+# Self-contained / INLINED (public repo can't `uses:` the internal engine's
+# composites); protected runner + JFrog mirror, like reviewer-bot.yml.
+name: Reviewer Bot — Follow-up
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: read         # the App token (Contents R/W) does the resolve mutation
+  pull-requests: write   # the App token posts inline replies
+  id-token: write        # JFrog OIDC exchange (setup-jfrog)
+
+concurrency:
+  group: reviewer-bot-followup-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  followup:
+    # Skip fork PRs (keep secrets out of untrusted code's reach); same `review-bot`
+    # label gate as reviewer-bot.yml. Commenter/marker filtering lives in
+    # followup.py (it re-checks every open thread and no-ops on non-matches).
+    if: >-
+      github.event.pull_request.head.repo.fork == false
+      && github.event.pull_request.state == 'open'
+      && contains(github.event.pull_request.labels.*.name, 'review-bot')
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: [linux-ubuntu-latest]
+    timeout-minutes: 15
+    steps:
+      - name: Mint review-bot App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+          private-key: ${{ secrets.REVIEW_BOT_PRIVATE_KEY }}
+
+      - name: Checkout PR head (read-only; agent only POSTS via GH_TOKEN)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Configure JFrog mirror (pip + npm)
+        uses: ./.github/actions/setup-jfrog
+        with:
+          configure-pip: 'true'
+          configure-npm: 'true'
+
+      - name: Install bot engine (pinned ref) + Claude SDK/CLI
+        env:
+          ENGINE_PAT: ${{ secrets.BOT_ENGINE_PAT }}
+          ENGINE_REF: 8abd625accfbcf89ab444ffc18a7fbee68084ed9
+        run: |
+          set -euo pipefail
+          : "${ENGINE_REF:?pin the engine to a tag/SHA before activation (refusing @main)}"
+          python -m pip install --upgrade pip
+          pip install "databricks-bot-engine @ git+https://x-access-token:${ENGINE_PAT}@github.com/databricks/databricks-bot-engine@${ENGINE_REF}"
+          pip install 'claude-agent-sdk==0.2.102'
+          npm install -g @anthropic-ai/claude-code@2.1.61
+
+      - name: Run follow-up agent
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DRY_RUN: 'false'
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python -m databricks_bot_engine.reviewer_bot.followup

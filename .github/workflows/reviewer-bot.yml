@@ -1,0 +1,99 @@
+# Reviewer-bot — reviews PRs in dbt-databricks and posts inline findings.
+#
+# INERT until an operator completes .bot/SETUP.md: Actions enabled, the two
+# GitHub Apps installed, the secrets + labels created, AND this repo granted the
+# databricks-protected-runner-group runner group + JFrog OIDC trust (see SETUP).
+#
+# Self-contained / INLINED: dbt-databricks is PUBLIC, so it cannot `uses:` the
+# (internal) engine repo's composite actions / reusable workflows — the run
+# steps are inline. Runs on the org protected runner group (egress-blocked from
+# public PyPI/npm), so pip + npm route through the internal JFrog mirror via the
+# local setup-jfrog action.
+name: Reviewer Bot
+
+on:
+  pull_request:
+    # `labeled` so adding `review-bot` to an open PR triggers a review at once.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write   # post inline review findings
+  id-token: write        # JFrog OIDC exchange (setup-jfrog)
+
+concurrency:
+  group: reviewer-bot-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Non-fork, non-draft, `review-bot`-labeled PRs only: fork PRs must never see
+    # the model/App secrets; drafts aren't ready; the label is the maintainer-only
+    # opt-in. engineer-bot fix PRs get `review-bot` applied by engineer-bot.yml.
+    if: >-
+      github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.fork == false
+      && contains(github.event.pull_request.labels.*.name, 'review-bot')
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: [linux-ubuntu-latest]
+    timeout-minutes: 30
+    steps:
+      - name: Mint review-bot App token
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+          private-key: ${{ secrets.REVIEW_BOT_PRIVATE_KEY }}
+
+      - name: Checkout PR (merge ref)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0   # reviewer diffs head against base
+          # Keep the App token OUT of .git/config: the LLM runs over untrusted PR
+          # content, so a prompt-injection mustn't read+leak it. The reviewer only
+          # POSTS via the minted token in GH_TOKEN; it never uses git creds.
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+
+      # The protected runner group is egress-blocked from pypi.org / registry.npmjs.org,
+      # so route pip + npm through the org's internal JFrog mirror (keyless OIDC).
+      - name: Configure JFrog mirror (pip + npm)
+        uses: ./.github/actions/setup-jfrog
+        with:
+          configure-pip: 'true'
+          configure-npm: 'true'
+
+      - name: Install bot engine (pinned ref) + Claude SDK/CLI
+        env:
+          # Fine-grained PAT, read-only Contents on databricks/databricks-bot-engine
+          # (PRIVATE for now). Drop the `x-access-token:${ENGINE_PAT}@` prefix once
+          # that repo is public; ENGINE_REF stays pinned to an immutable SHA.
+          ENGINE_PAT: ${{ secrets.BOT_ENGINE_PAT }}
+          ENGINE_REF: 8abd625accfbcf89ab444ffc18a7fbee68084ed9
+        run: |
+          set -euo pipefail
+          : "${ENGINE_REF:?pin the engine to a tag/SHA before activation (refusing @main)}"
+          python -m pip install --upgrade pip
+          pip install "databricks-bot-engine @ git+https://x-access-token:${ENGINE_PAT}@github.com/databricks/databricks-bot-engine@${ENGINE_REF}"
+          # SDK + CLI resolve through the JFrog mirror configured above. Pinned to
+          # match the engine's hash-locked versions; bump in lockstep with ENGINE_REF.
+          pip install 'claude-agent-sdk==0.2.102'
+          npm install -g @anthropic-ai/claude-code@2.1.61
+
+      - name: Run reviewer
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DRY_RUN: 'false'
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python -m databricks_bot_engine.reviewer_bot.run_review
