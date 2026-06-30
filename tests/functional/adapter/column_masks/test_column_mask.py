@@ -2,13 +2,32 @@ import pytest
 from dbt.tests.util import run_dbt, write_file
 
 from tests.functional.adapter.column_masks.fixtures import (
+    base_model_py,
     base_model_sql,
     base_model_streaming_table,
     column_mask_seed,
     model,
     model_with_extra_args,
 )
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import MaterializationV1Mixin, MaterializationV2Mixin
+
+
+def _create_password_mask(project):
+    project.run_sql(
+        f"CREATE OR REPLACE FUNCTION {project.database}.{project.test_schema}."
+        "password_mask(password STRING) RETURNS STRING RETURN '*****';"
+    )
+
+
+def _column_masks(project, table_name):
+    return project.run_sql(
+        f"""
+        SELECT column_name
+        FROM {project.database}.information_schema.column_masks
+        WHERE table_schema = '{project.test_schema}' AND table_name = '{table_name}'
+        """,
+        fetch="all",
+    )
 
 
 class ColumnMaskMixin(MaterializationV2Mixin):
@@ -149,3 +168,67 @@ class TestMaterializedViewColumnMaskFailure(MaterializationV2Mixin):
     def test_view_column_mask_failure(self, project):
         result = run_dbt(["run"], expect_pass=False)
         assert "Column masks are not yet supported" in result.results[0].message
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnMaskNotAppliedAtCreateV1(MaterializationV1Mixin):
+    """v1 applies no column mask at create (the headline v1/v2 fork): the value
+    round-trips unmasked and information_schema.column_masks is empty for the relation."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"base_model.sql": base_model_sql, "schema.yml": model}
+
+    def test_v1_applies_no_column_mask_at_create(self, project):
+        _create_password_mask(project)
+        run_dbt(["run"])
+        assert _column_masks(project, "base_model") == [], "v1 should apply no mask at create"
+        result = project.run_sql("SELECT id, password FROM base_model", fetch="one")
+        assert result[1] == "password123"
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPythonColumnMaskV1:
+    """Python model column mask under v1 (saveAsTable): no mask applied."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"base_model.py": base_model_py, "schema.yml": model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {"+submission_method": "serverless_cluster"},
+        }
+
+    def test_v1_python_applies_no_mask(self, project):
+        _create_password_mask(project)
+        run_dbt(["run"])
+        assert _column_masks(project, "base_model") == [], "v1 Python should apply no mask"
+        assert project.run_sql("SELECT password FROM base_model", fetch="one")[0] == "password123"
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPythonColumnMaskV2:
+    """Python model column mask under v2 (create_table_at): mask applied."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"base_model.py": base_model_py, "schema.yml": model}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+submission_method": "serverless_cluster"},
+        }
+
+    def test_v2_python_applies_mask(self, project):
+        _create_password_mask(project)
+        run_dbt(["run"])
+        masks = _column_masks(project, "base_model")
+        assert len(masks) == 1 and masks[0][0] == "password", f"v2 Python should mask, got {masks}"
+        assert project.run_sql("SELECT password FROM base_model", fetch="one")[0] == "*****"
