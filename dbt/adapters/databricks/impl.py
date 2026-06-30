@@ -20,6 +20,7 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.events.types import AdapterEventWarning
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
@@ -31,6 +32,7 @@ from dbt.adapters.spark.impl import (
 )
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
+from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
 from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
@@ -1007,6 +1009,25 @@ class DatabricksAdapter(SparkAdapter):
 
         # Create a case-insensitive lookup for column names
         columns_lower = {k.lower(): k for k in columns.keys()}
+
+        # Warn about columns that are documented in the model's schema but are not present in the
+        # relation. These are silently skipped below (rather than erroring on the alter), so surface
+        # them to the user to catch typos and stale documentation.
+        existing_lower = {column.column.lower() for column in existing_columns}
+        missing = [
+            original_name
+            for name_lower, original_name in columns_lower.items()
+            if name_lower not in existing_lower
+        ]
+        if missing:
+            warn_or_error(
+                AdapterEventWarning(
+                    base_msg=(
+                        "The following columns are specified in the schema but are not present "
+                        "in the database and will be skipped: " + ", ".join(missing)
+                    )
+                )
+            )
 
         for column in existing_columns:
             name = column.column

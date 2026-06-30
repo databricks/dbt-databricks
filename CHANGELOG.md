@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Fixes
+
+- Warn when a column documented in a model's `schema.yml` is absent from the relation while applying column comments, instead of silently skipping it — surfaces typos and stale column documentation. Covers the column-comment comparison paths (V1 `get_persist_doc_columns` and V2 `ColumnCommentsConfig.get_diff`); create-time inline comments are not yet covered. Ports the behavior added in dbt-adapters ([dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684) closes [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)) ([#1563](https://github.com/databricks/dbt-databricks/pull/1563)).
+
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
