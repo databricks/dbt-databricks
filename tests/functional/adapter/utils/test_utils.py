@@ -1,3 +1,5 @@
+import pytest
+from dbt.tests.adapter.utils import base_utils
 from dbt.tests.adapter.utils.test_any_value import BaseAnyValue
 from dbt.tests.adapter.utils.test_array_append import BaseArrayAppend
 from dbt.tests.adapter.utils.test_array_concat import BaseArrayConcat
@@ -28,6 +30,8 @@ from dbt.tests.adapter.utils.test_safe_cast import BaseSafeCast
 from dbt.tests.adapter.utils.test_split_part import BaseSplitPart
 from dbt.tests.adapter.utils.test_string_literal import BaseStringLiteral
 from dbt.tests.adapter.utils.test_validate_sql import BaseValidateSqlMethod
+
+import tests.functional.adapter.utils.fixture_split_part as fixture_split_part
 
 
 class TestAnyValue(BaseAnyValue):
@@ -136,6 +140,19 @@ class TestSafeCast(BaseSafeCast):
 
 class TestSplitPart(BaseSplitPart):
     pass
+
+
+class TestSplitPartBoundaries(base_utils.BaseUtils):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "test_split_part_boundaries.yml": (
+                fixture_split_part.models__test_split_part_boundaries_yml
+            ),
+            "test_split_part_boundaries.sql": self.interpolate_macro_namespace(
+                fixture_split_part.models__test_split_part_boundaries_sql, "split_part"
+            ),
+        }
 
 
 class TestStringLiteral(BaseStringLiteral):
