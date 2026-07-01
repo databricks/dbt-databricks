@@ -1,5 +1,4 @@
-{% macro create_table_at(relation, intermediate_relation, compiled_code) %}
-  {% set tags = config.get('databricks_tags') %}
+{% macro create_table_at(relation, intermediate_relation, compiled_code, replaced_in_place=false) %}
   {% set model_columns = model.get('columns', []) %}
   {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
   {% set contract_config = config.get('contract') %}
@@ -17,8 +16,15 @@
   {% endcall %}
 
   {{ apply_alter_constraints(target_relation) }}
+  {%- if replaced_in_place -%}
+    {# Replace preserves tags, so apply only new/changed ones; otherwise apply all. #}
+    {% set tags = adapter.get_table_tags_changes(target_relation, config.model) %}
+    {% set column_tags = adapter.get_column_tags_changes(target_relation, config.model) %}
+  {%- else -%}
+    {% set tags = config.get('databricks_tags') %}
+    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+  {%- endif -%}
   {{ apply_tags(target_relation, tags) }}
-  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
   {% if column_tags and column_tags.set_column_tags %}
     {{ apply_column_tags(target_relation, column_tags) }}
   {% endif %}
