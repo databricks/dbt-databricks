@@ -101,6 +101,16 @@ SELECT named_struct(
 ) AS big_struct;
 """
 
+list_relations_table_sql = """
+{{ config(materialized='table') }}
+select cast(1 as bigint) as id, 'a' as msg
+"""
+
+list_relations_view_sql = """
+{{ config(materialized='view') }}
+select cast(1 as bigint) as id, 'a' as msg
+"""
+
 # Fixtures for testing column capitalization preservation in materialization v2
 mixed_case_columns_sql = """
 {{ config(materialized='table') }}
