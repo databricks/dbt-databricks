@@ -121,6 +121,9 @@ class TestStreamingTableScheduleLifecycle:
         assert refresh.mode.value == "on_update"
         assert refresh.at_most_every is not None
         assert "900" in refresh.at_most_every
+        # '15 MINUTES' comes back as '900 SECOND'; the two must compare equal so an
+        # unchanged re-run produces no spurious schedule diff.
+        assert refresh == RefreshConfig(on_update=True, at_most_every="15 MINUTES")
 
         util.write_file(
             fixtures.streaming_table_with_every("2 HOURS"), "models", "st_lifecycle.sql"
