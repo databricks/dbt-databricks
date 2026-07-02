@@ -55,6 +55,22 @@ class SchemaNameVarMixin:
         return ["--vars", json.dumps({"test_run_schema": project.test_schema})]
 
 
+class PythonModelDataMixin:
+    """Assert that the built ``my_python_model`` holds the expected rows.
+
+    ``basic_python`` refs ``my_sql_model`` (six ``id=1`` rows) and returns
+    ``df.limit(2)``, so whatever compute path the host class exercises, the
+    resulting table must hold exactly those two ``id=1`` rows.
+    """
+
+    def test_python_model_data(self, project):
+        run_vars = ["--vars", json.dumps({"test_run_schema": project.test_schema})]
+        util.run_dbt(["seed", *run_vars])
+        util.run_dbt(["run", *run_vars])
+        rows = project.run_sql("SELECT id FROM {database}.{schema}.my_python_model", fetch="all")
+        assert sorted(row[0] for row in rows) == [1, 1]
+
+
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestPythonModel(BasePythonModelTests):
@@ -168,7 +184,7 @@ class TestChangingSchemaIncremental(SchemaNameVarMixin):
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 @pytest.mark.flaky(reruns=2, reruns_delay=120)
-class TestSpecifyingHttpPath(BasePythonModelTests):
+class TestSpecifyingHttpPath(PythonModelDataMixin, BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -182,7 +198,7 @@ class TestSpecifyingHttpPath(BasePythonModelTests):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
-class TestJobCluster(BasePythonModelTests):
+class TestJobCluster(PythonModelDataMixin, BasePythonModelTests):
     """Test Python models using job_cluster submission method with ephemeral clusters."""
 
     @pytest.fixture(scope="class")
@@ -198,7 +214,7 @@ class TestJobCluster(BasePythonModelTests):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestServerlessCluster(BasePythonModelTests):
+class TestServerlessCluster(PythonModelDataMixin, BasePythonModelTests):
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -208,15 +224,6 @@ class TestServerlessCluster(BasePythonModelTests):
             "my_python_model.py": fixtures.basic_python,
             "second_sql_model.sql": fixtures.second_sql,
         }
-
-    def test_serverless_python_model_data(self, project):
-        run_vars = ["--vars", json.dumps({"test_run_schema": project.test_schema})]
-        util.run_dbt(["seed", *run_vars])
-        util.run_dbt(["run", *run_vars])
-        # basic_python refs my_sql_model (six id=1 rows) and returns df.limit(2),
-        # so the serverless-built table must hold exactly those two rows.
-        rows = project.run_sql("SELECT id FROM {database}.{schema}.my_python_model", fetch="all")
-        assert sorted(row[0] for row in rows) == [1, 1]
 
 
 @pytest.mark.python
@@ -550,7 +557,7 @@ class TestNotebookScopedPackagesNotebookRun:
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_uc_sql_endpoint")
-class TestAllPurposeClusterCommandAPI(BasePythonModelTests):
+class TestAllPurposeClusterCommandAPI(PythonModelDataMixin, BasePythonModelTests):
     """Test Python models using all_purpose_cluster with Command API (create_notebook=False).
 
     This tests the command execution path that uses the Command API directly
@@ -575,3 +582,29 @@ class TestAllPurposeClusterCommandAPI(BasePythonModelTests):
                 "+create_notebook": False,  # Use Command API, not notebook submission
             }
         }
+
+
+@pytest.mark.python
+class TestJobClusterMissingConfig:
+    """job_cluster submission requires job_cluster_config; omitting it fails the run."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"jc_no_config.py": override_fixtures.job_cluster_missing_config_model}
+
+    def test_missing_job_cluster_config_fails(self, project):
+        util.run_dbt(["run"], expect_pass=False)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestAllPurposeClusterMissingClusterId:
+    """all_purpose_cluster needs a resolvable cluster_id; on a SQL warehouse connection
+    neither http_path nor cluster_id resolves to one, so the run fails."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"ap_no_cluster.py": override_fixtures.all_purpose_missing_cluster_model}
+
+    def test_missing_cluster_id_fails(self, project):
+        util.run_dbt(["run"], expect_pass=False)
