@@ -511,3 +511,25 @@ INSERT INTO {schema}.seed_expected
         (499,NULL,'ethomasdu@hhs.gov','6.241.88.250','2007-09-14 13:03:34'),
         (500,'Paula','pshawdv@networksolutions.com','123.27.47.249','2003-10-30 21:19:20')
 """
+
+seeds__column_types_csv = """id,rate,amount
+1,1,100
+2,2,200
+3,3,300
+"""
+
+# rate/amount would be inferred as integers; column_types must override them in the CREATE DDL.
+seeds__column_types_schema_yml = """
+version: 2
+seeds:
+  - name: seed_column_types
+    config:
+      column_types:
+        rate: double
+        amount: decimal(10,2)
+"""
+
+seeds__over_view_csv = """id
+1
+2
+"""

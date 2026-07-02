@@ -75,6 +75,40 @@ class TestAutoLiquidClusteringTableEffect:
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestTableSkipOptimizeEffect:
+    """skip_optimize=true must suppress the post-materialization OPTIMIZE while the
+    liquid_clustered_by declaration stays on the created table."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "table_skip_optimize.sql": fixtures.table_skip_optimize_sql,
+        }
+
+    def test_optimize_skipped_clustering_retained(self, project):
+        util.run_dbt(["run"])
+        assert get_clustering_columns(project, "table_skip_optimize") == ["id"]
+        assert "OPTIMIZE" not in get_history_operations(project, "table_skip_optimize")
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestIncrementalSkipOptimizeEffect:
+    """skip_optimize=true on an incremental model must suppress the OPTIMIZE that would
+    otherwise run after the merge, while the clustering columns stay set."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "incremental_skip_optimize.sql": fixtures.incremental_skip_optimize_sql,
+        }
+
+    def test_optimize_skipped_clustering_retained(self, project):
+        util.run_dbt(["run"])
+        assert get_clustering_columns(project, "incremental_skip_optimize") == ["id"]
+        assert "OPTIMIZE" not in get_history_operations(project, "incremental_skip_optimize")
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestIncrementalSwitchToAutoCluster(RerunSafeMixin):
     """Changing clustering config on an existing incremental model must be applied via ALTER:
     explicit columns -> auto (CLUSTER BY AUTO) -> removed (CLUSTER BY NONE)."""

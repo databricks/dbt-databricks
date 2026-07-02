@@ -155,3 +155,56 @@ class TestSeedSpecificFormats(DatabricksSetup, BaseSeedSpecificFormats):
 
 class TestSeedSpecificFormatsV2(TestSeedSpecificFormats, MaterializationV2Mixin):
     pass
+
+
+class TestSeedColumnTypes:
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "seed_column_types.csv": fixtures.seeds__column_types_csv,
+            "schema.yml": fixtures.seeds__column_types_schema_yml,
+        }
+
+    def test_column_types_override(self, project):
+        util.run_dbt(["seed"])
+        relation = util.relation_from_name(project.adapter, "seed_column_types")
+        # describe trails a blank row then "# ..." metadata sections; keep only the real columns.
+        described = project.run_sql(f"describe {relation}", fetch="all")
+        column_types = {
+            col_name: data_type
+            for col_name, data_type, *_ in described
+            if col_name and not col_name.startswith("#")
+        }
+        assert column_types["rate"] == "double"
+        assert column_types["amount"] == "decimal(10,2)"
+        row_count = project.run_sql(f"select count(*) from {relation}", fetch="one")[0]
+        assert row_count == 3
+
+
+class TestSeedColumnTypesV2(TestSeedColumnTypes, MaterializationV2Mixin):
+    pass
+
+
+class TestSeedOntoView:
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"seed_over_view.csv": fixtures.seeds__over_view_csv}
+
+    def test_seed_onto_view_is_rejected(self, project):
+        relation = util.relation_from_name(project.adapter, "seed_over_view")
+        project.run_sql(f"create or replace view {relation} as select 1 as id")
+
+        util.run_dbt(["seed"], expect_pass=False)
+
+        # the pre-existing view must be left intact -- the seed must not replace it with a table
+        with project.adapter.connection_named("_check_seed_over_view"):
+            existing = project.adapter.get_relation(
+                database=project.database,
+                schema=project.test_schema,
+                identifier="seed_over_view",
+            )
+        assert existing is not None and existing.is_view
+
+
+class TestSeedOntoViewV2(TestSeedOntoView, MaterializationV2Mixin):
+    pass
