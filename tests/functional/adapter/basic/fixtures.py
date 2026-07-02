@@ -101,6 +101,34 @@ SELECT named_struct(
 ) AS big_struct;
 """
 
+# A delta table model whose SELECT changes between runs, so a rerun that merely
+# no-ops (or one that drops and recreates) is distinguishable from an in-place replace.
+rerun_target_initial_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'first' as msg
+"""
+
+rerun_target_updated_sql = """
+{{ config(materialized='table') }}
+select 2 as id, 'second' as msg
+"""
+
+# A model materialized as a view first, then switched to a table, to exercise the
+# table materialization dropping a non-table relation before creating the table.
+convertible_view_sql = """
+{{ config(materialized='view') }}
+select 1 as id, 'x' as val
+union all
+select 2 as id, 'y' as val
+"""
+
+convertible_table_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'x' as val
+union all
+select 2 as id, 'y' as val
+"""
+
 # Fixtures for testing column capitalization preservation in materialization v2
 mixed_case_columns_sql = """
 {{ config(materialized='table') }}
