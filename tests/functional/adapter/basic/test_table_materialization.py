@@ -3,11 +3,77 @@ from dbt.tests import util
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 
 from tests.functional.adapter.basic import fixtures
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV1Mixin,
+    MaterializationV2Mixin,
+    RerunSafeMixin,
+)
 
 
 class TestTableMat(BaseTableMaterialization):
     pass
+
+
+class BaseTableRerunReplacesInPlace(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"rerun_target.sql": fixtures.rerun_target_initial_sql}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("rerun_target",)
+
+    def test_rerun_replaces_in_place(self, project):
+        util.run_dbt(["run"])
+        history_before = project.run_sql(
+            "describe history {database}.{schema}.rerun_target", fetch="all"
+        )
+
+        util.write_file(fixtures.rerun_target_updated_sql, "models", "rerun_target.sql")
+        util.run_dbt(["run"])
+        history_after = project.run_sql(
+            "describe history {database}.{schema}.rerun_target", fetch="all"
+        )
+
+        # Replacing in place appends to the existing table history; dropping and
+        # recreating would reset it, so the history must have grown across the rerun.
+        assert len(history_after) > len(history_before)
+
+        rows = project.run_sql("select id, msg from {database}.{schema}.rerun_target", fetch="all")
+        assert len(rows) == 1
+        assert rows[0][0] == 2
+        assert rows[0][1] == "second"
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestTableRerunReplacesInPlace(BaseTableRerunReplacesInPlace, MaterializationV1Mixin):
+    pass
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestTableRerunReplacesInPlaceV2(BaseTableRerunReplacesInPlace, MaterializationV2Mixin):
+    pass
+
+
+class TestTableReplacesExistingView(RerunSafeMixin, MaterializationV1Mixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"convertible.sql": fixtures.convertible_view_sql}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("convertible",)
+
+    def test_view_is_replaced_by_table(self, project):
+        util.run_dbt(["run"])
+        util.check_relation_types(project.adapter, {"convertible": "view"})
+
+        util.write_file(fixtures.convertible_table_sql, "models", "convertible.sql")
+        util.run_dbt(["run"])
+        util.check_relation_types(project.adapter, {"convertible": "table"})
+
+        rows = project.run_sql("select count(*) from {database}.{schema}.convertible", fetch="one")
+        assert rows[0] == 2
 
 
 class TestAllColumnTypesV2(MaterializationV2Mixin):
