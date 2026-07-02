@@ -1,6 +1,7 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.tblproperties import fixtures
 
 
@@ -83,3 +84,9 @@ class TestUniformIcebergTblproperties:
 
         assert tblproperties["delta.universalFormat.enabledFormats"] == "iceberg"
         assert tblproperties["delta.enableIcebergCompatV2"] == "true"
+
+
+class TestTblpropertiesV2(TestTblproperties, MaterializationV2Mixin):
+    """tblproperties applied at create on the v2 path (the base class runs under v1)."""
+
+    pass
