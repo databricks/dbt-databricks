@@ -101,6 +101,16 @@ SELECT named_struct(
 ) AS big_struct;
 """
 
+list_relations_table_sql = """
+{{ config(materialized='table') }}
+select cast(1 as bigint) as id, 'a' as msg
+"""
+
+list_relations_view_sql = """
+{{ config(materialized='view') }}
+select cast(1 as bigint) as id, 'a' as msg
+"""
+
 # A delta table model whose SELECT changes between runs, so a rerun that merely
 # no-ops (or one that drops and recreates) is distinguishable from an in-place replace.
 rerun_target_initial_sql = """
