@@ -1,0 +1,183 @@
+# Kernel Integration Tests for dbt-databricks.
+#
+# Runs the functional suite against the SQL-warehouse profile with the
+# databricks-sql-connector Rust kernel backend (use_kernel=True) instead of
+# the default Thrift backend, on a weekly Saturday schedule. Like
+# integration-spog.yml this is a scheduled smoke, not a PR gate — PR-targeting
+# and status-reporting are omitted.
+#
+# Why warehouse-only: the kernel routes over the SEA (Statement Execution API)
+# HTTP transport, which is warehouse-only — the connector rejects an
+# all-purpose-cluster http_path ("SEA only works for warehouses"). So the two
+# cluster profiles from the main matrix cannot run on the kernel and are not
+# included here.
+#
+# Auth: the kernel owns the token lifecycle itself and its auth bridge rejects
+# the connector credentials_provider dbt passes on the Thrift path. When
+# DBT_DATABRICKS_USE_KERNEL=1, tests/profiles.py sets use_kernel=True and the
+# adapter resolves the configured credentials (PAT, OAuth M2M, or the peco Azure
+# service principal) to a Databricks workspace bearer token and forwards it to
+# the kernel's PAT path — see SqlUtils.prepare_connection_arguments.
+name: Kernel Integration Tests
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 6"  # Weekly: Saturday 09:17 UTC (14:47 IST). Clear of the
+                          # daily 21:30 UTC nightly and the Sunday SPOG slot,
+                          # which share the peco warehouse.
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-shards:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+
+      - name: Collect tests and assign to shards
+        run: |
+          set -euo pipefail
+          mkdir -p shard-assignments
+          hatch run pytest --collect-only -q --profile databricks_uc_sql_endpoint tests/functional 2>&1 \
+            | grep "::" \
+            > "shard-assignments/databricks_uc_sql_endpoint-collected.txt"
+          python3 scripts/shard_assign.py \
+            --profile databricks_uc_sql_endpoint \
+            --num-shards 3 \
+            --input "shard-assignments/databricks_uc_sql_endpoint-collected.txt" \
+            --output-dir shard-assignments \
+            --algo lpt_historical_time \
+            --timings .github/test_timings.json
+
+      - name: Upload shard assignments
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: shard-assignments-kernel
+          path: shard-assignments/
+          retention-days: 5
+
+  uc-sql-endpoint:
+    needs: prepare-shards
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    environment: azure-prod
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.TEST_PECO_WAREHOUSE_HTTP_PATH }}
+      DBT_DATABRICKS_UC_INITIAL_CATALOG: peco
+      DBT_DATABRICKS_LOCATION_ROOT: ${{ secrets.TEST_PECO_EXTERNAL_LOCATION }}test
+      # Wire the UC cluster id so build_cluster_http_path.py can populate
+      # DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH. The kernel-incompatible tests that
+      # pin a model to that cluster path are @pytest.mark.skip_kernel and skip
+      # here; this keeps the env var resolvable so their fixtures still parse.
+      TEST_PECO_UC_CLUSTER_ID: ${{ secrets.TEST_PECO_UC_CLUSTER_ID }}
+      TEST_PECO_SPOG_HOST: ${{ secrets.TEST_PECO_SPOG_HOST }}
+      TEST_PECO_SPOG_WORKSPACE_ID: ${{ secrets.TEST_PECO_SPOG_WORKSPACE_ID }}
+      # Route the whole suite through the connector's Rust kernel (SEA) backend.
+      DBT_DATABRICKS_USE_KERNEL: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup JFrog PyPI Proxy
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Get http path from environment
+        run: python .github/workflows/build_cluster_http_path.py
+        shell: sh
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+
+      - name: Install the connector kernel extra
+        # The kernel backend ships in the optional databricks-sql-connector
+        # [kernel] extra (a PyO3 wheel), which the frozen lock does not include.
+        # Add it into the hatch env so use_kernel=True can import the kernel.
+        run: |
+          set -euo pipefail
+          HATCH_PY="$(hatch run python -c 'import sys; print(sys.executable)')"
+          hatch run python -c "import databricks.sql as s; print('connector version:', s.__version__)"
+          uv pip install --python "$HATCH_PY" "databricks-sql-connector[kernel]"
+          hatch run python -c "import databricks_sql_kernel; print('kernel extra installed')"
+
+      - name: Download shard assignments
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: shard-assignments-kernel
+          path: shard-assignments/
+
+      - name: Resolve test list for this shard
+        run: |
+          set -euo pipefail
+          SHARD_FILE="shard-assignments/databricks_uc_sql_endpoint-shard-${{ matrix.shard }}.txt"
+          if [ ! -s "$SHARD_FILE" ]; then
+            echo "::error::Shard file missing or empty: $SHARD_FILE"
+            exit 1
+          fi
+          echo "SHARD_TESTS_FILE=$SHARD_FILE" >> "$GITHUB_ENV"
+          echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
+
+      - name: Run Sql Endpoint Functional Tests on kernel (shard ${{ matrix.shard }})
+        run: |
+          mkdir -p logs
+          DBT_TEST_USER=notnecessaryformosttests@example.com \
+          xargs -r hatch -v run pytest \
+            --color=yes -v \
+            --profile databricks_uc_sql_endpoint \
+            -n 4 --dist=loadfile \
+            --reruns 2 --reruns-delay 120 \
+            --junitxml=logs/junit-kernel-sql-endpoint-shard-${{ matrix.shard }}.xml \
+            < "$SHARD_TESTS_FILE"
+
+      - name: Upload Kernel SQL Endpoint Test Logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: kernel-sql-endpoint-logs-shard-${{ matrix.shard }}
+          path: logs/
+          retention-days: 14

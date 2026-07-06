@@ -10,7 +10,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt.adapters.contracts.connection import AdapterResponse
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
@@ -407,10 +407,9 @@ class SqlUtils:
                 query_tags
             )
 
-        return {
+        args: dict[str, Any] = {
             "server_hostname": creds.host,
             "http_path": http_path,
-            "credentials_provider": creds_manager.credentials_provider,
             "http_headers": http_headers if http_headers else None,
             "session_configuration": session_config,
             "catalog": creds.database,
@@ -418,5 +417,64 @@ class SqlUtils:
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
             "user_agent_entry": user_agent_entry,
-            **connection_parameters,
         }
+
+        if connection_parameters.get("use_kernel"):
+            SqlUtils._add_kernel_auth_arguments(args, creds, creds_manager)
+        else:
+            args["credentials_provider"] = creds_manager.credentials_provider
+
+        return {**args, **connection_parameters}
+
+    @staticmethod
+    def _add_kernel_auth_arguments(
+        args: dict[str, Any],
+        creds: DatabricksCredentials,
+        creds_manager: DatabricksCredentialManager,
+    ) -> None:
+        """Populate connection kwargs for the connector's Rust kernel backend.
+
+        The kernel (use_kernel=True) routes over SEA and owns the token lifecycle
+        itself, so its auth bridge rejects the connector credentials_provider that
+        dbt passes on the Thrift path, and it accepts only PAT, Databricks OAuth
+        M2M, or OAuth U2M — it has no Azure-AD service-principal flow.
+
+        Rather than reclassify the credential shape and forward raw creds (which
+        misroutes an Azure SP into the kernel's Databricks-OAuth M2M flow and fails
+        with invalid_client), we let the credential manager perform whatever auth
+        dbt already supports — PAT, OAuth M2M, or Azure service principal — and
+        forward the resolved Databricks workspace bearer token to the kernel's PAT
+        path. One path serves every machine-auth method the adapter supports.
+
+        U2M (browser) is the exception: there is no token to pre-resolve because
+        the kernel runs the interactive flow itself, so we translate dbt's
+        auth_type to the kernel's "databricks-oauth" and let it drive the browser.
+
+        Note: the forwarded token is a point-in-time value, not the refreshing
+        credentials_provider the Thrift path uses. That is fine for dbt's
+        short-lived per-thread connections; a connection outliving the token's
+        lifetime would need a reconnect.
+        """
+        if not creds.token and creds.auth_type == "oauth" and not creds.client_secret:
+            # OAuth U2M (browser). Translate dbt's auth_type "oauth" to the kernel's
+            # "databricks-oauth"; client_id is optional when using the default dbt app.
+            args["auth_type"] = "databricks-oauth"
+            if creds.client_id:
+                args["oauth_client_id"] = creds.client_id
+            if creds.oauth_scopes:
+                args["oauth_scopes"] = creds.oauth_scopes
+            return
+
+        # Machine auth (PAT / OAuth M2M / Azure SP): resolve to a bearer token.
+        headers: dict[str, str] = {}
+        headers.update(creds_manager.header_factory())
+        authorization = headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not authorization[: len(prefix)].lower() == prefix.lower():
+            raise DbtConfigError(
+                "use_kernel=True could not obtain a bearer token from the configured "
+                "credentials. The kernel backend supports personal access tokens, "
+                "Databricks OAuth (M2M/U2M), and Azure service principals; other auth "
+                "methods must use the default backend (drop use_kernel)."
+            )
+        args["access_token"] = authorization[len(prefix) :]

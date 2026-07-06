@@ -50,6 +50,12 @@ def _build_databricks_cluster_target(
         # If you are specifying a port for running tests, assume Docker
         # is being used and disable TLS verification
         connection_parameters["_tls_no_verify"] = True
+    # Route the whole suite through the connector's Rust kernel backend (SEA
+    # transport) when DBT_DATABRICKS_USE_KERNEL=1. Used by the weekend
+    # integration-kernel workflow. SEA is warehouse-only, so this is only
+    # meaningful on the databricks_uc_sql_endpoint profile.
+    if os.getenv("DBT_DATABRICKS_USE_KERNEL") == "1":
+        connection_parameters["use_kernel"] = True
     profile["connection_parameters"] = connection_parameters
     return profile
 

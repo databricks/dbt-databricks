@@ -3,12 +3,17 @@ import json
 import os
 import sys
 from decimal import Decimal
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 from databricks.sql.client import Cursor
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
+from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
+    DatabricksCredentials,
+)
 from dbt.adapters.databricks.handle import (
     CursorWrapper,
     DatabricksAdapterResponse,
@@ -52,6 +57,22 @@ def _build_session_headers(
             )
             payload["X-Databricks-Sql-Query-Source"] = base64.b64encode(inner.encode()).decode()
     return json.dumps(payload)
+
+
+_KERNEL_HTTP_PATH = "/sql/1.0/warehouses/abc"
+
+
+def _prepare_connection_args(**creds_kwargs: Any) -> dict[str, Any]:
+    """Run prepare_connection_arguments for creds built from fixed host/path/schema
+    plus the given auth kwargs, and return the resulting connect() kwargs."""
+    creds = DatabricksCredentials(
+        host="yourorg.databricks.com",
+        http_path=_KERNEL_HTTP_PATH,
+        schema="dbt",
+        **creds_kwargs,
+    )
+    manager = DatabricksCredentialManager.create_from(creds)
+    return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
 
 class TestSqlUtils:
@@ -189,6 +210,108 @@ class TestSqlUtils:
     def test_extract_dbr_version__invalid(self):
         with pytest.raises(DbtRuntimeError):
             SqlUtils.extract_dbr_version("foo")
+
+    def test_prepare_connection_arguments__default_uses_credentials_provider(self):
+        """Without use_kernel, the connector's credentials_provider is passed and
+        no raw credentials leak into the connect() kwargs."""
+        args = _prepare_connection_args(client_id="cid", client_secret="dose-secret")
+        assert callable(args["credentials_provider"])
+        assert "use_kernel" not in args
+        assert "oauth_client_id" not in args
+        assert "access_token" not in args
+
+    def _kernel_args_with_token(self, bearer, **creds_kwargs):
+        """Build kernel connect() kwargs with the credential manager's
+        header_factory stubbed to yield the given Authorization header, so the
+        machine-auth path can be exercised without live authentication."""
+        creds = DatabricksCredentials(
+            host="yourorg.databricks.com",
+            http_path=_KERNEL_HTTP_PATH,
+            schema="dbt",
+            connection_parameters={"use_kernel": True},
+            **creds_kwargs,
+        )
+        manager = DatabricksCredentialManager.create_from(creds)
+        header = {"Authorization": bearer} if bearer is not None else {}
+        with patch.object(
+            type(manager),
+            "header_factory",
+            new_callable=lambda: property(lambda self: (lambda: header)),
+        ):
+            return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+
+    def test_prepare_connection_arguments__kernel_pat_forwards_resolved_token(self):
+        """use_kernel with a PAT resolves the bearer token from the credential
+        manager and forwards it as access_token, dropping credentials_provider."""
+        args = self._kernel_args_with_token("Bearer dapiabc123", token="dapiabc123")
+        assert args["use_kernel"] is True
+        assert args["access_token"] == "dapiabc123"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_id" not in args
+
+    def test_prepare_connection_arguments__kernel_m2m_forwards_resolved_token(self):
+        """OAuth M2M is resolved to a Databricks workspace token by the credential
+        manager, and that token is forwarded to the kernel's PAT path — not the raw
+        client id/secret."""
+        args = self._kernel_args_with_token(
+            "Bearer exchanged-m2m-token", client_id="cid", client_secret="dose-secret"
+        )
+        assert args["access_token"] == "exchanged-m2m-token"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_secret" not in args
+
+    def test_prepare_connection_arguments__kernel_azure_sp_forwards_resolved_token(self):
+        """The Azure-AD service principal (the peco CI credential) is resolved to a
+        Databricks workspace token by the credential manager's azure-client-secret
+        auth, and that token drives the kernel's PAT path. This is what makes the
+        kernel work for Azure SP — forwarding the raw creds to the kernel's
+        Databricks-OAuth M2M would fail with invalid_client."""
+        args = self._kernel_args_with_token(
+            "Bearer azure-exchanged-token",
+            azure_client_id="acid",
+            azure_client_secret="asecret",
+        )
+        assert args["access_token"] == "azure-exchanged-token"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_id" not in args
+
+    def test_prepare_connection_arguments__kernel_non_bearer_header_raises(self):
+        """If the credential manager yields a non-Bearer (or missing) Authorization
+        header, there is no token to forward — fail loudly rather than hand the
+        kernel unusable auth."""
+        with pytest.raises(DbtConfigError):
+            self._kernel_args_with_token("Basic abc123", token="dapiabc123")
+
+    def test_prepare_connection_arguments__kernel_u2m_explicit_client_id(self):
+        """use_kernel with OAuth U2M and an explicit client_id forwards
+        oauth_client_id and translates dbt's auth_type='oauth' to the kernel's
+        'databricks-oauth' so the kernel bridge routes to its U2M flow. U2M is a
+        browser flow the kernel runs itself, so no token is pre-resolved."""
+        args = _prepare_connection_args(
+            client_id="cid",
+            auth_type="oauth",
+            connection_parameters={"use_kernel": True},
+        )
+        assert args["use_kernel"] is True
+        assert args["oauth_client_id"] == "cid"
+        assert args["auth_type"] == "databricks-oauth"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_secret" not in args
+        assert "access_token" not in args
+
+    def test_prepare_connection_arguments__kernel_u2m_default_app_no_client_id(self):
+        """The common external-browser config is `auth_type: oauth` with NO
+        client_id (SDK uses the default dbt app). The kernel bridge routes U2M off
+        auth_type alone, so we must translate auth_type even without a client_id."""
+        args = _prepare_connection_args(
+            auth_type="oauth",
+            connection_parameters={"use_kernel": True},
+        )
+        assert args["auth_type"] == "databricks-oauth"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_id" not in args
+        assert "oauth_client_secret" not in args
+        assert "access_token" not in args
 
 
 class TestCursorWrapper:

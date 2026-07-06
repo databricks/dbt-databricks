@@ -4,6 +4,7 @@
 
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 - Add `skip_optimize` model config to opt out of the post-materialization `OPTIMIZE` call without dropping `zorder` / `liquid_clustered_by` / `auto_liquid_cluster` from the table definition. Useful when `OPTIMIZE` is delegated to Predictive Optimization or scheduled out of band. Complements the existing run-wide `DATABRICKS_SKIP_OPTIMIZE` var by allowing project-, folder-, or model-level opt-out via standard dbt config inheritance ([#703](https://github.com/databricks/dbt-databricks/issues/703)).
+- Support the connector's Rust kernel backend via `connection_parameters: {use_kernel: true}` for SQL warehouses (requires `databricks-sql-connector[kernel]` on Python 3.10+). The kernel's auth bridge rejects the connector `credentials_provider` dbt uses on the default path, so on this path the adapter resolves the configured credentials — personal access token, OAuth (M2M/U2M), or Azure service principal — to a bearer token and forwards that to the kernel; the forwarded token is point-in-time rather than auto-refreshing ([#1576](https://github.com/databricks/dbt-databricks/pull/1576))
 
 ### Fixes
 - Honor the `expression` field on `primary_key` constraints on the V1 materialization path. A primary key declared with `expression: RELY` (or any trailing clause) previously had its expression silently dropped. ([#1551](https://github.com/databricks/dbt-databricks/pull/1551))
@@ -20,6 +21,7 @@
 
 ### Under the Hood
 
+- Add a weekly `Kernel Integration Tests` workflow that runs the functional suite against the SQL-warehouse profile through the connector's Rust kernel backend (`DBT_DATABRICKS_USE_KERNEL=1`) (test-only, no runtime impact) ([#1576](https://github.com/databricks/dbt-databricks/pull/1576)).
 - Add functional tests for the `query` relation-config component's change handling: a streaming table's defining-query change is applied in place via `CREATE OR REFRESH`, and re-running a materialized view with an unchanged query leaves the existing relation in place instead of rebuilding it (test-only, no runtime impact).
 - Raise the `databricks-sql-connector` upper bound to `<4.3.1` to support `4.3.0` ([#1518](https://github.com/databricks/dbt-databricks/pull/1518))
 - Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))

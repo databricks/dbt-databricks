@@ -165,6 +165,7 @@ markers = [
     "external: mark test as requiring an external location",
     "python: mark test as running a python model",
     "dlt: mark test as running a DLT model",
+    "skip_kernel: skip test when running against the connector kernel backend (DBT_DATABRICKS_USE_KERNEL=1)",
 ]
 
 [tool.mypy]
