@@ -106,9 +106,7 @@ class DatabricksAdapterGetRelationConfigResult:
     def __init__(self, return_val: Optional[Any]) -> None:
         if return_val is not None and not isinstance(return_val, dict):
             self.return_val = {
-                "config": {
-                    k: v.model_dump(mode="json") for k, v in return_val.config.items()
-                }
+                "config": {k: v.model_dump(mode="json") for k, v in return_val.config.items()}
             }
         else:
             self.return_val = return_val
