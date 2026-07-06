@@ -76,3 +76,41 @@ measures:
   - name: order_count
     expr: count(1)
 """
+
+# version 1.1 is required for `synonyms`; the flow-style list and double-quoted
+# `source` are both re-rendered by Databricks on read-back (block list, single quotes).
+metric_view_with_synonyms = """
+{{ config(materialized='metric_view') }}
+
+version: 1.1
+source: "{{ ref('source_orders') }}"
+dimensions:
+  - name: status
+    expr: status
+    synonyms: [state, order_state]
+measures:
+  - name: total_orders
+    expr: count(1)
+  - name: total_revenue
+    expr: sum(revenue)
+"""
+
+metric_view_with_tblproperties = """
+{{
+  config(
+    materialized='metric_view',
+    tblproperties={
+      'quality': 'gold'
+    }
+  )
+}}
+
+version: 1.1
+source: "{{ ref('source_orders') }}"
+dimensions:
+  - name: status
+    expr: status
+measures:
+  - name: order_count
+    expr: count(1)
+"""

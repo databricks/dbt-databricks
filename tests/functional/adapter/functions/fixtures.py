@@ -63,3 +63,22 @@ functions:
     returns:
       data_type: float
 """
+
+
+SQL_UDF_V1 = """
+SELECT price * 2
+"""
+
+SQL_UDF_V2 = """
+SELECT price * 3
+"""
+
+SQL_UDF_YML = """
+functions:
+  - name: price_for_xlarge
+    arguments:
+      - name: price
+        data_type: float
+    returns:
+      data_type: float
+"""

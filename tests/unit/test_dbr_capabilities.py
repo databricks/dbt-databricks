@@ -186,6 +186,21 @@ class TestCapabilitySpecs:
         supported = DBRCapabilities(dbr_version=(17, 3))
         assert supported.has_capability(DBRCapability.DESCRIBE_TABLE_EXTENDED_AS_JSON)
 
+    def test_insert_by_name_replace_where_boundary(self):
+        """INSERT_BY_NAME_REPLACE_WHERE is available on DBR 18.0+ clusters and SQL warehouses."""
+        cluster_164 = DBRCapabilities(dbr_version=(16, 4), is_sql_warehouse=False)
+        assert cluster_164.has_capability(DBRCapability.INSERT_BY_NAME)
+        assert not cluster_164.has_capability(DBRCapability.INSERT_BY_NAME_REPLACE_WHERE)
+
+        cluster_173 = DBRCapabilities(dbr_version=(17, 3), is_sql_warehouse=False)
+        assert not cluster_173.has_capability(DBRCapability.INSERT_BY_NAME_REPLACE_WHERE)
+
+        cluster_180 = DBRCapabilities(dbr_version=(18, 0), is_sql_warehouse=False)
+        assert cluster_180.has_capability(DBRCapability.INSERT_BY_NAME_REPLACE_WHERE)
+
+        warehouse = DBRCapabilities(is_sql_warehouse=True)
+        assert warehouse.has_capability(DBRCapability.INSERT_BY_NAME_REPLACE_WHERE)
+
     def test_sql_warehouse_support_flags(self):
         """Test that SQL warehouse support is correctly specified."""
         specs = DBRCapabilities.CAPABILITY_SPECS

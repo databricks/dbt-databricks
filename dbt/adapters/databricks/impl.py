@@ -211,6 +211,7 @@ class DatabricksConfig(AdapterConfig):
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
+    skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
     skip_non_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
@@ -242,6 +243,17 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     return _identifier
 
 
+def _adapter_capabilities() -> CapabilityDict:
+    capabilities: dict[Capability, CapabilitySupport] = {
+        Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+    }
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is not None:
+        capabilities[catalogs_v2] = CapabilitySupport(support=Support.Full)
+    return CapabilityDict(capabilities)
+
+
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -254,17 +266,16 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
-    _capabilities = CapabilityDict(
-        {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-        }
-    )
+    _capabilities = _adapter_capabilities()
 
     CATALOG_INTEGRATIONS = [
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
+    _V2_TO_V1_TYPE: ClassVar[dict[str, str]] = {
+        "unity": constants.UNITY_CATALOG_TYPE,
+        "hive_metastore": constants.HIVE_METASTORE_CATALOG_TYPE,
+    }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -302,6 +313,9 @@ class DatabricksAdapter(SparkAdapter):
         except ValueError:
             return False
         return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
+
+    def _v2_to_v1_type(self, catalog_type: str) -> str:
+        return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -1445,6 +1459,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:
             results["information_schema.tags"] = None
+
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
 
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)

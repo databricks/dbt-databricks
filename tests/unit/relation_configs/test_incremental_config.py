@@ -99,6 +99,8 @@ class TestIncrementalConfig:
                 "tblproperties": TblPropertiesConfig(
                     tblproperties={
                         "prop": "f1",
+                        "clusterByAuto": "true",
+                        "clusteringColumns": '[["col1"],[""a""]]',
                         "delta.constraints.check_name_length": "LENGTH (name) >= 1",
                     }
                 ),
