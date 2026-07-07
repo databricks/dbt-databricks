@@ -15,9 +15,10 @@
 # Auth: the kernel owns the token lifecycle itself and its auth bridge rejects
 # the connector credentials_provider dbt passes on the Thrift path. When
 # DBT_DATABRICKS_USE_KERNEL=1, tests/profiles.py sets use_kernel=True and the
-# adapter resolves the configured credentials (PAT, OAuth M2M, or the peco Azure
-# service principal) to a Databricks workspace bearer token and forwards it to
-# the kernel's PAT path — see SqlUtils.prepare_connection_arguments.
+# adapter forwards the raw credentials the kernel understands (PAT or Databricks
+# OAuth) so the kernel owns refresh. The peco CI credential is an Azure service
+# principal, which has no kernel-native flow, so it falls back to a pre-resolved
+# bearer token (no auto-refresh) — see SqlUtils.prepare_connection_arguments.
 name: Kernel Integration Tests
 on:
   workflow_dispatch:

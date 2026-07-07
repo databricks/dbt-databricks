@@ -220,10 +220,11 @@ class TestSqlUtils:
         assert "oauth_client_id" not in args
         assert "access_token" not in args
 
-    def _kernel_args_with_token(self, bearer, **creds_kwargs):
-        """Build kernel connect() kwargs with the credential manager's
-        header_factory stubbed to yield the given Authorization header, so the
-        machine-auth path can be exercised without live authentication."""
+    def _kernel_azure_args(self, bearer, **creds_kwargs):
+        """Build kernel connect() kwargs for an Azure SP: the credential manager's
+        resolved config.auth_type is stubbed to 'azure-client-secret' and its
+        header_factory yields the given Authorization header, so the Azure bearer
+        fallback is exercised without live authentication."""
         creds = DatabricksCredentials(
             host="yourorg.databricks.com",
             http_path=_KERNEL_HTTP_PATH,
@@ -233,40 +234,64 @@ class TestSqlUtils:
         )
         manager = DatabricksCredentialManager.create_from(creds)
         header = {"Authorization": bearer} if bearer is not None else {}
-        with patch.object(
-            type(manager),
-            "header_factory",
-            new_callable=lambda: property(lambda self: (lambda: header)),
+        fake_config = Mock(auth_type="azure-client-secret")
+        with (
+            patch.object(
+                type(manager),
+                "config",
+                new_callable=lambda: property(lambda self: fake_config),
+            ),
+            patch.object(
+                type(manager),
+                "header_factory",
+                new_callable=lambda: property(lambda self: (lambda: header)),
+            ),
         ):
             return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
-    def test_prepare_connection_arguments__kernel_pat_forwards_resolved_token(self):
-        """use_kernel with a PAT resolves the bearer token from the credential
-        manager and forwards it as access_token, dropping credentials_provider."""
-        args = self._kernel_args_with_token("Bearer dapiabc123", token="dapiabc123")
+    def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
+        """use_kernel with a PAT forwards the token directly as access_token
+        (PATs are long-lived, so no refresh concern), dropping credentials_provider."""
+        args = _prepare_connection_args(
+            token="dapiabc123",
+            connection_parameters={"use_kernel": True},
+        )
         assert args["use_kernel"] is True
         assert args["access_token"] == "dapiabc123"
         assert args.get("credentials_provider") is None
         assert "oauth_client_id" not in args
 
-    def test_prepare_connection_arguments__kernel_m2m_forwards_resolved_token(self):
-        """OAuth M2M is resolved to a Databricks workspace token by the credential
-        manager, and that token is forwarded to the kernel's PAT path — not the raw
-        client id/secret."""
-        args = self._kernel_args_with_token(
-            "Bearer exchanged-m2m-token", client_id="cid", client_secret="dose-secret"
+    def test_prepare_connection_arguments__kernel_m2m_forwards_raw_creds(self):
+        """OAuth M2M forwards the raw client id/secret so the KERNEL owns the token
+        lifecycle (acquire + refresh via workspace OIDC) — not a pre-resolved token
+        that would not refresh."""
+        creds = DatabricksCredentials(
+            host="yourorg.databricks.com",
+            http_path=_KERNEL_HTTP_PATH,
+            schema="dbt",
+            client_id="cid",
+            client_secret="dose-secret",
+            connection_parameters={"use_kernel": True},
         )
-        assert args["access_token"] == "exchanged-m2m-token"
+        manager = DatabricksCredentialManager.create_from(creds)
+        with patch.object(
+            type(manager),
+            "config",
+            new_callable=lambda: property(lambda self: Mock(auth_type="oauth-m2m")),
+        ):
+            args = SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+        assert args["oauth_client_id"] == "cid"
+        assert args["oauth_client_secret"] == "dose-secret"
         assert args.get("credentials_provider") is None
-        assert "oauth_client_secret" not in args
+        assert "access_token" not in args
 
     def test_prepare_connection_arguments__kernel_azure_sp_forwards_resolved_token(self):
-        """The Azure-AD service principal (the peco CI credential) is resolved to a
-        Databricks workspace token by the credential manager's azure-client-secret
-        auth, and that token drives the kernel's PAT path. This is what makes the
-        kernel work for Azure SP — forwarding the raw creds to the kernel's
-        Databricks-OAuth M2M would fail with invalid_client."""
-        args = self._kernel_args_with_token(
+        """The Azure SP (the peco CI credential) has no kernel-native flow, so as a
+        fallback dbt resolves it to a Databricks workspace token via
+        azure-client-secret auth and forwards that token to the kernel's PAT path.
+        Forwarding the raw creds to the kernel's Databricks-OAuth M2M would fail with
+        invalid_client."""
+        args = self._kernel_azure_args(
             "Bearer azure-exchanged-token",
             azure_client_id="acid",
             azure_client_secret="asecret",
@@ -275,12 +300,13 @@ class TestSqlUtils:
         assert args.get("credentials_provider") is None
         assert "oauth_client_id" not in args
 
-    def test_prepare_connection_arguments__kernel_non_bearer_header_raises(self):
-        """If the credential manager yields a non-Bearer (or missing) Authorization
-        header, there is no token to forward — fail loudly rather than hand the
-        kernel unusable auth."""
+    def test_prepare_connection_arguments__kernel_azure_non_bearer_raises(self):
+        """If the Azure exchange yields no usable Bearer header, fail loudly rather
+        than hand the kernel unusable auth."""
         with pytest.raises(DbtConfigError):
-            self._kernel_args_with_token("Basic abc123", token="dapiabc123")
+            self._kernel_azure_args(
+                "Basic abc123", azure_client_id="acid", azure_client_secret="asecret"
+            )
 
     def test_prepare_connection_arguments__kernel_u2m_explicit_client_id(self):
         """use_kernel with OAuth U2M and an explicit client_id forwards
