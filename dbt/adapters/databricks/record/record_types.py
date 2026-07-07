@@ -89,7 +89,16 @@ class DatabricksAdapterGetRelationConfigParams:
         return {
             "thread_id": self.thread_id,
             "relation": serialize_base_relation(self.relation),
-            "model_config": self.model_config.model_dump() if self.model_config else None,
+            "model_config": (
+                {
+                    "config": {
+                        k: v.model_dump(mode="json")
+                        for k, v in self.model_config.config.items()
+                    }
+                }
+                if self.model_config
+                else None
+            ),
         }
 
 
