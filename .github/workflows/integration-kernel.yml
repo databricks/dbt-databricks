@@ -12,13 +12,12 @@
 # cluster profiles from the main matrix cannot run on the kernel and are not
 # included here.
 #
-# Auth: the kernel owns the token lifecycle itself and its auth bridge rejects
-# the connector credentials_provider dbt passes on the Thrift path. When
-# DBT_DATABRICKS_USE_KERNEL=1, tests/profiles.py sets use_kernel=True and the
-# adapter forwards the raw credentials the kernel understands (PAT or Databricks
-# OAuth) so the kernel owns refresh. The peco CI credential is an Azure service
-# principal, which has no kernel-native flow, so it falls back to a pre-resolved
-# bearer token (no auto-refresh) — see SqlUtils.prepare_connection_arguments.
+# Auth: the kernel supports PAT and Databricks OAuth (M2M/U2M) and has no
+# Azure-AD flow. The peco CI credential is an Azure service principal, which the
+# kernel cannot authenticate, so tests/profiles.py resolves it to a workspace
+# token and hands the kernel a PAT when DBT_DATABRICKS_USE_KERNEL=1 (see
+# _resolve_azure_sp_to_token_for_kernel). The adapter's production path forwards
+# only raw PAT/Databricks-OAuth creds — see SqlUtils.prepare_connection_arguments.
 name: Kernel Integration Tests
 on:
   workflow_dispatch:
@@ -171,7 +170,7 @@ jobs:
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
-            -n 4 --dist=loadfile \
+            -n 10 --dist=loadfile \
             --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-kernel-sql-endpoint-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
