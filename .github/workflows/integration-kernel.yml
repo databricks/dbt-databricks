@@ -18,6 +18,12 @@
 # token and hands the kernel a PAT when DBT_DATABRICKS_USE_KERNEL=1 (see
 # _resolve_azure_sp_to_token_for_kernel). The adapter's production path forwards
 # only raw PAT/Databricks-OAuth creds — see SqlUtils.prepare_connection_arguments.
+#
+# Concurrency & sharding: unlike the other lanes (-n 10, 3 shards), this one runs
+# -n 4 across 5 shards. The kernel evicts SEA sessions under sustained -n 10 load
+# (late verification queries fail with "session ... not open"), and the Azure test
+# token has a ~1h lifetime — finer shards keep each job well under that. Both are
+# kernel-lane workarounds; revisit as the kernel matures. See the run step below.
 name: Kernel Integration Tests
 on:
   workflow_dispatch:
@@ -71,7 +77,7 @@ jobs:
             > "shard-assignments/databricks_uc_sql_endpoint-collected.txt"
           python3 scripts/shard_assign.py \
             --profile databricks_uc_sql_endpoint \
-            --num-shards 3 \
+            --num-shards 5 \
             --input "shard-assignments/databricks_uc_sql_endpoint-collected.txt" \
             --output-dir shard-assignments \
             --algo lpt_historical_time \
@@ -89,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3, 4]
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -164,13 +170,21 @@ jobs:
           echo "Files in shard ${{ matrix.shard }}: $(wc -l < "$SHARD_FILE")"
 
       - name: Run Sql Endpoint Functional Tests on kernel (shard ${{ matrix.shard }})
+        # Runs at -n 4 rather than the -n 10 the other lanes use: under sustained
+        # -n 10 the kernel's SEA sessions get evicted server-side, so a test's
+        # post-build verification query intermittently fails with "Cannot
+        # execute_command without an open session". -n 4 keeps the kernel session
+        # count low enough to avoid that. This lane is also sharded more finely
+        # (5 shards, above) so no shard runs long enough to cross an auth token's
+        # ~1h lifetime. Revisit once the kernel handles session lifecycle under
+        # higher concurrency.
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
           xargs -r hatch -v run pytest \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
-            -n 10 --dist=loadfile \
+            -n 4 --dist=loadfile \
             --reruns 2 --reruns-delay 120 \
             --junitxml=logs/junit-kernel-sql-endpoint-shard-${{ matrix.shard }}.xml \
             < "$SHARD_TESTS_FILE"
