@@ -220,11 +220,12 @@ class TestSqlUtils:
         assert "oauth_client_id" not in args
         assert "access_token" not in args
 
-    def _kernel_azure_args(self, bearer, **creds_kwargs):
-        """Build kernel connect() kwargs for an Azure SP: the credential manager's
-        resolved config.auth_type is stubbed to 'azure-client-secret' and its
-        header_factory yields the given Authorization header, so the Azure bearer
-        fallback is exercised without live authentication."""
+    def _kernel_azure_args(self, bearer, resolved_auth_type="azure-client-secret", **creds_kwargs):
+        """Build kernel connect() kwargs for an Azure SP with the credential
+        manager's header_factory stubbed to yield the given Authorization header,
+        exercising the Azure bearer fallback without live authentication. The
+        resolved config.auth_type is stubbed (only read for the legacy-via-M2M-
+        fields path; the native-fields path routes before config is consulted)."""
         creds = DatabricksCredentials(
             host="yourorg.databricks.com",
             http_path=_KERNEL_HTTP_PATH,
@@ -234,7 +235,7 @@ class TestSqlUtils:
         )
         manager = DatabricksCredentialManager.create_from(creds)
         header = {"Authorization": bearer} if bearer is not None else {}
-        fake_config = Mock(auth_type="azure-client-secret")
+        fake_config = Mock(auth_type=resolved_auth_type)
         with (
             patch.object(
                 type(manager),
@@ -285,12 +286,11 @@ class TestSqlUtils:
         assert args.get("credentials_provider") is None
         assert "access_token" not in args
 
-    def test_prepare_connection_arguments__kernel_azure_sp_forwards_resolved_token(self):
-        """The Azure SP (the peco CI credential) has no kernel-native flow, so as a
-        fallback dbt resolves it to a Databricks workspace token via
-        azure-client-secret auth and forwards that token to the kernel's PAT path.
-        Forwarding the raw creds to the kernel's Databricks-OAuth M2M would fail with
-        invalid_client."""
+    def test_prepare_connection_arguments__kernel_native_azure_sp_forwards_token(self):
+        """A native Azure SP (azure_client_id/secret) has no kernel-native flow, so
+        dbt resolves it to a Databricks workspace token and forwards that to the
+        kernel's PAT path. This path routes on the azure fields before config is
+        consulted."""
         args = self._kernel_azure_args(
             "Bearer azure-exchanged-token",
             azure_client_id="acid",
@@ -299,6 +299,22 @@ class TestSqlUtils:
         assert args["access_token"] == "azure-exchanged-token"
         assert args.get("credentials_provider") is None
         assert "oauth_client_id" not in args
+
+    def test_prepare_connection_arguments__kernel_legacy_azure_via_m2m_fields_forwards_token(self):
+        """The peco CI credential is an Azure SP supplied through the
+        client_id/client_secret fields, which dbt resolves as azure-client-secret.
+        It must take the bearer fallback (forwarding the raw creds to the kernel's
+        Databricks-OAuth M2M fails with invalid_client)."""
+        args = self._kernel_azure_args(
+            "Bearer azure-exchanged-token",
+            resolved_auth_type="azure-client-secret",
+            client_id="cid",
+            client_secret="azure-secret",
+        )
+        assert args["access_token"] == "azure-exchanged-token"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_id" not in args
+        assert "oauth_client_secret" not in args
 
     def test_prepare_connection_arguments__kernel_azure_non_bearer_raises(self):
         """If the Azure exchange yields no usable Bearer header, fail loudly rather

@@ -434,40 +434,33 @@ class SqlUtils:
     ) -> None:
         """Populate connection kwargs for the connector's Rust kernel backend.
 
-        The kernel (use_kernel=True) routes over SEA and owns the token lifecycle
-        itself, so its auth bridge rejects the connector credentials_provider that
-        dbt passes on the Thrift path. It accepts only three flows — PAT, Databricks
-        OAuth M2M, and OAuth U2M — and has no Azure-AD service-principal flow.
+        The kernel (use_kernel=True) routes over SEA and its auth bridge rejects the
+        connector credentials_provider dbt passes on the Thrift path. It accepts
+        PAT, Databricks OAuth M2M, and OAuth U2M, and has no Azure-AD flow.
 
-        We forward the raw credentials the kernel understands so that IT owns the
-        token lifecycle, including refresh: for OAuth M2M the kernel re-mints tokens
-        via workspace OIDC, so a long-running connection stays authenticated. This
-        is the important property for real dbt runs, which are not bounded to a
-        token's lifetime.
-
-        The Azure service principal is the exception: the kernel cannot mint Azure
-        tokens, so there is no raw-cred path for it. As a fallback we let dbt's
-        credential manager perform the Azure exchange and forward the resulting
-        Databricks workspace bearer token to the kernel's PAT path. That token is a
-        point-in-time value the kernel does NOT refresh, so a connection outliving
-        it (~1h) would need to be reopened — we log a warning to make that explicit.
-        Routing uses dbt's resolved ``config.auth_type`` because an Azure SP may be
-        supplied either natively (azure_client_id/secret) or, legacily, through the
-        M2M client_id/client_secret fields — indistinguishable by input shape alone.
+        We forward the raw credentials the kernel understands so the connector
+        handles the token lifecycle and refresh itself. The Azure service principal
+        is the exception (the kernel cannot mint Azure tokens): dbt performs the
+        Azure exchange and forwards the resulting bearer token to the kernel's PAT
+        path. Whether an SP is Azure is not always visible from the input fields —
+        it may be supplied natively (azure_client_id/secret) or legacily through the
+        client_id/client_secret fields — so the M2M-vs-Azure split uses dbt's
+        resolved ``config.auth_type``.
         """
-        # PAT: forward the token directly (long-lived; no refresh concern).
+        # Native Azure SP has no kernel flow; the only route is the bearer fallback.
+        if creds.azure_client_id and creds.azure_client_secret:
+            SqlUtils._add_kernel_azure_bearer_token(args, creds_manager)
+            return
+
+        # PAT: forward the token directly.
         if creds.token:
             args["access_token"] = creds.token
             return
 
-        # OAuth U2M (browser): the kernel runs the interactive flow itself, so there
-        # is no token to pre-resolve. Translate dbt's auth_type "oauth" to the
-        # kernel's "databricks-oauth"; client_id is optional (default dbt app).
-        if (
-            creds.auth_type == "oauth"
-            and not creds.client_secret
-            and not (creds.azure_client_id and creds.azure_client_secret)
-        ):
+        # OAuth U2M (browser): auth_type "oauth" with no client secret. The kernel
+        # runs the interactive flow itself, so there is no token to pre-resolve —
+        # translate to the kernel's "databricks-oauth" (client_id is optional).
+        if creds.auth_type == "oauth" and not creds.client_secret:
             args["auth_type"] = "databricks-oauth"
             if creds.client_id:
                 args["oauth_client_id"] = creds.client_id
@@ -475,38 +468,43 @@ class SqlUtils:
                 args["oauth_scopes"] = creds.oauth_scopes
             return
 
-        # Resolve what dbt actually authenticates as. For OAuth M2M we forward raw
-        # creds so the kernel owns refresh; for Azure (native or legacy-via-M2M-
-        # fields) the kernel has no flow, so we fall back to a resolved bearer token.
-        resolved_auth_type = creds_manager.config.auth_type
-
-        if resolved_auth_type == "oauth-m2m":
+        # M2M: forward raw creds when it is genuine Databricks OAuth (the kernel
+        # refreshes it); fall back to a bearer token when the resolved auth is an
+        # Azure SP supplied through the client_id/client_secret fields.
+        if creds_manager.config.auth_type == "oauth-m2m":
             args["oauth_client_id"] = creds.client_id
             args["oauth_client_secret"] = creds.client_secret
             if creds.oauth_scopes:
                 args["oauth_scopes"] = creds.oauth_scopes
             return
 
-        if resolved_auth_type == "azure-client-secret":
-            logger.warning(
-                "use_kernel=True with an Azure service principal: the kernel has no "
-                "Azure-AD auth flow, so dbt forwards a pre-resolved bearer token that "
-                "the kernel will NOT refresh. A connection open for longer than the "
-                "token's lifetime (~1h) will fail to re-authenticate; use a personal "
-                "access token or Databricks OAuth, or the default backend, for "
-                "long-lived connections."
-            )
-            headers: dict[str, str] = {}
-            headers.update(creds_manager.header_factory())
-            authorization = headers.get("Authorization", "")
-            prefix = "Bearer "
-            if authorization[: len(prefix)].lower() == prefix.lower():
-                args["access_token"] = authorization[len(prefix) :]
-                return
+        SqlUtils._add_kernel_azure_bearer_token(args, creds_manager)
 
-        raise DbtConfigError(
-            "use_kernel=True could not resolve usable credentials. The kernel backend "
-            "supports personal access tokens, Databricks OAuth (M2M/U2M), and Azure "
-            "service principals; other auth methods must use the default backend "
-            "(drop use_kernel)."
+    @staticmethod
+    def _add_kernel_azure_bearer_token(
+        args: dict[str, Any], creds_manager: DatabricksCredentialManager
+    ) -> None:
+        """Forward an Azure SP's resolved bearer token to the kernel's PAT path.
+
+        The kernel does not refresh this token, so a connection outliving it (~1h)
+        would need to be reopened; warn so that is explicit.
+        """
+        logger.warning(
+            "use_kernel=True with an Azure service principal forwards a pre-resolved "
+            "bearer token that the kernel does not refresh; a connection open longer "
+            "than the token's lifetime will fail to re-authenticate. Use a personal "
+            "access token, Databricks OAuth, or the default backend for long-lived "
+            "connections."
         )
+        headers: dict[str, str] = {}
+        headers.update(creds_manager.header_factory())
+        authorization = headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not authorization[: len(prefix)].lower() == prefix.lower():
+            raise DbtConfigError(
+                "use_kernel=True could not resolve a bearer token from the configured "
+                "credentials. The kernel backend supports personal access tokens, "
+                "Databricks OAuth (M2M/U2M), and Azure service principals; other auth "
+                "methods must use the default backend (drop use_kernel)."
+            )
+        args["access_token"] = authorization[len(prefix) :]
