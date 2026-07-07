@@ -7,6 +7,8 @@
 - Support the connector's Rust kernel backend via `connection_parameters: {use_kernel: true}` for SQL warehouses, with personal access token or Databricks OAuth (M2M/U2M) auth (requires `databricks-sql-connector[kernel]` on Python 3.10+; Azure service principals are not supported by the kernel) ([#1576](https://github.com/databricks/dbt-databricks/pull/1576))
 
 ### Fixes
+- Stop dropping existing constraints on incremental runs when `contract.enforced` is `false` ([#1557](https://github.com/databricks/dbt-databricks/pull/1557))
+- Recognize the `skip_not_matched_step` merge config in the adapter config schema. It was previously declared with a typo (`skip_non_matched_step`); the merge macro already read the correct key, so merge behavior is unchanged ([#1562](https://github.com/databricks/dbt-databricks/pull/1562)).
 - Honor the `expression` field on `primary_key` constraints on the V1 materialization path. A primary key declared with `expression: RELY` (or any trailing clause) previously had its expression silently dropped. ([#1551](https://github.com/databricks/dbt-databricks/pull/1551))
 - Apply column-level `databricks_tags` for incremental models on the V1 materialization path ([#1520](https://github.com/databricks/dbt-databricks/pull/1520) closes [#1307](https://github.com/databricks/dbt-databricks/issues/1307))
 - Raise a `DbtRuntimeError` when a Python model job run terminates with a non-success `result_state` (e.g. `FAILED`/`TIMEDOUT`) instead of returning silently ([#1477](https://github.com/databricks/dbt-databricks/pull/1477))
