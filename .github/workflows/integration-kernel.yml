@@ -27,7 +27,6 @@
 name: Kernel Integration Tests
 on:
   workflow_dispatch:
-  pull_request:  # TEMP: verify the workflow runs on PR #1576; reverted before merge.
   schedule:
     - cron: "17 9 * * 6"  # Weekly: Saturday 09:17 UTC (14:47 IST). Clear of the
                           # daily 21:30 UTC nightly and the Sunday SPOG slot,
