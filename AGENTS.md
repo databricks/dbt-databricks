@@ -97,6 +97,12 @@ Functional tests assert user-visible outcomes: the model materializes and the re
 
 When there is nothing meaningful to assert in either category, the change does not need a test.
 
+Three rules keep functional tests server-truthful and cheap (full detail in [docs/testing.md → Functional Tests](docs/testing.md#functional-tests)):
+
+- **Assert server-observable state only** — query data, `SHOW TBLPROPERTIES`, `DESCRIBE DETAIL`/`EXTENDED`/`HISTORY`, or `information_schema`. Never assert a log substring or generated-SQL text in a functional test (that's unit/macro-test domain), even where existing tests do.
+- **Rerun-safe** — a second run of the test must pass (`RerunSafeMixin` or unique names).
+- **Cheapest home first** — strengthen an existing test > add a case to a class > new class > new file/section; fixtures go in `fixtures.py`, never inlined.
+
 ### Test Environments
 
 - **HMS Cluster** (`databricks_cluster`): Legacy Hive Metastore

@@ -1,5 +1,6 @@
 import re
 import warnings
+from dataclasses import fields
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
@@ -26,6 +27,7 @@ from dbt.adapters.databricks.credentials import (
 )
 from dbt.adapters.databricks.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    DatabricksConfig,
     DatabricksRelationInfo,
     IncrementalTableAPI,
     MaterializedViewAPI,
@@ -47,6 +49,13 @@ from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProces
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+def test_databricks_config_declares_skip_not_matched_step():
+    # Must match the key the merge macro reads (`skip_not_matched_step`), not the typo.
+    names = {f.name for f in fields(DatabricksConfig)}
+    assert "skip_not_matched_step" in names
+    assert "skip_non_matched_step" not in names
 
 
 def _catalog_row(column_name: str) -> dict:

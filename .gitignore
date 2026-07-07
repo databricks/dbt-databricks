@@ -21,7 +21,6 @@ logs/
 .python-version
 .hatch
 .coverage*
-CLAUDE.md
 .claude/
 .cursor
 

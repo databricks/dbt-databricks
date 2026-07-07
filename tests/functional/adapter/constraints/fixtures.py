@@ -439,3 +439,27 @@ incremental_contract_off_pk_unenforced_schema_yml = _incremental_contract_off_pk
 incremental_contract_off_pk_sql = """
 select 1 as id
 """
+
+
+check_constraint_model_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'blue' as color
+"""
+
+check_constraint_schema_yml = """
+version: 2
+models:
+  - name: check_constraint_model
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: check
+        name: id_is_positive
+        expression: id > 0
+    columns:
+      - name: id
+        data_type: int
+      - name: color
+        data_type: string
+"""
