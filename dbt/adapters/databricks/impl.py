@@ -207,7 +207,7 @@ class DatabricksConfig(AdapterConfig):
     zorder: Optional[Union[list[str], str]] = None
     skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
-    skip_non_matched_step: Optional[bool] = None
+    skip_not_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
     matched_condition: Optional[str] = None
     not_matched_condition: Optional[str] = None
