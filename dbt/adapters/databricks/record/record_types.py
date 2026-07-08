@@ -1,4 +1,5 @@
 import dataclasses
+import json
 from typing import Any, Optional
 
 from dbt.adapters.record.serialization import serialize_bindings
@@ -6,6 +7,21 @@ from dbt_common.record import Record, Recorder
 
 from dbt.adapters.databricks.relation import DatabricksRelation
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationConfigBase
+
+
+def _serialize_component(component: Any) -> dict[str, Any]:
+    """Serialize a relation config component to a JSON-native dict.
+
+    pydantic v2 exposes ``model_dump(mode="json")``; v1 only has ``json()``,
+    which is round-tripped to coerce tuples, sets, and enums to JSON types.
+    Under v1 the ``model_config`` ConfigDict is treated as a regular field and
+    leaks into the output, so it is dropped to match the v2 shape.
+    """
+    if hasattr(component, "model_dump"):
+        return component.model_dump(mode="json")
+    serialized = json.loads(component.json())
+    serialized.pop("model_config", None)
+    return serialized
 
 
 @dataclasses.dataclass
@@ -92,7 +108,7 @@ class DatabricksAdapterGetRelationConfigParams:
             "model_config": (
                 {
                     "config": {
-                        k: v.model_dump(mode="json") for k, v in self.model_config.config.items()
+                        k: _serialize_component(v) for k, v in self.model_config.config.items()
                     }
                 }
                 if self.model_config
@@ -114,7 +130,7 @@ class DatabricksAdapterGetRelationConfigResult:
     def __init__(self, return_val: Optional[Any]) -> None:
         if return_val is not None and not isinstance(return_val, dict):
             self.return_val = {
-                "config": {k: v.model_dump(mode="json") for k, v in return_val.config.items()}
+                "config": {k: _serialize_component(v) for k, v in return_val.config.items()}
             }
         else:
             self.return_val = return_val
