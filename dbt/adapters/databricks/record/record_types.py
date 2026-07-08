@@ -92,8 +92,7 @@ class DatabricksAdapterGetRelationConfigParams:
             "model_config": (
                 {
                     "config": {
-                        k: v.model_dump(mode="json")
-                        for k, v in self.model_config.config.items()
+                        k: v.model_dump(mode="json") for k, v in self.model_config.config.items()
                     }
                 }
                 if self.model_config

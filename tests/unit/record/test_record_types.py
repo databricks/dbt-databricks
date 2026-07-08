@@ -127,7 +127,7 @@ class TestRecordTypes:
         ctx.recorder = recorder
         return recorder
 
-    def test_record_is_cluster(self, adapter: DatabricksAdapter, recorder: Recorder) -> None:
+    def test_record_is_cluster(self, adapter, recorder):
         adapter.connections.is_cluster = Mock(return_value=True)
 
         adapter.is_cluster()
@@ -136,9 +136,7 @@ class TestRecordTypes:
         assert record["params"] == {"thread_id": THREAD_NAME}
         assert record["result"] == {"return_val": True}
 
-    def test_record_has_dbr_capability(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_has_dbr_capability(self, adapter, recorder):
         adapter.has_capability = Mock(return_value=True)
 
         adapter.has_dbr_capability("insert_by_name")
@@ -150,7 +148,7 @@ class TestRecordTypes:
         }
         assert record["result"] == {"return_val": True}
 
-    def test_record_add_query(self, adapter: DatabricksAdapter, recorder: Recorder) -> None:
+    def test_record_add_query(self, adapter, recorder):
         adapter.connections.add_query = Mock()
 
         sql = "insert overwrite `db`.`sch`.`s_data` values\n          (%s,%s),(%s,%s)"
@@ -173,7 +171,7 @@ class TestRecordTypes:
             "close_cursor": True,
         }
 
-    def test_record_is_uniform(self, adapter: DatabricksAdapter, recorder: Recorder) -> None:
+    def test_record_is_uniform(self, adapter, recorder):
         config_model = load_fixture("is_uniform_config_model.json")
         adapter.build_catalog_relation = Mock(return_value=Mock(table_format="default"))
         config = Mock()
@@ -200,9 +198,7 @@ class TestRecordTypes:
     #
     # We use patch.object to override the internal call to the *API method.
 
-    def test_record_get_relation_config_materialized_view(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_get_relation_config_materialized_view(self, adapter, recorder):
         relation = DatabricksRelation.create(
             identifier="my_mv",
             schema="analytics",
@@ -269,9 +265,7 @@ class TestRecordTypes:
         }
         assert record["result"] == {"return_val": {"config": expected_config}}
 
-    def test_record_get_relation_config_streaming_table(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_get_relation_config_streaming_table(self, adapter, recorder):
         relation = DatabricksRelation.create(
             identifier="my_st",
             schema="analytics",
@@ -328,9 +322,7 @@ class TestRecordTypes:
         }
         assert record["result"] == {"return_val": {"config": expected_config}}
 
-    def test_record_get_relation_config_table(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_get_relation_config_table(self, adapter, recorder):
         relation = DatabricksRelation.create(
             identifier="my_table",
             schema="analytics",
@@ -473,9 +465,7 @@ class TestRecordTypes:
         }
         assert record["result"] == {"return_val": {"config": expected_config}}
 
-    def test_record_get_relation_config_view(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_get_relation_config_view(self, adapter, recorder):
         relation = DatabricksRelation.create(
             identifier="my_view",
             schema="analytics",
@@ -514,9 +504,7 @@ class TestRecordTypes:
         }
         assert record["result"] == {"return_val": {"config": expected_config}}
 
-    def test_record_get_relation_config_metric_view(
-        self, adapter: DatabricksAdapter, recorder: Recorder
-    ) -> None:
+    def test_record_get_relation_config_metric_view(self, adapter, recorder):
         relation = DatabricksRelation.create(
             identifier="my_metric_view",
             schema="analytics",
