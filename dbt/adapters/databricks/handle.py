@@ -444,29 +444,31 @@ class SqlUtils:
         error directing the user to the default backend.
         """
         # PAT: forward the token directly.
-        if creds.token:
-            args["access_token"] = creds.token
+        if creds_manager.token:
+            args["access_token"] = creds_manager.token
             return
 
         # OAuth U2M (browser): auth_type "oauth" with no secret. Translate to the
         # kernel's "databricks-oauth" (client_id is optional). An Azure SP keeps its
         # secret in azure_client_secret, so this does not match one.
-        if creds.auth_type == "oauth" and not creds.client_secret and not creds.azure_client_secret:
+        # Keep this auth_type check on raw creds to avoid initializing SDK auth here.
+        if (
+            creds.auth_type == "oauth"
+            and not creds_manager.client_secret
+            and not creds_manager.azure_client_secret
+        ):
             args["auth_type"] = "databricks-oauth"
-            if creds.client_id:
-                args["oauth_client_id"] = creds.client_id
-            if creds.oauth_scopes:
-                args["oauth_scopes"] = creds.oauth_scopes
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_scopes"] = creds_manager.oauth_scopes
             return
 
-        # Databricks OAuth M2M: forward raw creds so the kernel owns refresh. The
+        # Databricks OAuth M2M: forward OAuth creds so the kernel owns refresh. The
         # resolved auth_type distinguishes genuine Databricks OAuth from an Azure SP
         # supplied through the client_id/client_secret fields.
-        if not creds.azure_client_secret and creds_manager.config.auth_type == "oauth-m2m":
-            args["oauth_client_id"] = creds.client_id
-            args["oauth_client_secret"] = creds.client_secret
-            if creds.oauth_scopes:
-                args["oauth_scopes"] = creds.oauth_scopes
+        if not creds_manager.azure_client_secret and creds_manager.config.auth_type == "oauth-m2m":
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_client_secret"] = creds_manager.client_secret
+            args["oauth_scopes"] = creds_manager.oauth_scopes
             return
 
         raise DbtConfigError(

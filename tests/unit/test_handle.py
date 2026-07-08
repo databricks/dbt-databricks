@@ -75,6 +75,26 @@ def _prepare_connection_args(**creds_kwargs: Any) -> dict[str, Any]:
     return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
 
+def _fail_if_config_accessed(self: DatabricksCredentialManager) -> Any:
+    raise AssertionError("creds_manager.config should not be accessed")
+
+
+def _prepare_connection_args_without_config_auth(**creds_kwargs: Any) -> dict[str, Any]:
+    creds = DatabricksCredentials(
+        host="yourorg.databricks.com",
+        http_path=_KERNEL_HTTP_PATH,
+        schema="dbt",
+        **creds_kwargs,
+    )
+    manager = DatabricksCredentialManager.create_from(creds)
+    with patch.object(
+        type(manager),
+        "config",
+        new_callable=lambda: property(_fail_if_config_accessed),
+    ):
+        return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+
+
 class TestSqlUtils:
     @pytest.mark.parametrize(
         "bindings, expected", [(None, None), ([1], [1]), ([1, Decimal(0.73)], [1, 0.73])]
@@ -223,7 +243,7 @@ class TestSqlUtils:
     def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
         """use_kernel with a PAT forwards the token directly as access_token
         (PATs are long-lived, so no refresh concern), dropping credentials_provider."""
-        args = _prepare_connection_args(
+        args = _prepare_connection_args_without_config_auth(
             token="dapiabc123",
             connection_parameters={"use_kernel": True},
         )
@@ -232,10 +252,10 @@ class TestSqlUtils:
         assert args.get("credentials_provider") is None
         assert "oauth_client_id" not in args
 
-    def test_prepare_connection_arguments__kernel_m2m_forwards_raw_creds(self):
-        """OAuth M2M forwards the raw client id/secret so the KERNEL owns the token
-        lifecycle (acquire + refresh via workspace OIDC) — not a pre-resolved token
-        that would not refresh."""
+    def test_prepare_connection_arguments__kernel_m2m_forwards_oauth_creds(self):
+        """OAuth M2M forwards resolved client id/scopes plus the client secret so the
+        kernel owns the token lifecycle (acquire + refresh via workspace OIDC), not a
+        pre-resolved token that would not refresh."""
         creds = DatabricksCredentials(
             host="yourorg.databricks.com",
             http_path=_KERNEL_HTTP_PATH,
@@ -253,6 +273,8 @@ class TestSqlUtils:
             args = SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
         assert args["oauth_client_id"] == "cid"
         assert args["oauth_client_secret"] == "dose-secret"
+        # Scopes come from the manager's resolved defaults, not raw creds.
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
         assert args.get("credentials_provider") is None
         assert "access_token" not in args
 
@@ -270,8 +292,13 @@ class TestSqlUtils:
             connection_parameters={"use_kernel": True},
         )
         manager = DatabricksCredentialManager.create_from(creds)
-        with pytest.raises(DbtConfigError, match="use_kernel"):
-            SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+        with patch.object(
+            type(manager),
+            "config",
+            new_callable=lambda: property(_fail_if_config_accessed),
+        ):
+            with pytest.raises(DbtConfigError, match="use_kernel"):
+                SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
     def test_prepare_connection_arguments__kernel_legacy_azure_sp_raises(self):
         """An Azure SP supplied through the client_id/client_secret fields resolves
@@ -294,33 +321,36 @@ class TestSqlUtils:
                 SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
     def test_prepare_connection_arguments__kernel_u2m_explicit_client_id(self):
-        """use_kernel with OAuth U2M and an explicit client_id forwards
-        oauth_client_id and translates dbt's auth_type='oauth' to the kernel's
+        """use_kernel with OAuth U2M and an explicit client_id forwards that
+        client_id and translates dbt's auth_type='oauth' to the kernel's
         'databricks-oauth' so the kernel bridge routes to its U2M flow. U2M is a
         browser flow the kernel runs itself, so no token is pre-resolved."""
-        args = _prepare_connection_args(
+        args = _prepare_connection_args_without_config_auth(
             client_id="cid",
             auth_type="oauth",
             connection_parameters={"use_kernel": True},
         )
         assert args["use_kernel"] is True
         assert args["oauth_client_id"] == "cid"
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
         assert args["auth_type"] == "databricks-oauth"
         assert args.get("credentials_provider") is None
         assert "oauth_client_secret" not in args
         assert "access_token" not in args
 
-    def test_prepare_connection_arguments__kernel_u2m_default_app_no_client_id(self):
+    def test_prepare_connection_arguments__kernel_u2m_default_app_uses_manager_defaults(self):
         """The common external-browser config is `auth_type: oauth` with NO
-        client_id (SDK uses the default dbt app). The kernel bridge routes U2M off
-        auth_type alone, so we must translate auth_type even without a client_id."""
-        args = _prepare_connection_args(
+        client_id/scopes set. We forward the credential manager's resolved defaults
+        (client_id=dbt-databricks, scopes=[all-apis, offline_access]) so the kernel
+        uses dbt's defaults rather than its own."""
+        args = _prepare_connection_args_without_config_auth(
             auth_type="oauth",
             connection_parameters={"use_kernel": True},
         )
         assert args["auth_type"] == "databricks-oauth"
+        assert args["oauth_client_id"] == "dbt-databricks"
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
         assert args.get("credentials_provider") is None
-        assert "oauth_client_id" not in args
         assert "oauth_client_secret" not in args
         assert "access_token" not in args
 
