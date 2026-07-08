@@ -4,6 +4,7 @@
 
 - Add catalogs.yml v2 support (requires `use_catalogs_v2: true` in dbt-core) ([1440](https://github.com/databricks/dbt-databricks/pull/1440))
 - Add `skip_optimize` model config to opt out of the post-materialization `OPTIMIZE` call without dropping `zorder` / `liquid_clustered_by` / `auto_liquid_cluster` from the table definition. Useful when `OPTIMIZE` is delegated to Predictive Optimization or scheduled out of band. Complements the existing run-wide `DATABRICKS_SKIP_OPTIMIZE` var by allowing project-, folder-, or model-level opt-out via standard dbt config inheritance ([#703](https://github.com/databricks/dbt-databricks/issues/703)).
+- Support the connector's Rust kernel backend via `connection_parameters: {use_kernel: true}` for SQL warehouses, with personal access token or Databricks OAuth (M2M/U2M) auth (requires `databricks-sql-connector[kernel]` on Python 3.10+; Azure service principals are not supported by the kernel) ([#1576](https://github.com/databricks/dbt-databricks/pull/1576))
 
 ### Fixes
 - Stop dropping existing constraints on incremental runs when `contract.enforced` is `false` ([#1557](https://github.com/databricks/dbt-databricks/pull/1557))
@@ -22,6 +23,7 @@
 
 ### Under the Hood
 
+- Add a weekly `Kernel Integration Tests` workflow that runs the functional suite against the SQL-warehouse profile through the connector's Rust kernel backend (`DBT_DATABRICKS_USE_KERNEL=1`) (test-only, no runtime impact) ([#1576](https://github.com/databricks/dbt-databricks/pull/1576)).
 - Add functional tests for the `query` relation-config component's change handling: a streaming table's defining-query change is applied in place via `CREATE OR REFRESH`, and re-running a materialized view with an unchanged query leaves the existing relation in place instead of rebuilding it (test-only, no runtime impact).
 - Raise the `databricks-sql-connector` upper bound to `<4.3.1` to support `4.3.0` ([#1518](https://github.com/databricks/dbt-databricks/pull/1518))
 - Add a functional test for incremental column-mask removal: dropping a `column_mask` from a model with an existing incremental relation issues `ALTER COLUMN ... DROP MASK` and leaves the column unmasked (test-only, no runtime impact). ([#1514](https://github.com/databricks/dbt-databricks/pull/1514))

@@ -182,6 +182,7 @@ class TestChangingSchemaIncremental(SchemaNameVarMixin):
 
 
 @pytest.mark.python
+@pytest.mark.skip_kernel  # pins model http_path to a cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 @pytest.mark.flaky(reruns=2, reruns_delay=120)
 class TestSpecifyingHttpPath(PythonModelDataMixin, BasePythonModelTests):

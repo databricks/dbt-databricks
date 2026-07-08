@@ -32,6 +32,7 @@ class TestSpogProbeFailureFallback:
             run_dbt(["run", "--select", "spog_smoke_model"], expect_pass=True)
 
 
+@pytest.mark.skip_kernel  # pins model to a UC cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestSpogNamedCompute:
     @pytest.fixture(scope="class")
