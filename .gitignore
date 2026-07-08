@@ -21,7 +21,8 @@ logs/
 .python-version
 .hatch
 .coverage*
-.claude/
+.claude/*
+!.claude/skills/
 .cursor
 
 docs/plans/
