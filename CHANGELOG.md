@@ -32,6 +32,7 @@
 - Raise the `dbt-core` upper bound to `<1.11.13` to include dbt-core 1.11.12 ([#1578](https://github.com/databricks/dbt-databricks/pull/1578))
 - Make the remaining incremental functional tests (tags, column tags, tblproperties, liquid clustering, column masks, persist_docs, replace table) rerun-safe so a `pytest --reruns` retry no longer inherits mutated state (rewritten `schema.yml`/model files, half-built relations) from the failed attempt (test-only, no runtime impact).
 - Add unit tests for the previously-uncovered live event/logging classes (`QueryError`, `ConnectionCreate`, `ConnectionCreateError`, and `DbtCoreHandler` log-level routing), bringing the live code in `events/` and `logging.py` to full coverage (test-only, no runtime impact). ([#1548](https://github.com/databricks/dbt-databricks/pull/1548))
+- Regenerate the integration-test shard timings and add `scripts/regenerate_timings.py` to rebuild them from recent green runs, rebalancing the shard matrix so no shard runs far longer than its siblings (test-only, no runtime impact) ([#1582](https://github.com/databricks/dbt-databricks/pull/1582)).
 
 ## dbt-databricks 1.12.1 (June 10, 2026)
 
