@@ -166,6 +166,7 @@ class TestInsertOverwriteChangeSchema(InsertOverwriteBase):
 
 
 # Only runs under SQL warehouse profile, but overrides compute at model level
+@pytest.mark.skip_kernel  # overrides compute to a UC cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
     @pytest.fixture(scope="class")

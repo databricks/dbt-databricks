@@ -14,6 +14,9 @@ from tests.functional.adapter.functions.fixtures import (
     PYTHON_UDF_V1,
     PYTHON_UDF_V2,
     PYTHON_UDF_YML_V1,
+    SQL_UDF_V1,
+    SQL_UDF_V2,
+    SQL_UDF_YML,
 )
 
 
@@ -107,6 +110,65 @@ class TestDatabricksPythonUDFLifecycle:
         # ===========================================
         # Update the Python file
         write_file(PYTHON_UDF_V2, project.project_root, "functions", "price_for_xlarge.py")
+
+        result = run_dbt(["build"])
+
+        assert len(result.results) == 1
+        assert result.results[0].status == RunStatus.Success
+
+        # Verify new implementation works: price * 3
+        result = run_dbt(["show", "--inline", "SELECT {{ function('price_for_xlarge') }}(100)"])
+        assert int(result.results[0].agate_table.rows[0].values()[0]) == 300
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDatabricksSqlUDFLifecycle:
+    """Test the full lifecycle of a SQL UDF.
+
+    Verifies:
+    1. Initial create - function is created successfully
+    2. Subsequent runs - function is replaced (idempotent)
+    3. Code change - function is updated with new implementation
+    """
+
+    @pytest.fixture(scope="class")
+    def functions(self):
+        return {
+            "price_for_xlarge.sql": SQL_UDF_V1,
+            "price_for_xlarge.yml": SQL_UDF_YML,
+        }
+
+    def test_sql_udf_lifecycle(self, project):
+        """Test the full lifecycle of a SQL UDF."""
+
+        # ===========================================
+        # Phase 1: Initial Create
+        # ===========================================
+        result = run_dbt(["build"])
+
+        assert len(result.results) == 1
+        assert result.results[0].status == RunStatus.Success
+
+        # Verify function works: price * 2
+        result = run_dbt(["show", "--inline", "SELECT {{ function('price_for_xlarge') }}(100)"])
+        assert int(result.results[0].agate_table.rows[0].values()[0]) == 200
+
+        # ===========================================
+        # Phase 2: Subsequent Run (Idempotent)
+        # ===========================================
+        result = run_dbt(["build"])
+
+        assert len(result.results) == 1
+        assert result.results[0].status == RunStatus.Success
+
+        # Function still works the same way
+        result = run_dbt(["show", "--inline", "SELECT {{ function('price_for_xlarge') }}(100)"])
+        assert int(result.results[0].agate_table.rows[0].values()[0]) == 200
+
+        # ===========================================
+        # Phase 3: Code Change (price * 2 -> price * 3)
+        # ===========================================
+        write_file(SQL_UDF_V2, project.project_root, "functions", "price_for_xlarge.sql")
 
         result = run_dbt(["build"])
 

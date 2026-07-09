@@ -20,9 +20,9 @@ from tests.functional.adapter.materialized_view_tests import fixtures
 
 
 def _check_tblproperties(tblproperties: TblPropertiesConfig, expected: dict):
-    final_tblproperties = {
-        k: v for k, v in tblproperties.tblproperties.items() if k not in tblproperties.ignore_list
-    }
+    # from_relation_results now returns all properties (including server-set ones), so scope the
+    # comparison to the keys the model configures rather than filtering a Databricks-internal list.
+    final_tblproperties = {k: v for k, v in tblproperties.tblproperties.items() if k in expected}
     assert final_tblproperties == expected
 
 

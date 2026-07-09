@@ -39,6 +39,48 @@ class TestMetricViewQueryConfig:
         config2 = MetricViewQueryConfig(query="version: 0.1 source: other_table")
         assert config1.get_diff(config2) is config1
 
+    def test_get_diff__source_quote_normalization(self):
+        # Databricks stores `source` single-quoted; the model emits it double-quoted.
+        # The two are semantically identical, so no change should be detected.
+        desired = MetricViewQueryConfig(query='version: 1.1\nsource: "`c`.`s`.`t`"')
+        existing = MetricViewQueryConfig(query="version: 1.1\nsource: '`c`.`s`.`t`'")
+        assert desired.get_diff(existing) is None
+
+    def test_get_diff__flow_vs_block_list(self):
+        # Databricks rewrites flow-style lists (e.g. synonyms) to block style on read-back.
+        desired = MetricViewQueryConfig(
+            query="version: 1.1\ndimensions:\n  - name: s\n    expr: s\n    synonyms: [a, b]"
+        )
+        existing = MetricViewQueryConfig(
+            query=(
+                "version: 1.1\ndimensions:\n  - name: s\n    expr: s\n"
+                "    synonyms:\n      - a\n      - b"
+            )
+        )
+        assert desired.get_diff(existing) is None
+
+    def test_get_diff__semantic_difference_detected(self):
+        desired = MetricViewQueryConfig(query="version: 1.1\nsource: t\nfilter: a = 1")
+        existing = MetricViewQueryConfig(query="version: 1.1\nsource: t\nfilter: a = 2")
+        assert desired.get_diff(existing) is desired
+
+    def test_get_diff__unparseable_falls_back_to_whitespace(self):
+        # Malformed YAML still compares via whitespace normalization (no crash).
+        desired = MetricViewQueryConfig(query="a: [1, 2")
+        existing = MetricViewQueryConfig(query="a:   [1,   2")
+        assert desired.get_diff(existing) is None
+
+    def test_get_diff__reserved_word_scalars_not_coerced(self):
+        # `yes`/`no` and `true`/`false` are distinct synonym values; YAML implicit typing
+        # would collapse them to the same booleans, so a real change must still be detected.
+        desired = MetricViewQueryConfig(
+            query="version: 1.1\ndimensions:\n  - name: s\n    expr: s\n    synonyms: [yes, no]"
+        )
+        existing = MetricViewQueryConfig(
+            query="version: 1.1\ndimensions:\n  - name: s\n    expr: s\n    synonyms: [true, false]"
+        )
+        assert desired.get_diff(existing) is desired
+
 
 class TestMetricViewQueryProcessor:
     def test_from_relation_results__with_dollar_delimiters(self):

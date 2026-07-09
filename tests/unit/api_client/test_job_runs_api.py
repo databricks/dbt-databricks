@@ -203,3 +203,20 @@ class TestJobRunsApi:
         api.poll_for_completion("123")
 
         workspace_client.jobs.get_run.assert_called_with(run_id=123)
+
+    @freezegun.freeze_time("2020-01-01")
+    @patch("time.sleep")
+    def test_poll_for_completion__failed(self, _, api, workspace_client):
+        mock_run = Mock(spec=Run)
+        mock_state = Mock(spec=RunState)
+        mock_state.life_cycle_state = RunLifeCycleState.TERMINATED
+        mock_state.result_state = RunResultState.FAILED
+        mock_state.state_message = "notebook raised exception"
+        mock_run.state = mock_state
+        mock_run.run_id = 123
+        workspace_client.jobs.get_run.return_value = mock_run
+
+        with pytest.raises(DbtRuntimeError) as exc:
+            api.poll_for_completion("123")
+
+        assert "Python model run ended in result_state FAILED" in str(exc.value)
