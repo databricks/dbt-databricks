@@ -9,7 +9,6 @@ from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
 )
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
-from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -28,7 +27,7 @@ def _get_refresh_config(project, identifier):
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestMaterializedViewScheduleModes(RerunSafeMixin):
+class TestMaterializedViewScheduleModes:
     @pytest.fixture(scope="class", autouse=True)
     def seeds(self):
         yield {"my_seed.csv": MY_SEED}
@@ -36,10 +35,6 @@ class TestMaterializedViewScheduleModes(RerunSafeMixin):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {"mv_on_update_bare.sql": fixtures.materialized_view_on_update_bare}
-
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("mv_on_update_bare",)
 
     def test_on_update_bare_mode_roundtrip(self, project):
         util.run_dbt(["seed"])
@@ -51,7 +46,7 @@ class TestMaterializedViewScheduleModes(RerunSafeMixin):
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestMaterializedViewDropAndReadd(RerunSafeMixin):
+class TestMaterializedViewDropAndReadd:
     """Drop schedule (config removed) and re-add."""
 
     @pytest.fixture(scope="class", autouse=True)
@@ -61,10 +56,6 @@ class TestMaterializedViewDropAndReadd(RerunSafeMixin):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {"mv_drop_readd.sql": fixtures.materialized_view_cron_no_tz}
-
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("mv_drop_readd",)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -91,7 +82,7 @@ class TestMaterializedViewDropAndReadd(RerunSafeMixin):
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestMaterializedViewScheduleLifecycle(RerunSafeMixin):
+class TestMaterializedViewScheduleLifecycle:
     """Walks one MV through the realistic schedule lifecycle:
     MANUAL → CRON → ON_UPDATE rate-limited → EVERY → (non-refresh change) → MANUAL.
     Each transition asserts the post-state schedule via DESCRIBE EXTENDED."""
@@ -103,10 +94,6 @@ class TestMaterializedViewScheduleLifecycle(RerunSafeMixin):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {"mv_lifecycle.sql": fixtures.materialized_view_no_schedule}
-
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("mv_lifecycle",)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -157,7 +144,7 @@ class TestMaterializedViewScheduleLifecycle(RerunSafeMixin):
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestMaterializedViewEveryAcceptedInputs(RerunSafeMixin):
+class TestMaterializedViewEveryAcceptedInputs:
     """Walk one MV through each EVERY unit the regex accepts (HOUR / DAY / WEEK) and
     confirm dbt round-trips each against a real warehouse. Uses
     `on_configuration_change: apply` so each iteration is an ALTER, not a fresh CREATE."""
@@ -169,10 +156,6 @@ class TestMaterializedViewEveryAcceptedInputs(RerunSafeMixin):
     @pytest.fixture(scope="class", autouse=True)
     def models(self):
         yield {"mv_every_inputs.sql": fixtures.materialized_view_with_every("2 HOURS")}
-
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("mv_every_inputs",)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):

@@ -17,7 +17,7 @@ from dbt.tests.adapter.simple_seed.test_seed import (
     SeedTestBase,
 )
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.simple_seed import fixtures
 
 
@@ -185,11 +185,7 @@ class TestSeedColumnTypesV2(TestSeedColumnTypes, MaterializationV2Mixin):
     pass
 
 
-class TestSeedOntoView(RerunSafeMixin):
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("seed_over_view",)
-
+class TestSeedOntoView:
     @pytest.fixture(scope="class")
     def seeds(self):
         return {"seed_over_view.csv": fixtures.seeds__over_view_csv}
