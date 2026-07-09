@@ -260,7 +260,7 @@ def main() -> int:
     print(f"\nWrote {output_path} (median of {len(per_run)} run(s)):", flush=True)
     for profile, by_file in sorted(merged.items()):
         vals = by_file.values()
-        max_file = max(by_file, key=by_file.get) if by_file else "-"
+        max_file = max(by_file, key=lambda f: by_file[f]) if by_file else "-"
         print(
             f"  {profile}: {len(by_file)} files, total {sum(vals) / 60:.1f}m, "
             f"max-file {max(vals) / 60:.1f}m ({max_file})",
