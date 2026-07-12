@@ -7,7 +7,6 @@ import re
 import sys
 from pathlib import Path
 
-
 PUBLIC_REGISTRY = "https://pypi.org/simple"
 PUBLIC_PACKAGE_URL_PREFIX = "https://files.pythonhosted.org/packages/"
 REGISTRY_PATTERN = re.compile(r'registry = "([^"]+)"')
@@ -20,15 +19,11 @@ def check_uv_lock(lockfile: Path) -> list[str]:
     for line_number, line in enumerate(lockfile.read_text().splitlines(), start=1):
         for registry in REGISTRY_PATTERN.findall(line):
             if registry != PUBLIC_REGISTRY:
-                failures.append(
-                    f"{lockfile}:{line_number}: registry URL is not {PUBLIC_REGISTRY}"
-                )
+                failures.append(f"{lockfile}:{line_number}: registry URL is not public PyPI")
 
         for url in URL_PATTERN.findall(line):
             if not url.startswith(PUBLIC_PACKAGE_URL_PREFIX):
-                failures.append(
-                    f"{lockfile}:{line_number}: package URL is not under {PUBLIC_PACKAGE_URL_PREFIX}"
-                )
+                failures.append(f"{lockfile}:{line_number}: package URL is not public PyPI")
 
     return failures
 

@@ -182,6 +182,7 @@ class TestChangingSchemaIncremental(SchemaNameVarMixin):
 
 
 @pytest.mark.python
+@pytest.mark.skip_kernel  # pins model http_path to a cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 @pytest.mark.flaky(reruns=2, reruns_delay=120)
 class TestSpecifyingHttpPath(PythonModelDataMixin, BasePythonModelTests):
@@ -585,7 +586,7 @@ class TestAllPurposeClusterCommandAPI(PythonModelDataMixin, BasePythonModelTests
 
 
 @pytest.mark.python
-class TestJobClusterMissingConfig:
+class TestJobClusterMissingConfig(SchemaNameVarMixin):
     """job_cluster submission requires job_cluster_config; omitting it fails the run."""
 
     @pytest.fixture(scope="class")
@@ -593,12 +594,12 @@ class TestJobClusterMissingConfig:
         return {"jc_no_config.py": override_fixtures.job_cluster_missing_config_model}
 
     def test_missing_job_cluster_config_fails(self, project):
-        util.run_dbt(["run"], expect_pass=False)
+        util.run_dbt(["run", *self.schema_name_vars(project)], expect_pass=False)
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestAllPurposeClusterMissingClusterId:
+class TestAllPurposeClusterMissingClusterId(SchemaNameVarMixin):
     """all_purpose_cluster needs a resolvable cluster_id; on a SQL warehouse connection
     neither http_path nor cluster_id resolves to one, so the run fails."""
 
@@ -607,4 +608,4 @@ class TestAllPurposeClusterMissingClusterId:
         return {"ap_no_cluster.py": override_fixtures.all_purpose_missing_cluster_model}
 
     def test_missing_cluster_id_fails(self, project):
-        util.run_dbt(["run"], expect_pass=False)
+        util.run_dbt(["run", *self.schema_name_vars(project)], expect_pass=False)
