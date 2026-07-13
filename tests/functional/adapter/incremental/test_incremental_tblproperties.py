@@ -1,10 +1,15 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.incremental import fixtures
 
 
-class TestIncrementalTblproperties:
+class TestIncrementalTblproperties(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("merge_update_columns_sql",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -26,11 +31,18 @@ class TestIncrementalTblproperties:
             results_dict[result.key] = result.value
         assert results_dict["c"] == "e"
         assert results_dict["d"] == "f"
+        # Dropping a property from config does not unset it on the table; the
+        # original value is left in place.
+        assert results_dict["a"] == "b"
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalPythonTblproperties:
+class TestIncrementalPythonTblproperties(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("tblproperties",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -55,3 +67,4 @@ class TestIncrementalPythonTblproperties:
             results_dict[result.key] = result.value
         assert results_dict["c"] == "e"
         assert results_dict["d"] == "f"
+        assert results_dict["a"] == "b"

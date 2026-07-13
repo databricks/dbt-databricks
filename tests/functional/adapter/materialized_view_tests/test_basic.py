@@ -6,6 +6,7 @@ from dbt.tests import util
 from dbt.tests.adapter.materialized_view import files
 from dbt.tests.adapter.materialized_view.basic import MaterializedViewBasic
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -137,6 +138,73 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
             + ">"
         )
         assert results[0][1] == expected_struct_type
+
+    def test_unchanged_query_does_not_recreate(self, project, my_materialized_view):
+        # A false-positive query diff would force a full refresh, rebuilding the MV and moving its
+        # creation timestamp. Re-running with an unchanged query must leave the timestamp stable.
+        def created_time():
+            return project.run_sql(
+                f"""
+                SELECT created
+                FROM {project.database}.information_schema.tables
+                WHERE table_catalog = '{project.database}'
+                  AND table_schema = '{project.test_schema}'
+                  AND table_name = '{my_materialized_view.identifier}'""",
+                fetch="one",
+            )[0]
+
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        created_before = created_time()
+        assert created_before is not None
+
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+
+        assert self.query_relation_type(project, my_materialized_view) == "materialized_view"
+        assert created_time() == created_before
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestMaterializedViewStreamingTableSource(RerunSafeMixin, TestMaterializedViewsMixin):
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "materialized_view_streaming_source_seed.csv": (
+                fixtures.materialized_view_streaming_source_seed_csv
+            )
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "materialized_view_streaming_source_table.sql": (
+                fixtures.materialized_view_streaming_source_table_sql
+            ),
+            "materialized_view_streaming_source.sql": (
+                fixtures.materialized_view_streaming_source_sql
+            ),
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return (
+            "materialized_view_streaming_source_seed",
+            "materialized_view_streaming_source_table",
+            "materialized_view_streaming_source",
+        )
+
+    def test_create_materialized_view_from_streaming_table(self, project):
+        util.run_dbt(["seed"])
+        util.run_dbt(["run", "--select", "+materialized_view_streaming_source"])
+        util.run_dbt(["run", "--select", "+materialized_view_streaming_source"])
+
+        relation = project.adapter.Relation.create(
+            identifier="materialized_view_streaming_source",
+            schema=project.test_schema,
+            database=project.database,
+        )
+        assert self.query_relation_type(project, relation) == "materialized_view"
+        assert self.query_row_count(project, relation) == 1
 
 
 @pytest.mark.dlt

@@ -23,7 +23,8 @@
   {%- set columns = adapter.get_columns_in_relation(temp_relation) -%}
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set contract_config = config.get('contract') -%}
-  {%- if contract_config and contract_config.enforced -%}
+  {%- set contract_enforced = contract_config and contract_config.enforced -%}
+  {%- if contract_enforced -%}
     {%- do exceptions.warn(
          "contract.enforced=true on materialized_view '" ~ model.name ~ "': not supported by dbt (https://docs.getdbt.com/docs/mesh/govern/model-contracts). dbt-databricks provides best-effort support that may change without notice."
        ) -%}
@@ -31,7 +32,7 @@
   {%- else -%}
     {%- set model_constraints = [] -%}
   {%- endif -%}
-  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints) -%}
+  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints, contract_enforced, model.name) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
   create or replace materialized view {{ target_relation.render() }}

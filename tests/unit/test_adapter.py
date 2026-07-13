@@ -1,5 +1,6 @@
 import re
 import warnings
+from dataclasses import fields
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
@@ -26,6 +27,7 @@ from dbt.adapters.databricks.credentials import (
 )
 from dbt.adapters.databricks.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    DatabricksConfig,
     DatabricksRelationInfo,
     IncrementalTableAPI,
     MaterializedViewAPI,
@@ -47,6 +49,13 @@ from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProces
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+def test_databricks_config_declares_skip_not_matched_step():
+    # Must match the key the merge macro reads (`skip_not_matched_step`), not the typo.
+    names = {f.name for f in fields(DatabricksConfig)}
+    assert "skip_not_matched_step" in names
+    assert "skip_non_matched_step" not in names
 
 
 def _catalog_row(column_name: str) -> dict:
@@ -113,6 +122,17 @@ class DatabricksAdapterBase:
 
 
 class TestDatabricksAdapter(DatabricksAdapterBase):
+    @pytest.fixture(autouse=True)
+    def _stub_spog_probe(self):
+        """Stub `probe_host` to keep connection-open tests offline."""
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with patch(
+            "dbt.adapters.databricks.spog.probe.probe_host",
+            return_value=HostMetadata(host_type=None),
+        ):
+            yield
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
@@ -1271,6 +1291,30 @@ class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @patch(
         "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
     )
+    def test_get_columns_foreign_table_uses_legacy_logic(
+        self, mock_get_columns, adapter, unity_relation
+    ):
+        foreign_relation = DatabricksRelation.create(
+            database=unity_relation.database,
+            schema=unity_relation.schema,
+            identifier=unity_relation.identifier,
+            type=DatabricksRelationType.Foreign,
+        )
+        # Foreign/federated tables don't support AS JSON — always use legacy logic
+        with patch.object(adapter, "has_capability", return_value=True):
+            mock_get_columns.return_value = [
+                {"col_name": "federated_col", "data_type": "string", "comment": ""},
+            ]
+            result = adapter.get_columns_in_relation(foreign_relation)
+        assert mock_get_columns.call_count == 1
+        mock_get_columns.assert_called_with(adapter, foreign_relation, "get_columns_comments")
+        assert len(result) == 1
+        assert result[0].column == "federated_col"
+        assert result[0].dtype == "string"
+
+    @patch(
+        "dbt.adapters.databricks.behaviors.columns.GetColumnsByDescribe._get_columns_with_comments"
+    )
     def test_get_columns_fallback_on_known_error(self, mock_get_columns, adapter, unity_relation):
         """Test that UNSUPPORTED_FEATURE in DbtDatabaseError triggers fallback to legacy logic"""
         with patch.object(adapter, "has_capability", return_value=True):
@@ -1504,8 +1548,16 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
-    def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
-        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+    def _create_view_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> ViewConfig:
+        return ViewConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
 
     @staticmethod
     def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
@@ -1651,6 +1703,40 @@ class TestDescribeRelationMetadataFetchPlanning:
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" in called_macro_names
         assert "get_view_description" in called_macro_names
+
+    def test_view_describe_relation_skips_column_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config()
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_view_describe_relation_fetches_column_tag_query_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config(
+            column_tags={"id": {"classification": "internal"}}
+        )
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_view_describe_relation_fetches_column_tags_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+
+        results = ViewAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" in called_macro_names
 
     def test_mv_describe_relation_skips_tag_query_without_tags(self):
         adapter = self._create_adapter()
@@ -1835,3 +1921,84 @@ class TestMaterializationV2BehaviorFlag(DatabricksAdapterBase):
             "get_behavior_flag_no_warn must not fire BehaviorChangeEvent for "
             f"use_materialization_v2 (fired {len(caught)} times)"
         )
+
+
+class TestDebugEmitSpogBlock:
+    """Verify debug_emit_spog_block surfaces SPOG status diagnostics."""
+
+    def test_spog_host_with_capable_deps(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified", account_id="acct"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=6436897454825492",
+            )
+
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "SPOG host" in joined
+        assert "yes" in joined
+        assert "6436897454825492" in joined
+        assert "supported" in joined
+        assert "NOT supported" not in joined
+
+    def test_non_spog_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="workspace"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=True),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="legacy.example.com",
+                http_path="/sql/1.0/warehouses/abc",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        # 'no' for the SPOG host line
+        assert "SPOG host" in joined and "no" in joined
+
+    def test_spog_host_with_old_connector_flags_unsupported(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+        from dbt.adapters.databricks.spog.probe import HostMetadata
+
+        with (
+            patch(
+                "dbt.adapters.databricks.spog.probe.probe_host",
+                return_value=HostMetadata(host_type="unified"),
+            ),
+            patch("dbt.adapters.databricks.impl.connector_supports_spog", return_value=False),
+            patch("dbt.adapters.databricks.impl.sdk_supports_workspace_id", return_value=True),
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=64",
+            )
+        joined = " ".join(call.args[0] for call in mock_logger.info.call_args_list)
+        assert "NOT supported" in joined
+
+    def test_no_op_on_empty_host(self):
+        from dbt.adapters.databricks.impl import DatabricksAdapter
+
+        with (
+            patch("dbt.adapters.databricks.spog.probe.probe_host") as mock_probe,
+            patch("dbt.adapters.databricks.impl.logger") as mock_logger,
+        ):
+            DatabricksAdapter.debug_emit_spog_block(host="", http_path="")
+        mock_probe.assert_not_called()
+        mock_logger.info.assert_not_called()

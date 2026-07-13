@@ -220,3 +220,54 @@ metadata_fetch_materialized_view_with_tags_sql = """
 ) }}
 select * from {{ ref('mv_metadata_fetch_seed') }}
 """
+
+materialized_view_streaming_source_seed_csv = """id,value
+1,100
+""".lstrip()
+
+materialized_view_streaming_source_table_sql = """
+{{ config(materialized='streaming_table') }}
+select * from stream {{ ref('materialized_view_streaming_source_seed') }}
+"""
+
+materialized_view_streaming_source_sql = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('materialized_view_streaming_source_table') }}
+"""
+
+
+mv_norebuild_seed_csv = """id,value
+1,100
+2,200
+""".lstrip()
+
+# Updateable-change / no-rebuild fixtures: an identical query whose only difference
+# step-to-step is exactly one updateable component (tags, then refresh schedule).
+# The MV starts MANUAL (no schedule) and the refresh step moves it to EVERY 4 WEEKS.
+mv_norebuild_v1 = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+mv_norebuild_v2_tag_changed = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a', 'extra': 'b'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+mv_norebuild_v3_refresh_changed = """
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'lifecycle': 'a', 'extra': 'b'},
+    schedule={'every': '4 WEEKS'},
+) }}
+select * from {{ ref('mv_norebuild_seed') }}
+"""

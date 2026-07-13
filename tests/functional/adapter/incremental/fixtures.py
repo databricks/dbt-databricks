@@ -85,6 +85,16 @@ metadata_fetch_incremental_sql = """
 select cast(1 as bigint) as id
 """
 
+metadata_fetch_incremental_skip_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_apply_config_changes = false,
+) }}
+
+select cast(1 as bigint) as id
+"""
+
 metadata_fetch_no_tags_schema = """
 version: 2
 
@@ -1280,4 +1290,14 @@ models:
             to_columns: ["str_key"]
             name: fk
             warn_unenforced: false
+"""
+
+partitioned_incremental_initial_sql = """
+{{ config(materialized='incremental', incremental_strategy='append', partition_by='part_a') }}
+select 1 as id, 'x' as part_a, 'y' as part_b
+"""
+
+partitioned_incremental_changed_sql = """
+{{ config(materialized='incremental', incremental_strategy='append', partition_by='part_b') }}
+select 2 as id, 'x' as part_a, 'y' as part_b
 """

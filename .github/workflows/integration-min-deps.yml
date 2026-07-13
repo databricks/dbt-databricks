@@ -159,10 +159,18 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      # Build the env once, serially: otherwise the three backgrounded
+      # `hatch run min-deps:` calls below race to create it on a cold runner.
+      - name: Create min-deps env
+        run: hatch env create min-deps
 
       - name: Collect tests and assign to shards
         run: |
@@ -173,14 +181,28 @@ jobs:
             [databricks_uc_cluster]=${{ needs.prepare.outputs.count_uc_cluster }}
             [databricks_uc_sql_endpoint]=${{ needs.prepare.outputs.count_uc_sql_endpoint }}
           )
+          # Capture full output per profile; don't pipe through grep here, or a
+          # failure's exit code is lost and surfaces only as "no valid nodeids".
+          declare -A PIDS
           for PROFILE in "${!NUM_SHARDS[@]}"; do
-            (
-              hatch run min-deps:pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
-                | grep "::" \
-                > "shard-assignments/${PROFILE}-collected.txt"
-            ) &
+            hatch run min-deps:pytest --collect-only -q --profile "$PROFILE" tests/functional \
+              > "shard-assignments/${PROFILE}-raw.log" 2>&1 &
+            PIDS[$PROFILE]=$!
           done
-          wait
+          COLLECT_FAILED=0
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            RC=0
+            wait "${PIDS[$PROFILE]}" || RC=$?
+            if [ "$RC" -ne 0 ]; then
+              echo "::error::min-deps test collection failed for profile ${PROFILE} (exit ${RC}); output below:"
+              cat "shard-assignments/${PROFILE}-raw.log"
+              COLLECT_FAILED=1
+              continue
+            fi
+            grep "::" "shard-assignments/${PROFILE}-raw.log" \
+              > "shard-assignments/${PROFILE}-collected.txt" || true
+          done
+          [ "$COLLECT_FAILED" -eq 0 ] || exit 1
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             python3 scripts/shard_assign.py \
               --profile "$PROFILE" \
@@ -264,10 +286,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -290,11 +315,6 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run min-deps:pytest \
             --color=yes -v \
             --profile databricks_uc_cluster \
@@ -363,10 +383,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -389,11 +412,6 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
-          DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH="$DBT_DATABRICKS_UC_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run min-deps:pytest \
             --color=yes -v \
             --profile databricks_uc_sql_endpoint \
@@ -460,10 +478,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -486,11 +507,7 @@ jobs:
         run: |
           mkdir -p logs
           DBT_TEST_USER=notnecessaryformosttests@example.com \
-          DBT_DATABRICKS_LOCATION_ROOT="$DBT_DATABRICKS_LOCATION_ROOT" \
-          DBT_DATABRICKS_HOST_NAME="$DBT_DATABRICKS_HOST_NAME" \
           DBT_DATABRICKS_HTTP_PATH="$DBT_DATABRICKS_CLUSTER_HTTP_PATH" \
-          DBT_DATABRICKS_CLIENT_ID="$DBT_DATABRICKS_CLIENT_ID" \
-          DBT_DATABRICKS_CLIENT_SECRET="$DBT_DATABRICKS_CLIENT_SECRET" \
           xargs -r hatch -v run min-deps:pytest \
             --color=yes -v \
             --profile databricks_cluster \

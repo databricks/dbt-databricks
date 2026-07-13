@@ -370,3 +370,52 @@ models:
                 assert column.comment and column.comment.startswith("Account ID column")
             elif column.column.lower() == "user_name":
                 assert column.comment and column.comment.startswith("User name column")
+
+
+class TestPersistDocsColumnsGateV1:
+    """v1 gates inline column COMMENT on persist_docs.columns.
+
+    With {relation: true, columns: false} a v1 model with a column description gets no
+    column comment, where the typed create path emits it unconditionally.
+    """
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        util.run_dbt(["run"])
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "gate_model.sql": override_fixtures.gate_model_sql,
+            "schema.yml": override_fixtures.gate_model_schema,
+        }
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {"test": {"+persist_docs": {"relation": True, "columns": False}}},
+        }
+
+    @pytest.fixture(scope="class")
+    def table_relation(self, project):
+        return DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="gate_model",
+            type="table",
+        )
+
+    def test_column_comment_suppressed_when_columns_false(self, adapter, table_relation):
+        results = util.run_sql_with_adapter(
+            adapter, f"describe extended {table_relation}", fetch="all"
+        )
+        _, columns = adapter.parse_describe_extended(
+            table_relation, Table(results, ["col_name", "data_type", "comment"])
+        )
+        id_columns = [c for c in columns if c.column == "id"]
+        assert id_columns, "id column missing from describe output"
+        assert not id_columns[0].comment, (
+            f"v1 must suppress column comment when persist_docs.columns is false, "
+            f"got {id_columns[0].comment!r}"
+        )

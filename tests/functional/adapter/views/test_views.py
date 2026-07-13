@@ -1,5 +1,6 @@
 import pytest
 from agate import Row
+from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
 from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
@@ -28,9 +29,8 @@ class BaseUpdateDescription(BaseUpdateView):
             "describe extended {database}.{schema}.initial_view",
             fetch="all",
         )
-        for row in results:
-            if row[0] == "comment":
-                assert row[1] == "This is an updated view"
+        comments = [row[1] for row in results if row[0] == "Comment"]
+        assert "This is an updated view" in comments
 
 
 class BaseUpdateQuery(BaseUpdateView):
@@ -119,6 +119,21 @@ class BaseUpdateColumnComments(BaseUpdateView):
         assert results[0][2] == "This is an id column"
 
 
+class BaseUpdateQueryPreservesColumnComments(BaseUpdateView):
+    """Regression for #1357: ALTER VIEW AS wipes column comments; they must be reapplied."""
+
+    def test_view_update_query_preserves_column_comments(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.altered_view_sql, "models", "initial_view.sql")
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "describe extended {database}.{schema}.initial_view",
+            fetch="all",
+        )
+        assert results[0][2] == "This is the id column"
+
+
 class BaseRemoveTags(BaseUpdateView):
     def test_view_update_remove_tags(self, project):
         util.run_dbt(["build"])
@@ -139,6 +154,44 @@ class BaseRemoveTags(BaseUpdateView):
         assert len(results) == 1
         assert results[0][0] == "tag1"
         assert results[0][1] == "value1"
+
+
+class BaseAddTags(BaseUpdateView):
+    def test_view_update_add_tags(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.two_tag_schema_yml, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            f"""
+            SELECT TAG_NAME, TAG_VALUE FROM {project.database}.information_schema.table_tags
+            WHERE schema_name = '{project.test_schema}' AND table_name = 'initial_view'
+            ORDER BY TAG_NAME
+            """,
+            fetch="all",
+        )
+
+        assert len(results) == 2
+        assert results[0][0] == "tag1"
+        assert results[0][1] == "value1"
+        assert results[1][0] == "tag2"
+        assert results[1][1] == "value2"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterAddTags(BaseAddTags):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -244,6 +297,22 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterQueryPreservesColumnComments(BaseUpdateQueryPreservesColumnComments):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -480,5 +549,30 @@ class TestHiveUpdateUnsafeReplaceTblproperties(HiveBaseUpdateTblproperties):
                     "relation": True,
                     "columns": True,
                 },
+            },
+        }
+
+
+class HiveViewUpdateViaAlterError(BaseUpdateView):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"initial_view.sql": fixtures.view_sql, "schema.yml": fixtures.hive_schema_yml}
+
+    def test_view_update_via_alter_errors_on_hive(self, project):
+        util.run_dbt(["build"])
+        # ALTER VIEW is unavailable in the Hive metastore, so the second run must
+        # fail instead of attempting an in-place update.
+        failed = util.run_dbt(["run"], expect_pass=False)
+        assert failed.results[0].status == RunStatus.Error
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestHiveViewUpdateViaAlterError(HiveViewUpdateViaAlterError):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
             },
         }

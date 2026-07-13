@@ -60,11 +60,15 @@ models:
   - name: my_streaming_table
     columns:
       - name: id
+        data_type: bigint
         description: "The unique identifier for each record"
         constraints:
           - type: not_null
       - name: value
+        data_type: bigint
     config:
+      contract:
+        enforced: true
       persist_docs:
         relation: true
         columns: true

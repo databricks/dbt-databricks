@@ -5,17 +5,11 @@ from unittest import mock
 
 import keyring.backend
 import pytest
-from databricks.sdk import config as _sdk_config
 
-from dbt.adapters.databricks.credentials import DatabricksCredentials
-
-# databricks-sdk >=0.103 added a network probe to Config(); on older SDKs
-# this symbol doesn't exist and the lazy `_ensure_config` path is unnecessary.
-_REQUIRES_LAZY_CONFIG = pytest.mark.skipif(
-    not hasattr(_sdk_config, "get_host_metadata"),
-    reason="lazy _ensure_config is only required when Config() does a network probe",
+from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
+    DatabricksCredentials,
 )
-
 
 _COMMON_KWARGS = {
     "host": "yourorg.databricks.com",
@@ -25,7 +19,6 @@ _COMMON_KWARGS = {
 }
 
 
-@_REQUIRES_LAZY_CONFIG
 class TestParseTimeIsOffline:
     """`dbt parse/list/compile` must stay fully offline. Building
     `DatabricksCredentials` is on that path, so for every supported auth
@@ -62,7 +55,6 @@ class TestParseTimeIsOffline:
             mock_config.assert_not_called()
 
 
-@_REQUIRES_LAZY_CONFIG
 class TestEnsureConfigTriggersTheRightAuth:
     """Connect-time counterpart to TestParseTimeIsOffline: when something
     actually does need the config (e.g. opening a connection), `_ensure_config`
@@ -318,3 +310,145 @@ class MockKeyring(keyring.backend.KeyringBackend):
             return None
 
         os.remove(file_path)
+
+
+class TestCredentialManagerWorkspaceId:
+    """Verify workspace_id is extracted from http_path and plumbed into Config."""
+
+    def _creds(self, http_path: str, token: str = "dapi-fake") -> DatabricksCredentials:
+        return DatabricksCredentials(
+            host="spog.example.com",
+            http_path=http_path,
+            token=token,
+            database="main",
+            schema="default",
+        )
+
+    def test_workspace_id_extracted_when_present(self):
+        creds = self._creds("/sql/1.0/warehouses/abc?o=6436897454825492")
+        mgr = DatabricksCredentialManager.create_from(creds)
+        assert mgr.workspace_id == "6436897454825492"
+
+    def test_workspace_id_none_when_absent(self):
+        creds = self._creds("/sql/1.0/warehouses/abc")
+        mgr = DatabricksCredentialManager.create_from(creds)
+        assert mgr.workspace_id is None
+
+    def test_pat_config_receives_workspace_id_when_supported(self):
+        creds = self._creds("/sql/1.0/warehouses/abc?o=64")
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=True,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_pat()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert kwargs["workspace_id"] == "64"
+
+    def test_pat_config_no_workspace_id_when_unsupported(self):
+        creds = self._creds("/sql/1.0/warehouses/abc?o=64")
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=False,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_pat()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert "workspace_id" not in kwargs
+
+    def test_pat_config_no_workspace_id_when_no_o_param(self):
+        creds = self._creds("/sql/1.0/warehouses/abc")  # no ?o=
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=True,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_pat()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["token"] == "dapi-fake"
+        assert "workspace_id" not in kwargs
+
+    def test_oauth_m2m_config_receives_workspace_id(self):
+        creds = DatabricksCredentials(
+            host="spog.example.com",
+            http_path="/sql/1.0/warehouses/abc?o=64",
+            client_id="cid",
+            client_secret="csec",
+            database="main",
+            schema="default",
+        )
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=True,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_oauth_m2m()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["client_id"] == "cid"
+        assert kwargs["client_secret"] == "csec"
+        assert kwargs["workspace_id"] == "64"
+        assert kwargs["auth_type"] == "oauth-m2m"
+
+    def test_azure_client_secret_config_receives_workspace_id(self):
+        creds = DatabricksCredentials(
+            host="spog.example.com",
+            http_path="/sql/1.0/warehouses/abc?o=64",
+            azure_client_id="az-cid",
+            azure_client_secret="az-csec",
+            database="main",
+            schema="default",
+        )
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=True,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_azure_client_secret()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["workspace_id"] == "64"
+        assert kwargs["azure_client_id"] == "az-cid"
+
+    def test_external_browser_config_receives_workspace_id(self):
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials.sdk_supports_workspace_id",
+                return_value=True,
+            ),
+            mock.patch("dbt.adapters.databricks.credentials.Config") as cfg,
+        ):
+            creds = DatabricksCredentials(
+                host="spog.example.com",
+                http_path="/sql/1.0/warehouses/abc?o=64",
+                client_id="cid",
+                database="main",
+                schema="default",
+            )
+            mgr = DatabricksCredentialManager.create_from(creds)
+            mgr.authenticate_with_external_browser()
+        kwargs = cfg.call_args.kwargs
+        assert kwargs["host"] == "spog.example.com"
+        assert kwargs["client_id"] == "cid"
+        assert kwargs["workspace_id"] == "64"
+        assert kwargs["auth_type"] == "external-browser"
