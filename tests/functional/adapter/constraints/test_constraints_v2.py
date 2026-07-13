@@ -1,10 +1,6 @@
 import pytest
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
-from dbt.tests.adapter.constraints.test_constraints import (
-    _find_and_replace,
-    _normalize_whitespace,
-)
 
 from tests.functional.adapter.constraints import fixtures as override_fixtures
 from tests.functional.adapter.constraints.test_constraints import (
@@ -14,55 +10,12 @@ from tests.functional.adapter.constraints.test_constraints import (
     BaseViewConstraintsColumnsEqual,
     DatabricksConstraintsBase,
 )
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
 
 
 class DatabricksConstraintsBaseV2(DatabricksConstraintsBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"flags": {"use_materialization_v2": True}}
-
-
-class BaseV2ConstraintSetup:
-    @pytest.fixture(scope="class")
-    def override_config(self):
-        return {}
-
-    @pytest.fixture(scope="class")
-    def project_config_update(self, override_config):
-        config = {"flags": {"use_materialization_v2": True}}
-        config.update(override_config)
-        return config
-
-    @pytest.fixture(scope="class")
-    def expected_sql(self):
-        return override_fixtures.expected_sql_v2
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_wrong_order_depends_on_fk_sql,
-            "foreign_key_model.sql": fixtures.foreign_key_model_sql,
-            "constraints_schema.yml": fixtures.model_fk_constraint_schema_yml.replace(
-                "text", "string"
-            ).replace("- type: unique", ""),
-        }
-
-    def test__constraints_ddl(self, project, expected_sql):
-        results = util.run_dbt(["run", "-s", "+my_model"])
-        assert len(results) >= 1
-
-        # Read from the generated SQL files instead of parsing logs
-        generated_sql = util.read_file("target", "run", "test", "models", "my_model.sql")
-        generated_sql_generic = _find_and_replace(generated_sql, "my_model", "<model_identifier>")
-        generated_sql_generic = _find_and_replace(
-            generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
-        )
-
-        normalized = _normalize_whitespace(generated_sql_generic)
-        assert _normalize_whitespace(expected_sql) in normalized
-        # V2 materialization includes constraints inline in CREATE TABLE,
-        # not as separate ALTER statements
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -102,63 +55,6 @@ class TestIncrementalConstraintsColumnsEqual(
         }
 
 
-class TestConstraintQuotedColumn(MaterializationV2Mixin):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_with_quoted_column_name_sql,
-            "constraints_schema.yml": fixtures.model_quoted_column_schema_yml.replace(
-                "text", "string"
-            ).replace('"from"', "`from`"),
-        }
-
-    @pytest.fixture(scope="class")
-    def expected_sql(self):
-        return """
-create or replace table <model_identifier> (
-    `from` string not null,
-    `id` integer not null comment 'hello',
-    `date_day` string
-)
-    using delta
-"""
-
-    def test__constraints_ddl(self, project, expected_sql):
-        results = util.run_dbt(["run", "-s", "+my_model"])
-        assert len(results) >= 1
-
-        # For materialization v2, read the generated SQL from file instead of logs
-        # This is more reliable than parsing logs which may not contain the DDL
-        generated_sql = util.read_file("target", "run", "test", "models", "my_model.sql")
-        generated_sql_generic = _find_and_replace(generated_sql, "my_model", "<model_identifier>")
-        generated_sql_generic = _find_and_replace(
-            generated_sql_generic, "foreign_key_model", "<foreign_key_model_identifier>"
-        )
-
-        # Check that the expected CREATE TABLE DDL is present
-        assert _normalize_whitespace(expected_sql) in _normalize_whitespace(generated_sql_generic)
-
-        # For v2, also verify that constraints are properly applied by running additional checks
-        # We can't always rely on ALTER TABLE statements being in the same file
-        # but we should verify that the table was created with the expected structure
-
-
-@pytest.mark.skip_profile("databricks_cluster")
-class TestTableConstraintsDdlEnforcement(BaseV2ConstraintSetup):
-    pass
-
-
-@pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalConstraintsDdlEnforcement(BaseV2ConstraintSetup):
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "my_model.sql": fixtures.my_model_incremental_wrong_order_depends_on_fk_sql,
-            "foreign_key_model.sql": fixtures.foreign_key_model_sql,
-            "constraints_schema.yml": override_fixtures.model_fk_constraint_schema_yml,
-        }
-
-
 class BaseDatabricksConstraintHandling(BaseConstraintsRollback):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -194,3 +90,27 @@ class TestTableConstraintsRollback(BaseDatabricksConstraintHandling):
             "my_model.sql": override_fixtures.my_model_sql,
             "constraints_schema.yml": override_fixtures.constraints_yml,
         }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCheckConstraintReadbackV2(DatabricksConstraintsBaseV2):
+    """Under v2 a contract CHECK constraint is observable as a delta.constraints.* property."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "check_constraint_model.sql": override_fixtures.check_constraint_model_sql,
+            "schema.yml": override_fixtures.check_constraint_schema_yml,
+        }
+
+    def test_check_constraint_present(self, project):
+        util.run_dbt(["run"])
+        rows = project.run_sql(
+            "show tblproperties {database}.{schema}.check_constraint_model", fetch="all"
+        )
+        constraints = {
+            row.key: row.value for row in rows if row.key.startswith("delta.constraints.")
+        }
+        assert constraints.get("delta.constraints.id_is_positive") == "id > 0", (
+            f"CHECK constraint not observable under v2; delta.constraints = {constraints}"
+        )

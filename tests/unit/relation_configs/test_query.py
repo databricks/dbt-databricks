@@ -35,6 +35,11 @@ class TestQueryProcessor:
         ):
             _ = QueryProcessor.from_relation_config(model)
 
+    def test_from_relation_results__empty_view_definition(self):
+        results = {"information_schema.views": Row(["", "other"], ["view_definition", "comment"])}
+        spec = QueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query="")
+
     def test_get_diff__similar_query(self):
         model = QueryConfig(query="select * from foo")
         results = {
@@ -55,35 +60,25 @@ class TestQueryProcessor:
         other = QueryProcessor.from_relation_results(results)
         assert model.get_diff(other) is model
 
-    def test_from_results__empty_view_definition(self):
-        """view_definition is empty string — should return QueryConfig(query='') not IndexError."""
-        results = {"information_schema.views": Row(["", ""], ["view_definition", "comment"])}
-        spec = QueryProcessor.from_relation_results(results)
-        assert spec == QueryConfig(query="")
-
-    def test_from_results__none_view_definition(self):
-        """view_definition is None — should return QueryConfig(query='')."""
+    def test_from_relation_results__none_view_definition(self):
         results = {"information_schema.views": Row([None, ""], ["view_definition", "comment"])}
         spec = QueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query="")
 
-    def test_from_results__missing_row(self):
-        """No row returned (e.g. streaming table source) — should return QueryConfig(query='')."""
+    def test_from_relation_results__missing_view_definition(self):
         empty_row = Row(values=set())
         results = {"information_schema.views": empty_row}
         spec = QueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query="")
 
     def test_get_diff__empty_existing_query(self):
-        """If the persisted query is empty (IS row missing), any new query should detect a diff."""
         existing = QueryConfig(query="")
         new = QueryConfig(query="select 1")
         assert new.get_diff(existing) is new
 
 
 class TestDescribeQueryProcessor:
-    def test_from_results__no_view_text_row(self):
-        """describe_extended has no 'View Text' row — should return QueryConfig(query='')."""
+    def test_from_relation_results__missing_view_text_row(self):
         results = {
             "describe_extended": [
                 ("col_name", "data_type", "comment"),
@@ -93,8 +88,15 @@ class TestDescribeQueryProcessor:
         spec = DescribeQueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query="")
 
-    def test_from_results__with_view_text_row(self):
-        """describe_extended has a valid 'View Text' row — should extract query."""
+    def test_from_relation_results__malformed_view_text_row(self):
+        results = {"describe_extended": [("View Text",)]}
+        with pytest.raises(
+            DbtRuntimeError,
+            match="Unexpected result from DESCRIBE EXTENDED: missing View Text value",
+        ):
+            DescribeQueryProcessor.from_relation_results(results)
+
+    def test_from_relation_results__valid_view_text_row(self):
         sql = "select 1 as id"
         results = {
             "describe_extended": [

@@ -1,5 +1,6 @@
 from typing import ClassVar, Optional
 
+import yaml
 from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt_common.exceptions import DbtRuntimeError
@@ -19,12 +20,22 @@ class MetricViewQueryConfig(DatabricksComponentConfig):
     query: str
 
     def get_diff(self, other: "MetricViewQueryConfig") -> Optional["MetricViewQueryConfig"]:
-        # Normalize whitespace for comparison
-        self_normalized = " ".join(self.query.split())
-        other_normalized = " ".join(other.query.split())
-        if self_normalized != other_normalized:
+        # Databricks re-renders the stored definition (requoting `source`, rewriting
+        # flow-style lists to block style), so compare the parsed YAML structure, not the
+        # text -- otherwise an unchanged model reports a phantom change every run.
+        # BaseLoader keeps scalars as strings so genuine value changes still register.
+        # Fall back to a whitespace-normalized text comparison if either definition is
+        # not valid YAML.
+        try:
+            if yaml.load(self.query, Loader=yaml.BaseLoader) == yaml.load(
+                other.query, Loader=yaml.BaseLoader
+            ):
+                return None
             return self
-        return None
+        except yaml.YAMLError:
+            self_normalized = " ".join(self.query.split())
+            other_normalized = " ".join(other.query.split())
+            return self if self_normalized != other_normalized else None
 
 
 class MetricViewQueryProcessor(DatabricksComponentProcessor[MetricViewQueryConfig]):

@@ -32,6 +32,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -61,6 +62,11 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
     WorkflowPythonJobHelper,
+)
+from dbt.adapters.databricks.record.record_types import (
+    DatabricksAdapterAddQueryRecord,
+    DatabricksAdapterGetRelationConfigRecord,
+    DatabricksAdapterIsUniformRecord,
 )
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,
@@ -205,8 +211,9 @@ class DatabricksConfig(AdapterConfig):
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
+    skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
-    skip_non_matched_step: Optional[bool] = None
+    skip_not_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
     matched_condition: Optional[str] = None
     not_matched_condition: Optional[str] = None
@@ -236,6 +243,17 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     return _identifier
 
 
+def _adapter_capabilities() -> CapabilityDict:
+    capabilities: dict[Capability, CapabilitySupport] = {
+        Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+    }
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is not None:
+        capabilities[catalogs_v2] = CapabilitySupport(support=Support.Full)
+    return CapabilityDict(capabilities)
+
+
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -248,17 +266,16 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
-    _capabilities = CapabilityDict(
-        {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-        }
-    )
+    _capabilities = _adapter_capabilities()
 
     CATALOG_INTEGRATIONS = [
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
+    _V2_TO_V1_TYPE: ClassVar[dict[str, str]] = {
+        "unity": constants.UNITY_CATALOG_TYPE,
+        "hive_metastore": constants.HIVE_METASTORE_CATALOG_TYPE,
+    }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -297,6 +314,9 @@ class DatabricksAdapter(SparkAdapter):
             return False
         return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
 
+    def _v2_to_v1_type(self, catalog_type: str) -> str:
+        return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
@@ -318,6 +338,12 @@ class DatabricksAdapter(SparkAdapter):
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
+    @record_function(
+        DatabricksAdapterIsUniformRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
@@ -411,6 +437,7 @@ class DatabricksAdapter(SparkAdapter):
         return conn.has_capability(capability)
 
     @available.parse(lambda *a, **k: False)
+    @auto_record_function("AdapterHasDbrCapability", group="Available")
     def has_dbr_capability(self, capability_name: str) -> bool:
         """
         Check if a DBR capability is available for current compute.
@@ -875,6 +902,13 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    @available.parse(lambda *a, **k: (None, None))
+    @record_function(
+        DatabricksAdapterAddQueryRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def add_query(
         self,
         sql: str,
@@ -1045,6 +1079,12 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
+    @record_function(
+        DatabricksAdapterGetRelationConfigRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def get_relation_config(
         self,
         relation: DatabricksRelation,
@@ -1083,6 +1123,7 @@ class DatabricksAdapter(SparkAdapter):
             )
 
     @available
+    @auto_record_function("AdapterIsCluster", group="Available")
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
@@ -1418,6 +1459,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:
             results["information_schema.tags"] = None
+
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
 
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)

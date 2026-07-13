@@ -62,6 +62,28 @@ class BaseRowFilterMixin:
             fetch="all",
         )
 
+    def assert_qualified_filter(self, project, table_name, function_name, column):
+        """Assert the row filter is stored fully qualified over the expected column.
+
+        INFORMATION_SCHEMA stores filter_name as catalog.schema.function, so an
+        unqualified config value should surface here as the three-part name.
+        """
+        rows = project.run_sql(
+            f"""
+            SELECT filter_name, target_columns
+            FROM {project.database}.information_schema.row_filters
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = '{table_name}'
+            """,
+            fetch="all",
+        )
+        assert len(rows) == 1
+        filter_name, target_columns = rows[0]
+        expected = f"{project.database}.{project.test_schema}.{function_name}".lower()
+        assert filter_name.lower() == expected, filter_name
+        assert column in target_columns.lower(), target_columns
+
 
 class RowFilterMixin(BaseRowFilterMixin, MaterializationV2Mixin):
     """Row filter mixin for V2 materialization tests."""
@@ -87,16 +109,12 @@ class TestRowFilterTable(RowFilterMixin):
 
         # 1. Create with filter (tests unqualified function qualification)
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 1
-        assert "region_filter" in filters[0][0].lower()
+        self.assert_qualified_filter(project, "base_model", "region_filter", "region")
 
         # 2. Update filter
         write_file(model_updated_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 1
-        assert "user_filter" in filters[0][0].lower()
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
         # 3. Remove filter
         write_file(model_no_filter, "models", "schema.yml")
@@ -397,5 +415,15 @@ class TestIncrementalRowFilterV1(BaseRowFilterMixin, MaterializationV1Mixin):
 
         # Incremental run should preserve filter
         run_dbt(["run"])
+        self.assert_qualified_filter(project, "base_model", "region_filter", "region")
+
+        # Changing the filter on a later incremental run rewrites it in place
+        write_file(model_updated_filter, "models", "schema.yml")
+        run_dbt(["run"])
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
+
+        # Removing the config on a later incremental run drops the filter
+        write_file(model_no_filter, "models", "schema.yml")
+        run_dbt(["run"])
         filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 1
+        assert len(filters) == 0

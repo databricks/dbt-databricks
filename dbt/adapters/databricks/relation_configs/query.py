@@ -30,12 +30,8 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
         view_definition_raw = result["information_schema.views"].get("view_definition") or ""
         view_definition = view_definition_raw.strip()
         if not view_definition:
-            # information_schema.views row was missing or empty — common for
-            # streaming-sourced derived views and freshly-created MVs whose
-            # metadata has not yet propagated. Return an empty QueryConfig so
-            # the materialization falls through to the create path.
             return QueryConfig(query="")
-        if view_definition[0] == "(" and view_definition[-1] == ")":
+        if view_definition.startswith("(") and view_definition.endswith(")"):
             view_definition = view_definition[1:-1]
         return QueryConfig(query=SqlUtils.clean_sql(view_definition))
 
@@ -58,4 +54,8 @@ class DescribeQueryProcessor(QueryProcessor):
         row = next((x for x in table if x[0] == "View Text"), None)
         if row is None:
             return QueryConfig(query="")
+        if len(row) < 2:
+            raise DbtRuntimeError(
+                "Unexpected result from DESCRIBE EXTENDED: missing View Text value"
+            )
         return QueryConfig(query=SqlUtils.clean_sql(row[1]))

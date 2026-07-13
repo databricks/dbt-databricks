@@ -31,6 +31,10 @@
       {{ get_create_metric_view_as_sql(target_relation, sql) }}
     {%- endcall %}
     {{ apply_tags(target_relation, tags) }}
+    {% set tblproperties = config.get('tblproperties') %}
+    {% if tblproperties %}
+      {{ apply_tblproperties(target_relation, tblproperties) }}
+    {% endif %}
   {% endif %}
 
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke(existing_relation, full_refresh_mode=True)) %}

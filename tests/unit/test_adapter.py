@@ -1,5 +1,6 @@
 import re
 import warnings
+from dataclasses import fields
 from multiprocessing import get_context
 from typing import Any, Optional
 from unittest.mock import Mock, patch
@@ -26,6 +27,7 @@ from dbt.adapters.databricks.credentials import (
 )
 from dbt.adapters.databricks.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
+    DatabricksConfig,
     DatabricksRelationInfo,
     IncrementalTableAPI,
     MaterializedViewAPI,
@@ -47,6 +49,13 @@ from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProces
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.utils import check_not_found_error
 from tests.unit.utils import config_from_parts_or_dicts
+
+
+def test_databricks_config_declares_skip_not_matched_step():
+    # Must match the key the merge macro reads (`skip_not_matched_step`), not the typo.
+    names = {f.name for f in fields(DatabricksConfig)}
+    assert "skip_not_matched_step" in names
+    assert "skip_non_matched_step" not in names
 
 
 def _catalog_row(column_name: str) -> dict:
@@ -1539,8 +1548,16 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
-    def _create_view_config(tags: dict[str, str] | None = None) -> ViewConfig:
-        return ViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+    def _create_view_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> ViewConfig:
+        return ViewConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
 
     @staticmethod
     def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
@@ -1686,6 +1703,40 @@ class TestDescribeRelationMetadataFetchPlanning:
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" in called_macro_names
         assert "get_view_description" in called_macro_names
+
+    def test_view_describe_relation_skips_column_tag_query_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config()
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.column_tags"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_view_describe_relation_fetches_column_tag_query_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+        relation_config = self._create_view_config(
+            column_tags={"id": {"classification": "internal"}}
+        )
+
+        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_view_describe_relation_fetches_column_tags_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation()
+
+        results = ViewAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_column_tags" in called_macro_names
 
     def test_mv_describe_relation_skips_tag_query_without_tags(self):
         adapter = self._create_adapter()

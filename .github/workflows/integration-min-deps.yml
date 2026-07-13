@@ -167,6 +167,11 @@ jobs:
         with:
           version: "1.17.0"
 
+      # Build the env once, serially: otherwise the three backgrounded
+      # `hatch run min-deps:` calls below race to create it on a cold runner.
+      - name: Create min-deps env
+        run: hatch env create min-deps
+
       - name: Collect tests and assign to shards
         run: |
           set -euo pipefail
@@ -176,14 +181,28 @@ jobs:
             [databricks_uc_cluster]=${{ needs.prepare.outputs.count_uc_cluster }}
             [databricks_uc_sql_endpoint]=${{ needs.prepare.outputs.count_uc_sql_endpoint }}
           )
+          # Capture full output per profile; don't pipe through grep here, or a
+          # failure's exit code is lost and surfaces only as "no valid nodeids".
+          declare -A PIDS
           for PROFILE in "${!NUM_SHARDS[@]}"; do
-            (
-              hatch run min-deps:pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
-                | grep "::" \
-                > "shard-assignments/${PROFILE}-collected.txt"
-            ) &
+            hatch run min-deps:pytest --collect-only -q --profile "$PROFILE" tests/functional \
+              > "shard-assignments/${PROFILE}-raw.log" 2>&1 &
+            PIDS[$PROFILE]=$!
           done
-          wait
+          COLLECT_FAILED=0
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            RC=0
+            wait "${PIDS[$PROFILE]}" || RC=$?
+            if [ "$RC" -ne 0 ]; then
+              echo "::error::min-deps test collection failed for profile ${PROFILE} (exit ${RC}); output below:"
+              cat "shard-assignments/${PROFILE}-raw.log"
+              COLLECT_FAILED=1
+              continue
+            fi
+            grep "::" "shard-assignments/${PROFILE}-raw.log" \
+              > "shard-assignments/${PROFILE}-collected.txt" || true
+          done
+          [ "$COLLECT_FAILED" -eq 0 ] || exit 1
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             python3 scripts/shard_assign.py \
               --profile "$PROFILE" \
