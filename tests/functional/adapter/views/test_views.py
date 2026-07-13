@@ -65,15 +65,28 @@ class BaseUpdateFullRefresh(BaseUpdateView):
 
     def test_view_update_full_refresh(self, project):
         util.run_dbt(["build"])
-        # Should not no-op, but we at least ensure it runs successfully.
-        # The logs should contain "Using replace_with_view" but we can't easily assert that.
+
+        project.run_sql(
+            "alter view {database}.{schema}.initial_view "
+            "set tblproperties ('triage_marker' = 'present')"
+        )
+        properties_before = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
+        )
+        assert properties_before["triage_marker"] == "present"
+
         util.run_dbt(["run", "--full-refresh"])
 
-        results = project.run_sql(
-            "describe extended {database}.{schema}.initial_view",
-            fetch="all",
+        properties_after = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
         )
-        assert results[0][2] == "This is the id column"
+        assert "triage_marker" not in properties_after
 
 
 class BaseUpdateTblProperties(BaseUpdateView):
