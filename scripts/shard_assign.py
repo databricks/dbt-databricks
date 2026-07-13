@@ -40,17 +40,24 @@ def lpt_test_count_assign(file_to_tests: dict[str, list[str]], num_shards: int) 
     return _greedy_lpt(file_to_tests, num_shards, lambda fp: len(file_to_tests[fp]))
 
 
+def make_historical_weight(timings: dict[str, float]) -> Callable[[str], float]:
+    """Per-file wall-time weight fn: known files use their timing, unknown
+    (e.g. brand-new tests) use the profile mean."""
+    if not timings:
+        raise ValueError("lpt_historical_time requires non-empty timings dict")
+    mean = sum(timings.values()) / len(timings)
+    return lambda fp: timings.get(fp, mean)
+
+
 def make_lpt_historical_time_assign(
     timings: dict[str, float],
 ) -> Callable[[dict[str, list[str]], int], dict[str, int]]:
     """Greedy LPT weighted by historical per-file wall time. Files missing
     from `timings` use the mean — handles brand-new tests."""
-    if not timings:
-        raise ValueError("lpt_historical_time requires non-empty timings dict")
-    mean = sum(timings.values()) / len(timings)
+    weight = make_historical_weight(timings)
 
     def assign(file_to_tests: dict[str, list[str]], num_shards: int) -> dict[str, int]:
-        return _greedy_lpt(file_to_tests, num_shards, lambda fp: timings.get(fp, mean))
+        return _greedy_lpt(file_to_tests, num_shards, weight)
 
     return assign
 
@@ -131,6 +138,7 @@ def main() -> int:
 
     sorted_files = sorted(file_to_tests.keys())
 
+    weight: Callable[[str], float] | None = None
     if args.algo == "lpt_historical_time":
         if not args.timings:
             print("ERROR: --algo lpt_historical_time requires --timings PATH", file=sys.stderr)
@@ -148,6 +156,7 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
+        weight = make_historical_weight(profile_timings)
         algo_fn = make_lpt_historical_time_assign(profile_timings)
     else:
         algo_fn = lpt_test_count_assign
@@ -163,6 +172,16 @@ def main() -> int:
     for i, files in enumerate(shards_files):
         out = output_dir / f"{args.profile}-shard-{i}.txt"
         out.write_text("\n".join(files) + ("\n" if files else ""))
+
+    # Projected per-shard wall seconds under the chosen weights. Only meaningful
+    # for lpt_historical_time (test-count weights aren't wall time), so it's
+    # emitted only then. The weekly refresh job (refresh-test-timings.yml) reads
+    # `projected_max_shard_seconds` to gate on balance drift.
+    projected_shard_seconds: list[float] | None = None
+    if weight is not None:
+        projected_shard_seconds = [
+            round(sum(weight(fp) for fp in shards_files[i]), 3) for i in range(args.num_shards)
+        ]
 
     # Build manifest. The per-shard `nodeids` field is the source of truth
     # used by shard_verify to compute the I1-I4 invariants.
@@ -180,11 +199,18 @@ def main() -> int:
                 "file_list": shards_files[i],
                 "nodeids": shards_tests[i],
                 "file_list_sha256": sha256_str("\n".join(sorted(shards_files[i]))),
+                **(
+                    {"projected_seconds": projected_shard_seconds[i]}
+                    if projected_shard_seconds is not None
+                    else {}
+                ),
             }
             for i in range(args.num_shards)
         ],
         "all_nodeids_sha256": sha256_str("\n".join(sorted(all_nodeids))),
     }
+    if projected_shard_seconds is not None:
+        manifest["projected_max_shard_seconds"] = max(projected_shard_seconds)
     manifest_path = output_dir / f"{args.profile}-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
@@ -202,7 +228,13 @@ def main() -> int:
     print(f"  total: {manifest['total_tests']} tests across {manifest['total_files']} files")
     for s in manifest["shards"]:
         pct = s["tests"] / manifest["total_tests"] * 100
-        print(f"  shard {s['index']}: {s['tests']:>4} tests ({pct:5.1f}%), {s['files']:>3} files")
+        proj = f", ~{s['projected_seconds'] / 60:.1f}m" if "projected_seconds" in s else ""
+        print(
+            f"  shard {s['index']}: {s['tests']:>4} tests ({pct:5.1f}%), "
+            f"{s['files']:>3} files{proj}"
+        )
+    if "projected_max_shard_seconds" in manifest:
+        print(f"  projected max-shard wall: {manifest['projected_max_shard_seconds'] / 60:.1f}m")
     print(f"  manifest: {manifest_path}")
     return 0
 

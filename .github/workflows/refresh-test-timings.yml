@@ -1,0 +1,214 @@
+# Weekly refresh of .github/test_timings.json (PECOBLR-3574)
+#
+# Why: test_timings.json drives integration-test shard balancing
+# (shard_assign.py's lpt_historical_time algorithm weights each test file by
+# its historical wall time). It is regenerated manually today, so it drifts
+# stale — new test files land absent from it and get mean-filled, the shards
+# drift out of balance, and the matrix wall-clock (set by its slowest shard)
+# grows. This job refreshes it automatically and opens a human-reviewed PR when
+# balance has drifted meaningfully.
+#
+# What it does:
+#  1. Runs scripts/regenerate_timings.py to rebuild timings from the last few
+#     distinct-SHA green integration.yml runs (median per-file wall time).
+#  2. Projects the max-shard wall time under the OLD vs NEW timings by running
+#     scripts/shard_assign.py against the current test collection for each
+#     profile, and reads `projected_max_shard_seconds` from each manifest.
+#  3. Gates on drift: opens a PR only when projected max-shard improvement
+#     exceeds DRIFT_THRESHOLD_PCT (avoids noisy weekly PRs from run-to-run
+#     variance). If projected drift is implausibly large it flags for manual
+#     review instead of opening a PR with potentially bad data.
+#  4. PRs are never auto-merged — bad timings degrade balancing silently, so a
+#     human always reviews the before/after numbers in the PR body.
+name: Refresh Test Timings
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # 06:00 UTC every Monday
+  workflow_dispatch:
+    inputs:
+      num_runs:
+        description: "How many distinct-SHA green integration runs to aggregate"
+        required: false
+        default: "3"
+        type: string
+      force:
+        description: "Open a PR even if drift is below the threshold"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-test-timings
+  cancel-in-progress: true
+
+env:
+  # Only open a PR when the NEW timings improve (reduce) the projected
+  # max-shard wall time by more than this, in either direction — protects
+  # against churny commits from run-to-run variance.
+  DRIFT_THRESHOLD_PCT: "10"
+  # Above this, the drift is implausible (likely bad/partial artifacts). Flag
+  # for manual review instead of auto-opening a PR with suspect data.
+  DRIFT_PATHOLOGICAL_PCT: "60"
+
+jobs:
+  refresh:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    env:
+      UV_FROZEN: "1"
+      GH_TOKEN: ${{ github.token }}
+      NUM_RUNS: ${{ github.event.inputs.num_runs || '3' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Regenerate timings from recent green runs
+        run: |
+          set -euo pipefail
+          # Preserve the current (old) timings so we can project balance drift.
+          cp .github/test_timings.json /tmp/test_timings.old.json
+          python scripts/regenerate_timings.py \
+            --num-runs "$NUM_RUNS" \
+            --output .github/test_timings.json
+
+      - name: Detect changes
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/test_timings.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "test_timings.json is unchanged — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Project the max-shard wall time under old vs new timings. Approach:
+      # collect tests once per profile, run shard_assign.py against each timings
+      # file, and read `projected_max_shard_seconds` from the manifest. Same
+      # shard counts as integration.yml's `prepare` job (single source of truth).
+      - name: Project shard-balance drift
+        id: drift
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          declare -A NUM_SHARDS=(
+            [databricks_cluster]=2
+            [databricks_uc_cluster]=3
+            [databricks_uc_sql_endpoint]=3
+          )
+          mkdir -p /tmp/collect /tmp/old /tmp/new
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
+              | grep "::" > "/tmp/collect/${PROFILE}.txt"
+          done
+
+          project() {  # <label> <timings-file> <out-dir>
+            local label="$1" timings="$2" out="$3"
+            local total=0
+            for PROFILE in "${!NUM_SHARDS[@]}"; do
+              python3 scripts/shard_assign.py \
+                --profile "$PROFILE" \
+                --num-shards "${NUM_SHARDS[$PROFILE]}" \
+                --input "/tmp/collect/${PROFILE}.txt" \
+                --output-dir "$out" \
+                --algo lpt_historical_time \
+                --timings "$timings" >/dev/null
+              local mx
+              mx=$(jq '.projected_max_shard_seconds' "${out}/${PROFILE}-manifest.json")
+              total=$(python3 -c "print($total + $mx)")
+            done
+            echo "$total"
+          }
+
+          OLD=$(project old /tmp/test_timings.old.json /tmp/old)
+          NEW=$(project new .github/test_timings.json /tmp/new)
+          # Drift = how much the NEW timings change the summed projected
+          # max-shard wall across profiles, relative to OLD. Positive = the old
+          # (stale) file was over-provisioning the slowest shard.
+          PCT=$(python3 -c "o=$OLD; n=$NEW; print(0.0 if o==0 else abs(o-n)/o*100)")
+          echo "old_seconds=$OLD" >> "$GITHUB_OUTPUT"
+          echo "new_seconds=$NEW" >> "$GITHUB_OUTPUT"
+          echo "drift_pct=$PCT" >> "$GITHUB_OUTPUT"
+          {
+            echo "Projected summed max-shard wall (old): $(python3 -c "print(f'{$OLD/60:.1f}m')")"
+            echo "Projected summed max-shard wall (new): $(python3 -c "print(f'{$NEW/60:.1f}m')")"
+            echo "Drift: ${PCT}%"
+          } | tee /tmp/drift-summary.txt
+
+      - name: Decide whether to open a PR
+        id: decide
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          PCT="${{ steps.drift.outputs.drift_pct }}"
+          FORCE="${{ github.event.inputs.force || 'false' }}"
+          pathological=$(python3 -c "print('true' if $PCT > $DRIFT_PATHOLOGICAL_PCT else 'false')")
+          over=$(python3 -c "print('true' if $PCT >= $DRIFT_THRESHOLD_PCT else 'false')")
+          if [[ "$pathological" == "true" ]]; then
+            echo "::warning::Projected drift ${PCT}% exceeds pathological threshold ${DRIFT_PATHOLOGICAL_PCT}% — flagging for manual review, not auto-opening a PR. Inspect the regenerated timings before applying."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$over" == "true" || "$FORCE" == "true" ]]; then
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Drift ${PCT}% is below threshold ${DRIFT_THRESHOLD_PCT}% — skipping PR to avoid churn."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update refresh PR
+        if: steps.decide.outputs.open_pr == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
+        with:
+          token: ${{ github.token }}
+          branch: auto/refresh-test-timings
+          base: main
+          add-paths: .github/test_timings.json
+          commit-message: "test: refresh test_timings.json for shard balancing"
+          title: "test: refresh test_timings.json for shard balancing"
+          # Never auto-merge — a human reviews the before/after numbers because
+          # bad timings degrade shard balancing silently.
+          body: |
+            Automated weekly refresh of `.github/test_timings.json` from the last
+            ${{ env.NUM_RUNS }} distinct-SHA green integration runs (median per-file wall time).
+
+            **Projected shard-balance impact** (summed max-shard wall across profiles):
+            - old: `${{ steps.drift.outputs.old_seconds }}`s
+            - new: `${{ steps.drift.outputs.new_seconds }}`s
+            - drift: `${{ steps.drift.outputs.drift_pct }}`%
+
+            Threshold to open this PR: `${{ env.DRIFT_THRESHOLD_PCT }}`%.
+
+            Please sanity-check the numbers before merging — this PR is **not**
+            auto-merged. See PECOBLR-3574.
+          labels: |
+            test-timings
+            automated
