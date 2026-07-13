@@ -221,6 +221,20 @@ metadata_fetch_materialized_view_with_tags_sql = """
 select * from {{ ref('mv_metadata_fetch_seed') }}
 """
 
+materialized_view_streaming_source_seed_csv = """id,value
+1,100
+""".lstrip()
+
+materialized_view_streaming_source_table_sql = """
+{{ config(materialized='streaming_table') }}
+select * from stream {{ ref('materialized_view_streaming_source_seed') }}
+"""
+
+materialized_view_streaming_source_sql = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('materialized_view_streaming_source_table') }}
+"""
+
 
 mv_norebuild_seed_csv = """id,value
 1,100
