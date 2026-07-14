@@ -26,6 +26,12 @@ The output JSON is a profile-keyed dict of file_path -> cumulative wall (sec):
     ...
   }
 
+This script aggregates **one profile from one run**. To refresh the whole file
+across all profiles from the last few green runs at once — which is what the
+weekly `Refresh Test Timings` workflow (`.github/workflows/refresh-test-timings.yml`)
+runs — use `scripts/regenerate_timings.py`, the automatable front end that wraps
+this module's `aggregate_per_file` and writes the median per-file wall time.
+
 Provenance (when generated, from which run) lives in `git log` for this file —
 not embedded in the JSON itself.
 

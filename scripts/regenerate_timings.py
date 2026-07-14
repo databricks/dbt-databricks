@@ -181,6 +181,74 @@ def median_across_runs(
     return merged
 
 
+def total_wall_by_profile(doc: dict[str, dict[str, float]]) -> dict[str, float]:
+    """Total per-profile wall seconds (sum of every file's time).
+
+    This is the drift signal the weekly refresh workflow gates on. Crucially it
+    is **independent of shard count**: it does not need to know how many shards
+    a profile runs on, so it stays correct even if integration.yml changes a
+    profile's shard count. (Projecting per-shard balance instead would force
+    this code to duplicate integration.yml's shard counts and silently go wrong
+    when they change.)
+    """
+    return {profile: round(sum(by_file.values()), 3) for profile, by_file in doc.items()}
+
+
+def drift_by_profile(
+    old_doc: dict[str, dict[str, float]],
+    new_doc: dict[str, dict[str, float]],
+) -> dict[str, float]:
+    """Per-profile percent change in total wall time from old to new timings.
+
+    Measured as an absolute percentage (direction-agnostic — a human reviews
+    the numbers either way). A profile present in the new file but absent from
+    the old one (or with zero old total) reports `inf`, so the caller's
+    pathological guard flags it for manual review rather than trusting an
+    unbounded change.
+    """
+    old_totals = total_wall_by_profile(old_doc)
+    new_totals = total_wall_by_profile(new_doc)
+    drift: dict[str, float] = {}
+    for profile in sorted(set(old_totals) | set(new_totals)):
+        old = old_totals.get(profile, 0.0)
+        new = new_totals.get(profile, 0.0)
+        if old == 0.0:
+            drift[profile] = 0.0 if new == 0.0 else float("inf")
+        else:
+            drift[profile] = abs(new - old) / old * 100.0
+    return drift
+
+
+def max_drift_pct(drift: dict[str, float]) -> float:
+    """Worst per-profile drift — the single number the PR gate compares."""
+    return max(drift.values()) if drift else 0.0
+
+
+def format_drift_summary(
+    old_doc: dict[str, dict[str, float]],
+    new_doc: dict[str, dict[str, float]],
+    drift: dict[str, float],
+) -> str:
+    """Markdown table of per-profile old/new total wall + drift, for a PR body."""
+    old_totals = total_wall_by_profile(old_doc)
+    new_totals = total_wall_by_profile(new_doc)
+    lines = [
+        "| profile | old total | new total | drift |",
+        "| --- | --- | --- | --- |",
+    ]
+    for profile in sorted(drift):
+        old_m = old_totals.get(profile, 0.0) / 60
+        new_m = new_totals.get(profile, 0.0) / 60
+        pct = drift[profile]
+        pct_str = "n/a (new profile)" if pct == float("inf") else f"{pct:.1f}%"
+        lines.append(f"| `{profile}` | {old_m:.1f}m | {new_m:.1f}m | {pct_str} |")
+    worst = max_drift_pct(drift)
+    worst_str = "n/a (new profile)" if worst == float("inf") else f"{worst:.1f}%"
+    lines.append("")
+    lines.append(f"**Max per-profile total-wall drift: {worst_str}**")
+    return "\n".join(lines) + "\n"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument(
@@ -209,6 +277,22 @@ def parse_args() -> argparse.Namespace:
         "--keep-downloads",
         action="store_true",
         help="Keep the downloaded junit artifacts instead of deleting the temp dir",
+    )
+    p.add_argument(
+        "--old",
+        default=None,
+        help=(
+            "Path to the pre-existing test_timings.json to compare against. When "
+            "given, report per-profile total-wall drift (old vs newly generated)."
+        ),
+    )
+    p.add_argument(
+        "--drift-out",
+        default=None,
+        help=(
+            "Write a JSON drift report {max_drift_pct, per_profile, summary} to "
+            "this path (requires --old). Consumed by the refresh workflow's PR gate."
+        ),
     )
     return p.parse_args()
 
@@ -266,6 +350,31 @@ def main() -> int:
             f"max-file {max(vals) / 60:.1f}m ({max_file})",
             flush=True,
         )
+
+    # Drift report vs the pre-existing timings. Per-profile total-wall %, which
+    # is independent of shard count — the decision lives here (tested, reused by
+    # manual regens) rather than in workflow YAML that would duplicate
+    # integration.yml's shard counts.
+    if args.old:
+        old_doc = json.loads(Path(args.old).read_text())
+        drift = drift_by_profile(old_doc, out)
+        worst = max_drift_pct(drift)
+        summary = format_drift_summary(old_doc, out, drift)
+        print(f"\n{summary}", flush=True)
+        if args.drift_out:
+            # json.dumps emits the invalid-JSON token `Infinity` for float inf;
+            # serialize inf as the string "inf" instead (float("inf") round-trips
+            # it, and the workflow's math.isinf catches it as pathological).
+            def _json_safe(v: float) -> float | str:
+                return "inf" if v == float("inf") else v
+
+            report = {
+                "max_drift_pct": _json_safe(worst),
+                "runs_used": len(per_run),
+                "per_profile": {p: _json_safe(d) for p, d in drift.items()},
+                "summary": summary,
+            }
+            Path(args.drift_out).write_text(json.dumps(report, indent=2) + "\n")
     return 0
 
 
