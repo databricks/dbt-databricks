@@ -4,6 +4,10 @@
 
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
 
+### Under the Hood
+
+- Remove the unused `keyring` dependency and its transitive packages ([#1588](https://github.com/databricks/dbt-databricks/pull/1588))
+
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
 
 ### Features
