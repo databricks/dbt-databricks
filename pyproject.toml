@@ -40,6 +40,9 @@ documentation = "https://docs.getdbt.com/reference/resource-configs/databricks-c
 issues = "https://github.com/databricks/dbt-databricks/issues"
 repository = "https://github.com/databricks/dbt-databricks"
 
+[tool.uv]
+required-version = "==0.11.18"
+
 [tool.hatch.version]
 path = "dbt/adapters/databricks/__version__.py"
 
