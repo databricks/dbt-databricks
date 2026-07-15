@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.3 (TBD)
 
+### Features
+
+- Support `catalog_database` in catalogs.yml v2 for Unity catalogs: routes models to the given physical Unity catalog via `generate_database_name`, taking precedence over the model `database` config and `catalog_name`. Decouples the dbt catalog label from the physical catalog name (requires `dbt-adapters>=1.24.5`).
+
 ### Fixes
 
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))

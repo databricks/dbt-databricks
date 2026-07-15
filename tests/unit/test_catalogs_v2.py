@@ -19,7 +19,18 @@ class _Config:
     table_format: Optional[str] = "iceberg"
     external_volume: Optional[str] = None
     file_format: Optional[str] = None
+    catalog_database: Optional[str] = None
     adapter_properties: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class _Model:
+    """Minimal RelationConfig stub for build_relation tests."""
+
+    database: str = "model_db"
+    schema: str = "model_schema"
+    identifier: str = "model_table"
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 # ===== Adapter-level =====
@@ -73,3 +84,22 @@ def test_unity_empty_location_root_raises():
     cfg = _Config(file_format="parquet", adapter_properties={"location_root": ""})
     with pytest.raises(DbtValidationError, match="location_root cannot be blank"):
         UnityCatalogIntegration(cfg)
+
+
+def test_unity_catalog_database_set():
+    integration = UnityCatalogIntegration(_Config(catalog_database="prod_catalog"))
+    assert integration.catalog_database == "prod_catalog"
+
+
+def test_unity_catalog_database_flows_to_relation():
+    # catalog_database is carried onto the relation so generate_database_name can route
+    # the model to the physical Unity catalog, independent of the dbt catalog label.
+    integration = UnityCatalogIntegration(_Config(catalog_database="prod_catalog"))
+    relation = integration.build_relation(_Model())
+    assert relation.catalog_database == "prod_catalog"
+
+
+def test_unity_no_catalog_database_defaults_none():
+    integration = UnityCatalogIntegration(_Config())
+    assert integration.catalog_database is None
+    assert integration.build_relation(_Model()).catalog_database is None

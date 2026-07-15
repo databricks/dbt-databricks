@@ -15,6 +15,10 @@ class UnityCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
+        # The physical Unity catalog to route models to (catalogs.yml `catalog_database`),
+        # decoupled from the dbt catalog label. dbt-adapters (>=1.24.5) also sets this on the
+        # base; read it here too so the integration is self-contained and version-robust.
+        self.catalog_database: Optional[str] = getattr(config, "catalog_database", None)
         location_root = config.adapter_properties.get("location_root")
         if location_root is not None:
             if not str(location_root).strip():
@@ -58,4 +62,7 @@ class UnityCatalogIntegration(CatalogIntegration):
             file_format=parse_model.file_format(model) or self.file_format,
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
+            # Set from the catalogs.yml `catalog_database` by the base CatalogIntegration;
+            # when present it overrides catalog_name in generate_database_name.
+            catalog_database=self.catalog_database,
         )
