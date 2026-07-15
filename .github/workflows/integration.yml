@@ -325,7 +325,7 @@ jobs:
         with:
           name: uc-cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 14
+          retention-days: 7
 
   run-sqlwarehouse-e2e-tests:
     needs:
@@ -426,7 +426,7 @@ jobs:
         with:
           name: sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 14
+          retention-days: 7
 
   run-cluster-e2e-tests:
     needs:
@@ -526,7 +526,7 @@ jobs:
         with:
           name: cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 14
+          retention-days: 7
 
   gather-shards:
     # `prepare` is in needs because the matrix below references

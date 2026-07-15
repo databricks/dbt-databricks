@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
 """Regenerate `.github/test_timings.json` from recent green integration runs.
 
-`shard_assign.py`'s `lpt_historical_time` algorithm balances the integration
-matrix on per-file wall time read from `.github/test_timings.json`. When that
-file goes stale (new tests land without it being refreshed), the balancer
-mean-fills the unknown files and the shards drift out of balance, so the matrix
-wall-clock — set by its slowest shard — grows.
+`shard_assign.py`'s `lpt_historical_time` algorithm weights each test file by
+its historical wall time (read from this JSON). When the file goes stale the
+balancer mean-fills unknown files, the shards drift out of balance, and the
+matrix wall-clock (set by its slowest shard) grows.
 
-This is the automatable, all-profiles-at-once front end to
-`refresh_timings.py` (which aggregates one profile from one run's junit XMLs).
-It discovers recent green `integration.yml` runs, downloads every profile's
-per-shard junit artifacts, and writes the **median** per-file wall time across
-runs — median rather than mean so a single slow-warehouse run doesn't skew a
-file's weight.
+This discovers recent green `integration.yml` runs, downloads every profile's
+per-shard junit artifacts, and takes the **median** per-file wall time across
+runs (median so one slow-warehouse run can't skew a file's weight).
+
+With `--old`, it merges per file into the existing timings instead of rewriting
+wholesale: a new file is added, an existing file's timing is rewritten only when
+it moved by more than `UPDATE_THRESHOLD_PCT` (keeps run-to-run noise out), and a
+file that moved by more than `MANUAL_REVIEW_PCT` is flagged for a human. The
+decision is entirely per-file, so it never needs to know shard counts.
 
 Usage:
 
-  # Auto-pick the last 3 distinct-SHA green integration runs and rewrite the file
+  # Full rewrite from the last 3 distinct-SHA green runs
   python scripts/regenerate_timings.py
 
-  # Pin exact runs (reproducible; what a future auto-PR job would pass)
-  python scripts/regenerate_timings.py --run-ids 28968407123 28901569145 28826166614
+  # Per-file merge vs the current file + change report (what the weekly job runs)
+  python scripts/regenerate_timings.py \\
+    --old .github/test_timings.json --drift-out /tmp/drift.json
 
-Requires the `gh` CLI authenticated for the target repo. Reuses the junit
-parsing in `refresh_timings.py`; the output format is byte-identical to it
-(profile-keyed dict of file_path -> wall seconds, rounded to ms, sorted).
+Requires the `gh` CLI authenticated for the target repo.
 """
 
 from __future__ import annotations
@@ -37,9 +38,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from refresh_timings import aggregate_per_file
+# Per-file merge thresholds — the drift decision the weekly refresh workflow
+# gates its PR on. Kept here (the single place) because they are tested and
+# reused by manual regens; the workflow YAML stays declarative.
+UPDATE_THRESHOLD_PCT = 10.0  # rewrite an existing file's timing only past this move
+MANUAL_REVIEW_PCT = 60.0  # a move this large is implausible -> flag for a human
 
 # Artifact-name prefix -> test_timings.json profile key. The artifact names are
 # `<prefix>-test-logs-<pr-or-dispatch>-shard-<n>` (see integration.yml). Order
@@ -52,6 +60,38 @@ PROFILE_PREFIXES: list[tuple[str, str]] = [
 
 INTEGRATION_WORKFLOW = "integration.yml"
 ARTIFACT_GLOB = "*-test-logs-*-shard-*"
+
+
+def classname_to_file(classname: str) -> str:
+    """Convert a pytest junit `classname` (dotted module path + class chain)
+    into a file path. The file is the segment ending in the last `test_*`
+    component; everything after that is class chain.
+
+    Examples:
+      tests.functional.adapter.grants.test_grants.TestModelGrants
+        → tests/functional/adapter/grants/test_grants.py
+      tests.unit.test_x  (module-level test, no class)
+        → tests/unit/test_x.py
+    """
+    parts = classname.split(".")
+    # Walk from the right; the LAST test_* segment marks the file boundary.
+    last_test_idx = max(
+        (i for i, p in enumerate(parts) if p.startswith("test_")),
+        default=-1,
+    )
+    if last_test_idx == -1:
+        return "/".join(parts) + ".py"
+    return "/".join(parts[: last_test_idx + 1]) + ".py"
+
+
+def aggregate_per_file(junit_paths: list[Path]) -> dict[str, float]:
+    """Sum `time` attributes across all testcases per file."""
+    by_file: dict[str, float] = defaultdict(float)
+    for jp in junit_paths:
+        for tc in ET.parse(jp).getroot().findall(".//testcase"):
+            f = classname_to_file(tc.get("classname", ""))
+            by_file[f] += float(tc.get("time", "0") or 0)
+    return dict(by_file)
 
 
 def _profile_for_artifact_dir(name: str) -> str | None:
@@ -181,71 +221,96 @@ def median_across_runs(
     return merged
 
 
-def total_wall_by_profile(doc: dict[str, dict[str, float]]) -> dict[str, float]:
-    """Total per-profile wall seconds (sum of every file's time).
-
-    This is the drift signal the weekly refresh workflow gates on. Crucially it
-    is **independent of shard count**: it does not need to know how many shards
-    a profile runs on, so it stays correct even if integration.yml changes a
-    profile's shard count. (Projecting per-shard balance instead would force
-    this code to duplicate integration.yml's shard counts and silently go wrong
-    when they change.)
-    """
-    return {profile: round(sum(by_file.values()), 3) for profile, by_file in doc.items()}
+def _pct_delta(old: float, new: float) -> float:
+    """Absolute percent change old->new; `inf` when there's no old baseline."""
+    if old == 0.0:
+        return 0.0 if new == 0.0 else float("inf")
+    return abs(new - old) / old * 100.0
 
 
-def drift_by_profile(
+@dataclass
+class FileChange:
+    """One per-file change made by the merge. `old` is None for a new file, in
+    which case `delta_pct` is 0.0 (a new file is never manual-review material)."""
+
+    profile: str
+    file: str
+    new: float
+    old: float | None = None
+    delta_pct: float = 0.0
+
+
+def merge_timings(
     old_doc: dict[str, dict[str, float]],
-    new_doc: dict[str, dict[str, float]],
-) -> dict[str, float]:
-    """Per-profile percent change in total wall time from old to new timings.
+    fresh: dict[str, dict[str, float]],
+    update_threshold_pct: float = UPDATE_THRESHOLD_PCT,
+) -> tuple[dict[str, dict[str, float]], list[FileChange]]:
+    """Merge freshly generated timings into the existing file, per file.
 
-    Measured as an absolute percentage (direction-agnostic — a human reviews
-    the numbers either way). A profile present in the new file but absent from
-    the old one (or with zero old total) reports `inf`, so the caller's
-    pathological guard flags it for manual review rather than trusting an
-    unbounded change.
+    A new file is added; an existing file's timing is rewritten only when it
+    moved by more than `update_threshold_pct` (keeps run-to-run noise out). A
+    file with no fresh sample keeps its old value. Returns the merged doc and
+    the list of `FileChange`s applied.
     """
-    old_totals = total_wall_by_profile(old_doc)
-    new_totals = total_wall_by_profile(new_doc)
-    drift: dict[str, float] = {}
-    for profile in sorted(set(old_totals) | set(new_totals)):
-        old = old_totals.get(profile, 0.0)
-        new = new_totals.get(profile, 0.0)
-        if old == 0.0:
-            drift[profile] = 0.0 if new == 0.0 else float("inf")
-        else:
-            drift[profile] = abs(new - old) / old * 100.0
-    return drift
+    merged: dict[str, dict[str, float]] = {}
+    changes: list[FileChange] = []
+    for profile in sorted(set(old_doc) | set(fresh)):
+        old_p = old_doc.get(profile, {})
+        new_p = fresh.get(profile, {})
+        merged_p = dict(old_p)  # keep files not re-measured this round
+        for f in sorted(new_p):
+            new_val = new_p[f]
+            if f not in old_p:
+                merged_p[f] = new_val
+                changes.append(FileChange(profile=profile, file=f, new=new_val))
+            else:
+                delta = _pct_delta(old_p[f], new_val)
+                if delta > update_threshold_pct:
+                    merged_p[f] = new_val
+                    changes.append(
+                        FileChange(
+                            profile=profile, file=f, new=new_val, old=old_p[f], delta_pct=delta
+                        )
+                    )
+        merged[profile] = merged_p
+    return merged, changes
 
 
-def max_drift_pct(drift: dict[str, float]) -> float:
-    """Worst per-profile drift — the single number the PR gate compares."""
-    return max(drift.values()) if drift else 0.0
+def manual_review_changes(
+    changes: list[FileChange],
+    manual_review_pct: float = MANUAL_REVIEW_PCT,
+) -> list[FileChange]:
+    """Updated files whose move is implausibly large — a human should look."""
+    return [c for c in changes if c.delta_pct > manual_review_pct]
 
 
-def format_drift_summary(
-    old_doc: dict[str, dict[str, float]],
-    new_doc: dict[str, dict[str, float]],
-    drift: dict[str, float],
-) -> str:
-    """Markdown table of per-profile old/new total wall + drift, for a PR body."""
-    old_totals = total_wall_by_profile(old_doc)
-    new_totals = total_wall_by_profile(new_doc)
+def format_change_summary(changes: list[FileChange], manual: list[FileChange]) -> str:
+    """Markdown summary of the per-file merge, for a PR body / workflow log."""
+    new_files = [c for c in changes if c.old is None]
+    updated = [c for c in changes if c.old is not None]
     lines = [
-        "| profile | old total | new total | drift |",
-        "| --- | --- | --- | --- |",
+        f"- New files added: {len(new_files)}",
+        f"- Existing files updated (moved >{UPDATE_THRESHOLD_PCT:g}%): {len(updated)}",
     ]
-    for profile in sorted(drift):
-        old_m = old_totals.get(profile, 0.0) / 60
-        new_m = new_totals.get(profile, 0.0) / 60
-        pct = drift[profile]
-        pct_str = "n/a (new profile)" if pct == float("inf") else f"{pct:.1f}%"
-        lines.append(f"| `{profile}` | {old_m:.1f}m | {new_m:.1f}m | {pct_str} |")
-    worst = max_drift_pct(drift)
-    worst_str = "n/a (new profile)" if worst == float("inf") else f"{worst:.1f}%"
-    lines.append("")
-    lines.append(f"**Max per-profile total-wall drift: {worst_str}**")
+    rows = manual if manual else sorted(updated, key=lambda c: -c.delta_pct)[:10]
+    if rows:
+        heading = (
+            f"**{len(manual)} file(s) moved >{MANUAL_REVIEW_PCT:g}% — needs manual review:**"
+            if manual
+            else "Largest updates:"
+        )
+        lines += [
+            "",
+            heading,
+            "",
+            "| profile | file | old | new | delta |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for c in rows:
+            old_s = f"{c.old:.1f}s" if c.old is not None else "—"
+            lines.append(
+                f"| `{c.profile}` | `{c.file}` | {old_s} | {c.new:.1f}s | {c.delta_pct:.0f}% |"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -282,17 +347,14 @@ def parse_args() -> argparse.Namespace:
         "--old",
         default=None,
         help=(
-            "Path to the pre-existing test_timings.json to compare against. When "
-            "given, report per-profile total-wall drift (old vs newly generated)."
+            "Existing test_timings.json to merge into per file (new files added, "
+            "existing files updated only past the threshold). Without it, rewrite wholesale."
         ),
     )
     p.add_argument(
         "--drift-out",
         default=None,
-        help=(
-            "Write a JSON drift report {max_drift_pct, per_profile, summary} to "
-            "this path (requires --old). Consumed by the refresh workflow's PR gate."
-        ),
+        help="Write a JSON change report (requires --old). Consumed by the refresh workflow.",
     )
     return p.parse_args()
 
@@ -325,24 +387,31 @@ def main() -> int:
             print("ERROR: no timings parsed from any run", file=sys.stderr)
             return 1
 
-        merged = median_across_runs(per_run)
+        fresh = median_across_runs(per_run)
     finally:
         if not args.keep_downloads:
             shutil.rmtree(tmp_root, ignore_errors=True)
         else:
             print(f"  kept downloads in {tmp_root}", flush=True)
 
+    changes: list[FileChange] | None = None
+    if args.old:
+        old_doc = json.loads(Path(args.old).read_text())
+        final_doc, changes = merge_timings(old_doc, fresh)
+    else:
+        final_doc = fresh
+
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Round to ms for compactness; per-test variance is far above 1 ms anyway.
     out = {
         profile: {fp: round(t, 3) for fp, t in sorted(by_file.items())}
-        for profile, by_file in sorted(merged.items())
+        for profile, by_file in sorted(final_doc.items())
     }
     output_path.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n")
 
     print(f"\nWrote {output_path} (median of {len(per_run)} run(s)):", flush=True)
-    for profile, by_file in sorted(merged.items()):
+    for profile, by_file in sorted(final_doc.items()):
         vals = by_file.values()
         max_file = max(by_file, key=lambda f: by_file[f]) if by_file else "-"
         print(
@@ -351,27 +420,17 @@ def main() -> int:
             flush=True,
         )
 
-    # Drift report vs the pre-existing timings. Per-profile total-wall %, which
-    # is independent of shard count — the decision lives here (tested, reused by
-    # manual regens) rather than in workflow YAML that would duplicate
-    # integration.yml's shard counts.
-    if args.old:
-        old_doc = json.loads(Path(args.old).read_text())
-        drift = drift_by_profile(old_doc, out)
-        worst = max_drift_pct(drift)
-        summary = format_drift_summary(old_doc, out, drift)
+    if changes is not None:
+        manual = manual_review_changes(changes)
+        summary = format_change_summary(changes, manual)
         print(f"\n{summary}", flush=True)
         if args.drift_out:
-            # json.dumps emits the invalid-JSON token `Infinity` for float inf;
-            # serialize inf as the string "inf" instead (float("inf") round-trips
-            # it, and the workflow's math.isinf catches it as pathological).
-            def _json_safe(v: float) -> float | str:
-                return "inf" if v == float("inf") else v
-
             report = {
-                "max_drift_pct": _json_safe(worst),
                 "runs_used": len(per_run),
-                "per_profile": {p: _json_safe(d) for p, d in drift.items()},
+                "new_files": sum(1 for c in changes if c.old is None),
+                "updated_files": sum(1 for c in changes if c.old is not None),
+                "needs_manual_review": bool(manual),
+                "manual_review_files": [asdict(c) for c in manual],
                 "summary": summary,
             }
             Path(args.drift_out).write_text(json.dumps(report, indent=2) + "\n")

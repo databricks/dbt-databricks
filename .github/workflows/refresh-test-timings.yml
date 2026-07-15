@@ -1,26 +1,5 @@
-# Weekly refresh of .github/test_timings.json (PECOBLR-3574)
-#
-# Why: test_timings.json drives integration-test shard balancing
-# (shard_assign.py's lpt_historical_time algorithm weights each test file by
-# its historical wall time). It is regenerated manually today, so it drifts
-# stale — new test files land absent from it and get mean-filled, the shards
-# drift out of balance, and the matrix wall-clock (set by its slowest shard)
-# grows. This job refreshes it automatically and opens a human-reviewed PR when
-# balance has drifted meaningfully.
-#
-# What it does:
-#  1. Runs scripts/regenerate_timings.py to rebuild timings from the last few
-#     distinct-SHA green integration.yml runs (median per-file wall time), and
-#     in the same tested script computes per-profile total-wall drift vs the
-#     current file. Total wall time is independent of shard count, so the drift
-#     decision never duplicates integration.yml's (dynamically computed) shard
-#     counts — a manual regen gets the identical numbers.
-#  2. Gates on drift: opens a PR only when the worst per-profile total-wall
-#     change exceeds DRIFT_THRESHOLD_PCT (avoids noisy weekly PRs from run-to-run
-#     variance). If drift is implausibly large it flags for manual review
-#     instead of opening a PR with potentially bad data.
-#  3. PRs are never auto-merged — bad timings degrade balancing silently, so a
-#     human always reviews the before/after numbers in the PR body.
+# Weekly refresh of .github/test_timings.json (weights integration shard balancing).
+# Regenerates from recent green runs and opens a human-reviewed PR when timings changed.
 name: Refresh Test Timings
 
 on:
@@ -33,11 +12,6 @@ on:
         required: false
         default: "3"
         type: string
-      force:
-        description: "Open a PR even if drift is below the threshold"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
@@ -47,19 +21,9 @@ concurrency:
   group: refresh-test-timings
   cancel-in-progress: true
 
-env:
-  # Only open a PR when the NEW timings change any profile's total wall time
-  # by more than this (in either direction — drift is measured as an absolute
-  # percentage). Total wall is independent of shard count, so this decision
-  # never duplicates integration.yml's shard counts. Protects against churny
-  # weekly PRs from run-to-run variance; a human reviews the numbers either way.
-  DRIFT_THRESHOLD_PCT: "10"
-  # Above this, the drift is implausible (likely bad/partial artifacts). Flag
-  # for manual review instead of auto-opening a PR with suspect data.
-  DRIFT_PATHOLOGICAL_PCT: "60"
-
 jobs:
   refresh:
+    if: github.ref == 'refs/heads/main'
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
@@ -95,27 +59,18 @@ jobs:
         with:
           version: "1.17.0"
 
-      # Regenerate the timings and, in the same tested script, compute
-      # per-profile total-wall drift vs the current file. Total wall time is
-      # independent of shard count, so the drift decision does NOT duplicate
-      # integration.yml's (dynamically computed) shard counts — a manual regen
-      # gets the identical numbers.
-      - name: Regenerate timings and compute drift
+      - name: Regenerate timings
         id: regen
         run: |
           set -euo pipefail
-          # Preserve the current (old) timings so the script can compute drift.
           cp .github/test_timings.json /tmp/test_timings.old.json
           python scripts/regenerate_timings.py \
             --num-runs "$NUM_RUNS" \
             --output .github/test_timings.json \
             --old /tmp/test_timings.old.json \
             --drift-out /tmp/drift.json
-          runs_used=$(jq -r '.runs_used' /tmp/drift.json)
-          drift_pct=$(jq -r '.max_drift_pct' /tmp/drift.json)
-          echo "runs_used=${runs_used}" >> "$GITHUB_OUTPUT"
-          echo "drift_pct=${drift_pct}" >> "$GITHUB_OUTPUT"
-          # Multi-line summary table for the PR body.
+          echo "manual_review=$(jq -r '.needs_manual_review' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
+          echo "runs_used=$(jq -r '.runs_used' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
           {
             echo "summary<<DRIFT_EOF"
             jq -r '.summary' /tmp/drift.json
@@ -133,51 +88,29 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Decide whether to open a PR
-        id: decide
-        if: steps.diff.outputs.changed == 'true'
+      # A >60% move is likely bad artifacts — warn instead of opening a PR.
+      - name: Flag pathological drift
+        if: steps.diff.outputs.changed == 'true' && steps.regen.outputs.manual_review == 'true'
         run: |
-          set -euo pipefail
-          PCT="${{ steps.regen.outputs.drift_pct }}"
-          FORCE="${{ github.event.inputs.force || 'false' }}"
-          # `inf` (a profile new to the file, no old baseline) is treated as
-          # pathological so a human inspects it rather than trusting unbounded drift.
-          pathological=$(python3 -c "import math; print('true' if math.isinf(float('$PCT')) or float('$PCT') > $DRIFT_PATHOLOGICAL_PCT else 'false')")
-          over=$(python3 -c "print('true' if float('$PCT') >= $DRIFT_THRESHOLD_PCT else 'false')")
-          if [[ "$pathological" == "true" ]]; then
-            echo "::warning::Max per-profile total-wall drift ${PCT}% exceeds pathological threshold ${DRIFT_PATHOLOGICAL_PCT}% — flagging for manual review, not auto-opening a PR. Inspect the regenerated timings before applying."
-            echo "open_pr=false" >> "$GITHUB_OUTPUT"
-          elif [[ "$over" == "true" || "$FORCE" == "true" ]]; then
-            echo "open_pr=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Drift ${PCT}% is below threshold ${DRIFT_THRESHOLD_PCT}% — skipping PR to avoid churn."
-            echo "open_pr=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "::warning::A test file's wall time moved >60% — inspect the regenerated timings before applying. Not auto-opening a PR."
+          exit 0
 
       - name: Open or update refresh PR
-        if: steps.decide.outputs.open_pr == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.regen.outputs.manual_review != 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
         with:
           token: ${{ github.token }}
           branch: auto/refresh-test-timings
           base: main
           add-paths: .github/test_timings.json
-          commit-message: "test: refresh test_timings.json for shard balancing"
+          commit-message: "test: refresh test_timings.json"
           title: "test: refresh test_timings.json for shard balancing"
-          # Never auto-merge — a human reviews the before/after numbers because
-          # bad timings degrade shard balancing silently.
           body: |
-            Automated weekly refresh of `.github/test_timings.json` from the last
-            ${{ steps.regen.outputs.runs_used }} distinct-SHA green integration runs (median per-file wall time).
-
-            **Per-profile total-wall drift** (old vs new; independent of shard count):
+            Weekly refresh of `.github/test_timings.json` (median of ${{ steps.regen.outputs.runs_used }} green runs).
 
             ${{ steps.regen.outputs.summary }}
 
-            Threshold to open this PR: `${{ env.DRIFT_THRESHOLD_PCT }}`%.
-
-            Please sanity-check the numbers before merging — this PR is **not**
-            auto-merged. See PECOBLR-3574.
+            Please sanity-check the numbers before merging.
           labels: |
             test-timings
             automated
