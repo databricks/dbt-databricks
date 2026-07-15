@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 """Regenerate `.github/test_timings.json` from recent green integration runs.
 
-`shard_assign.py`'s `lpt_historical_time` algorithm weights each test file by
-its historical wall time (read from this JSON). When the file goes stale the
-balancer mean-fills unknown files, the shards drift out of balance, and the
-matrix wall-clock (set by its slowest shard) grows.
+`shard_assign.py`'s `lpt_historical_time` algorithm balances the integration
+matrix on per-file wall time read from `.github/test_timings.json`. When that
+file goes stale (new tests land without it being refreshed), the balancer
+mean-fills the unknown files and the shards drift out of balance, so the matrix
+wall-clock — set by its slowest shard — grows.
 
-This discovers recent green `integration.yml` runs, downloads every profile's
-per-shard junit artifacts, and takes the **median** per-file wall time across
-runs (median so one slow-warehouse run can't skew a file's weight).
+It discovers recent green `integration.yml` runs, downloads every profile's
+per-shard junit artifacts, and writes the **median** per-file wall time across
+runs — median rather than mean so a single slow-warehouse run doesn't skew a
+file's weight.
 
-With `--old`, it merges per file into the existing timings instead of rewriting
-wholesale: a new file is added, an existing file's timing is rewritten only when
-it moved by more than `UPDATE_THRESHOLD_PCT` (keeps run-to-run noise out), and a
-file that moved by more than `MANUAL_REVIEW_PCT` is flagged for a human. The
-decision is entirely per-file, so it never needs to know shard counts.
+With `--old` it merges per file instead of rewriting wholesale: a new file is
+added, an existing file is rewritten only when it moved more than
+`UPDATE_THRESHOLD_PCT`, and a move over `MANUAL_REVIEW_PCT` is flagged for a
+human. The decision is per-file, so it never needs to know shard counts.
 
 Usage:
 
-  # Full rewrite from the last 3 distinct-SHA green runs
+  # Auto-pick the last 3 distinct-SHA green integration runs and rewrite the file
   python scripts/regenerate_timings.py
 
   # Per-file merge vs the current file + change report (what the weekly job runs)
@@ -43,10 +44,8 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Per-file merge thresholds — the drift decision the weekly refresh workflow
-# gates its PR on. Kept here (the single place) because they are tested and
-# reused by manual regens; the workflow YAML stays declarative.
-UPDATE_THRESHOLD_PCT = 10.0  # rewrite an existing file's timing only past this move
+# Per-file merge thresholds, gating the weekly refresh PR (tested here, not in workflow YAML).
+UPDATE_THRESHOLD_PCT = 10.0  # rewrite an existing file only past this move
 MANUAL_REVIEW_PCT = 60.0  # a move this large is implausible -> flag for a human
 
 # Artifact-name prefix -> test_timings.json profile key. The artifact names are
