@@ -16,7 +16,7 @@ class UnityCatalogIntegration(CatalogIntegration):
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
         # The physical Unity catalog to route models to (catalogs.yml `catalog_database`),
-        # decoupled from the dbt catalog label. dbt-adapters (>=1.24.5) also sets this on the
+        # decoupled from the dbt catalog label. dbt-adapters (>=1.24.4) also sets this on the
         # base; read it here too so the integration is self-contained and version-robust.
         self.catalog_database: Optional[str] = getattr(config, "catalog_database", None)
         location_root = config.adapter_properties.get("location_root")

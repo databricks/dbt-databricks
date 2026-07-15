@@ -2,7 +2,7 @@
 
 ### Features
 
-- Support `catalog_database` in catalogs.yml v2 for Unity catalogs: routes models to the given physical Unity catalog via `generate_database_name`, taking precedence over the model `database` config and `catalog_name`. Decouples the dbt catalog label from the physical catalog name (requires `dbt-adapters>=1.24.5`).
+- Support `catalog_database` in catalogs.yml v2 for Unity catalogs: routes models to the given physical Unity catalog via `generate_database_name`, taking precedence over the model `database` config and `catalog_name`. Decouples the dbt catalog label from the physical catalog name (requires `dbt-adapters>=1.24.4`).
 
 ### Fixes
 
