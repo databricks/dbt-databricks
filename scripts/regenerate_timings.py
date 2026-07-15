@@ -48,9 +48,6 @@ from pathlib import Path
 UPDATE_THRESHOLD_PCT = 10.0  # rewrite an existing file only past this move
 MANUAL_REVIEW_PCT = 60.0  # a move this large is implausible -> flag for a human
 MANUAL_REVIEW_MIN_SECONDS = 2.0  # ...but a big % on a tiny file is noise, not review-worthy
-# ...but only when the file is big enough to matter — a huge % on a sub-second
-# file is noise that can't unbalance a shard, so don't flag it for review.
-MANUAL_REVIEW_MIN_SECONDS = 2.0
 
 # Artifact-name prefix -> test_timings.json profile key. The artifact names are
 # `<prefix>-test-logs-<pr-or-dispatch>-shard-<n>` (see integration.yml). Order
@@ -152,10 +149,7 @@ def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
         text=True,
     ).stdout
     runs = json.loads(out)
-    # gh returns newest-first; keep the newest run per distinct SHA that still
-    # has artifacts. A SHA is only "seen" once we accept a run for it, so an
-    # artifact-less newer run (e.g. a scheduled re-run of the same commit)
-    # doesn't shadow an older sibling that does have artifacts.
+    # gh returns newest-first; keep the first (newest) run per distinct SHA that still has artifacts.
     seen_sha: set[str] = set()
     picked: list[str] = []
     for r in runs:
@@ -199,8 +193,6 @@ def download_run_artifacts(repo: str, run_id: str, dest: Path, attempts: int = 4
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return
-        # A run with no matching artifacts (e.g. a scheduled run that skipped the
-        # e2e jobs) isn't an error — the caller aggregates whatever downloaded.
         if "no valid artifacts found to download" in result.stderr:
             print(f"  run {run_id} has no test-log artifacts; skipping", flush=True)
             return
@@ -264,8 +256,7 @@ def _pct_delta(old: float, new: float) -> float:
 
 @dataclass
 class FileChange:
-    """One per-file change made by the merge. `old` is None for a new file, in
-    which case `delta_pct` is 0.0 (a new file is never manual-review material)."""
+    """One per-file change made by the merge; `old` is None for a new file."""
 
     profile: str
     file: str
@@ -279,12 +270,9 @@ def merge_timings(
     fresh: dict[str, dict[str, float]],
     update_threshold_pct: float = UPDATE_THRESHOLD_PCT,
 ) -> tuple[dict[str, dict[str, float]], list[FileChange]]:
-    """Merge freshly generated timings into the existing file, per file.
-
-    A new file is added; an existing file's timing is rewritten only when it
-    moved by more than `update_threshold_pct` (keeps run-to-run noise out). A
-    file with no fresh sample keeps its old value. Returns the merged doc and
-    the list of `FileChange`s applied.
+    """Merge fresh timings into the existing file per file: add new files, rewrite
+    an existing file only past `update_threshold_pct`, keep files with no fresh
+    sample. Returns the merged doc and the `FileChange`s applied.
     """
     merged: dict[str, dict[str, float]] = {}
     changes: list[FileChange] = []
