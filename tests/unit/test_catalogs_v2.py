@@ -86,17 +86,22 @@ def test_unity_empty_location_root_raises():
         UnityCatalogIntegration(cfg)
 
 
-def test_unity_catalog_database_set():
-    integration = UnityCatalogIntegration(_Config(catalog_database="prod_catalog"))
+def test_unity_catalog_database_from_adapter_properties():
+    # In dbt-databricks' runtime, catalogs.yml write-integration extras (like catalog_database)
+    # arrive via adapter_properties. It's carried onto the relation so generate_database_name
+    # can route the model to the physical Unity catalog, independent of the dbt catalog label.
+    integration = UnityCatalogIntegration(
+        _Config(adapter_properties={"catalog_database": "prod_catalog"})
+    )
     assert integration.catalog_database == "prod_catalog"
+    assert integration.build_relation(_Model()).catalog_database == "prod_catalog"
 
 
-def test_unity_catalog_database_flows_to_relation():
-    # catalog_database is carried onto the relation so generate_database_name can route
-    # the model to the physical Unity catalog, independent of the dbt catalog label.
-    integration = UnityCatalogIntegration(_Config(catalog_database="prod_catalog"))
-    relation = integration.build_relation(_Model())
-    assert relation.catalog_database == "prod_catalog"
+def test_unity_catalog_database_base_field_fallback():
+    # Newer dbt-core populates the base `catalog_database` attribute directly (via
+    # bridge_v2_catalog); we honor that as a fallback when adapter_properties has none.
+    integration = UnityCatalogIntegration(_Config(catalog_database="base_catalog"))
+    assert integration.catalog_database == "base_catalog"
 
 
 def test_unity_no_catalog_database_defaults_none():
