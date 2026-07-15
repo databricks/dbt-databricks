@@ -47,6 +47,10 @@ from pathlib import Path
 # Per-file merge thresholds, gating the weekly refresh PR (tested here, not in workflow YAML).
 UPDATE_THRESHOLD_PCT = 10.0  # rewrite an existing file only past this move
 MANUAL_REVIEW_PCT = 60.0  # a move this large is implausible -> flag for a human
+MANUAL_REVIEW_MIN_SECONDS = 2.0  # ...but a big % on a tiny file is noise, not review-worthy
+# ...but only when the file is big enough to matter — a huge % on a sub-second
+# file is noise that can't unbalance a shard, so don't flag it for review.
+MANUAL_REVIEW_MIN_SECONDS = 2.0
 
 # Artifact-name prefix -> test_timings.json profile key. The artifact names are
 # `<prefix>-test-logs-<pr-or-dispatch>-shard-<n>` (see integration.yml). Order
@@ -101,8 +105,28 @@ def _profile_for_artifact_dir(name: str) -> str | None:
     return None
 
 
+def run_has_live_artifacts(repo: str, run_id: str) -> bool:
+    """True if the run still has non-expired test-log artifacts to download.
+
+    Many green integration runs have none: scheduled runs with no PR targets
+    skip the e2e jobs entirely, and older runs' artifacts expire. Picking such
+    a run would download nothing, so discovery filters them out here.
+    """
+    out = subprocess.run(
+        ["gh", "api", f"repos/{repo}/actions/runs/{run_id}/artifacts", "--paginate"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    for a in json.loads(out).get("artifacts", []):
+        if not a.get("expired", True) and "-test-logs-" in a.get("name", ""):
+            return True
+    return False
+
+
 def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
-    """Return the newest `num_runs` green integration runs, one per distinct SHA.
+    """Return the newest `num_runs` green integration runs, one per distinct SHA,
+    keeping only runs that still have downloadable test-log artifacts.
 
     Deduping by head SHA means re-runs of the same commit don't crowd out the
     diversity that makes the median meaningful.
@@ -128,19 +152,25 @@ def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
         text=True,
     ).stdout
     runs = json.loads(out)
-    # gh returns newest-first; keep the first (newest) run per distinct SHA.
+    # gh returns newest-first; keep the newest run per distinct SHA that still
+    # has artifacts. A SHA is only "seen" once we accept a run for it, so an
+    # artifact-less newer run (e.g. a scheduled re-run of the same commit)
+    # doesn't shadow an older sibling that does have artifacts.
     seen_sha: set[str] = set()
     picked: list[str] = []
     for r in runs:
         sha = r["headSha"]
         if sha in seen_sha:
             continue
+        run_id = str(r["databaseId"])
+        if not run_has_live_artifacts(repo, run_id):
+            continue
         seen_sha.add(sha)
-        picked.append(str(r["databaseId"]))
+        picked.append(run_id)
         if len(picked) == num_runs:
             break
     if not picked:
-        sys.exit("ERROR: no green integration runs found")
+        sys.exit("ERROR: no green integration runs with downloadable test-log artifacts found")
     return picked
 
 
@@ -168,6 +198,11 @@ def download_run_artifacts(repo: str, run_id: str, dest: Path, attempts: int = 4
     for attempt in range(1, attempts + 1):
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
+            return
+        # A run with no matching artifacts (e.g. a scheduled run that skipped the
+        # e2e jobs) isn't an error — the caller aggregates whatever downloaded.
+        if "no valid artifacts found to download" in result.stderr:
+            print(f"  run {run_id} has no test-log artifacts; skipping", flush=True)
             return
         transient = "Bad credentials" in result.stderr or "HTTP 401" in result.stderr
         if attempt == attempts or not transient:
@@ -278,9 +313,14 @@ def merge_timings(
 def manual_review_changes(
     changes: list[FileChange],
     manual_review_pct: float = MANUAL_REVIEW_PCT,
+    min_seconds: float = MANUAL_REVIEW_MIN_SECONDS,
 ) -> list[FileChange]:
-    """Updated files whose move is implausibly large — a human should look."""
-    return [c for c in changes if c.delta_pct > manual_review_pct]
+    """Updated files with a large move on a non-trivial file — a human should look."""
+    return [
+        c
+        for c in changes
+        if c.delta_pct > manual_review_pct and max(c.new, c.old or 0.0) >= min_seconds
+    ]
 
 
 def format_change_summary(changes: list[FileChange], manual: list[FileChange]) -> str:

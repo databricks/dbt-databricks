@@ -1,10 +1,3 @@
-"""Unit tests for scripts/regenerate_timings.py.
-
-The script lives in scripts/ (not the importable package), so load it by path.
-The per-file merge is what the weekly refresh workflow gates its PR on, so it's
-worth testing directly; the moved junit utils are the input to it.
-"""
-
 import importlib.util
 import sys
 from pathlib import Path
@@ -17,7 +10,6 @@ _SCRIPT = _SCRIPTS_DIR / "regenerate_timings.py"
 _spec = importlib.util.spec_from_file_location("regenerate_timings", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 regen = importlib.util.module_from_spec(_spec)
-# Register before exec so dataclass introspection can resolve the module.
 sys.modules["regenerate_timings"] = regen
 _spec.loader.exec_module(regen)
 
@@ -33,7 +25,6 @@ class TestClassnameToFile:
         assert regen.classname_to_file("tests.unit.test_x") == "tests/unit/test_x.py"
 
     def test_last_test_segment_wins(self):
-        # A dir literally named test_* before the file must not fool the split.
         assert (
             regen.classname_to_file("tests.test_pkg.test_mod.TestThing")
             == "tests/test_pkg/test_mod.py"
