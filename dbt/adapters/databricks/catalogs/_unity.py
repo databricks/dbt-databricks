@@ -15,14 +15,11 @@ class UnityCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
-        # The physical Unity catalog to route models to (catalogs.yml `catalog_database`),
-        # decoupled from the dbt catalog label. On the dbt-core versions dbt-databricks runs
-        # on, catalogs.yml write-integration extras arrive via adapter_properties (like
-        # location_root); the base `catalog_database` attribute is only populated by newer
-        # dbt-core (bridge_v2_catalog), so fall back to it for forward compatibility.
-        self.catalog_database: Optional[str] = config.adapter_properties.get(
-            "catalog_database"
-        ) or getattr(config, "catalog_database", None)
+        # The physical Unity catalog to route models to, decoupled from the dbt catalog
+        # label. catalog_database is a v2-catalogs first-class field: the base
+        # CatalogIntegration populates it from the catalogs.yml config block. getattr keeps
+        # this safe on dbt-adapters versions that predate the field (resolves to None).
+        self.catalog_database: Optional[str] = getattr(config, "catalog_database", None)
         location_root = config.adapter_properties.get("location_root")
         if location_root is not None:
             if not str(location_root).strip():
