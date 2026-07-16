@@ -44,7 +44,7 @@
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
         {#-- Relation must be dropped & recreated --#}
-        {% if not is_replaceable %} {#-- If Delta, we will `create or replace` below, so no need to drop --#}
+        {% if not is_replaceable or existing_relation.is_shallow_clone %} {#-- If Delta, we will `create or replace` below, so no need to drop, unless it is a shallow clone (whose table_type cannot be changed in place) --#}
           {{ log("Dropping existing relation, as it is not replaceable") }}
           {% do adapter.drop_relation(existing_relation) %}
         {% endif %}
@@ -119,7 +119,7 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
       {#-- Relation must be dropped & recreated --#}
-      {% if not is_replaceable_format %} {#-- If Delta or Iceberg, we will `create or replace` below, so no need to drop --#}
+      {% if not is_replaceable_format or existing_relation.is_shallow_clone %} {#-- If Delta or Iceberg, we will `create or replace` below, so no need to drop, unless it is a shallow clone (whose table_type cannot be changed in place) --#}
         {% do adapter.drop_relation(existing_relation) %}
       {% endif %}
       {%- call statement('main', language=language) -%}

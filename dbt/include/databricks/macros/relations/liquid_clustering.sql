@@ -19,9 +19,15 @@
       ALTER {{ target_relation.type.render() }} {{ target_relation.render() }} CLUSTER BY ({{ cols | join(', ') }})
     {%- endcall -%}
   {%- elif auto_cluster -%}
-    {%- call statement('set_cluster_by_auto') -%}
-      ALTER {{ target_relation.type.render() }} {{ target_relation.render() }} CLUSTER BY AUTO
-    {%- endcall -%}
+    {#-- CLUSTER BY AUTO is only supported on UC managed tables, not on shallow clones. --#}
+    {%- set existing_relation = load_relation_with_metadata(target_relation) -%}
+    {%- if existing_relation is not none and existing_relation.is_shallow_clone -%}
+      {{ exceptions.warn("Skipping CLUSTER BY AUTO on " ~ target_relation ~ " because it is a shallow clone; auto liquid clustering is only supported on Unity Catalog managed tables.") }}
+    {%- else -%}
+      {%- call statement('set_cluster_by_auto') -%}
+        ALTER {{ target_relation.type.render() }} {{ target_relation.render() }} CLUSTER BY AUTO
+      {%- endcall -%}
+    {%- endif -%}
   {% else %}
     {%- call statement('unset_cluster_by') -%}
       ALTER {{ target_relation.type.render() }} {{ target_relation.render() }} CLUSTER BY NONE
