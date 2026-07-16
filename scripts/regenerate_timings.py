@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import statistics
 import subprocess
@@ -85,12 +86,20 @@ def classname_to_file(classname: str) -> str:
 
 
 def aggregate_per_file(junit_paths: list[Path]) -> dict[str, float]:
-    """Sum `time` attributes across all testcases per file."""
+    """Sum `time` attributes across all testcases per file.
+
+    `float()` accepts NaN/inf/negatives; such a value would poison the shard
+    weights, so skip it (warning) rather than let it into the timings.
+    """
     by_file: dict[str, float] = defaultdict(float)
     for jp in junit_paths:
         for tc in ET.parse(jp).getroot().findall(".//testcase"):
+            t = float(tc.get("time", "0") or 0)
+            if not math.isfinite(t) or t < 0:
+                print(f"  WARNING: skipping invalid time {t!r} in {jp}", file=sys.stderr)
+                continue
             f = classname_to_file(tc.get("classname", ""))
-            by_file[f] += float(tc.get("time", "0") or 0)
+            by_file[f] += t
     return dict(by_file)
 
 
@@ -121,12 +130,13 @@ def run_has_live_artifacts(repo: str, run_id: str) -> bool:
     return False
 
 
-def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
-    """Return the newest `num_runs` green integration runs, one per distinct SHA,
-    keeping only runs that still have downloadable test-log artifacts.
+def discover_green_run_ids(repo: str, num_runs: int, branch: str = "main") -> list[str]:
+    """Return the newest `num_runs` green integration runs on `branch`, one per
+    distinct SHA, keeping only runs that still have downloadable test-log artifacts.
 
-    Deduping by head SHA means re-runs of the same commit don't crowd out the
-    diversity that makes the median meaningful.
+    Restricted to `branch` (main) so branch/PR runs — which may run a different
+    test set — can't skew the median. Deduping by head SHA means re-runs of the
+    same commit don't crowd out the diversity that makes the median meaningful.
     """
     out = subprocess.run(
         [
@@ -137,6 +147,8 @@ def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
             repo,
             "--workflow",
             INTEGRATION_WORKFLOW,
+            "--branch",
+            branch,
             "--status",
             "success",
             "--limit",
@@ -163,8 +175,6 @@ def discover_green_run_ids(repo: str, num_runs: int) -> list[str]:
         picked.append(run_id)
         if len(picked) == num_runs:
             break
-    if not picked:
-        sys.exit("ERROR: no green integration runs with downloadable test-log artifacts found")
     return picked
 
 
@@ -366,6 +376,11 @@ def parse_args() -> argparse.Namespace:
         help="owner/repo for gh (default: databricks/dbt-databricks)",
     )
     p.add_argument(
+        "--branch",
+        default="main",
+        help="Only aggregate runs on this branch (default: main)",
+    )
+    p.add_argument(
         "--keep-downloads",
         action="store_true",
         help="Keep the downloaded junit artifacts instead of deleting the temp dir",
@@ -389,7 +404,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    run_ids = args.run_ids or discover_green_run_ids(args.repo, args.num_runs)
+    run_ids = args.run_ids or discover_green_run_ids(args.repo, args.num_runs, args.branch)
     print(f"Aggregating {len(run_ids)} run(s): {', '.join(run_ids)}", flush=True)
 
     tmp_root = Path(tempfile.mkdtemp(prefix="regen-timings-"))
@@ -414,6 +429,16 @@ def main() -> int:
             print("ERROR: no timings parsed from any run", file=sys.stderr)
             return 1
 
+        # Auto-discover requires the full num_runs for a true median; a short week
+        # skips cleanly and retries next run. An explicit --run-ids pin is exempt.
+        if not args.run_ids and len(per_run) < args.num_runs:
+            print(
+                f"Only {len(per_run)} of {args.num_runs} runs had timings — "
+                f"skipping this refresh; will retry next run.",
+                flush=True,
+            )
+            return 0
+
         fresh = median_across_runs(per_run)
     finally:
         if not args.keep_downloads:
@@ -435,7 +460,8 @@ def main() -> int:
         profile: {fp: round(t, 3) for fp, t in sorted(by_file.items())}
         for profile, by_file in sorted(final_doc.items())
     }
-    output_path.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n")
+    # allow_nan=False: refuse to emit non-finite weights (invalid JSON anyway).
+    output_path.write_text(json.dumps(out, indent=2, sort_keys=True, allow_nan=False) + "\n")
 
     print(f"\nWrote {output_path} (median of {len(per_run)} run(s)):", flush=True)
     for profile, by_file in sorted(final_doc.items()):

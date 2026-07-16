@@ -56,6 +56,19 @@ class TestAggregatePerFile:
         )
         assert regen.aggregate_per_file([xml]) == {"tests/unit/test_a.py": 0.0}
 
+    def test_invalid_times_are_skipped(self, tmp_path):
+        # NaN/inf/negative are valid floats but bogus weights; drop them, keep the good one.
+        xml = tmp_path / "junit.xml"
+        xml.write_text(
+            """<testsuite>
+              <testcase classname="tests.unit.test_a.TestA" name="ok" time="2.0"/>
+              <testcase classname="tests.unit.test_a.TestA" name="nan" time="NaN"/>
+              <testcase classname="tests.unit.test_a.TestA" name="inf" time="inf"/>
+              <testcase classname="tests.unit.test_a.TestA" name="neg" time="-5.0"/>
+            </testsuite>"""
+        )
+        assert regen.aggregate_per_file([xml]) == {"tests/unit/test_a.py": 2.0}
+
 
 class TestMedianAcrossRuns:
     def test_median_of_common_file(self):

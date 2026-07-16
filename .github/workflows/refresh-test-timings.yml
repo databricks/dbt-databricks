@@ -13,20 +13,27 @@ on:
         default: "3"
         type: string
 
+# Default to read-only; the write scope lives only on the open-pr job below.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: refresh-test-timings
   cancel-in-progress: true
 
 jobs:
-  refresh:
+  regenerate:
     if: github.ref == 'refs/heads/main'
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
+    permissions:
+      contents: read
+      actions: read   # gh run list / download
+    outputs:
+      open_pr: ${{ steps.decide.outputs.open_pr }}
+      runs_used: ${{ steps.regen.outputs.runs_used }}
+      summary: ${{ steps.regen.outputs.summary }}
     env:
       UV_FROZEN: "1"
       GH_TOKEN: ${{ github.token }}
@@ -34,6 +41,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Python Dependencies
         id: deps
@@ -69,6 +78,11 @@ jobs:
             --output .github/test_timings.json \
             --old /tmp/test_timings.old.json \
             --drift-out /tmp/drift.json
+          # No drift file => the script skipped (fewer than num_runs available).
+          if [ ! -f /tmp/drift.json ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "manual_review=$(jq -r '.needs_manual_review' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
           echo "runs_used=$(jq -r '.runs_used' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
           {
@@ -77,26 +91,52 @@ jobs:
             echo "DRIFT_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Detect changes
-        id: diff
+      - name: Decide whether to open a PR
+        id: decide
         run: |
           set -euo pipefail
-          if git diff --quiet -- .github/test_timings.json; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.regen.outputs.skipped }}" = "true" ]; then
+            echo "Refresh skipped (fewer than num_runs available)."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet -- .github/test_timings.json; then
             echo "test_timings.json is unchanged — nothing to do."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.regen.outputs.manual_review }}" = "true" ]; then
+            # A >60% move is likely bad artifacts — flag for a human, don't open a PR.
+            echo "::warning::A test file's wall time moved >60% — inspect the regenerated timings before applying. Not auto-opening a PR."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
           else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # A >60% move is likely bad artifacts — warn instead of opening a PR.
-      - name: Flag pathological drift
-        if: steps.diff.outputs.changed == 'true' && steps.regen.outputs.manual_review == 'true'
-        run: |
-          echo "::warning::A test file's wall time moved >60% — inspect the regenerated timings before applying. Not auto-opening a PR."
-          exit 0
+      - name: Upload regenerated timings
+        if: steps.decide.outputs.open_pr == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: refreshed-test-timings
+          path: .github/test_timings.json
+          retention-days: 1
+
+  open-pr:
+    needs: regenerate
+    if: needs.regenerate.outputs.open_pr == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+
+      - name: Download regenerated timings
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: refreshed-test-timings
+          path: .github/
 
       - name: Open or update refresh PR
-        if: steps.diff.outputs.changed == 'true' && steps.regen.outputs.manual_review != 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
         with:
           token: ${{ github.token }}
@@ -106,9 +146,9 @@ jobs:
           commit-message: "test: refresh test_timings.json"
           title: "test: refresh test_timings.json for shard balancing"
           body: |
-            Weekly refresh of `.github/test_timings.json` (median of ${{ steps.regen.outputs.runs_used }} green runs).
+            Weekly refresh of `.github/test_timings.json` (median of ${{ needs.regenerate.outputs.runs_used }} green runs).
 
-            ${{ steps.regen.outputs.summary }}
+            ${{ needs.regenerate.outputs.summary }}
 
             Please sanity-check the numbers before merging.
           labels: |
