@@ -131,12 +131,12 @@ def run_has_live_artifacts(repo: str, run_id: str) -> bool:
 
 
 def discover_green_run_ids(repo: str, num_runs: int, branch: str = "main") -> list[str]:
-    """Return the newest `num_runs` green integration runs on `branch`, one per
-    distinct SHA, keeping only runs that still have downloadable test-log artifacts.
+    """Newest `num_runs` green scheduled runs on `branch`, one per distinct SHA,
+    with downloadable artifacts.
 
-    Restricted to `branch` (main) so branch/PR runs — which may run a different
-    test set — can't skew the median. Deduping by head SHA means re-runs of the
-    same commit don't crowd out the diversity that makes the median meaningful.
+    `schedule`-only: `workflow_dispatch` runs also report `head_branch=main` but can
+    target a PR/arbitrary ref, so their timings would skew the median. Dedup by SHA
+    so re-runs of one commit don't crowd out others.
     """
     out = subprocess.run(
         [
@@ -149,6 +149,8 @@ def discover_green_run_ids(repo: str, num_runs: int, branch: str = "main") -> li
             INTEGRATION_WORKFLOW,
             "--branch",
             branch,
+            "--event",
+            "schedule",
             "--status",
             "success",
             "--limit",
