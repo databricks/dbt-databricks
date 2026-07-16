@@ -32,8 +32,9 @@
   {%- if other_existing_relation and other_existing_relation.type == 'table' and can_clone_table -%}
 
       {%- set target_relation = this.incorporate(type='table') -%}
-      {% if existing_relation is not none and not existing_relation.is_table %}
-        {{ log("Dropping relation " ~ existing_relation ~ " because it is of type " ~ existing_relation.type) }}
+      {#-- `create or replace` cannot change a table's table_type in place, so drop first unless it is already a shallow clone. --#}
+      {% if existing_relation is not none and (not existing_relation.is_table or not existing_relation.is_shallow_clone) %}
+        {{ log("Dropping relation " ~ existing_relation ~ " because it cannot be replaced by a shallow clone in place (type " ~ existing_relation.type ~ ")") }}
         {{ drop_relation_if_exists(existing_relation) }}
       {% endif %}
 

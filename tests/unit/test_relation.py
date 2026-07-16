@@ -117,6 +117,32 @@ class TestDatabricksRelation:
         # Should preserve the existing databricks_table_type
         assert relation.databricks_table_type == DatabricksTableType.ExternalShallowClone
 
+    @pytest.mark.parametrize(
+        "table_type, expected",
+        [
+            ("managed_shallow_clone", True),
+            ("external_shallow_clone", True),
+            ("managed", False),
+            ("external", False),
+            (None, False),
+        ],
+    )
+    def test_is_shallow_clone(self, table_type, expected):
+        data = {
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
+            "path": {
+                "database": "some_database",
+                "schema": "some_schema",
+                "identifier": "some_table",
+            },
+            "type": "table",
+        }
+        if table_type is not None:
+            data["databricks_table_type"] = table_type
+
+        relation = DatabricksRelation.from_dict(data)
+        assert relation.is_shallow_clone == expected
+
     def test_render__all_present(self):
         data = {
             "path": {
