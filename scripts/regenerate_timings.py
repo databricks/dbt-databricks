@@ -161,7 +161,8 @@ def discover_green_run_ids(repo: str, num_runs: int, branch: str = "main") -> li
         text=True,
     ).stdout
     runs = json.loads(out)
-    # gh returns newest-first; keep the first (newest) run per distinct SHA that still has artifacts.
+    # gh returns newest-first; keep the first (newest) run per distinct SHA
+    # that still has artifacts.
     seen_sha: set[str] = set()
     picked: list[str] = []
     for r in runs:
