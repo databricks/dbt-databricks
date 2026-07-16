@@ -32,6 +32,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -51,14 +52,21 @@ from dbt.adapters.databricks.connections import (
     DatabricksConnectionManager,
     DatabricksDBTConnection,
 )
-from dbt.adapters.databricks.dbr_capabilities import DBRCapability
+from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapability
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
     WorkflowPythonJobHelper,
+)
+from dbt.adapters.databricks.record.record_types import (
+    DatabricksAdapterAddQueryRecord,
+    DatabricksAdapterGetRelationConfigRecord,
+    DatabricksAdapterIsUniformRecord,
 )
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,
@@ -87,9 +95,16 @@ from dbt.adapters.databricks.relation_configs.tags import (
 )
 from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
+from dbt.adapters.databricks.spog import probe
+from dbt.adapters.databricks.spog.capabilities import (
+    connector_supports_spog,
+    sdk_supports_workspace_id,
+)
+from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
+    is_cluster_http_path,
     quote,
     redact_credentials,
 )
@@ -196,8 +211,9 @@ class DatabricksConfig(AdapterConfig):
     query_tags: Optional[str] = None
     tblproperties: Optional[dict[str, str]] = None
     zorder: Optional[Union[list[str], str]] = None
+    skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
-    skip_non_matched_step: Optional[bool] = None
+    skip_not_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
     matched_condition: Optional[str] = None
     not_matched_condition: Optional[str] = None
@@ -227,6 +243,17 @@ def get_identifier_list_string(table_names: set[str]) -> str:
     return _identifier
 
 
+def _adapter_capabilities() -> CapabilityDict:
+    capabilities: dict[Capability, CapabilitySupport] = {
+        Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+        Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
+    }
+    catalogs_v2 = getattr(Capability, "CatalogsV2", None)
+    if catalogs_v2 is not None:
+        capabilities[catalogs_v2] = CapabilitySupport(support=Support.Full)
+    return CapabilityDict(capabilities)
+
+
 class DatabricksAdapter(SparkAdapter):
     INFORMATION_COMMENT_REGEX = re.compile(r"Comment: (.*)\n[A-Z][A-Za-z ]+:", re.DOTALL)
 
@@ -239,17 +266,16 @@ class DatabricksAdapter(SparkAdapter):
 
     AdapterSpecificConfigs = DatabricksConfig  # type: ignore[assignment]
 
-    _capabilities = CapabilityDict(
-        {
-            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
-            Capability.SchemaMetadataByRelations: CapabilitySupport(support=Support.Full),
-        }
-    )
+    _capabilities = _adapter_capabilities()
 
     CATALOG_INTEGRATIONS = [
         HiveMetastoreCatalogIntegration,
         UnityCatalogIntegration,
     ]
+    _V2_TO_V1_TYPE: ClassVar[dict[str, str]] = {
+        "unity": constants.UNITY_CATALOG_TYPE,
+        "hive_metastore": constants.HIVE_METASTORE_CATALOG_TYPE,
+    }
     CONSTRAINT_SUPPORT = constraints.CONSTRAINT_SUPPORT
 
     get_column_behavior: GetColumnsBehavior
@@ -268,6 +294,28 @@ class DatabricksAdapter(SparkAdapter):
         GlobalState.set_use_managed_iceberg(
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
+
+        # Warehouses always meet capability cutoffs at parse time; clusters keep the
+        # conservative False until a real connection is available.
+        # `_parse_replacements_` is injected by AdapterMeta, so mypy can't resolve it here.
+        self._parse_replacements_ = {
+            **self.__class__._parse_replacements_,  # type: ignore[has-type]
+            "has_dbr_capability": self._has_dbr_capability_parse,
+        }
+
+    def _has_dbr_capability_parse(self, capability_name: str) -> bool:
+        """Parse-time stub: True only on SQL warehouses for warehouse-supported capabilities."""
+        creds = self.config.credentials
+        if is_cluster_http_path(creds.http_path, creds.cluster_id):
+            return False
+        try:
+            capability = DBRCapability(capability_name.lower())
+        except ValueError:
+            return False
+        return DBRCapabilities(is_sql_warehouse=True).has_capability(capability)
+
+    def _v2_to_v1_type(self, catalog_type: str) -> str:
+        return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
@@ -290,6 +338,12 @@ class DatabricksAdapter(SparkAdapter):
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
+    @record_function(
+        DatabricksAdapterIsUniformRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
@@ -383,6 +437,7 @@ class DatabricksAdapter(SparkAdapter):
         return conn.has_capability(capability)
 
     @available.parse(lambda *a, **k: False)
+    @auto_record_function("AdapterHasDbrCapability", group="Available")
     def has_dbr_capability(self, capability_name: str) -> bool:
         """
         Check if a DBR capability is available for current compute.
@@ -624,6 +679,7 @@ class DatabricksAdapter(SparkAdapter):
             # TODO: Replace with streaming table capability check when 17.1 is current version
             #       for SQL warehouses
             or relation.type == DatabricksRelationType.StreamingTable
+            or relation.is_foreign_table
         )
         return self.get_column_behavior.get_columns_in_relation(self, relation, use_legacy_logic)
 
@@ -846,6 +902,13 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    @available.parse(lambda *a, **k: (None, None))
+    @record_function(
+        DatabricksAdapterAddQueryRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def add_query(
         self,
         sql: str,
@@ -976,12 +1039,24 @@ class DatabricksAdapter(SparkAdapter):
         existing_columns: list[DatabricksColumn],
         model_columns: dict[str, dict[str, Any]],
         model_constraints: list[dict[str, Any]],
+        contract_enforced: bool = False,
+        model_name: str = "",
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
-        not_null_set, parsed_constraints = constraints.parse_constraints(
-            list(model_columns.values()), model_constraints
-        )
+        if contract_enforced:
+            not_null_set, parsed_constraints = constraints.parse_constraints(
+                list(model_columns.values()), model_constraints
+            )
+        else:
+            not_null_set = set()
+            parsed_constraints = []
+            if any(col.get("constraints") for col in model_columns.values()):
+                model_ref = f" on '{model_name}'" if model_name else ""
+                logger.info(
+                    f"Skipping column-level constraints{model_ref}: set `contract.enforced: "
+                    "true` to apply NOT NULL / primary key / foreign key / check constraints."
+                )
 
         # Create a case-insensitive lookup for model column names
         model_columns_lower = {k.lower(): k for k in model_columns.keys()}
@@ -1004,6 +1079,12 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
+    @record_function(
+        DatabricksAdapterGetRelationConfigRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def get_relation_config(
         self,
         relation: DatabricksRelation,
@@ -1042,6 +1123,7 @@ class DatabricksAdapter(SparkAdapter):
             )
 
     @available
+    @auto_record_function("AdapterIsCluster", group="Available")
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
@@ -1086,6 +1168,52 @@ class DatabricksAdapter(SparkAdapter):
             else:
                 return constants.DELTA_FILE_FORMAT
         return config.get("file_format", default=constants.DELTA_FILE_FORMAT)
+
+    def debug_query(self) -> None:
+        """Override for DebugTask: emit SPOG diagnostic block, then `select 1`."""
+        creds = cast(DatabricksCredentials, self.config.credentials)
+        DatabricksAdapter.debug_emit_spog_block(
+            host=creds.host or "",
+            http_path=creds.http_path or "",
+        )
+        self.execute("select 1 as id")
+
+    @staticmethod
+    def debug_emit_spog_block(host: str, http_path: str) -> None:
+        """Print a SPOG status block: host_type, workspace_id, dep versions.
+
+        Visible in `dbt debug` output. Makes "is SPOG working here?" a
+        one-command answer for support escalations.
+        """
+        if not host:
+            return
+
+        def _pkg_version_or_missing(name: str) -> str:
+            try:
+                return metadata.version(name)
+            except metadata.PackageNotFoundError:
+                return "<not installed>"
+
+        host_metadata = probe.probe_host(host)
+        is_spog = host_metadata.host_type == "unified"
+        workspace_id = extract_workspace_id(http_path)
+        connector_v = _pkg_version_or_missing("databricks-sql-connector")
+        sdk_v = _pkg_version_or_missing("databricks-sdk")
+        connector_ok = connector_supports_spog()
+        sdk_ok = sdk_supports_workspace_id()
+
+        logger.info(
+            f"  SPOG host (host_type={host_metadata.host_type!r}): {'yes' if is_spog else 'no'}"
+        )
+        logger.info(f"  workspace_id (from ?o= in http_path): {workspace_id!r}")
+        logger.info(
+            f"  databricks-sql-connector version: {connector_v} "
+            f"({'supported' if connector_ok else 'NOT supported (>= 4.2.6 required for SPOG)'})"
+        )
+        logger.info(
+            f"  databricks-sdk version: {sdk_v} "
+            f"({'supported' if sdk_ok else 'NOT supported (>= 0.76.0 required for SPOG)'})"
+        )
 
 
 @dataclass(frozen=True)
@@ -1331,6 +1459,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:
             results["information_schema.tags"] = None
+
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
 
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)

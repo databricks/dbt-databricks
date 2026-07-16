@@ -85,11 +85,23 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
    - Require live Databricks workspace
    - Run with: `hatch run cluster-e2e-dev` (or `uc-cluster-e2e-dev`, `sqlw-e2e-dev`).
 
+3. **Lowest-direct dependency tests** (`hatch run min-deps:X`): Same unit + functional suites against the committed lower-bound lock
+   - Catches drift where wide dep ranges in `pyproject.toml` admit versions the code no longer supports
+   - Lock lives in `requirements.lowest-direct.txt`
+   - Run with: `hatch run min-deps:unit`, `hatch run min-deps:parse`, `hatch run min-deps:e2e`
+   - Details: [docs/testing.md → Testing against lowest-direct dependencies](docs/testing.md#testing-against-lowest-direct-dependencies)
+
 ### What to Assert in Each Test Type
 
 Functional tests assert user-visible outcomes: the model materializes and the resulting rows are correct. Unit and macro tests assert implementation details like the exact SQL a macro generates or the exact text of a warning.
 
 When there is nothing meaningful to assert in either category, the change does not need a test.
+
+Three rules keep functional tests server-truthful and cheap (full detail in [docs/testing.md → Functional Tests](docs/testing.md#functional-tests)):
+
+- **Assert server-observable state only** — query data, `SHOW TBLPROPERTIES`, `DESCRIBE DETAIL`/`EXTENDED`/`HISTORY`, or `information_schema`. Never assert a log substring or generated-SQL text in a functional test (that's unit/macro-test domain), even where existing tests do.
+- **Rerun-safe** — a second run of the test must pass (`RerunSafeMixin` or unique names).
+- **Cheapest home first** — strengthen an existing test > add a case to a class > new class > new file/section; fixtures go in `fixtures.py`, never inlined.
 
 ### Test Environments
 
@@ -175,6 +187,35 @@ class TestIncrementalModel:
         assert results[0][0] == 1
 ```
 
+## 📝 CHANGELOG Entries
+
+Every PR that changes runtime behavior updates `CHANGELOG.md` (enforced by the PR template). Add the entry under the topmost version heading (the one marked `(TBD)`), in the correct section: `### Features`, `### Fixes`, or `### Under the Hood`.
+
+Write one line, present tense, describing the user-visible effect (not the implementation):
+
+```
+- <summary> ([#<PR>](https://github.com/databricks/dbt-databricks/pull/<PR>))
+```
+
+When the PR addresses a tracked issue, link it in the same parentheses after the PR:
+
+```
+- <summary> ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+- Use `resolves` when merging the PR should close the issue (matches the PR template's `Resolves #`).
+- Use `partially resolves` when the PR only partly addresses the issue; the issue stays open, so don't put an auto-close keyword like `Resolves #` in the PR body.
+- Omit the issue link when there is no tracked issue.
+- Older entries use `closes`; leave them as-is and use `resolves` for new ones.
+
+Community (external) contributions credit the author with `(thanks @<author>!)` before the links:
+
+```
+- <summary> (thanks @<author>!) ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+Test-only PRs still get an `### Under the Hood` entry noted `(test-only, no runtime impact)`.
+
 ## 🏗 Architecture Deep Dive
 
 ### Adapter Inheritance Chain
@@ -195,12 +236,7 @@ DatabricksAdapter (impl.py)
   - Per-compute caching (different clusters can have different capabilities)
   - Named capabilities instead of magic version numbers
   - Automatic detection of DBR version and SQL warehouse environments
-- **Supported Capabilities**:
-  - `TIMESTAMPDIFF` (DBR 10.4+): Advanced date/time functions
-  - `INSERT_BY_NAME` (DBR 12.2+): Name-based column matching in INSERT
-  - `ICEBERG` (DBR 14.3+): Apache Iceberg table format
-  - `COMMENT_ON_COLUMN` (DBR 16.1+): Modern column comment syntax
-  - `JSON_COLUMN_METADATA` (DBR 16.2+): Efficient metadata retrieval
+- **Supported Capabilities**: see [`docs/dbr-capability-system.md`](docs/dbr-capability-system.md) for the canonical list (each capability's minimum DBR version and SQL-warehouse support). The authoritative source is the `DBRCapability` enum and `CAPABILITY_SPECS` in `dbr_capabilities.py`; the doc mirrors them in human-readable form.
 - **Usage in Code**:
 
   ```python
@@ -226,6 +262,7 @@ DatabricksAdapter (impl.py)
   1. Add to `DBRCapability` enum
   2. Add `CapabilitySpec` with version requirements
   3. Use `has_capability()` or `require_capability()` in code
+  4. Update `docs/dbr-capability-system.md` (the human-readable mirror of the enum/specs) whenever you add, remove, or change a capability or its version/SQL-warehouse support
 - **Important**: Each compute resource (identified by `http_path`) maintains its own capability cache
 
 #### Connection Management (`connections.py`)

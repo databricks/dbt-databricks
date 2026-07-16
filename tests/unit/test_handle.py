@@ -1,13 +1,98 @@
+import base64
+import json
+import os
 import sys
 from decimal import Decimal
-from unittest.mock import Mock
+from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
 from databricks.sql.client import Cursor
-from dbt.adapters.contracts.connection import AdapterResponse
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
-from dbt.adapters.databricks.handle import CursorWrapper, DatabricksHandle, SqlUtils
+from dbt.adapters.databricks.credentials import (
+    DatabricksCredentialManager,
+    DatabricksCredentials,
+)
+from dbt.adapters.databricks.handle import (
+    CursorWrapper,
+    DatabricksAdapterResponse,
+    DatabricksHandle,
+    SqlUtils,
+    _get_job_run_context,
+)
+
+
+def _build_session_headers(
+    job_id: str = "222",
+    task_run_id: str = "333",
+    job_run_id: str = "111",
+    include_source: bool = True,
+    source_override: object = None,
+) -> str:
+    """Build a realistic DBT_DATABRICKS_HTTP_SESSION_HEADERS JSON string."""
+    payload: dict[str, object] = {
+        "X-Databricks-Dbsql-Attribution-Flags": {
+            "dbsqlTriggerSource": "jobsScheduler",
+            "jobId": job_id,
+            "dbsqlTriggerExecutionType": "manual",
+            "dbsqlTriggerAssetType": "dbt",
+            "runId": task_run_id,
+        },
+        "X-Databricks-Dbsql-Job-Id": job_id,
+        "X-Databricks-Dbsql-Run-Id": task_run_id,
+    }
+    if include_source:
+        if source_override is not None:
+            payload["X-Databricks-Sql-Query-Source"] = source_override
+        else:
+            inner = json.dumps(
+                {
+                    "job_run_id": job_run_id,
+                    "job_id": job_id,
+                    "run_id": task_run_id,
+                    "scheduled": False,
+                    "job_type": "EPHEMERAL",
+                }
+            )
+            payload["X-Databricks-Sql-Query-Source"] = base64.b64encode(inner.encode()).decode()
+    return json.dumps(payload)
+
+
+_KERNEL_HTTP_PATH = "/sql/1.0/warehouses/abc"
+
+
+def _prepare_connection_args(**creds_kwargs: Any) -> dict[str, Any]:
+    """Run prepare_connection_arguments for creds built from fixed host/path/schema
+    plus the given auth kwargs, and return the resulting connect() kwargs."""
+    creds = DatabricksCredentials(
+        host="yourorg.databricks.com",
+        http_path=_KERNEL_HTTP_PATH,
+        schema="dbt",
+        **creds_kwargs,
+    )
+    manager = DatabricksCredentialManager.create_from(creds)
+    return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+
+
+def _fail_if_config_accessed(self: DatabricksCredentialManager) -> Any:
+    raise AssertionError("creds_manager.config should not be accessed")
+
+
+def _prepare_connection_args_without_config_auth(**creds_kwargs: Any) -> dict[str, Any]:
+    creds = DatabricksCredentials(
+        host="yourorg.databricks.com",
+        http_path=_KERNEL_HTTP_PATH,
+        schema="dbt",
+        **creds_kwargs,
+    )
+    manager = DatabricksCredentialManager.create_from(creds)
+    with patch.object(
+        type(manager),
+        "config",
+        new_callable=lambda: property(_fail_if_config_accessed),
+    ):
+        return SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
 
 class TestSqlUtils:
@@ -146,6 +231,129 @@ class TestSqlUtils:
         with pytest.raises(DbtRuntimeError):
             SqlUtils.extract_dbr_version("foo")
 
+    def test_prepare_connection_arguments__default_uses_credentials_provider(self):
+        """Without use_kernel, the connector's credentials_provider is passed and
+        no raw credentials leak into the connect() kwargs."""
+        args = _prepare_connection_args(client_id="cid", client_secret="dose-secret")
+        assert callable(args["credentials_provider"])
+        assert "use_kernel" not in args
+        assert "oauth_client_id" not in args
+        assert "access_token" not in args
+
+    def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
+        """use_kernel with a PAT forwards the token directly as access_token
+        (PATs are long-lived, so no refresh concern), dropping credentials_provider."""
+        args = _prepare_connection_args_without_config_auth(
+            token="dapiabc123",
+            connection_parameters={"use_kernel": True},
+        )
+        assert args["use_kernel"] is True
+        assert args["access_token"] == "dapiabc123"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_id" not in args
+
+    def test_prepare_connection_arguments__kernel_m2m_forwards_oauth_creds(self):
+        """OAuth M2M forwards resolved client id/scopes plus the client secret so the
+        kernel owns the token lifecycle (acquire + refresh via workspace OIDC), not a
+        pre-resolved token that would not refresh."""
+        creds = DatabricksCredentials(
+            host="yourorg.databricks.com",
+            http_path=_KERNEL_HTTP_PATH,
+            schema="dbt",
+            client_id="cid",
+            client_secret="dose-secret",
+            connection_parameters={"use_kernel": True},
+        )
+        manager = DatabricksCredentialManager.create_from(creds)
+        with patch.object(
+            type(manager),
+            "config",
+            new_callable=lambda: property(lambda self: Mock(auth_type="oauth-m2m")),
+        ):
+            args = SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+        assert args["oauth_client_id"] == "cid"
+        assert args["oauth_client_secret"] == "dose-secret"
+        # Scopes come from the manager's resolved defaults, not raw creds.
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
+        assert args.get("credentials_provider") is None
+        assert "access_token" not in args
+
+    def test_prepare_connection_arguments__kernel_azure_sp_raises(self):
+        """The kernel has no Azure-AD flow, so an Azure SP cannot connect through it.
+        The adapter rejects it with a clear error rather than silently converting the
+        credentials (that conversion, needed only to run the CI suite on a peco Azure
+        SP, lives in test setup — see tests/profiles.py)."""
+        creds = DatabricksCredentials(
+            host="yourorg.databricks.com",
+            http_path=_KERNEL_HTTP_PATH,
+            schema="dbt",
+            azure_client_id="acid",
+            azure_client_secret="asecret",
+            connection_parameters={"use_kernel": True},
+        )
+        manager = DatabricksCredentialManager.create_from(creds)
+        with patch.object(
+            type(manager),
+            "config",
+            new_callable=lambda: property(_fail_if_config_accessed),
+        ):
+            with pytest.raises(DbtConfigError, match="use_kernel"):
+                SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+
+    def test_prepare_connection_arguments__kernel_legacy_azure_sp_raises(self):
+        """An Azure SP supplied through the client_id/client_secret fields resolves
+        to azure-client-secret; the kernel cannot serve it, so it is rejected too."""
+        creds = DatabricksCredentials(
+            host="yourorg.databricks.com",
+            http_path=_KERNEL_HTTP_PATH,
+            schema="dbt",
+            client_id="cid",
+            client_secret="azure-secret",
+            connection_parameters={"use_kernel": True},
+        )
+        manager = DatabricksCredentialManager.create_from(creds)
+        with patch.object(
+            type(manager),
+            "config",
+            new_callable=lambda: property(lambda self: Mock(auth_type="azure-client-secret")),
+        ):
+            with pytest.raises(DbtConfigError, match="use_kernel"):
+                SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
+
+    def test_prepare_connection_arguments__kernel_u2m_explicit_client_id(self):
+        """use_kernel with OAuth U2M and an explicit client_id forwards that
+        client_id and translates dbt's auth_type='oauth' to the kernel's
+        'databricks-oauth' so the kernel bridge routes to its U2M flow. U2M is a
+        browser flow the kernel runs itself, so no token is pre-resolved."""
+        args = _prepare_connection_args_without_config_auth(
+            client_id="cid",
+            auth_type="oauth",
+            connection_parameters={"use_kernel": True},
+        )
+        assert args["use_kernel"] is True
+        assert args["oauth_client_id"] == "cid"
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
+        assert args["auth_type"] == "databricks-oauth"
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_secret" not in args
+        assert "access_token" not in args
+
+    def test_prepare_connection_arguments__kernel_u2m_default_app_uses_manager_defaults(self):
+        """The common external-browser config is `auth_type: oauth` with NO
+        client_id/scopes set. We forward the credential manager's resolved defaults
+        (client_id=dbt-databricks, scopes=[all-apis, offline_access]) so the kernel
+        uses dbt's defaults rather than its own."""
+        args = _prepare_connection_args_without_config_auth(
+            auth_type="oauth",
+            connection_parameters={"use_kernel": True},
+        )
+        assert args["auth_type"] == "databricks-oauth"
+        assert args["oauth_client_id"] == "dbt-databricks"
+        assert args["oauth_scopes"] == ["all-apis", "offline_access"]
+        assert args.get("credentials_provider") is None
+        assert "oauth_client_secret" not in args
+        assert "access_token" not in args
+
 
 class TestCursorWrapper:
     @pytest.fixture
@@ -213,15 +421,37 @@ class TestCursorWrapper:
         wrapper = CursorWrapper(cursor)
         assert wrapper.fetchmany(1) == [("foo", "bar")]
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_response__no_query_id(self, cursor):
         cursor.query_id = None
         wrapper = CursorWrapper(cursor)
-        assert wrapper.get_response() == AdapterResponse("OK", query_id="N/A")
+        response = wrapper.get_response()
+        assert isinstance(response, DatabricksAdapterResponse)
+        assert response.query_id == "N/A"
+        assert response.job_id is None
+        assert response.job_run_id is None
+        assert response.task_run_id is None
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_response__with_query_id(self, cursor):
         cursor.query_id = "id"
         wrapper = CursorWrapper(cursor)
-        assert wrapper.get_response() == AdapterResponse("OK", query_id="id")
+        response = wrapper.get_response()
+        assert isinstance(response, DatabricksAdapterResponse)
+        assert response.query_id == "id"
+
+    def test_get_response__with_job_context(self, cursor):
+        cursor.query_id = "qid"
+        wrapper = CursorWrapper(cursor)
+        with patch.dict(
+            os.environ,
+            {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers()},
+        ):
+            response = wrapper.get_response()
+        assert response.job_id == "222"
+        assert response.job_run_id == "111"
+        assert response.task_run_id == "333"
+        assert response.query_id == "qid"
 
     def test_with__no_exception(self, cursor):
         with CursorWrapper(cursor) as c:
@@ -324,3 +554,123 @@ class TestDatabricksHandle:
         handle.close()
         cursor.close.assert_called_once()
         conn.close.assert_called_once()
+
+
+class TestGetJobRunContext:
+    @patch.dict(os.environ, {}, clear=True)
+    def test_env_absent(self):
+        assert _get_job_run_context() == {
+            "job_id": None,
+            "job_run_id": None,
+            "task_run_id": None,
+        }
+
+    @patch.dict(os.environ, {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": ""})
+    def test_env_empty_string(self):
+        assert _get_job_run_context() == {
+            "job_id": None,
+            "job_run_id": None,
+            "task_run_id": None,
+        }
+
+    def test_real_headers_full(self):
+        with patch.dict(
+            os.environ,
+            {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers()},
+        ):
+            assert _get_job_run_context() == {
+                "job_id": "222",
+                "job_run_id": "111",
+                "task_run_id": "333",
+            }
+
+    def test_headers_without_query_source(self):
+        """job_run_id is None when X-Databricks-Sql-Query-Source is absent."""
+        with patch.dict(
+            os.environ,
+            {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers(include_source=False)},
+        ):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
+
+    @patch.dict(os.environ, {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": "not-json{"}, clear=False)
+    def test_malformed_json(self):
+        assert _get_job_run_context() == {
+            "job_id": None,
+            "job_run_id": None,
+            "task_run_id": None,
+        }
+
+    def test_malformed_base64_source(self):
+        """Bad base64 in X-Databricks-Sql-Query-Source leaves job_run_id None
+        but the directly-readable job_id and task_run_id still resolve."""
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers(
+                    source_override="!!!not-base64!!!"
+                )
+            },
+        ):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
+
+    def test_base64_decodes_to_non_json(self):
+        garbage_b64 = base64.b64encode(b"not json").decode()
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers(
+                    source_override=garbage_b64
+                )
+            },
+        ):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
+
+    @pytest.mark.parametrize("raw", ["null", "[]", "123", '"foo"', "true"])
+    def test_outer_json_non_object(self, raw):
+        """Outer JSON is valid but not an object — must not raise."""
+        with patch.dict(os.environ, {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": raw}):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": None, "job_run_id": None, "task_run_id": None}
+
+    @pytest.mark.parametrize("inner_payload", [b"[1,2,3]", b"null", b"123", b'"x"', b"true"])
+    def test_inner_base64_json_non_object(self, inner_payload):
+        """Inner base64 decodes to valid but non-object JSON — job_run_id stays None,
+        outer fields still resolve."""
+        bad_source = base64.b64encode(inner_payload).decode()
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers(
+                    source_override=bad_source
+                )
+            },
+        ):
+            ctx = _get_job_run_context()
+        assert ctx == {"job_id": "222", "job_run_id": None, "task_run_id": "333"}
+
+
+class TestDatabricksAdapterResponse:
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__no_context(self):
+        cursor = Mock()
+        cursor.query_id = "q1"
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.query_id == "q1"
+        assert resp.job_id is None
+        assert resp.job_run_id is None
+        assert resp.task_run_id is None
+
+    def test_from_cursor__with_context(self):
+        cursor = Mock()
+        cursor.query_id = "qid"
+        with patch.dict(
+            os.environ,
+            {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers()},
+        ):
+            resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.job_id == "222"
+        assert resp.job_run_id == "111"
+        assert resp.task_run_id == "333"

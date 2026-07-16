@@ -20,6 +20,8 @@ Instead of magic version numbers, features are identified by clear names:
 - `JSON_COLUMN_METADATA` - Efficient column metadata retrieval (DBR 16.2+)
 - `REPLACE_ON` - Modern REPLACE ON syntax for incremental loads (DBR 17.1+)
 - `STREAMING_TABLE_JSON_METADATA` - Streaming table metadata support (DBR 17.1+)
+- `DESCRIBE_TABLE_EXTENDED_AS_JSON` - `DESCRIBE TABLE EXTENDED ... AS JSON` for relation metadata (DBR 17.3+)
+- `INSERT_BY_NAME_REPLACE_WHERE` - Name-based column matching in `INSERT ... REPLACE WHERE` statements (DBR 18.0+)
 
 ### 🔧 Automatic Detection
 The system automatically detects:
@@ -55,6 +57,10 @@ The system automatically handles feature availability based on your compute:
 -- DBR 12.2+: INSERT INTO table BY NAME SELECT ...
 -- DBR <12.2: INSERT INTO table SELECT ... (positional)
 
+-- INSERT ... REPLACE WHERE has a separate BY NAME gate
+-- DBR 18.0+: INSERT INTO table BY NAME REPLACE WHERE ... TABLE ...
+-- DBR <18.0: INSERT INTO table REPLACE WHERE ... TABLE ... (positional)
+
 -- Column comments automatically use the right syntax
 -- DBR 16.1+: COMMENT ON COLUMN syntax
 -- DBR <16.1: ALTER TABLE ... ALTER COLUMN syntax
@@ -71,6 +77,8 @@ The system automatically handles feature availability based on your compute:
 | `JSON_COLUMN_METADATA` | DBR 16.2 | ✅ | Efficient metadata retrieval |
 | `REPLACE_ON` | DBR 17.1 | ✅ | REPLACE ON syntax for incremental loads |
 | `STREAMING_TABLE_JSON_METADATA` | DBR 17.1 | ❌ | Streaming table metadata (coming soon) |
+| `DESCRIBE_TABLE_EXTENDED_AS_JSON` | DBR 17.3 | ✅ | `DESCRIBE TABLE EXTENDED ... AS JSON` for relation metadata |
+| `INSERT_BY_NAME_REPLACE_WHERE` | DBR 18.0 | ✅ | Name-based column matching in `INSERT ... REPLACE WHERE` |
 
 ## Multi-Compute Scenarios
 
@@ -97,8 +105,7 @@ Each compute resource maintains its own capability cache, ensuring features are 
 
 If you encounter an error like:
 ```
-DbtConfigError: Iceberg table format requires DBR 14.3+.
-Current connection does not meet this requirement.
+DbtConfigError: iceberg requires DBR 14.3+. Current connection does not meet this requirement.
 ```
 
 **Solutions:**
@@ -124,6 +131,13 @@ You can check what capabilities are available in your macros:
   -- Use positional INSERT for older DBR versions
   INSERT INTO {{ target }}
   SELECT * FROM {{ source }}
+{% endif %}
+
+{% if adapter.has_dbr_capability('insert_by_name_replace_where') %}
+  INSERT INTO {{ target }} BY NAME REPLACE WHERE {{ predicates }} TABLE {{ source }}
+{% else %}
+  -- Use positional REPLACE WHERE for older DBR versions
+  INSERT INTO {{ target }} REPLACE WHERE {{ predicates }} TABLE {{ source }}
 {% endif %}
 ```
 

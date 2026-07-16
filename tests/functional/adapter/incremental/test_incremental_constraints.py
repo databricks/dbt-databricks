@@ -2,12 +2,19 @@ import pytest
 from dbt.contracts.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
+from tests.functional.adapter.fixtures import (
+    RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
+)
 from tests.functional.adapter.incremental import fixtures
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetNonNullConstraint:
+class TestIncrementalSetNonNullConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("non_null_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -46,7 +53,11 @@ class TestIncrementalSetNonNullConstraintDescribeJsonOn(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalUnsetNonNullConstraint:
+class TestIncrementalUnsetNonNullConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("non_null_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -77,12 +88,29 @@ class TestIncrementalUnsetNonNullConstraint:
 
         # Remove the non-null constraint
         util.write_file(fixtures.schema_without_non_null_constraint, "models", "schema.yml")
-        # This would fail if the constraint was not removed
         util.run_dbt(["run"])
+
+        # The column should now be nullable (DROP NOT NULL applied, not a no-op).
+        columns_after = project.run_sql(
+            """
+            SELECT column_name
+            FROM {database}.information_schema.columns
+            WHERE table_schema = '{schema}'
+            AND is_nullable = 'NO'
+            """,
+            fetch="all",
+        )
+        assert columns_after == [], (
+            f"Expected no NOT NULL columns after removal, found {columns_after}"
+        )
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetCheckConstraint:
+class TestIncrementalSetCheckConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("check_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -107,7 +135,11 @@ class TestIncrementalSetCheckConstraint:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRemoveCheckConstraint:
+class TestIncrementalRemoveCheckConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("check_constraint_sql",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -132,27 +164,42 @@ class TestIncrementalRemoveCheckConstraint:
             """,
             fetch="all",
         )
-        constraint = None
-        for row in tbl_properties:
-            if str(row[0]).startswith("delta.constraints."):
-                constraint = row
-                break
-        assert constraint is not None
+        constraints = [
+            row for row in tbl_properties if str(row[0]).startswith("delta.constraints.")
+        ]
+        assert constraints != []
 
         # Remove check constraint
         util.write_file(fixtures.schema_without_check_constraint, "models", "schema.yml")
-        # This would fail if the constraint was not removed
         util.run_dbt(["run"])
+
+        # The delta.constraints.* property should be gone (DROP applied, not a no-op).
+        tbl_properties_after = project.run_sql(
+            """
+            SHOW TBLPROPERTIES {database}.{schema}.check_constraint_sql
+            """,
+            fetch="all",
+        )
+        remaining = [
+            row for row in tbl_properties_after if str(row[0]).startswith("delta.constraints.")
+        ]
+        assert remaining == [], (
+            f"Expected delta.constraints.* to be gone after removal, found {remaining}"
+        )
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalUpdatePrimaryKeyConstraint:
+class TestIncrementalUpdatePrimaryKeyConstraint(RerunSafeMixin):
     primary_key_constraint_sql = """
         SELECT constraint_name, column_name
         FROM {database}.information_schema.key_column_usage
         WHERE constraint_schema = '{schema}'
         ORDER BY ordinal_position
     """
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("primary_key_constraint_sql",)
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -205,7 +252,12 @@ class TestIncrementalUpdatePrimaryKeyConstraintDescribeJsonOn(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestCascadingConstraintDrop:
+class TestCascadingConstraintDrop(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # ref_table holds the FK to primary_key_constraint_sql, so drop it first.
+        return ("ref_table", "primary_key_constraint_sql")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -258,7 +310,12 @@ referential_constraint_sql = """
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalSetForeignKeyConstraint:
+class TestIncrementalSetForeignKeyConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # fk_referenced_from_table holds the FKs, so drop it before its parents.
+        return ("fk_referenced_from_table", "fk_referenced_to_table", "fk_referenced_to_table_2")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -323,7 +380,12 @@ class TestIncrementalDiff:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalRemoveForeignKeyConstraint:
+class TestIncrementalRemoveForeignKeyConstraint(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        # fk_referenced_from_table holds the FKs, so drop it before its parents.
+        return ("fk_referenced_from_table", "fk_referenced_to_table", "fk_referenced_to_table_2")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

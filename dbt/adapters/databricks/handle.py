@@ -1,12 +1,16 @@
+import base64
 import decimal
+import json
+import os
 import re
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt.adapters.contracts.connection import AdapterResponse
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
@@ -26,6 +30,71 @@ CursorWrapperOp = Callable[["CursorWrapper"], None]
 ConnectionOp = Callable[[Optional[Connection]], None]
 LogOp = Callable[[], str]
 FailLogOp = Callable[[Exception], str]
+
+
+# Set by the Databricks Jobs `dbt_task` runtime on the dbt CLI subprocess.
+_DBT_TASK_HEADERS_ENV = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
+
+
+def _get_job_run_context() -> dict[str, Optional[str]]:
+    """Return Databricks `dbt_task` job/run identifiers from the runtime headers.
+
+    All three values are ``None`` when dbt is not running inside a `dbt_task`
+    or when the header env var is missing or malformed.
+    """
+    empty: dict[str, Optional[str]] = {
+        "job_id": None,
+        "job_run_id": None,
+        "task_run_id": None,
+    }
+    raw = os.environ.get(_DBT_TASK_HEADERS_ENV)
+    if not raw:
+        return empty
+    try:
+        headers = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return empty
+    if not isinstance(headers, dict):
+        return empty
+
+    def _str_or_none(value: Any) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    job_run_id: Optional[str] = None
+    encoded = headers.get("X-Databricks-Sql-Query-Source")
+    if isinstance(encoded, str):
+        try:
+            decoded = json.loads(base64.b64decode(encoded))
+        except (ValueError, json.JSONDecodeError, TypeError):
+            decoded = None
+        if isinstance(decoded, dict):
+            job_run_id = _str_or_none(decoded.get("job_run_id"))
+
+    return {
+        "job_id": _str_or_none(headers.get("X-Databricks-Dbsql-Job-Id")),
+        "job_run_id": job_run_id,
+        "task_run_id": _str_or_none(headers.get("X-Databricks-Dbsql-Run-Id")),
+    }
+
+
+@dataclass
+class DatabricksAdapterResponse(AdapterResponse):
+    """Extends ``AdapterResponse`` with Databricks `dbt_task` run identifiers,
+    so dbt runs can be linked to Databricks `system.lakeflow.*` tables for
+    additional execution info. Populated only when dbt runs as a `dbt_task`.
+    """
+
+    job_id: Optional[str] = None
+    job_run_id: Optional[str] = None
+    task_run_id: Optional[str] = None
+
+    @classmethod
+    def from_cursor(cls, cursor: Any) -> "DatabricksAdapterResponse":
+        return cls(
+            _message="OK",
+            query_id=getattr(cursor, "query_id", None) or "N/A",
+            **_get_job_run_context(),
+        )
 
 
 class CursorWrapper:
@@ -79,7 +148,7 @@ class CursorWrapper:
         return self._safe_execute(lambda cursor: cursor.fetchmany(size))
 
     def get_response(self) -> AdapterResponse:
-        return AdapterResponse(_message="OK", query_id=self._cursor.query_id or "N/A")
+        return DatabricksAdapterResponse.from_cursor(self._cursor)
 
     T = TypeVar("T")
 
@@ -338,10 +407,9 @@ class SqlUtils:
                 query_tags
             )
 
-        return {
+        args: dict[str, Any] = {
             "server_hostname": creds.host,
             "http_path": http_path,
-            "credentials_provider": creds_manager.credentials_provider,
             "http_headers": http_headers if http_headers else None,
             "session_configuration": session_config,
             "catalog": creds.database,
@@ -349,5 +417,63 @@ class SqlUtils:
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
             "user_agent_entry": user_agent_entry,
-            **connection_parameters,
         }
+
+        if connection_parameters.get("use_kernel"):
+            SqlUtils._add_kernel_auth_arguments(args, creds, creds_manager)
+        else:
+            args["credentials_provider"] = creds_manager.credentials_provider
+
+        return {**args, **connection_parameters}
+
+    @staticmethod
+    def _add_kernel_auth_arguments(
+        args: dict[str, Any],
+        creds: DatabricksCredentials,
+        creds_manager: DatabricksCredentialManager,
+    ) -> None:
+        """Populate connection kwargs for the connector's Rust kernel backend.
+
+        The kernel (use_kernel=True) routes over SEA and its auth bridge rejects the
+        connector credentials_provider dbt passes on the Thrift path. It supports
+        PAT, Databricks OAuth M2M, and OAuth U2M — we forward the raw credentials it
+        understands so the connector owns the token lifecycle and refresh.
+
+        The kernel has no Azure-AD flow, so an Azure service principal cannot connect
+        through it; any auth other than the three above is rejected here with a clear
+        error directing the user to the default backend.
+        """
+        # PAT: forward the token directly.
+        if creds_manager.token:
+            args["access_token"] = creds_manager.token
+            return
+
+        # OAuth U2M (browser): auth_type "oauth" with no secret. Translate to the
+        # kernel's "databricks-oauth" (client_id is optional). An Azure SP keeps its
+        # secret in azure_client_secret, so this does not match one.
+        # Keep this auth_type check on raw creds to avoid initializing SDK auth here.
+        if (
+            creds.auth_type == "oauth"
+            and not creds_manager.client_secret
+            and not creds_manager.azure_client_secret
+        ):
+            args["auth_type"] = "databricks-oauth"
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_scopes"] = creds_manager.oauth_scopes
+            return
+
+        # Databricks OAuth M2M: forward OAuth creds so the kernel owns refresh. The
+        # resolved auth_type distinguishes genuine Databricks OAuth from an Azure SP
+        # supplied through the client_id/client_secret fields.
+        if not creds_manager.azure_client_secret and creds_manager.config.auth_type == "oauth-m2m":
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_client_secret"] = creds_manager.client_secret
+            args["oauth_scopes"] = creds_manager.oauth_scopes
+            return
+
+        raise DbtConfigError(
+            "use_kernel=True supports only personal access tokens and Databricks "
+            "OAuth (M2M/U2M); the configured authentication (e.g. an Azure service "
+            "principal) is not supported by the kernel backend. Remove use_kernel to "
+            "use the default backend."
+        )

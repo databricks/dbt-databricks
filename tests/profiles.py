@@ -40,14 +40,59 @@ def _build_databricks_cluster_target(
         profile["schema"] = schema
     if session_properties is not None:
         profile["session_properties"] = session_properties
-    if os.getenv("DBT_DATABRICKS_PORT"):
-        profile["connection_parameters"] = {
-            "_port": os.getenv("DBT_DATABRICKS_PORT"),
-            # If you are specifying a port for running tests, assume Docker
-            # is being used and disable TLS verification
-            "_tls_no_verify": True,
-        }
+    # Test runs gain nothing from connector telemetry, and when its background
+    # POSTs fail in CI they spam ERROR logs on otherwise-green runs. Turn it off
+    # here so the connector uses its NoopTelemetryClient.
+    connection_parameters: dict[str, Any] = {"enable_telemetry": False}
+    port = os.getenv("DBT_DATABRICKS_PORT")
+    if port:
+        connection_parameters["_port"] = port
+        # If you are specifying a port for running tests, assume Docker
+        # is being used and disable TLS verification
+        connection_parameters["_tls_no_verify"] = True
+    # Route the whole suite through the connector's Rust kernel backend (SEA
+    # transport) when DBT_DATABRICKS_USE_KERNEL=1. Used by the weekend
+    # integration-kernel workflow. SEA is warehouse-only, so this is only
+    # meaningful on the databricks_uc_sql_endpoint profile.
+    if os.getenv("DBT_DATABRICKS_USE_KERNEL") == "1":
+        connection_parameters["use_kernel"] = True
+        # TEMPORARY: the CI credential is an Azure service principal, which the
+        # kernel cannot authenticate (no Azure-AD flow). Resolve it to a workspace
+        # token here so the suite can run. The token does not auto-refresh, so this
+        # is limited to short-lived test connections; remove once the kernel adds
+        # native Azure support.
+        if profile.get("azure_client_secret") or profile.get("client_secret"):
+            _resolve_azure_sp_to_token_for_kernel(profile)
+    profile["connection_parameters"] = connection_parameters
     return profile
+
+
+def _resolve_azure_sp_to_token_for_kernel(profile: dict[str, Any]) -> None:
+    """Rewrite the Azure-service-principal CI profile into a PAT for the kernel
+    backend: authenticate the SP through the credential manager, set the resolved
+    workspace token as the profile's token, and drop the SP fields.
+    """
+    from dbt.adapters.databricks.credentials import (
+        DatabricksCredentialManager,
+        DatabricksCredentials,
+    )
+
+    creds = DatabricksCredentials(
+        host=profile["host"],
+        http_path=profile["http_path"],
+        client_id=profile.get("client_id"),
+        client_secret=profile.get("client_secret"),
+        azure_client_id=profile.get("azure_client_id"),
+        azure_client_secret=profile.get("azure_client_secret"),
+        auth_type=profile.get("auth_type", "oauth"),
+        schema=profile.get("schema", "default"),
+    )
+    manager = DatabricksCredentialManager.create_from(creds)
+    authorization = manager.header_factory().get("Authorization", "")
+    profile["token"] = authorization[len("Bearer ") :]
+    profile["auth_type"] = "pat"
+    for sp_field in ("client_id", "client_secret", "azure_client_id", "azure_client_secret"):
+        profile.pop(sp_field, None)
 
 
 def databricks_cluster_target():

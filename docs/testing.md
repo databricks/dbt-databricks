@@ -114,6 +114,40 @@ For more advanced testing scenarios:
 - **Pytest documentation**: See the [pytest documentation](https://docs.pytest.org/) for comprehensive test selection, filtering, and debugging options
 - **Hatch integration**: See [Hatch's documentation on passing arguments to scripts](https://hatch.pypa.io/latest/config/environment/overview/#scripts) for how to pass additional arguments to test commands
 
+### Testing against lowest-direct dependencies
+
+`pyproject.toml` declares wide dependency ranges. The default Hatch env resolves to the *highest* compatible version of every dep, but releases must also work at the *lowest* — the floor of each range. The `min-deps` env exercises that floor.
+
+The committed `requirements.lowest-direct.txt` pins every package (direct + transitive) to its lowest-direct resolution with hash verification.
+
+```bash
+# Run unit tests at lowest-direct resolution
+hatch run min-deps:unit
+
+# Run the parse smoke fixture
+hatch run min-deps:parse
+
+# Run functional tests at lowest-direct (SQL warehouse profile)
+hatch run min-deps:e2e
+```
+
+The `min-deps` env coexists with the default env — switching is just changing the prefix. Neither env mutates the other.
+
+#### Regenerating the lock
+
+When `pyproject.toml` dependencies change, re-run:
+
+```bash
+scripts/regenerate_min_deps_lock.sh
+```
+
+Commit the resulting `requirements.lowest-direct.txt` in the same PR. CI's `Min-Deps Lock Drift Check` workflow fails any PR where the lock is stale.
+
+#### Limitations
+
+- The lock is install-only — `uv sync` cannot consume it. All min-deps testing must go through `hatch run min-deps:X`.
+- The lock represents a *different* dependency set than `uv.lock`. They cannot be cross-validated; each guarantees determinism only within its own resolution mode.
+
 ## Writing Tests
 
 ### Unit Tests
@@ -527,6 +561,44 @@ Functional tests create a complete dbt project environment for each test:
 2. **Execution**: Tests run dbt commands (`dbt run`, `dbt seed`, etc.) via `run_dbt()`
 3. **Verification**: Tests query the database to verify expected results
 4. **Cleanup**: Framework automatically cleans up the test schema
+
+#### Assert server-observable state only
+
+A functional test must assert what the server actually did — never a log line or the generated SQL
+text (those belong in unit / `MacroTestBase` tests). Query the table's data, `SHOW TBLPROPERTIES`,
+`DESCRIBE DETAIL` / `DESCRIBE EXTENDED`, `DESCRIBE HISTORY`, or `information_schema`. This holds even
+where existing tests do otherwise — the suite contains this anti-pattern; do not propagate it. Find
+the server-side observable the log line was a proxy for:
+
+| Instead of asserting… | Assert the server-observable effect |
+|---|---|
+| `"optimize" in logs` | `DESCRIBE HISTORY <tbl>` → a row with `operation = 'OPTIMIZE'` |
+| `"cluster by" in sql` | `SHOW TBLPROPERTIES <tbl>` → `clusteringColumns = '[["col"]]'` |
+| `"GRANT" in logs` | `information_schema.table_privileges` / the tag tables |
+| generated-SQL text for a property | `DESCRIBE DETAIL` / `DESCRIBE EXTENDED` / `SHOW TBLPROPERTIES` for the resulting property |
+
+And assert **at least one real effect** — "run succeeded" or a row count alone is not coverage.
+
+#### Rerun-safety
+
+Any stateful test must pass on a second invocation (the suite is run with `pytest --reruns`). Use the
+shared `RerunSafeMixin` (`tests/functional/adapter/fixtures.py`) or unique names; follow the section's
+existing patterns.
+
+#### Cheapest home first
+
+Every new test class and file is load the CI suite pays on every run and surface a maintainer reads
+forever. Climb this ladder and stop at the first rung that fits without shoehorning:
+
+1. **Strengthen an existing test in place** — add a server-observable assertion to a flow a test already
+   runs but doesn't verify (additive only).
+2. **Add a test/case to an existing class** — reuses its already-built models/fixtures.
+3. **Add a new class to the existing file** — when the behavior needs models/config no existing class
+   builds (prefer inheriting and overriding `project_config_update` / `models` / `seeds`).
+4. **New `test_*.py`, then a new section dir + `fixtures.py`** — only for a genuinely distinct feature area.
+
+Rungs 3–4 are deliberate escalations. Fixtures live in a `fixtures.py` (section-local or the shared
+`tests/functional/adapter/fixtures.py`), never inlined in the test file.
 
 **Common Testing Pattern:**
 A typical functional test uses seeds to define expected final state, runs the dbt project, then compares actual results to the seeded expected data:

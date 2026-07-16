@@ -6,6 +6,7 @@ from tests.functional.adapter.metric_views.fixtures import (
     metric_view_bare_ref,
     metric_view_with_config,
     metric_view_with_filter,
+    metric_view_with_tblproperties,
     source_table,
 )
 
@@ -176,7 +177,7 @@ class TestMetricViewConfiguration:
         }
 
     def test_metric_view_with_tags(self, project):
-        """Test that metric view works with databricks_tags using ALTER VIEW"""
+        """databricks_tags configured on a metric view are applied at create time."""
         # Run dbt to create the models
         results = run_dbt(["run"])
         assert len(results) == 2
@@ -204,7 +205,6 @@ class TestMetricViewConfiguration:
             fetch="all",
         )
 
-        # Should have results showing tags were applied without error
         assert query_result is not None
         assert len(query_result) == 2  # completed and pending statuses
 
@@ -212,6 +212,21 @@ class TestMetricViewConfiguration:
         status_data = {row[0]: row[1] for row in query_result}
         assert status_data["completed"] == 2
         assert status_data["pending"] == 1
+
+        # The configured tags land on the view at create time, not just on update
+        tag_rows = project.run_sql(
+            f"""
+            SELECT tag_name, tag_value
+            FROM {project.database}.information_schema.table_tags
+            WHERE schema_name = '{project.test_schema}'
+              AND table_name = 'config_metrics'
+            ORDER BY tag_name
+            """,
+            fetch="all",
+        )
+        tags = {row[0]: row[1] for row in tag_rows}
+        assert tags.get("team") == "analytics"
+        assert tags.get("environment") == "test"
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -240,3 +255,27 @@ class TestMetricViewBareRef:
             fetch="all",
         )
         assert query_result and query_result[0][0] == 3
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMetricViewCreateTblProperties:
+    """tblproperties configured on a metric view are set on the freshly created view."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "tblprops_metrics.sql": metric_view_with_tblproperties,
+        }
+
+    def test_tblproperties_applied_on_create(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        assert all(result.status == "success" for result in results)
+
+        rows = project.run_sql(
+            f"show tblproperties {project.database}.{project.test_schema}.tblprops_metrics",
+            fetch="all",
+        )
+        tblprops = {row[0]: row[1] for row in rows}
+        assert tblprops.get("quality") == "gold"
