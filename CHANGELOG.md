@@ -2,7 +2,7 @@
 
 ### Features
 
-- Support `catalog_database` in v2 catalogs.yml for Unity catalogs: routes models to the given physical Unity catalog via `generate_database_name`, taking precedence over the model `database` config and `catalog_name`. Decouples the dbt catalog label from the physical catalog name (requires `dbt-adapters>=1.24.4`). ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
+- Support `catalog_database` in v2 catalogs.yml for Unity catalogs: routes models to the given physical Unity catalog via `generate_database_name`, taking precedence over the model `database` config and `catalog_name`. Decouples the dbt catalog label from the physical catalog name. Honored on `dbt-adapters>=1.24.4` (which surfaces `catalog_database` on the catalog config); a no-op on older versions. ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
 
 ### Fixes
 

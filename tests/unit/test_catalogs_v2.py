@@ -100,3 +100,23 @@ def test_unity_no_catalog_database_defaults_none():
     integration = UnityCatalogIntegration(_Config())
     assert integration.catalog_database is None
     assert integration.build_relation(_Model()).catalog_database is None
+
+
+def test_unity_catalog_database_absent_on_older_adapters():
+    # dbt-adapters <1.24.4 has no catalog_database on the catalog config at all. getattr must
+    # degrade to None (no AttributeError), so catalog_database is a graceful no-op there and we
+    # don't need to pin the adapter floor up.
+    from types import SimpleNamespace
+
+    cfg = SimpleNamespace(
+        name="c",
+        catalog_type="unity",
+        catalog_name="label",
+        table_format="iceberg",
+        external_volume=None,
+        file_format="delta",
+        adapter_properties={},  # note: no `catalog_database` attribute anywhere
+    )
+    integration = UnityCatalogIntegration(cfg)
+    assert integration.catalog_database is None
+    assert integration.build_relation(_Model()).catalog_database is None

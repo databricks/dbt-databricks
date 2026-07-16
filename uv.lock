@@ -520,7 +520,7 @@ pyarrow = [
 
 [[package]]
 name = "dbt-adapters"
-version = "1.24.5"
+version = "1.22.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agate" },
@@ -531,9 +531,9 @@ dependencies = [
     { name = "pytz" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/d4/bea32dd730def5b875a76c05d281d397ed720b9184d936cc4cedac605948/dbt_adapters-1.24.5.tar.gz", hash = "sha256:87de096a0d5b219905f1079b002f13e3447ffb63558f4f3c5b7278670d198acb", size = 146532, upload-time = "2026-07-15T07:18:49.036Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/99/7dca7d7f1aeb11297622980a438f2973662a5e41de79f5caf053d744cd16/dbt_adapters-1.22.9.tar.gz", hash = "sha256:cce00029910ce619ab2859727ea1d9ecc9ead61923d5211325c2a532e79efa53", size = 137298, upload-time = "2026-03-16T17:01:49.353Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/c0/07f0e315458128c6ef246ba9698dc0f5e9333394ab8844508adac468c617/dbt_adapters-1.24.5-py3-none-any.whl", hash = "sha256:32345118b921160722a13f12c3e369b9d59a0fb8fb9b3297e29d8cd53f973411", size = 177259, upload-time = "2026-07-15T07:18:47.314Z" },
+    { url = "https://files.pythonhosted.org/packages/80/3b/a63fe87c5cc1c6e8c6ab56b704bdedd05412c6ae3b8b69ee81fd50f9f736/dbt_adapters-1.22.9-py3-none-any.whl", hash = "sha256:a882984f6298a4e8e5e5b79b55c9a8cbb02e0dc26ea8e6811e841252a37034cd", size = 173139, upload-time = "2026-03-16T17:01:47.522Z" },
 ]
 
 [[package]]
@@ -589,9 +589,9 @@ dependencies = [
     { name = "sqlparse" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/26/ab9584f57f8a5561693e909f15cbe109d07584defbd2a910efc003bad0ae/dbt_core-1.11.12.tar.gz", hash = "sha256:108ced0a65d1f5330e86920df5c7182f79cd6ddcedf8f2d73c7928a310751ae8", size = 973664, upload-time = "2026-07-01T13:17:45.514Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/26/ab9584f57f8a5561693e909f15cbe109d07584defbd2a910efc003bad0ae/dbt_core-1.11.12.tar.gz", hash = "sha256:108ced0a65d1f5330e86920df5c7182f79cd6ddcedf8f2d73c7928a310751ae8", size = 973664, upload-time = "2026-07-01T13:17:45.514500Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/c8/9f958ad09b2cab584e081058d743ef031350fba306e85ef5d4fc3425b40d/dbt_core-1.11.12-py3-none-any.whl", hash = "sha256:3b7760a3760a6db8a14a6ef38fb86532b2c2b150d49beaa1feb0f50170baa86e", size = 1062483, upload-time = "2026-07-01T13:17:43.867Z" },
+    { url = "https://files.pythonhosted.org/packages/60/c8/9f958ad09b2cab584e081058d743ef031350fba306e85ef5d4fc3425b40d/dbt_core-1.11.12-py3-none-any.whl", hash = "sha256:3b7760a3760a6db8a14a6ef38fb86532b2c2b150d49beaa1feb0f50170baa86e", size = 1062483, upload-time = "2026-07-01T13:17:43.867444Z" },
 ]
 
 [[package]]
@@ -640,7 +640,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.2.0,<9.0.0" },
     { name = "databricks-sdk", specifier = ">=0.68.0,<0.118.0" },
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.3.1" },
-    { name = "dbt-adapters", specifier = ">=1.24.4,<1.25.0" },
+    { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
     { name = "dbt-core", specifier = ">=1.11.2,<1.11.13" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },

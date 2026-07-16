@@ -425,9 +425,9 @@ databricks-sql-connector==4.1.2 \
     --hash=sha256:7a4eee6c773e0415731530dd812cc4bae04067e73521e5f6161c05d25233e5e7 \
     --hash=sha256:b2d05bde9eb48226a6ca56b2e862150445a323e93504379605568371c4c0af19
     # via dbt-databricks (pyproject.toml)
-dbt-adapters==1.24.4 \
-    --hash=sha256:a8a4bb380168dd632012e33e883433c65def9fadc4f30e365db313907b270b99 \
-    --hash=sha256:e31df9e27ae8e1d4fa0c5961767953cd3f122730c436815da4585b373376d31c
+dbt-adapters==1.22.0 \
+    --hash=sha256:0af901f9cee81342c2e113419685c0256108f0687b5ef4cb30af5f243f85af41 \
+    --hash=sha256:220368380ada10ed0f984f572595fb9dfca639530fc6c10e5683c8ff9a75a713
     # via
     #   dbt-databricks (pyproject.toml)
     #   dbt-core
