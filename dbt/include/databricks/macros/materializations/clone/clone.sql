@@ -32,8 +32,7 @@
   {%- if other_existing_relation and other_existing_relation.type == 'table' and can_clone_table -%}
 
       {%- set target_relation = this.incorporate(type='table') -%}
-      {#-- `create or replace` cannot change a table's table_type in place; drop first (non-atomically) unless it is already a shallow clone. --#}
-      {% if existing_relation is not none and not (existing_relation.is_table and existing_relation.is_shallow_clone) %}
+      {% if clone_requires_drop(existing_relation) %}
         {{ log("Dropping relation " ~ existing_relation ~ " because it cannot be replaced by a shallow clone in place (table type " ~ existing_relation.databricks_table_type ~ ")") }}
         {{ drop_relation_if_exists(existing_relation) }}
       {% endif %}

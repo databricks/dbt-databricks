@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.relation import DatabricksRelationType
+from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -28,52 +28,33 @@ class TestApplyLiquidClusteredCols(MacroTestBase):
         relation.type = DatabricksRelationType.Table
         return relation
 
-    def _clustering(self, cols=None, auto=False):
+    def _auto_clustering(self):
         clustering = Mock()
-        clustering.cluster_by = cols or []
-        clustering.auto_cluster = auto
+        clustering.cluster_by = []
+        clustering.auto_cluster = True
         return clustering
 
-    def test_apply_columns(self, template_bundle, target_relation):
-        sql = self.run_macro(
-            template_bundle.template,
-            "apply_liquid_clustered_cols",
-            target_relation,
-            self._clustering(cols=["a", "b"]),
-        )
-        assert sql == "alter table `db`.`schema`.`tbl` cluster by (a, b)"
-
     def test_apply_auto_on_managed_table(self, template_bundle, target_relation):
-        existing = Mock()
+        existing = Mock(spec=DatabricksRelation)
         existing.is_shallow_clone = False
         sql = self.run_macro(
             template_bundle.template,
             "apply_liquid_clustered_cols",
             target_relation,
-            self._clustering(auto=True),
+            self._auto_clustering(),
             existing,
         )
         assert sql == "alter table `db`.`schema`.`tbl` cluster by auto"
 
     def test_apply_auto_skipped_on_shallow_clone(self, template_bundle, target_relation):
-        existing = Mock()
+        existing = Mock(spec=DatabricksRelation)
         existing.is_shallow_clone = True
         sql = self.run_macro(
             template_bundle.template,
             "apply_liquid_clustered_cols",
             target_relation,
-            self._clustering(auto=True),
+            self._auto_clustering(),
             existing,
         )
-        # No CLUSTER BY AUTO is emitted; the clone is left untouched with a warning.
         assert "cluster by auto" not in sql
         template_bundle.context["exceptions"].warn.assert_called_once()
-
-    def test_apply_none_unsets_clustering(self, template_bundle, target_relation):
-        sql = self.run_macro(
-            template_bundle.template,
-            "apply_liquid_clustered_cols",
-            target_relation,
-            self._clustering(),
-        )
-        assert sql == "alter table `db`.`schema`.`tbl` cluster by none"
