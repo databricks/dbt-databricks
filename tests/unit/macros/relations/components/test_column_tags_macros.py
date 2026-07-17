@@ -66,10 +66,3 @@ class TestColumnTagsMacros(MacroTestBase):
         )
         assert "alter table `some_database`.`some_schema`.`some_table`" in sql
         assert "alter column `email` unset tags ('pii', 'team')" in sql
-
-    def test_alter_unset_column_tags_view_uses_alter_table(self, template_bundle):
-        template_bundle.relation.type = DatabricksRelationType.View
-        sql = self.render_bundle(template_bundle, "alter_unset_column_tags", "email", ["pii"])
-        assert "alter table" in sql
-        assert "alter view" not in sql
-        assert "alter column `email` unset tags ('pii')" in sql

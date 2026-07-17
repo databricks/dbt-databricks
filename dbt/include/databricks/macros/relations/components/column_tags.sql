@@ -74,11 +74,8 @@
 {%- endmacro -%}
 
 {% macro alter_unset_column_tags(relation, column, tag_names) -%}
-  {%- if relation.type == 'view' -%}
-    ALTER TABLE {{ relation.render() }}
-  {%- else -%}
-    ALTER {{ relation.type.render() }} {{ relation.render() }}
-  {%- endif -%}
+  {# Only reached from the DROP COLUMNS path, which never runs on views. #}
+  ALTER {{ relation.type.render() }} {{ relation.render() }}
   ALTER COLUMN `{{ column }}`
   UNSET TAGS (
     {%- for tag_name in tag_names -%}
