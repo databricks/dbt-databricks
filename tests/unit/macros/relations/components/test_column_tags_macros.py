@@ -22,7 +22,7 @@ class TestColumnTagsMacros(MacroTestBase):
         apply_* wrappers we need the inner ALTER SQL so we can assert on it. Also
         force the UC path (apply_column_tags raises on hive_metastore).
         """
-        template_bundle.context["statement"] = lambda label, caller=None: (
+        template_bundle.context["statement"] = lambda label, fetch_result=False, caller=None: (
             caller() if caller else label
         )
         template_bundle.relation.is_hive_metastore = lambda: False
@@ -59,3 +59,17 @@ class TestColumnTagsMacros(MacroTestBase):
         sql = self.render_bundle(passthrough_statement, "apply_column_tags", config)
         assert "alter" not in sql
         assert "set tags" not in sql
+
+    def test_alter_unset_column_tags_table(self, template_bundle):
+        sql = self.render_bundle(
+            template_bundle, "alter_unset_column_tags", "email", ["pii", "team"]
+        )
+        assert "alter table `some_database`.`some_schema`.`some_table`" in sql
+        assert "alter column `email` unset tags ('pii', 'team')" in sql
+
+    def test_alter_unset_column_tags_view_uses_alter_table(self, template_bundle):
+        template_bundle.relation.type = DatabricksRelationType.View
+        sql = self.render_bundle(template_bundle, "alter_unset_column_tags", "email", ["pii"])
+        assert "alter table" in sql
+        assert "alter view" not in sql
+        assert "alter column `email` unset tags ('pii')" in sql

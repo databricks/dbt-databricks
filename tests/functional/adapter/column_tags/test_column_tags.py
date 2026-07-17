@@ -158,6 +158,55 @@ class TestColumnTagsViewUpdateViaAlter(ColumnTagsMixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestDropTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("drop_model",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "drop_model.sql": fixtures.drop_tagged_column_model,
+            "schema.yml": fixtures.drop_tagged_column_initial_schema,
+        }
+
+    def _column_tags(self, project):
+        rows = project.run_sql(
+            f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'drop_model'
+            ORDER BY column_name, tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+    def test_drop_tagged_column(self, project):
+        util.run_dbt(["run"])
+        assert self._column_tags(project) == {
+            ("account_number", "pii", "true"),
+            ("email", "pii", "true"),
+            ("email", "contact", "true"),
+        }
+
+        util.write_file(fixtures.drop_tagged_column_updated_schema, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        columns = {
+            row[0]
+            for row in project.run_sql("DESCRIBE TABLE drop_model", fetch="all")
+            if row[0] and not row[0].startswith("#")
+        }
+        assert "email" not in columns
+        assert {"id", "account_number"}.issubset(columns)
+
+        assert self._column_tags(project) == {("account_number", "pii", "true")}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsTableV1(ColumnTagsMixin):
     relation_type = "table"
 
