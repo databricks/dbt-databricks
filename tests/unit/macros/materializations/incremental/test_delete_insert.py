@@ -113,6 +113,55 @@ class TestDeleteInsertMacros(MacroTestBase):
         # The actual list is passed internally to the incremental materialization
         assert result.strip() == ""
 
+    def render_legacy(
+        self,
+        template,
+        context,
+        unique_keys,
+        target_columns=("a", "b"),
+        incremental_predicates=None,
+        has_insert_by_name_capability=True,
+    ):
+        """Render delete_insert_legacy_sql and return its list of statements.
+
+        The macro returns via ``{% do return(statements) %}``; the test harness mocks
+        ``return`` as a no-op lambda, so we override it to capture the returned list.
+        """
+        context["adapter"].has_dbr_capability = lambda cap: (
+            has_insert_by_name_capability if cap == "insert_by_name" else False
+        )
+        captured = {}
+        context["return"] = lambda value: captured.__setitem__("statements", value)
+        self.run_macro_raw(
+            template,
+            "delete_insert_legacy_sql",
+            "source",
+            "target",
+            list(target_columns),
+            unique_keys,
+            incremental_predicates,
+        )
+        return captured["statements"]
+
+    def test_delete_insert_legacy_sql__non_ascii_unique_key(self, template, context):
+        """Legacy DELETE+INSERT path must back-quote non-ASCII unique keys (issue #1594)."""
+        delete_sql, insert_sql = self.render_legacy(
+            template, context, unique_keys=["あ"], target_columns=("`あ`", "b")
+        )
+        clean_delete = self.clean_sql(delete_sql)
+        assert "target.`あ` in (select `あ` from source)" in clean_delete
+        assert self.clean_sql(insert_sql).startswith("insert into target")
+
+    def test_delete_insert_legacy_sql__multiple_unique_keys(self, template, context):
+        """Multiple unique keys are each back-quoted and ANDed in the DELETE predicate."""
+        delete_sql, _ = self.render_legacy(
+            template, context, unique_keys=["a", "b"], target_columns=("a", "b")
+        )
+        clean_delete = self.clean_sql(delete_sql)
+        assert "target.`a` in (select `a` from source)" in clean_delete
+        assert "target.`b` in (select `b` from source)" in clean_delete
+        assert clean_delete.count(" and ") == 1
+
     def test_legacy_sql_generation__single_unique_key_delete(self, template, context):
         """Test the DELETE SQL generation for single unique key"""
         # We'll verify by compiling a test query that uses the same logic
