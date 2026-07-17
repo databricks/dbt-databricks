@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Fix Python models with `table_format='iceberg'` and `use_managed_iceberg` enabled failing with `MANAGED_TABLE_FORMAT` ("Only Delta is supported for managed tables. Provided datasource format is PARQUET."). The PySpark writer now emits `.format("iceberg")` for managed Iceberg, mirroring the SQL path, instead of leaking the `parquet` sentinel from `resolve_file_format` into `saveAsTable` ([#1591](https://github.com/databricks/dbt-databricks/issues/1591))
+- Fix managed Iceberg Python models failing with `MANAGED_TABLE_FORMAT` by emitting `.format("iceberg")` instead of the `parquet` sentinel from `resolve_file_format` (thanks @Divya-Kovvuru-0802!) ([#1593](https://github.com/databricks/dbt-databricks/pull/1593) resolves [#1591](https://github.com/databricks/dbt-databricks/issues/1591))
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
