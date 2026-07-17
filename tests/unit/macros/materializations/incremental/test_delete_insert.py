@@ -47,8 +47,20 @@ class TestDeleteInsertMacros(MacroTestBase):
         sql = self.render_delete_insert(template, context, unique_key="a")
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source) as temp
+            """
+        self.assert_sql_equal(sql, expected)
+
+    def test_delete_insert_sql_impl__non_ascii_unique_key__replace_on(self, template, context):
+        """Non-ASCII unique keys must be back-quoted in the REPLACE ON condition (issue #1594)."""
+        sql = self.render_delete_insert(
+            template, context, unique_key="あ", target_columns=("あ", "b")
+        )
+        expected = """
+            insert into table target as target
+            replace on (target.`あ` <=> temp.`あ`)
+            (select あ, b from source) as temp
             """
         self.assert_sql_equal(sql, expected)
 
@@ -56,7 +68,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         sql = self.render_delete_insert(template, context, unique_key=["a", "b"])
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a and target.b <=> temp.b)
+            replace on (target.`a` <=> temp.`a` and target.`b` <=> temp.`b`)
             (select a, b from source) as temp
             """
         self.assert_sql_equal(sql, expected)
@@ -67,7 +79,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         )
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source where a > 1) as temp
             """
         self.assert_sql_equal(sql, expected)
@@ -80,7 +92,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         )
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source where a > 1 and b < 3) as temp
             """
         self.assert_sql_equal(sql, expected)
