@@ -59,7 +59,7 @@
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- do process_schema_changes(on_schema_change, intermediate_relation, existing_relation) -%}
-      {{ process_config_changes(target_relation) }}
+      {{ process_config_changes(target_relation, existing_relation) }}
       {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
       {%- if language == 'sql' -%}
         {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
@@ -198,7 +198,7 @@
           {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
         {%- endif -%}
         {% if liquid_clustering is not none %}
-          {% do apply_liquid_clustered_cols(target_relation, liquid_clustering) %}
+          {% do apply_liquid_clustered_cols(target_relation, liquid_clustering, existing_relation) %}
         {% endif %}
         {% if row_filter is not none %}
           {{ apply_row_filter(target_relation, row_filter) }}
@@ -253,12 +253,12 @@
   {% do return(strategy_sql_macro_func(strategy_arg_dict)) %}
 {% endmacro %}
 
-{% macro process_config_changes(target_relation) %}
+{% macro process_config_changes(target_relation, existing_relation=none) %}
   {% set apply_config_changes = config.get('incremental_apply_config_changes', True) | as_bool %}
   {% if apply_config_changes %}
     {%- set model_config = adapter.get_config_from_model(config.model) -%}
     {%- set existing_config = adapter.get_relation_config(target_relation, model_config) -%}
     {%- set configuration_changes = model_config.get_changeset(existing_config) -%}
-    {{ apply_config_changeset(target_relation, model, configuration_changes) }}
+    {{ apply_config_changeset(target_relation, model, configuration_changes, existing_relation) }}
   {% endif %}
 {% endmacro %}
