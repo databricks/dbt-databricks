@@ -9,6 +9,9 @@
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
+  {# True when the relation is replaced in place (negation of the drop conditions below);
+     a fresh create or drop+recreate inherits no tags. #}
+  {%- set replaced_in_place = existing_relation and existing_relation.type == 'table' and existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg') -%}
 
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
@@ -25,10 +28,10 @@
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
-        {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+        {% if existing_relation and not replaced_in_place -%}
           {{ adapter.drop_relation(existing_relation) }}
         {%- endif %}
-        {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
+        {{ create_table_at(target_relation, intermediate_relation, compiled_code, replaced_in_place=replaced_in_place) }}
       {% endif %}
     {% endif %}
 
@@ -46,7 +49,7 @@
     -- setup: if the target relation already exists, drop it
     -- in case if the existing and future table is delta or iceberg, we want to do a
     -- create or replace table instead of dropping, so we don't have the table unavailable
-    {% if existing_relation and (existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+    {% if existing_relation and not replaced_in_place -%}
       {{ adapter.drop_relation(existing_relation) }}
     {%- endif %}
 
@@ -61,9 +64,16 @@
     {% if language=="python" %}
       {% do apply_tblproperties(target_relation, tblproperties) %}
     {% endif %}
-    {%- do apply_tags(target_relation, tags) -%}
+    {%- if replaced_in_place -%}
+      {# Replace preserves tags, so apply only new/changed ones. #}
+      {%- set tags_to_set = adapter.get_table_tags_changes(target_relation, config.model) -%}
+      {%- set column_tags = adapter.get_column_tags_changes(target_relation, config.model) -%}
+    {%- else -%}
+      {%- set tags_to_set = tags -%}
+      {%- set column_tags = adapter.get_column_tags_from_model(config.model) -%}
+    {%- endif -%}
+    {%- do apply_tags(target_relation, tags_to_set) -%}
 
-    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
     {% if column_tags and column_tags.set_column_tags %}
       {{ apply_column_tags(target_relation, column_tags) }}
     {% endif %}
