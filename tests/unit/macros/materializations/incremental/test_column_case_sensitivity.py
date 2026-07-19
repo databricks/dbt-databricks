@@ -50,7 +50,6 @@ class TestColumnCaseSensitivity(MacroTestBase):
 
         # Should only select common columns (without BY NAME since columns don't match)
         expected = (
-            "insert into target_relation (`id`, `name`) "
-            "select `id`, `name` from source_relation"
+            "insert into target_relation (`id`, `name`) select `id`, `name` from source_relation"
         )
         self.assert_sql_equal(sql, expected)
