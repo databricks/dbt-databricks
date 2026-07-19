@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.3 (TBD)
 
+### Features
+
+- Support `catalog_database` in v2 catalogs.yml to route Unity catalog models to a physical catalog independent of the dbt catalog name (requires `dbt-core>=1.12` and `dbt-adapters>=1.24.4`). ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
+
 ### Fixes
 
 - Quote generated column identifiers in incremental strategies so non-ASCII column names no longer fail on subsequent runs ([#1595](https://github.com/databricks/dbt-databricks/pull/1595) resolves [#1594](https://github.com/databricks/dbt-databricks/issues/1594))
