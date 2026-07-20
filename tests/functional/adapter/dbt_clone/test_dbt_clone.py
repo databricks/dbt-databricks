@@ -148,3 +148,93 @@ class TestCloneShallowClone(BaseClone, CleanupMixin):
         assert "CLONE" in refreshed_operations, (
             f"full-refresh history operations: {refreshed_operations}"
         )
+
+
+def _table_type(project, schema, identifier):
+    rows = project.run_sql(
+        f"""
+        select table_type from {project.database}.information_schema.tables
+        where table_schema = '{schema}' and table_name = '{identifier}'
+        """,
+        fetch="all",
+    )
+    return rows[0][0] if rows else None
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCloneOverExistingManagedTable(BaseClone, CleanupMixin):
+    """`dbt clone --full-refresh` must replace an existing managed table with a shallow clone,
+    rather than failing with INVALID_PARAMETER_VALUE.UPDATE_TABLE_TYPE."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"table_model.sql": fixtures.table_model_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def test_clone_replaces_managed_table(self, project, unique_schema, other_schema):
+        project.create_test_schema(other_schema)
+        # Build a real managed table at the clone target first.
+        run_dbt(["run", "--target", "otherschema"])
+        assert _table_type(project, other_schema, "table_model") == "MANAGED"
+
+        # State for the clone comes from the default-target build.
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        clone_args = ["clone", "--state", "state", "--target", "otherschema", "--full-refresh"]
+        run_dbt(clone_args)
+
+        # The managed table is dropped and replaced by a shallow clone.
+        assert _table_type(project, other_schema, "table_model") == "MANAGED_SHALLOW_CLONE"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
+    """Rebuilding a table/incremental model with auto_liquid_cluster over an existing shallow
+    clone must drop the clone and produce a managed table, rather than failing with
+    CLUSTER_BY_AUTO_UNSUPPORTED_TABLE_TYPE_ERROR."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "auto_cluster_table_model.sql": fixtures.auto_cluster_table_model_sql,
+            "auto_cluster_incremental_model.sql": fixtures.auto_cluster_incremental_model_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    @pytest.mark.parametrize(
+        "identifier",
+        ["auto_cluster_table_model", "auto_cluster_incremental_model"],
+    )
+    def test_rebuild_over_shallow_clone(self, project, unique_schema, other_schema, identifier):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        # Clone into the other schema so the target starts life as a shallow clone.
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+        assert _table_type(project, other_schema, identifier) == "MANAGED_SHALLOW_CLONE"
+
+        # Rebuilding over the clone must drop it and produce a managed table with correct data.
+        run_dbt(["run", "--target", "otherschema", "--full-refresh", "-s", identifier])
+        assert _table_type(project, other_schema, identifier) == "MANAGED"
+
+        rows = project.run_sql(
+            f"select id from {project.database}.{other_schema}.{identifier}",
+            fetch="all",
+        )
+        assert [row[0] for row in rows] == [1]
