@@ -429,6 +429,13 @@ def main() -> int:
             per_run.append(timings)
 
         if not per_run:
+            if not args.run_ids:
+                print(
+                    "No eligible runs yielded timings — skipping this refresh; "
+                    "will retry next run.",
+                    flush=True,
+                )
+                return 0
             print("ERROR: no timings parsed from any run", file=sys.stderr)
             return 1
 
