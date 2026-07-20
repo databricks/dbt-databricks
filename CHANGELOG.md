@@ -1,8 +1,13 @@
 ## dbt-databricks 1.12.3 (TBD)
 
+### Features
+
+- Support `catalog_database` in v2 catalogs.yml to route Unity catalog models to a physical catalog independent of the dbt catalog name (requires `dbt-core>=1.12` and `dbt-adapters>=1.24.4`). ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
+
 ### Fixes
 
 - Fix managed Iceberg Python models failing with `MANAGED_TABLE_FORMAT` by emitting `.format("iceberg")` instead of the `parquet` sentinel from `resolve_file_format` (thanks @Divya-Kovvuru-0802!) ([#1593](https://github.com/databricks/dbt-databricks/pull/1593) resolves [#1591](https://github.com/databricks/dbt-databricks/issues/1591))
+- Quote generated column identifiers in incremental strategies so non-ASCII column names no longer fail on subsequent runs ([#1595](https://github.com/databricks/dbt-databricks/pull/1595) resolves [#1594](https://github.com/databricks/dbt-databricks/issues/1594))
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)

@@ -15,6 +15,9 @@ class DatabricksCatalogRelation:
     file_format: Optional[str] = constants.DEFAULT_CATALOG.file_format
     external_volume: Optional[str] = constants.DEFAULT_CATALOG.external_volume
     location_path: Optional[str] = None
+    # The physical Unity catalog to route models to, independent of the dbt catalog
+    # label. Takes precedence over catalog_name in generate_database_name.
+    catalog_database: Optional[str] = None
 
     @property
     def location_root(self) -> Optional[str]:
