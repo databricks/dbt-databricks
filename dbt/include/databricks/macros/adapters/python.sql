@@ -67,19 +67,11 @@ writer.saveAsTable("{{ target_relation }}")
 # merged in using a SQL statement.  To see your incremental config in action,
 # look in the dbt.log
 
-{#--
-  Resolve the DataFrameWriter `.format(...)` value for Python models.
-
-  `adapter.resolve_file_format` returns the "parquet" sentinel for managed Iceberg
-  (`table_format='iceberg'` + `use_managed_iceberg`). That sentinel is only meaningful
-  to the SQL path, where `file_format_clause` overrides it to `using iceberg`. The
-  PySpark writer has no such override, so emitting `.format("parquet")` produces
-  `saveAsTable` calls that Databricks rejects with MANAGED_TABLE_FORMAT ("Only Delta
-  is supported for managed tables"). Mirror the SQL override here so managed Iceberg
-  Python models write `.format("iceberg")`.
---#}
+{#-- Resolve DataFrameWriter `.format(...)` for Python models. --#}
 {%- macro py_resolve_writer_format() -%}
 {%- set table_format = config.get('table_format', default='default') -%}
+{#-- Managed Iceberg: SQL overrides the parquet sentinel in file_format_clause;
+     PySpark has no equivalent, so emit iceberg here. --#}
 {%- if table_format == 'iceberg' and adapter.behavior.use_managed_iceberg -%}
 {{ return('iceberg') }}
 {%- else -%}
