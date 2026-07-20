@@ -23,7 +23,8 @@ logs/
 .coverage*
 .claude/*
 !.claude/skills/
-.agents/
+.agents/*
+!.agents/skills/
 .cursor
 
 docs/plans/

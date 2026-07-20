@@ -9,7 +9,8 @@ from dbt.tests.adapter.python_model.test_python_model import (
     BasePythonModelTests,
 )
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import ManagedIcebergMixin, MaterializationV2Mixin
+from tests.functional.adapter.iceberg.test_iceberg_support import get_provider
 from tests.functional.adapter.python_model import fixtures as override_fixtures
 
 # Check if ACL tests should be enabled
@@ -609,3 +610,22 @@ class TestAllPurposeClusterMissingClusterId(SchemaNameVarMixin):
 
     def test_missing_cluster_id_fails(self, project):
         util.run_dbt(["run", *self.schema_name_vars(project)], expect_pass=False)
+
+
+@pytest.mark.python
+@pytest.mark.skip_profile("databricks_cluster")
+class TestManagedIcebergPythonModel(ManagedIcebergMixin):
+    """Regression for #1591: managed Iceberg Python models must materialize as Iceberg."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"managed_iceberg_python.py": override_fixtures.managed_iceberg_python_model}
+
+    def test_managed_iceberg_python_model_materializes(self, project):
+        util.run_dbt(["run"])
+        assert get_provider(project, "managed_iceberg_python") == "iceberg"
+        rows = project.run_sql(
+            "SELECT id FROM {database}.{schema}.managed_iceberg_python ORDER BY id",
+            fetch="all",
+        )
+        assert [row[0] for row in rows] == [1]
