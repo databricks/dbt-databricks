@@ -4,7 +4,6 @@
     shallow clone {{ defer_relation.render() }}
 {% endmacro %}
 
-{#-- Drop first unless already a shallow clone; `create or replace` can't change table_type in place. --#}
 {% macro clone_requires_drop(existing_relation) %}
     {{ return(existing_relation is not none and not (existing_relation.is_table and existing_relation.is_shallow_clone)) }}
 {% endmacro %}

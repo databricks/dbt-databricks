@@ -1,8 +1,7 @@
 ## dbt-databricks 1.12.3 (TBD)
 
 ### Fixes
-- Fix rebuilding a table or incremental model over an existing shallow clone, and `dbt clone` over an existing managed table, failing with `INVALID_PARAMETER_VALUE.UPDATE_TABLE_TYPE`/`CLUSTER_BY_AUTO_UNSUPPORTED_TABLE_TYPE_ERROR`; the shallow clone is now dropped before it is recreated, and `CLUSTER BY AUTO` is skipped when altering a shallow clone in place ([#1592](https://github.com/databricks/dbt-databricks/pull/1592) resolves [#1165](https://github.com/databricks/dbt-databricks/issues/1165))
-
+- Support `dbt clone` and rebuilds over an existing shallow clone ([#1592](https://github.com/databricks/dbt-databricks/pull/1592) resolves [#1165](https://github.com/databricks/dbt-databricks/issues/1165))
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
