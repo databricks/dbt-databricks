@@ -137,3 +137,17 @@ class TestManualReviewChanges:
         # A newly added file has delta_pct 0.0 -> never manual review.
         changes = [regen.FileChange(profile="p", file="new.py", new=500.0)]
         assert regen.manual_review_changes(changes) == []
+
+
+class TestMain:
+    def test_auto_discovery_with_no_eligible_runs_skips_cleanly(self, monkeypatch, tmp_path):
+        output = tmp_path / "test_timings.json"
+        monkeypatch.setattr(regen, "discover_green_run_ids", lambda *_: [])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["regenerate_timings.py", "--output", str(output)],
+        )
+
+        assert regen.main() == 0
+        assert not output.exists()
