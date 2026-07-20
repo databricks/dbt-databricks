@@ -405,3 +405,13 @@ def model(dbt, spark):
     )
     return spark.createDataFrame([[1, 2]], schema=['id', 'val'])
 """
+
+managed_iceberg_python_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        table_format='iceberg',
+        submission_method='serverless_cluster',
+    )
+    return spark.createDataFrame([[1]], schema=['id'])
+"""
