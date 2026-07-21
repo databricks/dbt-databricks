@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
@@ -160,6 +161,30 @@ def is_enforced(constraint: ColumnLevelConstraint) -> bool:
         ConstraintSupport.NOT_ENFORCED,
         ConstraintSupport.NOT_SUPPORTED,
     ]
+
+
+def _local_md5(value: str) -> str:
+    # Same digest as Jinja local_md5.
+    return hashlib.md5(value.encode("utf-8")).hexdigest()
+
+
+def synthesize_constraint_name(constraint: TypedConstraint, relation_identifier: str) -> str:
+    """Deterministic name for an unnamed PK/FK; mirrors relations/constraints.sql."""
+    if isinstance(constraint, PrimaryKeyConstraint):
+        hash_input = f"primary_key;{relation_identifier};{constraint.columns};"
+        if constraint.expression:
+            hash_input += f"{constraint.expression};"
+        return _local_md5(hash_input)
+    if isinstance(constraint, ForeignKeyConstraint):
+        if constraint.expression:
+            return _local_md5(f"foreign_key;{relation_identifier};{constraint.expression};")
+        hash_input = f"foreign_key;{relation_identifier};{constraint.columns};{constraint.to};"
+        if constraint.to_columns:
+            hash_input += f"{constraint.to_columns};"
+        return _local_md5(hash_input)
+    raise DbtValidationError(
+        f"Cannot synthesize a name for constraint type: {type(constraint).__name__}"
+    )
 
 
 def process_constraint(constraint: TypedConstraint) -> Optional[str]:
