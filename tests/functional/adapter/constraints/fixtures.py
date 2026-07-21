@@ -512,9 +512,6 @@ models:
         data_type: string
 """
 
-# Materialization v2 creates a table's PK/FK inline in the CREATE statement, so an unnamed PK is
-# only named there. This fixture has an unnamed PK parent + a dependent FK child to prove the v2
-# inline-create path assigns the same deterministic name the incremental diff synthesizes (#1333).
 incremental_v2_unnamed_pk_cascade_schema_yml = """
 version: 2
 models:

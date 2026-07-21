@@ -164,14 +164,12 @@ def is_enforced(constraint: ColumnLevelConstraint) -> bool:
 
 
 def _local_md5(value: str) -> str:
-    # Matches dbt's `local_md5` Jinja helper (and the create-time constraint macro), so a name
-    # computed here is byte-identical to the one already written to the catalog.
+    # Same digest as Jinja local_md5.
     return hashlib.md5(value.encode("utf-8")).hexdigest()
 
 
 def synthesize_constraint_name(constraint: TypedConstraint, relation_identifier: str) -> str:
-    """Name an unnamed PK/FK; mirrors the create-time macro (``relations/constraints.sql``) so the
-    model side matches the name already in the catalog."""
+    """Deterministic name for an unnamed PK/FK; mirrors relations/constraints.sql."""
     if isinstance(constraint, PrimaryKeyConstraint):
         hash_input = f"primary_key;{relation_identifier};{constraint.columns};"
         if constraint.expression:

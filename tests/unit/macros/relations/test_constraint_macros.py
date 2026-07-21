@@ -355,7 +355,6 @@ class TestConstraintMacros(MacroTestBase):
 
         r = self.render_constraint_sql(template_bundle, constraint, model, column)
 
-        # clean_sql() lowercases the rendered SQL, including the hash input echoed by the mock.
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add constraint '
             "hash(primary_key;some_table;['id'];rely;) "
@@ -387,8 +386,6 @@ class TestConstraintMacros(MacroTestBase):
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
-        # The name hashes the raw (unexpanded) parent so it matches the model-side
-        # synthesize_constraint_name; the REFERENCES clause still uses the expanded relation.
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add '
             "constraint hash(foreign_key;some_table;['name'];parent_table;) "
@@ -488,16 +485,7 @@ class TestConstraintMacros(MacroTestBase):
 
 
 class TestConstraintNameParity(MacroTestBase):
-    """The create-time macro (``get_constraint_sql``) and the Python ``synthesize_constraint_name``
-    are two implementations of one naming scheme: the macro names an unnamed PK/FK at create time,
-    and the Python function reproduces that name on the model side so the incremental diff matches
-    the catalog instead of churning + colliding (#1333, #1344). Until the macro is retired and the
-    two are unified into one code path, these tests pin them together so neither can drift.
-
-    The macro test harness mocks ``local_md5``; here we inject the real wrapper on the macro side so
-    both implementations hash with the same function -- the test then verifies the hash *inputs*
-    (the real drift risk) agree.
-    """
+    """Macro create-time names must match synthesize_constraint_name."""
 
     @pytest.fixture
     def template_name(self) -> str:
@@ -513,7 +501,6 @@ class TestConstraintNameParity(MacroTestBase):
         return {"columns": columns}
 
     def _macro_name(self, template_bundle, constraint, *args):
-        # Swap the harness's mock local_md5 for the real one so the macro yields the real name.
         template_bundle.context["local_md5"] = _local_md5
         rendered = self.run_macro_raw(
             template_bundle.template,
@@ -563,10 +550,6 @@ class TestConstraintNameParity(MacroTestBase):
         assert self._macro_name(template_bundle, constraint, model) == py_name
 
     def test_parity__foreign_key_bare_parent(self, template_bundle, model):
-        # A bare (unqualified) parent is a supported shape: the create macro expands it into a
-        # same-schema relation for the REFERENCES clause. The generated *name* must still be
-        # computed from the raw `to`, so the model-side synthesized name (which only has the raw
-        # `to`) matches the catalog and the FK does not churn every incremental run.
         constraint = {
             "type": "foreign_key",
             "columns": ["a"],

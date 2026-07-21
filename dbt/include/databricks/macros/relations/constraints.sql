@@ -225,9 +225,7 @@
       {% set joined_names = quoted_names|join(", ") %}
 
       {% set parent = constraint.get('to') %}
-      {# Name the FK from the raw (unexpanded) parent, so it matches the model-side
-         synthesize_constraint_name (which only sees the raw `to`). The expansion below is for the
-         REFERENCES clause only and must not leak into the generated name (#1333 bare parent). #}
+      {# Hash raw `to` so bare parents match synthesize_constraint_name. #}
       {% set raw_parent = parent %}
       {% if not parent %}
         {{ exceptions.raise_compiler_error('No parent table defined for foreign key: ' ~ expression) }}

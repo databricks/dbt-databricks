@@ -358,12 +358,7 @@ class TestIncrementalContractOffPreservesConstraints(RerunSafeMixin):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestV2IncrementalUnnamedPrimaryKeyReconciliation:
-    """Under materialization v2 a table's PK is created inline in the CREATE statement, so an
-    unnamed PK is only named on that inline path. It must be given the same deterministic name the
-    incremental diff synthesizes; otherwise the create-time server-assigned name never matches the
-    model side and the first incremental re-run drops the parent PK with CASCADE, silently dropping
-    the child's foreign key (#1333). This is the v2 counterpart of the v1 reconciliation guard.
-    """
+    """V2: unnamed parent PK re-run must leave the dependent FK intact."""
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -392,8 +387,6 @@ class TestV2IncrementalUnnamedPrimaryKeyReconciliation:
         util.run_dbt(["build"])
         assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)
 
-        # A plain incremental re-run of the parent must not reconcile its unnamed PK, which would
-        # drop it with CASCADE and take the child's foreign key with it.
         util.run_dbt(["run", "--select", "v2_unnamed_pk_parent"])
 
         assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)

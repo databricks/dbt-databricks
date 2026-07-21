@@ -414,7 +414,6 @@ class TestConstraints:
     ):
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
-        # The unnamed PK is given its deterministic synthesized name inline (#1333).
         expected_pk_name = synthesize_constraint_name(pk_constraint, relation.identifier)
         assert (
             relation.render_constraints_for_create()
@@ -506,11 +505,7 @@ class TestIdentifierLengthValidation:
 
 
 class TestRenderConstraintsForCreate:
-    """The V2 inline CREATE path renders model-level PK/FK via render_constraints_for_create. An
-    unnamed PK/FK must be given the same deterministic name the incremental diff synthesizes,
-    otherwise the server auto-names it at create time and the first incremental run reconciles it
-    (dropping the PK with CASCADE takes dependent FKs with it) — the create/diff parity #1333 needs.
-    """
+    """Unnamed PK/FK get synthesize_constraint_name on the V2 CREATE path."""
 
     def test_unnamed_primary_key_gets_synthesized_name(self):
         pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])

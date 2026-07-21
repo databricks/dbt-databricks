@@ -268,10 +268,6 @@ class DatabricksRelation(BaseRelation):
         return copy
 
     def render_constraints_for_create(self) -> str:
-        # Give an unnamed PK/FK the same deterministic name the incremental diff synthesizes
-        # (synthesize_constraint_name), so a table created inline under materialization v2 carries
-        # the name the model side will expect instead of a server-assigned one that churns on the
-        # first incremental run (#1333, #1344).
         for constraint in self.create_constraints:
             if constraint.name is None and isinstance(
                 constraint, (PrimaryKeyConstraint, ForeignKeyConstraint)
