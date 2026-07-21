@@ -354,3 +354,46 @@ class TestIncrementalContractOffPreservesConstraints(RerunSafeMixin):
 
         # The existing PK must be left untouched, not silently dropped.
         assert "pk_contract_off" in self._primary_key_names(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2IncrementalUnnamedPrimaryKeyReconciliation:
+    """Under materialization v2 a table's PK is created inline in the CREATE statement, so an
+    unnamed PK is only named on that inline path. It must be given the same deterministic name the
+    incremental diff synthesizes; otherwise the create-time server-assigned name never matches the
+    model side and the first incremental re-run drops the parent PK with CASCADE, silently dropping
+    the child's foreign key (#1333). This is the v2 counterpart of the v1 reconciliation guard.
+    """
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.incremental_v2_unnamed_pk_cascade_schema_yml,
+            "v2_unnamed_pk_parent.sql": override_fixtures.incremental_v2_unnamed_pk_parent_sql,
+            "v2_unnamed_pk_child.sql": override_fixtures.incremental_v2_unnamed_pk_child_sql,
+        }
+
+    def _foreign_key_names(self, project):
+        rows = project.run_sql(
+            """
+            SELECT constraint_name
+            FROM {database}.information_schema.referential_constraints
+            WHERE constraint_schema = '{schema}'
+            """,
+            fetch="all",
+        )
+        return {row[0] for row in rows}
+
+    def test_unnamed_pk_reconcile_keeps_dependent_foreign_key(self, project):
+        util.run_dbt(["build"])
+        assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)
+
+        # A plain incremental re-run of the parent must not reconcile its unnamed PK, which would
+        # drop it with CASCADE and take the child's foreign key with it.
+        util.run_dbt(["run", "--select", "v2_unnamed_pk_parent"])
+
+        assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)

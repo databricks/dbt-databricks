@@ -387,9 +387,11 @@ class TestConstraintMacros(MacroTestBase):
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
 
+        # The name hashes the raw (unexpanded) parent so it matches the model-side
+        # synthesize_constraint_name; the REFERENCES clause still uses the expanded relation.
         expected = (
             '["alter table `some_database`.`some_schema`.`some_table` add '
-            "constraint hash(foreign_key;some_table;['name'];some_schema.parent_table;) "
+            "constraint hash(foreign_key;some_table;['name'];parent_table;) "
             'foreign key(`name`) references some_schema.parent_table;"]'
         )
         assert expected in r
@@ -555,6 +557,28 @@ class TestConstraintNameParity(MacroTestBase):
                 columns=["a", "b"],
                 to="`c`.`s`.`parent`",
                 to_columns=["x", "y"],
+            ),
+            template_bundle.relation.identifier,
+        )
+        assert self._macro_name(template_bundle, constraint, model) == py_name
+
+    def test_parity__foreign_key_bare_parent(self, template_bundle, model):
+        # A bare (unqualified) parent is a supported shape: the create macro expands it into a
+        # same-schema relation for the REFERENCES clause. The generated *name* must still be
+        # computed from the raw `to`, so the model-side synthesized name (which only has the raw
+        # `to`) matches the catalog and the FK does not churn every incremental run.
+        constraint = {
+            "type": "foreign_key",
+            "columns": ["a"],
+            "to": "parent",
+            "to_columns": ["id"],
+        }
+        py_name = synthesize_constraint_name(
+            ForeignKeyConstraint(
+                type=ConstraintType.foreign_key,
+                columns=["a"],
+                to="parent",
+                to_columns=["id"],
             ),
             template_bundle.relation.identifier,
         )

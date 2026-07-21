@@ -511,3 +511,52 @@ models:
       - name: color
         data_type: string
 """
+
+# Materialization v2 creates a table's PK/FK inline in the CREATE statement, so an unnamed PK is
+# only named there. This fixture has an unnamed PK parent + a dependent FK child to prove the v2
+# inline-create path assigns the same deterministic name the incremental diff synthesizes (#1333).
+incremental_v2_unnamed_pk_cascade_schema_yml = """
+version: 2
+models:
+  - name: v2_unnamed_pk_parent
+    config:
+      materialized: incremental
+      unique_key: n
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    columns:
+      - name: n
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: v2_unnamed_pk_child
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        name: fk_v2_unnamed_pk_child
+        columns: ["parent_n"]
+        to: ref('v2_unnamed_pk_parent')
+        to_columns: ["n"]
+    columns:
+      - name: parent_n
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: child_id
+        data_type: int
+"""
+
+incremental_v2_unnamed_pk_parent_sql = """
+select 1 as n
+"""
+
+incremental_v2_unnamed_pk_child_sql = """
+-- depends_on: {{ ref('v2_unnamed_pk_parent') }}
+
+select 1 as parent_n, 10 as child_id
+"""

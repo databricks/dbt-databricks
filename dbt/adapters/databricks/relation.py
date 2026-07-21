@@ -13,7 +13,13 @@ from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
-from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
+from dbt.adapters.databricks.constraints import (
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    TypedConstraint,
+    process_constraint,
+    synthesize_constraint_name,
+)
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.utils import remove_undefined
 
@@ -262,6 +268,15 @@ class DatabricksRelation(BaseRelation):
         return copy
 
     def render_constraints_for_create(self) -> str:
+        # Give an unnamed PK/FK the same deterministic name the incremental diff synthesizes
+        # (synthesize_constraint_name), so a table created inline under materialization v2 carries
+        # the name the model side will expect instead of a server-assigned one that churns on the
+        # first incremental run (#1333, #1344).
+        for constraint in self.create_constraints:
+            if constraint.name is None and isinstance(
+                constraint, (PrimaryKeyConstraint, ForeignKeyConstraint)
+            ):
+                constraint.name = synthesize_constraint_name(constraint, self.identifier)
         processed = map(process_constraint, self.create_constraints)
         return ", ".join(c for c in processed if c is not None)
 
