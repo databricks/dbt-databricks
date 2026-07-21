@@ -49,28 +49,27 @@
 {%- endmacro -%}
 
 {% macro unset_column_tags(relation, columns) -%}
-  {%- if relation.is_hive_metastore() or not columns -%}
-    {{ return(none) }}
-  {%- endif -%}
-  {%- set column_names = [] -%}
-  {%- for column in columns -%}
-    {%- do column_names.append(column.name | lower) -%}
-  {%- endfor -%}
-  {%- set existing_tags = fetch_column_tags(relation) -%}
-  {%- set tags_by_column = {} -%}
-  {%- for row in existing_tags -%}
-    {%- if (row[0] | lower) in column_names -%}
-      {%- if row[0] not in tags_by_column -%}
-        {%- do tags_by_column.update({row[0]: []}) -%}
+  {%- if not relation.is_hive_metastore() and columns -%}
+    {%- set column_names = [] -%}
+    {%- for column in columns -%}
+      {%- do column_names.append(column.name | lower) -%}
+    {%- endfor -%}
+    {%- set existing_tags = fetch_column_tags(relation) -%}
+    {%- set tags_by_column = {} -%}
+    {%- for row in existing_tags -%}
+      {%- if (row[0] | lower) in column_names -%}
+        {%- if row[0] not in tags_by_column -%}
+          {%- do tags_by_column.update({row[0]: []}) -%}
+        {%- endif -%}
+        {%- do tags_by_column[row[0]].append(row[1]) -%}
       {%- endif -%}
-      {%- do tags_by_column[row[0]].append(row[1]) -%}
-    {%- endif -%}
-  {%- endfor -%}
-  {%- for column, tag_names in tags_by_column.items() -%}
-    {%- call statement('unset_column_tags') -%}
-      {{ alter_unset_column_tags(relation, column, tag_names) }}
-    {%- endcall -%}
-  {%- endfor -%}
+    {%- endfor -%}
+    {%- for column, tag_names in tags_by_column.items() -%}
+      {%- call statement('unset_column_tags') -%}
+        {{ alter_unset_column_tags(relation, column, tag_names) }}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endif -%}
 {%- endmacro -%}
 
 {% macro alter_unset_column_tags(relation, column, tag_names) -%}

@@ -89,6 +89,27 @@ models:
           pii: "true"
 """
 
+drop_governed_tagged_column_initial_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+      - name: email
+        databricks_tags:
+          {tag_key}: "true"
+"""
+
+drop_governed_tagged_column_updated_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+"""
+
 snapshot_column_tag_sql = """
 {% snapshot snapshot %}
     {{
