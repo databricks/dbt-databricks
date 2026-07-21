@@ -461,8 +461,9 @@ class TestPersistDocsColumnMissingWarnsV1:
 
     def test_warns_and_still_comments_present_columns(self, adapter, table_relation):
         _, logs = util.run_dbt_and_capture(["run"])
-        assert _MISSING_COLUMN_WARNING in logs
         assert "column_that_does_not_exist" in logs
+        # Emitted exactly once — the v1 and v2 warning sites are mutually exclusive per run.
+        assert logs.count(_MISSING_COLUMN_WARNING) == 1
 
         results = util.run_sql_with_adapter(
             adapter, f"describe extended {table_relation}", fetch="all"
@@ -505,10 +506,11 @@ class TestPersistDocsColumnMissingWarnsV2:
         first_logs = util.run_dbt_and_capture(["run"])[1]
         assert _MISSING_COLUMN_WARNING not in first_logs
 
-        # Second run diffs documented columns against the existing relation → warns.
+        # Second run diffs documented columns against the existing relation → warns exactly once
+        # (get_diff runs once per component in a single get_changeset).
         second_logs = util.run_dbt_and_capture(["run"])[1]
-        assert _MISSING_COLUMN_WARNING in second_logs
         assert "column_that_does_not_exist" in second_logs
+        assert second_logs.count(_MISSING_COLUMN_WARNING) == 1
 
 
 class TestPersistDocsColumnMissingWarnError:
