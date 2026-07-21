@@ -18,3 +18,15 @@ table_model_sql = """
 
 select 1 as id
 """
+
+auto_cluster_table_model_sql = """
+{{ config(materialized = 'table', auto_liquid_cluster = true) }}
+
+select 1 as id
+"""
+
+auto_cluster_incremental_model_sql = """
+{{ config(materialized = 'incremental', auto_liquid_cluster = true) }}
+
+select 1 as id
+"""

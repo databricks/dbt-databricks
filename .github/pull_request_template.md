@@ -20,4 +20,4 @@ Resolves #
 - [ ] I have run this code in development and it appears to resolve the stated issue
 - [ ] This PR includes tests, or tests are not required/relevant for this PR
 - [ ] I have updated the `CHANGELOG.md` and added information about my change to the "dbt-databricks next" section.
-- [ ] [Optional] I have run `/dbt-databricks-pr-ready` (AI agent skill in `.claude/skills/`) and addressed its merge-readiness feedback
+- [ ] [Optional] I have run the `dbt-databricks-pr-ready` project skill for this PR and addressed its merge-readiness feedback
