@@ -31,6 +31,10 @@ on:
         description: "Git ref (branch/tag/commit) to test — used only when pr_numbers is empty"
         required: false
         type: string
+      commit_sha:
+        description: "Immutable 40-character commit SHA for a single PR — set by the integration-test trigger"
+        required: false
+        type: string
 
   schedule:
     - cron: "30 21 * * *"   # 21:30 UTC = 03:00 IST
@@ -70,6 +74,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
           INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
+          INPUT_COMMIT_SHA: ${{ github.event.inputs.commit_sha }}
           DEFAULT_REF: ${{ github.ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -89,6 +94,17 @@ jobs:
             else
               targets+=$(entry "nightly" "$DEFAULT_REF")
             fi
+          elif [[ -n "${INPUT_COMMIT_SHA//[[:space:]]/}" ]]; then
+            pr_trimmed="${INPUT_PR_NUMBERS//[[:space:]]/}"
+            if [[ ! "$pr_trimmed" =~ ^[0-9]+$ ]]; then
+              echo "::error::commit_sha requires exactly one numeric PR number, got pr_numbers='$INPUT_PR_NUMBERS'."
+              exit 1
+            fi
+            if [[ ! "$INPUT_COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error::Invalid commit_sha '$INPUT_COMMIT_SHA' — expected a 40-character hexadecimal SHA."
+              exit 1
+            fi
+            targets+=$(entry "$pr_trimmed" "$INPUT_COMMIT_SHA")
           elif [[ -n "${INPUT_PR_NUMBERS//[[:space:]]/}" ]]; then
             first=1
             IFS=',' read -ra prs <<< "$INPUT_PR_NUMBERS"
@@ -325,7 +341,7 @@ jobs:
         with:
           name: uc-cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 5
+          retention-days: 7
 
   run-sqlwarehouse-e2e-tests:
     needs:
@@ -426,7 +442,7 @@ jobs:
         with:
           name: sql-endpoint-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 5
+          retention-days: 7
 
   run-cluster-e2e-tests:
     needs:
@@ -526,7 +542,7 @@ jobs:
         with:
           name: cluster-test-logs-${{ matrix.target.pr }}-shard-${{ matrix.shard }}
           path: logs/
-          retention-days: 5
+          retention-days: 7
 
   gather-shards:
     # `prepare` is in needs because the matrix below references

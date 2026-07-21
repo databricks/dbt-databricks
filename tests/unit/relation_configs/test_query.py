@@ -60,8 +60,34 @@ class TestQueryProcessor:
         other = QueryProcessor.from_relation_results(results)
         assert model.get_diff(other) is model
 
+    def test_from_relation_results__none_view_definition(self):
+        results = {"information_schema.views": Row([None, ""], ["view_definition", "comment"])}
+        spec = QueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query="")
+
+    def test_from_relation_results__missing_view_definition(self):
+        empty_row = Row(values=set())
+        results = {"information_schema.views": empty_row}
+        spec = QueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query="")
+
+    def test_get_diff__empty_existing_query(self):
+        existing = QueryConfig(query="")
+        new = QueryConfig(query="select 1")
+        assert new.get_diff(existing) is new
+
 
 class TestDescribeQueryProcessor:
+    def test_from_relation_results__missing_view_text_row(self):
+        results = {
+            "describe_extended": [
+                ("col_name", "data_type", "comment"),
+                ("id", "int", ""),
+            ]
+        }
+        spec = DescribeQueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query="")
+
     def test_from_relation_results__malformed_view_text_row(self):
         results = {"describe_extended": [("View Text",)]}
         with pytest.raises(
@@ -69,3 +95,14 @@ class TestDescribeQueryProcessor:
             match="Unexpected result from DESCRIBE EXTENDED: missing View Text value",
         ):
             DescribeQueryProcessor.from_relation_results(results)
+
+    def test_from_relation_results__valid_view_text_row(self):
+        sql = "select 1 as id"
+        results = {
+            "describe_extended": [
+                ("col_name", "data_type", "comment"),
+                ("View Text", sql, ""),
+            ]
+        }
+        spec = DescribeQueryProcessor.from_relation_results(results)
+        assert spec == QueryConfig(query=sql)

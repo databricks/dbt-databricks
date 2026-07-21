@@ -10,6 +10,10 @@ expected_target = """id,name,date
 2,Bob,2022-01-02
 """
 
+expected_target_validate = """id,name,date
+0,Zero,2022-01-01
+"""
+
 source = """id,name,date
 1,Alice,2022-01-01
 2,Bob,2022-01-02
@@ -40,6 +44,12 @@ seeds:
         name: string
         date: string
   - name: expected_target_expression_list
+    config:
+      column_types:
+        id: int
+        name: string
+        date: string
+  - name: expected_target_validate
     config:
       column_types:
         id: int

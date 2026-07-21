@@ -458,3 +458,56 @@ incremental_multiple_fk_child_sql = """
 
 select 1 as child_id, 1 as parent_a, 1 as parent_b
 """
+
+
+def _incremental_contract_off_pk_schema_yml(enforced):
+    return f"""
+version: 2
+models:
+  - name: contract_off_pk
+    config:
+      materialized: incremental
+      unique_key: id
+      on_schema_change: append_new_columns
+      contract:
+        enforced: {enforced}
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_contract_off
+"""
+
+
+incremental_contract_off_pk_enforced_schema_yml = _incremental_contract_off_pk_schema_yml("true")
+incremental_contract_off_pk_unenforced_schema_yml = _incremental_contract_off_pk_schema_yml("false")
+
+incremental_contract_off_pk_sql = """
+select 1 as id
+"""
+
+
+check_constraint_model_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'blue' as color
+"""
+
+check_constraint_schema_yml = """
+version: 2
+models:
+  - name: check_constraint_model
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: check
+        name: id_is_positive
+        expression: id > 0
+    columns:
+      - name: id
+        data_type: int
+      - name: color
+        data_type: string
+"""

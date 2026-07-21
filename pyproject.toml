@@ -27,9 +27,8 @@ dependencies = [
     "databricks-sql-connector[pyarrow]>=4.1.1, <4.3.1",
     "dbt-adapters>=1.22.0, <1.25.0",
     "dbt-common>=1.37.0, <1.38.0",
-    "dbt-core>=1.11.2, <1.11.12",
+    "dbt-core>=1.11.2, <1.11.13",
     "dbt-spark>=1.10.0, <1.11.0",
-    "keyring>=23.13.0, <25.6.0",
     "packaging>=21.0, <26.0",
     "pydantic>=1.10.0, <2.13.0",
 ]
@@ -40,6 +39,9 @@ changelog = "https://github.com/databricks/dbt-databricks/blob/main/CHANGELOG.md
 documentation = "https://docs.getdbt.com/reference/resource-configs/databricks-configs"
 issues = "https://github.com/databricks/dbt-databricks/issues"
 repository = "https://github.com/databricks/dbt-databricks"
+
+[tool.uv]
+required-version = "==0.11.18"
 
 [tool.hatch.version]
 path = "dbt/adapters/databricks/__version__.py"
@@ -165,6 +167,7 @@ markers = [
     "external: mark test as requiring an external location",
     "python: mark test as running a python model",
     "dlt: mark test as running a DLT model",
+    "skip_kernel: skip test when running against the connector kernel backend (DBT_DATABRICKS_USE_KERNEL=1)",
 ]
 
 [tool.mypy]

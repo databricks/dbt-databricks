@@ -10,6 +10,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
 )
 
 from tests.functional.adapter.constraints import fixtures as override_fixtures
+from tests.functional.adapter.fixtures import RerunSafeMixin
 
 
 class DatabricksConstraintsBase:
@@ -306,3 +307,50 @@ class TestIncrementalMultipleUnnamedForeignKeys:
         util.run_dbt(["run", "--select", "multi_fk_child"])
 
         assert {"parent_a", "parent_b"} <= self._foreign_key_columns(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalContractOffPreservesConstraints(RerunSafeMixin):
+    """Constraints are reconciled only when the contract is enforced; when unenforced, a no-op."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("contract_off_pk",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.incremental_contract_off_pk_enforced_schema_yml,
+            "contract_off_pk.sql": override_fixtures.incremental_contract_off_pk_sql,
+        }
+
+    def _primary_key_names(self, project):
+        rows = project.run_sql(
+            """
+            SELECT constraint_name
+            FROM {database}.information_schema.table_constraints
+            WHERE table_schema = '{schema}' AND constraint_type = 'PRIMARY KEY'
+            """,
+            fetch="all",
+        )
+        return {row[0] for row in rows}
+
+    def test_contract_off_incremental_preserves_existing_pk(self, project):
+        # Run 1 (contract enforced): the primary key is created server-side.
+        util.run_dbt(["run"])
+        assert "pk_contract_off" in self._primary_key_names(project)
+
+        # Flip contract.enforced to false, then run the incremental merge again.
+        util.write_file(
+            override_fixtures.incremental_contract_off_pk_unenforced_schema_yml,
+            "models",
+            "schema.yml",
+        )
+        util.run_dbt(["run"])
+
+        # The existing PK must be left untouched, not silently dropped.
+        assert "pk_contract_off" in self._primary_key_names(project)

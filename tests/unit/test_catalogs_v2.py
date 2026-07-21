@@ -19,7 +19,18 @@ class _Config:
     table_format: Optional[str] = "iceberg"
     external_volume: Optional[str] = None
     file_format: Optional[str] = None
+    catalog_database: Optional[str] = None
     adapter_properties: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class _Model:
+    """Minimal RelationConfig stub for build_relation tests."""
+
+    database: str = "model_db"
+    schema: str = "model_schema"
+    identifier: str = "model_table"
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 # ===== Adapter-level =====
@@ -73,3 +84,39 @@ def test_unity_empty_location_root_raises():
     cfg = _Config(file_format="parquet", adapter_properties={"location_root": ""})
     with pytest.raises(DbtValidationError, match="location_root cannot be blank"):
         UnityCatalogIntegration(cfg)
+
+
+def test_unity_catalog_database_set():
+    # catalog_database is a v2-catalogs first-class field, surfaced on the config by the base
+    # CatalogIntegration; the unity integration carries it onto the relation so
+    # generate_database_name can route the model to the physical Unity catalog, independent
+    # of the dbt catalog label.
+    integration = UnityCatalogIntegration(_Config(catalog_database="prod_catalog"))
+    assert integration.catalog_database == "prod_catalog"
+    assert integration.build_relation(_Model()).catalog_database == "prod_catalog"
+
+
+def test_unity_no_catalog_database_defaults_none():
+    integration = UnityCatalogIntegration(_Config())
+    assert integration.catalog_database is None
+    assert integration.build_relation(_Model()).catalog_database is None
+
+
+def test_unity_catalog_database_absent_on_older_adapters():
+    # dbt-adapters <1.24.4 has no catalog_database on the catalog config at all. getattr must
+    # degrade to None (no AttributeError), so catalog_database is a graceful no-op there and we
+    # don't need to pin the adapter floor up.
+    from types import SimpleNamespace
+
+    cfg = SimpleNamespace(
+        name="c",
+        catalog_type="unity",
+        catalog_name="label",
+        table_format="iceberg",
+        external_volume=None,
+        file_format="delta",
+        adapter_properties={},  # note: no `catalog_database` attribute anywhere
+    )
+    integration = UnityCatalogIntegration(cfg)
+    assert integration.catalog_database is None
+    assert integration.build_relation(_Model()).catalog_database is None

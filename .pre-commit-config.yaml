@@ -16,7 +16,16 @@ repos:
         additional_dependencies: [types-requests]
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.6
+    rev: 0.11.18
     hooks:
       - id: uv-lock
-        args: [--check]
+        args: [--check, --default-index, https://pypi.org/simple]
+
+  - repo: local
+    hooks:
+      - id: uv-lock-public-urls
+        name: uv.lock uses public PyPI URLs
+        entry: python3 scripts/check_uv_lock_public_urls.py
+        language: system
+        pass_filenames: false
+        files: ^uv\.lock$

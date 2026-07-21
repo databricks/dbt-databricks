@@ -32,6 +32,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
 from packaging import version
@@ -61,6 +62,11 @@ from dbt.adapters.databricks.python_models.python_submissions import (
     JobClusterPythonJobHelper,
     ServerlessClusterPythonJobHelper,
     WorkflowPythonJobHelper,
+)
+from dbt.adapters.databricks.record.record_types import (
+    DatabricksAdapterAddQueryRecord,
+    DatabricksAdapterGetRelationConfigRecord,
+    DatabricksAdapterIsUniformRecord,
 )
 from dbt.adapters.databricks.relation import (
     KEY_TABLE_PROVIDER,
@@ -207,7 +213,7 @@ class DatabricksConfig(AdapterConfig):
     zorder: Optional[Union[list[str], str]] = None
     skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
-    skip_non_matched_step: Optional[bool] = None
+    skip_not_matched_step: Optional[bool] = None
     skip_matched_step: Optional[bool] = None
     matched_condition: Optional[str] = None
     not_matched_condition: Optional[str] = None
@@ -332,6 +338,12 @@ class DatabricksAdapter(SparkAdapter):
         return quote(identifier)
 
     @available.parse(lambda *a, **k: 0)
+    @record_function(
+        DatabricksAdapterIsUniformRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def is_uniform(self, config: BaseConfig) -> bool:
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
@@ -425,6 +437,7 @@ class DatabricksAdapter(SparkAdapter):
         return conn.has_capability(capability)
 
     @available.parse(lambda *a, **k: False)
+    @auto_record_function("AdapterHasDbrCapability", group="Available")
     def has_dbr_capability(self, capability_name: str) -> bool:
         """
         Check if a DBR capability is available for current compute.
@@ -889,6 +902,13 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    @available.parse(lambda *a, **k: (None, None))
+    @record_function(
+        DatabricksAdapterAddQueryRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def add_query(
         self,
         sql: str,
@@ -1059,6 +1079,12 @@ class DatabricksAdapter(SparkAdapter):
         return enriched_columns, parsed_constraints
 
     @available.parse(lambda *a, **k: {})
+    @record_function(
+        DatabricksAdapterGetRelationConfigRecord,
+        method=True,
+        index_on_thread_id=True,
+        id_field_name="thread_id",
+    )
     def get_relation_config(
         self,
         relation: DatabricksRelation,
@@ -1097,6 +1123,7 @@ class DatabricksAdapter(SparkAdapter):
             )
 
     @available
+    @auto_record_function("AdapterIsCluster", group="Available")
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()

@@ -90,3 +90,27 @@ class TestTableConstraintsRollback(BaseDatabricksConstraintHandling):
             "my_model.sql": override_fixtures.my_model_sql,
             "constraints_schema.yml": override_fixtures.constraints_yml,
         }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCheckConstraintReadbackV2(DatabricksConstraintsBaseV2):
+    """Under v2 a contract CHECK constraint is observable as a delta.constraints.* property."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "check_constraint_model.sql": override_fixtures.check_constraint_model_sql,
+            "schema.yml": override_fixtures.check_constraint_schema_yml,
+        }
+
+    def test_check_constraint_present(self, project):
+        util.run_dbt(["run"])
+        rows = project.run_sql(
+            "show tblproperties {database}.{schema}.check_constraint_model", fetch="all"
+        )
+        constraints = {
+            row.key: row.value for row in rows if row.key.startswith("delta.constraints.")
+        }
+        assert constraints.get("delta.constraints.id_is_positive") == "id > 0", (
+            f"CHECK constraint not observable under v2; delta.constraints = {constraints}"
+        )
