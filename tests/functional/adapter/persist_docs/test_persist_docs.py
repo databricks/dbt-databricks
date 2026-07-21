@@ -478,19 +478,20 @@ class TestPersistDocsColumnMissingWarnsV1:
 class TestPersistDocsColumnMissingWarnsV2:
     """v2: the warning surfaces on the alter path (ColumnCommentsConfig.get_diff).
 
-    On first create, comments are applied inline (parse_columns_and_constraints) and a
-    documented-but-absent column is silently dropped — get_diff is not consulted. The warning
-    therefore appears on a subsequent run, when documented columns are diffed against the existing
-    relation. (Create-time warning is tracked as a follow-up.)
+    Uses an incremental model: a table rebuild re-applies comments inline and never consults
+    get_diff, so the changeset path is only reached on a subsequent incremental run, when
+    documented columns are diffed against the existing relation. On first create the
+    documented-but-absent column is silently dropped inline. (Create-time warning is tracked as a
+    follow-up.)
     """
 
     @pytest.fixture(scope="class")
     def models(self):
-        return {"missing_column.sql": fixtures._MODELS__MISSING_COLUMN}
+        return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
 
     @pytest.fixture(scope="class")
     def properties(self):
-        return {"schema.yml": fixtures._PROPERTIES__SCHEMA_MISSING_COL}
+        return {"schema.yml": override_fixtures.missing_column_incremental_schema}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):

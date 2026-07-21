@@ -39,6 +39,25 @@ gate_model_sql = """
 select 1 as id, 'alice' as name
 """
 
+# Incremental model whose schema documents a column absent from the relation. Used to exercise the
+# V2 alter/changeset path (ColumnCommentsConfig.get_diff), which — unlike a table rebuild — is only
+# reached on a subsequent run against an existing relation.
+missing_column_incremental_sql = """
+{{ config(materialized='incremental') }}
+select 1 as id, 'Ed' as name
+"""
+
+missing_column_incremental_schema = """
+version: 2
+models:
+  - name: missing_column_incremental
+    columns:
+      - name: id
+        description: "test id column description"
+      - name: column_that_does_not_exist
+        description: "comment that cannot be created"
+"""
+
 gate_model_schema = """
 version: 2
 models:
