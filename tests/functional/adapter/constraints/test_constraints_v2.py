@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from dbt.tests import util
 from dbt.tests.adapter.constraints import fixtures
@@ -114,3 +116,34 @@ class TestCheckConstraintReadbackV2(DatabricksConstraintsBaseV2):
         assert constraints.get("delta.constraints.id_is_positive") == "id > 0", (
             f"CHECK constraint not observable under v2; delta.constraints = {constraints}"
         )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUnnamedPKRebuildV2(DatabricksConstraintsBaseV2):
+    """An unnamed primary key survives repeated safer-relation rebuilds (issue #1091)."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+use_safer_relation_operations": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "unnamed_pk_model.sql": override_fixtures.unnamed_pk_model_sql,
+            "schema.yml": override_fixtures.unnamed_pk_schema_yml,
+        }
+
+    def test_rebuild_does_not_collide(self, project):
+        for _ in range(3):
+            results = util.run_dbt(["run", "-s", "unnamed_pk_model"])
+        assert len(results) == 1
+
+        rows = project.run_sql(
+            "describe table extended {database}.{schema}.unnamed_pk_model as json", fetch="all"
+        )
+        constraints = json.loads(rows[0][0])["table_constraints"]
+        assert "PRIMARY KEY" in constraints, f"primary key missing after rebuild: {constraints}"
+        assert "__dbt_stg" not in constraints, f"primary key retained a staging name: {constraints}"

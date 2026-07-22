@@ -1,4 +1,4 @@
-{% macro create_table_at(relation, intermediate_relation, compiled_code) %}
+{% macro create_table_at(relation, intermediate_relation, compiled_code, defer_create_constraints=false) %}
   {% set tags = config.get('databricks_tags') %}
   {% set model_columns = model.get('columns', []) %}
   {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
@@ -11,9 +11,17 @@
   {% endif %}
   {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints, contract_enforced, model.name) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
-  
+
   {% call statement('main') %}
-    {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
+    {% if defer_create_constraints %}
+      {#-- Primary/foreign keys are applied via ALTER by the caller, not inline. --#}
+      {% set inline_constraints = columns_and_constraints[1]
+             | rejectattr('str_type', 'equalto', 'primary_key')
+             | rejectattr('str_type', 'equalto', 'foreign_key') | list %}
+      {{ get_create_table_sql(relation.enrich(inline_constraints), columns_and_constraints[0], compiled_code) }}
+    {% else %}
+      {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
+    {% endif %}
   {% endcall %}
 
   {{ apply_alter_constraints(target_relation) }}

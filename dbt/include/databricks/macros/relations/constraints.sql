@@ -33,6 +33,24 @@
   {%- endfor -%}
 {% endmacro %}
 
+{% macro apply_deferred_create_constraints(relation) %}
+  {% set contract_config = config.get('contract') %}
+  {% if not (contract_config and contract_config.enforced) %}
+    {% do return('') %}
+  {% endif %}
+  {% set model_columns = model.get('columns', []) %}
+  {% set model_constraints = model.get('constraints', []) %}
+  {% set existing_columns = adapter.get_columns_in_relation(relation) %}
+  {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints, true, model.name) %}
+  {% set deferred_constraints = columns_and_constraints[1]
+         | selectattr('str_type', 'in', ['primary_key', 'foreign_key']) | list %}
+  {%- for constraint in deferred_constraints -%}
+    {% call statement('add constraint') %}
+      ALTER TABLE {{ relation.render() }} ADD {{ constraint.render() }}
+    {% endcall %}
+  {%- endfor -%}
+{% endmacro %}
+
 {% macro alter_table_add_constraints(relation, constraints) %}
   {{ return(adapter.dispatch('alter_table_add_constraints', 'dbt')(relation, constraints)) }}
 {% endmacro %}

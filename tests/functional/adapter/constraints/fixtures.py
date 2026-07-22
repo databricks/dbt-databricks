@@ -463,3 +463,26 @@ models:
       - name: color
         data_type: string
 """
+
+
+unnamed_pk_model_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'blue' as color
+"""
+
+unnamed_pk_schema_yml = """
+version: 2
+models:
+  - name: unnamed_pk_model
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: color
+        data_type: string
+"""
