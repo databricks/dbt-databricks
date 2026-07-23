@@ -1,6 +1,7 @@
 import itertools
 import json
 import re
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, cast
@@ -31,6 +32,7 @@ MAX_NT_PASSWORD_SIZE = 1280
 # When using an Azure App Registration with the SPA platform, the refresh token will
 # also expire after 24h. Silently accept this in this case.
 SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = "AADSTS700084"
+_CONFIG_INITIALIZATION_LOCK = threading.Lock()
 
 
 @dataclass
@@ -362,53 +364,61 @@ class DatabricksCredentialManager(DataClassDictMixin):
         if self._config is not None:
             return self._config
 
-        if self.token:
-            self._config = self.authenticate_with_pat()
-        elif self.azure_client_id and self.azure_client_secret:
-            self._config = self.authenticate_with_azure_client_secret()
-        elif not self.client_secret:
-            self._config = self.authenticate_with_external_browser()
-        else:
-            auth_methods = {
-                "oauth-m2m": self.authenticate_with_oauth_m2m,
-                "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
-            }
+        with _CONFIG_INITIALIZATION_LOCK:
+            if self._config is not None:
+                return self._config
 
-            # If the secret starts with dose, high chance is it is a databricks secret
-            if self.client_secret.startswith("dose"):
-                auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
+            if self.token:
+                self._config = self.authenticate_with_pat()
+            elif self.azure_client_id and self.azure_client_secret:
+                self._config = self.authenticate_with_azure_client_secret()
+            elif not self.client_secret:
+                self._config = self.authenticate_with_external_browser()
             else:
-                auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
+                auth_methods = {
+                    "oauth-m2m": self.authenticate_with_oauth_m2m,
+                    "legacy-azure-client-secret": self.legacy_authenticate_with_azure_client_secret,
+                }
 
-            exceptions = []
-            for i, auth_type in enumerate(auth_sequence):
-                try:
-                    # The Config constructor will implicitly init auth and throw if failed
-                    self._config = auth_methods[auth_type]()
-                    if auth_type == "legacy-azure-client-secret":
-                        logger.warning(
-                            "You are using Azure Service Principal, "
-                            "please use 'azure_client_id' and 'azure_client_secret' instead."
-                        )
-                    break  # Exit loop if authentication is successful
-                except Exception as e:
-                    exceptions.append((auth_type, e))
-                    next_auth_type = auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
-                    if next_auth_type:
-                        logger.warning(
-                            f"Failed to authenticate with {auth_type}, "
-                            f"trying {next_auth_type} next. Error: {e}"
-                        )
-                    else:
-                        logger.error(
-                            f"Failed to authenticate with {auth_type}. "
-                            f"No more authentication methods to try. Error: {e}"
-                        )
-                        raise Exception(f"All authentication methods failed. Details: {exceptions}")
+                # If the secret starts with dose, high chance is it is a databricks secret
+                if self.client_secret.startswith("dose"):
+                    auth_sequence = ["oauth-m2m", "legacy-azure-client-secret"]
+                else:
+                    auth_sequence = ["legacy-azure-client-secret", "oauth-m2m"]
 
-        # Narrow Optional[Config] for the return type.
-        assert self._config is not None
-        return self._config
+                exceptions = []
+                for i, auth_type in enumerate(auth_sequence):
+                    try:
+                        # The Config constructor will implicitly init auth and throw if failed
+                        self._config = auth_methods[auth_type]()
+                        if auth_type == "legacy-azure-client-secret":
+                            logger.warning(
+                                "You are using Azure Service Principal, "
+                                "please use 'azure_client_id' and 'azure_client_secret' instead."
+                            )
+                        break  # Exit loop if authentication is successful
+                    except Exception as e:
+                        exceptions.append((auth_type, e))
+                        next_auth_type = (
+                            auth_sequence[i + 1] if i + 1 < len(auth_sequence) else None
+                        )
+                        if next_auth_type:
+                            logger.warning(
+                                f"Failed to authenticate with {auth_type}, "
+                                f"trying {next_auth_type} next. Error: {e}"
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to authenticate with {auth_type}. "
+                                f"No more authentication methods to try. Error: {e}"
+                            )
+                            raise Exception(
+                                f"All authentication methods failed. Details: {exceptions}"
+                            )
+
+            # Narrow Optional[Config] for the return type.
+            assert self._config is not None
+            return self._config
 
     @property
     def api_client(self) -> WorkspaceClient:
