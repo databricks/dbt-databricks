@@ -16,6 +16,7 @@
 ### Under the Hood
 
 - Remove the unused `keyring` dependency and its transitive packages ([#1588](https://github.com/databricks/dbt-databricks/pull/1588))
+- Raise the `dbt-core` upper bound to `<1.12.1` to include dbt-core 1.12.0 ([#1604](https://github.com/databricks/dbt-databricks/pull/1604))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
 
