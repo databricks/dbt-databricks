@@ -34,14 +34,10 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
 
     @classmethod
     def from_relation_results(cls, results: RelationResults) -> TagsConfig:
-        table = results.get("information_schema.tags")
-        tags = dict()
-
-        if table:
-            for row in table.rows:
-                tags[str(row[0])] = "" if row[1] is None else str(row[1])
-
-        return TagsConfig(set_tags=tags)
+        tags = results.get("table_tags") or {}
+        return TagsConfig(
+            set_tags={str(key): "" if value is None else str(value) for key, value in tags.items()}
+        )
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TagsConfig:

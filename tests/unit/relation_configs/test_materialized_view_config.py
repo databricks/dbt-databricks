@@ -41,9 +41,7 @@ class TestMaterializedViewConfig:
             "show_tblproperties": Table(
                 rows=[["prop", "1"], ["other", "other"]], column_names=["key", "value"]
             ),
-            "information_schema.tags": Table(
-                rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
-            ),
+            "table_tags": {"a": "b", "c": "d"},
         }
 
         config = MaterializedViewConfig.from_results(results)
@@ -163,6 +161,6 @@ class TestMaterializedViewAPIDescribeRelation:
 
         results = MaterializedViewAPI._describe_relation(adapter, MagicMock())
 
-        assert "information_schema.tags" in results
+        assert "table_tags" in results
         macro_names = {call.args[0] for call in adapter.execute_macro.call_args_list}
-        assert "fetch_tags" in macro_names
+        assert "fetch_tags" not in macro_names
