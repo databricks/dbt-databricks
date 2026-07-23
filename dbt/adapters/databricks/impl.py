@@ -1353,6 +1353,12 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
         kwargs = {"relation": relation}
 
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         if adapter.is_describe_as_json_supported(relation):
