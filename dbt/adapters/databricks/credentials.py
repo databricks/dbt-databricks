@@ -361,10 +361,13 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
     def _ensure_config(self) -> Config:
         """Build (or return cached) SDK Config. Triggers authentication."""
+        # Fast path: avoid locking after initialization
         if self._config is not None:
             return self._config
 
         with _CONFIG_INITIALIZATION_LOCK:
+            # Recheck after waiting: another thread may have initialized it,
+            # avoiding a duplicate Config
             if self._config is not None:
                 return self._config
 
