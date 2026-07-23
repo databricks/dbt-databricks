@@ -1,5 +1,4 @@
 import pytest
-from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
 from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
@@ -40,19 +39,16 @@ class TestMaterializedViewMetadataFetchRequiresTags:
     def models(self):
         return {"mv_metadata_fetch.sql": fixtures.metadata_fetch_materialized_view_with_tags_sql}
 
-    @pytest.fixture(scope="class")
-    def macros(self):
-        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
-
-    def test_second_materialized_view_run_fails_when_tag_fetch_is_required(self, project):
+    def test_second_materialized_view_run_reads_tags_from_api(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
         # path where adapter.get_relation_config() may attempt metadata fetches.
         util.run_dbt(["seed"])
         util.run_dbt(["run"])
+        util.run_dbt(["run"])
 
-        run_execution_results = util.run_dbt(["run"], expect_pass=False)
-        assert len(run_execution_results.results) == 1
-        result = run_execution_results.results[0]
-
-        assert result.status == RunStatus.Error
-        assert "fetch_tags should not be called" in result.message
+        tags = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags` "
+            "where schema_name = '{schema}' and table_name = 'mv_metadata_fetch'",
+            fetch="all",
+        )
+        assert {(row[0], row[1]) for row in tags} == {("classification", "internal")}
