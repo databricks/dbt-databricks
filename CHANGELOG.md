@@ -3,7 +3,7 @@
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
-- Fetch table tags through the Unity Catalog Entity Tag Assignments API instead of `information_schema`, reducing metadata-query rate-limit pressure.
+- Fetch table tags through the Unity Catalog Entity Tag Assignments API instead of `information_schema`, reducing metadata-query rate-limit pressure. ([#1603](https://github.com/databricks/dbt-databricks/pull/1603))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
 
