@@ -6,6 +6,7 @@
 
 ### Fixes
 
+- Avoid treating unchanged Streaming Table `databricks_tags` as configuration changes by diffing against existing table tags. ([#1602](https://github.com/databricks/dbt-databricks/pull/1602) resolves [#1601](https://github.com/databricks/dbt-databricks/issues/1601))
 - Allow dropping a column that has governed tags ([#1597](https://github.com/databricks/dbt-databricks/pull/1597) resolves [#1323](https://github.com/databricks/dbt-databricks/issues/1323))
 - Fix view materialization incorrectly producing a no-op instead of forcing recreation when `--full-refresh` is provided alongside `view_update_via_alter: true` and `use_materialization_v2: true` ([#1456](https://github.com/databricks/dbt-databricks/pull/1456) resolves [#1404](https://github.com/databricks/dbt-databricks/issues/1404))
 - Support `dbt clone` and rebuilds over an existing shallow clone ([#1592](https://github.com/databricks/dbt-databricks/pull/1592) resolves [#1165](https://github.com/databricks/dbt-databricks/issues/1165))
