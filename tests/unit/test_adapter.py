@@ -34,6 +34,9 @@ from dbt.adapters.databricks.impl import (
     ViewAPI,
     get_identifier_list_string,
 )
+from dbt.adapters.databricks.persist_doc_column_warnings import (
+    reset_missing_persist_doc_column_warnings,
+)
 from dbt.adapters.databricks.relation import (
     DatabricksRelation,
     DatabricksRelationType,
@@ -1182,9 +1185,10 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
         # No update needed since comments match
         assert result == {}
 
-    @patch("dbt.adapters.databricks.impl.warn_or_error")
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
     def test_get_persist_doc_columns_warns_on_missing_column(self, mock_warn, adapter):
         """Documented columns absent from the relation are warned about and skipped."""
+        reset_missing_persist_doc_column_warnings()
         existing = [self.create_column("col1", "comment1")]
         column_dict = {
             "col1": {"name": "col1", "description": "new comment"},
@@ -1199,9 +1203,10 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
         assert "col2" in warned_event.base_msg
         assert "col1" not in warned_event.base_msg
 
-    @patch("dbt.adapters.databricks.impl.warn_or_error")
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
     def test_get_persist_doc_columns_no_warning_when_all_present(self, mock_warn, adapter):
         """No warning is emitted when every documented column exists (case-insensitively)."""
+        reset_missing_persist_doc_column_warnings()
         existing = [self.create_column("Account_ID", "")]
         column_dict = {"account_id": {"name": "account_id", "description": "Account ID column"}}
         adapter.get_persist_doc_columns(existing, column_dict)

@@ -2,6 +2,9 @@ from unittest.mock import Mock, patch
 
 from agate import Table
 
+from dbt.adapters.databricks.persist_doc_column_warnings import (
+    reset_missing_persist_doc_column_warnings,
+)
 from dbt.adapters.databricks.relation_configs.column_comments import (
     ColumnCommentsConfig,
     ColumnCommentsProcessor,
@@ -103,9 +106,10 @@ class TestColumnCommentsConfig:
             comments={"`account_id`": "New Account ID"}, persist=True
         )
 
-    @patch("dbt.adapters.databricks.relation_configs.column_comments.warn_or_error")
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
     def test_get_diff__warns_and_skips_missing_column(self, mock_warn):
         """Documented columns absent from the relation are warned about and skipped."""
+        reset_missing_persist_doc_column_warnings()
         # col2 is documented but not present in the relation
         config = ColumnCommentsConfig(
             comments={"col1": "new comment", "col2": "comment for missing column"}, persist=True
@@ -120,17 +124,19 @@ class TestColumnCommentsConfig:
         assert "col2" in warned_event.base_msg
         assert "col1" not in warned_event.base_msg
 
-    @patch("dbt.adapters.databricks.relation_configs.column_comments.warn_or_error")
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
     def test_get_diff__no_warning_when_all_present(self, mock_warn):
         """No warning is emitted when every documented column exists (case-insensitively)."""
+        reset_missing_persist_doc_column_warnings()
         config = ColumnCommentsConfig(comments={"account_id": "Account ID"}, persist=True)
         other = ColumnCommentsConfig(comments={"Account_ID": ""})
         config.get_diff(other)
         mock_warn.assert_not_called()
 
-    @patch("dbt.adapters.databricks.relation_configs.column_comments.warn_or_error")
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
     def test_get_diff__no_warning_when_not_persisting(self, mock_warn):
         """Missing columns are not evaluated (or warned about) when persist is False."""
+        reset_missing_persist_doc_column_warnings()
         config = ColumnCommentsConfig(comments={"col1": "comment", "col2": "comment"})
         other = ColumnCommentsConfig(comments={"col1": "comment"})
         assert config.get_diff(other) is None

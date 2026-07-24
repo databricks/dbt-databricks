@@ -1,11 +1,12 @@
 from typing import ClassVar, Optional
 
 from dbt.adapters.contracts.relation import RelationConfig
-from dbt.adapters.events.types import AdapterEventWarning
 from dbt.adapters.relation_configs.config_base import RelationResults
-from dbt_common.events.functions import warn_or_error
 
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.persist_doc_column_warnings import (
+    warn_missing_persist_doc_columns,
+)
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -33,15 +34,7 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
                 for column_name in self.comments
                 if column_name.lower() not in other_comments_lower
             ]
-            if missing:
-                warn_or_error(
-                    AdapterEventWarning(
-                        base_msg=(
-                            "The following columns are specified in the schema but are not present "
-                            "in the database and will be skipped: " + ", ".join(missing)
-                        )
-                    )
-                )
+            warn_missing_persist_doc_columns(missing)
 
             for column_name, comment in self.comments.items():
                 # Use case-insensitive comparison for column names
