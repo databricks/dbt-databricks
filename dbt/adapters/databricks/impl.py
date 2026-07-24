@@ -3,7 +3,7 @@ import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -57,6 +57,10 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.persist_doc_column_warnings import (
+    reset_missing_persist_doc_column_warnings,
+    warn_missing_persist_doc_columns,
+)
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -902,6 +906,11 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    def pre_model_hook(self, config: Mapping[str, Any]) -> Any:
+        """Reset missing-column warn dedupe so each model materialization can warn once."""
+        reset_missing_persist_doc_column_warnings()
+        return super().pre_model_hook(config)
+
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
         DatabricksAdapterAddQueryRecord,
@@ -1007,6 +1016,17 @@ class DatabricksAdapter(SparkAdapter):
 
         # Create a case-insensitive lookup for column names
         columns_lower = {k.lower(): k for k in columns.keys()}
+
+        # Warn about columns that are documented in the model's schema but are not present in the
+        # relation. These are silently skipped below (rather than erroring on the alter), so surface
+        # them to the user to catch typos and stale documentation.
+        existing_lower = {column.column.lower() for column in existing_columns}
+        missing = [
+            original_name
+            for name_lower, original_name in columns_lower.items()
+            if name_lower not in existing_lower
+        ]
+        warn_missing_persist_doc_columns(missing)
 
         for column in existing_columns:
             name = column.column
