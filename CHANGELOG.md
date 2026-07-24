@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Warn when a column documented in a model's `schema.yml` is absent from the relation while applying column comments, instead of silently skipping it — surfaces typos and stale column documentation. Covers the column-comment comparison paths (V1 `get_persist_doc_columns` and V2 `ColumnCommentsConfig.get_diff`); create-time inline comments are not yet covered. The warning is emitted at most once per unique missing-column set when both paths run in the same model (e.g. V1 incremental subsequent). Ports the behavior added in dbt-adapters ([dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684) closes [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)) ([#1563](https://github.com/databricks/dbt-databricks/pull/1563)).
+- Warn when a column documented in a model's `schema.yml` is absent from the relation while applying column comments, instead of silently skipping it — surfaces typos and stale column documentation. Covers the column-comment comparison paths (V1 `get_persist_doc_columns` and V2 `ColumnCommentsConfig.get_diff`); create-time inline comments are not yet covered. Ports the behavior added in dbt-adapters ([dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684) closes [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)) ([#1563](https://github.com/databricks/dbt-databricks/pull/1563)).
 
 ### Under the Hood
 
