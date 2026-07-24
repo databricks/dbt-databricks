@@ -1,5 +1,6 @@
 import pytest
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from tests.unit.macros.base import MacroTestBase
@@ -22,7 +23,7 @@ class TestColumnTagsMacros(MacroTestBase):
         apply_* wrappers we need the inner ALTER SQL so we can assert on it. Also
         force the UC path (apply_column_tags raises on hive_metastore).
         """
-        template_bundle.context["statement"] = lambda label, caller=None: (
+        template_bundle.context["statement"] = lambda label, fetch_result=False, caller=None: (
             caller() if caller else label
         )
         template_bundle.relation.is_hive_metastore = lambda: False
@@ -59,3 +60,36 @@ class TestColumnTagsMacros(MacroTestBase):
         sql = self.render_bundle(passthrough_statement, "apply_column_tags", config)
         assert "alter" not in sql
         assert "set tags" not in sql
+
+    def test_alter_unset_column_tags_table(self, template_bundle):
+        sql = self.render_bundle(
+            template_bundle, "alter_unset_column_tags", "email", ["pii", "team"]
+        )
+        assert "alter table `some_database`.`some_schema`.`some_table`" in sql
+        assert "alter column `email` unset tags ('pii', 'team')" in sql
+
+    def test_unset_column_tags_noop_on_hive_metastore(self, passthrough_statement):
+        passthrough_statement.relation.is_hive_metastore = lambda: True
+
+        def boom(name):
+            raise AssertionError("must not query column tags on hive metastore")
+
+        passthrough_statement.context["load_result"] = boom
+        columns = [DatabricksColumn("email", "string")]
+        sql = self.run_macro(
+            passthrough_statement.template,
+            "unset_column_tags",
+            passthrough_statement.relation,
+            columns,
+        )
+        assert "unset tags" not in sql
+
+    def test_unset_column_tags_noop_when_no_columns(self, passthrough_statement):
+        def boom(name):
+            raise AssertionError("must not query column tags when there is nothing to drop")
+
+        passthrough_statement.context["load_result"] = boom
+        sql = self.run_macro(
+            passthrough_statement.template, "unset_column_tags", passthrough_statement.relation, []
+        )
+        assert "unset tags" not in sql
