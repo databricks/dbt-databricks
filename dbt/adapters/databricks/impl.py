@@ -3,7 +3,7 @@ import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -20,7 +20,6 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
-from dbt.adapters.events.types import AdapterEventWarning
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
@@ -32,7 +31,6 @@ from dbt.adapters.spark.impl import (
 )
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
-from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
 from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
@@ -59,6 +57,10 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.persist_doc_column_warnings import (
+    reset_missing_persist_doc_column_warnings,
+    warn_missing_persist_doc_columns,
+)
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -904,6 +906,11 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    def pre_model_hook(self, config: Mapping[str, Any]) -> Any:
+        """Reset missing-column warn dedupe so each model materialization can warn once."""
+        reset_missing_persist_doc_column_warnings()
+        return super().pre_model_hook(config)
+
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
         DatabricksAdapterAddQueryRecord,
@@ -1019,15 +1026,7 @@ class DatabricksAdapter(SparkAdapter):
             for name_lower, original_name in columns_lower.items()
             if name_lower not in existing_lower
         ]
-        if missing:
-            warn_or_error(
-                AdapterEventWarning(
-                    base_msg=(
-                        "The following columns are specified in the schema but are not present "
-                        "in the database and will be skipped: " + ", ".join(missing)
-                    )
-                )
-            )
+        warn_missing_persist_doc_columns(missing)
 
         for column in existing_columns:
             name = column.column
