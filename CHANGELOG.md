@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Features
+
+- Add `merge_actions_explicit` model config for the `merge` incremental strategy, allowing the full `WHEN … THEN` block to be supplied as a raw SQL string. This enables multiple `WHEN MATCHED` clauses, conditional `DELETE`, and `WHEN NOT MATCHED BY SOURCE` in a single merge — use-cases not expressible through the individual `skip_matched_step` / `matched_condition` / `not_matched_by_source_action` knobs (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018))
+
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))

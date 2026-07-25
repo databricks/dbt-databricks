@@ -58,6 +58,11 @@ def test_databricks_config_declares_skip_not_matched_step():
     assert "skip_non_matched_step" not in names
 
 
+def test_databricks_config_declares_merge_actions_explicit():
+    names = {f.name for f in fields(DatabricksConfig)}
+    assert "merge_actions_explicit" in names
+
+
 def _catalog_row(column_name: str) -> dict:
     """Mimics the dict shape `_get_columns_for_catalog` yields per column."""
     return {

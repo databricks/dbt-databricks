@@ -521,3 +521,56 @@ class TestMergeWithExplicitActions(IncrementalBase):
             project.adapter,
             ["merge_with_explicit_actions_model", "merge_with_explicit_actions_expected"],
         )
+
+
+class TestMergeExplicitActionsCompositeKey(IncrementalBase):
+    """merge_actions_explicit works correctly with a composite unique_key."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_explicit_composite_key_expected.csv": fixtures.merge_explicit_composite_key_expected,  # noqa: E501
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_explicit_composite_key_model.sql": fixtures.merge_explicit_composite_key_model,
+        }
+
+    def test_merge_composite_key(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter,
+            [
+                "merge_explicit_composite_key_model",
+                "merge_explicit_composite_key_expected",
+            ],
+        )
+
+
+class TestMergeExplicitActionsFullRefresh(IncrementalBase):
+    """--full-refresh on a model using merge_actions_explicit recreates the table from scratch."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "merge_explicit_full_refresh_expected.csv": fixtures.merge_explicit_full_refresh_expected,  # noqa: E501
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "merge_explicit_full_refresh_model.sql": fixtures.merge_explicit_full_refresh_model,
+        }
+
+    def test_full_refresh(self, project):
+        # First run: creates the table with the non-incremental branch rows.
+        # Second run: incremental merge (updates/inserts rows).
+        self.seed_and_run_twice()
+        # Full refresh: re-runs the non-incremental branch, table is recreated with initial rows.
+        util.run_dbt(["run", "--full-refresh"])
+        util.check_relations_equal(
+            project.adapter,
+            ["merge_explicit_full_refresh_model", "merge_explicit_full_refresh_expected"],
+        )
