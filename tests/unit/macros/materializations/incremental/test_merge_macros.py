@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
@@ -87,3 +89,69 @@ class TestGetMergeSQL(MacroTestBase):
         sql = self.render_insert(template, on_schema_change="append", source_columns=["a", "b"])
         expected = "(`a`, `b`) VALUES (src.`a`, src.`b`)"
         self.assert_sql_equal(sql, expected)
+
+
+class TestMergeActionsExplicit(MacroTestBase):
+    """Tests for the merge_actions_explicit config key in databricks__get_merge_sql."""
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/incremental"]
+
+    @pytest.fixture(autouse=True)
+    def setup_merge_context(self, context):
+        """Set up adapter mocks required by databricks__get_merge_sql."""
+        mock_col = Mock()
+        mock_col.name = "id"
+        mock_col.quoted = "`id`"
+        context["adapter"].get_columns_in_relation.return_value = [mock_col]
+        context["incremental_validate_on_schema_change"] = lambda val, default="ignore": (
+            val if val else default
+        )
+        # These sibling macros from strategies.sql are called unqualified inside
+        # databricks__get_merge_sql; inject minimal stubs so the macro can render.
+        context["get_merge_update_columns"] = lambda *a, **kw: None
+        context["get_merge_update_set"] = lambda *a, **kw: "*"
+        context["get_merge_insert"] = lambda *a, **kw: "*"
+
+    def render_merge_sql(self, template, config, unique_key="id", source="src_rel", target="tgt_rel"):
+        config.setdefault("target_alias", "DBT_INTERNAL_DEST")
+        config.setdefault("source_alias", "DBT_INTERNAL_SOURCE")
+        return self.run_macro_raw(
+            template,
+            "databricks__get_merge_sql",
+            target,
+            source,
+            unique_key,
+            [],   # dest_columns — overridden by adapter.get_columns_in_relation inside macro
+            None, # incremental_predicates
+        )
+
+    def test_explicit_actions_appear_in_sql(self, template, config):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched then fake_action" in sql
+
+    def test_explicit_actions_suppresses_default_when_clauses(self, template, config):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched then fake_action" in sql
+        # Default path renders "then update set *"; explicit block must replace it entirely
+        assert "then update set" not in sql
+
+    def test_empty_string_falls_back_to_default_path(self, template, config):
+        config["merge_actions_explicit"] = ""
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        # Default path renders WHEN MATCHED … THEN UPDATE SET
+        assert "when matched" in sql
+        assert "then update set" in sql
+
+    def test_whitespace_only_falls_back_to_default_path(self, template, config):
+        config["merge_actions_explicit"] = "   \n\t  "
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched" in sql
+        assert "then update set" in sql
