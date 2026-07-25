@@ -219,6 +219,7 @@ class DatabricksConfig(AdapterConfig):
     not_matched_condition: Optional[str] = None
     not_matched_by_source_action: Optional[str] = None
     not_matched_by_source_condition: Optional[str] = None
+    merge_actions_explicit: Optional[str] = None
     target_alias: Optional[str] = None
     source_alias: Optional[str] = None
     merge_with_schema_evolution: Optional[bool] = None

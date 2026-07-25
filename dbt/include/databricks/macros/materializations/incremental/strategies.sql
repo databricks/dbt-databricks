@@ -296,8 +296,36 @@ where {{ incremental_predicates }}
       or not_matched_by_source_action_trimmed.startswith('update')
     )
   %}
-  
-  
+
+  {#
+    Merge actions can be set explicitly by providing a multiline code block
+    in the model config. In that case all matched/not matched actions settings
+    are ignored.
+  #}
+  {%- set merge_actions_explicit = config.get('merge_actions_explicit', '') | trim(' \n\t') -%}
+  {%- set merge_actions_explicit_is_set = merge_actions_explicit | length > 0 -%}
+
+  {#
+    Explicit merge actions fully replace the generated matched/not matched
+    clauses, so any of the individual action configs would be silently ignored.
+    Warn the user when such a conflicting config is detected.
+  #}
+  {%- if merge_actions_explicit_is_set -%}
+    {%- set ignored_configs = [] -%}
+    {%- if skip_matched_step -%}{%- do ignored_configs.append('skip_matched_step') -%}{%- endif -%}
+    {%- if skip_not_matched_step -%}{%- do ignored_configs.append('skip_not_matched_step') -%}{%- endif -%}
+    {%- if matched_condition is not none -%}{%- do ignored_configs.append('matched_condition') -%}{%- endif -%}
+    {%- if not_matched_condition is not none -%}{%- do ignored_configs.append('not_matched_condition') -%}{%- endif -%}
+    {%- if not_matched_by_source_action is not none -%}{%- do ignored_configs.append('not_matched_by_source_action') -%}{%- endif -%}
+    {%- if not_matched_by_source_condition is not none -%}{%- do ignored_configs.append('not_matched_by_source_condition') -%}{%- endif -%}
+    {%- if ignored_configs | length > 0 -%}
+      {%- do exceptions.warn(
+        "merge_actions_explicit is set; ignoring conflicting merge action config(s): "
+        ~ ignored_configs | join(', ')
+      ) -%}
+    {%- endif -%}
+  {%- endif -%}
+
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}
@@ -326,28 +354,32 @@ where {{ incremental_predicates }}
         {{ source }} as {{ source_alias }}
     on
         {{ predicates | join('\n    and ') }}
-    {%- if not skip_matched_step %}
+    {%- if merge_actions_explicit_is_set %}
+    {{ merge_actions_explicit }}
+    {%- else %}
+        {%- if not skip_matched_step %}
     when matched
-        {%- if matched_condition %}
+            {%- if matched_condition %}
         and ({{ matched_condition }})
-        {%- endif %}
+            {%- endif %}
         then update set
             {{ get_merge_update_set(update_columns, on_schema_change, source_columns, source_alias) }}
-    {%- endif %}
-    {%- if not skip_not_matched_step %}
-    when not matched
-        {%- if not_matched_condition %}
-        and ({{ not_matched_condition }})
         {%- endif %}
+        {%- if not skip_not_matched_step %}
+    when not matched
+            {%- if not_matched_condition %}
+        and ({{ not_matched_condition }})
+            {%- endif %}
         then insert
             {{ get_merge_insert(on_schema_change, source_columns, source_alias) }}
-    {%- endif %}
-    {%- if not_matched_by_source_action_is_set %}
-    when not matched by source
-        {%- if not_matched_by_source_condition %}
-        and ({{ not_matched_by_source_condition }})
         {%- endif %}
+        {%- if not_matched_by_source_action_is_set %}
+    when not matched by source
+            {%- if not_matched_by_source_condition %}
+        and ({{ not_matched_by_source_condition }})
+            {%- endif %}
         then {{ not_matched_by_source_action }}
+        {%- endif %}
     {%- endif %}
 {% endmacro %}
 
