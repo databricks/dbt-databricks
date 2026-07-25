@@ -303,10 +303,29 @@ where {{ incremental_predicates }}
     are ignored.
   #}
   {%- set merge_actions_explicit = config.get('merge_actions_explicit', '') | trim(' \n\t') -%}
+  {%- set merge_actions_explicit_is_set = merge_actions_explicit | length > 0 -%}
 
-  {%- set merge_actions_explicit_is_set = merge_actions_explicit | length > 0  %}
-  
-  
+  {#
+    Explicit merge actions fully replace the generated matched/not matched
+    clauses, so any of the individual action configs would be silently ignored.
+    Warn the user when such a conflicting config is detected.
+  #}
+  {%- if merge_actions_explicit_is_set -%}
+    {%- set ignored_configs = [] -%}
+    {%- if skip_matched_step -%}{%- do ignored_configs.append('skip_matched_step') -%}{%- endif -%}
+    {%- if skip_not_matched_step -%}{%- do ignored_configs.append('skip_not_matched_step') -%}{%- endif -%}
+    {%- if matched_condition is not none -%}{%- do ignored_configs.append('matched_condition') -%}{%- endif -%}
+    {%- if not_matched_condition is not none -%}{%- do ignored_configs.append('not_matched_condition') -%}{%- endif -%}
+    {%- if not_matched_by_source_action is not none -%}{%- do ignored_configs.append('not_matched_by_source_action') -%}{%- endif -%}
+    {%- if not_matched_by_source_condition is not none -%}{%- do ignored_configs.append('not_matched_by_source_condition') -%}{%- endif -%}
+    {%- if ignored_configs | length > 0 -%}
+      {%- do exceptions.warn(
+        "merge_actions_explicit is set; ignoring conflicting merge action config(s): "
+        ~ ignored_configs | join(', ')
+      ) -%}
+    {%- endif -%}
+  {%- endif -%}
+
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
           {% for key in unique_key %}

@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add `merge_actions_explicit` model config for the `merge` incremental strategy, allowing the full `WHEN … THEN` block to be supplied as a raw SQL string. This enables multiple `WHEN MATCHED` clauses, conditional `DELETE`, and `WHEN NOT MATCHED BY SOURCE` in a single merge — use-cases not expressible through the individual `skip_matched_step` / `matched_condition` / `not_matched_by_source_action` knobs (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018))
+- Add `merge_actions_explicit` model config for the `merge` incremental strategy, allowing the full `WHEN … THEN` block to be supplied as a raw SQL string. This enables multiple `WHEN MATCHED` clauses, conditional `DELETE`, and `WHEN NOT MATCHED BY SOURCE` in a single merge — use-cases not expressible through the individual `skip_matched_step` / `matched_condition` / `not_matched_by_source_action` knobs. When it is set, those individual action configs are ignored and a warning is emitted if any of them are also supplied (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018))
 
 ### Under the Hood
 
