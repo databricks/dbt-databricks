@@ -440,6 +440,22 @@ class TestCursorWrapper:
         assert isinstance(response, DatabricksAdapterResponse)
         assert response.query_id == "id"
 
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_response__with_rows_affected(self, cursor):
+        cursor.query_id = "id"
+        cursor.rowcount = 358
+        wrapper = CursorWrapper(cursor)
+        response = wrapper.get_response()
+        assert response.rows_affected == 358
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_response__rows_affected_none_when_minus_one(self, cursor):
+        cursor.query_id = "id"
+        cursor.rowcount = -1
+        wrapper = CursorWrapper(cursor)
+        response = wrapper.get_response()
+        assert response.rows_affected is None
+
     def test_get_response__with_job_context(self, cursor):
         cursor.query_id = "qid"
         wrapper = CursorWrapper(cursor)
@@ -659,9 +675,26 @@ class TestDatabricksAdapterResponse:
         cursor.query_id = "q1"
         resp = DatabricksAdapterResponse.from_cursor(cursor)
         assert resp.query_id == "q1"
+        assert resp.rows_affected is None
         assert resp.job_id is None
         assert resp.job_run_id is None
         assert resp.task_run_id is None
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__with_rows_affected(self):
+        cursor = Mock()
+        cursor.query_id = "q1"
+        cursor.rowcount = 100
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.rows_affected == 100
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__rows_affected_minus_one(self):
+        cursor = Mock()
+        cursor.query_id = "q1"
+        cursor.rowcount = -1
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.rows_affected is None
 
     def test_from_cursor__with_context(self):
         cursor = Mock()

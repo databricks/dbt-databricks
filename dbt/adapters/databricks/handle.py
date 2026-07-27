@@ -87,12 +87,15 @@ class DatabricksAdapterResponse(AdapterResponse):
     job_id: Optional[str] = None
     job_run_id: Optional[str] = None
     task_run_id: Optional[str] = None
+    rows_affected: Optional[int] = None
 
     @classmethod
     def from_cursor(cls, cursor: Any) -> "DatabricksAdapterResponse":
+        rowcount = getattr(cursor, "rowcount", None)
         return cls(
             _message="OK",
             query_id=getattr(cursor, "query_id", None) or "N/A",
+            rows_affected=rowcount if isinstance(rowcount, int) and rowcount >= 0 else None,
             **_get_job_run_context(),
         )
 

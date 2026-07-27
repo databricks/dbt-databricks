@@ -2,6 +2,7 @@
 
 ### Features
 
+- Expose `rows_affected` in the adapter response for DML operations so the count of affected rows is available in `run_results.json` (resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
 - Support `catalog_database` in v2 catalogs.yml to route Unity catalog models to a physical catalog independent of the dbt catalog name (requires `dbt-core>=1.12` and `dbt-adapters>=1.24.4`). ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
 
 ### Fixes
