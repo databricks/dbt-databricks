@@ -150,6 +150,83 @@ class TestCloneShallowClone(BaseClone, CleanupMixin):
         )
 
 
+class TestCloneHmsRelationMatrix(BaseClone, CleanupMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "hms_clone_new_model.sql": fixtures.table_model_sql,
+            "hms_clone_regular_model.sql": fixtures.table_model_sql,
+            "hms_clone_shallow_model.sql": fixtures.table_model_sql,
+            "hms_clone_view_model.sql": fixtures.table_model_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def _target(self, project, schema, identifier):
+        return f"`{project.database}`.`{schema}`.`{identifier}`"
+
+    def _latest_version(self, project, relation):
+        history = project.run_sql(f"describe history {relation}", fetch="all")
+        operations = {row[4] for row in history}
+        return max(row[0] for row in history), operations
+
+    def test_clone_full_refresh_over_hms_relation_shapes(
+        self, project, unique_schema, other_schema
+    ):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        regular = self._target(project, other_schema, "hms_clone_regular_model")
+        shallow = self._target(project, other_schema, "hms_clone_shallow_model")
+        view = self._target(project, other_schema, "hms_clone_view_model")
+
+        run_dbt(["run", "--target", "otherschema", "-s", "hms_clone_regular_model"])
+        regular_before, _ = self._latest_version(project, regular)
+
+        run_dbt(
+            [
+                "clone",
+                "--state",
+                "state",
+                "--target",
+                "otherschema",
+                "-s",
+                "hms_clone_shallow_model",
+            ]
+        )
+        shallow_before, shallow_before_operations = self._latest_version(project, shallow)
+        assert "CLONE" in shallow_before_operations
+
+        project.run_sql(f"create or replace view {view} as select 2 as id")
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema", "--full-refresh"])
+
+        histories = {
+            identifier: self._latest_version(
+                project, self._target(project, other_schema, identifier)
+            )
+            for identifier in (
+                "hms_clone_new_model",
+                "hms_clone_regular_model",
+                "hms_clone_shallow_model",
+                "hms_clone_view_model",
+            )
+        }
+        for identifier, (_, operations) in histories.items():
+            assert "CLONE" in operations, f"{identifier} history operations: {operations}"
+
+        assert histories["hms_clone_regular_model"][0] > regular_before
+        assert histories["hms_clone_shallow_model"][0] > shallow_before
+        assert project.run_sql(f"select id from {view}", fetch="all")[0][0] == 1
+
+
 def _table_type(project, schema, identifier):
     rows = project.run_sql(
         f"""
