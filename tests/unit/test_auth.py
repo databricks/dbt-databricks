@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from unittest import mock
 
 import pytest
@@ -138,6 +140,58 @@ class TestEnsureConfigTriggersTheRightAuth:
             assert mock_config.call_args_list[0].kwargs["auth_type"] == "azure-client-secret"
             # Second call: oauth-m2m fallback.
             assert mock_config.call_args_list[1].kwargs["auth_type"] == "oauth-m2m"
+
+    def test_config_initializes_once_when_accessed_concurrently(self):
+        creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
+        manager = creds.authenticate()
+        workers = 8
+        start = Barrier(workers)
+        constructors = Barrier(workers)
+        config = mock.MagicMock()
+
+        class CoordinatedLock:
+            def __init__(self):
+                self.arrivals = 0
+                self._arrivals_lock = Lock()
+                self._lock = Lock()
+                self._all_callers = Barrier(workers)
+
+            def __enter__(self):
+                with self._arrivals_lock:
+                    self.arrivals += 1
+                self._all_callers.wait()
+                self._lock.acquire()
+
+            def __exit__(self, *_args):
+                self._lock.release()
+
+        initialization_lock = CoordinatedLock()
+
+        def build_config(**_kwargs):
+            if initialization_lock.arrivals == 0:
+                constructors.wait()
+            return config
+
+        def get_config(_worker):
+            start.wait()
+            return manager.config
+
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials._CONFIG_INITIALIZATION_LOCK",
+                initialization_lock,
+                create=True,
+            ),
+            mock.patch(
+                "dbt.adapters.databricks.credentials.Config", side_effect=build_config
+            ) as mock_config,
+        ):
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                configs = list(executor.map(get_config, range(workers)))
+
+        assert all(result is config for result in configs)
+        assert initialization_lock.arrivals == workers
+        assert mock_config.call_count == 1
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")
