@@ -459,6 +459,10 @@ class TestDeleteInsertCompositeKey(IncrementalBase):
         }
 
     @pytest.fixture(scope="class")
+    def macros(self):
+        return {"force_legacy_delete_insert.sql": fixtures.force_legacy_delete_insert_macros}
+
+    @pytest.fixture(scope="class")
     def seeds(self):
         return {
             "delete_insert_expected.csv": fixtures.delete_insert_composite_key_expected,

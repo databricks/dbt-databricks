@@ -449,6 +449,20 @@ select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
 {% endif %}
 """
 
+force_legacy_delete_insert_macros = """
+{% macro delete_insert_sql_impl(
+     source_relation, target_relation, target_columns, unique_key, incremental_predicates
+   ) %}
+  {#-- Force the DBR < 17.1 path so the legacy DELETE predicate runs on any compute --#}
+  {%- set keys = unique_key
+        if unique_key is sequence and unique_key is not string
+        else [unique_key] -%}
+  {% do return(delete_insert_legacy_sql(
+       source_relation, target_relation, target_columns, keys, incremental_predicates
+     )) %}
+{% endmacro %}
+"""
+
 delete_insert_composite_key_model = """
 {{ config(
     materialized = 'incremental',

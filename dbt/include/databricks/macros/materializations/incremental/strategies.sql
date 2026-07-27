@@ -180,7 +180,7 @@ replace on ({{ replace_on_expr }})
   {%- set statements = [] -%}
   
   {#-- Build WHERE clause for DELETE statement --#}
-  {#-- Match the whole key tuple; per-column IN would delete unmatched key combinations --#}
+  {#-- Match the whole key tuple; per-column IN deletes unmatched combinations (issue #1611) --#}
   {%- set delete_conditions = [] -%}
   {%- set target_keys = [] -%}
   {%- set source_keys = [] -%}
