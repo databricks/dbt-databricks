@@ -51,6 +51,65 @@ class TestDatabricksUtils:
         )
         assert redact_credentials(sql) == expected
 
+    def test_redact_credentials__uppercase_credential(self):
+        sql = "copy into target_table\nfrom source_table\n  WITH (CREDENTIAL ('KEY' = 'VALUE'))"
+        expected = (
+            "copy into target_table\nfrom source_table\n  WITH (CREDENTIAL ('KEY' = '[REDACTED]'))"
+        )
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__encryption(self):
+        sql = (
+            "copy into target_table\n"
+            "from source_table\n"
+            "  WITH (encryption ('TYPE' = 'AWS_SSE_C', 'MASTER_KEY' = 'VALUE'))"
+        )
+        expected = (
+            "copy into target_table\n"
+            "from source_table\n"
+            "  WITH (encryption ('TYPE' = '[REDACTED]', 'MASTER_KEY' = '[REDACTED]'))"
+        )
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__credential_and_encryption(self):
+        sql = (
+            "copy into target_table\n"
+            "from source_table\n"
+            "  WITH (credential ('KEY' = 'VALUE') encryption ('MASTER_KEY' = 'VALUE'))"
+        )
+        expected = (
+            "copy into target_table\n"
+            "from source_table\n"
+            "  WITH (credential ('KEY' = '[REDACTED]') encryption ('MASTER_KEY' = '[REDACTED]'))"
+        )
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__value_with_comma(self):
+        sql = "copy into target_table\n  WITH (credential ('KEY' = 'VALUE,WITH,COMMAS'))"
+        expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__value_with_newline(self):
+        sql = "copy into target_table\n  WITH (credential ('KEY' = 'VALUE\nCONTINUED'))"
+        expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__key_with_dots(self):
+        sql = "copy into target_table\n  WITH (credential ('fs.azure.account.key' = 'VALUE'))"
+        expected = (
+            "copy into target_table\n  WITH (credential ('fs.azure.account.key' = '[REDACTED]'))"
+        )
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__prefixed_keyword(self):
+        sql = "copy into target_table\n  WITH (storage_credential ('KEY' = 'VALUE'))"
+        expected = "copy into target_table\n  WITH (storage_credential ('KEY' = '[REDACTED]'))"
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__non_option_clause(self):
+        sql = "select * from target_table where credential_id = 1"
+        assert redact_credentials(sql) == sql
+
     def test_remove_ansi(self):
         test_string = """Python model failed with traceback as:
   [0;31m---------------------------------------------------------------------------[0m
