@@ -18,8 +18,9 @@ A = TypeVar("A", bound=BaseAdapter)
 
 
 _SECRET_OPTION_KEY = r"'[^']+'"
-# '.*?' here backtracks exponentially on an unterminated clause; this form stays linear.
-_SECRET_OPTION_VALUE = r"'(?:[^']|'')*'"
+# A closing quote is one followed by a delimiter, so any other quote is part of the value. Spelling
+# that out keeps the match linear, where '.*?' backtracks exponentially on an unterminated clause.
+_SECRET_OPTION_VALUE = r"'(?:[^']|'(?!\s*[,)]))*'"
 _SECRET_OPTION = _SECRET_OPTION_KEY + r"\s*=\s*" + _SECRET_OPTION_VALUE
 
 SECRET_CLAUSE_IN_COPY_INTO_REGEX = re.compile(

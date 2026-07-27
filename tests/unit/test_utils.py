@@ -94,6 +94,16 @@ class TestDatabricksUtils:
         expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
         assert redact_credentials(sql) == expected
 
+    def test_redact_credentials__value_with_quote(self):
+        sql = "copy into target_table\n  WITH (credential ('KEY' = 'VALUE'WITH'QUOTES'))"
+        expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
+        assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__value_with_escaped_quote(self):
+        sql = "copy into target_table\n  WITH (credential ('KEY' = 'VALUE\\'ESCAPED'))"
+        expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
+        assert redact_credentials(sql) == expected
+
     def test_redact_credentials__key_with_dots(self):
         sql = "copy into target_table\n  WITH (credential ('fs.azure.account.key' = 'VALUE'))"
         expected = (
