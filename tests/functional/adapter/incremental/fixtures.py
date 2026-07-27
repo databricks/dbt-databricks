@@ -309,6 +309,13 @@ delete_insert_expected = """id,msg
 3,anyway
 """
 
+delete_insert_composite_key_expected = """id,color,msg
+1,blue,hello
+2,red,goodbye
+1,red,updated
+2,blue,updated
+"""
+
 delete_insert_update_schema_expected = """id
 1
 2
@@ -438,6 +445,30 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+delete_insert_composite_key_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'color'],
+    incremental_strategy = 'delete+insert',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'blue' as color, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'red' as color, 'goodbye' as msg
+
+{% else %}
+
+-- Neither key tuple exists in the target, so nothing should be deleted.
+-- Matching each key column on its own would delete both existing rows.
+select cast(1 as bigint) as id, 'red' as color, 'updated' as msg
+union all
+select cast(2 as bigint) as id, 'blue' as color, 'updated' as msg
 
 {% endif %}
 """

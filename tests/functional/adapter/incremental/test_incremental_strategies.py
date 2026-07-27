@@ -451,6 +451,26 @@ class TestDeleteInsert(IncrementalBase):
         )
 
 
+class TestDeleteInsertCompositeKey(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.delete_insert_composite_key_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_composite_key_expected,
+        }
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
 class TestDeleteInsertUpdateSchema(IncrementalBase):
     @pytest.fixture(scope="class")
     def models(self):
