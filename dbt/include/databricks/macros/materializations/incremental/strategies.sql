@@ -180,10 +180,19 @@ replace on ({{ replace_on_expr }})
   {%- set statements = [] -%}
   
   {#-- Build WHERE clause for DELETE statement --#}
+  {#-- Match the whole key tuple; per-column IN would delete unmatched key combinations --#}
   {%- set delete_conditions = [] -%}
+  {%- set target_keys = [] -%}
+  {%- set source_keys = [] -%}
   {%- for key in unique_keys -%}
-    {%- do delete_conditions.append(target_relation ~ '.' ~ adapter.quote(key) ~ ' IN (SELECT ' ~ adapter.quote(key) ~ ' FROM ' ~ source_relation ~ ')') -%}
+    {%- do target_keys.append(target_relation ~ '.' ~ adapter.quote(key)) -%}
+    {%- do source_keys.append(adapter.quote(key)) -%}
   {%- endfor -%}
+  {%- if unique_keys | length > 1 -%}
+    {%- do delete_conditions.append('(' ~ target_keys | join(', ') ~ ') IN (SELECT DISTINCT ' ~ source_keys | join(', ') ~ ' FROM ' ~ source_relation ~ ')') -%}
+  {%- else -%}
+    {%- do delete_conditions.append(target_keys[0] ~ ' IN (SELECT ' ~ source_keys[0] ~ ' FROM ' ~ source_relation ~ ')') -%}
+  {%- endif -%}
   
   {#-- Add incremental predicates to DELETE if specified --#}
   {%- if incremental_predicates is sequence and incremental_predicates is not string -%}
