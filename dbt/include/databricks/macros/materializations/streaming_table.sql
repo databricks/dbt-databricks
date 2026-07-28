@@ -74,7 +74,6 @@
 
     {{ execute_multiple_statements(build_sql) }}
 
-    {#-- Warn (post-build) about documented columns absent from the streaming table. --#}
     {% do validate_persist_doc_columns(target_relation, model) %}
 
     {%- do apply_tags(target_relation, tags) -%}
