@@ -81,8 +81,8 @@
       {%- endif -%}
     {%- endif -%}
 
-    {#-- Warn (post-build) about documented columns absent from the final relation. Runs on every
-         sub-branch above and regardless of incremental_apply_config_changes. --#}
+    {#-- Placed here so it runs on every sub-branch above (create/replace/merge) and regardless of
+         incremental_apply_config_changes. --#}
     {% do validate_persist_doc_columns(target_relation, model) %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
