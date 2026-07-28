@@ -1212,6 +1212,45 @@ class TestGetPersistDocColumns(DatabricksAdapterBase):
         adapter.get_persist_doc_columns(existing, column_dict)
         mock_warn.assert_not_called()
 
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
+    def test_validate_persist_doc_columns_warns_on_missing_column(self, mock_warn, adapter):
+        """A documented column absent from the (post-build) relation is warned about."""
+        reset_missing_persist_doc_column_warnings()
+        existing = [self.create_column("col1", "comment1")]
+        column_dict = {
+            "col1": {"name": "col1", "description": "comment1"},
+            "col2": {"name": "col2", "description": "typo / stale doc"},
+        }
+        assert adapter.validate_persist_doc_columns(existing, column_dict) is None
+        mock_warn.assert_called_once()
+        warned_event = mock_warn.call_args.args[0]
+        assert "col2" in warned_event.base_msg
+        assert "col1" not in warned_event.base_msg
+
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
+    def test_validate_persist_doc_columns_no_warning_for_newly_added_column(
+        self, mock_warn, adapter
+    ):
+        """A legitimately new column is present in the freshly built relation post-build, so the
+        post-build check does not false-warn about it (the E1 regression)."""
+        reset_missing_persist_doc_column_warnings()
+        # col2 was just added to the model; post-build it exists in the relation.
+        existing = [self.create_column("col1", "c1"), self.create_column("col2", "c2")]
+        column_dict = {
+            "col1": {"name": "col1", "description": "c1"},
+            "col2": {"name": "col2", "description": "c2"},
+        }
+        adapter.validate_persist_doc_columns(existing, column_dict)
+        mock_warn.assert_not_called()
+
+    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
+    def test_validate_persist_doc_columns_case_insensitive(self, mock_warn, adapter):
+        reset_missing_persist_doc_column_warnings()
+        existing = [self.create_column("Account_ID", "")]
+        column_dict = {"account_id": {"name": "account_id", "description": "Account ID"}}
+        adapter.validate_persist_doc_columns(existing, column_dict)
+        mock_warn.assert_not_called()
+
 
 class TestGetColumnsByDbrVersion(DatabricksAdapterBase):
     @pytest.fixture

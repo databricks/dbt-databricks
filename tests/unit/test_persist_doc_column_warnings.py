@@ -21,11 +21,15 @@ class TestWarnMissingPersistDocColumnsDedupe:
         mock_warn.assert_called_once()
 
     @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
-    def test_get_diff_and_helper_share_dedupe(self, mock_warn):
-        """get_diff then the shared helper must not double-fire for the same cols."""
+    def test_get_diff_does_not_warn_helper_still_dedupes(self, mock_warn):
+        """get_diff is silent (warning moved post-build); the shared helper still dedupes."""
         config = ColumnCommentsConfig(comments={"col1": "new", "col2": "missing"}, persist=True)
         other = ColumnCommentsConfig(comments={"col1": "old"})
         config.get_diff(other)
+        # The pre-materialization diff no longer contributes a warning.
+        mock_warn.assert_not_called()
+        # The post-build path warns once per unique set.
+        warn_missing_persist_doc_columns(["col2"])
         warn_missing_persist_doc_columns(["col2"])
         mock_warn.assert_called_once()
         assert "col2" in mock_warn.call_args.args[0].base_msg

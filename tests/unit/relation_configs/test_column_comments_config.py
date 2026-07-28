@@ -48,9 +48,26 @@ class TestColumnCommentsProcessor:
     def test_from_relation_config__with_persist(self):
         model = Mock()
         model.columns = {"col1": {"description": "test comment"}}
-        model.config.persist_docs = {"relation": True}
+        # Column comments are gated on persist_docs.columns, not .relation.
+        model.config.persist_docs = {"columns": True}
         config = ColumnCommentsProcessor.from_relation_config(model)
         assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
+
+    def test_from_relation_config__columns_true_relation_false(self):
+        """persist_docs.columns drives column comments even when .relation is false."""
+        model = Mock()
+        model.columns = {"col1": {"description": "test comment"}}
+        model.config.persist_docs = {"columns": True, "relation": False}
+        config = ColumnCommentsProcessor.from_relation_config(model)
+        assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
+
+    def test_from_relation_config__relation_true_columns_false(self):
+        """Column comments are not applied when .columns is off, even if .relation is on."""
+        model = Mock()
+        model.columns = {"col1": {"description": "test comment"}}
+        model.config.persist_docs = {"relation": True, "columns": False}
+        config = ColumnCommentsProcessor.from_relation_config(model)
+        assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=False)
 
 
 class TestColumnCommentsConfig:
@@ -107,8 +124,13 @@ class TestColumnCommentsConfig:
         )
 
     @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
-    def test_get_diff__warns_and_skips_missing_column(self, mock_warn):
-        """Documented columns absent from the relation are warned about and skipped."""
+    def test_get_diff__skips_missing_column_without_warning(self, mock_warn):
+        """Documented columns absent from the relation are skipped; get_diff does not warn.
+
+        The missing-column warning now runs post-build (validate_persist_doc_columns), so the
+        pre-materialization diff must stay silent to avoid false-warning on a legitimately new
+        column.
+        """
         reset_missing_persist_doc_column_warnings()
         # col2 is documented but not present in the relation
         config = ColumnCommentsConfig(
@@ -118,19 +140,7 @@ class TestColumnCommentsConfig:
         diff = config.get_diff(other)
         # Only the existing column is included in the diff; the missing one is skipped.
         assert diff == ColumnCommentsConfig(comments={"`col1`": "new comment"}, persist=True)
-        # A warning is emitted naming the missing column.
-        mock_warn.assert_called_once()
-        warned_event = mock_warn.call_args.args[0]
-        assert "col2" in warned_event.base_msg
-        assert "col1" not in warned_event.base_msg
-
-    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
-    def test_get_diff__no_warning_when_all_present(self, mock_warn):
-        """No warning is emitted when every documented column exists (case-insensitively)."""
-        reset_missing_persist_doc_column_warnings()
-        config = ColumnCommentsConfig(comments={"account_id": "Account ID"}, persist=True)
-        other = ColumnCommentsConfig(comments={"Account_ID": ""})
-        config.get_diff(other)
+        # No warning is emitted from the diff path.
         mock_warn.assert_not_called()
 
     @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")

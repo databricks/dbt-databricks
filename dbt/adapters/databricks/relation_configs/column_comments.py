@@ -4,9 +4,6 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt.adapters.relation_configs.config_base import RelationResults
 
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.persist_doc_column_warnings import (
-    warn_missing_persist_doc_columns,
-)
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
@@ -26,18 +23,12 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
             # Create a case-insensitive lookup for other's column comments
             other_comments_lower = {k.lower(): v for k, v in other.comments.items()}
 
-            # Warn about columns that are documented in the model's schema but are not present in
-            # the relation. These are skipped below (rather than erroring on the alter), so surface
-            # them to the user to catch typos and stale documentation.
-            missing = [
-                column_name
-                for column_name in self.comments
-                if column_name.lower() not in other_comments_lower
-            ]
-            warn_missing_persist_doc_columns(missing)
-
             for column_name, comment in self.comments.items():
-                # Use case-insensitive comparison for column names
+                # Use case-insensitive comparison for column names. Documented columns that are
+                # absent from the relation are skipped here so the alter never targets a nonexistent
+                # column; the user-facing "missing column" warning is emitted post-build by
+                # validate_persist_doc_columns (against the actual relation), so a legitimately new
+                # column is not flagged before it has been materialized.
                 if column_name.lower() not in other_comments_lower:
                     continue
                 other_comment = other_comments_lower.get(column_name.lower())
@@ -68,7 +59,10 @@ class ColumnCommentsProcessor(DatabricksComponentProcessor[ColumnCommentsConfig]
         columns = getattr(relation_config, "columns", {})
         persist = False
         if relation_config.config:
-            persist = relation_config.config.persist_docs.get("relation") or False
+            # Column comments are gated on persist_docs.columns (the column-level knob), matching
+            # config.persist_column_docs() used by the V1 persist_docs / view-create / seed paths.
+            # persist_docs.relation is the table-comment knob and is the wrong gate here.
+            persist = relation_config.config.persist_docs.get("columns") or False
         comments = {}
         for column_name, column in columns.items():
             if hasattr(column, "description"):
