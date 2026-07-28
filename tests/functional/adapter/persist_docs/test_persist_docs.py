@@ -691,3 +691,90 @@ class TestPersistDocsColumnMissingWarnsOnceV1IncrementalSubsequent:
             f"Expected exactly 1 missing-column warning on V1 incremental subsequent, "
             f"found {second_logs.count(_MISSING_COLUMN_WARNING)}. Logs:\n{second_logs}"
         )
+
+
+class TestPersistDocsColumnMissingWarnsViewCreate:
+    """v2 view create: a documented column absent from the view is warned about post-build."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"mc_seed.csv": override_fixtures.missing_column_create_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_view.sql": override_fixtures.missing_column_view_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_view_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    def test_view_create_warns(self, project):
+        util.run_dbt(["seed"])
+        _, logs = util.run_dbt_and_capture(["run"])
+        assert "column_that_does_not_exist" in logs
+        assert logs.count(_MISSING_COLUMN_WARNING) == 1
+
+
+class TestPersistDocsColumnMissingWarnsMaterializedViewCreate:
+    """materialized view create: a documented column absent from the MV warns post-build."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"mc_seed.csv": override_fixtures.missing_column_create_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_mv.sql": override_fixtures.missing_column_mv_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_mv_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    def test_materialized_view_create_warns(self, project):
+        util.run_dbt(["seed"])
+        _, logs = util.run_dbt_and_capture(["run"])
+        assert "column_that_does_not_exist" in logs
+        assert logs.count(_MISSING_COLUMN_WARNING) == 1
+
+
+class TestPersistDocsColumnMissingWarnsStreamingTableCreate:
+    """streaming table create: a documented column absent from the ST is warned about post-build."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"mc_seed.csv": override_fixtures.missing_column_create_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_st.sql": override_fixtures.missing_column_st_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_st_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    def test_streaming_table_create_warns(self, project):
+        util.run_dbt(["seed"])
+        _, logs = util.run_dbt_and_capture(["run"])
+        assert "column_that_does_not_exist" in logs
+        assert logs.count(_MISSING_COLUMN_WARNING) == 1
