@@ -17,7 +17,7 @@
 
 ### Under the Hood
 
-- Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact)
+- Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
 - Remove the unused `keyring` dependency and its transitive packages ([#1588](https://github.com/databricks/dbt-databricks/pull/1588))
 - Raise the `dbt-core` upper bound to `<1.12.1` to include dbt-core 1.12.0 ([#1605](https://github.com/databricks/dbt-databricks/pull/1605))
 
