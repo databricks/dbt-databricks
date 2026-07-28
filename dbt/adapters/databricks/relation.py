@@ -159,6 +159,13 @@ class DatabricksRelation(BaseRelation):
         return self.databricks_table_type == DatabricksTableType.External
 
     @property
+    def is_shallow_clone(self) -> bool:
+        return self.databricks_table_type in (
+            DatabricksTableType.ManagedShallowClone,
+            DatabricksTableType.ExternalShallowClone,
+        )
+
+    @property
     def is_dlt(self) -> bool:
         return self.is_materialized_view or self.is_streaming_table
 

@@ -103,6 +103,14 @@ class TestClonePersistDocs(BaseClone):
         assert view_comment == "This is a view model"
 
 
+def _delta_history(project, relation):
+    """Return (latest_version, operations, versions) from DESCRIBE HISTORY."""
+    history = project.run_sql(f"describe history {relation}", fetch="all")
+    versions = {row[0] for row in history}
+    operations = {row[4] for row in history}
+    return max(versions), operations, versions
+
+
 class TestCloneShallowClone(BaseClone, CleanupMixin):
     @pytest.fixture(scope="class")
     def models(self):
@@ -116,11 +124,6 @@ class TestCloneShallowClone(BaseClone, CleanupMixin):
     def seeds(self):
         return {}
 
-    def _latest_version(self, project, relation):
-        history = project.run_sql(f"describe history {relation}", fetch="all")
-        operations = {row[4] for row in history}
-        return max(row[0] for row in history), operations
-
     def test_shallow_clone(self, project, unique_schema, other_schema):
         project.create_test_schema(other_schema)
         run_dbt(["run"])
@@ -133,18 +136,204 @@ class TestCloneShallowClone(BaseClone, CleanupMixin):
 
         # the table branch materializes via CREATE OR REPLACE ... SHALLOW CLONE,
         # which Delta records as a CLONE operation rather than a full rewrite
-        version, operations = self._latest_version(project, cloned)
+        version, operations, versions_before = _delta_history(project, cloned)
         assert "CLONE" in operations, f"clone history operations: {operations}"
 
         # an existing target is left untouched without --full-refresh
         run_dbt(clone_args)
-        noop_version, _ = self._latest_version(project, cloned)
+        noop_version, _, versions_before = _delta_history(project, cloned)
         assert noop_version == version
 
         # --full-refresh re-clones in place, adding a fresh CLONE version
         run_dbt([*clone_args, "--full-refresh"])
-        refreshed_version, refreshed_operations = self._latest_version(project, cloned)
+        refreshed_version, refreshed_operations, refreshed_versions = _delta_history(
+            project, cloned
+        )
         assert refreshed_version > version
+        assert versions_before.issubset(refreshed_versions), (
+            f"in-place full-refresh must keep prior history versions; "
+            f"lost {versions_before - refreshed_versions} from {refreshed_versions}"
+        )
         assert "CLONE" in refreshed_operations, (
             f"full-refresh history operations: {refreshed_operations}"
         )
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestCloneHmsRelationMatrix(BaseClone, CleanupMixin):
+    """HMS listing omits Databricks table types, so full-refresh clone must replace
+    unknown-type tables in place (preserving Delta history) rather than drop-first.
+
+    UC profiles skip: a known managed target is intentionally dropped there, which
+    resets history to version 0 and would fail the survival assertions below.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "hms_clone_new_model.sql": fixtures.table_model_sql,
+            "hms_clone_regular_model.sql": fixtures.table_model_sql,
+            "hms_clone_shallow_model.sql": fixtures.table_model_sql,
+            "hms_clone_view_model.sql": fixtures.table_model_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def _target(self, project, schema, identifier):
+        return f"`{project.database}`.`{schema}`.`{identifier}`"
+
+    def test_clone_full_refresh_over_hms_relation_shapes(
+        self, project, unique_schema, other_schema
+    ):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        regular = self._target(project, other_schema, "hms_clone_regular_model")
+        shallow = self._target(project, other_schema, "hms_clone_shallow_model")
+        view = self._target(project, other_schema, "hms_clone_view_model")
+
+        run_dbt(["run", "--target", "otherschema", "-s", "hms_clone_regular_model"])
+        regular_before, _, regular_versions_before = _delta_history(project, regular)
+
+        run_dbt(
+            [
+                "clone",
+                "--state",
+                "state",
+                "--target",
+                "otherschema",
+                "-s",
+                "hms_clone_shallow_model",
+            ]
+        )
+        shallow_before, shallow_before_operations, shallow_versions_before = _delta_history(
+            project, shallow
+        )
+        assert "CLONE" in shallow_before_operations
+
+        project.run_sql(f"create or replace view {view} as select 2 as id")
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema", "--full-refresh"])
+
+        histories = {
+            identifier: _delta_history(project, self._target(project, other_schema, identifier))
+            for identifier in (
+                "hms_clone_new_model",
+                "hms_clone_regular_model",
+                "hms_clone_shallow_model",
+                "hms_clone_view_model",
+            )
+        }
+        for identifier, (_, operations, _) in histories.items():
+            assert "CLONE" in operations, f"{identifier} history operations: {operations}"
+
+        regular_latest, _, regular_versions = histories["hms_clone_regular_model"]
+        shallow_latest, _, shallow_versions = histories["hms_clone_shallow_model"]
+        assert regular_latest > regular_before
+        assert regular_versions_before.issubset(regular_versions), (
+            f"HMS in-place replace must keep prior history; "
+            f"lost {regular_versions_before - regular_versions}"
+        )
+        assert shallow_latest > shallow_before
+        assert shallow_versions_before.issubset(shallow_versions), (
+            f"HMS in-place replace must keep prior history; "
+            f"lost {shallow_versions_before - shallow_versions}"
+        )
+        assert project.run_sql(f"select id from {view}", fetch="all")[0][0] == 1
+
+
+def _table_type(project, schema, identifier):
+    rows = project.run_sql(
+        f"""
+        select table_type from {project.database}.information_schema.tables
+        where table_schema = '{schema}' and table_name = '{identifier}'
+        """,
+        fetch="all",
+    )
+    return rows[0][0] if rows else None
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestCloneOverExistingManagedTable(BaseClone, CleanupMixin):
+    """`dbt clone --full-refresh` must replace an existing managed table with a shallow clone,
+    rather than failing with INVALID_PARAMETER_VALUE.UPDATE_TABLE_TYPE."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"table_model.sql": fixtures.table_model_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def test_clone_replaces_managed_table(self, project, unique_schema, other_schema):
+        project.create_test_schema(other_schema)
+        # Build a real managed table at the clone target first.
+        run_dbt(["run", "--target", "otherschema"])
+        assert _table_type(project, other_schema, "table_model") == "MANAGED"
+
+        # State for the clone comes from the default-target build.
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        clone_args = ["clone", "--state", "state", "--target", "otherschema", "--full-refresh"]
+        run_dbt(clone_args)
+
+        # The managed table is dropped and replaced by a shallow clone.
+        assert _table_type(project, other_schema, "table_model") == "MANAGED_SHALLOW_CLONE"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
+    """Rebuilding a table/incremental model with auto_liquid_cluster over an existing shallow
+    clone must drop the clone and produce a managed table, rather than failing with
+    CLUSTER_BY_AUTO_UNSUPPORTED_TABLE_TYPE_ERROR."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "auto_cluster_table_model.sql": fixtures.auto_cluster_table_model_sql,
+            "auto_cluster_incremental_model.sql": fixtures.auto_cluster_incremental_model_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    @pytest.mark.parametrize(
+        "identifier",
+        ["auto_cluster_table_model", "auto_cluster_incremental_model"],
+    )
+    def test_rebuild_over_shallow_clone(self, project, unique_schema, other_schema, identifier):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        # Clone into the other schema so the target starts life as a shallow clone.
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+        assert _table_type(project, other_schema, identifier) == "MANAGED_SHALLOW_CLONE"
+
+        # Rebuilding over the clone must drop it and produce a managed table with correct data.
+        run_dbt(["run", "--target", "otherschema", "--full-refresh", "-s", identifier])
+        assert _table_type(project, other_schema, identifier) == "MANAGED"
+
+        rows = project.run_sql(
+            f"select id from {project.database}.{other_schema}.{identifier}",
+            fetch="all",
+        )
+        assert [row[0] for row in rows] == [1]

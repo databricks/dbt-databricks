@@ -150,8 +150,8 @@ class TestInsertIntoMacros(MacroTestBase):
         # When columns don't match, should use explicit column list (no BY NAME)
         clean_result = self.clean_sql(result)
         assert "insert into" in clean_result
-        assert "(id, name)" in clean_result
-        assert "select id, name from" in clean_result
+        assert "(`id`, `name`)" in clean_result
+        assert "select `id`, `name` from" in clean_result
 
     def test_insert_into_sql_impl__without_capability_mismatched_columns(
         self, template_bundle, mock_relations
@@ -178,8 +178,8 @@ class TestInsertIntoMacros(MacroTestBase):
         # When columns don't match, should use explicit column list (no BY NAME)
         clean_result = self.clean_sql(result)
         assert "insert into" in clean_result
-        assert "(id, name)" in clean_result
-        assert "select id, name from" in clean_result
+        assert "(`id`, `name`)" in clean_result
+        assert "select `id`, `name` from" in clean_result
 
     def test_insert_into_sql_impl__with_capability_no_common_columns(
         self, template_bundle, mock_relations

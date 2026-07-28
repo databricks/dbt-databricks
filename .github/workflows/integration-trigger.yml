@@ -57,12 +57,18 @@ jobs:
             const workflowId = isMinDeps ? 'integration-min-deps.yml' : 'integration.yml';
             const label = isMinDeps ? 'Min-deps integration tests' : 'Integration tests';
             const prNumber = String(context.payload.issue.number);
+            const pullRequest = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number,
+            });
+            const commitSha = pullRequest.data.head.sha;
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: workflowId,
               ref: 'main',
-              inputs: { pr_numbers: prNumber },
+              inputs: { pr_numbers: prNumber, commit_sha: commitSha },
             });
             const actionsUrl =
               `https://github.com/${context.repo.owner}/${context.repo.repo}` +
@@ -72,6 +78,7 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
               body: `${label} dispatched for PR #${prNumber} by @${context.payload.comment.user.login}. ` +
+                    `Testing commit ${commitSha.slice(0, 7)}. ` +
                     `Track progress in the [Actions tab](${actionsUrl}).`,
             });
 
