@@ -36,6 +36,8 @@
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
     {% endif %}
+    {#-- Warn (post-build) about documented columns absent from the view. --#}
+    {% do validate_persist_doc_columns(target_relation, model) %}
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
 
@@ -65,6 +67,9 @@
     {% if column_tags and column_tags.set_column_tags %}
       {{ apply_column_tags(target_relation, column_tags) }}
     {% endif %}
+
+    {#-- Warn (post-build) about documented columns absent from the view. --#}
+    {% do validate_persist_doc_columns(target_relation, model) %}
 
     {{ run_hooks(post_hooks) }}
   {% endif %}
