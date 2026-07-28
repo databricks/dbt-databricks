@@ -42,6 +42,23 @@
   {% endif %}
 {% endmacro %}
 
+{#--
+  Post-build validation of documented column comments against the actual relation.
+
+  The V2 materialization path applies column comments inline at create-time and via the
+  relation-config diff (neither of which sees the model's documented columns as a set), so this
+  runs after the relation is built to surface columns that are documented in the schema but absent
+  from the relation (typos / stale docs). It mirrors the shared validate_doc_columns behavior the
+  other adapters use, and applies no comments itself. Gated on persist_docs.columns so it never
+  fires when column persistence is disabled (avoids --warn-error false failures).
+--#}
+{% macro validate_persist_doc_columns(relation, model) -%}
+  {% if config.persist_column_docs() and model.columns %}
+    {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
+    {%- do adapter.validate_persist_doc_columns(existing_columns, model.columns) -%}
+  {% endif %}
+{%- endmacro %}
+
 {% macro alter_relation_comment_sql(relation, description) %}
 COMMENT ON {{ relation.type.render().upper() }} {{ relation.render() }} IS '{{ description | replace("'", "\\'") }}'
 {% endmacro %}

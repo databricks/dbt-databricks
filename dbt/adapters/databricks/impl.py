@@ -1003,6 +1003,26 @@ class DatabricksAdapter(SparkAdapter):
             if current_catalog is not None:
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
 
+    @staticmethod
+    def _find_missing_doc_columns(
+        existing_columns: list[DatabricksColumn], columns: dict[str, Any]
+    ) -> list[str]:
+        """Documented column names (from the model) that are absent from the relation."""
+        existing_lower = {column.column.lower() for column in existing_columns}
+        return [name for name in columns if name.lower() not in existing_lower]
+
+    @available.parse(lambda *a, **k: None)
+    def validate_persist_doc_columns(
+        self, existing_columns: list[DatabricksColumn], columns: dict[str, Any]
+    ) -> None:
+        """Warn about documented columns that are absent from the relation.
+
+        Mirrors the shared ``validate_doc_columns`` behavior the other adapters use: the check runs
+        post-build against the actual relation, so a legitimately new column (present in the model
+        and the freshly-built relation) is not flagged. Applies no comments.
+        """
+        warn_missing_persist_doc_columns(self._find_missing_doc_columns(existing_columns, columns))
+
     @available.parse(lambda *a, **k: {})
     def get_persist_doc_columns(
         self, existing_columns: list[DatabricksColumn], columns: dict[str, Any]
@@ -1017,16 +1037,11 @@ class DatabricksAdapter(SparkAdapter):
         # Create a case-insensitive lookup for column names
         columns_lower = {k.lower(): k for k in columns.keys()}
 
-        # Warn about columns that are documented in the model's schema but are not present in the
-        # relation. These are silently skipped below (rather than erroring on the alter), so surface
-        # them to the user to catch typos and stale documentation.
-        existing_lower = {column.column.lower() for column in existing_columns}
-        missing = [
-            original_name
-            for name_lower, original_name in columns_lower.items()
-            if name_lower not in existing_lower
-        ]
-        warn_missing_persist_doc_columns(missing)
+        # Documented-but-absent columns are skipped below (rather than erroring on the alter); warn
+        # so the user can catch typos and stale documentation. This runs post-build (V1 persist_docs
+        # gathers existing_columns from the written relation), so a legitimately new column is not
+        # flagged.
+        warn_missing_persist_doc_columns(self._find_missing_doc_columns(existing_columns, columns))
 
         for column in existing_columns:
             name = column.column
