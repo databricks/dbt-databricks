@@ -1,4 +1,4 @@
-## dbt-databricks 1.12.3 (Jul 28, 2026)
+## dbt-databricks 1.12.3 (Jul 29, 2026)
 
 ### Features
 
@@ -17,11 +17,8 @@
 
 ### Under the Hood
 
-- Keep `uv.lock` registry metadata on public PyPI and enforce that invariant in pre-commit ([#1577](https://github.com/databricks/dbt-databricks/pull/1577))
 - Remove the unused `keyring` dependency and its transitive packages ([#1588](https://github.com/databricks/dbt-databricks/pull/1588))
 - Raise the `dbt-core` upper bound to `<1.12.1` to include dbt-core 1.12.0 ([#1605](https://github.com/databricks/dbt-databricks/pull/1605))
-- Automate weekly integration shard-timing refreshes, tolerate weeks with no eligible runs, and pin privileged checkouts to the reviewed commit SHA (test-only, no runtime impact) ([#1587](https://github.com/databricks/dbt-databricks/pull/1587), [#1596](https://github.com/databricks/dbt-databricks/pull/1596), [#1598](https://github.com/databricks/dbt-databricks/pull/1598))
-- Strengthen HMS shallow-clone coverage across relation types and verify full refresh preserves prior Delta history (test-only, no runtime impact) ([#1616](https://github.com/databricks/dbt-databricks/pull/1616))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
 
