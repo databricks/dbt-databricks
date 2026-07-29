@@ -394,8 +394,6 @@ class SqlUtils:
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
-        # dbt telemetry opt-in lives in connection_parameters but is consumed by
-        # the adapter's own collector; drop it so it never reaches dbsql.connect.
         connection_parameters.pop("enable_dbt_telemetry", None)
 
         http_headers: list[tuple[str, str]] = list(
