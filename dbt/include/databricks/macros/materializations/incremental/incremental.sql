@@ -81,6 +81,10 @@
       {%- endif -%}
     {%- endif -%}
 
+    {#-- Placed here so it runs on every sub-branch above (create/replace/merge) and regardless of
+         incremental_apply_config_changes. --#}
+    {% do validate_persist_doc_columns(target_relation, model) %}
+
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
