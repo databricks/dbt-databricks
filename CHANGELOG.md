@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.4 (TBD)
+
+### Under the Hood
+
+- Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
+
 ## dbt-databricks 1.12.3 (Jul 29, 2026)
 
 ### Features
