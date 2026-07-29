@@ -119,6 +119,13 @@ class TestCloneRequiresDrop(MacroTestBase):
         relation = self._relation(is_table=True, is_shallow_clone=False)
         assert self._requires_drop(template_bundle, relation) == "True"
 
+    def test_external_table_requires_drop(self, template_bundle):
+        # Known UC external tables hit the same UPDATE_TABLE_TYPE constraint as managed.
+        relation = self._relation(
+            is_table=True, is_shallow_clone=False, databricks_table_type="external"
+        )
+        assert self._requires_drop(template_bundle, relation) == "True"
+
     def test_view_requires_drop(self, template_bundle):
         relation = self._relation(is_table=False, is_shallow_clone=False)
         assert self._requires_drop(template_bundle, relation) == "True"
