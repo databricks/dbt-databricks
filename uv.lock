@@ -662,7 +662,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "pytest-dotenv", specifier = ">=0.5.2" },
-    { name = "pytest-rerunfailures", specifier = ">=14.0" },
+    { name = "pytest-rerunfailures", specifier = ">=16.2" },
     { name = "pytest-xdist", specifier = ">=3.6.1" },
     { name = "ruff", specifier = "==0.14.2" },
     { name = "types-requests" },
@@ -673,7 +673,7 @@ test = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "pytest-dotenv", specifier = ">=0.5.2" },
-    { name = "pytest-rerunfailures", specifier = ">=14.0" },
+    { name = "pytest-rerunfailures", specifier = ">=16.2" },
     { name = "pytest-xdist", specifier = ">=3.6.1" },
 ]
 
