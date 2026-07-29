@@ -32,7 +32,6 @@
       {% endif %}
     {% endif %}
 
-    {#-- Warn (post-build) about documented columns absent from the final relation. --#}
     {% do validate_persist_doc_columns(target_relation, model) %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
