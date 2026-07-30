@@ -257,3 +257,28 @@ mv_norebuild_v3_refresh_changed = """
 ) }}
 select * from {{ ref('mv_norebuild_seed') }}
 """
+
+# Issue #1359: upstream select * schema evolution against an existing MV.
+schema_evolution_base_v1_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'foo' as name
+"""
+
+schema_evolution_base_v2_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'foo' as name, 42 as new_column
+"""
+
+schema_evolution_mv_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='apply') }}
+select * from {{ ref('schema_evolution_base') }}
+"""
+
+schema_evolution_mv_yml = """
+version: 2
+models:
+  - name: schema_evolution_mv
+    columns:
+      - name: id
+      - name: name
+"""

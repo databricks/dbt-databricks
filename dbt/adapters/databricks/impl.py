@@ -1035,6 +1035,17 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     @staticmethod
+    def column_schemas_differ(
+        existing_columns: list[DatabricksColumn],
+        inferred_columns: list[DatabricksColumn],
+    ) -> bool:
+        """True when ordered column names differ (case-insensitive). Names only."""
+        existing_names = [column.name.lower() for column in existing_columns]
+        inferred_names = [column.name.lower() for column in inferred_columns]
+        return existing_names != inferred_names
+
+    @available
+    @staticmethod
     def parse_columns_and_constraints(
         existing_columns: list[DatabricksColumn],
         model_columns: dict[str, dict[str, Any]],

@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Fixes
+
+- Recreate materialized views when query schema drifts (resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
+
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))

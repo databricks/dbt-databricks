@@ -29,6 +29,10 @@
     {% elif full_refresh_mode or not existing_relation.is_materialized_view %}
         {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
     {% else %}
+        {% set schema_changed = dlt_inferred_query_schema_changed(existing_relation, sql) %}
+        {% if schema_changed %}
+            {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
+        {% else %}
 
         -- get config options
         {% set on_configuration_change = config.get('on_configuration_change') %}
@@ -54,6 +58,8 @@
         {% else %}
             -- this only happens if the user provides a value other than `apply`, 'skip', 'fail'
             {{ exceptions.raise_compiler_error("Unexpected configuration scenario") }}
+
+        {% endif %}
 
         {% endif %}
 
