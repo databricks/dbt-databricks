@@ -98,10 +98,11 @@ class TestCloneRequiresDrop(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/materializations/clone", "macros/relations", "macros"]
 
-    def _relation(self, is_table=True, is_shallow_clone=False):
+    def _relation(self, is_table=True, is_shallow_clone=False, databricks_table_type="managed"):
         relation = Mock(spec=DatabricksRelation)
         relation.is_table = is_table
         relation.is_shallow_clone = is_shallow_clone
+        relation.databricks_table_type = databricks_table_type
         return relation
 
     def _requires_drop(self, template_bundle, existing_relation):
@@ -114,8 +115,15 @@ class TestCloneRequiresDrop(MacroTestBase):
         assert self._requires_drop(template_bundle, None) == "False"
 
     def test_managed_table_requires_drop(self, template_bundle):
-        # A regular table cannot become a shallow clone via `create or replace`.
+        # A regular UC table cannot become a shallow clone via `create or replace`.
         relation = self._relation(is_table=True, is_shallow_clone=False)
+        assert self._requires_drop(template_bundle, relation) == "True"
+
+    def test_external_table_requires_drop(self, template_bundle):
+        # Known UC external tables hit the same UPDATE_TABLE_TYPE constraint as managed.
+        relation = self._relation(
+            is_table=True, is_shallow_clone=False, databricks_table_type="external"
+        )
         assert self._requires_drop(template_bundle, relation) == "True"
 
     def test_view_requires_drop(self, template_bundle):
@@ -124,5 +132,13 @@ class TestCloneRequiresDrop(MacroTestBase):
 
     def test_existing_shallow_clone_does_not_require_drop(self, template_bundle):
         # A clone->clone replace is a legal in-place `create or replace`.
-        relation = self._relation(is_table=True, is_shallow_clone=True)
+        relation = self._relation(
+            is_table=True, is_shallow_clone=True, databricks_table_type="managed_shallow_clone"
+        )
+        assert self._requires_drop(template_bundle, relation) == "False"
+
+    def test_unknown_table_type_does_not_require_drop(self, template_bundle):
+        # Hive Metastore listing never populates databricks_table_type; dropping would
+        # reset Delta history and break in-place full-refresh shallow clones.
+        relation = self._relation(is_table=True, is_shallow_clone=False, databricks_table_type=None)
         assert self._requires_drop(template_bundle, relation) == "False"
