@@ -1,3 +1,4 @@
+import dbt.adapters.databricks.utils as databricks_utils
 from dbt.adapters.databricks.utils import (
     is_cluster_http_path,
     quote,
@@ -103,6 +104,56 @@ class TestDatabricksUtils:
         sql = "copy into target_table\n  WITH (credential ('KEY' = 'VALUE\\'ESCAPED'))"
         expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
         assert redact_credentials(sql) == expected
+
+    def test_redact_credentials__escaped_quote_before_delimiter(self):
+        cases = [
+            "copy into target_table\n  WITH (credential ('KEY' = 'PREFIX'',SUFFIX'))",
+            "copy into target_table\n  WITH (credential ('KEY' = 'PREFIX'')SUFFIX'))",
+            "copy into target_table\n  WITH (credential ('KEY' = 'PREFIX\\',SUFFIX'))",
+            "copy into target_table\n  WITH (credential ('KEY' = 'PREFIX\\')SUFFIX'))",
+        ]
+        expected = "copy into target_table\n  WITH (credential ('KEY' = '[REDACTED]'))"
+
+        for sql in cases:
+            redacted = redact_credentials(sql)
+            assert redacted == expected
+            assert "PREFIX" not in redacted
+            assert "SUFFIX" not in redacted
+
+    def test_redact_credentials__malformed_secret_clause_is_unchanged(self):
+        sql = "copy into target_table\n  WITH (credential ('KEY' = 'PREFIX',SUFFIX')) trailing SQL"
+
+        assert redact_credentials(sql) == sql
+
+    def test_redact_credentials__secretless_clause_is_unchanged(self):
+        cases = [
+            "copy into target_table WITH (credential ())",
+            "select credential('public literal') as x, 42 as y",
+            "select my_encryption('public literal') as x",
+        ]
+
+        for sql in cases:
+            assert redact_credentials(sql) == sql
+
+    def test_redact_credentials__unquoted_key_is_unchanged(self):
+        sql = "copy into target_table WITH (credential (KEY = 'SECRET')) trailing SQL"
+
+        assert redact_credentials(sql) == sql
+
+    def test_redact_credentials__large_unterminated_clause(self):
+        sql = "credential (" + ", ".join("'KEY' = 'VALUE'" for _ in range(1_000))
+
+        assert redact_credentials(sql) == sql
+
+    def test_redact_credentials__large_ordinary_statement_uses_fast_path(self, monkeypatch):
+        class UnexpectedRegex:
+            def sub(self, replacement, sql):
+                raise AssertionError("ordinary SQL should bypass the secret-clause regex")
+
+        monkeypatch.setattr(databricks_utils, "SECRET_CLAUSE_IN_COPY_INTO_REGEX", UnexpectedRegex())
+        sql = "select 1 -- " + "x" * 1_000_000
+
+        assert redact_credentials(sql) == sql
 
     def test_redact_credentials__key_with_dots(self):
         sql = "copy into target_table\n  WITH (credential ('fs.azure.account.key' = 'VALUE'))"
