@@ -29,3 +29,19 @@ class TestCommentMacros(MacroTestBase):
     def test_get_create_sql_comment__none_emits_nothing(self, template_bundle):
         result = self.run_macro(template_bundle.template, "get_create_sql_comment", None)
         assert result == ""
+
+    def test_get_create_sql_comment__escapes_backslash_before_quote(self, template_bundle):
+        """A backslash right before an apostrophe must not merge with its escape."""
+        result = self.run_macro(template_bundle.template, "get_create_sql_comment", r"Bob\'s view")
+        self.assert_sql_equal(result, r"comment 'bob\\\'s view'")
+
+    def test_get_create_sql_comment__escapes_windows_path_with_quote(self, template_bundle):
+        result = self.run_macro(
+            template_bundle.template, "get_create_sql_comment", r"C:\temp\'s view"
+        )
+        self.assert_sql_equal(result, r"comment 'c:\\temp\\\'s view'")
+
+    def test_get_create_sql_comment__escapes_bare_backslash(self, template_bundle):
+        """An unescaped backslash is read by Databricks as the start of an escape sequence."""
+        result = self.run_macro(template_bundle.template, "get_create_sql_comment", r"C:\temp")
+        self.assert_sql_equal(result, r"comment 'c:\\temp'")
