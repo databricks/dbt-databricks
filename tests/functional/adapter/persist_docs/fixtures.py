@@ -39,7 +39,6 @@ gate_model_sql = """
 select 1 as id, 'alice' as name
 """
 
-# Incremental model whose schema documents a column absent from the materialized relation.
 missing_column_incremental_sql = """
 {{ config(materialized='incremental') }}
 select 1 as id, 'Ed' as name

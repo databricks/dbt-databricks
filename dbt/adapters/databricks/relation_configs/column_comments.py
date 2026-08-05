@@ -24,10 +24,7 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
             other_comments_lower = {k.lower(): v for k, v in other.comments.items()}
 
             for column_name, comment in self.comments.items():
-                # Use case-insensitive comparison for column names. Documented columns that are
-                # absent from the relation are skipped here so the alter never targets a nonexistent
-                # column; Jinja validation warns after the relation is built, so a legitimately new
-                # column is not flagged before it has been materialized.
+                # Missing columns are reported post-build.
                 if column_name.lower() not in other_comments_lower:
                     continue
                 other_comment = other_comments_lower.get(column_name.lower())
@@ -58,9 +55,6 @@ class ColumnCommentsProcessor(DatabricksComponentProcessor[ColumnCommentsConfig]
         columns = getattr(relation_config, "columns", {})
         persist = False
         if relation_config.config:
-            # Column comments are gated on persist_docs.columns (the column-level knob), matching
-            # config.persist_column_docs() used by the V1 persist_docs / view-create / seed paths.
-            # persist_docs.relation is the table-comment knob and is the wrong gate here.
             persist = relation_config.config.persist_docs.get("columns") or False
         comments = {}
         for column_name, column in columns.items():

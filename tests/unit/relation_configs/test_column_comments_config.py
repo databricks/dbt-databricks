@@ -45,13 +45,11 @@ class TestColumnCommentsProcessor:
     def test_from_relation_config__with_persist(self):
         model = Mock()
         model.columns = {"col1": {"description": "test comment"}}
-        # Column comments are gated on persist_docs.columns, not .relation.
         model.config.persist_docs = {"columns": True}
         config = ColumnCommentsProcessor.from_relation_config(model)
         assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
 
     def test_from_relation_config__columns_true_relation_false(self):
-        """persist_docs.columns drives column comments even when .relation is false."""
         model = Mock()
         model.columns = {"col1": {"description": "test comment"}}
         model.config.persist_docs = {"columns": True, "relation": False}
@@ -59,7 +57,6 @@ class TestColumnCommentsProcessor:
         assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
 
     def test_from_relation_config__relation_true_columns_false(self):
-        """Column comments are not applied when .columns is off, even if .relation is on."""
         model = Mock()
         model.columns = {"col1": {"description": "test comment"}}
         model.config.persist_docs = {"relation": True, "columns": False}

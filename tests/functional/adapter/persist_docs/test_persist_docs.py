@@ -425,8 +425,6 @@ _JINJA_WARNING_ERROR_OPTIONS = '{"error": ["JinjaLogWarning"]}'
 
 
 class TestPersistDocsColumnMissingWarnsV1:
-    """V1 persists comments for present columns and warns for missing ones."""
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column.sql": fixtures._MODELS__MISSING_COLUMN}
@@ -470,13 +468,6 @@ class TestPersistDocsColumnMissingWarnsV1:
 
 
 class TestPersistDocsColumnMissingWarnsV2:
-    """v2: a documented column absent from the relation is warned about post-build.
-
-    The warning is emitted by validate_persist_doc_columns after the relation is built, not from
-    the pre-materialization changeset diff. So it fires on the initial create and on every
-    subsequent incremental run — and a legitimately new column (present post-build) does not warn.
-    """
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
@@ -516,9 +507,6 @@ class TestPersistDocsColumnMissingWarnsV2:
 
 
 class TestPersistDocsColumnMissingWarnsV2ColumnsOnly:
-    """v2 columns-only persist_docs warns (E2: column comments gate on persist_docs.columns,
-    not .relation — previously this combination was silent on the v2 path)."""
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
@@ -554,9 +542,6 @@ class TestPersistDocsColumnMissingWarnsV2ColumnsOnly:
 
 
 class TestPersistDocsColumnMissingV2RelationOnlyNoWarn:
-    """v2 with columns:false does no column-doc work, so the missing-column check stays silent
-    (E2: column comments are gated on persist_docs.columns)."""
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
@@ -577,8 +562,6 @@ class TestPersistDocsColumnMissingV2RelationOnlyNoWarn:
 
 
 class TestPersistDocsColumnMissingWarnsV1ColumnsOnly:
-    """v1: columns-only persist_docs still warns (does not require relation: true)."""
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column.sql": fixtures._MODELS__MISSING_COLUMN}
@@ -622,8 +605,6 @@ class TestPersistDocsColumnMissingWarnsV1ColumnsOnly:
 
 
 class TestPersistDocsColumnMissingWarnsV1IncrementalSubsequent:
-    """V1 incremental runs continue to surface missing documented columns."""
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}

@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Warn when a column documented in a model's `schema.yml` is absent from the relation, instead of silently skipping it — surfaces typos and stale column documentation. The check runs post-build against the actual relation (matching the shared `validate_doc_columns` behavior the other adapters use), so it covers V1 and V2 table/incremental on both the initial create and subsequent runs, does not false-warn on a legitimately new column, and is gated on `persist_docs.columns`. Also fixes the V2 column-comment gate to key off `persist_docs.columns` rather than `persist_docs.relation`. Materialized-view/streaming-table and view create are tracked as follow-ups. Ports the behavior added in dbt-adapters ([dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684) closes [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)) ([#1563](https://github.com/databricks/dbt-databricks/pull/1563)).
+- Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
 
 ### Under the Hood
 
