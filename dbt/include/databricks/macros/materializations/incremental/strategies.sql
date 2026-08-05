@@ -180,18 +180,18 @@ replace on ({{ replace_on_expr }})
   {%- set statements = [] -%}
   
   {#-- Build WHERE clause for DELETE statement --#}
-  {#-- Match the whole key tuple; per-column IN deletes unmatched combinations (issue #1611) --#}
   {%- set delete_conditions = [] -%}
-  {%- set target_keys = [] -%}
-  {%- set source_keys = [] -%}
-  {%- for key in unique_keys -%}
-    {%- do target_keys.append(target_relation ~ '.' ~ adapter.quote(key)) -%}
-    {%- do source_keys.append(adapter.quote(key)) -%}
-  {%- endfor -%}
   {%- if unique_keys | length > 1 -%}
-    {%- do delete_conditions.append('(' ~ target_keys | join(', ') ~ ') IN (SELECT DISTINCT ' ~ source_keys | join(', ') ~ ' FROM ' ~ source_relation ~ ')') -%}
+    {#-- a row-valued IN raises DELTA_UNSUPPORTED_MULTI_COL_IN_PREDICATE; correlate on
+         the whole tuple instead so unmatched key combinations are not deleted (issue #1611) --#}
+    {%- set correlation_conditions = [] -%}
+    {%- for key in unique_keys -%}
+      {%- do correlation_conditions.append(target_relation ~ '.' ~ adapter.quote(key) ~ ' <=> ' ~ source_relation ~ '.' ~ adapter.quote(key)) -%}
+    {%- endfor -%}
+    {%- do delete_conditions.append('EXISTS (SELECT 1 FROM ' ~ source_relation ~ ' WHERE ' ~ correlation_conditions | join(' AND ') ~ ')') -%}
   {%- else -%}
-    {%- do delete_conditions.append(target_keys[0] ~ ' IN (SELECT ' ~ source_keys[0] ~ ' FROM ' ~ source_relation ~ ')') -%}
+    {%- set key = unique_keys[0] -%}
+    {%- do delete_conditions.append(target_relation ~ '.' ~ adapter.quote(key) ~ ' IN (SELECT ' ~ adapter.quote(key) ~ ' FROM ' ~ source_relation ~ ')') -%}
   {%- endif -%}
   
   {#-- Add incremental predicates to DELETE if specified --#}

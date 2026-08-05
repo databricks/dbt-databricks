@@ -310,10 +310,10 @@ delete_insert_expected = """id,msg
 """
 
 delete_insert_composite_key_expected = """id,color,msg
-1,blue,hello
-2,red,goodbye
+1,blue,replaced
 1,red,updated
 2,blue,updated
+2,red,goodbye
 """
 
 delete_insert_update_schema_expected = """id
@@ -478,8 +478,12 @@ select cast(2 as bigint) as id, 'red' as color, 'goodbye' as msg
 
 {% else %}
 
--- Neither key tuple exists in the target, so nothing should be deleted.
--- Matching each key column on its own would delete both existing rows.
+-- (1, blue) is an exact key match and must be replaced with its new payload.
+-- (1, red) and (2, blue) only bait a per-column match; matching each column on
+-- its own would wrongly delete both existing rows, so they must only insert.
+-- (2, red) is absent from this run and so must survive untouched.
+select cast(1 as bigint) as id, 'blue' as color, 'replaced' as msg
+union all
 select cast(1 as bigint) as id, 'red' as color, 'updated' as msg
 union all
 select cast(2 as bigint) as id, 'blue' as color, 'updated' as msg

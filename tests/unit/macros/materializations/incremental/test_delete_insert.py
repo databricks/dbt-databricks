@@ -153,18 +153,21 @@ class TestDeleteInsertMacros(MacroTestBase):
         assert self.clean_sql(insert_sql).startswith("insert into target")
 
     def test_delete_insert_legacy_sql__multiple_unique_keys(self, template, context):
-        """A composite unique_key matches the whole tuple, not each column independently."""
+        """A composite unique_key correlates the whole tuple, not each column independently."""
         delete_sql, _ = self.render_legacy(
             template, context, unique_keys=["a", "b"], target_columns=("a", "b")
         )
         clean_delete = self.clean_sql(delete_sql)
-        assert "(target.`a`, target.`b`) in (select distinct `a`, `b` from source)" in clean_delete
-        assert clean_delete.count(" and ") == 0
+        assert (
+            "exists (select 1 from source where target.`a` <=> source.`a`"
+            " and target.`b` <=> source.`b`)"
+        ) in clean_delete
+        assert clean_delete.startswith("delete from target where exists")
 
     def test_delete_insert_legacy_sql__multiple_unique_keys_with_predicates(
         self, template, context
     ):
-        """Incremental predicates are ANDed after the tuple match, not inside it."""
+        """Incremental predicates are ANDed after the EXISTS clause, not inside it."""
         delete_sql, _ = self.render_legacy(
             template,
             context,
@@ -173,8 +176,11 @@ class TestDeleteInsertMacros(MacroTestBase):
             incremental_predicates=["a > 1"],
         )
         clean_delete = self.clean_sql(delete_sql)
-        assert "(target.`a`, target.`b`) in (select distinct `a`, `b` from source)" in clean_delete
-        assert "and a > 1" in clean_delete
+        assert (
+            "exists (select 1 from source where target.`a` <=> source.`a`"
+            " and target.`b` <=> source.`b`)"
+        ) in clean_delete
+        assert clean_delete.endswith("and a > 1")
 
     def test_legacy_sql_generation__single_unique_key_delete(self, template, context):
         """A single unique key keeps the original per-column predicate."""
