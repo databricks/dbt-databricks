@@ -3,7 +3,7 @@ import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -57,10 +57,6 @@ from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities, DBRCapabil
 from dbt.adapters.databricks.global_state import GlobalState
 from dbt.adapters.databricks.handle import SqlUtils
 from dbt.adapters.databricks.logging import logger
-from dbt.adapters.databricks.persist_doc_column_warnings import (
-    reset_missing_persist_doc_column_warnings,
-    warn_missing_persist_doc_columns,
-)
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -906,11 +902,6 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
-    def pre_model_hook(self, config: Mapping[str, Any]) -> Any:
-        """Reset missing-column warn dedupe so each model materialization can warn once."""
-        reset_missing_persist_doc_column_warnings()
-        return super().pre_model_hook(config)
-
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
         DatabricksAdapterAddQueryRecord,
@@ -1003,26 +994,6 @@ class DatabricksAdapter(SparkAdapter):
             if current_catalog is not None:
                 self.execute_macro(USE_CATALOG_MACRO_NAME, kwargs=dict(catalog=current_catalog))
 
-    @staticmethod
-    def _find_missing_doc_columns(
-        existing_columns: list[DatabricksColumn], columns: dict[str, Any]
-    ) -> list[str]:
-        """Documented column names (from the model) that are absent from the relation."""
-        existing_lower = {column.column.lower() for column in existing_columns}
-        return [name for name in columns if name.lower() not in existing_lower]
-
-    @available.parse(lambda *a, **k: None)
-    def validate_persist_doc_columns(
-        self, existing_columns: list[DatabricksColumn], columns: dict[str, Any]
-    ) -> None:
-        """Warn about documented columns that are absent from the relation.
-
-        Mirrors the shared ``validate_doc_columns`` behavior the other adapters use: the check runs
-        post-build against the actual relation, so a legitimately new column (present in the model
-        and the freshly-built relation) is not flagged. Applies no comments.
-        """
-        warn_missing_persist_doc_columns(self._find_missing_doc_columns(existing_columns, columns))
-
     @available.parse(lambda *a, **k: {})
     def get_persist_doc_columns(
         self, existing_columns: list[DatabricksColumn], columns: dict[str, Any]
@@ -1036,12 +1007,6 @@ class DatabricksAdapter(SparkAdapter):
 
         # Create a case-insensitive lookup for column names
         columns_lower = {k.lower(): k for k in columns.keys()}
-
-        # Documented-but-absent columns are skipped below (rather than erroring on the alter); warn
-        # so the user can catch typos and stale documentation. This runs post-build (V1 persist_docs
-        # gathers existing_columns from the written relation), so a legitimately new column is not
-        # flagged.
-        warn_missing_persist_doc_columns(self._find_missing_doc_columns(existing_columns, columns))
 
         for column in existing_columns:
             name = column.column

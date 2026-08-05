@@ -37,10 +37,36 @@
   {% endif %}
   {% if for_columns and config.persist_column_docs() and model.columns %}
     {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
-    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
+    {%- set existing_column_names = existing_columns | map(attribute='name') | list -%}
+    {%- set valid_columns = dbt_databricks_validate_doc_columns(relation, model.columns, existing_column_names) -%}
+    {%- set columns_to_persist_docs = adapter.get_persist_doc_columns(existing_columns, valid_columns) -%}
     {{ alter_column_comment(relation, columns_to_persist_docs) }}
   {% endif %}
 {% endmacro %}
+
+{#--
+  Warn about documented columns absent from a materialized relation and return only the columns
+  that are present. Column names are matched case-insensitively, consistent with Databricks.
+--#}
+{% macro dbt_databricks_validate_doc_columns(relation, column_dict, existing_column_names) -%}
+  {%- set existing_lower = existing_column_names | map('lower') | list -%}
+  {%- set missing = [] -%}
+  {%- set valid = {} -%}
+  {%- for column_name in column_dict -%}
+    {%- if (column_name | lower) in existing_lower -%}
+      {%- do valid.update({column_name: column_dict[column_name]}) -%}
+    {%- else -%}
+      {%- do missing.append(column_name) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if missing -%}
+    {%- do exceptions.warn(
+      "In relation " ~ relation.render() ~ ": The following columns are specified in the schema "
+      ~ "but are not present in the database: " ~ missing | join(", ")
+    ) -%}
+  {%- endif -%}
+  {{- return(valid) -}}
+{%- endmacro %}
 
 {#--
   Post-build validation of documented column comments against the actual relation.
@@ -55,7 +81,8 @@
 {% macro validate_persist_doc_columns(relation, model) -%}
   {% if config.persist_column_docs() and model.columns %}
     {%- set existing_columns = adapter.get_columns_in_relation(relation) -%}
-    {%- do adapter.validate_persist_doc_columns(existing_columns, model.columns) -%}
+    {%- set existing_column_names = existing_columns | map(attribute='name') | list -%}
+    {%- do dbt_databricks_validate_doc_columns(relation, model.columns, existing_column_names) -%}
   {% endif %}
 {%- endmacro %}
 

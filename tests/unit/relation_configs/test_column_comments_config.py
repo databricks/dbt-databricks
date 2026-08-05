@@ -1,10 +1,7 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from agate import Table
 
-from dbt.adapters.databricks.persist_doc_column_warnings import (
-    reset_missing_persist_doc_column_warnings,
-)
 from dbt.adapters.databricks.relation_configs.column_comments import (
     ColumnCommentsConfig,
     ColumnCommentsProcessor,
@@ -123,31 +120,10 @@ class TestColumnCommentsConfig:
             comments={"`account_id`": "New Account ID"}, persist=True
         )
 
-    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
-    def test_get_diff__skips_missing_column_without_warning(self, mock_warn):
-        """Documented columns absent from the relation are skipped; get_diff does not warn.
-
-        The missing-column warning now runs post-build (validate_persist_doc_columns), so the
-        pre-materialization diff must stay silent to avoid false-warning on a legitimately new
-        column.
-        """
-        reset_missing_persist_doc_column_warnings()
-        # col2 is documented but not present in the relation
+    def test_get_diff__skips_missing_column(self):
         config = ColumnCommentsConfig(
             comments={"col1": "new comment", "col2": "comment for missing column"}, persist=True
         )
         other = ColumnCommentsConfig(comments={"col1": "old comment"})
         diff = config.get_diff(other)
-        # Only the existing column is included in the diff; the missing one is skipped.
         assert diff == ColumnCommentsConfig(comments={"`col1`": "new comment"}, persist=True)
-        # No warning is emitted from the diff path.
-        mock_warn.assert_not_called()
-
-    @patch("dbt.adapters.databricks.persist_doc_column_warnings.warn_or_error")
-    def test_get_diff__no_warning_when_not_persisting(self, mock_warn):
-        """Missing columns are not evaluated (or warned about) when persist is False."""
-        reset_missing_persist_doc_column_warnings()
-        config = ColumnCommentsConfig(comments={"col1": "comment", "col2": "comment"})
-        other = ColumnCommentsConfig(comments={"col1": "comment"})
-        assert config.get_diff(other) is None
-        mock_warn.assert_not_called()

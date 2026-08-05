@@ -421,11 +421,11 @@ class TestPersistDocsColumnsGateV1:
         )
 
 
-_ADAPTER_WARNING_ERROR_OPTIONS = '{"error": ["AdapterEventWarning"]}'
+_JINJA_WARNING_ERROR_OPTIONS = '{"error": ["JinjaLogWarning"]}'
 
 
 class TestPersistDocsColumnMissingWarnsV1:
-    """V1 persists comments for present columns and emits an adapter warning for missing ones."""
+    """V1 persists comments for present columns and warns for missing ones."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -465,17 +465,16 @@ class TestPersistDocsColumnMissingWarnsV1:
         assert id_columns[0].comment.startswith("test id column description")
 
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
 
 class TestPersistDocsColumnMissingWarnsV2:
     """v2: a documented column absent from the relation is warned about post-build.
 
-    The warning is emitted by validate_persist_doc_columns after the relation is built (mirroring
-    the shared validate_doc_columns behavior the other adapters use), not from the
-    pre-materialization changeset diff. So it fires on the initial create and on every subsequent
-    incremental run — and a legitimately new column (present post-build) would not warn.
+    The warning is emitted by validate_persist_doc_columns after the relation is built, not from
+    the pre-materialization changeset diff. So it fires on the initial create and on every
+    subsequent incremental run — and a legitimately new column (present post-build) does not warn.
     """
 
     @pytest.fixture(scope="class")
@@ -495,7 +494,7 @@ class TestPersistDocsColumnMissingWarnsV2:
 
     def test_warning_escalates_on_create_and_subsequent_runs(self, project, adapter):
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
         relation = DatabricksRelation.create(
@@ -512,7 +511,7 @@ class TestPersistDocsColumnMissingWarnsV2:
         assert comments["id"] == "test id column description"
 
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
 
@@ -537,7 +536,7 @@ class TestPersistDocsColumnMissingWarnsV2ColumnsOnly:
 
     def test_warning_escalates_with_columns_only(self, project, adapter):
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
         relation = DatabricksRelation.create(
@@ -574,7 +573,7 @@ class TestPersistDocsColumnMissingV2RelationOnlyNoWarn:
         }
 
     def test_no_warning_when_columns_disabled(self, project):
-        util.run_dbt(["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS])
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
 
 
 class TestPersistDocsColumnMissingWarnsV1ColumnsOnly:
@@ -618,7 +617,7 @@ class TestPersistDocsColumnMissingWarnsV1ColumnsOnly:
         assert id_columns[0].comment.startswith("test id column description")
 
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
 
@@ -647,10 +646,10 @@ class TestPersistDocsColumnMissingWarnsV1IncrementalSubsequent:
 
     def test_warning_escalates_on_subsequent_run(self, project):
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
         util.run_dbt(
-            ["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS], expect_pass=False
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
         )
 
 
@@ -693,7 +692,7 @@ class TestPersistDocsPlannedColumnV1Incremental:
             "schema.yml",
         )
 
-        util.run_dbt(["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS])
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
 
         relation = DatabricksRelation.create(
             database=project.database,
@@ -744,7 +743,7 @@ class TestPersistDocsPlannedColumnV2AlterView:
             "schema.yml",
         )
 
-        util.run_dbt(["run", "--warn-error-options", _ADAPTER_WARNING_ERROR_OPTIONS])
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
 
         relation = DatabricksRelation.create(
             database=project.database,

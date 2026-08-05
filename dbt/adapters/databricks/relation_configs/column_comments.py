@@ -26,8 +26,7 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
             for column_name, comment in self.comments.items():
                 # Use case-insensitive comparison for column names. Documented columns that are
                 # absent from the relation are skipped here so the alter never targets a nonexistent
-                # column; the user-facing "missing column" warning is emitted post-build by
-                # validate_persist_doc_columns (against the actual relation), so a legitimately new
+                # column; Jinja validation warns after the relation is built, so a legitimately new
                 # column is not flagged before it has been materialized.
                 if column_name.lower() not in other_comments_lower:
                     continue

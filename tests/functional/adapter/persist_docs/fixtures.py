@@ -39,9 +39,7 @@ gate_model_sql = """
 select 1 as id, 'alice' as name
 """
 
-# Incremental model whose schema documents a column absent from the relation. Used to exercise the
-# V2 alter/changeset path (ColumnCommentsConfig.get_diff), which — unlike a table rebuild — is only
-# reached on a subsequent run against an existing relation.
+# Incremental model whose schema documents a column absent from the materialized relation.
 missing_column_incremental_sql = """
 {{ config(materialized='incremental') }}
 select 1 as id, 'Ed' as name
