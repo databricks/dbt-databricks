@@ -187,6 +187,10 @@ class TestIncrementalModel:
         assert results[0][0] == 1
 ```
 
+## Code Comment Discipline
+
+Default to no comment. Keep one only when it records a non-obvious constraint, workaround, or rationale the code cannot express. State why, not what, in one concise sentence. Remove comments that narrate code, repeat tests, preserve implementation history, or duplicate PR/changelog rationale. Apply the existing changelog rules without adding explanatory prose around entries.
+
 ## 📝 CHANGELOG Entries
 
 Every PR that changes runtime behavior updates `CHANGELOG.md` (enforced by the PR template). Add the entry under the topmost version heading (the one marked `(TBD)`), in the correct section: `### Features`, `### Fixes`, or `### Under the Hood`.
