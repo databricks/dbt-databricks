@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.4 (TBD)
 
+### Fixes
+
+- Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
+
 ### Under the Hood
 
 - Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
