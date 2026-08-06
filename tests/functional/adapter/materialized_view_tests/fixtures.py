@@ -51,6 +51,7 @@ version: 2
 
 models:
   - name: my_materialized_view
+    description: "Bob's materialized view"
     columns:
       - name: id
         data_type: bigint
