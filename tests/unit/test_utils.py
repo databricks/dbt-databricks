@@ -155,6 +155,20 @@ class TestDatabricksUtils:
 
         assert redact_credentials(sql) == sql
 
+    def test_redact_credentials__internal_error_fails_open(self, monkeypatch):
+        sql = "copy into target_table WITH (credential ('KEY' = 'SYNTHETIC_SECRET'))"
+
+        def raise_internal_error(sql: str) -> str:
+            raise RuntimeError("synthetic redactor failure")
+
+        monkeypatch.setattr(
+            databricks_utils,
+            "_redact_credentials_in_copy_into",
+            raise_internal_error,
+        )
+
+        assert redact_credentials(sql) == sql
+
     def test_redact_credentials__key_with_dots(self):
         sql = "copy into target_table\n  WITH (credential ('fs.azure.account.key' = 'VALUE'))"
         expected = (

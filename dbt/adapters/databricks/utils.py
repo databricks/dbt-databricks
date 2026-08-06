@@ -32,8 +32,10 @@ SECRET_OPTION_KEY_REGEX = re.compile("(" + _SECRET_OPTION_KEY + r")\s*=\s*" + _S
 
 
 def redact_credentials(sql: str) -> str:
-    redacted = _redact_credentials_in_copy_into(sql)
-    return redacted
+    try:
+        return _redact_credentials_in_copy_into(sql)
+    except Exception:
+        return sql
 
 
 def _redact_secret_clause(match: "re.Match[str]") -> str:
