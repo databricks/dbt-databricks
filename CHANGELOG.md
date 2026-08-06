@@ -3,10 +3,12 @@
 ### Fixes
 
 - Redact all `credential` and `encryption` clauses in logged SQL, regardless of keyword case (thanks @SreeramaYeshwanthGowd!) ([#1610](https://github.com/databricks/dbt-databricks/pull/1610) resolves [#1609](https://github.com/databricks/dbt-databricks/issues/1609))
+- Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
 
 ### Under the Hood
 
 - Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
+- Bump `databricks-sql-connector` ceiling to `<4.4.1` and pin to 4.4.0, which requires `thrift>=0.24.0`; resolves CVE-2026-48586 (data amplification DoS), CVE-2026-41603 (TLS cert hostname bypass), and CVE-2026-43868 (memory allocation) ([#1623](https://github.com/databricks/dbt-databricks/pull/1623) resolves [#1622](https://github.com/databricks/dbt-databricks/issues/1622))
 
 ## dbt-databricks 1.12.3 (Jul 29, 2026)
 

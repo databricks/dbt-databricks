@@ -105,6 +105,17 @@ class TestMaterializedViews(TestMaterializedViewsMixin, MaterializedViewBasic):
         row = results[0]
         assert row[0] == "NO"
         assert row[1] == "The unique identifier for each record"
+        # the relation comment contains an apostrophe, which must survive create (issue #1251)
+        results = project.run_sql(
+            f"""
+            SELECT comment
+            FROM {project.database}.information_schema.tables
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = '{my_materialized_view.identifier}'""",
+            fetch="all",
+        )
+        assert results[0][0] == "Bob's materialized view"
         # Verify primary key constraint is persisted
         results = project.run_sql(
             f"""
