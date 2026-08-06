@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Recreate materialized views when query schema drifts ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
+- Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
 
 ### Under the Hood
 

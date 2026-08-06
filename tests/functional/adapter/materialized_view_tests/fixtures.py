@@ -282,3 +282,23 @@ models:
       - name: id
       - name: name
 """
+
+schema_evolution_mv_yml_v2 = """
+version: 2
+models:
+  - name: schema_evolution_mv
+    columns:
+      - name: id
+      - name: name
+      - name: new_column
+"""
+
+schema_evolution_mv_fail_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='fail') }}
+select * from {{ ref('schema_evolution_base') }}
+"""
+
+schema_evolution_mv_continue_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='continue') }}
+select * from {{ ref('schema_evolution_base') }}
+"""

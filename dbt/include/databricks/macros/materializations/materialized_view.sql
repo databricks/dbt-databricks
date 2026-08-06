@@ -29,17 +29,16 @@
     {% elif full_refresh_mode or not existing_relation.is_materialized_view %}
         {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
     {% else %}
-        {% set schema_changed = dlt_inferred_query_schema_changed(existing_relation, sql) %}
-        {% if schema_changed %}
-            {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
-        {% else %}
 
         -- get config options
         {% set on_configuration_change = config.get('on_configuration_change') %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
+        {#- Schema drift is a configuration change the components cannot see, so it joins them
+            here and is then subject to the same `on_configuration_change` handling. -#}
+        {% set schema_drifted = dlt_inferred_query_schema_changed(existing_relation, sql) %}
 
         {# Skip manual REFRESH on no-op re-runs for auto-refreshed modes. #}
-        {% if configuration_changes is none %}
+        {% if configuration_changes is none and not schema_drifted %}
             {%- set refresh = adapter.get_config_from_model(config.model).config["refresh"] -%}
             {%- if refresh.auto_refreshed -%}
                 {% set build_sql = '' %}
@@ -48,7 +47,12 @@
             {%- endif -%}
 
         {% elif on_configuration_change == 'apply' %}
-            {% set build_sql = get_alter_materialized_view_as_sql(target_relation, configuration_changes, sql, existing_relation, None, None) %}
+            {#- REFRESH cannot reconcile a drifted schema, so replace outright. -#}
+            {% if schema_drifted %}
+                {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
+            {% else %}
+                {% set build_sql = get_alter_materialized_view_as_sql(target_relation, configuration_changes, sql, existing_relation, None, None) %}
+            {% endif %}
         {% elif on_configuration_change == 'continue' %}
             {% set build_sql = "" %}
             {{ exceptions.warn("Configuration changes were identified and `on_configuration_change` was set to `continue` for `" ~ target_relation ~ "`") }}
@@ -58,8 +62,6 @@
         {% else %}
             -- this only happens if the user provides a value other than `apply`, 'skip', 'fail'
             {{ exceptions.raise_compiler_error("Unexpected configuration scenario") }}
-
-        {% endif %}
 
         {% endif %}
 
