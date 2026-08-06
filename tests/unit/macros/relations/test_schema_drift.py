@@ -25,7 +25,7 @@ class TestDltInferredQuerySchemaChanged(MacroTestBase):
             DatabricksColumn.create(name, "string") for name in existing
         ]
         template_bundle.context["get_columns_in_query"] = lambda sql: inferred
-        returned = []
+        returned: list[bool] = []
         template_bundle.context["return"] = returned.append
         self.run_macro_raw(
             template_bundle.template,
