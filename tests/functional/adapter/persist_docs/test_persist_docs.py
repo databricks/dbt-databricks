@@ -689,6 +689,7 @@ class TestPersistDocsPlannedColumnV1Incremental:
         assert comments["new_col"] == "new column comment"
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestPersistDocsPlannedColumnV2AlterView:
     @pytest.fixture(scope="class")
     def models(self):
