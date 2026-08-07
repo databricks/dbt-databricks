@@ -12,6 +12,7 @@ from dbt.adapters.databricks.constraints import (
     CheckConstraint,
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
+    synthesize_constraint_name,
 )
 from dbt.adapters.databricks.relation_configs.constraints import (
     ConstraintsConfig,
@@ -222,6 +223,42 @@ class TestConstraintsProcessor:
                 )
             },
         )
+
+    def test_from_relation_config__unnamed_primary_key_gets_synthesized_name(self):
+        # An unnamed PK is given the deterministic name the create macro would assign, so the model
+        # side matches the catalog instead of churning (#1333).
+        model = self._make_model_with_contract(
+            identifier="my_model",
+            columns={},
+            constraints=[
+                ModelLevelConstraint(type=ConstraintType.primary_key, columns=["id"]),
+            ],
+        )
+        spec = ConstraintsProcessor.from_relation_config(model)
+        (pk,) = spec.set_constraints
+        assert pk.name == synthesize_constraint_name(
+            PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"]), "my_model"
+        )
+        assert pk.name is not None
+
+    def test_from_relation_config__named_constraint_keeps_its_name(self):
+        # An explicitly named constraint is left untouched by name synthesis.
+        model = self._make_model_with_contract(
+            identifier="my_model",
+            columns={},
+            constraints=[
+                ModelLevelConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_explicit",
+                    columns=["parent_id"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                ),
+            ],
+        )
+        spec = ConstraintsProcessor.from_relation_config(model)
+        (fk,) = spec.set_constraints
+        assert fk.name == "fk_explicit"
 
     def test_from_relation_config__with_non_null_constraint(self):
         model = self._make_model_with_contract(
@@ -476,3 +513,84 @@ class TestConstraintsConfig:
         other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         diff = config.get_diff(other)
         assert {(c.name, c.expression) for c in diff.set_constraints} == {("pk_n", "RELY")}
+
+    @staticmethod
+    def _model_with_fks(*fk_constraints):
+        model = Mock()
+        model.config.contract.enforced = True
+        model.identifier = "child"
+        model.columns = {}
+        model.constraints = list(fk_constraints)
+        return model
+
+    @staticmethod
+    def _catalog_mirroring(model_config):
+        # Mimic from_relation_results for the catalog: the create macro stored each key under the
+        # same synthesized name, and information_schema round-trips columns/to/to_columns.
+        return ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name=fk.name,
+                    columns=fk.columns,
+                    to=fk.to,
+                    to_columns=fk.to_columns,
+                )
+                for fk in model_config.set_constraints
+            },
+        )
+
+    def test_get_diff__unnamed_fk_matches_catalog_synthesized_name_is_noop(self):
+        # End-to-end: from_relation_config synthesizes the create-macro name, which equals what the
+        # catalog stored, so an unnamed FK is a no-op on an incremental run instead of churning
+        # (#1344).
+        model_config = ConstraintsProcessor.from_relation_config(
+            self._model_with_fks(
+                ModelLevelConstraint(
+                    type=ConstraintType.foreign_key,
+                    columns=["parent_id"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                )
+            )
+        )
+        assert model_config.get_diff(self._catalog_mirroring(model_config)) is None
+
+        # The no-op holds *because* the names agree: had the catalog kept the pre-fix server name,
+        # the diff would reconcile (drop + re-add), which is exactly the churn this fix removes.
+        server_named = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="child_parent_fk",
+                    columns=["parent_id"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        assert model_config.get_diff(server_named) is not None
+
+    def test_get_diff__two_unnamed_fks_to_same_parent_is_noop(self):
+        # The exact #1344 shape: two unnamed FKs to one parent on different columns get distinct
+        # synthesized names (so the re-adds would not collide) and neither churns.
+        model_config = ConstraintsProcessor.from_relation_config(
+            self._model_with_fks(
+                ModelLevelConstraint(
+                    type=ConstraintType.foreign_key,
+                    columns=["a"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                ),
+                ModelLevelConstraint(
+                    type=ConstraintType.foreign_key,
+                    columns=["b"],
+                    to="`c`.`s`.`parent`",
+                    to_columns=["id"],
+                ),
+            )
+        )
+        assert len({c.name for c in model_config.set_constraints}) == 2
+        assert model_config.get_diff(self._catalog_mirroring(model_config)) is None
