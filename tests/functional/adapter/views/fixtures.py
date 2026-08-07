@@ -40,6 +40,23 @@ models:
       - name: msg
 """
 
+two_tag_schema_yml = """
+version: 2
+models:
+  - name: initial_view
+    description: "This is a view"
+    config:
+      tblproperties:
+        key: value
+      databricks_tags:
+        tag1: value1
+        tag2: value2
+    columns:
+      - name: id
+        description: "This is the id column"
+      - name: msg
+"""
+
 hive_schema_yml = """
 version: 2
 models:
@@ -57,4 +74,20 @@ models:
 altered_view_sql = """
 {{ config(materialized='view') }}
 select id from {{ ref('seed') }};
+"""
+
+
+view_without_tags_sql = """
+{{ config(materialized='view') }}
+
+select cast(1 as bigint) as id
+"""
+
+view_with_tags_sql = """
+{{ config(
+    materialized='view',
+    databricks_tags={'classification': 'internal'}
+) }}
+
+select cast(1 as bigint) as id
 """

@@ -1,11 +1,35 @@
+import uuid
+
 import pytest
 from dbt.tests import util
 
 from tests.functional.adapter.column_tags import fixtures
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV1Mixin,
+    MaterializationV2Mixin,
+    RerunSafeMixin,
+)
+
+# CREATE GOVERNED TAG needs account-level CREATE; soft-skip when the identity cannot.
+_GOVERNED_TAG_SETUP_SKIP_MARKERS = (
+    "permission",
+    "privilege",
+    "unauthorized",
+    "access denied",
+    "insufficient",
+    "not supported",
+    "parse_syntax_error",
+    "parse exception",
+    "feature is not enabled",
+    "uc_command_not_supported",
+)
 
 
-class ColumnTagsMixin(MaterializationV2Mixin):
+class ColumnTagsMixin(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("base_model",)
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -32,6 +56,8 @@ class ColumnTagsMixin(MaterializationV2Mixin):
         expected_tags = {
             ("account_number", "pii", "true"),
             ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
         }
         actual_tags = {(row[0], row[1], row[2]) for row in tags}
         assert actual_tags == expected_tags
@@ -52,6 +78,8 @@ class ColumnTagsMixin(MaterializationV2Mixin):
             ("id", "pii", "false"),
             ("account_number", "pii", "true"),
             ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
         }
         actual_tags = {(row[0], row[1], row[2]) for row in tags}
         assert actual_tags == expected_tags
@@ -95,10 +123,177 @@ class TestStreamingTableColumnTags(ColumnTagsMixin):
     def setup_streaming_table_seed(self, project):
         util.run_dbt(["seed"])
 
+    @pytest.fixture(autouse=True)
+    def stop_streaming_query(self, project):
+        # Drop base_model on teardown to stop its streaming query promptly, so it
+        # can't orphan and cascade failures into other tests on the same xdist worker.
+        yield
+        self._drop_relations(project, ("base_model",))
+
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestColumnTagsView(ColumnTagsMixin):
     relation_type = "view"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsViewUpdateViaAlter(ColumnTagsMixin):
+    relation_type = "view"
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        # With view_update_via_alter, a subsequent run whose only change is its column
+        # tags takes the alter_view path instead of a full replace; the changed tags
+        # must be applied there too.
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+view_update_via_alter": True},
+        }
+
+    def test_unchanged_rerun_keeps_column_tags(self, project):
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+
+        column_tags_query = f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'base_model'
+            ORDER BY column_name, tag_name
+            """
+        tags = project.run_sql(column_tags_query, fetch="all")
+        expected_tags = {
+            ("account_number", "pii", "true"),
+            ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
+        }
+        actual_tags = {(row[0], row[1], row[2]) for row in tags}
+        assert actual_tags == expected_tags
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("drop_model",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "drop_model.sql": fixtures.drop_tagged_column_model,
+            "schema.yml": fixtures.drop_tagged_column_initial_schema,
+        }
+
+    def _column_tags(self, project):
+        rows = project.run_sql(
+            f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'drop_model'
+            ORDER BY column_name, tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+    def test_drop_tagged_column(self, project):
+        util.run_dbt(["run"])
+        assert self._column_tags(project) == {
+            ("account_number", "pii", "true"),
+            ("email", "pii", "true"),
+            ("email", "contact", "true"),
+        }
+
+        util.write_file(fixtures.drop_tagged_column_updated_schema, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        columns = {
+            row[0]
+            for row in project.run_sql("DESCRIBE TABLE drop_model", fetch="all")
+            if row[0] and not row[0].startswith("#")
+        }
+        assert "email" not in columns
+        assert {"id", "account_number"}.issubset(columns)
+
+        assert self._column_tags(project) == {("account_number", "pii", "true")}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("drop_model",)
+
+    @pytest.fixture(scope="class")
+    def governed_tag_key(self):
+        return f"dbt_ft_drop_gov_{uuid.uuid4().hex[:12]}"
+
+    @pytest.fixture(scope="class")
+    def models(self, governed_tag_key):
+        return {
+            "drop_model.sql": fixtures.drop_tagged_column_model,
+            "schema.yml": fixtures.drop_governed_tagged_column_initial_schema.format(
+                tag_key=governed_tag_key
+            ),
+        }
+
+    @pytest.fixture(scope="class", autouse=True)
+    def ensure_governed_tag(self, project, governed_tag_key):
+        try:
+            project.run_sql(f"CREATE GOVERNED TAG {governed_tag_key} VALUES ('true')")
+        except Exception as exc:
+            msg = str(exc).lower()
+            if any(marker in msg for marker in _GOVERNED_TAG_SETUP_SKIP_MARKERS):
+                pytest.skip(
+                    "Cannot CREATE GOVERNED TAG (need account-level CREATE / "
+                    f"supported SQL warehouse): {exc}"
+                )
+            raise
+
+        yield
+
+        try:
+            project.run_sql(f"DROP GOVERNED TAG {governed_tag_key}")
+        except Exception:
+            pass
+
+    def _column_tags(self, project):
+        rows = project.run_sql(
+            f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'drop_model'
+            ORDER BY column_name, tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+    def test_drop_governed_tagged_column(self, project, governed_tag_key):
+        util.run_dbt(["run"])
+        assert self._column_tags(project) == {("email", governed_tag_key, "true")}
+
+        util.write_file(
+            fixtures.drop_governed_tagged_column_updated_schema,
+            "models",
+            "schema.yml",
+        )
+        util.run_dbt(["run"])
+
+        columns = {
+            row[0]
+            for row in project.run_sql("DESCRIBE TABLE drop_model", fetch="all")
+            if row[0] and not row[0].startswith("#")
+        }
+        assert "email" not in columns
+        assert {"id", "account_number"}.issubset(columns)
+        assert self._column_tags(project) == set()
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -109,3 +304,66 @@ class TestColumnTagsTableV1(ColumnTagsMixin):
     def project_config_update(self):
         # Override MaterializationV2Mixin to test the V1 (default) materialization path
         return {}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsIncrementalV1(ColumnTagsMixin):
+    relation_type = "incremental"
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        # Override MaterializationV2Mixin to test the V1 (default) materialization path.
+        # Exercises both the V1 incremental create path (run 1) and the V1 merge-time
+        # configuration changeset (run 2 adds a tag to a previously-untagged column).
+        return {}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestColumnTagsIncrementalV1FullRefresh(RerunSafeMixin, MaterializationV1Mixin):
+    """A `dbt run --full-refresh` of a V1 incremental model must re-apply column tags.
+
+    Full-refresh recreates the relation from scratch (the recreate branch of the V1
+    incremental materialization), so any column tags must be re-applied there or they
+    are lost on every full refresh.
+    """
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("base_model",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": fixtures.base_model_sql,
+            "schema.yml": fixtures.initial_column_tag_model.replace(
+                "materialized: table", "materialized: incremental"
+            ),
+        }
+
+    def _column_tags(self, project):
+        rows = project.run_sql(
+            f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'base_model'
+            ORDER BY column_name, tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+    def test_column_tags_survive_full_refresh(self, project):
+        expected = {
+            ("account_number", "pii", "true"),
+            ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
+        }
+        # Initial run creates the relation (create path applies the tags).
+        util.run_dbt(["run"])
+        assert self._column_tags(project) == expected
+        # Full refresh recreates the relation; the recreate path must re-apply the tags.
+        util.run_dbt(["run", "--full-refresh"])
+        assert self._column_tags(project) == expected

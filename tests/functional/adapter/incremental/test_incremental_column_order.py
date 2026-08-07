@@ -202,3 +202,31 @@ class TestIncrementalColumnOrderInsertOverwriteV2(
                 "+partition_by": "status",
             }
         }
+
+
+class TestIncrementalColumnOrderReplaceWhere(TestIncrementalColumnOrderBase):
+    """Test column order with replace_where strategy"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "replace_where",
+                "+incremental_predicates": "id is not null",
+            }
+        }
+
+
+class TestIncrementalColumnOrderReplaceWhereV2(
+    MaterializationV2Mixin, TestIncrementalColumnOrderBase
+):
+    """Test column order with replace_where strategy (V2 materialization)"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+incremental_strategy": "replace_where",
+                "+incremental_predicates": "id is not null",
+            }
+        }

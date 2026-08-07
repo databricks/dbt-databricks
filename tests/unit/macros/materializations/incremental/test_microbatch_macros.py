@@ -16,11 +16,12 @@ class TestMicrobatchMacros(MacroTestBase):
 
     @pytest.fixture(autouse=True)
     def setup_mock_capability(self, context):
-        """Mock the adapter's has_dbr_capability to support insert_by_name by default"""
+        """Mock has_dbr_capability so the microbatch BY NAME path (shared get_replace_where_sql)
+        is enabled by default (DBR 18.0+ / SQL warehouse — insert_by_name_replace_where)."""
 
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == "insert_by_name":
-                return True  # Default to DBR 12.2+
+            if capability_name in ("insert_by_name", "insert_by_name_replace_where"):
+                return True
             return False
 
         context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)

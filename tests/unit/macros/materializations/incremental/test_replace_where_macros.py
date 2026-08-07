@@ -16,11 +16,12 @@ class TestReplaceWhereMacros(MacroTestBase):
 
     @pytest.fixture(autouse=True)
     def setup_mock_capability(self, context):
-        """Mock the adapter's has_dbr_capability to support insert_by_name by default"""
+        """Mock has_dbr_capability so the replace_where BY NAME path is enabled by default
+        (DBR 18.0+ / SQL warehouse — the insert_by_name_replace_where capability)."""
 
         def has_dbr_capability_side_effect(capability_name):
-            if capability_name == "insert_by_name":
-                return True  # Default to DBR 12.2+
+            if capability_name in ("insert_by_name", "insert_by_name_replace_where"):
+                return True
             return False
 
         context["adapter"].has_dbr_capability = Mock(side_effect=has_dbr_capability_side_effect)
@@ -132,6 +133,36 @@ class TestReplaceWhereMacros(MacroTestBase):
         BY NAME REPLACE WHERE date_col BETWEEN '2023-01-01' AND '2023-01-31' and status IN ('active', 'pending') and amount > 1000
         TABLE schema.temp_table
         """  # noqa
+
+        self.assert_sql_equal(result, expected)
+
+    def test_get_replace_where_sql__omits_by_name_below_replace_where_floor(
+        self, template_bundle, context, mock_relations
+    ):
+        """Issue #1532: a cluster with the plain insert_by_name capability but NOT the
+        insert_by_name_replace_where combination (DBR < 18.0, e.g. the reporter's 16.4) must
+        omit BY NAME from the replace_where statement, or its parser rejects the SQL."""
+
+        def side_effect(capability_name):
+            # Simulate a DBR 16.4 cluster: plain insert_by_name yes, the combination no.
+            return capability_name == "insert_by_name"
+
+        context["adapter"].has_dbr_capability = Mock(side_effect=side_effect)
+
+        target_relation, temp_relation = mock_relations
+        args_dict = {
+            "target_relation": target_relation,
+            "temp_relation": temp_relation,
+            "incremental_predicates": "date_col > '2023-01-01'",
+        }
+
+        result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
+
+        expected = """
+        INSERT INTO schema.target_table
+        REPLACE WHERE date_col > '2023-01-01'
+        TABLE schema.temp_table
+        """
 
         self.assert_sql_equal(result, expected)
 

@@ -7,6 +7,7 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.exceptions import DbtValidationError
 
+from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
     CustomConstraint,
@@ -22,6 +23,7 @@ from dbt.adapters.databricks.constraints import (
     process_constraint,
     validate_constraint,
 )
+from dbt.adapters.databricks.impl import DatabricksAdapter
 
 
 class FakeConstraint(TypedConstraint):
@@ -319,3 +321,98 @@ class TestParseConstraints:
                 CustomConstraint(type=ConstraintType.custom, expression="1 = 1"),
             ],
         ) == parse_constraints(columns, constraints)
+
+
+class TestParseColumnsAndConstraintsGate:
+    @staticmethod
+    def _existing_columns():
+        return [DatabricksColumn(column="id", dtype="int")]
+
+    @staticmethod
+    def _model_columns_with_fk():
+        return {
+            "id": {
+                "name": "id",
+                "data_type": "int",
+                "constraints": [
+                    {"type": "not_null"},
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_id",
+                        "to": "parent",
+                        "to_columns": ["id"],
+                    },
+                ],
+            }
+        }
+
+    def test_skips_column_constraints_when_not_enforced(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=False,
+        )
+        assert parsed == []
+
+    def test_skips_column_not_null_when_not_enforced(self):
+        enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=False,
+        )
+        assert all(not getattr(col, "not_null", False) for col in enriched)
+
+    def test_parses_column_constraints_when_enforced(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=True,
+        )
+        assert len(parsed) == 1
+        assert isinstance(parsed[0], ForeignKeyConstraint)
+        assert parsed[0].name == "fk_id"
+        assert parsed[0].columns == ["id"]
+
+    def test_defaults_to_not_enforced(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+        )
+        assert parsed == []
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_logs_info_when_constraints_skipped(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=False,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_called_once()
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_no_log_when_no_constraints_declared(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            {"id": {"name": "id", "data_type": "int"}},
+            [],
+            contract_enforced=False,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_not_called()
+
+    @patch("dbt.adapters.databricks.impl.logger")
+    def test_no_skip_log_when_enforced(self, mock_logger):
+        DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._model_columns_with_fk(),
+            [],
+            contract_enforced=True,
+            model_name="my_model",
+        )
+        mock_logger.info.assert_not_called()

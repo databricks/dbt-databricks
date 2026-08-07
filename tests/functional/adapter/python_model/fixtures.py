@@ -385,3 +385,33 @@ def model(dbt, spark):
     )
     return df
 """
+
+# job_cluster submission with no job_cluster_config supplied
+job_cluster_missing_config_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='job_cluster',
+    )
+    return spark.createDataFrame([[1, 2]], schema=['id', 'val'])
+"""
+
+# all_purpose_cluster submission with neither http_path nor cluster_id supplied
+all_purpose_missing_cluster_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+    )
+    return spark.createDataFrame([[1, 2]], schema=['id', 'val'])
+"""
+
+managed_iceberg_python_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        table_format='iceberg',
+        submission_method='serverless_cluster',
+    )
+    return spark.createDataFrame([[1]], schema=['id'])
+"""

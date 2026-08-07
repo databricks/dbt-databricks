@@ -1,0 +1,122 @@
+{
+  "database": "test_schema",
+  "schema": "test_schema",
+  "name": "m_table",
+  "resource_type": "model",
+  "package_name": "test_project",
+  "path": "m_table.sql",
+  "original_file_path": "models/m_table.sql",
+  "unique_id": "model.test_project.m_table",
+  "fqn": [
+    "test_project",
+    "m_table"
+  ],
+  "alias": "m_table",
+  "checksum": {
+    "name": "sha256",
+    "checksum": ""
+  },
+  "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "materialized": "table",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+      "show": true,
+      "node_color": null
+    },
+    "contract": {
+      "enforced": false,
+      "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+  },
+  "tags": [],
+  "description": "",
+  "columns": {
+    "id": {
+      "name": "id",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "meta": {},
+  "group": null,
+  "docs": {
+    "show": true,
+    "node_color": null
+  },
+  "patch_path": "test_project://models/schema.yml",
+  "build_path": null,
+  "unrendered_config": {
+    "materialized": "table"
+  },
+  "created_at": 0,
+  "config_call_dict": {
+    "materialized": "table"
+  },
+  "unrendered_config_call_dict": {},
+  "relation_name": "`test_schema`.`test_schema`.`m_table`",
+  "raw_code": "{{ config(materialized='table') }}\nselect 1 as id, 'a' as val",
+  "doc_blocks": [],
+  "language": "sql",
+  "refs": [],
+  "sources": [],
+  "metrics": [],
+  "functions": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": []
+  },
+  "compiled_path": "target/compiled/test_project/models/m_table.sql",
+  "compiled": true,
+  "compiled_code": "\nselect 1 as id, 'a' as val",
+  "extra_ctes_injected": true,
+  "extra_ctes": [],
+  "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+  },
+  "access": "protected",
+  "constraints": [],
+  "version": null,
+  "latest_version": null,
+  "deprecation_date": null,
+  "defer_relation": null,
+  "primary_key": [],
+  "time_spine": null,
+  "batch": null
+}

@@ -1,0 +1,101 @@
+# Weekly purge of the test service principal's accumulated dbt Python-model
+# notebooks.
+#
+# dbt uploads each Python model as a workspace notebook under
+# /Users/<sp>/dbt_python_models/<catalog>/<schema>/ and never deletes it. The
+# integration suites mint a unique schema per run, so the catalog folders accrue
+# one child per run until they hit Databricks' 10,000-child folder cap — at which
+# point workspace.mkdirs fails with "Size limit exceeded" and every Python-model
+# test errors. A weekly sweep is plenty: the folder takes months to approach the
+# cap, so a week's accumulation stays far under it. Deleting the whole tree also
+# covers integration.yml AND integration-min-deps.yml, which share this SP folder.
+#
+# Runs Saturday 10:00 UTC (a quiet weekend slot) — but the calendar slot is NOT
+# the safety mechanism: /integration-test PR comments dispatch the integration
+# workflows on demand at any hour. The load-bearing guard is the step right before
+# the delete: it asks the Actions API whether any integration run is active
+# (in_progress OR still queued/waiting for a runner) and skips the purge if so. It
+# fails CLOSED — an active run or an unreadable API skips the delete. A skipped
+# week is harmless; the next run purges.
+name: Cleanup Python Model Dirs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 10 * * 6"   # Saturday 10:00 UTC
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  cleanup:
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    environment: azure-prod
+    env:
+      DBT_DATABRICKS_HOST_NAME: ${{ secrets.DATABRICKS_HOST }}
+      DBT_DATABRICKS_CLIENT_ID: ${{ secrets.TEST_PECO_SP_ID }}
+      DBT_DATABRICKS_CLIENT_SECRET: ${{ secrets.TEST_PECO_SP_SECRET }}
+      UV_FROZEN: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      # Guard immediately before the delete so the check->delete gap is a single
+      # workspace.delete call. Fail CLOSED: an active run or an unreadable API
+      # leaves proceed=false and the purge is skipped.
+      - name: Skip the purge if an integration run is active
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          active=0
+          for wf in integration.yml integration-min-deps.yml integration-spog.yml; do
+            # Count non-terminal runs (in_progress AND queued/waiting for a runner);
+            # status=in_progress alone misses a queued run about to upload notebooks.
+            n=$(curl -fsS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$wf/runs?per_page=100" \
+              | jq '[.workflow_runs[] | select(.status != "completed")] | length') \
+              || { echo "::warning::Could not read run status for $wf; treating as active."; n=1; }
+            echo "$wf: $n active run(s)"
+            active=$((active + n))
+          done
+          if [ "$active" -gt 0 ]; then
+            echo "::notice::$active integration run(s) active; skipping purge (next run purges)."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Purge accumulated Python-model notebook folders
+        if: steps.guard.outputs.proceed == 'true'
+        run: hatch run python scripts/cleanup_python_model_dirs.py

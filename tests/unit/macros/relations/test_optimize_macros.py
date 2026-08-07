@@ -41,3 +41,20 @@ class TestOptimizeMacros(MacroTestBase):
         r = self.render_bundle(template_bundle, "optimize")
 
         assert r == ""
+
+    @pytest.mark.parametrize(
+        "cluster_key,cluster_val",
+        [
+            ("zorder", "foo"),
+            ("liquid_clustered_by", ["foo"]),
+            ("auto_liquid_cluster", True),
+        ],
+    )
+    def test_macros_optimize_with_skip_optimize_config(
+        self, cluster_key, cluster_val, config, template_bundle
+    ):
+        config[cluster_key] = cluster_val
+        config["skip_optimize"] = True
+        r = self.render_bundle(template_bundle, "optimize")
+
+        assert r == ""

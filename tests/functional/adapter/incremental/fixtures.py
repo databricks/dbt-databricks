@@ -76,6 +76,57 @@ models:
         - name: color
 """
 
+metadata_fetch_incremental_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+) }}
+
+select cast(1 as bigint) as id
+"""
+
+metadata_fetch_incremental_skip_config_changes_sql = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = 'id',
+    incremental_apply_config_changes = false,
+) }}
+
+select cast(1 as bigint) as id
+"""
+
+metadata_fetch_no_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+"""
+
+metadata_fetch_table_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    config:
+      databricks_tags:
+        classification: internal
+    columns:
+      - name: id
+"""
+
+metadata_fetch_column_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_incremental
+    columns:
+      - name: id
+        databricks_tags:
+          classification: internal
+"""
+
 tblproperties_a = """
 version: 2
 
@@ -258,6 +309,13 @@ delete_insert_expected = """id,msg
 3,anyway
 """
 
+delete_insert_composite_key_expected = """id,color,msg
+1,blue,replaced
+1,red,updated
+2,blue,updated
+2,red,goodbye
+"""
+
 delete_insert_update_schema_expected = """id
 1
 2
@@ -387,6 +445,48 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+force_legacy_delete_insert_macros = """
+{% macro delete_insert_sql_impl(
+     source_relation, target_relation, target_columns, unique_key, incremental_predicates
+   ) %}
+  {#-- Force the DBR < 17.1 path so the legacy DELETE predicate runs on any compute --#}
+  {%- set keys = unique_key
+        if unique_key is sequence and unique_key is not string
+        else [unique_key] -%}
+  {% do return(delete_insert_legacy_sql(
+       source_relation, target_relation, target_columns, keys, incremental_predicates
+     )) %}
+{% endmacro %}
+"""
+
+delete_insert_composite_key_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'color'],
+    incremental_strategy = 'delete+insert',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'blue' as color, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'red' as color, 'goodbye' as msg
+
+{% else %}
+
+-- (1, blue) is an exact key match and must be replaced with its new payload.
+-- (1, red) and (2, blue) only bait a per-column match; matching each column on
+-- its own would wrongly delete both existing rows, so they must only insert.
+-- (2, red) is absent from this run and so must survive untouched.
+select cast(1 as bigint) as id, 'blue' as color, 'replaced' as msg
+union all
+select cast(1 as bigint) as id, 'red' as color, 'updated' as msg
+union all
+select cast(2 as bigint) as id, 'blue' as color, 'updated' as msg
 
 {% endif %}
 """
@@ -1239,4 +1339,14 @@ models:
             to_columns: ["str_key"]
             name: fk
             warn_unenforced: false
+"""
+
+partitioned_incremental_initial_sql = """
+{{ config(materialized='incremental', incremental_strategy='append', partition_by='part_a') }}
+select 1 as id, 'x' as part_a, 'y' as part_b
+"""
+
+partitioned_incremental_changed_sql = """
+{{ config(materialized='incremental', incremental_strategy='append', partition_by='part_b') }}
+select 2 as id, 'x' as part_a, 'y' as part_b
 """

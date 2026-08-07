@@ -39,6 +39,15 @@ seed_csv = """id,msg
 3,anyway
 """
 
+uniform_iceberg_sql = """
+{{ config(
+    materialized = 'table',
+    table_format = 'iceberg'
+) }}
+
+select cast(1 as bigint) as id, 'hello' as msg
+"""
+
 snapshot_sql = """
 {% snapshot my_snapshot %}
 

@@ -19,8 +19,8 @@ runs:
           ~/.cache/uv
           ~/.cache/pip
           ~/.cache/pip-wheelhouse
-        key: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-latest
-        restore-keys: python-deps-${{ hashFiles('uv.lock', 'pyproject.toml') }}-
+        key: python-deps-${{ hashFiles('uv.lock', 'requirements.lowest-direct.txt', 'pyproject.toml') }}-latest
+        restore-keys: python-deps-${{ hashFiles('uv.lock', 'requirements.lowest-direct.txt', 'pyproject.toml') }}-
 
     - name: Restore pre-commit cache
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -37,3 +37,4 @@ runs:
         echo "UV_INDEX_URL=https://databricks.jfrog.io/artifactory/api/pypi/db-pypi/simple" >> "$GITHUB_ENV"
         echo "PIP_NO_INDEX=1" >> "$GITHUB_ENV"
         echo "PIP_FIND_LINKS=$HOME/.cache/pip-wheelhouse" >> "$GITHUB_ENV"
+        echo "UV_FIND_LINKS=$HOME/.cache/pip-wheelhouse" >> "$GITHUB_ENV"

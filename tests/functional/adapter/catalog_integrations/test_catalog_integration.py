@@ -6,6 +6,8 @@ from dbt.tests.adapter.catalog_integrations.test_catalog_integration import (
 )
 from dbt.tests.util import get_connection, run_dbt
 
+from tests.functional.adapter.catalog_integrations import fixtures
+
 MODEL__BASIC_ICEBERG_TABLE = """
 {{ config(materialized='table', catalog_name='a-different-catalog') }}
 select 1 as id, 'test' as name
@@ -115,3 +117,55 @@ class TestUnityCatalogIntegration(BaseCatalogIntegrationValidation):
         # Verify we can run again (idempotency)
         run_results = run_dbt(["run"])
         assert len(run_results) == 3  # type: ignore
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUnityCatalogTableFormatDefault(BaseCatalogIntegrationValidation):
+    """A write integration declaring ``table_format: iceberg`` applies that format to a
+    routed model that sets no ``table_format`` of its own. With ``use_managed_iceberg``
+    off (the default) the result is a Delta table carrying UniForm Iceberg metadata.
+    """
+
+    @pytest.fixture(scope="class")
+    def catalogs(self):
+        # The active write integration's name becomes the physical catalog the relation
+        # is created in, so it must point at the profile's catalog.
+        catalog = os.getenv("DBT_DATABRICKS_UC_INITIAL_CATALOG", "main")
+        return {
+            "catalogs": [
+                {
+                    "name": "iceberg_uniform_catalog",
+                    "active_write_integration": catalog,
+                    "write_integrations": [
+                        {
+                            "name": catalog,
+                            "catalog_type": "unity",
+                            "table_format": "iceberg",
+                            "file_format": "delta",
+                        }
+                    ],
+                },
+            ]
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"catalog_defaulted_iceberg.sql": fixtures.catalog_defaulted_iceberg}
+
+    def test_catalog_table_format_default_applies(self, project):
+        run_dbt(["run"])
+
+        relation = f"{project.database}.{project.test_schema}.catalog_defaulted_iceberg"
+
+        properties = {
+            row[0]: row[1] for row in project.run_sql(f"show tblproperties {relation}", fetch="all")
+        }
+        uniform = properties.get("delta.universalFormat.enabledFormats")
+        assert uniform is not None and "iceberg" in uniform
+        assert properties.get("delta.enableIcebergCompatV2") == "true"
+
+        described = {
+            str(col_name).strip(): str(value).strip()
+            for col_name, value, *_ in project.run_sql(f"describe extended {relation}", fetch="all")
+        }
+        assert described.get("Provider", "").lower() == "delta"

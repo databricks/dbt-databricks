@@ -13,7 +13,7 @@
   {% endif %}
   
   {#-- Use managed Iceberg if behavior flag is enabled and table_format is iceberg --#}
-  {% if adapter.behavior.use_managed_iceberg and table_format == 'iceberg' %}
+  {% if table_format == 'iceberg' and adapter.behavior.use_managed_iceberg %}
     using iceberg
   {% else %}
     using {{ file_format }}

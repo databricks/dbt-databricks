@@ -27,8 +27,11 @@ class QueryProcessor(DatabricksComponentProcessor[QueryConfig]):
 
     @classmethod
     def from_relation_results(cls, result: RelationResults) -> QueryConfig:
-        view_definition = result["information_schema.views"]["view_definition"].strip()
-        if view_definition[0] == "(" and view_definition[-1] == ")":
+        view_definition_raw = result["information_schema.views"].get("view_definition") or ""
+        view_definition = view_definition_raw.strip()
+        if not view_definition:
+            return QueryConfig(query="")
+        if view_definition.startswith("(") and view_definition.endswith(")"):
             view_definition = view_definition[1:-1]
         return QueryConfig(query=SqlUtils.clean_sql(view_definition))
 
@@ -48,5 +51,11 @@ class DescribeQueryProcessor(QueryProcessor):
     @classmethod
     def from_relation_results(cls, result: RelationResults) -> QueryConfig:
         table = result["describe_extended"]
-        row = next(x for x in table if x[0] == "View Text")
+        row = next((x for x in table if x[0] == "View Text"), None)
+        if row is None:
+            return QueryConfig(query="")
+        if len(row) < 2:
+            raise DbtRuntimeError(
+                "Unexpected result from DESCRIBE EXTENDED: missing View Text value"
+            )
         return QueryConfig(query=SqlUtils.clean_sql(row[1]))

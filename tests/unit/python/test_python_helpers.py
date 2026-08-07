@@ -23,6 +23,7 @@ def credentials():
     c = Mock()
     c.get_all_http_headers.return_value = {}
     c.connection_parameters = {}
+    c.http_path = "/sql/1.0/warehouses/abc"
     return c
 
 

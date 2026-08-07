@@ -95,3 +95,25 @@ select 1 as id, 'updated' as status
 union all
 select 2 as id, 'new' as status
 """
+
+incremental_iceberg_partition_schema = """
+version: 2
+models:
+  - name: iceberg_partition_inc
+    config:
+      materialized: incremental
+      table_format: iceberg
+      incremental_strategy: merge
+      unique_key: id
+      partition_by: ["business_date"]
+"""
+
+incremental_iceberg_partition_base = """
+select 1 as id, 'initial' as status, cast('2024-01-01' as date) as business_date
+"""
+
+incremental_iceberg_partition_update = """
+select 1 as id, 'updated' as status, cast('2024-01-01' as date) as business_date
+union all
+select 2 as id, 'new' as status, cast('2024-01-02' as date) as business_date
+"""

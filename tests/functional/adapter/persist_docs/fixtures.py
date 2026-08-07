@@ -33,3 +33,18 @@ seeds:
       - name: name
         description: 'A name column'
 """
+
+gate_model_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'alice' as name
+"""
+
+gate_model_schema = """
+version: 2
+models:
+  - name: gate_model
+    description: A described relation
+    columns:
+      - name: id
+        description: The id column description
+"""

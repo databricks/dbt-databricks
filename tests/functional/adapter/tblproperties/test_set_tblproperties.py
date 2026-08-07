@@ -1,6 +1,7 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import MaterializationV2Mixin
 from tests.functional.adapter.tblproperties import fixtures
 
 
@@ -60,3 +61,32 @@ class TestTblproperties:
 
         self.check_snapshot_results(project.adapter, num_rows=3)
         self.check_tblproperties(project, "my_snapshot", ["tblproperties_to_snapshot"])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUniformIcebergTblproperties:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"uniform_iceberg.sql": fixtures.uniform_iceberg_sql}
+
+    def test_uniform_properties_applied(self, project):
+        # With use_managed_iceberg off (the default), an iceberg table is a Delta
+        # table in UniForm mode, so the Delta->Iceberg compatibility properties are
+        # added automatically rather than being declared in the model config.
+        util.run_dbt(["run"])
+
+        results = util.run_sql_with_adapter(
+            project.adapter,
+            f"show tblproperties {project.test_schema}.uniform_iceberg",
+            fetch="all",
+        )
+        tblproperties = {result[0]: result[1] for result in results}
+
+        assert tblproperties["delta.universalFormat.enabledFormats"] == "iceberg"
+        assert tblproperties["delta.enableIcebergCompatV2"] == "true"
+
+
+class TestTblpropertiesV2(TestTblproperties, MaterializationV2Mixin):
+    """tblproperties applied at create on the v2 path (the base class runs under v1)."""
+
+    pass

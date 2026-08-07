@@ -13,6 +13,7 @@ class BaseCopyInto:
             "source.csv": fixtures.source,
             "expected_target.csv": fixtures.expected_target,
             "expected_target_expression_list.csv": fixtures.expected_target_expression_list,
+            "expected_target_validate.csv": fixtures.expected_target_validate,
             "seed_schema.yml": fixtures.seed_schema,
         }
 
@@ -83,3 +84,46 @@ copy_options:
         path = self.path(project)
         self.copy_into(path, self.args_formatter)
         util.check_relations_equal(project.adapter, ["target", "expected_target_expression_list"])
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestCopyIntoValidate(BaseCopyInto):
+    args_formatter = """
+target_table: target
+source: {source_path}
+file_format: parquet
+validate: all
+format_options:
+  mergeSchema: 'true'
+copy_options:
+  mergeSchema: 'true'
+"""
+
+    def test_copy_into_validate_does_not_load(self, project):
+        path = self.path(project)
+        self.copy_into(path, self.args_formatter)
+        util.check_relations_equal(project.adapter, ["target", "expected_target_validate"])
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
+class TestCopyIntoFilesAndPatternConflict(BaseCopyInto):
+    args_formatter = """
+target_table: target
+source: {source_path}
+file_format: parquet
+files:
+  - part-00000.parquet
+pattern: '*.parquet'
+"""
+
+    def test_files_and_pattern_are_mutually_exclusive(self, project):
+        path = self.path(project)
+        util.run_dbt(
+            [
+                "run-operation",
+                "databricks_copy_into",
+                "--args",
+                self.args_formatter.format(source_path=path),
+            ],
+            expect_pass=False,
+        )

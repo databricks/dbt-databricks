@@ -43,6 +43,7 @@ class MacroTestBase:
         # Create a mock adapter with a working quote method
         mock_adapter = Mock()
         mock_adapter.quote = lambda identifier: f"`{identifier}`"
+        mock_adapter.yaml_quote_backtick_values = lambda yaml_body: yaml_body
 
         # Create a mock for api.Relation.create that returns a relation with proper render method
         def mock_relation_create(database=None, schema=None, identifier=None, type=None):
@@ -115,12 +116,24 @@ class MacroTestBase:
         """
         The environment used for rendering Databricks macros
         """
-        return Environment(
+        env = Environment(
             loader=FileSystemLoader(
                 [f"dbt/include/databricks/{folder}" for folder in macro_folders_to_load]
             ),
             extensions=["jinja2.ext.do"],
         )
+
+        def _as_bool(value):
+            if isinstance(value, bool):
+                return value
+            if str(value).lower() in ("true", "1", "yes"):
+                return True
+            if str(value).lower() in ("false", "0", "no"):
+                return False
+            raise ValueError(f"Cannot convert {value!r} to bool")
+
+        env.filters["as_bool"] = _as_bool
+        return env
 
     @pytest.fixture
     def databricks_template_names(self) -> list:

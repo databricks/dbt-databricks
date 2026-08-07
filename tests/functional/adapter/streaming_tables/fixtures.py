@@ -44,7 +44,7 @@ complex_streaming_table = """
     partition_by='id',
     schedule = {
         'cron': '0 0 * * * ? *',
-        'time_zone': 'Etc/UTC'
+        'time_zone_value': 'Etc/UTC'
     },
     tblproperties={
         'key': 'value'
@@ -60,11 +60,15 @@ models:
   - name: my_streaming_table
     columns:
       - name: id
+        data_type: bigint
         description: "The unique identifier for each record"
         constraints:
           - type: not_null
       - name: value
+        data_type: bigint
     config:
+      contract:
+        enforced: true
       persist_docs:
         relation: true
         columns: true
@@ -120,4 +124,52 @@ models:
   - name: liquid_clustered_st
     config:
       liquid_clustered_by: []
+"""
+
+
+def streaming_table_with_every(every_value: str) -> str:
+    """Render a streaming-table model with `schedule = {'every': <value>}`."""
+    return f"""
+{{{{ config(
+    materialized='streaming_table',
+    schedule = {{'every': '{every_value}'}},
+) }}}}
+select * from stream {{{{ ref('my_seed') }}}}
+"""
+
+
+EVERY_ACCEPTED_INPUTS: list[str] = ["2 HOURS", "1 DAY", "4 WEEKS"]
+
+
+streaming_table_on_update_bare = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'on_update': True},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_on_update_rate_limited = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'on_update': True, 'at_most_every': '15 MINUTES'},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_cron_no_tz = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'cron': '0 0 * * * ? *'},
+) }}
+select * from stream {{ ref('my_seed') }}
+"""
+
+streaming_table_every_with_tblproperties = """
+{{ config(
+    materialized='streaming_table',
+    schedule = {'every': '2 HOURS'},
+    tblproperties={'lifecycle_marker': 'v1'},
+) }}
+select * from stream {{ ref('my_seed') }}
 """

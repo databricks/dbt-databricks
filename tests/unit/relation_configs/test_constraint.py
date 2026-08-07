@@ -378,3 +378,101 @@ class TestConstraintsConfig:
         )
         diff = config.get_diff(other)
         assert diff is None
+
+    def test_get_diff__primary_key_rely_is_noop(self):
+        # information_schema does not expose RELY/NORELY, so a catalog-read PK always has
+        # expression=None. The model's RELY must not be treated as a change (issue #1513).
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key,
+                    name="pk_n",
+                    columns=["n"],
+                    expression="RELY",
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(type=ConstraintType.primary_key, name="pk_n", columns=["n"])
+            },
+        )
+        assert config.get_diff(other) is None
+
+    def test_get_diff__foreign_key_expression_form_is_noop(self):
+        # An expression-form FK carries its target inside `expression` (to/to_columns None);
+        # the catalog reconstructs to/to_columns and drops the expression. Must not churn.
+        config = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_n",
+                    columns=["n"],
+                    expression="(n) REFERENCES `cat`.`sch`.`parent` RELY",
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_n",
+                    columns=["n"],
+                    to="`cat`.`sch`.`parent`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        assert config.get_diff(other) is None
+
+    def test_get_diff__foreign_key_repointed_to_new_target(self):
+        # A repointed explicit FK (same name + columns, different target) is still reconciled.
+        config = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_p",
+                    columns=["parent_id"],
+                    to="`cat`.`sch`.`parent_v2`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                ForeignKeyConstraint(
+                    type=ConstraintType.foreign_key,
+                    name="fk_p",
+                    columns=["parent_id"],
+                    to="`cat`.`sch`.`parent`",
+                    to_columns=["id"],
+                )
+            },
+        )
+        diff = config.get_diff(other)
+        assert diff is not None
+        assert {c.to for c in diff.set_constraints} == {"`cat`.`sch`.`parent_v2`"}
+        assert {c.to for c in diff.unset_constraints} == {"`cat`.`sch`.`parent`"}
+
+    def test_get_diff__new_primary_key_retains_expression(self):
+        # A genuinely new PK is added with its RELY intact, so the ADD renders `... RELY`.
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key,
+                    name="pk_n",
+                    columns=["n"],
+                    expression="RELY",
+                )
+            },
+        )
+        other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        diff = config.get_diff(other)
+        assert {(c.name, c.expression) for c in diff.set_constraints} == {("pk_n", "RELY")}

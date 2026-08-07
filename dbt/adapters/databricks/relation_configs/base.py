@@ -34,6 +34,12 @@ class DatabricksComponentConfig(BaseModel):
             return self
         return None
 
+    def requires_server_metadata_for_diff(self) -> bool:
+        """
+        Indicates whether server metadata is required to compute the diff for this component.
+        """
+        return True
+
 
 class DatabricksRelationChangeSet(BaseModel):
     """Class for encapsulating the changes that need to be applied to a Databricks relation."""

@@ -1,6 +1,3 @@
-import os
-import re
-
 import pytest
 from dbt.tests import util
 from dbt.tests.adapter.ephemeral import test_ephemeral
@@ -31,23 +28,17 @@ class TestEphemeralNested(BaseEphemeral):
     def test_ephemeral_nested(self, project):
         results = util.run_dbt(["run"])
         assert len(results) == 2
-        assert os.path.exists("./target/run/test/models/root_view.sql")
-        with open("./target/run/test/models/root_view.sql") as fp:
-            sql_file = fp.read()
 
-        sql_file = re.sub(r"\d+", "", sql_file)
-        expected_sql = (
-            f"create or replace view `{project.database}`.`test_test_ephemeral`.`root_view` as "
-            "( with __dbt__cte__ephemeral_level_two as ("
-            f"select * from `{project.database}`.`test_test_ephemeral`.`source_table`"
-            "),  __dbt__cte__ephemeral as ("
-            "select * from __dbt__cte__ephemeral_level_two"
-            ") select * from __dbt__cte__ephemeral )"
+        # Ephemeral models are inlined, not materialized.
+        tables = project.run_sql(
+            f"show tables in {project.database}.{project.test_schema}", fetch="all"
         )
+        names = {row[1].lower() for row in tables}
+        assert {"source_table", "root_view"} <= names
+        assert "ephemeral" not in names
+        assert "ephemeral_level_two" not in names
 
-        sql_file = "".join(sql_file.split())
-        expected_sql = "".join(expected_sql.split())
-        assert sql_file == expected_sql
+        util.check_relations_equal(project.adapter, ["source_table", "root_view"])
 
 
 class TestEphemeralErrorHandling(BaseEphemeral):

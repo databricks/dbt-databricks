@@ -61,7 +61,7 @@ For other platforms: see https://hatch.pypa.io/latest/install/
 ```bash
 hatch run code-quality           # Format, lint, type-check
 hatch run unit                   # Run unit tests
-hatch run cluster-e2e            # Run functional tests
+hatch run cluster-e2e-dev        # Run functional tests
 
 # For specific tests, use pytest directly:
 hatch run pytest path/to/test_file.py::TestClass::test_method -v
@@ -83,7 +83,25 @@ hatch run pytest path/to/test_file.py::TestClass::test_method -v
 2. **Functional Tests** (`tests/functional/`): End-to-end with real Databricks
    - Test complete dbt workflows (run, seed, test, snapshot)
    - Require live Databricks workspace
-   - Run with: `hatch run cluster-e2e` (or `uc-cluster-e2e`, `sqlw-e2e`)
+   - Run with: `hatch run cluster-e2e-dev` (or `uc-cluster-e2e-dev`, `sqlw-e2e-dev`).
+
+3. **Lowest-direct dependency tests** (`hatch run min-deps:X`): Same unit + functional suites against the committed lower-bound lock
+   - Catches drift where wide dep ranges in `pyproject.toml` admit versions the code no longer supports
+   - Lock lives in `requirements.lowest-direct.txt`
+   - Run with: `hatch run min-deps:unit`, `hatch run min-deps:parse`, `hatch run min-deps:e2e`
+   - Details: [docs/testing.md → Testing against lowest-direct dependencies](docs/testing.md#testing-against-lowest-direct-dependencies)
+
+### What to Assert in Each Test Type
+
+Functional tests assert user-visible outcomes: the model materializes and the resulting rows are correct. Unit and macro tests assert implementation details like the exact SQL a macro generates or the exact text of a warning.
+
+When there is nothing meaningful to assert in either category, the change does not need a test.
+
+Three rules keep functional tests server-truthful and cheap (full detail in [docs/testing.md → Functional Tests](docs/testing.md#functional-tests)):
+
+- **Assert server-observable state only** — query data, `SHOW TBLPROPERTIES`, `DESCRIBE DETAIL`/`EXTENDED`/`HISTORY`, or `information_schema`. Never assert a log substring or generated-SQL text in a functional test (that's unit/macro-test domain), even where existing tests do.
+- **Rerun-safe** — a second run of the test must pass (`RerunSafeMixin` or unique names).
+- **Cheapest home first** — strengthen an existing test > add a case to a class > new class > new file/section; fixtures go in `fixtures.py`, never inlined.
 
 ### Test Environments
 
@@ -169,6 +187,39 @@ class TestIncrementalModel:
         assert results[0][0] == 1
 ```
 
+## Code Comment Discipline
+
+Default to no comment. Keep one only when it records a non-obvious constraint, workaround, or rationale the code cannot express. State why, not what, in one concise sentence. Remove comments that narrate code, repeat tests, preserve implementation history, or duplicate PR/changelog rationale. Apply the existing changelog rules without adding explanatory prose around entries.
+
+## 📝 CHANGELOG Entries
+
+Every PR that changes runtime behavior updates `CHANGELOG.md` (enforced by the PR template). Add the entry under the topmost version heading (the one marked `(TBD)`), in the correct section: `### Features`, `### Fixes`, or `### Under the Hood`.
+
+Write one line, present tense, describing the user-visible effect (not the implementation):
+
+```
+- <summary> ([#<PR>](https://github.com/databricks/dbt-databricks/pull/<PR>))
+```
+
+When the PR addresses a tracked issue, link it in the same parentheses after the PR:
+
+```
+- <summary> ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+- Use `resolves` when merging the PR should close the issue (matches the PR template's `Resolves #`).
+- Use `partially resolves` when the PR only partly addresses the issue; the issue stays open, so don't put an auto-close keyword like `Resolves #` in the PR body.
+- Omit the issue link when there is no tracked issue.
+- Older entries use `closes`; leave them as-is and use `resolves` for new ones.
+
+Community (external) contributions credit the author with `(thanks @<author>!)` before the links:
+
+```
+- <summary> (thanks @<author>!) ([#<PR>](.../pull/<PR>) resolves [#<ISSUE>](.../issues/<ISSUE>))
+```
+
+Test-only PRs still get an `### Under the Hood` entry noted `(test-only, no runtime impact)`.
+
 ## 🏗 Architecture Deep Dive
 
 ### Adapter Inheritance Chain
@@ -189,12 +240,7 @@ DatabricksAdapter (impl.py)
   - Per-compute caching (different clusters can have different capabilities)
   - Named capabilities instead of magic version numbers
   - Automatic detection of DBR version and SQL warehouse environments
-- **Supported Capabilities**:
-  - `TIMESTAMPDIFF` (DBR 10.4+): Advanced date/time functions
-  - `INSERT_BY_NAME` (DBR 12.2+): Name-based column matching in INSERT
-  - `ICEBERG` (DBR 14.3+): Apache Iceberg table format
-  - `COMMENT_ON_COLUMN` (DBR 16.1+): Modern column comment syntax
-  - `JSON_COLUMN_METADATA` (DBR 16.2+): Efficient metadata retrieval
+- **Supported Capabilities**: see [`docs/dbr-capability-system.md`](docs/dbr-capability-system.md) for the canonical list (each capability's minimum DBR version and SQL-warehouse support). The authoritative source is the `DBRCapability` enum and `CAPABILITY_SPECS` in `dbr_capabilities.py`; the doc mirrors them in human-readable form.
 - **Usage in Code**:
 
   ```python
@@ -220,6 +266,7 @@ DatabricksAdapter (impl.py)
   1. Add to `DBRCapability` enum
   2. Add `CapabilitySpec` with version requirements
   3. Use `has_capability()` or `require_capability()` in code
+  4. Update `docs/dbr-capability-system.md` (the human-readable mirror of the enum/specs) whenever you add, remove, or change a capability or its version/SQL-warehouse support
 - **Important**: Each compute resource (identified by `http_path`) maintains its own capability cache
 
 #### Connection Management (`connections.py`)
@@ -361,6 +408,20 @@ Models can be configured with Databricks-specific options:
 2. Update macro to use new configuration
 3. Add validation logic if needed
 4. Write tests for both valid and invalid configurations
+
+### Updating Dependencies (`pyproject.toml` / `uv.lock`)
+
+`uv.lock` pins the exact version CI tests against. Version bounds in `pyproject.toml` are independent of the pinned version — a loosened upper bound does NOT auto-bump the pinned version.
+
+**When changing a version bound in `pyproject.toml`:**
+
+1. Run `uv lock --upgrade-package <name>` to pick up the newest allowed version of that package (targeted, not a full resolve).
+2. Inspect the `uv.lock` diff — confirm the pinned version now matches the version you actually want to test against.
+3. Commit both `pyproject.toml` and `uv.lock` in the same commit.
+
+**Why this matters:** a pre-commit hook runs `uv lock --check` and catches pyproject↔lock *inconsistency*, but it does NOT force pinned versions forward. If the previously pinned version still satisfies the new bound (e.g. raised `<4.1.4` to `<4.1.6` while `4.1.3` is already pinned), the lock stays consistent and CI keeps testing the old version — the whole point of the bound change is lost. Always run the targeted upgrade explicitly.
+
+**Adding a new dependency:** `uv add <name>` updates both files; no separate lock step needed.
 
 ## 🐛 Debugging Guide
 

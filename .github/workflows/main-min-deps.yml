@@ -1,0 +1,119 @@
+# Min-deps variant of main.yml's Tests and Code Checks workflow. Runs
+# unit tests + a build+verify+smoke-parse job against the committed
+# lowest-direct lock. Fires on every push to main / *.latest and on
+# every PR (including forks) — dependencies are served from the
+# pre-populated cache (see warmDepsCache.yml) when available.
+
+name: Tests and Code Checks (Min-Deps)
+
+on:
+  push:
+    branches:
+      - "main"
+      - "*.latest"
+      - "releases/*"
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ contains(github.event_name, 'pull_request') && github.event.pull_request.head.ref || github.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  unit:
+    name: unit test / python 3.10
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      UV_FROZEN: "1"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Run Unit Tests
+        run: hatch -v run min-deps:unit
+
+  build:
+    name: Build and Verify Packages
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+
+    env:
+      UV_FROZEN: "1"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Build distributions
+        run: hatch -v build
+
+      - name: Verify distributions (lowest-direct)
+        run: hatch run verify-min-deps:check-all

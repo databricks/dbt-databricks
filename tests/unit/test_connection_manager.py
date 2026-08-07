@@ -75,6 +75,8 @@ class TestDatabricksConnectionManager:
         mock_connection.credentials.connect_retries = 1
         mock_connection.credentials.connect_timeout = 10
         mock_connection.credentials.query_tags = None
+        mock_connection.credentials.compute = None  # default for real DatabricksCredentials
+        mock_connection.credentials.host = "example.cloud.databricks.com"
         mock_connection.http_path = "sql/protocolv1/o/abc123def456"
         mock_connection.credentials.authenticate.return_value = Mock()
         mock_connection._query_header_context = None
@@ -96,8 +98,8 @@ class TestDatabricksConnectionManager:
         assert args[1] is True
 
 
-class TestTryCacheDbr:
-    """Unit tests for _try_cache_dbr_capabilities."""
+class TestCacheDbr:
+    """Unit tests for _cache_dbr_capabilities."""
 
     HTTP_PATH = "sql/protocolv1/o/1234567890123456/cluster-abc"
 
@@ -109,14 +111,11 @@ class TestTryCacheDbr:
 
     @patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=None)
     def test_does_not_write_to_cache_when_version_is_none(self, mock_query):
-        """When the version query returns None, the cache must not be written.
-
-        This prevents a poisoned None entry from blocking the authoritative write in open().
-        """
+        """Regression for #1398: a None version query result must not poison the cache."""
         creds = Mock(spec=DatabricksCredentials)
         creds.cluster_id = None
 
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
+        DatabricksConnectionManager._cache_dbr_capabilities(creds, self.HTTP_PATH)
 
         assert self.HTTP_PATH not in DatabricksConnectionManager._dbr_capabilities_cache
         mock_query.assert_called_once_with(creds, self.HTTP_PATH)
@@ -127,7 +126,7 @@ class TestTryCacheDbr:
         creds = Mock(spec=DatabricksCredentials)
         creds.cluster_id = None
 
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
+        DatabricksConnectionManager._cache_dbr_capabilities(creds, self.HTTP_PATH)
 
         mock_query.assert_called_once_with(creds, self.HTTP_PATH)
         caps = DatabricksConnectionManager._dbr_capabilities_cache.get(self.HTTP_PATH)
@@ -144,7 +143,70 @@ class TestTryCacheDbr:
         existing = DBRCapabilities(dbr_version=(14, 3), is_sql_warehouse=False)
         DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] = existing
 
-        DatabricksConnectionManager._try_cache_dbr_capabilities(creds, self.HTTP_PATH)
+        DatabricksConnectionManager._cache_dbr_capabilities(creds, self.HTTP_PATH)
 
         mock_query.assert_not_called()
         assert DatabricksConnectionManager._dbr_capabilities_cache[self.HTTP_PATH] is existing
+
+    def test_retry_succeeds_after_transient_failure(self):
+        """Regression for #1398: after a transient None result, the next call must re-query."""
+        creds = Mock(spec=DatabricksCredentials)
+        creds.cluster_id = None
+
+        with patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=None):
+            DatabricksConnectionManager._cache_dbr_capabilities(creds, self.HTTP_PATH)
+
+        with patch.object(DatabricksConnectionManager, "_query_dbr_version", return_value=(16, 2)):
+            DatabricksConnectionManager._cache_dbr_capabilities(creds, self.HTTP_PATH)
+
+        caps = DatabricksConnectionManager._dbr_capabilities_cache.get(self.HTTP_PATH)
+        assert caps is not None
+        assert caps.dbr_version == (16, 2)
+        assert caps.has_capability(DBRCapability.ICEBERG)
+
+
+class TestOpenSpogIntegration:
+    """Verify DatabricksConnectionManager.open() invokes check_spog_preconditions."""
+
+    def test_passes_all_http_paths_to_check(self):
+        captured = {}
+
+        def fake_check(*, host, http_paths):
+            captured["host"] = host
+            captured["http_paths"] = list(http_paths)
+            return None
+
+        with (
+            patch(
+                "dbt.adapters.databricks.connections.check_spog_preconditions",
+                side_effect=fake_check,
+            ),
+            patch("dbt.adapters.databricks.connections.DatabricksHandle.from_connection_args"),
+            patch(
+                "dbt.adapters.databricks.connections.SqlUtils.prepare_connection_arguments",
+                return_value={},
+            ),
+            patch(
+                "dbt.adapters.databricks.connections.QueryConfigUtils.get_merged_query_tags",
+                return_value={},
+            ),
+        ):
+            fake_conn = Mock()
+            fake_conn.state = "init"
+            fake_conn.credentials = Mock(spec=DatabricksCredentials)
+            fake_conn.credentials.host = "spog.example.com"
+            fake_conn.credentials.http_path = "/sql/1.0/warehouses/default?o=64"
+            fake_conn.credentials.compute = {"extra": {"http_path": "/sql/1.0/warehouses/alt?o=64"}}
+            fake_conn.credentials.connect_timeout = None
+            fake_conn.credentials.connect_retries = 1
+            fake_conn.credentials.retry_all = False
+            fake_conn.credentials.cluster_id = None
+            fake_conn.credentials.authenticate = Mock(return_value=Mock())
+            fake_conn.http_path = "/sql/1.0/warehouses/default?o=64"
+            fake_conn._query_header_context = None
+
+            DatabricksConnectionManager.open(fake_conn)
+
+        assert captured["host"] == "spog.example.com"
+        assert "/sql/1.0/warehouses/default?o=64" in captured["http_paths"]
+        assert "/sql/1.0/warehouses/alt?o=64" in captured["http_paths"]
