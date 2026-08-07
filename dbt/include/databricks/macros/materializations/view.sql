@@ -11,17 +11,13 @@
     {% if existing_relation %}
       {% if relation_should_be_altered(existing_relation) %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
-        {% if configuration_changes and configuration_changes.changes %}
-          {% if configuration_changes.requires_full_refresh %}
-            {{ log('Using replace_with_view') }}
-            {{ replace_with_view(existing_relation, target_relation) }}
-          {% else %}
-            {{ log('Using alter_view') }}
-            {{ log(configuration_changes.changes) }}
-            {{ alter_view(target_relation, configuration_changes.changes) }}
-          {% endif %}
+        {% if configuration_changes.requires_full_refresh %}
+          {{ log('Using replace_with_view') }}
+          {{ replace_with_view(existing_relation, target_relation) }}
         {% else %}
-          {{ execute_no_op(target_relation) }}
+          {{ log('Using alter_view') }}
+          {{ log(configuration_changes.changes) }}
+          {{ alter_view(target_relation, configuration_changes.changes) }}
         {% endif %}
       {% else %}
         {{ replace_with_view(existing_relation, target_relation) }}
@@ -86,6 +82,9 @@
 {% endmacro %}
 
 {% macro relation_should_be_altered(existing_relation) %}
+  {% if should_full_refresh() %}
+    {{ return(False) }}
+  {% endif %}
   {% set update_via_alter = config.get('view_update_via_alter', False) | as_bool %}
   {% if (existing_relation.is_view or existing_relation.is_metric_view) and update_via_alter %}
     {% if existing_relation.is_hive_metastore() %}

@@ -3,7 +3,7 @@ from agate import Row
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin, RerunSafeMixin
 from tests.functional.adapter.views import fixtures
 
 
@@ -60,6 +60,35 @@ class BaseUpdateNothing(BaseUpdateView):
         assert results[0][2] == "This is the id column"
 
 
+class BaseUpdateFullRefresh(BaseUpdateView):
+    """Ensure that a full refresh forces a recreation even when there are no changes."""
+
+    def test_view_update_full_refresh(self, project):
+        util.run_dbt(["build"])
+
+        project.run_sql(
+            "alter view {database}.{schema}.initial_view "
+            "set tblproperties ('triage_marker' = 'present')"
+        )
+        properties_before = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
+        )
+        assert properties_before["triage_marker"] == "present"
+
+        util.run_dbt(["run", "--full-refresh"])
+
+        properties_after = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
+        )
+        assert "triage_marker" not in properties_after
+
+
 class BaseUpdateTblProperties(BaseUpdateView):
     def test_view_update_tblproperties(self, project):
         util.run_dbt(["build"])
@@ -102,6 +131,24 @@ class BaseUpdateQueryPreservesColumnComments(BaseUpdateView):
             "describe extended {database}.{schema}.initial_view",
             fetch="all",
         )
+        assert results[0][2] == "This is the id column"
+
+
+class BaseUpdateUpstreamSchema(BaseUpdateView):
+    """Test that a star-select view is re-applied when the upstream table gains a new column."""
+
+    def test_view_update_with_upstream_schema_change(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.seed_with_extra_csv, "seeds", "seed.csv")
+        util.run_dbt(["seed", "--full-refresh"])
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "describe {database}.{schema}.initial_view",
+            fetch="all",
+        )
+
+        assert [col.col_name for col in results] == ["id", "msg", "extra"]
         assert results[0][2] == "This is the id column"
 
 
@@ -219,6 +266,26 @@ class TestUpdateViewViaAlterNothing(BaseUpdateNothing):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterFullRefresh(RerunSafeMixin, BaseUpdateFullRefresh):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("initial_view", "seed")
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterQuery(BaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -268,6 +335,30 @@ class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterQueryPreservesColumnComments(BaseUpdateQueryPreservesColumnComments):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterUpstreamSchema(RerunSafeMixin, BaseUpdateUpstreamSchema):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("initial_view", "seed")
+
+    @pytest.fixture(autouse=True)
+    def reset_seed_file(self, project):
+        util.write_file(fixtures.seed_csv, "seeds", "seed.csv")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

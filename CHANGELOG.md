@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Fixes
+
+- Reapply views on every run when `view_update_via_alter` is enabled, allowing unchanged queries to reflect upstream schema changes. Each run issues `ALTER VIEW AS`, invalidating cached data for the view and its dependents. (thanks @canbekley!) ([#1358](https://github.com/databricks/dbt-databricks/pull/1358) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
+
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
