@@ -81,6 +81,9 @@
       {%- endif -%}
     {%- endif -%}
 
+    {#-- Validate every create, replace, and merge path. --#}
+    {% do validate_persist_doc_columns(target_relation, model) %}
+
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}

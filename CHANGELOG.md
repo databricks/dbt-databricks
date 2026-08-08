@@ -3,6 +3,7 @@
 ### Fixes
 
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
+- Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
 
 ### Under the Hood
 
