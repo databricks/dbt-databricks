@@ -419,3 +419,324 @@ class TestPersistDocsColumnsGateV1:
             f"v1 must suppress column comment when persist_docs.columns is false, "
             f"got {id_columns[0].comment!r}"
         )
+
+
+_JINJA_WARNING_ERROR_OPTIONS = '{"error": ["JinjaLogWarning"]}'
+
+
+class TestPersistDocsColumnMissingWarnsV1:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column.sql": fixtures._MODELS__MISSING_COLUMN}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": fixtures._PROPERTIES__SCHEMA_MISSING_COL}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {"test": {"+persist_docs": {"relation": True, "columns": True}}},
+        }
+
+    @pytest.fixture(scope="class")
+    def table_relation(self, project):
+        return DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column",
+            type="table",
+        )
+
+    def test_warns_and_still_comments_present_columns(self, adapter, table_relation):
+        util.run_dbt(["run"])
+
+        results = util.run_sql_with_adapter(
+            adapter, f"describe extended {table_relation}", fetch="all"
+        )
+        _, columns = adapter.parse_describe_extended(
+            table_relation, Table(results, ["col_name", "data_type", "comment"])
+        )
+        id_columns = [c for c in columns if c.column == "id"]
+        assert id_columns and id_columns[0].comment
+        assert id_columns[0].comment.startswith("test id column description")
+
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+
+class TestPersistDocsColumnMissingWarnsV2:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_incremental_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": True, "columns": True}}},
+        }
+
+    def test_warning_escalates_on_create_and_subsequent_runs(self, project, adapter):
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column_incremental",
+            type="table",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "test id column description"
+
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+
+class TestPersistDocsColumnMissingWarnsV2ColumnsOnly:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_incremental_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    def test_warning_escalates_with_columns_only(self, project, adapter):
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column_incremental",
+            type="table",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "test id column description"
+
+
+class TestPersistDocsColumnMissingV2RelationOnlyNoWarn:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_incremental_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": True, "columns": False}}},
+        }
+
+    def test_no_warning_when_columns_disabled(self, project):
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
+
+
+class TestPersistDocsColumnMissingWarnsV1ColumnsOnly:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column.sql": fixtures._MODELS__MISSING_COLUMN}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": fixtures._PROPERTIES__SCHEMA_MISSING_COL}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    @pytest.fixture(scope="class")
+    def table_relation(self, project):
+        return DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column",
+            type="table",
+        )
+
+    def test_warning_escalates_with_columns_only(self, adapter, table_relation):
+        util.run_dbt(["run"])
+
+        results = util.run_sql_with_adapter(
+            adapter, f"describe extended {table_relation}", fetch="all"
+        )
+        _, columns = adapter.parse_describe_extended(
+            table_relation, Table(results, ["col_name", "data_type", "comment"])
+        )
+        id_columns = [c for c in columns if c.column == "id"]
+        assert id_columns and id_columns[0].comment
+        assert id_columns[0].comment.startswith("test id column description")
+
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+
+class TestPersistDocsColumnMissingWarnsV1IncrementalSubsequent:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_incremental.sql": override_fixtures.missing_column_incremental_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_incremental_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {
+                "test": {
+                    "+persist_docs": {"relation": True, "columns": True},
+                    "+incremental_apply_config_changes": True,
+                }
+            },
+        }
+
+    def test_warning_escalates_on_subsequent_run(self, project):
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+
+class TestPersistDocsPlannedColumnV1Incremental:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema_change_incremental.sql": (
+                override_fixtures.schema_change_incremental_initial_sql
+            )
+        }
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.schema_change_incremental_initial_yml}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {
+                "test": {
+                    "+persist_docs": {"relation": False, "columns": True},
+                }
+            },
+        }
+
+    def test_new_documented_column_is_not_warned_before_schema_sync(self, project, adapter):
+        util.run_dbt(["run"])
+        util.write_file(
+            override_fixtures.schema_change_incremental_updated_sql,
+            project.project_root,
+            "models",
+            "schema_change_incremental.sql",
+        )
+        util.write_file(
+            override_fixtures.schema_change_incremental_updated_yml,
+            project.project_root,
+            "models",
+            "schema.yml",
+        )
+
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="schema_change_incremental",
+            type="table",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["new_col"] == "new column comment"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPersistDocsPlannedColumnV2AlterView:
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"alter_view.sql": override_fixtures.alter_view_initial_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.alter_view_initial_yml}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "test": {
+                    "+persist_docs": {"relation": False, "columns": True},
+                }
+            },
+        }
+
+    def test_new_documented_column_is_not_warned_before_alter_view(self, project, adapter):
+        util.run_dbt(["run"])
+        util.write_file(
+            override_fixtures.alter_view_updated_sql,
+            project.project_root,
+            "models",
+            "alter_view.sql",
+        )
+        util.write_file(
+            override_fixtures.alter_view_updated_yml,
+            project.project_root,
+            "models",
+            "schema.yml",
+        )
+
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="alter_view",
+            type="view",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "updated id comment"
+        assert comments["added_col"] == "added column comment"

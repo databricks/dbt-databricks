@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Fixes
+
+- Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
+
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
