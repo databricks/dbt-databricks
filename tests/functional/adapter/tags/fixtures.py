@@ -140,3 +140,24 @@ metadata_fetch_table_with_tags_sql = """
 
 select cast(1 as bigint) as id
 """
+
+# Same model with a different tag value, to check the diff still applies real changes.
+metadata_fetch_table_with_changed_tags_sql = """
+{{ config(
+    materialized = 'table',
+    databricks_tags = {'classification': 'confidential'},
+) }}
+
+select cast(1 as bigint) as id
+"""
+
+metadata_fetch_changed_column_tags_schema = """
+version: 2
+
+models:
+  - name: metadata_fetch_table
+    columns:
+      - name: id
+        databricks_tags:
+          classification: confidential
+"""

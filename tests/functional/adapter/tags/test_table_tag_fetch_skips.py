@@ -4,6 +4,7 @@ from dbt.tests import util
 
 from tests.functional.adapter.fixtures import (
     MaterializationV2Mixin,
+    RerunSafeMixin,
     fail_if_tag_and_column_tag_fetch_called_macros,
 )
 from tests.functional.adapter.tags import fixtures
@@ -76,12 +77,16 @@ class TestTableMetadataFetchRequiresColumnTags(BaseTableMetadataFetch):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestTableDropRecreateAppliesAllTags(BaseTableMetadataFetch):
+class TestTableDropRecreateAppliesAllTags(RerunSafeMixin, BaseTableMetadataFetch):
     """A dropped+recreated relation inherits no tags, so all are applied (no diff, no fetch)."""
 
     @pytest.fixture(scope="class")
     def models(self):
         return {"metadata_fetch_table.sql": fixtures.metadata_fetch_view_first_sql}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("metadata_fetch_table",)
 
     def test_drop_recreate_applies_all_tags_without_fetch(self, project):
         # View (no fetch) reconfigured to a tagged table: the recreate applies all tags, no fetch.
@@ -99,8 +104,29 @@ class TestTableDropRecreateAppliesAllTags(BaseTableMetadataFetch):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestTableMetadataFetchRequiresTableTagsV2(MaterializationV2Mixin, BaseTableMetadataFetch):
+    """Table tags on the v2 create_table_at path."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "metadata_fetch_table.sql": fixtures.metadata_fetch_table_sql,
+            "schema.yml": fixtures.metadata_fetch_table_tags_schema,
+        }
+
+    def test_rerun_fetches_table_tags(self, project):
+        util.run_dbt(["run"])
+
+        run_execution_results = util.run_dbt(["run"], expect_pass=False)
+        assert len(run_execution_results.results) == 1
+        result = run_execution_results.results[0]
+        assert result.status == RunStatus.Error
+        assert "tags should not be called" in result.message
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestTableMetadataFetchRequiresColumnTagsV2(MaterializationV2Mixin, BaseTableMetadataFetch):
-    """Same on the v2 create_table_at path."""
+    """Column tags on the v2 create_table_at path."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -117,3 +143,63 @@ class TestTableMetadataFetchRequiresColumnTagsV2(MaterializationV2Mixin, BaseTab
         result = run_execution_results.results[0]
         assert result.status == RunStatus.Error
         assert "tags should not be called" in result.message
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestChangedTableTagValueIsApplied(RerunSafeMixin):
+    """The diff must still apply a tag whose value changed."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"metadata_fetch_table.sql": fixtures.metadata_fetch_table_with_tags_sql}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("metadata_fetch_table",)
+
+    def test_changed_tag_value_reaches_server(self, project):
+        util.run_dbt(["run"])
+        util.write_file(
+            fixtures.metadata_fetch_table_with_changed_tags_sql,
+            "models",
+            "metadata_fetch_table.sql",
+        )
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
+            " where schema_name = '{schema}' and table_name='metadata_fetch_table'",
+            fetch="all",
+        )
+        assert set((row[0], row[1]) for row in results) == {("classification", "confidential")}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestChangedColumnTagValueIsApplied(RerunSafeMixin):
+    """Same for a column tag whose value changed."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "metadata_fetch_table.sql": fixtures.metadata_fetch_table_sql,
+            "schema.yml": fixtures.metadata_fetch_column_tags_schema,
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("metadata_fetch_table",)
+
+    def test_changed_column_tag_value_reaches_server(self, project):
+        util.run_dbt(["run"])
+        util.write_file(fixtures.metadata_fetch_changed_column_tags_schema, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        results = project.run_sql(
+            "select column_name, tag_name, tag_value from"
+            " `system`.`information_schema`.`column_tags`"
+            " where schema_name = '{schema}' and table_name='metadata_fetch_table'",
+            fetch="all",
+        )
+        assert set((row[0], row[1], row[2]) for row in results) == {
+            ("id", "classification", "confidential")
+        }
