@@ -1,8 +1,12 @@
----
-Replace Flow
----
-
 # Replace Flow
+
+_Last updated: 2026-08-09_
+
+Shared decision tree for replacing an existing relation. Referenced by the table, view, and
+incremental flows (their V2 paths) when an existing relation must be swapped for a new definition.
+The `use_safer_relation_operations` config selects between the safe (stage/backup) strategies and a
+direct `CREATE OR REPLACE`. Source: the relation-replacement macros in
+`dbt/include/databricks/macros/relations/`.
 
 Diagram of the replace decision tree.
 

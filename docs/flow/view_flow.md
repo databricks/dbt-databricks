@@ -1,8 +1,12 @@
----
-View Flow
----
+# View Flow
 
-# V1 View Flow
+_Last updated: 2026-08-09_
+
+> Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
+> behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
+> selection works. Source: `dbt/include/databricks/macros/materializations/view.sql`.
+
+## V1 View Flow
 
 ```mermaid
 flowchart LR
@@ -22,7 +26,7 @@ flowchart LR
     TAGS-->POST
 ```
 
-# V2 View Flow
+## V2 View Flow
 
 See [replace flow](replace_flow.md) for details.
 

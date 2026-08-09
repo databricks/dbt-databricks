@@ -1,5 +1,12 @@
 # Incremental Flow
 
+_Last updated: 2026-08-09_
+
+> Two diagrams follow: **Existing** is the default path, **New** is used when the
+> `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
+> flag is and how the selection works. Source:
+> `dbt/include/databricks/macros/materializations/incremental/incremental.sql`.
+
 ## Existing Incremental Flow
 
 ```mermaid
@@ -79,12 +86,12 @@ flowchart LR
     INT-->SCHEMA
     INTPY-->SCHEMA
     SCHEMA-->MERGE
-    MERGE-->LIQUID
-    LIQUID-->D11
+    MERGE-->D11
     D11--yes-->TAGS3
     TAGS3-->TBLP
+    TBLP-->LIQUID
+    LIQUID-->DOCS3
     D11--"no"-->DOCS3
-    TBLP-->DOCS3
     DOCS-->GRANTS
     DOCS2-->GRANTS
     DOCS3-->GRANTS
@@ -96,7 +103,6 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    CLEANUP[Remove existing staging]
     PRE[Run pre-hooks]
     INT[Create intermediate materialization of model via SQL]
     INTPY[Create intermediate materialization of model via Python]
@@ -129,7 +135,6 @@ flowchart LR
     D2{Different type of relation or full refresh?}
     D3{Replaceable?}
     D4{Config changes?}
-    CLEANUP-->PRE
     PRE-->D0
     D0--SQL-->INT
     D0--Python-->INTPY
@@ -141,13 +146,13 @@ flowchart LR
     SCHEMA-->F2
     F2--yes-->D4
     F2--"no"-->MERGE
-    D4--yes-->CHECK3
+    D4--yes-->TAGS3
     D4--"no"-->MERGE
-    CHECK3-->DOCS
-    DOCS-->TAGS3
     TAGS3-->TBLP
     TBLP-->LIQUID
-    LIQUID-->MERGE
+    LIQUID-->DOCS
+    DOCS-->CHECK3
+    CHECK3-->MERGE
     MERGE-->GRANTS
     F1--yes-->STAGE
     F1--"no"-->D3

@@ -1,8 +1,12 @@
----
-Table Flow
----
+# Table Flow
 
-# V1 Table Flow
+_Last updated: 2026-08-09_
+
+> Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
+> behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
+> selection works. Source: `dbt/include/databricks/macros/materializations/table.sql`.
+
+## V1 Table Flow
 
 ```mermaid
 flowchart LR
@@ -46,12 +50,11 @@ flowchart LR
     OPT-->POST
 ```
 
-# V2 Table Flow
+## V2 Table Flow
 
 ```mermaid
 flowchart LR
     PRE[Run pre-hooks]
-    CLEANUP[Remove existing staging]
     INT[Create intermediate materialization of model via SQL]
     INTPY[Create intermediate materialization of model via Python]
     STAGE[Create staging table by model schema]
@@ -73,7 +76,6 @@ flowchart LR
     D0{Language?}
     D1{Existing relation?}
     D2{Replaceable?}
-    CLEANUP-->PRE
     PRE-->D0
     D0--SQL-->INT
     D0--Python-->INTPY

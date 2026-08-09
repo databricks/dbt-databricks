@@ -32,6 +32,16 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 └── utils/                    # Utility macros
 ```
 
+### Materialization Execution Flow
+
+Before changing a materialization, read its flow doc — [`docs/flow/`](docs/flow/README.md) maps how
+each materialization type executes (table, view, incremental, seed, snapshot, streaming table,
+materialized view) as diagrams, plus the shared relation [replace flow](docs/flow/replace_flow.md).
+Start at [`docs/flow/README.md`](docs/flow/README.md), which also explains the
+`use_materialization_v2` behavior flag that selects between the V1 (default) and V2 paths. The
+macros under `dbt/include/databricks/macros/materializations/` are the source of truth; the flow
+docs mirror them.
+
 ## 🛠 Development Environment
 
 **Prerequisites**: Python 3.10+ installed on your system
@@ -67,8 +77,8 @@ hatch run cluster-e2e-dev        # Run functional tests
 hatch run pytest path/to/test_file.py::TestClass::test_method -v
 ```
 
-> 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for comprehensive setup documentation
-> 📖 **See [Testing Guide](docs/testing.md)** for comprehensive testing documentation
+> 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for the full setup documentation
+> 📖 **See [Testing Guide](docs/testing.md)** for the full testing documentation
 
 ## 🧪 Testing Strategy
 
@@ -443,11 +453,23 @@ Models can be configured with Databricks-specific options:
 
 ### Documentation
 
-**Internal docs (this repo):**
+**Internal docs (this repo):** — see [`docs/README.md`](docs/README.md) for the full index
+- `docs/flow/` - Materialization execution flow diagrams (table, view, incremental, seed, snapshot, streaming table, materialized view, replace)
 - `docs/dbt-databricks-dev.md` - Development setup and workflow
-- `docs/testing.md` - Comprehensive testing guide
+- `docs/testing.md` - Testing guide (unit, macro, functional)
 - `docs/dbr-capability-system.md` - Version-dependent features
 - `CONTRIBUTING.MD` - Code standards and PR process
+
+**User-facing guides (`docs/guides/`, lower priority — may drift):**
+- `docs/guides/uc.md` - Using Unity Catalog with dbt-databricks
+- `docs/guides/databricks-jobs.md` - Running a dbt project as a Databricks job
+- `docs/guides/workflow-job-submission.md` - Python models as Databricks Workflows
+- `docs/guides/databricks-copy-into-macro-aws.md` - Loading S3 data via `databricks_copy_into`
+
+**Keeping docs in sync:** When a change alters materialization or execution behavior, update the
+corresponding `docs/flow/` doc and bump its `_Last updated:_` date. **Code is always the source of
+truth over docs** — if a doc and the code disagree, trust the code and fix the doc. Don't let a
+stale doc block a correct code change.
 
 **dbt documentation (docs.getdbt.com):**
 - [Databricks Configs](https://docs.getdbt.com/reference/resource-configs/databricks-configs) - Model/resource configuration options
