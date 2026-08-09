@@ -37,9 +37,15 @@ class TestIncrementalMetadataFetchRequiresTableTags:
             "schema.yml": fixtures.metadata_fetch_table_tags_schema,
         }
 
+    @pytest.fixture(scope="class")
+    def macros(self):
+        # Fails the run if table-tag reads regress from the UC API to the information_schema macro.
+        # This model declares no column tags, so the column-tag guard is never reached.
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_and_column_tag_fetch_called_macros}
+
     def test_second_incremental_run_reads_table_tags_from_api(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
-        # path where adapter.get_relation_config() may attempt metadata fetches.
+        # path where adapter.get_relation_config() fetches tags.
         util.run_dbt(["run"])
         util.run_dbt(["run"])
 

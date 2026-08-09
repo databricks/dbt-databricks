@@ -303,8 +303,13 @@ class EntityTagAssignmentsApi:
         self.workspace_client = workspace_client
 
     def list_table_tags(self, entity_name: str) -> dict[str, str]:
+        """List tag assignments for a table-like Unity Catalog entity.
+
+        `entity_type="tables"` covers views, materialized views, and metric views as well.
+        """
         try:
-            # Unity Catalog allows at most 50 tags per entity, so one page is sufficient.
+            # max_results is a page size, not a cap: the SDK returns a generator that follows
+            # next_page_token until it is absent, so consuming it yields every assignment.
             assignments = self.workspace_client.entity_tag_assignments.list(
                 entity_type="tables",
                 entity_name=entity_name,

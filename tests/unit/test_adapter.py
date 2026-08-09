@@ -1732,14 +1732,69 @@ class TestDescribeRelationMetadataFetchPlanning:
             "main.analytics.my_view_model"
         )
 
-    def test_view_describe_relation_skips_table_tag_api_for_hive_metastore(self):
+    def test_view_describe_relation_raises_for_hive_metastore_table_tags(self):
         adapter = self._create_adapter()
         relation = self._create_view_relation(database="hive_metastore")
         relation_config = self._create_view_config(tags={"classification": "internal"})
 
-        results = ViewAPI._describe_relation(adapter, relation, relation_config)
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["table_tags"] is None
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_mv_describe_relation_raises_for_hive_metastore_table_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation(database="hive_metastore")
+        relation_config = self._create_mv_config(tags={"classification": "internal"})
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_metric_view_describe_relation_raises_for_hive_metastore_table_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_metric_view_relation(database="hive_metastore")
+        relation_config = self._create_metric_view_config(tags={"classification": "internal"})
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            MetricViewAPI._describe_relation(adapter, relation, relation_config)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_raises_for_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation(database="hive_metastore")
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._get_table_tags(adapter, relation)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_treats_missing_database_as_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = DatabricksRelation.create(
+            schema="analytics",
+            identifier="my_view_model",
+            type=DatabricksRelationType.View,
+        )
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._get_table_tags(adapter, relation)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_raises_without_fully_qualified_relation(self):
+        adapter = self._create_adapter()
+        relation = DatabricksRelation.create(
+            database="main",
+            schema="analytics",
+            type=DatabricksRelationType.View,
+        )
+
+        with pytest.raises(DbtRuntimeError, match="fully qualified relation name"):
+            ViewAPI._get_table_tags(adapter, relation)
+
         adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_view_describe_relation_skips_column_tag_query_without_tags(self):

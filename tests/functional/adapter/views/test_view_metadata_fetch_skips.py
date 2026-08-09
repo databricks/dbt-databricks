@@ -38,6 +38,11 @@ class TestViewMetadataFetchRequiresTags:
         return {"view_metadata_fetch.sql": view_with_tags_sql}
 
     @pytest.fixture(scope="class")
+    def macros(self):
+        # Fails the run if table-tag reads regress from the UC API to the information_schema macro.
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
+
+    @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
             "flags": {"use_materialization_v2": True},
@@ -48,7 +53,7 @@ class TestViewMetadataFetchRequiresTags:
 
     def test_second_view_run_reads_tags_from_api(self, project):
         # The first run creates the view; the second run exercises the existing-relation
-        # alter/config-diff path where adapter.get_relation_config() may fetch tags.
+        # alter/config-diff path where adapter.get_relation_config() fetches tags.
         util.run_dbt(["run"])
         util.run_dbt(["run"])
 
