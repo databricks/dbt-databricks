@@ -32,6 +32,27 @@ class TestPythonMacros(MacroTestBase):
 
         assert result == '.format("parquet")'
 
+    def test_py_get_writer__managed_iceberg(self, config, template):
+        # regression for #1591: managed Iceberg Python models must write
+        # .format("iceberg"), not the "parquet" sentinel that resolve_file_format
+        # returns (which Databricks rejects with MANAGED_TABLE_FORMAT).
+        config["table_format"] = "iceberg"
+        template.globals["adapter"].behavior.use_managed_iceberg = True
+        template.globals["adapter"].resolve_file_format.return_value = "parquet"
+        result = self.run_macro_raw(template, "py_get_writer_options")
+
+        assert result == '.format("iceberg")'
+
+    def test_py_get_writer__iceberg_without_managed_flag(self, config, template):
+        # When use_managed_iceberg is off, we defer to resolve_file_format, which
+        # returns "delta" (UniForm path) for table_format='iceberg'.
+        config["table_format"] = "iceberg"
+        template.globals["adapter"].behavior.use_managed_iceberg = False
+        template.globals["adapter"].resolve_file_format.return_value = "delta"
+        result = self.run_macro_raw(template, "py_get_writer_options")
+
+        assert result == '.format("delta")'
+
     def test_py_get_writer__specified_location_root(self, config, template, context):
         config["location_root"] = "s3://fake_location"
         template.globals["adapter"].compute_external_path.return_value = "s3://fake_location/schema"

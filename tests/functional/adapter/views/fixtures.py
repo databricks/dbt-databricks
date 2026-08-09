@@ -40,6 +40,23 @@ models:
       - name: msg
 """
 
+two_tag_schema_yml = """
+version: 2
+models:
+  - name: initial_view
+    description: "This is a view"
+    config:
+      tblproperties:
+        key: value
+      databricks_tags:
+        tag1: value1
+        tag2: value2
+    columns:
+      - name: id
+        description: "This is the id column"
+      - name: msg
+"""
+
 hive_schema_yml = """
 version: 2
 models:

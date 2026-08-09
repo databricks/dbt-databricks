@@ -51,6 +51,7 @@ version: 2
 
 models:
   - name: my_materialized_view
+    description: "Bob's materialized view"
     columns:
       - name: id
         data_type: bigint
@@ -219,6 +220,20 @@ metadata_fetch_materialized_view_with_tags_sql = """
     databricks_tags={'classification': 'internal'},
 ) }}
 select * from {{ ref('mv_metadata_fetch_seed') }}
+"""
+
+materialized_view_streaming_source_seed_csv = """id,value
+1,100
+""".lstrip()
+
+materialized_view_streaming_source_table_sql = """
+{{ config(materialized='streaming_table') }}
+select * from stream {{ ref('materialized_view_streaming_source_seed') }}
+"""
+
+materialized_view_streaming_source_sql = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('materialized_view_streaming_source_table') }}
 """
 
 

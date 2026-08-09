@@ -166,6 +166,7 @@ class TestInsertOverwriteChangeSchema(InsertOverwriteBase):
 
 
 # Only runs under SQL warehouse profile, but overrides compute at model level
+@pytest.mark.skip_kernel  # overrides compute to a UC cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
 class TestInsertOverwriteWithModelComputeOverride(IncrementalBase):
     @pytest.fixture(scope="class")
@@ -442,6 +443,30 @@ class TestDeleteInsert(IncrementalBase):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"models": {"+incremental_strategy": "delete+insert", "+unique_key": "id"}}
+
+    def test_incremental(self, project):
+        self.seed_and_run_twice()
+        util.check_relations_equal(
+            project.adapter, ["delete_insert_model", "delete_insert_expected"]
+        )
+
+
+class TestDeleteInsertCompositeKey(IncrementalBase):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "delete_insert_model.sql": fixtures.delete_insert_composite_key_model,
+        }
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"force_legacy_delete_insert.sql": fixtures.force_legacy_delete_insert_macros}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "delete_insert_expected.csv": fixtures.delete_insert_composite_key_expected,
+        }
 
     def test_incremental(self, project):
         self.seed_and_run_twice()

@@ -158,6 +158,10 @@ class TestStreamingTableTags(BaseTestTags):
             "tags.sql": fixtures.streaming_table_tags_sql,
         }
 
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+on_configuration_change": "fail"}}
+
     def test_tags(self, project):
         util.run_dbt(["seed"])
         super().test_tags(project)

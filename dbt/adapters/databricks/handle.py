@@ -10,7 +10,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from dbt.adapters.contracts.connection import AdapterResponse
-from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
@@ -407,10 +407,9 @@ class SqlUtils:
                 query_tags
             )
 
-        return {
+        args: dict[str, Any] = {
             "server_hostname": creds.host,
             "http_path": http_path,
-            "credentials_provider": creds_manager.credentials_provider,
             "http_headers": http_headers if http_headers else None,
             "session_configuration": session_config,
             "catalog": creds.database,
@@ -418,5 +417,63 @@ class SqlUtils:
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
             "user_agent_entry": user_agent_entry,
-            **connection_parameters,
         }
+
+        if connection_parameters.get("use_kernel"):
+            SqlUtils._add_kernel_auth_arguments(args, creds, creds_manager)
+        else:
+            args["credentials_provider"] = creds_manager.credentials_provider
+
+        return {**args, **connection_parameters}
+
+    @staticmethod
+    def _add_kernel_auth_arguments(
+        args: dict[str, Any],
+        creds: DatabricksCredentials,
+        creds_manager: DatabricksCredentialManager,
+    ) -> None:
+        """Populate connection kwargs for the connector's Rust kernel backend.
+
+        The kernel (use_kernel=True) routes over SEA and its auth bridge rejects the
+        connector credentials_provider dbt passes on the Thrift path. It supports
+        PAT, Databricks OAuth M2M, and OAuth U2M — we forward the raw credentials it
+        understands so the connector owns the token lifecycle and refresh.
+
+        The kernel has no Azure-AD flow, so an Azure service principal cannot connect
+        through it; any auth other than the three above is rejected here with a clear
+        error directing the user to the default backend.
+        """
+        # PAT: forward the token directly.
+        if creds_manager.token:
+            args["access_token"] = creds_manager.token
+            return
+
+        # OAuth U2M (browser): auth_type "oauth" with no secret. Translate to the
+        # kernel's "databricks-oauth" (client_id is optional). An Azure SP keeps its
+        # secret in azure_client_secret, so this does not match one.
+        # Keep this auth_type check on raw creds to avoid initializing SDK auth here.
+        if (
+            creds.auth_type == "oauth"
+            and not creds_manager.client_secret
+            and not creds_manager.azure_client_secret
+        ):
+            args["auth_type"] = "databricks-oauth"
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_scopes"] = creds_manager.oauth_scopes
+            return
+
+        # Databricks OAuth M2M: forward OAuth creds so the kernel owns refresh. The
+        # resolved auth_type distinguishes genuine Databricks OAuth from an Azure SP
+        # supplied through the client_id/client_secret fields.
+        if not creds_manager.azure_client_secret and creds_manager.config.auth_type == "oauth-m2m":
+            args["oauth_client_id"] = creds_manager.client_id
+            args["oauth_client_secret"] = creds_manager.client_secret
+            args["oauth_scopes"] = creds_manager.oauth_scopes
+            return
+
+        raise DbtConfigError(
+            "use_kernel=True supports only personal access tokens and Databricks "
+            "OAuth (M2M/U2M); the configured authentication (e.g. an Azure service "
+            "principal) is not supported by the kernel backend. Remove use_kernel to "
+            "use the default backend."
+        )

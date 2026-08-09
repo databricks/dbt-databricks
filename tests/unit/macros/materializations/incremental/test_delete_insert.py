@@ -47,8 +47,20 @@ class TestDeleteInsertMacros(MacroTestBase):
         sql = self.render_delete_insert(template, context, unique_key="a")
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source) as temp
+            """
+        self.assert_sql_equal(sql, expected)
+
+    def test_delete_insert_sql_impl__non_ascii_unique_key__replace_on(self, template, context):
+        """Non-ASCII unique keys must be back-quoted in the REPLACE ON condition (issue #1594)."""
+        sql = self.render_delete_insert(
+            template, context, unique_key="あ", target_columns=("あ", "b")
+        )
+        expected = """
+            insert into table target as target
+            replace on (target.`あ` <=> temp.`あ`)
+            (select あ, b from source) as temp
             """
         self.assert_sql_equal(sql, expected)
 
@@ -56,7 +68,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         sql = self.render_delete_insert(template, context, unique_key=["a", "b"])
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a and target.b <=> temp.b)
+            replace on (target.`a` <=> temp.`a` and target.`b` <=> temp.`b`)
             (select a, b from source) as temp
             """
         self.assert_sql_equal(sql, expected)
@@ -67,7 +79,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         )
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source where a > 1) as temp
             """
         self.assert_sql_equal(sql, expected)
@@ -80,7 +92,7 @@ class TestDeleteInsertMacros(MacroTestBase):
         )
         expected = """
             insert into table target as target
-            replace on (target.a <=> temp.a)
+            replace on (target.`a` <=> temp.`a`)
             (select a, b from source where a > 1 and b < 3) as temp
             """
         self.assert_sql_equal(sql, expected)
@@ -101,35 +113,81 @@ class TestDeleteInsertMacros(MacroTestBase):
         # The actual list is passed internally to the incremental materialization
         assert result.strip() == ""
 
+    def render_legacy(
+        self,
+        template,
+        context,
+        unique_keys,
+        target_columns=("a", "b"),
+        incremental_predicates=None,
+        has_insert_by_name_capability=True,
+    ):
+        """Render delete_insert_legacy_sql and return its list of statements.
+
+        The macro returns via ``{% do return(statements) %}``; the test harness mocks
+        ``return`` as a no-op lambda, so we override it to capture the returned list.
+        """
+        context["adapter"].has_dbr_capability = lambda cap: (
+            has_insert_by_name_capability if cap == "insert_by_name" else False
+        )
+        captured = {}
+        context["return"] = lambda value: captured.__setitem__("statements", value)
+        self.run_macro_raw(
+            template,
+            "delete_insert_legacy_sql",
+            "source",
+            "target",
+            list(target_columns),
+            unique_keys,
+            incremental_predicates,
+        )
+        return captured["statements"]
+
+    def test_delete_insert_legacy_sql__non_ascii_unique_key(self, template, context):
+        """Legacy DELETE+INSERT path must back-quote non-ASCII unique keys (issue #1594)."""
+        delete_sql, insert_sql = self.render_legacy(
+            template, context, unique_keys=["あ"], target_columns=("`あ`", "b")
+        )
+        clean_delete = self.clean_sql(delete_sql)
+        assert "target.`あ` in (select `あ` from source)" in clean_delete
+        assert self.clean_sql(insert_sql).startswith("insert into target")
+
+    def test_delete_insert_legacy_sql__multiple_unique_keys(self, template, context):
+        """A composite unique_key correlates the whole tuple, not each column independently."""
+        delete_sql, _ = self.render_legacy(
+            template, context, unique_keys=["a", "b"], target_columns=("a", "b")
+        )
+        clean_delete = self.clean_sql(delete_sql)
+        assert (
+            "exists (select 1 from source where target.`a` <=> source.`a`"
+            " and target.`b` <=> source.`b`)"
+        ) in clean_delete
+        assert clean_delete.startswith("delete from target where exists")
+
+    def test_delete_insert_legacy_sql__multiple_unique_keys_with_predicates(
+        self, template, context
+    ):
+        """Incremental predicates are ANDed after the EXISTS clause, not inside it."""
+        delete_sql, _ = self.render_legacy(
+            template,
+            context,
+            unique_keys=["a", "b"],
+            target_columns=("a", "b"),
+            incremental_predicates=["a > 1"],
+        )
+        clean_delete = self.clean_sql(delete_sql)
+        assert (
+            "exists (select 1 from source where target.`a` <=> source.`a`"
+            " and target.`b` <=> source.`b`)"
+        ) in clean_delete
+        assert clean_delete.endswith("and a > 1")
+
     def test_legacy_sql_generation__single_unique_key_delete(self, template, context):
-        """Test the DELETE SQL generation for single unique key"""
-        # We'll verify by compiling a test query that uses the same logic
-        # Mock adapter
-        context["adapter"].has_dbr_capability = lambda cap: cap == "insert_by_name"
-
-        # Build expected DELETE manually using the same logic as the macro
-        expected_delete = """
-            delete from target
-            where target.a IN (SELECT a FROM source)
-            """
-
-        # The macro builds: target.{key} IN (SELECT {key} FROM source)
-        # This test documents the expected SQL pattern
-        assert "delete from" in expected_delete.lower()
-        assert "target.a in (select a from source)" in expected_delete.lower()
-
-    def test_legacy_sql_generation__multiple_unique_keys_delete(self, template, context):
-        """Test the DELETE SQL generation for multiple unique keys"""
-        expected_delete = """
-            delete from target
-            where target.a IN (SELECT a FROM source)
-              and target.b IN (SELECT b FROM source)
-            """
-
-        # The macro builds conditions for each key with AND
-        assert "target.a in" in expected_delete.lower()
-        assert "target.b in" in expected_delete.lower()
-        assert expected_delete.lower().count(" and ") == 1
+        """A single unique key keeps the original per-column predicate."""
+        delete_sql, _ = self.render_legacy(template, context, unique_keys=["a"])
+        clean_delete = self.clean_sql(delete_sql)
+        assert clean_delete.startswith("delete from target where")
+        assert "target.`a` in (select `a` from source)" in clean_delete
 
     def test_legacy_sql_generation__with_predicates_delete(self, template, context):
         """Test that incremental_predicates are added to DELETE WHERE clause"""

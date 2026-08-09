@@ -20,3 +20,12 @@ class TestDateAddUppercaseDatepartOnWarehouse:
     @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
     def test_uppercase_datepart_compiles_and_runs(self, project):
         util.run_dbt(["run"])
+        ts = project.run_sql("select ts from uppercase_dateadd", fetch="all")[0][0]
+        assert (ts.year, ts.month, ts.day, ts.hour, ts.minute, ts.second) == (
+            2024,
+            1,
+            2,
+            0,
+            0,
+            0,
+        )

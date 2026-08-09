@@ -18,6 +18,16 @@ auto_liquid_cluster_table_sql = """
 select 1 as id, 'Joe' as name
 """
 
+table_skip_optimize_sql = """
+{{ config(materialized='table', liquid_clustered_by='id', skip_optimize=true) }}
+select 1 as id, 'Joe' as name
+"""
+
+incremental_skip_optimize_sql = """
+{{ config(materialized='incremental', liquid_clustered_by='id', skip_optimize=true) }}
+select 1 as id, 'Joe' as name
+"""
+
 incremental_three_cols_sql = """
 {{ config(materialized='incremental') }}
 select 1 as id, 'hello' as msg, 'blue' as color

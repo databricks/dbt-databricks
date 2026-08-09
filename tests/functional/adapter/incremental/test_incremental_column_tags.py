@@ -7,6 +7,7 @@ from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeM
 from tests.functional.adapter.incremental import fixtures
 
 
+@pytest.mark.skip_kernel  # pins model http_path to a UC cluster; SEA/kernel is warehouse-only
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalColumnTags(RerunSafeMixin, MaterializationV2Mixin):
     @pytest.fixture(scope="class")
@@ -57,6 +58,7 @@ class TestIncrementalColumnTags(RerunSafeMixin, MaterializationV2Mixin):
 
 
 @pytest.mark.python
+@pytest.mark.skip_kernel  # Python model runs on a cluster; kernel/SEA is warehouse-only
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonColumnTags(TestIncrementalColumnTags):
     @pytest.fixture(scope="class")

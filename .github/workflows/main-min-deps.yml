@@ -39,7 +39,7 @@ jobs:
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       UV_FROZEN: "1"

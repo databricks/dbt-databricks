@@ -10,8 +10,9 @@
   {% set target_relation = this.incorporate(type='table') %}
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
   {# True when the relation is replaced in place (negation of the drop conditions below);
-     a fresh create or drop+recreate inherits no tags. #}
-  {%- set replaced_in_place = existing_relation and existing_relation.type == 'table' and existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg') -%}
+     a fresh create or drop+recreate inherits no tags. Shallow clones are excluded because
+     their table type cannot be changed in place, so they are dropped and recreated. #}
+  {%- set replaced_in_place = existing_relation and not existing_relation.is_shallow_clone and existing_relation.type == 'table' and existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg') -%}
 
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
