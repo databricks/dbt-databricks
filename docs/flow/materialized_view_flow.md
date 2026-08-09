@@ -28,6 +28,7 @@ flowchart TD
     CFG -- "changes +\non_configuration_change=apply" --> ALTER[get_alter_materialized_view_as_sql]
     CFG -- "changes + continue" --> WARN[Warn; build_sql = '']
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
+    CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
 
     CREATE --> CHECK
     REPLACE --> CHECK
@@ -37,10 +38,9 @@ flowchart TD
     WARN --> CHECK
     CHECK{build_sql empty?}
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
-    CHECK -- no --> EXEC["execute_multiple_statements(build_sql)"]
-
-    EXEC --> INTX["Run pre-hooks (inside transaction)"]
-    INTX --> TAGS[Apply table tags]
+    CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
+    INTX --> EXEC["execute_multiple_statements(build_sql)"]
+    EXEC --> TAGS[Apply table tags]
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> GRANTS[Apply grants]
     GRANTS --> POSTIN["Run post-hooks (inside transaction)"]

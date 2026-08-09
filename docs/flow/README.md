@@ -10,14 +10,15 @@ are the source of truth** (see `dbt/include/databricks/macros/materializations/`
 ## The `use_materialization_v2` behavior flag
 
 Several materializations ship **two** execution paths, selected at run time by the
-`use_materialization_v2` [behavior flag](../dbr-capability-system.md) (defined as
-`USE_MATERIALIZATION_V2` in `dbt/adapters/databricks/impl.py`). The flag **defaults to `False`**,
+`use_materialization_v2` behavior flag (defined as
+[`USE_MATERIALIZATION_V2`](../../dbt/adapters/databricks/impl.py) in the adapter). The flag **defaults to `False`**,
 so the "V1" / "Existing" diagram is what most projects run today; the "V2" / "New" diagram is what
 runs once a project opts in.
 
-V2 separates *create* from *insert* — it builds an intermediate materialization, then stages and
-swaps — which enables more performant column comments and additional column features. Macros branch
-on it via `adapter.get_behavior_flag_no_warn('use_materialization_v2')`.
+For table and incremental models, V2 separates *create* from *insert*: it builds an intermediate
+relation and may stage and swap the target when safer relation operations are enabled. View and
+seed V2 use the flag too, but do not follow that staging-table pattern. Macros branch on the flag
+via `adapter.get_behavior_flag_no_warn('use_materialization_v2')`.
 
 Materializations that honor the flag show both diagrams in their doc:
 
@@ -30,7 +31,7 @@ Materializations that honor the flag show both diagrams in their doc:
 | Snapshot | [snapshot_flow.md](snapshot_flow.md) | No — single path |
 | Streaming table | [streaming_table_flow.md](streaming_table_flow.md) | No — single path |
 | Materialized view | [materialized_view_flow.md](materialized_view_flow.md) | No — single path |
-| _(shared)_ Relation replacement | [replace_flow.md](replace_flow.md) | Used by the V2 table/view/incremental paths |
+| _(shared)_ Relation replacement | [replace_flow.md](replace_flow.md) | Used by view, materialized-view, streaming-table, and metric-view replacement helpers |
 
 ## Not yet documented
 

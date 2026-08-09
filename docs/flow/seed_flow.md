@@ -27,7 +27,7 @@ flowchart LR
     COMMIT["Commit transaction"]
     D1{Existing?}
     D2{Existing type?}
-    D3{Delta?}
+    D3{"Existing is replaceable and\ntarget format is Delta or Iceberg?"}
     D4{Full refresh or new?}
     AGATE-->STORE
     STORE-->PRE
@@ -53,16 +53,17 @@ flowchart LR
 
 ## V2 Seed Flow
 
-V2 removes calls that Databricks does not support: the transaction model is gone (pre/post hooks
-run once via `run_pre_hooks` / `run_post_hooks`, not split by `inside_transaction`), and there is no
-`COMMIT` and no `create_indexes`. A view/materialized-view target and a streaming-table target raise
-distinct compiler errors.
+V2 uses the shared `run_pre_hooks` and `run_post_hooks` helpers, which preserve the outside/inside
+pre-hook and inside/outside post-hook ordering. Unlike V1, V2 has no explicit `COMMIT` and does not
+call `create_indexes`. A view/materialized-view target and a streaming-table target raise distinct
+compiler errors.
 
 ```mermaid
 flowchart LR
     AGATE[Create in memory table from CSV]
     STORE[Stores result of loading table]
-    PRE["Run pre-hooks"]
+    PRE["Run pre-hooks (outside transaction)"]
+    PRE2["Run pre-hooks (inside transaction)"]
     RAISEV[Raise compiler error: view/MV target]
     RAISEST[Raise compiler error: streaming table target]
     COR[create or replace table...]
@@ -70,13 +71,14 @@ flowchart LR
     DROP[Drop existing table]
     INSERT[chunked inserts to table]
     GRANTS[Apply grants]
-    POST["Run post-hooks"]
+    POST["Run post-hooks (inside transaction)"]
+    POST2["Run post-hooks (outside transaction)"]
     D1{Existing?}
     D2{Existing type?}
-    D3{Delta?}
+    D3{"Existing is replaceable and\ntarget format is Delta or Iceberg?"}
     AGATE-->STORE
     STORE-->PRE
-    PRE-->D1
+    PRE-->PRE2-->D1
     D1--yes-->D2
     D1--"no"-->CREATE
     D2--"view/MV"-->RAISEV
@@ -89,4 +91,5 @@ flowchart LR
     CREATE-->INSERT
     INSERT-->GRANTS
     GRANTS-->POST
+    POST-->POST2
 ```

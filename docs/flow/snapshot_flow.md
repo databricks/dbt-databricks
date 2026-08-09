@@ -3,8 +3,9 @@
 _Last updated: 2026-08-09_
 
 > Snapshots do **not** use the `use_materialization_v2` flag — there is a single path. Source:
-> `dbt/include/databricks/macros/materializations/snapshot.sql` (strategies live in
-> `snapshot_helpers.sql`).
+> `dbt/include/databricks/macros/materializations/snapshot.sql`. Strategy dispatch and the
+> timestamp/check strategies are inherited from dbt Core; `snapshot_helpers.sql` contains the
+> Databricks-specific merge, column, build, and staging helpers.
 
 A snapshot always materializes to a `table`. The first run builds the table directly from the
 snapshot query; subsequent runs stage the incoming rows, reconcile columns, and `MERGE` change
@@ -30,8 +31,9 @@ flowchart TD
     EXPAND --> ADDCOLS[create_columns for\nmissing columns]
     ADDCOLS --> MERGE[snapshot_merge_sql into target]
 
-    CREATE --> MAIN["Execute main statement"]
-    MERGE --> MAIN
+    CREATE --> TYPECHECK[check_time_data_types]
+    MERGE --> TYPECHECK
+    TYPECHECK --> MAIN["Execute main statement"]
     MAIN --> TAGS[Apply table tags + column tags]
     TAGS --> GRANTS[Apply grants]
     GRANTS --> DOCS[Persist docs]

@@ -2,73 +2,47 @@
 
 _Last updated: 2026-08-09_
 
-Shared decision tree for replacing an existing relation. Referenced by the table, view, and
-incremental flows (their V2 paths) when an existing relation must be swapped for a new definition.
-The `use_safer_relation_operations` config selects between the safe (stage/backup) strategies and a
-direct `CREATE OR REPLACE`. Source: the relation-replacement macros in
-`dbt/include/databricks/macros/relations/`.
+Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
+replace an existing relation. Table and incremental V2 use their dedicated
+`create_table_at` / `safe_relation_replace` macros instead. Source:
+`dbt/include/databricks/macros/relations/replace.sql`.
 
-Diagram of the replace decision tree.
+`get_replace_sql` does not support a table target: that input raises a not-implemented compiler
+error before any replacement decision. Metric-view targets always use direct
+`CREATE OR REPLACE`, independently of `use_safer_relation_operations`.
 
 ```mermaid
 flowchart TD
-    SAFE{{use_safer_relation_operations?}}
-    D1{Existing is replaceable?}
-    D2{Is view?}
-    D3{Is table?}
-    D4{Target can be renamed?}
-    D5{Existing can be renamed?}
-    D6{Existing can be renamed?}
+    START[get_replace_sql] --> TABLE{Target is a table?}
+    TABLE -- yes --> ERROR[Raise not-implemented compiler error]
+    TABLE -- no --> METRIC{Target is a metric view?}
+    METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
+    METRIC -- no --> SAFE{use_safer_relation_operations?}
 
-    SAFE_REPLACE["Safely replace -
-        get_create_intermediate_sql(target_relation, sql),
-        get_create_backup_sql(existing_relation),
-        get_rename_intermediate_sql(target_relation),
-        get_drop_backup_sql(existing_relation)"]
+    SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
+    DIRECT -- yes --> TYPE{Existing relation type?}
+    TYPE -- view --> VIEWSQL[get_replace_view_sql]
+    TYPE -- "materialized view" --> MVSQL[get_replace_materialized_view_sql]
+    DIRECT -- no --> TARGETRENAME{Target can be renamed?}
+    TYPE -- other --> TARGETRENAME
+    SAFE -- true --> TARGETRENAME
 
-    STAGE_THEN_REPLACE["Stage then replace -
-        get_create_intermediate_sql(target_relation, sql),
-        get_drop_sql(existing_relation),
-        get_rename_intermediate_sql(target_relation)"]
-
-    BACKUP_THEN_REPLACE["Backup then write to target -
-        create_backup(existing_relation)
-        get_create_sql(target_relation, sql),
-        get_drop_backup_sql(existing_relation)"]
-
-    DROP_AND_CREATE["Drop and create -
-        get_drop_sql(existing_relation),
-        get_create_sql(target_relation, sql)"]
-
-    SAFE--False-->D1
-    SAFE--True-->D4
-    D1--True-->D2
-    D2--True-->get_replace_view_sql
-    D2--False-->D3
-    D3--True-->get_replace_table_sql
-    D3--False-->D4
-    D4--True-->D5
-    D4--False-->D6
-    D5--True-->SAFE_REPLACE
-    D5--False-->STAGE_THEN_REPLACE
-    D6--True-->BACKUP_THEN_REPLACE
-    D6--False-->DROP_AND_CREATE
+    TARGETRENAME -- yes --> EXISTRENAME1{Existing can be renamed?}
+    TARGETRENAME -- no --> EXISTRENAME2{Existing can be renamed?}
+    EXISTRENAME1 -- yes --> SAFELY["safely_replace:<br/>create staging; back up existing;<br/>rename staging to target; drop backup"]
+    EXISTRENAME1 -- no --> STAGE["stage_then_replace:<br/>create staging; drop existing;<br/>rename staging to target"]
+    EXISTRENAME2 -- yes --> BACKUP["backup_and_create_in_place:<br/>back up existing; create target;<br/>drop backup"]
+    EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-| Existing type    | Target type      | Safe Replace? | Outcome              |
-| ---------------- | ---------------- | ------------- | -------------------- |
-| VIEW             | VIEW             | True          | Safely replace       |
-| VIEW(Delta)      | VIEW(Delta)      | False         | CREATE OR REPLACE... |
-| VIEW(Non-delta)  | VIEW(Delta)      | Either        | Safely replace       |
-| VIEW(Delta)      | VIEW(Non-delta)  | Either        | Safely replace       |
-| VIEW             | TABLE            | Either        | Safely replace       |
-| VIEW             | MV/ST            | Either        | Backup then replace  |
-| TABLE            | TABLE            | True          | Safely replace       |
-| TABLE(Delta)     | TABLE(Delta)     | False         | CREATE OR REPLACE... |
-| TABLE(Non-delta) | TABLE(Delta)     | Either        | Safely replace       |
-| TABLE(Delta)     | TABLE(Non-delta) | Either        | Safely replace       |
-| TABLE            | VIEW             | Either        | Safely replace       |
-| TABLE            | MV/ST            | Either        | Backup then replace  |
-| MV/ST            | MV/ST            | Either        | Drop and create      |
-| MV/ST            | VIEW             | Either        | Stage then replace   |
-| MV/ST            | TABLE            | Either        | Stage then replace   |
+Direct replacement is available only when safe operations are disabled and the existing and target
+relations have the same type, the existing relation is replaceable, and the configured file format
+is Delta. In practice, the supported direct branches here are views and materialized views; table
+targets have already failed at the initial guard.
+
+| Target can be renamed? | Existing can be renamed? | Fallback strategy |
+| --- | --- | --- |
+| Yes | Yes | `safely_replace` |
+| Yes | No | `stage_then_replace` |
+| No | Yes | `backup_and_create_in_place` |
+| No | No | `drop_and_create` |

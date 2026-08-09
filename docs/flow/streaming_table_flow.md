@@ -26,6 +26,7 @@ flowchart TD
     CFG -- "changes +\non_configuration_change=apply" --> ALTER[get_alter_streaming_table_as_sql]
     CFG -- "changes + continue" --> WARN[Warn; build_sql = '']
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
+    CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
 
     CREATE --> CHECK
     REPLACE --> CHECK
@@ -35,10 +36,9 @@ flowchart TD
     WARN --> CHECK
     CHECK{build_sql empty?}
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
-    CHECK -- no --> EXEC["execute_multiple_statements(build_sql)"]
-
-    EXEC --> INTX["Run pre-hooks (inside transaction)"]
-    INTX --> TAGS[Apply table tags]
+    CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
+    INTX --> EXEC["execute_multiple_statements(build_sql)"]
+    EXEC --> TAGS[Apply table tags]
     TAGS --> GRANTS[Apply grants]
     GRANTS --> COLTAGS[Apply column tags]
     COLTAGS --> POSTIN["Run post-hooks (inside transaction)"]
@@ -48,8 +48,8 @@ flowchart TD
 
 Notes:
 
-- **Scenario selection** happens in `streaming_table_get_build_sql`, which returns the SQL string
-  (possibly empty) for exactly one scenario.
+- **Scenario selection** happens in `streaming_table_get_build_sql`, which returns a SQL string, a
+  statement list for some replacement paths, or an empty string for no-op handling.
 - **No-op re-runs**: when there are no configuration changes and the streaming table is
   auto-refreshed, `build_sql` is empty and the run resolves to `execute_no_op` — no manual
   `REFRESH` is issued.

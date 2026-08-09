@@ -11,167 +11,79 @@ _Last updated: 2026-08-09_
 
 ```mermaid
 flowchart LR
-    PRE[Run pre-hooks]
-    CSQL[create table...]
-    CSQLD[create or replace table...]
-    CPY[Create table with python]
-    CSQL2[create table...]
-    CSQLD2[create or replace table...]
-    CPY2[Create table with python]
-    CONST[Apply constraints via alter]
-    TAGS[Apply tags via alter]
-    PYTBL[Apply tblproperties via alter]
-    DOCS[Persist docs via alter]
-    DROP[Drop existing relation]
-    CONST2[Apply constraints via alter]
-    TAGS2[Apply tags via alter]
-    DOCS2[Persist docs via alter]
-    CHANGE[Detect config changes]
-    INT[Create intermediate materialization of model via SQL]
-    INTPY[Create intermediate materialization of model via Python]
-    SCHEMA[Process schema changes]
-    MERGE[Apply merge logic]
-    LIQUID[Apply liquid cluster by using alter]
-    TAGS3[Apply tag changes via alter]
-    TBLP[Apply tblproperty changes via alter]
-    DOCS3[Persist docs via alter]
-    GRANTS[Apply grants]
-    OPT[Run optimize]
-    POST[Run post-hooks]
-    D1{Existing relation?}
-    D2{Different type of relation or full refresh?}
-    D3{Language?}
-    D4{Delta?}
-    D5{Language?}
-    D6{Replaceable?}
-    D7{Language?}
-    D8{Delta?}
-    D9{"Existing was view? (What?!)"}
-    D10{Language?}
-    D11{Config changes?}
-    PRE-->D1
-    D1--yes-->D2
-    D1--"no"-->D3
-    D3--SQL-->D4
-    D3--Python-->CPY
-    D4--yes-->CSQLD
-    D4--"no"-->CSQL
-    CPY-->CONST
-    CSQLD-->CONST
-    CSQL-->CONST
-    CONST-->TAGS
-    TAGS-->D5
-    D5--Python-->PYTBL
-    PYTBL-->DOCS
-    D5--SQL-->DOCS
-    D2--yes-->D6
-    D6--yes-->D7
-    D6--"no"-->DROP
-    DROP-->D7
-    D7--SQL-->D8
-    D7--Python-->CPY2
-    D8--yes-->CSQLD2
-    D8--"no"-->CSQL2
-    CPY2-->D9
-    CSQLD2-->D9
-    CSQL2-->D9
-    D9--yes-->TAGS2
-    D9--"no"-->CONST2
-    CONST2-->TAGS2
-    TAGS2-->DOCS2
-    D2--"no"-->CHANGE
-    CHANGE-->D10
-    D10--SQL-->INT
-    D10--Python-->INTPY
-    INT-->SCHEMA
-    INTPY-->SCHEMA
-    SCHEMA-->MERGE
-    MERGE-->D11
-    D11--yes-->TAGS3
-    TAGS3-->TBLP
-    TBLP-->LIQUID
-    LIQUID-->DOCS3
-    D11--"no"-->DOCS3
-    DOCS-->GRANTS
-    DOCS2-->GRANTS
-    DOCS3-->GRANTS
-    GRANTS-->OPT
-    OPT-->POST
+    PRE[Run pre-hooks] --> EXIST{Existing relation?}
+    EXIST -- no --> CREATE[Create target from model]
+    CREATE --> NEWCFG["Apply constraints; table tags; column tags;<br/>Python tblproperties; persist docs"]
+
+    EXIST -- yes --> REPLACE{"Existing is view, materialized view, or streaming table;\nor full refresh?"}
+    REPLACE -- yes --> DROPNEEDED{"Not a replaceable Delta/Iceberg relation,\nor existing is a shallow clone?"}
+    DROPNEEDED -- yes --> DROP[Drop existing relation]
+    DROPNEEDED -- no --> RECREATE[Create or replace target from model]
+    DROP --> RECREATE
+    RECREATE --> WASVIEW{Existing was a view?}
+    WASVIEW -- no --> REPLACECONST[Persist constraints]
+    WASVIEW -- yes --> REPLACETAGS[Apply table tags]
+    REPLACECONST --> REPLACETAGS
+    REPLACETAGS --> REPLACECOLTAGS[Apply column tags]
+    REPLACECOLTAGS --> REPLACEDOCS[Persist docs]
+
+    REPLACE -- no --> DYNAMIC[Set dynamic overwrite mode when required]
+    DYNAMIC --> DETECT[Detect configuration changes when enabled]
+    DETECT --> TEMP[Create temporary relation from model]
+    TEMP --> SCHEMA[Process schema changes]
+    SCHEMA --> MERGE[Apply incremental strategy]
+    MERGE --> CONFIG{"Configuration changes detected?"}
+    CONFIG -- yes --> APPLYCFG["Apply in order: table tags; tblproperties;<br/>liquid clustering; row filter; column tags;<br/>constraints when contract-enforced and not HMS"]
+    CONFIG -- no --> DOCS[Persist docs]
+    APPLYCFG --> DOCS
+
+    NEWCFG --> GRANTS[Apply grants]
+    REPLACEDOCS --> GRANTS
+    DOCS --> GRANTS
+    GRANTS --> OPT[Run optimize]
+    OPT --> POST[Run post-hooks]
+    POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
+
+For an ordinary existing table, configuration changes are detected before the temporary relation
+is built but are applied only after the incremental SQL runs. This ordering differs from V2.
 
 ## New Incremental Flow
 
 ```mermaid
 flowchart LR
-    PRE[Run pre-hooks]
-    INT[Create intermediate materialization of model via SQL]
-    INTPY[Create intermediate materialization of model via Python]
-    FINAL[Create or replace target table by model schema]
-    STAGE[Create staging table by model schema]
-    DROP[Drop existing relation]
-    CHECK[Add check constraints via alter to target table]
-    CHECK2[Add check constraints via alter to staging table]
-    CHECK3[Apply constraint changes via alter to target table]
-    TBLP[Apply tblproperty changes via alter to taget table]
-    TAGS[Apply tags via alter to target]
-    TAGS2[Apply tags via alter to staging]
-    TAGS3[Apply tag changes via alter to target]
-    INSERT[Insert intermediate materialization into target table]
-    INSERT2[Insert intermediate materialization into staging table]
-    RENAME[Rename existing to backup]
-    RENAME2[Rename staging to target]
-    SCHEMA[Process schema changes]
-    LIQUID[Apply liquid cluster by using alter]
-    DROP2[Drop backup]
-    MERGE[Apply merge logic]
-    DOCS[Persist comments via alter]
-    GRANTS[Apply grants]
-    OPT[Run optimize]
-    POST[Run post-hooks]
-    F1{{Flag: CanRename}}
-    F2{{Flag: ApplyConfigChanges}}
-    D0{Language?}
-    D1{Existing relation?}
-    D2{Different type of relation or full refresh?}
-    D3{Replaceable?}
-    D4{Config changes?}
-    PRE-->D0
-    D0--SQL-->INT
-    D0--Python-->INTPY
-    INT-->D1
-    INTPY-->D1
-    D1--yes-->D2
-    D2--yes-->F1
-    D2--"no"-->SCHEMA
-    SCHEMA-->F2
-    F2--yes-->D4
-    F2--"no"-->MERGE
-    D4--yes-->TAGS3
-    D4--"no"-->MERGE
-    TAGS3-->TBLP
-    TBLP-->LIQUID
-    LIQUID-->DOCS
-    DOCS-->CHECK3
-    CHECK3-->MERGE
-    MERGE-->GRANTS
-    F1--yes-->STAGE
-    F1--"no"-->D3
-    D3--yes-->FINAL
-    D3--"no"-->DROP
-    DROP-->FINAL
-    STAGE-->CHECK2
-    CHECK2-->TAGS2
-    TAGS2-->INSERT2
-    INSERT2-->RENAME
-    RENAME-->RENAME2
-    RENAME2-->DROP2
-    DROP2-->GRANTS
-    D1--"no"-->FINAL
-    FINAL-->CHECK
-    CHECK-->TAGS
-    TAGS-->INSERT
-    INSERT-->GRANTS
-    GRANTS-->OPT
-    OPT-->POST
+    PRE[Run pre-hooks] --> LANGUAGE{Language?}
+    LANGUAGE -- SQL --> INTSQL[Create intermediate relation with SQL]
+    LANGUAGE -- Python --> INTPY[Create intermediate relation with Python]
+    INTSQL --> EXIST{Existing relation?}
+    INTPY --> EXIST
 
+    EXIST -- no --> CREATE["create_table_at target:<br/>create schema; constraints; table tags;<br/>column tags; insert intermediate"]
+    EXIST -- yes --> SHOULDREPLACE{"Existing is DLT, a view,\nor full refresh?"}
+    SHOULDREPLACE -- yes --> SAFEPATH{"use_safer_relation_operations and\nexisting can be renamed?"}
+    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
+    SAFEPATH -- no --> DROPNEEDED{"Existing is not replaceable Delta/Iceberg,\nor is a shallow clone?"}
+    DROPNEEDED -- yes --> DROP[Drop existing relation]
+    DROPNEEDED -- no --> CREATE
+    DROP --> CREATE
+
+    SHOULDREPLACE -- no --> DYNAMIC[Set dynamic overwrite mode when required]
+    DYNAMIC --> SCHEMA[Process schema changes]
+    SCHEMA --> CONFIG["When incremental_apply_config_changes is enabled,<br/>process before merge: table tags; tblproperties;<br/>liquid clustering; relation comment; column comments;<br/>column tags; constraints; column masks; row filter"]
+    CONFIG --> MERGE[Apply incremental strategy]
+
+    CREATE --> GRANTS[Apply grants]
+    SAFE --> GRANTS
+    MERGE --> GRANTS
+    GRANTS --> OPT[Run optimize]
+    OPT --> PYCLEAN{Python model?}
+    PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
+    PYCLEAN -- no --> POST[Run post-hooks]
+    CLEAN --> POST
+    POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
+
+V2 replaces only DLT relations, views, and full-refresh targets. An ordinary existing table takes
+the incremental branch even when its configuration changes. Safe staging is selected only when
+`use_safer_relation_operations` is enabled and the existing relation can be renamed; otherwise a
+non-replaceable relation or shallow clone is dropped before `create_table_at`.
