@@ -1,6 +1,6 @@
 # Snapshot Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-08-10_
 
 > Snapshots do **not** use the `use_materialization_v2` flag — there is a single path. Source:
 > `dbt/include/databricks/macros/materializations/snapshot.sql`. Strategy dispatch and the
@@ -19,9 +19,9 @@ flowchart TD
 
     EXIST -- "yes, wrong format" --> RAISE2[Raise compiler error]
     EXIST -- "yes, not a table" --> RAISE3[relation_wrong_type error]
-    EXIST -- ok --> PRE[Run pre-hooks\n（outside then inside transaction）]
+    EXIST -- ok --> PRE[Run pre-hooks\n(outside then inside transaction)]
 
-    PRE --> STRAT[Dispatch snapshot strategy\n（timestamp / check）]
+    PRE --> STRAT[Dispatch snapshot strategy\n(timestamp / check)]
     STRAT --> FIRST{Target relation\nexisted?}
 
     FIRST -- no --> BUILD[build_snapshot_table] --> CREATE[create_table_as target]

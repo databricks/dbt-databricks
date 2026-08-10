@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-08-10_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -19,6 +19,8 @@ flowchart LR
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> POST[Run post-hooks]
 ```
+
+V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
 
 ## V2 View Flow
 

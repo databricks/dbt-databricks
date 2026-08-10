@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-08-10_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -31,6 +31,8 @@ flowchart LR
     OPT --> POST[Run post-hooks]
 ```
 
+V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
+
 ## V2 Table Flow
 
 ```mermaid
@@ -60,4 +62,5 @@ flowchart LR
 
 The `create_table_at` helper applies constraints, table tags, and column tags before inserting from
 the intermediate relation. The safe-replacement helper performs its own intermediate cleanup;
-Python paths also clean up the intermediate relation after optimization.
+Python paths also clean up the intermediate relation after optimization. Unlike V1, V2 does not call
+`persist_docs` — column and relation comments are handled on the create/insert path.

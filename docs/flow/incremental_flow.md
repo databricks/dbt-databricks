@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-08-10_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -86,4 +86,6 @@ flowchart LR
 V2 replaces only DLT relations, views, and full-refresh targets. An ordinary existing table takes
 the incremental branch even when its configuration changes. Safe staging is selected only when
 `use_safer_relation_operations` is enabled and the existing relation can be renamed; otherwise a
-non-replaceable relation or shallow clone is dropped before `create_table_at`.
+non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
+path, V2 does not call `persist_docs` — relation and column comments are handled via
+`apply_config_changeset` or the create/insert path.
