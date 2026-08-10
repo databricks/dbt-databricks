@@ -1,7 +1,6 @@
 from unittest.mock import Mock
 
 import pytest
-from agate import Table
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
@@ -9,27 +8,17 @@ from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProces
 
 class TestTagsProcessor:
     def test_from_relation_results__none(self):
-        results = {
-            "information_schema.tags": Table(rows=[], column_names=["tag_name", "tag_value"])
-        }
+        results = {"table_tags": {}}
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={})
 
     def test_from_relation_results__some(self):
-        results = {
-            "information_schema.tags": Table(
-                rows=[["a", "valA"], ["b", "valB"]], column_names=["tag_name", "tag_value"]
-            )
-        }
+        results = {"table_tags": {"a": "valA", "b": "valB"}}
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={"a": "valA", "b": "valB"})
 
     def test_from_relation_results__key_only(self):
-        results = {
-            "information_schema.tags": Table(
-                rows=[["a", ""]], column_names=["tag_name", "tag_value"]
-            )
-        }
+        results = {"table_tags": {"a": ""}}
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={"a": ""})
 

@@ -1,7 +1,5 @@
 from unittest.mock import Mock
 
-from agate import Table
-
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
@@ -32,9 +30,7 @@ class TestStreamingTableConfig:
                 ],
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
-            "information_schema.tags": Table(
-                rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
-            ),
+            "table_tags": {"a": "b", "c": "d"},
         }
 
         config = StreamingTableConfig.from_results(results)

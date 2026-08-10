@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, Mock
 from agate import Row, Table
 
 from dbt.adapters.databricks.impl import MaterializedViewAPI
+from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
@@ -41,9 +42,7 @@ class TestMaterializedViewConfig:
             "show_tblproperties": Table(
                 rows=[["prop", "1"], ["other", "other"]], column_names=["key", "value"]
             ),
-            "information_schema.tags": Table(
-                rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
-            ),
+            "table_tags": {"a": "b", "c": "d"},
         }
 
         config = MaterializedViewConfig.from_results(results)
@@ -160,9 +159,15 @@ class TestMaterializedViewAPIDescribeRelation:
         # spurious tag diff on every run, routing to ALTER instead of REFRESH.
         adapter = MagicMock()
         adapter.execute_macro.return_value = MagicMock()
+        relation = DatabricksRelation.create(
+            database="main",
+            schema="analytics",
+            identifier="my_mv",
+            type=DatabricksRelationType.MaterializedView,
+        )
 
-        results = MaterializedViewAPI._describe_relation(adapter, MagicMock())
+        results = MaterializedViewAPI._describe_relation(adapter, relation)
 
-        assert "information_schema.tags" in results
+        assert "table_tags" in results
         macro_names = {call.args[0] for call in adapter.execute_macro.call_args_list}
-        assert "fetch_tags" in macro_names
+        assert "fetch_tags" not in macro_names

@@ -298,6 +298,28 @@ class CurrUserApi:
         return bool(re.match(uuid_pattern, username, re.IGNORECASE))
 
 
+class EntityTagAssignmentsApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
+
+    def list_table_tags(self, entity_name: str) -> dict[str, str]:
+        """List tag assignments for a table-like Unity Catalog entity.
+
+        `entity_type="tables"` covers views, materialized views, and metric views as well.
+        """
+        try:
+            # max_results is a page size, not a cap: the SDK returns a generator that follows
+            # next_page_token until it is absent, so consuming it yields every assignment.
+            assignments = self.workspace_client.entity_tag_assignments.list(
+                entity_type="tables",
+                entity_name=entity_name,
+                max_results=50,
+            )
+            return {assignment.tag_key: assignment.tag_value or "" for assignment in assignments}
+        except Exception as e:
+            raise DbtRuntimeError(f"Error fetching table tags for {entity_name}: {e}")
+
+
 # Switch to this as part of 2.0.0 release
 class UserFolderApi(FolderApi):
     def __init__(self, user_api: CurrUserApi):
@@ -955,6 +977,7 @@ class DatabricksApiClient:
         self.clusters = ClusterApi(workspace_client, self.libraries)
         self.command_contexts = CommandContextApi(workspace_client, self.clusters, self.libraries)
         self.curr_user = CurrUserApi(workspace_client)
+        self.entity_tag_assignments = EntityTagAssignmentsApi(workspace_client)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(self.curr_user)
         else:

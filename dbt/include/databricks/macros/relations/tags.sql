@@ -1,3 +1,5 @@
+{# Compatibility surface for projects that invoke or override this macro directly.
+   Internal relation metadata reads use the Unity Catalog Entity Tag Assignments API. #}
 {% macro fetch_tags(relation) -%}
   {% if relation.is_hive_metastore() %}
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}

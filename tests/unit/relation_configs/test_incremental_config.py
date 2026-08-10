@@ -21,13 +21,10 @@ from dbt.adapters.databricks.relation_configs.tblproperties import TblProperties
 class TestIncrementalConfig:
     def test_from_results(self):
         results = {
-            "information_schema.tags": Table(
-                rows=[
-                    ["tag1", "value1"],
-                    ["tag2", "value2"],
-                ],
-                column_names=["tag_name", "tag_value"],
-            ),
+            "table_tags": {
+                "tag1": "value1",
+                "tag2": "value2",
+            },
             "information_schema.column_tags": Table(
                 rows=[
                     ["column", "sensitive", "true"],
