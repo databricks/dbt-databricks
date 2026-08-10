@@ -51,7 +51,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
@@ -62,18 +67,28 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Collect tests and assign to shards
         run: |
           set -euo pipefail
           mkdir -p shard-assignments
-          hatch run pytest --collect-only -q --profile databricks_uc_sql_endpoint tests/functional 2>&1 \
-            | grep "::" \
-            > "shard-assignments/databricks_uc_sql_endpoint-collected.txt"
+          RC=0
+          hatch run pytest --collect-only -q --profile databricks_uc_sql_endpoint tests/functional \
+            > "shard-assignments/databricks_uc_sql_endpoint-raw.log" 2>&1 || RC=$?
+          if [ "$RC" -ne 0 ]; then
+            echo "::error::Test collection failed for profile databricks_uc_sql_endpoint (exit ${RC}); output below:"
+            cat "shard-assignments/databricks_uc_sql_endpoint-raw.log"
+            exit "$RC"
+          fi
+          grep "::" "shard-assignments/databricks_uc_sql_endpoint-raw.log" \
+            > "shard-assignments/databricks_uc_sql_endpoint-collected.txt" || true
           python3 scripts/shard_assign.py \
             --profile databricks_uc_sql_endpoint \
             --num-shards 5 \
@@ -120,6 +135,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
+      # The kernel extra is installed separately below and is not in the shared
+      # runtime dependency cache, so this job must retain online JFrog access.
       - name: Setup JFrog PyPI Proxy
         uses: ./.github/actions/setup-jfrog-pypi
 
@@ -135,10 +152,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Create Hatch environment
+        run: hatch env create default
 
       - name: Install the connector kernel extra
         # The kernel backend ships in the optional databricks-sql-connector
