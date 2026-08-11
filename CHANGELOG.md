@@ -1,4 +1,4 @@
-## dbt-databricks 1.12.4 (TBD)
+## dbt-databricks 1.12.4 (Aug 12, 2026)
 
 ### Fixes
 
@@ -10,7 +10,8 @@
 
 - Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
 - Bump `databricks-sql-connector` ceiling to `<4.4.1` and pin to 4.4.0, which requires `thrift>=0.24.0`; resolves CVE-2026-48586 (data amplification DoS), CVE-2026-41603 (TLS cert hostname bypass), and CVE-2026-43868 (memory allocation) ([#1623](https://github.com/databricks/dbt-databricks/pull/1623) resolves [#1622](https://github.com/databricks/dbt-databricks/issues/1622))
-- Reorganize `docs/` into `docs/flow/` and `docs/guides/`, and sync materialization flow diagrams with the current macros (test-only, no runtime impact) ([#1627](https://github.com/databricks/dbt-databricks/pull/1627))
+- Reorganize `docs/` into `docs/flow/` and `docs/guides/`, and sync materialization flow diagrams with the current macros ([#1627](https://github.com/databricks/dbt-databricks/pull/1627))
+- Raise the `dbt-common` upper bound to `<1.39.0` (thanks @itsnamangoyal!) ([#1630](https://github.com/databricks/dbt-databricks/pull/1630))
 
 ## dbt-databricks 1.12.3 (Jul 29, 2026)
 
