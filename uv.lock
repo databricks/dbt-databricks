@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "dbt-common"
-version = "1.37.5"
+version = "1.38.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agate" },
@@ -546,9 +546,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/50/aa/b7f49e008d7dfda8401b720078ba01b79ca012ea41bc4b080fced1f50439/dbt_common-1.37.5.tar.gz", hash = "sha256:5a575736b5ec09a110955cd9e6b6a4c67e481c9ac9f45acaa51a6da5b1dd6aaa", size = 86876, upload-time = "2026-04-23T19:51:58.952Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/27/1cb45b595e280d4e66b122c539655be280236af27a964114b8f163702674/dbt_common-1.38.0.tar.gz", hash = "sha256:05f9c682c1c09b6a0ce79fe18dd7244a4549c3740329692bc19be9e7498f516f", size = 87065, upload-time = "2026-05-04T20:28:19.274Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6d/d2/ed3aaecd04a96e905b7b7d6482445153309bfca74905d4fc27bca4bac720/dbt_common-1.37.5-py3-none-any.whl", hash = "sha256:432e3f2f9ca61eace65d4d1cb99a715c3ffc343b7190a692c39f126eedf0c077", size = 88323, upload-time = "2026-04-23T19:51:57.395Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/d9/11763d94eb3257c11463781c18aef3e9613829b9f0e55609a494e596f574/dbt_common-1.38.0-py3-none-any.whl", hash = "sha256:1646e5384a8e317fa63890e60e41ca50dd4c5a89e02ad9a141c184d4b672b696", size = 88460, upload-time = "2026-05-04T20:28:17.762Z" },
 ]
 
 [[package]]
@@ -645,7 +645,7 @@ requires-dist = [
     { name = "databricks-sdk", specifier = ">=0.68.0,<0.118.0" },
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.4.1" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
-    { name = "dbt-common", specifier = ">=1.37.0,<1.38.0" },
+    { name = "dbt-common", specifier = ">=1.37.0,<1.39.0" },
     { name = "dbt-core", specifier = ">=1.11.2,<1.12.1" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
     { name = "packaging", specifier = ">=21.0,<26.0" },
