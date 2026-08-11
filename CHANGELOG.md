@@ -1,9 +1,16 @@
 ## dbt-databricks next
 
+### Features
+
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses so batch incremental runs display updated row counts. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632))
+
 ### Fixes
 
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
 - Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
+- Redact all `credential` and `encryption` clauses in logged SQL, regardless of keyword case (thanks @SreeramaYeshwanthGowd!) ([#1610](https://github.com/databricks/dbt-databricks/pull/1610) resolves [#1609](https://github.com/databricks/dbt-databricks/issues/1609))
+- Stop `delete+insert` with a composite `unique_key` from deleting unmatched rows on DBR below 17.1 (thanks @SreeramaYeshwanthGowd!) ([#1612](https://github.com/databricks/dbt-databricks/pull/1612) resolves [#1611](https://github.com/databricks/dbt-databricks/issues/1611))
+- Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
 
 ### Under the Hood
 
