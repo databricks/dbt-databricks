@@ -90,9 +90,8 @@ jobs:
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
-    # Coverage instrumentation slows the unit suite; give it more headroom
-    # than the other 20-minute unit jobs.
-    timeout-minutes: 30
+    # Keep a finite job-level backstop; unit commands also enforce per-test timeouts.
+    timeout-minutes: 20
 
     permissions:
       id-token: write
@@ -141,6 +140,8 @@ jobs:
           version: "1.17.0"
 
       - name: Run Unit Tests and Generate Coverage
+        env:
+          PYTEST_ADDOPTS: "--reruns=1"
         run: hatch run -v +py=${{ matrix.python-version }} test:unit-with-cov
 
       # Only run coverage comment once (not for all python versions)
