@@ -63,7 +63,7 @@ your_profile_name:
 
 ### Documentation
 
-For comprehensive documentation on Databricks-specific features, configurations, and capabilities:
+For documentation on Databricks-specific features, configurations, and capabilities:
 
 - **[Databricks configurations](https://docs.getdbt.com/reference/resource-configs/databricks-configs)** - Complete reference for all Databricks-specific model configurations, materializations, and incremental strategies
 - **[Connect to Databricks](https://docs.getdbt.com/docs/core/connect-data-platform/databricks-setup)** - Setup and authentication guide
@@ -74,10 +74,11 @@ These following quick starts will get you up and running with the `dbt-databrick
 
 - [Set up your dbt project with Databricks](https://docs.getdbt.com/guides/set-up-your-databricks-dbt-project)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
-- [Running dbt production jobs on Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-workflows.md)
-- [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/uc.md)
+- [Submitting Python models as Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/workflow-job-submission.md)
+- [Running a dbt project as a Databricks job](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/databricks-jobs.md)
+- [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/uc.md)
 - [Continuous integration in dbt](https://docs.getdbt.com/docs/deploy/continuous-integration)
-- [Loading data from S3 into Delta using the databricks_copy_into macro](https://github.com/databricks/dbt-databricks/blob/main/docs/databricks-copy-into-macro-aws.md)
+- [Loading data from S3 into Delta using the databricks_copy_into macro](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/databricks-copy-into-macro-aws.md)
 - [Contribute to this repository](CONTRIBUTING.MD)
 
 ### Compatibility

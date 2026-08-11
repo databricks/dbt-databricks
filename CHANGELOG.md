@@ -1,3 +1,18 @@
+## dbt-databricks 1.12.4 (Aug 12, 2026)
+
+### Fixes
+
+- Redact all `credential` and `encryption` clauses in logged SQL, regardless of keyword case (thanks @SreeramaYeshwanthGowd!) ([#1610](https://github.com/databricks/dbt-databricks/pull/1610) resolves [#1609](https://github.com/databricks/dbt-databricks/issues/1609))
+- Stop `delete+insert` with a composite `unique_key` from deleting unmatched rows on DBR below 17.1 (thanks @SreeramaYeshwanthGowd!) ([#1612](https://github.com/databricks/dbt-databricks/pull/1612) resolves [#1611](https://github.com/databricks/dbt-databricks/issues/1611))
+- Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
+
+### Under the Hood
+
+- Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
+- Bump `databricks-sql-connector` ceiling to `<4.4.1` and pin to 4.4.0, which requires `thrift>=0.24.0`; resolves CVE-2026-48586 (data amplification DoS), CVE-2026-41603 (TLS cert hostname bypass), and CVE-2026-43868 (memory allocation) ([#1623](https://github.com/databricks/dbt-databricks/pull/1623) resolves [#1622](https://github.com/databricks/dbt-databricks/issues/1622))
+- Reorganize `docs/` into `docs/flow/` and `docs/guides/`, and sync materialization flow diagrams with the current macros ([#1627](https://github.com/databricks/dbt-databricks/pull/1627))
+- Raise the `dbt-common` upper bound to `<1.39.0` (thanks @itsnamangoyal!) ([#1630](https://github.com/databricks/dbt-databricks/pull/1630))
+
 ## dbt-databricks 1.12.3 (Jul 29, 2026)
 
 ### Features
