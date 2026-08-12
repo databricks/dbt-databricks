@@ -1,6 +1,7 @@
 import json
 import posixpath
 import re
+import threading
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
@@ -32,6 +33,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.invocation import get_invocation_id
 from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -302,6 +304,12 @@ class DatabricksAdapter(SparkAdapter):
             **self.__class__._parse_replacements_,  # type: ignore[has-type]
             "has_dbr_capability": self._has_dbr_capability_parse,
         }
+
+        # Tracks which (invocation, relation, operation) triples have already been claimed, so
+        # per-model work (e.g. config changes) runs on the first microbatch batch only. See
+        # `claim_first_batch_operation`.
+        self._first_batch_lock = threading.Lock()
+        self._first_batch_claims: set[tuple[str, str, str]] = set()
 
     def _has_dbr_capability_parse(self, capability_name: str) -> bool:
         """Parse-time stub: True only on SQL warehouses for warehouse-supported capabilities."""
@@ -1127,6 +1135,33 @@ class DatabricksAdapter(SparkAdapter):
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
+
+    @available
+    def claim_first_batch_operation(self, relation_name: str, operation: str) -> bool:
+        """Claim a once-per-model operation for the first microbatch batch of this invocation.
+
+        Concurrent microbatch runs the incremental materialization once per batch. Statements
+        that touch table metadata (e.g. `ALTER TABLE ... CLUSTER BY`, `SET TBLPROPERTIES`)
+        collide with the other batches' concurrent writes when emitted per batch. dbt-core runs
+        the first batch alone and to completion before submitting any parallel batch, so the
+        first caller to claim an operation is always that first batch; returning True there and
+        False for every later batch confines the operation to a safe, serial point.
+
+        This is thread-safe shared state coordinating concurrent batch threads, which Jinja
+        cannot express — hence an `@available` method rather than a macro. Fusion parity is owed:
+        it needs a matching implementation in the Rust adapter. Arguments are kept portable
+        (rendered relation name, operation name) so that reimplementation needs no adapter types.
+
+        Returns True for the first caller of a given (invocation, relation, operation) and False
+        thereafter. Keying on the invocation id resets the claim across invocations (e.g.
+        `dbt retry`, which re-runs a subset of batches).
+        """
+        key = (get_invocation_id(), relation_name, operation)
+        with self._first_batch_lock:
+            if key in self._first_batch_claims:
+                return False
+            self._first_batch_claims.add(key)
+            return True
 
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
