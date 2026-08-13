@@ -23,7 +23,7 @@
     {% endcall %}
   {%- else %}
     {%- for sql in statements %}
-      {% call statement(name="main") %}
+      {% call statement(name="main" if loop.first else "statement_" ~ loop.index) %}
         {{ sql }}
       {% endcall %}
     {% endfor %}

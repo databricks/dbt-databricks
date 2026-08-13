@@ -102,7 +102,7 @@ class DatabricksAdapterResponse(AdapterResponse):
     @staticmethod
     def _get_rows_affected(cursor: Any) -> Optional[int]:
         rowcount = getattr(cursor, "rowcount", None)
-        if isinstance(rowcount, int) and rowcount >= 0:
+        if isinstance(rowcount, int) and not isinstance(rowcount, bool) and rowcount >= 0:
             return rowcount
         return None
 
