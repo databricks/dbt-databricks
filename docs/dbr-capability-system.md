@@ -1,5 +1,7 @@
 # DBR Capability System
 
+_Last updated: 2026-08-09_
+
 ## Overview
 
 The DBR (Databricks Runtime) capability system provides a centralized way to manage version-dependent features in dbt-databricks. Instead of scattered version checks throughout the codebase, all feature availability is managed through named capabilities.

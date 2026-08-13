@@ -1,9 +1,7 @@
-import os
-import tempfile
-from os.path import join
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from unittest import mock
 
-import keyring.backend
 import pytest
 
 from dbt.adapters.databricks.credentials import (
@@ -143,6 +141,58 @@ class TestEnsureConfigTriggersTheRightAuth:
             # Second call: oauth-m2m fallback.
             assert mock_config.call_args_list[1].kwargs["auth_type"] == "oauth-m2m"
 
+    def test_config_initializes_once_when_accessed_concurrently(self):
+        creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
+        manager = creds.authenticate()
+        workers = 8
+        start = Barrier(workers)
+        constructors = Barrier(workers)
+        config = mock.MagicMock()
+
+        class CoordinatedLock:
+            def __init__(self):
+                self.arrivals = 0
+                self._arrivals_lock = Lock()
+                self._lock = Lock()
+                self._all_callers = Barrier(workers)
+
+            def __enter__(self):
+                with self._arrivals_lock:
+                    self.arrivals += 1
+                self._all_callers.wait()
+                self._lock.acquire()
+
+            def __exit__(self, *_args):
+                self._lock.release()
+
+        initialization_lock = CoordinatedLock()
+
+        def build_config(**_kwargs):
+            if initialization_lock.arrivals == 0:
+                constructors.wait()
+            return config
+
+        def get_config(_worker):
+            start.wait()
+            return manager.config
+
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials._CONFIG_INITIALIZATION_LOCK",
+                initialization_lock,
+                create=True,
+            ),
+            mock.patch(
+                "dbt.adapters.databricks.credentials.Config", side_effect=build_config
+            ) as mock_config,
+        ):
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                configs = list(executor.map(get_config, range(workers)))
+
+        assert all(result is config for result in configs)
+        assert initialization_lock.arrivals == workers
+        assert mock_config.call_count == 1
+
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")
 class TestM2MAuth:
@@ -217,99 +267,6 @@ class TestTokenAuth:
         assert raw is not None
 
         assert headers == {"Authorization": "Bearer foo"}
-
-
-@pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
-class TestShardedPassword:
-    def test_store_and_delete_short_password(self):
-        # set the keyring to mock class
-        keyring.set_keyring(MockKeyring())
-
-        service = "dbt-databricks"
-        host = "my.cloud.databricks.com"
-        long_password = "x" * 10
-
-        creds = DatabricksCredentials(
-            host=host,
-            token="foo",
-            database="andre",
-            http_path="http://foo",
-            schema="dbt",
-        )
-        creds.set_sharded_password(service, host, long_password)
-
-        retrieved_password = creds.get_sharded_password(service, host)
-        assert long_password == retrieved_password
-
-        # delete password
-        creds.delete_sharded_password(service, host)
-        retrieved_password = creds.get_sharded_password(service, host)
-        assert retrieved_password is None
-
-    def test_store_and_delete_long_password(self):
-        # set the keyring to mock class
-        keyring.set_keyring(MockKeyring())
-
-        service = "dbt-databricks"
-        host = "my.cloud.databricks.com"
-        long_password = "x" * 3000
-
-        creds = DatabricksCredentials(
-            host=host,
-            token="foo",
-            database="andre",
-            http_path="http://foo",
-            schema="dbt",
-        )
-        creds.set_sharded_password(service, host, long_password)
-
-        retrieved_password = creds.get_sharded_password(service, host)
-        assert long_password == retrieved_password
-
-        # delete password
-        creds.delete_sharded_password(service, host)
-        retrieved_password = creds.get_sharded_password(service, host)
-        assert retrieved_password is None
-
-
-@pytest.mark.skip(reason="Cache moved to databricks sdk TokenCache")
-class MockKeyring(keyring.backend.KeyringBackend):
-    def __init__(self):
-        self.file_location = self._generate_test_root_dir()
-
-    def priority(self):
-        return 1
-
-    def _generate_test_root_dir(self):
-        return tempfile.mkdtemp(prefix="dbt-unit-test-")
-
-    def file_path(self, servicename, username):
-        file_location = self.file_location
-        file_name = f"{servicename}_{username}.txt"
-        return join(file_location, file_name)
-
-    def set_password(self, servicename, username, password):
-        file_path = self.file_path(servicename, username)
-
-        with open(file_path, "w") as file:
-            file.write(password)
-
-    def get_password(self, servicename, username):
-        file_path = self.file_path(servicename, username)
-        if not os.path.exists(file_path):
-            return None
-
-        with open(file_path) as file:
-            password = file.read()
-
-        return password
-
-    def delete_password(self, servicename, username):
-        file_path = self.file_path(servicename, username)
-        if not os.path.exists(file_path):
-            return None
-
-        os.remove(file_path)
 
 
 class TestCredentialManagerWorkspaceId:
