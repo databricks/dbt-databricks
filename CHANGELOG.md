@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.5 (TBD)
+
+### Fixes
+
+- Honor `warn_error_options` (silence/warn/error) for the unenforced `primary_key`/`foreign_key` constraint warning when `use_materialization_v2: false`, by emitting the structured `ConstraintNotEnforced` event instead of a free-form warning (thanks @frankivo!) ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX) resolves [#1196](https://github.com/databricks/dbt-databricks/issues/1196))
+
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 
 ### Fixes

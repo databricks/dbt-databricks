@@ -474,3 +474,37 @@ class TestConstraintMacros(MacroTestBase):
         }
         r = self.render_constraint_sql(template_bundle, constraint, model)
         assert "raise_compiler_error" in r
+
+    def test_macros_get_constraint_sql_primary_key_warn_unenforced(self, template_bundle, model):
+        # The unenforced warning must go through the structured ConstraintNotEnforced event
+        # (adapter.warn_constraint_not_enforced) so warn_error_options can target it (issue #1196),
+        # not a free-form exceptions.warn that only produces an untargetable JinjaLogWarning.
+        constraint = {
+            "type": "primary_key",
+            "name": "myconstraint",
+            "columns": ["name"],
+            "warn_unenforced": True,
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        template_bundle.context["adapter"].warn_constraint_not_enforced.assert_called_once_with(
+            "primary_key"
+        )
+        template_bundle.context["exceptions"].warn.assert_not_called()
+        assert "primary key(`name`)" in r
+
+    def test_macros_get_constraint_sql_foreign_key_warn_unenforced(self, template_bundle, model):
+        constraint = {
+            "type": "foreign_key",
+            "name": "myconstraint",
+            "columns": ["name"],
+            "to": "parent_table",
+            "warn_unenforced": True,
+        }
+        r = self.render_constraint_sql(template_bundle, constraint, model)
+
+        template_bundle.context["adapter"].warn_constraint_not_enforced.assert_called_once_with(
+            "foreign_key"
+        )
+        template_bundle.context["exceptions"].warn.assert_not_called()
+        assert "foreign key(`name`)" in r

@@ -22,6 +22,7 @@ from dbt.adapters.databricks.constraints import (
     parse_model_constraints,
     process_constraint,
     validate_constraint,
+    warn_constraint_not_enforced,
 )
 from dbt.adapters.databricks.impl import DatabricksAdapter
 
@@ -244,6 +245,17 @@ class TestValidateConstraint:
             mock_warn.assert_called_with(
                 constraint=pk_constraint.type.value, adapter="DatabricksAdapter"
             )
+
+
+class TestWarnConstraintNotEnforced:
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_fires_structured_event(self, mock_warn_or_error):
+        with patch("dbt.adapters.databricks.constraints.ConstraintNotEnforced") as mock_event:
+            warn_constraint_not_enforced("primary_key")
+            mock_event.assert_called_once_with(
+                constraint="primary_key", adapter="DatabricksAdapter"
+            )
+            mock_warn_or_error.assert_called_once_with(mock_event.return_value)
 
 
 class TestParseConstraints:
