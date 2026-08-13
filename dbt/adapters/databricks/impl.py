@@ -101,6 +101,7 @@ from dbt.adapters.databricks.spog.capabilities import (
     sdk_supports_workspace_id,
 )
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
+from dbt.adapters.databricks.telemetry import hooks as telemetry_hooks
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -901,6 +902,11 @@ class DatabricksAdapter(SparkAdapter):
         # As intended - This method will error out if the behavior flag is missing.
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
+
+    def set_macro_resolver(self, macro_resolver: Any) -> None:
+        # dbt-core passes the in-memory manifest here post-parse; telemetry hook.
+        super().set_macro_resolver(macro_resolver)
+        telemetry_hooks.on_post_parse(self, macro_resolver)
 
     @available.parse(lambda *a, **k: (None, None))
     @record_function(

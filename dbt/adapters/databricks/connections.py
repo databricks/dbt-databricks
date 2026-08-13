@@ -519,16 +519,8 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     databricks_connection.capabilities = cls._get_capabilities_for_http_path(
                         databricks_connection.http_path
                     )
-                    
-                    telemetry_hooks.on_connection_open(
-                        creds,
-                        cls.credentials_manager,
-                        session_id=conn.session_id,
-                        http_path=databricks_connection.http_path,
-                        is_cluster=is_cluster_http_path(
-                            databricks_connection.http_path, creds.cluster_id
-                        ),
-                    )
+
+                    telemetry_hooks.on_connection_open(creds, cls.credentials_manager)
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")

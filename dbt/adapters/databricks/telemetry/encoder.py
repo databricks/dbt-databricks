@@ -1,46 +1,56 @@
+"""Encode an event as a FrontendLog telemetry request via the first-class
+dbt_databricks_telemetry_log field; dataclass field names match the proto,
+so asdict yields the proto JSON directly.
+"""
+
+import dataclasses
 import json
 import time
-import uuid
 from typing import Any, Optional
 
-from dbt.adapters.databricks.telemetry.models import ConnectionLog
+from dbt.adapters.databricks.telemetry.models import TelemetryLog
 
 DRIVER_NAME = "dbt-databricks"
-CLIENT_APP_NAME = "dbt"
 
 
-def encode_event(log: ConnectionLog, workspace_id: Optional[int] = None) -> str:
-    """Encode one ConnectionLog as a TelemetryFrontendLog JSON string."""
-    sql_driver_log: dict[str, Any] = {
-        "session_id": log.session_id,
-        "system_configuration": {
-            "driver_name": DRIVER_NAME,
-            "driver_version": log.dbt_databricks_version,
-            "client_app_name": CLIENT_APP_NAME,
-        },
-        "driver_connection_params": {
-            "http_path": log.http_path,
-        },
-    }
+def _coerce_workspace_id(workspace_id: Optional[Any]) -> Optional[int]:
+    try:
+        return int(workspace_id) if workspace_id is not None else None
+    except (TypeError, ValueError):
+        return None
 
+
+def encode_frontend_log(
+    log: TelemetryLog,
+    frontend_log_event_id: str,
+    workspace_id: Optional[Any] = None,
+) -> str:
+    """Encode one TelemetryLog as a FrontendLog JSON string."""
+    entry = {"dbt_databricks_telemetry_log": dataclasses.asdict(log)}
     frontend_log: dict[str, Any] = {
-        "frontend_log_event_id": str(uuid.uuid4()),
+        "frontend_log_event_id": frontend_log_event_id,
         "context": {
             "client_context": {
                 "timestamp_millis": int(time.time() * 1000),
-                "user_agent": f"{DRIVER_NAME}/{log.dbt_databricks_version}",
+                "user_agent": f"{DRIVER_NAME}/{log.adapter_version}",
             }
         },
-        "entry": {"sql_driver_log": sql_driver_log},
-        "workspace_id": workspace_id,
+        "entry": entry,
     }
+    coerced = _coerce_workspace_id(workspace_id)
+    if coerced is not None:
+        frontend_log["workspace_id"] = coerced
     return json.dumps(frontend_log)
 
 
-def encode_request(log: ConnectionLog, workspace_id: Optional[int] = None) -> dict[str, Any]:
-    """Build the TelemetryRequest body wrapping a single connection log."""
+def encode_request(
+    log: TelemetryLog,
+    frontend_log_event_id: str,
+    workspace_id: Optional[Any] = None,
+) -> dict[str, Any]:
+    """Build the TelemetryRequest body wrapping a single event."""
     return {
         "uploadTime": int(time.time() * 1000),
         "items": [],
-        "protoLogs": [encode_event(log, workspace_id)],
+        "protoLogs": [encode_frontend_log(log, frontend_log_event_id, workspace_id)],
     }
