@@ -29,11 +29,8 @@
 
     {{ run_pre_hooks() }}
 
-    {#-- Concurrent microbatch runs this materialization once per batch. Claim per-model config
-         work for the first batch (which dbt-core runs alone, to completion, before any parallel
-         batch) so its metadata ALTERs don't collide with the other batches' concurrent writes.
-         Claimed here, before branch dispatch, so the first batch consumes the claim whether it
-         creates the relation or merges into it. --#}
+    {#-- Confine per-model config work to the first batch (dbt-core runs it alone before the
+         parallel batches) so concurrent batches' metadata ALTERs don't collide. --#}
     {%- set is_first_batch = not model.batch or adapter.claim_first_batch_operation(target_relation.render(), 'config_changes') -%}
 
     {% call statement('main', language=language) %}
@@ -110,11 +107,8 @@
     {#-- Run pre-hooks --#}
     {{ run_hooks(pre_hooks) }}
 
-    {#-- Concurrent microbatch runs this materialization once per batch. Claim per-model config
-         work for the first batch (which dbt-core runs alone, to completion, before any parallel
-         batch) so its metadata ALTERs don't collide with the other batches' concurrent writes.
-         Claimed here, before branch dispatch, so the first batch consumes the claim whether it
-         creates the relation or merges into it. --#}
+    {#-- Confine per-model config work to the first batch (dbt-core runs it alone before the
+         parallel batches) so concurrent batches' metadata ALTERs don't collide. --#}
     {%- set is_first_batch = not model.batch or adapter.claim_first_batch_operation(target_relation.render(), 'config_changes') -%}
 
     {#-- Incremental run logic --#}

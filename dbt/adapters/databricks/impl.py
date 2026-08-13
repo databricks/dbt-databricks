@@ -305,9 +305,7 @@ class DatabricksAdapter(SparkAdapter):
             "has_dbr_capability": self._has_dbr_capability_parse,
         }
 
-        # Tracks which (invocation, relation, operation) triples have already been claimed, so
-        # per-model work (e.g. config changes) runs on the first microbatch batch only. See
-        # `claim_first_batch_operation`.
+        # State for `claim_first_batch_operation` (first-microbatch-batch gating).
         self._first_batch_lock = threading.Lock()
         self._first_batch_claims: set[tuple[str, str, str]] = set()
 
@@ -1138,23 +1136,12 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     def claim_first_batch_operation(self, relation_name: str, operation: str) -> bool:
-        """Claim a once-per-model operation for the first microbatch batch of this invocation.
+        """Return True only for the first caller of (invocation, relation, operation), else False.
 
-        Concurrent microbatch runs the incremental materialization once per batch. Statements
-        that touch table metadata (e.g. `ALTER TABLE ... CLUSTER BY`, `SET TBLPROPERTIES`)
-        collide with the other batches' concurrent writes when emitted per batch. dbt-core runs
-        the first batch alone and to completion before submitting any parallel batch, so the
-        first caller to claim an operation is always that first batch; returning True there and
-        False for every later batch confines the operation to a safe, serial point.
-
-        This is thread-safe shared state coordinating concurrent batch threads, which Jinja
-        cannot express — hence an `@available` method rather than a macro. Fusion parity is owed:
-        it needs a matching implementation in the Rust adapter. Arguments are kept portable
-        (rendered relation name, operation name) so that reimplementation needs no adapter types.
-
-        Returns True for the first caller of a given (invocation, relation, operation) and False
-        thereafter. Keying on the invocation id resets the claim across invocations (e.g.
-        `dbt retry`, which re-runs a subset of batches).
+        dbt-core runs the first microbatch batch alone before the parallel ones, so the first
+        caller here is that batch — letting callers confine per-model metadata writes (CLUSTER BY,
+        SET TBLPROPERTIES) to it and avoid colliding ALTERs. Thread-safe shared state, so a Python
+        method not a macro (Fusion parity owed). Keyed on invocation id so `dbt retry` re-claims.
         """
         key = (get_invocation_id(), relation_name, operation)
         with self._first_batch_lock:

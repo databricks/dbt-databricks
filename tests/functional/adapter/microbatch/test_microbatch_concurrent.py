@@ -20,9 +20,8 @@ dbt_version = metadata.version("dbt-core")
 )
 @pytest.mark.skip_profile("databricks_cluster")
 class TestConcurrentMicrobatchConfigChanges:
-    """With concurrent batches enabled, per-model config changes (CLUSTER BY, SET TBLPROPERTIES)
-    must run on the first batch only. If they ran per batch they would collide with the other
-    batches' concurrent writes and fail them, dropping rows. See issue #1443."""
+    """Concurrent microbatch: config changes (CLUSTER BY, SET TBLPROPERTIES) must run on the
+    first batch only, else they collide with concurrent batch writes. See issue #1443."""
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -36,13 +35,11 @@ class TestConcurrentMicrobatchConfigChanges:
         }
 
     def test_all_batches_succeed_with_config_changes(self, project):
-        # Initial backfill creates the table; the relation does not exist yet, so dbt-core runs
-        # batches sequentially regardless of the flag.
+        # Backfill: relation doesn't exist yet, so batches run sequentially.
         with patch_microbatch_end_time("2020-01-05 13:57:00"):
             util.run_dbt(["run"])
 
-        # Re-run against the existing relation: dbt-core now runs the middle batches in parallel.
-        # Every batch must land its row despite the per-model CLUSTER BY / SET TBLPROPERTIES.
+        # Re-run: middle batches now run in parallel; each must land despite the config changes.
         with patch_microbatch_end_time("2020-01-05 13:57:00"):
             util.run_dbt(["run", "--select", "concurrent_microbatch_model"])
 
