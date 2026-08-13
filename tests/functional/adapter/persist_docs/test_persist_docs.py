@@ -423,11 +423,6 @@ class TestPersistDocsColumnsGateV1:
 
 _JINJA_WARNING_ERROR_OPTIONS = '{"error": ["JinjaLogWarning"]}'
 
-# Substring of the warning dbt_databricks_validate_doc_columns emits for a documented column
-# absent from the relation ("In relation <rel>: The following columns are specified in the
-# schema but are not present in the database: <col>").
-_MISSING_COLUMN_WARNING = "are not present in the database"
-
 
 class TestPersistDocsColumnMissingWarnsV1:
     @pytest.fixture(scope="class")
@@ -769,13 +764,158 @@ class TestPersistDocsColumnMissingWarnsViewCreate:
             "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
         }
 
-    def test_view_create_warns(self, project):
+    def test_view_create_warns(self, project, adapter):
         util.run_dbt(["seed"])
-        _, logs = util.run_dbt_and_capture(["run"])
-        assert "column_that_does_not_exist" in logs
-        assert logs.count(_MISSING_COLUMN_WARNING) == 1
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column_view",
+            type="view",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "test id column description"
 
 
+class TestPersistDocsColumnMissingWarnsViewCreateV1:
+    """v1 view create: same create-time coverage as V2, exercised on the else-branch of
+    view.sql (view.sql's validate_persist_doc_columns call outside the v2 flag)."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"mc_seed.csv": override_fixtures.missing_column_create_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_view.sql": override_fixtures.missing_column_view_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_view_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": False},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": True}}},
+        }
+
+    def test_view_create_warns(self, project, adapter):
+        util.run_dbt(["seed"])
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="missing_column_view",
+            type="view",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "test id column description"
+
+
+class TestPersistDocsColumnMissingV2ViewCreateNoWarn:
+    """v2 view create: persist_docs.columns=False gates the missing-column warning too."""
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"mc_seed.csv": override_fixtures.missing_column_create_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"missing_column_view.sql": override_fixtures.missing_column_view_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.missing_column_view_schema}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"test": {"+persist_docs": {"relation": False, "columns": False}}},
+        }
+
+    def test_no_warning_when_columns_disabled(self, project):
+        util.run_dbt(["seed"])
+        util.run_dbt(["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS])
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestPersistDocsColumnMissingWarnsV2AlterView:
+    """v2 view: a column documented in YAML but never added to the query still warns on the
+    ALTER path (mirrors TestPersistDocsPlannedColumnV2AlterView's create-vs-alter setup, but
+    with a genuinely missing column instead of one that only doesn't exist yet), proving
+    validate_persist_doc_columns isn't limited to create."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"alter_view.sql": override_fixtures.alter_view_initial_sql}
+
+    @pytest.fixture(scope="class")
+    def properties(self):
+        return {"schema.yml": override_fixtures.alter_view_initial_yml}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "test": {
+                    "+persist_docs": {"relation": False, "columns": True},
+                }
+            },
+        }
+
+    def test_ghost_column_warns_on_alter(self, project, adapter):
+        util.run_dbt(["run"])
+        util.write_file(
+            override_fixtures.alter_view_updated_sql,
+            project.project_root,
+            "models",
+            "alter_view.sql",
+        )
+        util.write_file(
+            override_fixtures.alter_view_updated_with_missing_col_yml,
+            project.project_root,
+            "models",
+            "schema.yml",
+        )
+
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        relation = DatabricksRelation.create(
+            database=project.database,
+            schema=project.test_schema,
+            identifier="alter_view",
+            type="view",
+        )
+        rows = util.run_sql_with_adapter(adapter, f"describe extended {relation}", fetch="all")
+        _, columns = adapter.parse_describe_extended(
+            relation, Table(rows, ["col_name", "data_type", "comment"])
+        )
+        comments = {column.column: column.comment for column in columns}
+        assert comments["id"] == "updated id comment"
+        assert comments["added_col"] == "added column comment"
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestPersistDocsColumnMissingWarnsMaterializedViewCreate:
     """materialized view create: a documented column absent from the MV warns post-build."""
 
@@ -800,11 +940,31 @@ class TestPersistDocsColumnMissingWarnsMaterializedViewCreate:
 
     def test_materialized_view_create_warns(self, project):
         util.run_dbt(["seed"])
-        _, logs = util.run_dbt_and_capture(["run"])
-        assert "column_that_does_not_exist" in logs
-        assert logs.count(_MISSING_COLUMN_WARNING) == 1
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        results = project.run_sql(
+            f"""
+            SELECT comment
+            FROM {project.database}.information_schema.columns
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = 'missing_column_mv'
+              AND column_name = 'id'""",
+            fetch="all",
+        )
+        assert results[0][0] == "test id column description"
+
+        # `refresh` defaults to manual (not auto-refreshed), so a subsequent run still goes
+        # through the shared execute-build-sql path (REFRESH) rather than a create-only one.
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
 
 
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
 class TestPersistDocsColumnMissingWarnsStreamingTableCreate:
     """streaming table create: a documented column absent from the ST is warned about post-build."""
 
@@ -829,6 +989,24 @@ class TestPersistDocsColumnMissingWarnsStreamingTableCreate:
 
     def test_streaming_table_create_warns(self, project):
         util.run_dbt(["seed"])
-        _, logs = util.run_dbt_and_capture(["run"])
-        assert "column_that_does_not_exist" in logs
-        assert logs.count(_MISSING_COLUMN_WARNING) == 1
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
+
+        results = project.run_sql(
+            f"""
+            SELECT comment
+            FROM {project.database}.information_schema.columns
+            WHERE table_catalog = '{project.database}'
+              AND table_schema = '{project.test_schema}'
+              AND table_name = 'missing_column_st'
+              AND column_name = 'id'""",
+            fetch="all",
+        )
+        assert results[0][0] == "test id column description"
+
+        # `refresh` defaults to manual (not auto-refreshed), so a subsequent run still goes
+        # through the shared execute-build-sql path (REFRESH) rather than a create-only one.
+        util.run_dbt(
+            ["run", "--warn-error-options", _JINJA_WARNING_ERROR_OPTIONS], expect_pass=False
+        )
