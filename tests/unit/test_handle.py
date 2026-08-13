@@ -690,3 +690,26 @@ class TestDatabricksAdapterResponse:
         assert resp.query_id == "q2"
         assert resp.rows_affected is None
         assert str(resp) == "OK"
+
+    @pytest.mark.parametrize("rowcount", [0, None])
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__zero_or_missing_rowcount(self, rowcount):
+        cursor = Mock()
+        cursor.query_id = "q3"
+        if rowcount is None:
+            del cursor.rowcount
+        else:
+            cursor.rowcount = rowcount
+
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+
+        assert resp.rows_affected == rowcount
+        assert str(resp) == ("OK 0" if rowcount == 0 else "OK")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__none_cursor(self):
+        resp = DatabricksAdapterResponse.from_cursor(None)
+
+        assert resp.query_id == "N/A"
+        assert resp.rows_affected is None
+        assert str(resp) == "OK"

@@ -2,32 +2,16 @@ import pytest
 from dbt.tests import util
 
 from tests.functional.adapter.fixtures import RerunSafeMixin
-
-incremental_run_result_sql = """
-{{ config(
-    materialized='incremental',
-    unique_key='id',
-    incremental_strategy='merge'
-) }}
-
-{% if not is_incremental() %}
-select cast(1 as bigint) as id, 'hello' as msg
-union all
-select cast(2 as bigint) as id, 'goodbye' as msg
-{% else %}
-select cast(2 as bigint) as id, 'updated' as msg
-union all
-select cast(3 as bigint) as id, 'new' as msg
-{% endif %}
-"""
+from tests.functional.adapter.incremental import fixtures
 
 
-def _rows_and_message(adapter_response):
+def _rows_affected(adapter_response):
     if isinstance(adapter_response, dict):
-        return adapter_response.get("rows_affected"), adapter_response.get("_message", "")
-    return getattr(adapter_response, "rows_affected", None), str(adapter_response)
+        return adapter_response.get("rows_affected")
+    return getattr(adapter_response, "rows_affected", None)
 
 
+@pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalRunResult(RerunSafeMixin):
     @pytest.fixture(scope="class")
     def relations_to_reset(self):
@@ -36,7 +20,7 @@ class TestIncrementalRunResult(RerunSafeMixin):
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "incremental_run_result.sql": incremental_run_result_sql,
+            "incremental_run_result.sql": fixtures.incremental_run_result_sql,
         }
 
     def test_incremental_second_run_reports_rows_affected(self, project):
@@ -45,9 +29,17 @@ class TestIncrementalRunResult(RerunSafeMixin):
         results = util.run_dbt(["run", "--select", "incremental_run_result"])
         assert len(results) == 1
 
-        rows_affected, message = _rows_and_message(results[0].adapter_response)
+        rows_affected = _rows_affected(results[0].adapter_response)
         if rows_affected is None:
             pytest.skip("Connector did not report rowcount for this incremental run")
 
         assert rows_affected > 0
-        assert message.endswith(str(rows_affected))
+
+        rows = project.run_sql(
+            "select id, msg from incremental_run_result order by id", fetch="all"
+        )
+        assert [(row[0], row[1]) for row in rows] == [
+            (1, "hello"),
+            (2, "updated"),
+            (3, "new"),
+        ]
