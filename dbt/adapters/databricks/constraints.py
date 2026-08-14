@@ -186,8 +186,6 @@ def validate_constraint(constraint: ColumnLevelConstraint) -> bool:
 
 
 def warn_constraint_not_enforced(constraint_type: str) -> None:
-    # A raw jinja exceptions.warn() only produces an untargetable JinjaLogWarning; firing the
-    # structured event instead lets warn_error_options silence or escalate the warning.
     warn_or_error(ConstraintNotEnforced(constraint=constraint_type, adapter="DatabricksAdapter"))
 
 

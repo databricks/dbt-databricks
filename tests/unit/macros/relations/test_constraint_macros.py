@@ -476,9 +476,6 @@ class TestConstraintMacros(MacroTestBase):
         assert "raise_compiler_error" in r
 
     def test_macros_get_constraint_sql_primary_key_warn_unenforced(self, template_bundle, model):
-        # The unenforced warning must go through the structured ConstraintNotEnforced event
-        # (adapter.warn_constraint_not_enforced) so warn_error_options can target it (issue #1196),
-        # not a free-form exceptions.warn that only produces an untargetable JinjaLogWarning.
         constraint = {
             "type": "primary_key",
             "name": "myconstraint",

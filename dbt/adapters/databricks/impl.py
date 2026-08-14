@@ -1036,10 +1036,6 @@ class DatabricksAdapter(SparkAdapter):
     @available
     @staticmethod
     def warn_constraint_not_enforced(constraint_type: str) -> None:
-        # V1 constraint macros can only call jinja's exceptions.warn, which emits an
-        # untargetable JinjaLogWarning; delegating here fires the structured
-        # ConstraintNotEnforced event (as the V2 path does) so warn_error_options applies.
-        # Fusion parity owed: needs a matching Rust-adapter implementation.
         constraints.warn_constraint_not_enforced(constraint_type)
 
     @available
