@@ -150,7 +150,7 @@
     {% endfor %}
   {% elif type == 'primary_key' %}
     {% if constraint.get('warn_unenforced') %}
-      {{ exceptions.warn("unenforced constraint type: " ~ type)}}
+      {% do adapter.warn_constraint_not_enforced(type) %}
     {% endif %}
     {% set column_names = constraint.get('columns', []) %}
     {% if column and not column_names %}
@@ -189,7 +189,7 @@
   {% elif type == 'foreign_key' %}
 
     {% if constraint.get('warn_unenforced') %}
-      {{ exceptions.warn("unenforced constraint type: " ~ constraint.type)}}
+      {% do adapter.warn_constraint_not_enforced(type) %}
     {% endif %}
 
     {% set name = constraint.get('name') %}

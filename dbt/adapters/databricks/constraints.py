@@ -180,11 +180,13 @@ def validate_constraint(constraint: ColumnLevelConstraint) -> bool:
             ConstraintNotSupported(constraint=constraint.type.value, adapter="DatabricksAdapter")
         )
     elif constraint.warn_unenforced and not is_enforced(constraint):
-        warn_or_error(
-            ConstraintNotEnforced(constraint=constraint.type.value, adapter="DatabricksAdapter")
-        )
+        warn_constraint_not_enforced(constraint.type.value)
 
     return supported
+
+
+def warn_constraint_not_enforced(constraint_type: str) -> None:
+    warn_or_error(ConstraintNotEnforced(constraint=constraint_type, adapter="DatabricksAdapter"))
 
 
 def parse_constraints(

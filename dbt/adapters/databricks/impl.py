@@ -1035,6 +1035,11 @@ class DatabricksAdapter(SparkAdapter):
 
     @available
     @staticmethod
+    def warn_constraint_not_enforced(constraint_type: str) -> None:
+        constraints.warn_constraint_not_enforced(constraint_type)
+
+    @available
+    @staticmethod
     def parse_columns_and_constraints(
         existing_columns: list[DatabricksColumn],
         model_columns: dict[str, dict[str, Any]],
