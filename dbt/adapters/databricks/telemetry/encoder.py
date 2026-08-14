@@ -1,5 +1,5 @@
 """Encode an event as a FrontendLog telemetry request via the first-class
-dbt_databricks_telemetry_log field; dataclass field names match the proto,
+dbt_databricks_telemetry_log field. Dataclass field names match the proto,
 so asdict yields the proto JSON directly.
 """
 
@@ -11,6 +11,15 @@ from typing import Any, Optional
 from dbt.adapters.databricks.telemetry.models import TelemetryLog
 
 DRIVER_NAME = "dbt-databricks"
+
+
+def _proto_dict(log: TelemetryLog) -> dict[str, Any]:
+    # Drop the unset oneof phase (None) and strip the trailing underscore that
+    # escapes the reserved-word field name (pass_ -> pass).
+    def factory(items: list) -> dict:
+        return {(k[:-1] if k.endswith("_") else k): v for k, v in items if v is not None}
+
+    return dataclasses.asdict(log, dict_factory=factory)
 
 
 def _coerce_workspace_id(workspace_id: Optional[Any]) -> Optional[int]:
@@ -26,7 +35,7 @@ def encode_frontend_log(
     workspace_id: Optional[Any] = None,
 ) -> str:
     """Encode one TelemetryLog as a FrontendLog JSON string."""
-    entry = {"dbt_databricks_telemetry_log": dataclasses.asdict(log)}
+    entry = {"dbt_databricks_telemetry_log": _proto_dict(log)}
     frontend_log: dict[str, Any] = {
         "frontend_log_event_id": frontend_log_event_id,
         "context": {

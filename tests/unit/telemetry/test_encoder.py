@@ -20,6 +20,31 @@ def _log():
     )
 
 
+def _post_run_log():
+    return models.TelemetryLog(
+        invocation_id="inv-2",
+        adapter_version="1.2.3",
+        dbt_core_version="1.12.0",
+        event_type=models.EVENT_TYPE_POST_RUN,
+        post_run=models.PostRunPayload(
+            run_outcome=models.RunOutcome(
+                invocation_status=models.INVOCATION_STATUS_HANDLED_ERROR,
+                termination_reason=models.TERMINATION_REASON_NORMAL,
+                invocation_duration_ms=1234,
+                result_aggregates_available=True,
+            ),
+            selected_resources=10,
+            result_counts=models.NodeStatusCounts(total=8, success=6, fail=1, pass_=5),
+            results_by_resource_type=[
+                models.ResourceOutcomeStats(
+                    resource_type=models.RESOURCE_TYPE_MODEL,
+                    status_counts=models.NodeStatusCounts(total=6, success=6),
+                )
+            ],
+        ),
+    )
+
+
 class TestEncoder:
     def test_request_envelope(self):
         body = encoder.encode_request(_log(), "evt-1", workspace_id="42")
@@ -57,3 +82,33 @@ class TestEncoder:
     def test_missing_workspace_id_is_omitted(self):
         fe = json.loads(encoder.encode_request(_log(), "e")["protoLogs"][0])
         assert "workspace_id" not in fe
+
+    def test_post_parse_omits_unset_phase(self):
+        entry = json.loads(encoder.encode_request(_log(), "e")["protoLogs"][0])["entry"][
+            "dbt_databricks_telemetry_log"
+        ]
+        assert "post_parse" in entry
+        assert "post_run" not in entry
+
+
+class TestPostRunEncoder:
+    def _entry(self):
+        fe = json.loads(encoder.encode_request(_post_run_log(), "e")["protoLogs"][0])
+        return fe["entry"]["dbt_databricks_telemetry_log"]
+
+    def test_only_post_run_phase(self):
+        entry = self._entry()
+        assert entry["event_type"] == "POST_RUN"
+        assert "post_run" in entry
+        assert "post_parse" not in entry
+
+    def test_pass_field_uses_proto_name(self):
+        rc = self._entry()["post_run"]["result_counts"]
+        assert rc["pass"] == 5
+        assert "pass_" not in rc
+
+    def test_outcome_and_resource_enum_names(self):
+        post_run = self._entry()["post_run"]
+        assert post_run["run_outcome"]["invocation_status"] == "HANDLED_ERROR"
+        assert post_run["run_outcome"]["invocation_duration_ms"] == 1234
+        assert post_run["results_by_resource_type"][0]["resource_type"] == "MODEL"

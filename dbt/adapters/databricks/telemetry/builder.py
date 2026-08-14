@@ -1,8 +1,3 @@
-"""Reduce live runtime objects (manifest, credentials, flags, behavior flags)
-to the sanitized POST_PARSE aggregates. Classification is configuration-only;
-it never authenticates or hits the warehouse.
-"""
-
 from importlib.metadata import version as _pkg_version
 from typing import Any, Callable, Optional
 
