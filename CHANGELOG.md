@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1637](https://github.com/databricks/dbt-databricks/issues/1637))
+- Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1642](https://github.com/databricks/dbt-databricks/pull/1642) resolves [#1637](https://github.com/databricks/dbt-databricks/issues/1637))
 
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 
