@@ -6,6 +6,7 @@ so asdict yields the proto JSON directly.
 import dataclasses
 import json
 import time
+from enum import Enum
 from typing import Any, Optional
 
 from dbt.adapters.databricks.telemetry.models import TelemetryLog
@@ -14,10 +15,15 @@ DRIVER_NAME = "dbt-databricks"
 
 
 def _proto_dict(log: TelemetryLog) -> dict[str, Any]:
-    # Drop the unset oneof phase (None) and strip the trailing underscore that
-    # escapes the reserved-word field name (pass_ -> pass).
+    # Emit enum values, drop the unset oneof phase (None), and strip the trailing
+    # underscore that escapes the reserved-word field name (pass_ -> pass).
     def factory(items: list) -> dict:
-        return {(k[:-1] if k.endswith("_") else k): v for k, v in items if v is not None}
+        out = {}
+        for k, v in items:
+            if v is None:
+                continue
+            out[k[:-1] if k.endswith("_") else k] = v.value if isinstance(v, Enum) else v
+        return out
 
     return dataclasses.asdict(log, dict_factory=factory)
 

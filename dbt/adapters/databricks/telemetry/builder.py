@@ -16,60 +16,60 @@ _BEHAVIOR_FLAGS = (
 )
 
 _COMMAND_MAP = {
-    "run": "RUN",
-    "build": "BUILD",
-    "test": "TEST",
-    "seed": "SEED",
-    "snapshot": "SNAPSHOT",
-    "compile": "COMPILE",
-    "docs": "DOCS",
-    "clone": "CLONE",
-    "retry": "RETRY",
-    "show": "SHOW",
-    "list": "LIST",
-    "source": "SOURCE",
-    "run_operation": "RUN_OPERATION",
+    "run": models.DbtCommand.RUN,
+    "build": models.DbtCommand.BUILD,
+    "test": models.DbtCommand.TEST,
+    "seed": models.DbtCommand.SEED,
+    "snapshot": models.DbtCommand.SNAPSHOT,
+    "compile": models.DbtCommand.COMPILE,
+    "docs": models.DbtCommand.DOCS,
+    "clone": models.DbtCommand.CLONE,
+    "retry": models.DbtCommand.RETRY,
+    "show": models.DbtCommand.SHOW,
+    "list": models.DbtCommand.LIST,
+    "source": models.DbtCommand.SOURCE,
+    "run_operation": models.DbtCommand.RUN_OPERATION,
 }
 
 
-def classify_compute_type(http_path: Optional[str]) -> str:
+def classify_compute_type(http_path: Optional[str]) -> models.ComputeType:
     """Only the two canonical http_path shapes classify; else OTHER. Stricter
     than the adapter's permissive cluster-path helper, which mislabels unknowns.
     """
     if not http_path:
-        return models.COMPUTE_TYPE_UNSPECIFIED
+        return models.ComputeType.TYPE_UNSPECIFIED
     path = http_path.split("?", 1)[0]
     if path.startswith(("/sql/1.0/warehouses/", "/sql/1.0/endpoints/")):
-        return models.COMPUTE_TYPE_SQL_WAREHOUSE
+        return models.ComputeType.SQL_WAREHOUSE
     if path.startswith("/sql/protocolv1/"):
-        return models.COMPUTE_TYPE_ALL_PURPOSE_CLUSTER
-    return models.COMPUTE_TYPE_OTHER
+        return models.ComputeType.ALL_PURPOSE_CLUSTER
+    return models.ComputeType.OTHER
 
 
-def classify_auth_family(creds: DatabricksCredentials) -> str:
+def classify_auth_family(creds: DatabricksCredentials) -> models.AuthFamily:
     """Mirrors the credential manager's dispatch order, from config fields only.
     A bare client_secret is fallback-capable (manager tries M2M and legacy
     Azure), so it maps to ambiguous rather than OAUTH_M2M.
     """
     if getattr(creds, "token", None):
-        return models.AUTH_FAMILY_PAT
+        return models.AuthFamily.PAT
     if getattr(creds, "azure_client_id", None) and getattr(creds, "azure_client_secret", None):
-        return models.AUTH_FAMILY_AZURE_SERVICE_PRINCIPAL
+        return models.AuthFamily.AZURE_SERVICE_PRINCIPAL
     if not getattr(creds, "client_secret", None):
         # No secret -> interactive browser (U2M).
-        return models.AUTH_FAMILY_OAUTH_U2M
-    return models.AUTH_FAMILY_LEGACY_CLIENT_SECRET_AMBIGUOUS
+        return models.AuthFamily.OAUTH_U2M
+    return models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
 
 
-def classify_command(which: Optional[str]) -> str:
+def classify_command(which: Optional[str]) -> models.DbtCommand:
     if not which:
-        return models.COMMAND_UNSPECIFIED
+        return models.DbtCommand.TYPE_UNSPECIFIED
     # Normalize e.g. run-operation, docs generate, source freshness.
     token = str(which).strip().lower().replace("-", "_").split()[0]
-    return _COMMAND_MAP.get(token, models.COMMAND_OTHER)
+    return _COMMAND_MAP.get(token, models.DbtCommand.OTHER)
 
 
-def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> str:
+def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> models.WarnErrorPolicy:
     if warn_error_options:
         # Any include/exclude/silence policy is a custom policy.
         opts = warn_error_options
@@ -78,10 +78,10 @@ def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> str:
             for attr in ("include", "error", "warn", "silence", "exclude")
         )
         if has_policy:
-            return models.WARN_ERROR_CUSTOM_POLICY
+            return models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
     if warn_error:
-        return models.WARN_ERROR_ALL
-    return models.WARN_ERROR_DISABLED
+        return models.WarnErrorPolicy.WARN_ERROR_ALL
+    return models.WarnErrorPolicy.WARN_ERROR_DISABLED
 
 
 def _resource_type(node: Any) -> str:

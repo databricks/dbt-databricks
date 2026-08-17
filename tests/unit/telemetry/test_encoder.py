@@ -9,11 +9,13 @@ def _log():
         adapter_version="1.2.3",
         dbt_core_version="1.12.0",
         post_parse=models.PostParsePayload(
-            invocation_config=models.InvocationConfig(thread_count=4, dbt_command="RUN"),
+            invocation_config=models.InvocationConfig(
+                thread_count=4, dbt_command=models.DbtCommand.RUN
+            ),
             manifest_stats=models.ManifestStats(enabled_total=models.ResourceCounts(model_count=3)),
             connection_config=models.ConnectionConfig(
-                default_compute_type=models.COMPUTE_TYPE_SQL_WAREHOUSE,
-                configured_auth_family=models.AUTH_FAMILY_PAT,
+                default_compute_type=models.ComputeType.SQL_WAREHOUSE,
+                configured_auth_family=models.AuthFamily.PAT,
             ),
             project_config=models.ProjectConfig(use_materialization_v2=True),
         ),
@@ -25,11 +27,11 @@ def _post_run_log():
         invocation_id="inv-2",
         adapter_version="1.2.3",
         dbt_core_version="1.12.0",
-        event_type=models.EVENT_TYPE_POST_RUN,
+        event_type=models.EventType.POST_RUN,
         post_run=models.PostRunPayload(
             run_outcome=models.RunOutcome(
-                invocation_status=models.INVOCATION_STATUS_HANDLED_ERROR,
-                termination_reason=models.TERMINATION_REASON_NORMAL,
+                invocation_status=models.InvocationStatus.HANDLED_ERROR,
+                termination_reason=models.TerminationReason.NORMAL,
                 invocation_duration_ms=1234,
                 result_aggregates_available=True,
             ),
@@ -37,7 +39,7 @@ def _post_run_log():
             result_counts=models.NodeStatusCounts(total=8, success=6, fail=1, pass_=5),
             results_by_resource_type=[
                 models.ResourceOutcomeStats(
-                    resource_type=models.RESOURCE_TYPE_MODEL,
+                    resource_type=models.ResourceType.MODEL,
                     status_counts=models.NodeStatusCounts(total=6, success=6),
                 )
             ],

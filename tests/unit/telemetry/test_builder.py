@@ -28,79 +28,83 @@ def _node(resource_type, package_name="root", test_metadata=None):
 class TestClassifyComputeType:
     def test_sql_warehouse(self):
         assert builder.classify_compute_type("/sql/1.0/warehouses/a") == (
-            models.COMPUTE_TYPE_SQL_WAREHOUSE
+            models.ComputeType.SQL_WAREHOUSE
         )
 
     def test_endpoints_form_is_warehouse(self):
         assert builder.classify_compute_type("/sql/1.0/endpoints/a") == (
-            models.COMPUTE_TYPE_SQL_WAREHOUSE
+            models.ComputeType.SQL_WAREHOUSE
         )
 
     def test_all_purpose_cluster(self):
         assert builder.classify_compute_type("/sql/protocolv1/o/1/2") == (
-            models.COMPUTE_TYPE_ALL_PURPOSE_CLUSTER
+            models.ComputeType.ALL_PURPOSE_CLUSTER
         )
 
     def test_query_string_ignored(self):
         assert builder.classify_compute_type("/sql/1.0/warehouses/a?o=9") == (
-            models.COMPUTE_TYPE_SQL_WAREHOUSE
+            models.ComputeType.SQL_WAREHOUSE
         )
 
     def test_unknown_form_is_other(self):
-        assert builder.classify_compute_type("/unknown") == models.COMPUTE_TYPE_OTHER
+        assert builder.classify_compute_type("/unknown") == models.ComputeType.OTHER
 
     def test_missing_is_unspecified(self):
-        assert builder.classify_compute_type(None) == models.COMPUTE_TYPE_UNSPECIFIED
+        assert builder.classify_compute_type(None) == models.ComputeType.TYPE_UNSPECIFIED
 
 
 class TestClassifyAuthFamily:
     def test_token_is_pat(self):
-        assert builder.classify_auth_family(_creds(token="dapi")) == models.AUTH_FAMILY_PAT
+        assert builder.classify_auth_family(_creds(token="dapi")) == models.AuthFamily.PAT
 
     def test_azure_service_principal(self):
         assert (
             builder.classify_auth_family(_creds(azure_client_id="a", azure_client_secret="b"))
-            == models.AUTH_FAMILY_AZURE_SERVICE_PRINCIPAL
+            == models.AuthFamily.AZURE_SERVICE_PRINCIPAL
         )
 
     def test_no_secret_is_u2m(self):
         assert builder.classify_auth_family(_creds(auth_type="oauth")) == (
-            models.AUTH_FAMILY_OAUTH_U2M
+            models.AuthFamily.OAUTH_U2M
         )
 
     def test_client_secret_is_ambiguous(self):
         assert builder.classify_auth_family(_creds(client_id="c", client_secret="s")) == (
-            models.AUTH_FAMILY_LEGACY_CLIENT_SECRET_AMBIGUOUS
+            models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
         )
 
 
 class TestClassifyCommand:
     def test_known(self):
-        assert builder.classify_command("run") == "RUN"
-        assert builder.classify_command("build") == "BUILD"
+        assert builder.classify_command("run") == models.DbtCommand.RUN
+        assert builder.classify_command("build") == models.DbtCommand.BUILD
 
     def test_normalized_forms(self):
-        assert builder.classify_command("run-operation") == "RUN_OPERATION"
-        assert builder.classify_command("source freshness") == "SOURCE"
-        assert builder.classify_command("docs generate") == "DOCS"
+        assert builder.classify_command("run-operation") == models.DbtCommand.RUN_OPERATION
+        assert builder.classify_command("source freshness") == models.DbtCommand.SOURCE
+        assert builder.classify_command("docs generate") == models.DbtCommand.DOCS
 
     def test_unknown_is_other(self):
-        assert builder.classify_command("parse") == models.COMMAND_OTHER
+        assert builder.classify_command("parse") == models.DbtCommand.OTHER
 
     def test_missing_is_unspecified(self):
-        assert builder.classify_command(None) == models.COMMAND_UNSPECIFIED
+        assert builder.classify_command(None) == models.DbtCommand.TYPE_UNSPECIFIED
 
 
 class TestClassifyWarnErrorPolicy:
     def test_disabled(self):
-        assert builder.classify_warn_error_policy(None, None) == models.WARN_ERROR_DISABLED
+        assert builder.classify_warn_error_policy(None, None) == (
+            models.WarnErrorPolicy.WARN_ERROR_DISABLED
+        )
 
     def test_all(self):
-        assert builder.classify_warn_error_policy(True, None) == models.WARN_ERROR_ALL
+        assert builder.classify_warn_error_policy(True, None) == (
+            models.WarnErrorPolicy.WARN_ERROR_ALL
+        )
 
     def test_custom_policy(self):
         assert builder.classify_warn_error_policy(False, {"include": ["X"]}) == (
-            models.WARN_ERROR_CUSTOM_POLICY
+            models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
         )
 
 
@@ -115,8 +119,8 @@ class TestBuildConnectionConfig:
                 connection_parameters={"use_kernel": True},
             )
         )
-        assert cc.default_compute_type == models.COMPUTE_TYPE_ALL_PURPOSE_CLUSTER
-        assert cc.configured_auth_family == models.AUTH_FAMILY_LEGACY_CLIENT_SECRET_AMBIGUOUS
+        assert cc.default_compute_type == models.ComputeType.ALL_PURPOSE_CLUSTER
+        assert cc.configured_auth_family == models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
         assert cc.named_compute_count == 2
         assert cc.uses_spog_routing is True
         assert cc.use_kernel is True
@@ -196,8 +200,8 @@ class TestBuildPostParseLog:
         )
         # Live get_invocation_id() when available, else manifest metadata.
         assert isinstance(log.invocation_id, str) and log.invocation_id
-        assert log.event_type == models.EVENT_TYPE_POST_PARSE
+        assert log.event_type == models.EventType.POST_PARSE
         assert log.post_parse.invocation_config.thread_count == 8
         assert log.post_parse.connection_config.default_compute_type == (
-            models.COMPUTE_TYPE_SQL_WAREHOUSE
+            models.ComputeType.SQL_WAREHOUSE
         )
