@@ -30,10 +30,7 @@ class TestIncrementalRunResult(RerunSafeMixin):
         assert len(results) == 1
 
         rows_affected = _rows_affected(results[0].adapter_response)
-        if rows_affected is None:
-            pytest.skip("Connector did not report rowcount for this incremental run")
-
-        assert rows_affected > 0
+        assert rows_affected == 2
 
         rows = project.run_sql(
             "select id, msg from incremental_run_result order by id", fetch="all"
