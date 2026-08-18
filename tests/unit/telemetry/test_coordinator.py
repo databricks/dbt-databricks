@@ -1,4 +1,5 @@
 import json
+import threading
 
 from dbt.adapters.databricks.telemetry import coordinator as coord_mod
 from dbt.adapters.databricks.telemetry import models
@@ -146,6 +147,34 @@ class TestPostRun:
         assert self._entry(capture.calls[0])["event_type"] == "POST_PARSE"
         assert self._entry(capture.calls[1])["event_type"] == "POST_RUN"
 
+    def test_post_run_waits_for_in_flight_post_parse(self, monkeypatch):
+        started = threading.Event()
+        release = threading.Event()
+        phases = []
+
+        def blocking_send(host, body, header_factory=None, workspace_id=None):
+            entry = json.loads(body["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
+            phases.append(entry["event_type"])
+            if entry["event_type"] == "POST_PARSE":
+                started.set()
+                assert release.wait(timeout=2)
+            return True
+
+        monkeypatch.setattr(coord_mod.client, "send", blocking_send)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        sender = threading.Thread(target=lambda: c.set_transport("inv-1", _transport()))
+        sender.start()
+        assert started.wait(timeout=2)
+
+        c.set_post_run("inv-1", _run_log())
+        assert phases == ["POST_PARSE"]
+        release.set()
+        sender.join(timeout=2)
+
+        assert not sender.is_alive()
+        assert phases == ["POST_PARSE", "POST_RUN"]
+
     def test_phases_use_distinct_event_ids(self, monkeypatch):
         capture = _Capture()
         monkeypatch.setattr(coord_mod.client, "send", capture)
@@ -169,26 +198,116 @@ class TestPostRun:
         c.mark_start("inv-1")
         assert c.elapsed_ms("inv-1") >= 0
 
-
-class TestResultCapture:
-    def test_record_and_snapshot(self):
+    def test_elapsed_ms_excludes_synchronous_telemetry_delivery(self, monkeypatch):
+        ticks = iter([0.0, 2.0, 3.5, 10.0])
+        monkeypatch.setattr(coord_mod.time, "monotonic", lambda: next(ticks))
+        monkeypatch.setattr(coord_mod.client, "send", lambda *args, **kwargs: True)
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
-        c.begin_result_capture("inv-1")
-        c.record_node_result("inv-1", "model", "success")
-        c.record_node_result("inv-1", "test", "pass")
-        node_results, captured = c.result_snapshot("inv-1")
-        assert captured is True
-        assert node_results == [("model", "success"), ("test", "pass")]
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+
+        assert c.elapsed_ms("inv-1") == 8500
+
+
+class TestResultCapture:
+    def test_node_results_fallback_snapshot(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_node_result("inv-1", "model.p.m1", "success")
+        c.record_node_result("inv-1", "test.p.t", "pass")
+        results, selected, expected, coverage_complete, captured = c.result_snapshot("inv-1")
+        assert captured is False
+        assert selected == 2
+        assert expected == 2
+        # No EndRunResult -> this is the partial interrupt fallback.
+        assert coverage_complete is False
+        assert results == [("model.p.m1", "success"), ("test.p.t", "pass")]
+
+    def test_partial_snapshot_omits_unprovable_selected_ephemeral_count(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 1)
+        c.record_ephemeral_ids("inv-1", {"model.p.ephemeral1", "model.p.ephemeral2"})
+        c.record_node_result("inv-1", "model.p.ephemeral1", "success")
+
+        _, selected, _, _, captured = c.result_snapshot("inv-1")
+
+        assert selected is None
+        assert captured is False
+
+    def test_end_run_is_authoritative_and_complete(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_node_result("inv-1", "model.p.m1", "success")  # partial
+        c.record_end_run("inv-1", ["success", "skipped"])
+        results, _, _, coverage_complete, _ = c.result_snapshot("inv-1")
+        assert coverage_complete is True
+        assert results == [("model.p.m1", "success"), (None, "skipped")]
+
+    def test_hooks_are_auxiliary_and_subtracted_from_end_statuses(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 1)
+        c.record_node_result("inv-1", "model.p.m1", "success")
+        c.record_hook_result("inv-1", "success")
+        c.record_end_run("inv-1", ["success", "success"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [("model.p.m1", "success"), ("operation", "success")]
+        assert selected == expected == 1
+        assert coverage_complete is True
+
+    def test_fail_fast_synthetic_ephemeral_counts_as_selected_not_result(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_ephemeral_ids("inv-1", {"model.p.ephemeral"})
+        c.record_node_result("inv-1", "model.p.m1", "error")
+        # EndRunResult has no IDs: one expected skip plus one synthetic
+        # ephemeral skip remain after matching the observed error.
+        c.record_end_run("inv-1", ["error", "skipped", "skipped"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [("model.p.m1", "error"), (None, "skipped")]
+        assert selected == 3
+        assert expected == 2
+        assert coverage_complete is True
 
     def test_snapshot_missing_invocation(self):
         c = coord_mod.Coordinator()
-        assert c.result_snapshot("nope") == ([], False)
+        assert c.result_snapshot("nope") == ([], 0, 0, False, False)
 
     def test_record_after_close_ignored(self):
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
         c.close("inv-1")
-        c.record_node_result("inv-1", "model", "success")
-        node_results, _ = c.result_snapshot("inv-1")
-        assert node_results == []
+        c.record_node_result("inv-1", "model.p.m1", "success")
+        results, _, _, _, _ = c.result_snapshot("inv-1")
+        assert results == []
+
+    def test_ephemeral_is_selected_but_not_a_top_level_result(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 1)
+        c.record_ephemeral_ids("inv-1", {"model.p.ephemeral"})
+        c.record_node_result("inv-1", "model.p.ephemeral", "success")
+        c.record_node_result("inv-1", "model.p.table", "success")
+        results, selected, expected, coverage_complete, captured = c.result_snapshot("inv-1")
+        assert results == [("model.p.table", "success")]
+        assert selected == 2
+        assert expected == 1
+        assert coverage_complete is False
+        assert captured is False
+
+    def test_authoritative_outcome_and_fail_fast_signal(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.mark_fail_fast_triggered("inv-1")
+        c.record_end_run("inv-1", ["error"], success=False)
+
+        assert c.outcome_snapshot("inv-1") == (False, True)

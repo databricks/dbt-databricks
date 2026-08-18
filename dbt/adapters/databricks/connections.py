@@ -483,7 +483,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        cls.credentials_manager = creds.authenticate()
+        # Keep the manager used to build this connection local. The class-level
+        # compatibility slot can be replaced by another concurrent open.
+        credentials_manager = creds.authenticate()
+        cls.credentials_manager = credentials_manager
 
         # SPOG decision matrix: collect every http_path in play (default +
         # per-compute) and validate them against the host's discovery probe.
@@ -503,7 +506,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             merged_query_tags = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, cls.credentials_manager, databricks_connection.http_path, merged_query_tags
+            creds, credentials_manager, databricks_connection.http_path, merged_query_tags
         )
 
         def connect() -> DatabricksHandle:
@@ -520,7 +523,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                         databricks_connection.http_path
                     )
 
-                    telemetry_hooks.on_connection_open(creds, cls.credentials_manager)
+                    telemetry_hooks.on_connection_open(creds, credentials_manager)
                     return conn
                 else:
                     raise DbtDatabaseError("Failed to create connection")

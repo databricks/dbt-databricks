@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional
 
 from dbt.adapters.databricks.__version__ import version as _adapter_version
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.telemetry import models
 
 # Mirrored from impl.py to avoid an import cycle.
@@ -70,17 +71,25 @@ def classify_command(which: Optional[str]) -> models.DbtCommand:
 
 
 def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> models.WarnErrorPolicy:
-    if warn_error_options:
-        # Any include/exclude/silence policy is a custom policy.
-        opts = warn_error_options
-        has_policy = any(
-            bool(getattr(opts, attr, None) or (opts.get(attr) if isinstance(opts, dict) else None))
-            for attr in ("include", "error", "warn", "silence", "exclude")
-        )
-        if has_policy:
-            return models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
+    # dbt-core evaluates the legacy boolean first, so it promotes every warning
+    # even if a WARN_ERROR_OPTIONS object is also present.
     if warn_error:
         return models.WarnErrorPolicy.WARN_ERROR_ALL
+    if warn_error_options:
+        opts = warn_error_options
+        get = lambda name: (  # noqa: E731 - keeps object/dict compatibility together
+            opts.get(name) if isinstance(opts, dict) else getattr(opts, name, None)
+        )
+        error = get("error") or get("include") or []
+        warn = get("warn") or get("exclude") or []
+        silence = get("silence") or []
+        # `error: all` (or `*`) with no exceptions is semantically identical
+        # to --warn-error. Named warn/silence overrides make it custom.
+        if error in ("all", "*") and not warn and not silence:
+            return models.WarnErrorPolicy.WARN_ERROR_ALL
+        has_policy = bool(error or warn or silence)
+        if has_policy:
+            return models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
     return models.WarnErrorPolicy.WARN_ERROR_DISABLED
 
 
@@ -126,7 +135,16 @@ def aggregate_manifest(manifest: Any) -> models.ManifestStats:
         project_name = getattr(metadata, "project_name", None)
 
     # Executable nodes live in .nodes; other types have their own top-level dicts.
-    collections = ["nodes", "sources", "exposures", "metrics", "saved_queries", "functions"]
+    collections = [
+        "nodes",
+        "sources",
+        "exposures",
+        "metrics",
+        "semantic_models",
+        "saved_queries",
+        "functions",
+        "unit_tests",
+    ]
     for collection in collections:
         items = getattr(manifest, collection, None)
         if not items:
@@ -141,6 +159,20 @@ def aggregate_manifest(manifest: Any) -> models.ManifestStats:
                 resource_type,
             )
     return stats
+
+
+def ephemeral_resource_ids(manifest: Any) -> set[str]:
+    """Return only selected-count metadata; IDs are never serialized."""
+    result = set()
+    for node in (getattr(manifest, "nodes", None) or {}).values():
+        config = getattr(node, "config", None)
+        is_ephemeral = bool(getattr(node, "is_ephemeral_model", False)) or (
+            getattr(config, "materialized", None) == "ephemeral"
+        )
+        unique_id = getattr(node, "unique_id", None)
+        if is_ephemeral and unique_id:
+            result.add(str(unique_id))
+    return result
 
 
 def _get_flags() -> Any:
@@ -174,8 +206,8 @@ def build_connection_config(creds: DatabricksCredentials) -> models.ConnectionCo
         default_compute_type=classify_compute_type(http_path),
         configured_auth_family=classify_auth_family(creds),
         named_compute_count=len(getattr(creds, "compute", None) or {}),
-        # `?o=<id>` is the recognized workspace-routing parameter; value discarded.
-        spog_routing_configured="?o=" in http_path if http_path else False,
+        # Only the parsed `o` query parameter is recognized; its value is discarded.
+        spog_routing_configured=extract_workspace_id(http_path) is not None,
         use_kernel=bool(connection_parameters.get("use_kernel")),
     )
 
@@ -274,19 +306,25 @@ def _bump_status(counts: models.NodeStatusCounts, status: Any) -> bool:
     return True
 
 
-def aggregate_node_results(node_results: list) -> tuple:
-    """Reduce (resource_type, status) pairs into the POST_RUN aggregates.
+def _resource_from_uid(unique_id: Any) -> str:
+    # dbt unique_ids are "resource_type.package.name"; the prefix is the type.
+    return _norm(str(unique_id).split(".", 1)[0])
 
-    Auxiliary (hook) results stay out of result_counts and
-    results_by_resource_type; a non-auxiliary result whose type is unrecognized
-    is still in result_counts and increments unknown_resource_type_results.
+
+def aggregate_node_results(results: list) -> tuple:
+    """Reduce (unique_id, status) results into the POST_RUN aggregates.
+
+    Resource type comes from the unique_id prefix. Auxiliary (hook/operation)
+    results stay out of result_counts and results_by_resource_type; a
+    non-auxiliary result whose type is unrecognized is still in result_counts and
+    increments unknown_resource_type_results.
     """
     result_counts = models.NodeStatusCounts()
     auxiliary = models.NodeStatusCounts()
     by_type: dict = {}
     unknown = 0
-    for resource_type, status in node_results:
-        rtype = _norm(resource_type)
+    for unique_id, status in results:
+        rtype = _resource_from_uid(unique_id)
         if rtype in _AUXILIARY_TYPES:
             _bump_status(auxiliary, status)
             continue
@@ -309,15 +347,32 @@ def aggregate_node_results(node_results: list) -> tuple:
 
 
 def _classify_outcome(
-    exc_type: Optional[type], has_failures: bool
+    exc_type: Optional[type],
+    has_failures: bool,
+    fail_fast_triggered: bool,
+    task_success: Optional[bool],
 ) -> tuple[models.InvocationStatus, models.TerminationReason]:
     # exc_type is whatever is propagating through dbt-core's teardown finally.
     if exc_type is not None:
-        if issubclass(exc_type, KeyboardInterrupt):
+        if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
             return models.InvocationStatus.INTERRUPTED, models.TerminationReason.INTERRUPTED
+        try:
+            from dbt_common.exceptions import DbtBaseException, DbtInternalError
+
+            if issubclass(exc_type, DbtBaseException) and not issubclass(
+                exc_type, DbtInternalError
+            ):
+                return models.InvocationStatus.HANDLED_ERROR, models.TerminationReason.TASK_ERROR
+        except Exception:
+            pass
         return models.InvocationStatus.INTERNAL_ERROR, models.TerminationReason.INTERNAL_ERROR
-    if has_failures:
-        return models.InvocationStatus.HANDLED_ERROR, models.TerminationReason.NORMAL
+    if task_success is False or (task_success is None and has_failures):
+        reason = (
+            models.TerminationReason.FAIL_FAST
+            if fail_fast_triggered
+            else models.TerminationReason.NORMAL
+        )
+        return models.InvocationStatus.HANDLED_ERROR, reason
     return models.InvocationStatus.SUCCESS, models.TerminationReason.NORMAL
 
 
@@ -325,18 +380,34 @@ def build_post_run_log(
     invocation_id: str,
     elapsed_ms: int,
     exc_type: Optional[type],
-    node_results: list,
+    results: list,
+    expected_result_resources: int,
+    coverage_complete: bool,
     results_captured: bool,
+    selected_resources: Optional[int] = None,
+    fail_fast_triggered: bool = False,
+    task_success: Optional[bool] = None,
 ) -> models.TelemetryLog:
-    """Assemble the POST_RUN event from the per-node results captured during the run."""
-    result_counts, by_type, auxiliary, unknown = aggregate_node_results(node_results)
+    """Assemble the POST_RUN event from the run's final node results.
+
+    ``results`` is a list of (unique_id, status). It comes from the authoritative
+    RunExecutionResult (via EndRunResult), which includes fail-fast synthesized
+    skips; on interrupt it is the partial per-node set instead.
+    """
+    result_counts, by_type, auxiliary, unknown = aggregate_node_results(results)
     has_failures = bool(
         result_counts.error
         or result_counts.fail
         or result_counts.runtime_error
         or result_counts.partial_success
     )
-    status, reason = _classify_outcome(exc_type, has_failures)
+    status, reason = _classify_outcome(
+        exc_type,
+        has_failures,
+        fail_fast_triggered,
+        task_success,
+    )
+    aggregates_available = bool(results_captured)
     return models.TelemetryLog(
         invocation_id=invocation_id,
         adapter_version=_adapter_version,
@@ -347,11 +418,16 @@ def build_post_run_log(
                 invocation_status=status,
                 termination_reason=reason,
                 invocation_duration_ms=elapsed_ms,
-                result_aggregates_available=results_captured,
+                result_aggregates_available=aggregates_available,
+                expected_result_coverage_complete=(
+                    coverage_complete if aggregates_available else None
+                ),
             ),
-            result_counts=result_counts,
-            results_by_resource_type=by_type,
-            auxiliary_hook_results=auxiliary,
-            unknown_resource_type_results=unknown,
+            selected_resources=selected_resources,
+            expected_result_resources=expected_result_resources,
+            result_counts=result_counts if aggregates_available else None,
+            results_by_resource_type=by_type if aggregates_available else None,
+            auxiliary_hook_results=auxiliary if aggregates_available else None,
+            unknown_resource_type_results=unknown if aggregates_available else None,
         ),
     )

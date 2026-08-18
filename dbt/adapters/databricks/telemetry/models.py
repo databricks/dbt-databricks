@@ -185,7 +185,7 @@ class RunOutcome:
     termination_reason: TerminationReason = TerminationReason.TYPE_UNSPECIFIED
     invocation_duration_ms: int = 0
     result_aggregates_available: bool = False
-    expected_result_coverage_complete: bool = False
+    expected_result_coverage_complete: Optional[bool] = None
 
 
 @dataclass
@@ -193,12 +193,12 @@ class PostRunPayload:
     """The ``DbtPostRun`` payload."""
 
     run_outcome: RunOutcome = field(default_factory=RunOutcome)
-    selected_resources: int = 0
+    selected_resources: Optional[int] = None
     expected_result_resources: int = 0
-    result_counts: NodeStatusCounts = field(default_factory=NodeStatusCounts)
-    results_by_resource_type: list[ResourceOutcomeStats] = field(default_factory=list)
-    auxiliary_hook_results: NodeStatusCounts = field(default_factory=NodeStatusCounts)
-    unknown_resource_type_results: int = 0
+    result_counts: Optional[NodeStatusCounts] = None
+    results_by_resource_type: Optional[list[ResourceOutcomeStats]] = None
+    auxiliary_hook_results: Optional[NodeStatusCounts] = None
+    unknown_resource_type_results: Optional[int] = None
 
 
 @dataclass
