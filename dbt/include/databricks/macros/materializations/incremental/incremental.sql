@@ -65,7 +65,7 @@
         {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
         {%- if build_sql is sequence and build_sql is not string -%}
           {%- for sql_statement in build_sql -%}
-            {%- call statement('main') -%}
+            {%- call statement('main' if loop.first else 'statement_' ~ loop.index) -%}
               {{ sql_statement }}
             {%- endcall -%}
           {%- endfor -%}
@@ -163,7 +163,7 @@
         {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
         {%- if build_sql is sequence and build_sql is not string -%}
           {%- for sql_statement in build_sql -%}
-            {%- call statement('main') -%}
+            {%- call statement('main' if loop.first else 'statement_' ~ loop.index) -%}
               {{ sql_statement }}
             {%- endcall -%}
           {%- endfor -%}
