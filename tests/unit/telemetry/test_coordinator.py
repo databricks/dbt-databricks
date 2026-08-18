@@ -18,6 +18,16 @@ def _log(invocation_id="inv-1"):
     )
 
 
+def _run_log(invocation_id="inv-1"):
+    return models.TelemetryLog(
+        invocation_id=invocation_id,
+        adapter_version="1.2.3",
+        dbt_core_version="1.12.0",
+        event_type=models.EventType.POST_RUN,
+        post_run=models.PostRunPayload(),
+    )
+
+
 def _transport(header_factory=lambda: {"Authorization": "Bearer x"}, workspace_id="42"):
     return coord_mod.Transport(
         host="https://h", header_factory=header_factory, workspace_id=workspace_id
@@ -110,3 +120,75 @@ class TestIsolationAndClose:
         c.set_post_parse("inv-1", _log())
         c.set_transport("inv-1", _transport())
         assert capture.calls == []
+
+
+class TestPostRun:
+    def _entry(self, call):
+        return json.loads(call[1]["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
+
+    def test_post_run_sends_after_transport(self, monkeypatch):
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_run("inv-1", _run_log())
+        assert capture.calls == []
+        c.set_transport("inv-1", _transport())
+        assert len(capture.calls) == 1
+
+    def test_both_phases_send_post_parse_first(self, monkeypatch):
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_post_run("inv-1", _run_log())
+        c.set_transport("inv-1", _transport())
+        assert len(capture.calls) == 2
+        assert self._entry(capture.calls[0])["event_type"] == "POST_PARSE"
+        assert self._entry(capture.calls[1])["event_type"] == "POST_RUN"
+
+    def test_phases_use_distinct_event_ids(self, monkeypatch):
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_transport("inv-1", _transport())
+        c.set_post_parse("inv-1", _log())
+        c.set_post_run("inv-1", _run_log())
+        ids = {
+            json.loads(call[1]["protoLogs"][0])["frontend_log_event_id"] for call in capture.calls
+        }
+        assert len(ids) == 2
+
+    def test_elapsed_ms(self):
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        assert c.elapsed_ms("inv-1") >= 0
+        assert c.elapsed_ms("missing") == 0
+
+    def test_mark_start_enables_timer(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        assert c.elapsed_ms("inv-1") >= 0
+
+
+class TestResultCapture:
+    def test_record_and_snapshot(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.begin_result_capture("inv-1")
+        c.record_node_result("inv-1", "model", "success")
+        c.record_node_result("inv-1", "test", "pass")
+        node_results, captured = c.result_snapshot("inv-1")
+        assert captured is True
+        assert node_results == [("model", "success"), ("test", "pass")]
+
+    def test_snapshot_missing_invocation(self):
+        c = coord_mod.Coordinator()
+        assert c.result_snapshot("nope") == ([], False)
+
+    def test_record_after_close_ignored(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.close("inv-1")
+        c.record_node_result("inv-1", "model", "success")
+        node_results, _ = c.result_snapshot("inv-1")
+        assert node_results == []

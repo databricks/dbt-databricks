@@ -97,6 +97,7 @@ class ResourceCounts:
     exposure_count: int = 0
     saved_query_count: int = 0
     other_count: int = 0
+    unit_test_count: int = 0
 
 
 @dataclass
@@ -127,7 +128,7 @@ class ConnectionConfig:
     default_compute_type: ComputeType = ComputeType.TYPE_UNSPECIFIED
     configured_auth_family: AuthFamily = AuthFamily.TYPE_UNSPECIFIED
     named_compute_count: int = 0
-    uses_spog_routing: bool = False
+    spog_routing_configured: bool = False
     use_kernel: bool = False
 
 

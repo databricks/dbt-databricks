@@ -109,8 +109,7 @@ def _bump(counts: models.ResourceCounts, node: Any, resource_type: str) -> None:
     elif resource_type == "saved_query":
         counts.saved_query_count += 1
     elif resource_type == "unit_test":
-        # No proto field for unit tests.
-        return
+        counts.unit_test_count += 1
     else:
         # metrics, semantic models, and any other enabled type.
         counts.other_count += 1
@@ -175,8 +174,8 @@ def build_connection_config(creds: DatabricksCredentials) -> models.ConnectionCo
         default_compute_type=classify_compute_type(http_path),
         configured_auth_family=classify_auth_family(creds),
         named_compute_count=len(getattr(creds, "compute", None) or {}),
-        # `?o=<id>` marks a SPOG unified endpoint; value discarded.
-        uses_spog_routing="?o=" in http_path if http_path else False,
+        # `?o=<id>` is the recognized workspace-routing parameter; value discarded.
+        spog_routing_configured="?o=" in http_path if http_path else False,
         use_kernel=bool(connection_parameters.get("use_kernel")),
     )
 
@@ -226,3 +225,133 @@ def _dbt_core_version() -> str:
         return _pkg_version("dbt-core")
     except Exception:
         return ""
+
+
+# dbt node_status strings -> NodeStatusCounts field (pass_ escapes the keyword).
+_STATUS_ATTR = {
+    "success": "success",
+    "error": "error",
+    "fail": "fail",
+    "warn": "warn",
+    "skipped": "skipped",
+    "partial_success": "partial_success",
+    "pass": "pass_",
+    "runtime_error": "runtime_error",
+    "no_op": "no_op",
+    "reused": "reused",
+}
+_STATUS_BUCKETS = tuple(dict.fromkeys(_STATUS_ATTR.values()))
+
+_RESOURCE_TYPE = {
+    "model": models.ResourceType.MODEL,
+    "test": models.ResourceType.DATA_TEST,
+    "unit_test": models.ResourceType.UNIT_TEST,
+    "seed": models.ResourceType.SEED,
+    "snapshot": models.ResourceType.SNAPSHOT,
+    "source": models.ResourceType.SOURCE,
+    "function": models.ResourceType.FUNCTION,
+    "exposure": models.ResourceType.EXPOSURE,
+    "saved_query": models.ResourceType.SAVED_QUERY,
+}
+
+# on-run hooks surface as "operation" results; auxiliary, not selected resources.
+_AUXILIARY_TYPES = {"operation", "hook"}
+
+
+def _norm(value: Any) -> str:
+    return str(value).strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _set_total(counts: models.NodeStatusCounts) -> None:
+    counts.total = sum(getattr(counts, b) for b in _STATUS_BUCKETS)
+
+
+def _bump_status(counts: models.NodeStatusCounts, status: Any) -> bool:
+    attr = _STATUS_ATTR.get(_norm(status))
+    if attr is None:
+        return False
+    setattr(counts, attr, getattr(counts, attr) + 1)
+    return True
+
+
+def aggregate_node_results(node_results: list) -> tuple:
+    """Reduce (resource_type, status) pairs into the POST_RUN aggregates.
+
+    Auxiliary (hook) results stay out of result_counts and
+    results_by_resource_type; a non-auxiliary result whose type is unrecognized
+    is still in result_counts and increments unknown_resource_type_results.
+    """
+    result_counts = models.NodeStatusCounts()
+    auxiliary = models.NodeStatusCounts()
+    by_type: dict = {}
+    unknown = 0
+    for resource_type, status in node_results:
+        rtype = _norm(resource_type)
+        if rtype in _AUXILIARY_TYPES:
+            _bump_status(auxiliary, status)
+            continue
+        if not _bump_status(result_counts, status):
+            continue
+        enum = _RESOURCE_TYPE.get(rtype)
+        if enum is None:
+            unknown += 1
+        else:
+            _bump_status(by_type.setdefault(enum, models.NodeStatusCounts()), status)
+    _set_total(result_counts)
+    _set_total(auxiliary)
+    results_by_resource_type = []
+    for enum, counts in by_type.items():
+        _set_total(counts)
+        results_by_resource_type.append(
+            models.ResourceOutcomeStats(resource_type=enum, status_counts=counts)
+        )
+    return result_counts, results_by_resource_type, auxiliary, unknown
+
+
+def _classify_outcome(
+    exc_type: Optional[type], has_failures: bool
+) -> tuple[models.InvocationStatus, models.TerminationReason]:
+    # exc_type is whatever is propagating through dbt-core's teardown finally.
+    if exc_type is not None:
+        if issubclass(exc_type, KeyboardInterrupt):
+            return models.InvocationStatus.INTERRUPTED, models.TerminationReason.INTERRUPTED
+        return models.InvocationStatus.INTERNAL_ERROR, models.TerminationReason.INTERNAL_ERROR
+    if has_failures:
+        return models.InvocationStatus.HANDLED_ERROR, models.TerminationReason.NORMAL
+    return models.InvocationStatus.SUCCESS, models.TerminationReason.NORMAL
+
+
+def build_post_run_log(
+    invocation_id: str,
+    elapsed_ms: int,
+    exc_type: Optional[type],
+    node_results: list,
+    results_captured: bool,
+) -> models.TelemetryLog:
+    """Assemble the POST_RUN event from the per-node results captured during the run."""
+    result_counts, by_type, auxiliary, unknown = aggregate_node_results(node_results)
+    has_failures = bool(
+        result_counts.error
+        or result_counts.fail
+        or result_counts.runtime_error
+        or result_counts.partial_success
+    )
+    status, reason = _classify_outcome(exc_type, has_failures)
+    return models.TelemetryLog(
+        invocation_id=invocation_id,
+        adapter_version=_adapter_version,
+        dbt_core_version=_dbt_core_version(),
+        event_type=models.EventType.POST_RUN,
+        post_run=models.PostRunPayload(
+            run_outcome=models.RunOutcome(
+                invocation_status=status,
+                termination_reason=reason,
+                invocation_duration_ms=elapsed_ms,
+                result_aggregates_available=results_captured,
+            ),
+            result_counts=result_counts,
+            results_by_resource_type=by_type,
+            auxiliary_hook_results=auxiliary,
+            unknown_resource_type_results=unknown,
+        ),
+    )

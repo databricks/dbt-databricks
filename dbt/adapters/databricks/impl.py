@@ -296,6 +296,9 @@ class DatabricksAdapter(SparkAdapter):
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
 
+        # Start the invocation duration timer as early as the adapter exists.
+        telemetry_hooks.on_adapter_init(self)
+
         # Warehouses always meet capability cutoffs at parse time; clusters keep the
         # conservative False until a real connection is available.
         # `_parse_replacements_` is injected by AdapterMeta, so mypy can't resolve it here.
@@ -907,6 +910,11 @@ class DatabricksAdapter(SparkAdapter):
         # dbt-core passes the in-memory manifest here post-parse; telemetry hook.
         super().set_macro_resolver(macro_resolver)
         telemetry_hooks.on_post_parse(self, macro_resolver)
+
+    def cleanup_connections(self) -> None:
+        # dbt-core's teardown finally; the adapter's POST_RUN telemetry point.
+        telemetry_hooks.on_run_end(self)
+        super().cleanup_connections()
 
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
