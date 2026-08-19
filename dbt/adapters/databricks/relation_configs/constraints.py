@@ -27,6 +27,10 @@ class ConstraintsConfig(DatabricksComponentConfig):
     unset_non_nulls: set[str] = set()
     set_constraints: set[TypedConstraint]
     unset_constraints: set[TypedConstraint] = set()
+    contract_enforced: bool = True
+
+    def requires_server_metadata_for_diff(self) -> bool:
+        return self.contract_enforced
 
     def normalize_expression(self, expression: Optional[str]) -> str:
         if expression:
@@ -232,6 +236,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
             return ConstraintsConfig(
                 set_non_nulls=set(),
                 set_constraints=set(),
+                contract_enforced=False,
             )
 
         constraints = getattr(relation_config, "constraints", [])

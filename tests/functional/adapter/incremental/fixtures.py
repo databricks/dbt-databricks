@@ -127,6 +127,30 @@ models:
           classification: internal
 """
 
+record_constraint_fetches_macros = """
+{% macro record_constraint_fetch(relation, fetch_name) %}
+  {% call statement('record_' ~ fetch_name) %}
+    insert into {{ relation.database }}.{{ relation.schema }}.metadata_constraint_fetches
+    values ('{{ fetch_name }}')
+  {% endcall %}
+{% endmacro %}
+
+{% macro fetch_non_null_constraint_columns(relation) %}
+  {{ record_constraint_fetch(relation, 'non_null') }}
+  {% do return(run_query(fetch_non_null_constraint_columns_sql(relation))) %}
+{% endmacro %}
+
+{% macro fetch_primary_key_constraints(relation) %}
+  {{ record_constraint_fetch(relation, 'primary_key') }}
+  {% do return(run_query(fetch_primary_key_constraints_sql(relation))) %}
+{% endmacro %}
+
+{% macro fetch_foreign_key_constraints(relation) %}
+  {{ record_constraint_fetch(relation, 'foreign_key') }}
+  {% do return(run_query(fetch_foreign_key_constraints_sql(relation))) %}
+{% endmacro %}
+"""
+
 tblproperties_a = """
 version: 2
 
