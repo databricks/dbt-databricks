@@ -1161,6 +1161,38 @@ class DatabricksAdapter(SparkAdapter):
         return ColumnTagsProcessor.from_relation_config(model)
 
     @available
+    def get_table_tags_changes(
+        self, relation: DatabricksRelation, model: RelationConfig
+    ) -> dict[str, str]:
+        """Table tags to set: only those new or changed vs the server."""
+        desired = TagsProcessor.from_relation_config(model)
+        if not desired.set_tags:
+            return {}
+        # Defer the hive_metastore error to apply_tags.
+        if relation.is_hive_metastore():
+            return desired.set_tags
+        existing_rows = self.execute_macro("fetch_tags", kwargs={"relation": relation})
+        existing = TagsProcessor.from_relation_results({"information_schema.tags": existing_rows})
+        diff = desired.get_diff(existing)
+        return diff.set_tags if diff else {}
+
+    @available
+    def get_column_tags_changes(
+        self, relation: DatabricksRelation, model: RelationConfig
+    ) -> Optional[ColumnTagsConfig]:
+        """Column tags to set: only those new or changed vs the server."""
+        desired = ColumnTagsProcessor.from_relation_config(model)
+        if not desired.set_column_tags:
+            return None
+        if relation.is_hive_metastore():
+            return desired
+        existing_rows = self.execute_macro("fetch_column_tags", kwargs={"relation": relation})
+        existing = ColumnTagsProcessor.from_relation_results(
+            {"information_schema.column_tags": existing_rows}
+        )
+        return desired.get_diff(existing)
+
+    @available
     def resolve_file_format(self, config: BaseConfig) -> str:
         if config.get("table_format") == constants.ICEBERG_TABLE_FORMAT:
             if self.behavior.use_managed_iceberg:
