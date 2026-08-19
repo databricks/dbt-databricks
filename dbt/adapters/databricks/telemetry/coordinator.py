@@ -1,13 +1,3 @@
-"""Per-invocation telemetry coordinator.
-
-Keyed by dbt's invocation_id so sequential dbtRunner runs never cross-pair
-manifest and transport. Parse and first connection open may arrive in either
-order; POST_PARSE sends once both payload and an authenticated transport exist.
-POST_RUN sends after the POST_PARSE attempt is terminal, reusing the same
-transport. Best-effort: failures are swallowed, never changing dbt command
-success; network calls happen outside the lock.
-"""
-
 import threading
 import time
 import uuid
@@ -22,9 +12,7 @@ HeaderFactory = Callable[[], dict[str, str]]
 
 
 class Transport:
-    """Opaque, non-serializable reusable-transport handle. Never enters a
-    payload or debug output, so it offers no dict conversion and redacts repr.
-    """
+    """Opaque reusable transport that redacts its representation."""
 
     __slots__ = ("host", "header_factory", "workspace_id")
 
@@ -47,7 +35,6 @@ class _InvocationState:
         "post_parse",
         "post_run",
         "transport",
-        # Separate stable frontend-log ids per phase; reused across retries.
         "post_parse_event_id",
         "post_run_event_id",
         "post_parse_sent",
@@ -55,16 +42,15 @@ class _InvocationState:
         "post_run_sent",
         "sending",
         "start_monotonic",
-        # (unique_id, status) results captured from run events.
-        "node_results",  # per-node NodeFinished; interrupt fallback
-        "hook_results",  # LogHookEndLine results; hooks do not fire NodeFinished
-        "end_run_statuses",  # authoritative statuses (None until EndRunResult fires)
-        "end_run_success",  # dbt-core's authoritative interpretation of the result
-        "fail_fast_triggered",  # observed fail-fast result reporting before EndRunResult
-        "expected_result_count",  # ConcurrencyLine node_count
-        "ephemeral_ids",  # sanitized manifest lookup used only for selected count
+        "node_results",
+        "hook_results",
+        "end_run_statuses",
+        "end_run_success",
+        "fail_fast_triggered",
+        "expected_result_count",
+        "ephemeral_ids",
         "results_captured",
-        "telemetry_delivery_seconds",  # excluded from invocation_duration_ms
+        "telemetry_delivery_seconds",
         "closed",
     )
 
@@ -110,7 +96,6 @@ class Coordinator:
             state = self._state(invocation_id)
             if state is None:
                 return
-            # Idempotent: repeated callbacks keep the first payload.
             if state.post_parse is None:
                 state.post_parse = payload
         self.send_if_ready(invocation_id)
@@ -129,24 +114,20 @@ class Coordinator:
             state = self._state(invocation_id)
             if state is None:
                 return
-            # Only the first reusable transport is retained.
             if state.transport is None:
                 state.transport = transport
         self.send_if_ready(invocation_id)
 
     def mark_start(self, invocation_id: str) -> None:
-        # Create the state early so its start timestamp predates parse.
         with self._lock:
             self._state(invocation_id)
 
     def record_node_result(self, invocation_id: str, unique_id: str, status: str) -> None:
-        # Per-node NodeFinished, from run-event callbacks on worker threads.
         with self._lock:
             state = self._states.get(invocation_id)
             if state is None or state.closed:
                 return
-            # Some error/skip paths have a dedicated event in addition to a
-            # NodeFinished event. Keep one terminal observation per resource.
+            # Dedicated error events may precede NodeFinished for the same node.
             for index, (observed_id, _) in enumerate(state.node_results):
                 if str(observed_id) == str(unique_id):
                     state.node_results[index] = (unique_id, status)
@@ -166,9 +147,6 @@ class Coordinator:
     def record_end_run(
         self, invocation_id: str, statuses: list, success: Optional[bool] = None
     ) -> None:
-        # EndRunResult includes fail-fast synthesized skips, but its RunResultMsg
-        # entries have no unique_id. Reconcile these statuses with typed events in
-        # result_snapshot.
         with self._lock:
             state = self._states.get(invocation_id)
             if state is None or state.closed:
@@ -205,10 +183,6 @@ class Coordinator:
                 state.ephemeral_ids = set(unique_ids)
 
     def result_snapshot(self, invocation_id: str) -> tuple:
-        # Returns (results, selected_count, expected_count, coverage_complete,
-        # results_captured).
-        # EndRunResult is authoritative and complete; NodeFinished is the partial
-        # interrupt fallback, so coverage is only complete when EndRunResult fired.
         with self._lock:
             state = self._states.get(invocation_id)
             if state is None:
@@ -219,9 +193,7 @@ class Coordinator:
                 result for result in state.node_results if str(result[0]) not in state.ephemeral_ids
             ]
             if state.end_run_statuses is not None:
-                # Remove statuses already attributable to NodeFinished and hook
-                # events. Any expected-result remainder is a synthesized result
-                # whose type cannot be recovered from EndRunResult.
+                # EndRunResult has synthesized statuses but no unique IDs.
                 remaining = Counter(_status_key(status) for status in state.end_run_statuses)
                 typed_results = top_level_results + state.hook_results
                 for _, status in typed_results:
@@ -247,9 +219,7 @@ class Coordinator:
                     len(top_level_results) + len(synthesized) >= state.expected_result_count,
                     True,
                 )
-            # ConcurrencyLine gives an exact non-ephemeral population. Without
-            # EndRunResult, however, unobserved ephemerals may be selected or may
-            # simply be outside selection. Do not report a lower bound as exact.
+            # Without EndRunResult, unobserved ephemerals make selection unknown.
             partial_selected_count: Optional[int]
             if not state.ephemeral_ids:
                 partial_selected_count = state.expected_result_count
@@ -262,8 +232,6 @@ class Coordinator:
                 partial_selected_count,
                 state.expected_result_count,
                 False,
-                # Public run events are not dbt-core's task-published partial
-                # snapshot. Be conservative on every path lacking EndRunResult.
                 False,
             )
 
@@ -273,20 +241,17 @@ class Coordinator:
             if state is None:
                 return 0
             elapsed_seconds = time.monotonic() - state.start_monotonic
-            # POST_PARSE delivery is synchronous today, so it otherwise inflates
-            # invocation duration even though the proto explicitly excludes it.
+            # The proto excludes telemetry delivery from invocation duration.
             return int(max(elapsed_seconds - state.telemetry_delivery_seconds, 0.0) * 1000)
 
     def send_if_ready(self, invocation_id: str) -> None:
-        # One caller drains ready phases. A concurrent caller returns while a send
-        # is in flight; the drainer re-checks state after that attempt finishes.
+        # A single caller drains phases while network calls remain outside the lock.
         while True:
             with self._lock:
                 state = self._states.get(invocation_id)
                 if state is None or state.closed or state.sending:
                     return
                 transport = state.transport
-                # Authenticated endpoint only: no transport/headers means not ready.
                 if transport is None or transport.header_factory is None:
                     return
 
@@ -348,13 +313,12 @@ class Coordinator:
 
     def close(self, invocation_id: str) -> None:
         with self._lock:
-            # Leave a closed tombstone so a late callback cannot recreate state.
+            # A tombstone rejects late callbacks without retaining sensitive state.
             state = self._states.get(invocation_id)
             if state is None:
                 state = _InvocationState()
                 self._states[invocation_id] = state
             state.closed = True
-            # Keep only the tombstone; do not retain payload or auth state forever.
             state.post_parse = None
             state.post_run = None
             state.transport = None
@@ -378,7 +342,6 @@ def _take_status(remaining: Counter, status: Any) -> bool:
     return True
 
 
-# Process-wide singleton.
 _COORDINATOR = Coordinator()
 
 

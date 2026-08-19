@@ -1,8 +1,3 @@
-"""Encode an event as a FrontendLog telemetry request via the first-class
-dbt_databricks_telemetry_log field. Dataclass field names match the proto,
-so asdict yields the proto JSON directly.
-"""
-
 import dataclasses
 import json
 import time
@@ -15,8 +10,7 @@ DRIVER_NAME = "dbt-databricks"
 
 
 def _proto_dict(log: TelemetryLog) -> dict[str, Any]:
-    # Emit enum values, drop the unset oneof phase (None), and strip the trailing
-    # underscore that escapes the reserved-word field name (pass_ -> pass).
+    # Drop unset fields and convert enums and escaped Python names to proto JSON.
     def factory(items: list) -> dict:
         out = {}
         for k, v in items:
@@ -40,7 +34,6 @@ def encode_frontend_log(
     frontend_log_event_id: str,
     workspace_id: Optional[Any] = None,
 ) -> str:
-    """Encode one TelemetryLog as a FrontendLog JSON string."""
     entry = {"dbt_databricks_telemetry_log": _proto_dict(log)}
     frontend_log: dict[str, Any] = {
         "frontend_log_event_id": frontend_log_event_id,
@@ -63,7 +56,6 @@ def encode_request(
     frontend_log_event_id: str,
     workspace_id: Optional[Any] = None,
 ) -> dict[str, Any]:
-    """Build the TelemetryRequest body wrapping a single event."""
     return {
         "uploadTime": int(time.time() * 1000),
         "items": [],

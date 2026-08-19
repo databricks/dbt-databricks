@@ -26,7 +26,6 @@ def send(
     header_factory: Optional[HeaderFactory] = None,
     workspace_id: Optional[int] = None,
 ) -> bool:
-    """POST a TelemetryRequest body."""
     if not host:
         logger.debug("dbt telemetry: no host available; skipping send")
         return False

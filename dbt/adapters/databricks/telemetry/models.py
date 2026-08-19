@@ -3,7 +3,6 @@ from enum import Enum
 from typing import Optional
 
 
-# Closed enums; values are the proto enum member names.
 class EventType(Enum):
     TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
     POST_PARSE = "POST_PARSE"
@@ -85,8 +84,6 @@ class TerminationReason(Enum):
 
 @dataclass
 class ResourceCounts:
-    """Per-type enabled-resource counts; reused for whole-manifest totals."""
-
     model_count: int = 0
     data_test_count: int = 0
     generic_data_test_count: int = 0
@@ -102,8 +99,6 @@ class ResourceCounts:
 
 @dataclass
 class ManifestStats:
-    """Enabled resources in the parsed manifest, split by origin."""
-
     enabled_total: ResourceCounts = field(default_factory=ResourceCounts)
     enabled_root_project: ResourceCounts = field(default_factory=ResourceCounts)
     enabled_installed_packages: ResourceCounts = field(default_factory=ResourceCounts)
@@ -111,8 +106,6 @@ class ManifestStats:
 
 @dataclass
 class InvocationConfig:
-    """Invocation CLI flags; no customer-defined values."""
-
     thread_count: int = 0
     dbt_command: DbtCommand = DbtCommand.TYPE_UNSPECIFIED
     full_refresh: bool = False
@@ -123,8 +116,6 @@ class InvocationConfig:
 
 @dataclass
 class ConnectionConfig:
-    """Connection classification derived from the profile; no http_path."""
-
     default_compute_type: ComputeType = ComputeType.TYPE_UNSPECIFIED
     configured_auth_family: AuthFamily = AuthFamily.TYPE_UNSPECIFIED
     named_compute_count: int = 0
@@ -134,8 +125,6 @@ class ConnectionConfig:
 
 @dataclass
 class ProjectConfig:
-    """dbt-databricks behavior flags in effect for the invocation."""
-
     use_user_folder_for_python: bool = False
     use_materialization_v2: bool = False
     use_replace_on_for_insert_overwrite: bool = False
@@ -146,8 +135,6 @@ class ProjectConfig:
 
 @dataclass
 class PostParsePayload:
-    """The ``DbtPostParse`` payload."""
-
     invocation_config: InvocationConfig
     manifest_stats: ManifestStats
     connection_config: ConnectionConfig
@@ -156,8 +143,6 @@ class PostParsePayload:
 
 @dataclass
 class NodeStatusCounts:
-    """Node counts by dbt terminal status; total equals the sum of the buckets."""
-
     total: int = 0
     success: int = 0
     error: int = 0
@@ -173,8 +158,6 @@ class NodeStatusCounts:
 
 @dataclass
 class ResourceOutcomeStats:
-    """Status counts for one resource type."""
-
     resource_type: ResourceType = ResourceType.TYPE_UNSPECIFIED
     status_counts: NodeStatusCounts = field(default_factory=NodeStatusCounts)
 
@@ -190,8 +173,6 @@ class RunOutcome:
 
 @dataclass
 class PostRunPayload:
-    """The ``DbtPostRun`` payload."""
-
     run_outcome: RunOutcome = field(default_factory=RunOutcome)
     selected_resources: Optional[int] = None
     expected_result_resources: int = 0
@@ -203,8 +184,6 @@ class PostRunPayload:
 
 @dataclass
 class TelemetryLog:
-    """A ``DbtDatabricksTelemetryLog`` event; one phase payload is populated."""
-
     invocation_id: str
     adapter_version: str
     dbt_core_version: str

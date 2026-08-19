@@ -34,9 +34,6 @@ _COMMAND_MAP = {
 
 
 def classify_compute_type(http_path: Optional[str]) -> models.ComputeType:
-    """Only the two canonical http_path shapes classify; else OTHER. Stricter
-    than the adapter's permissive cluster-path helper, which mislabels unknowns.
-    """
     if not http_path:
         return models.ComputeType.TYPE_UNSPECIFIED
     path = http_path.split("?", 1)[0]
@@ -48,31 +45,25 @@ def classify_compute_type(http_path: Optional[str]) -> models.ComputeType:
 
 
 def classify_auth_family(creds: DatabricksCredentials) -> models.AuthFamily:
-    """Mirrors the credential manager's dispatch order, from config fields only.
-    A bare client_secret is fallback-capable (manager tries M2M and legacy
-    Azure), so it maps to ambiguous rather than OAUTH_M2M.
-    """
     if getattr(creds, "token", None):
         return models.AuthFamily.PAT
     if getattr(creds, "azure_client_id", None) and getattr(creds, "azure_client_secret", None):
         return models.AuthFamily.AZURE_SERVICE_PRINCIPAL
     if not getattr(creds, "client_secret", None):
-        # No secret -> interactive browser (U2M).
         return models.AuthFamily.OAUTH_U2M
+    # client_secret can select M2M or legacy Azure auth.
     return models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
 
 
 def classify_command(which: Optional[str]) -> models.DbtCommand:
     if not which:
         return models.DbtCommand.TYPE_UNSPECIFIED
-    # Normalize e.g. run-operation, docs generate, source freshness.
     token = str(which).strip().lower().replace("-", "_").split()[0]
     return _COMMAND_MAP.get(token, models.DbtCommand.OTHER)
 
 
 def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> models.WarnErrorPolicy:
-    # dbt-core evaluates the legacy boolean first, so it promotes every warning
-    # even if a WARN_ERROR_OPTIONS object is also present.
+    # dbt-core gives the legacy boolean precedence.
     if warn_error:
         return models.WarnErrorPolicy.WARN_ERROR_ALL
     if warn_error_options:
@@ -83,8 +74,7 @@ def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> mode
         error = get("error") or get("include") or []
         warn = get("warn") or get("exclude") or []
         silence = get("silence") or []
-        # `error: all` (or `*`) with no exceptions is semantically identical
-        # to --warn-error. Named warn/silence overrides make it custom.
+        # Named overrides make `error: all` a custom policy.
         if error in ("all", "*") and not warn and not silence:
             return models.WarnErrorPolicy.WARN_ERROR_ALL
         has_policy = bool(error or warn or silence)
@@ -120,21 +110,16 @@ def _bump(counts: models.ResourceCounts, node: Any, resource_type: str) -> None:
     elif resource_type == "unit_test":
         counts.unit_test_count += 1
     else:
-        # metrics, semantic models, and any other enabled type.
         counts.other_count += 1
 
 
 def aggregate_manifest(manifest: Any) -> models.ManifestStats:
-    """Count enabled resources, split root-project vs installed-package.
-    manifest.disabled is a separate dict and is never counted.
-    """
     stats = models.ManifestStats()
     project_name = None
     metadata = getattr(manifest, "metadata", None)
     if metadata is not None:
         project_name = getattr(metadata, "project_name", None)
 
-    # Executable nodes live in .nodes; other types have their own top-level dicts.
     collections = [
         "nodes",
         "sources",
@@ -223,7 +208,6 @@ def build_post_parse_log(
     creds: DatabricksCredentials,
     behavior_flag: Callable[[str], bool],
 ) -> models.TelemetryLog:
-    """Assemble the complete POST_PARSE event from live runtime objects."""
     invocation_id = _invocation_id(manifest)
     payload = models.PostParsePayload(
         invocation_config=build_invocation_config(config),
@@ -259,7 +243,6 @@ def _dbt_core_version() -> str:
         return ""
 
 
-# dbt node_status strings -> NodeStatusCounts field (pass_ escapes the keyword).
 _STATUS_ATTR = {
     "success": "success",
     "error": "error",
@@ -286,7 +269,6 @@ _RESOURCE_TYPE = {
     "saved_query": models.ResourceType.SAVED_QUERY,
 }
 
-# on-run hooks surface as "operation" results; auxiliary, not selected resources.
 _AUXILIARY_TYPES = {"operation", "hook"}
 
 
@@ -307,18 +289,10 @@ def _bump_status(counts: models.NodeStatusCounts, status: Any) -> bool:
 
 
 def _resource_from_uid(unique_id: Any) -> str:
-    # dbt unique_ids are "resource_type.package.name"; the prefix is the type.
     return _norm(str(unique_id).split(".", 1)[0])
 
 
 def aggregate_node_results(results: list) -> tuple:
-    """Reduce (unique_id, status) results into the POST_RUN aggregates.
-
-    Resource type comes from the unique_id prefix. Auxiliary (hook/operation)
-    results stay out of result_counts and results_by_resource_type; a
-    non-auxiliary result whose type is unrecognized is still in result_counts and
-    increments unknown_resource_type_results.
-    """
     result_counts = models.NodeStatusCounts()
     auxiliary = models.NodeStatusCounts()
     by_type: dict = {}
@@ -352,7 +326,6 @@ def _classify_outcome(
     fail_fast_triggered: bool,
     task_success: Optional[bool],
 ) -> tuple[models.InvocationStatus, models.TerminationReason]:
-    # exc_type is whatever is propagating through dbt-core's teardown finally.
     if exc_type is not None:
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
             return models.InvocationStatus.INTERRUPTED, models.TerminationReason.INTERRUPTED
@@ -388,12 +361,7 @@ def build_post_run_log(
     fail_fast_triggered: bool = False,
     task_success: Optional[bool] = None,
 ) -> models.TelemetryLog:
-    """Assemble the POST_RUN event from the run's final node results.
-
-    ``results`` is a list of (unique_id, status). It comes from the authoritative
-    RunExecutionResult (via EndRunResult), which includes fail-fast synthesized
-    skips; on interrupt it is the partial per-node set instead.
-    """
+    """Build POST_RUN from authoritative or interrupt-fallback results."""
     result_counts, by_type, auxiliary, unknown = aggregate_node_results(results)
     has_failures = bool(
         result_counts.error

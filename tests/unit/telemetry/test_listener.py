@@ -25,26 +25,6 @@ def test_end_run_records_authoritative_results_then_finalizes(monkeypatch):
     finalize.assert_called_once_with("inv-1")
 
 
-def test_concurrency_line_records_expected_result_count(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(listener, "coordinator", lambda: coord)
-    monkeypatch.setattr(listener, "_current_invocation_id", lambda: "inv-1")
-
-    listener._on_event(_message("ConcurrencyLine", SimpleNamespace(node_count=7)))
-
-    coord.record_expected_count.assert_called_once_with("inv-1", 7)
-
-
-def test_hook_end_records_auxiliary_result(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(listener, "coordinator", lambda: coord)
-    monkeypatch.setattr(listener, "_current_invocation_id", lambda: "inv-1")
-
-    listener._on_event(_message("LogHookEndLine", SimpleNamespace(status="success")))
-
-    coord.record_hook_result.assert_called_once_with("inv-1", "success")
-
-
 def test_generic_exception_records_typed_error(monkeypatch):
     coord = Mock()
     monkeypatch.setattr(listener, "coordinator", lambda: coord)

@@ -1,7 +1,3 @@
-"""Adapter lifecycle hooks feeding the coordinator. Both are opt-in gated and
-defensive: any failure is swallowed so telemetry never affects a dbt command.
-"""
-
 import sys
 from typing import Any, Optional
 
@@ -26,7 +22,6 @@ def _current_invocation_id() -> Optional[str]:
 
 
 def on_adapter_init(adapter: Any) -> None:
-    """Start the invocation timer and begin capturing per-node run results."""
     try:
         creds = getattr(getattr(adapter, "config", None), "credentials", None)
         if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
@@ -37,14 +32,12 @@ def on_adapter_init(adapter: Any) -> None:
         coord = coordinator()
         coord.mark_start(invocation_id)
         if not listener.register():
-            # Without the task-result producer, do not emit a parse-only half.
             coord.close(invocation_id)
     except Exception as e:  # pragma: no cover - best-effort
         logger.debug(f"dbt telemetry: on_adapter_init failed (ignored): {e}")
 
 
 def on_post_parse(adapter: Any, manifest: Any) -> None:
-    """Build and register the POST_PARSE payload from the parsed manifest."""
     try:
         config = getattr(adapter, "config", None)
         creds = getattr(config, "credentials", None)
@@ -69,7 +62,6 @@ def on_connection_open(
     credentials: Optional[DatabricksCredentials],
     credentials_manager: Optional[Any],
 ) -> None:
-    """Register reusable transport from the first successful connection."""
     try:
         if (
             not is_enabled_for_invocation(credentials)
@@ -113,7 +105,6 @@ def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
 
 
 def on_end_run_result(invocation_id: str) -> None:
-    """Finalize normal/handled runs after dbt publishes its authoritative result."""
     try:
         _finalize_post_run(invocation_id, None)
     except Exception as e:  # pragma: no cover - best-effort
@@ -121,11 +112,6 @@ def on_end_run_result(invocation_id: str) -> None:
 
 
 def on_run_end(adapter: Any) -> None:
-    """Finalize exceptional runs at cleanup; normal runs wait for EndRunResult.
-
-    dbt-core calls adapter cleanup before firing EndRunResult, so finalizing every
-    run here would discard the authoritative result set.
-    """
     try:
         config = getattr(adapter, "config", None)
         creds = getattr(config, "credentials", None)
@@ -134,8 +120,7 @@ def on_run_end(adapter: Any) -> None:
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
-        # sys.exc_info reflects an exception propagating through dbt's teardown.
-        # With no exception, EndRunResult fires after this cleanup callback.
+        # Normal runs finalize at EndRunResult, which fires after cleanup.
         exc_type = sys.exc_info()[0]
         if exc_type is not None:
             _finalize_post_run(invocation_id, exc_type)

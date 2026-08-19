@@ -483,8 +483,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        # Keep the manager used to build this connection local. The class-level
-        # compatibility slot can be replaced by another concurrent open.
+        # Avoid a manager overwritten by another concurrent open.
         credentials_manager = creds.authenticate()
         cls.credentials_manager = credentials_manager
 

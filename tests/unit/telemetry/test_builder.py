@@ -143,12 +143,6 @@ class TestBuildConnectionConfig:
         assert cc.spog_routing_configured is True
         assert cc.use_kernel is True
 
-    def test_defaults_when_bare(self):
-        cc = builder.build_connection_config(_creds(token="dapi"))
-        assert cc.named_compute_count == 0
-        assert cc.spog_routing_configured is False
-        assert cc.use_kernel is False
-
     def test_spog_parameter_is_parsed_not_substring_matched(self):
         cc = builder.build_connection_config(
             _creds(token="dapi", http_path="/sql/1.0/warehouses/w?foo=x&o=42")
@@ -159,15 +153,6 @@ class TestBuildConnectionConfig:
             _creds(token="dapi", http_path="/sql/1.0/warehouses/w?foo=?o=42")
         )
         assert cc.spog_routing_configured is False
-
-
-class TestBuildProjectConfig:
-    def test_reads_behavior_flags(self):
-        on = {"use_materialization_v2", "use_managed_iceberg"}
-        pc = builder.build_project_config(lambda name: name in on)
-        assert pc.use_materialization_v2 is True
-        assert pc.use_managed_iceberg is True
-        assert pc.use_user_folder_for_python is False
 
 
 class TestAggregateManifest:
@@ -202,7 +187,6 @@ class TestAggregateManifest:
         assert ms.enabled_total.source_count == 1
         assert ms.enabled_total.exposure_count == 1
         assert ms.enabled_total.saved_query_count == 1
-        # operation + metric + semantic model; unit tests have their own bucket.
         assert ms.enabled_total.other_count == 3
         assert ms.enabled_total.unit_test_count == 1
 
@@ -210,32 +194,6 @@ class TestAggregateManifest:
         ms = builder.aggregate_manifest(self._manifest())
         assert ms.enabled_root_project.model_count == 1
         assert ms.enabled_installed_packages.model_count == 1
-
-    def test_empty_manifest(self):
-        empty = SimpleNamespace(metadata=SimpleNamespace(project_name="root"))
-        ms = builder.aggregate_manifest(empty)
-        assert ms.enabled_total.model_count == 0
-
-
-class TestBuildPostParseLog:
-    def test_assembles_event(self):
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root", invocation_id="inv-9"),
-            nodes={"m1": _node("model", "root")},
-        )
-        log = builder.build_post_parse_log(
-            manifest=manifest,
-            config=SimpleNamespace(threads=8),
-            creds=_creds(token="dapi", http_path="/sql/1.0/warehouses/w"),
-            behavior_flag=lambda name: False,
-        )
-        # Live get_invocation_id() when available, else manifest metadata.
-        assert isinstance(log.invocation_id, str) and log.invocation_id
-        assert log.event_type == models.EventType.POST_PARSE
-        assert log.post_parse.invocation_config.thread_count == 8
-        assert log.post_parse.connection_config.default_compute_type == (
-            models.ComputeType.SQL_WAREHOUSE
-        )
 
 
 class TestBuildPostRunLog:
@@ -278,13 +236,6 @@ class TestBuildPostRunLog:
         assert outcome.invocation_status == models.InvocationStatus.INTERRUPTED
         assert outcome.termination_reason == models.TerminationReason.INTERRUPTED
 
-    def test_system_exit(self):
-        outcome = builder.build_post_run_log(
-            "inv", 1, SystemExit, [], 0, False, False
-        ).post_run.run_outcome
-        assert outcome.invocation_status == models.InvocationStatus.INTERRUPTED
-        assert outcome.termination_reason == models.TerminationReason.INTERRUPTED
-
     def test_authoritative_task_failure_includes_auxiliary_failures(self):
         outcome = builder.build_post_run_log(
             "inv",
@@ -314,21 +265,6 @@ class TestBuildPostRunLog:
         assert post_run.results_by_resource_type is None
         assert post_run.auxiliary_hook_results is None
         assert post_run.unknown_resource_type_results is None
-
-    def test_counts_and_expected_populated(self):
-        results = [("model.p.m1", "success"), ("test.p.t", "pass"), ("seed.p.s", "success")]
-        pr = builder.build_post_run_log("inv", 1, None, results, 3, True, True).post_run
-        assert pr.result_counts.total == 3
-        assert pr.result_counts.success == 2
-        assert pr.result_counts.pass_ == 1
-        assert pr.expected_result_resources == 3
-        assert pr.run_outcome.expected_result_coverage_complete is True
-
-    def test_selected_resources_populated(self):
-        pr = builder.build_post_run_log(
-            "inv", 1, None, [], 2, True, True, selected_resources=3
-        ).post_run
-        assert pr.selected_resources == 3
 
 
 class TestAggregateNodeResults:

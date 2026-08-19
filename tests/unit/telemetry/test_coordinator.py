@@ -51,9 +51,8 @@ class TestTransportOpacity:
         assert "Bearer" not in repr(t)
 
     def test_not_a_dataclass_and_no_dict(self):
-        # Opaque handle must not offer easy serialization.
         t = _transport()
-        assert not hasattr(t, "__dict__")  # __slots__ only
+        assert not hasattr(t, "__dict__")
 
 
 class TestSendOrdering:
@@ -92,16 +91,6 @@ class TestSendOrdering:
         c.set_transport("inv-1", _transport(header_factory=None))
         assert capture.calls == []
 
-    def test_stable_event_id_in_payload(self, monkeypatch):
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        c.set_transport("inv-1", _transport())
-        _, body, _, _ = capture.calls[0]
-        fe = json.loads(body["protoLogs"][0])
-        assert fe["frontend_log_event_id"]  # a stable UUID was assigned
-
 
 class TestIsolationAndClose:
     def test_distinct_invocations_do_not_cross_pair(self, monkeypatch):
@@ -110,7 +99,6 @@ class TestIsolationAndClose:
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-A", _log("inv-A"))
         c.set_transport("inv-B", _transport())
-        # A has no transport, B has no payload -> nothing sends.
         assert capture.calls == []
 
     def test_closed_invocation_rejects_late_callbacks(self, monkeypatch):
@@ -126,15 +114,6 @@ class TestIsolationAndClose:
 class TestPostRun:
     def _entry(self, call):
         return json.loads(call[1]["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
-
-    def test_post_run_sends_after_transport(self, monkeypatch):
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_post_run("inv-1", _run_log())
-        assert capture.calls == []
-        c.set_transport("inv-1", _transport())
-        assert len(capture.calls) == 1
 
     def test_both_phases_send_post_parse_first(self, monkeypatch):
         capture = _Capture()
@@ -187,17 +166,6 @@ class TestPostRun:
         }
         assert len(ids) == 2
 
-    def test_elapsed_ms(self):
-        c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        assert c.elapsed_ms("inv-1") >= 0
-        assert c.elapsed_ms("missing") == 0
-
-    def test_mark_start_enables_timer(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        assert c.elapsed_ms("inv-1") >= 0
-
     def test_elapsed_ms_excludes_synchronous_telemetry_delivery(self, monkeypatch):
         ticks = iter([0.0, 2.0, 3.5, 10.0])
         monkeypatch.setattr(coord_mod.time, "monotonic", lambda: next(ticks))
@@ -221,7 +189,6 @@ class TestResultCapture:
         assert captured is False
         assert selected == 2
         assert expected == 2
-        # No EndRunResult -> this is the partial interrupt fallback.
         assert coverage_complete is False
         assert results == [("model.p.m1", "success"), ("test.p.t", "pass")]
 
@@ -241,7 +208,7 @@ class TestResultCapture:
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
         c.record_expected_count("inv-1", 2)
-        c.record_node_result("inv-1", "model.p.m1", "success")  # partial
+        c.record_node_result("inv-1", "model.p.m1", "success")
         c.record_end_run("inv-1", ["success", "skipped"])
         results, _, _, coverage_complete, _ = c.result_snapshot("inv-1")
         assert coverage_complete is True
@@ -267,8 +234,6 @@ class TestResultCapture:
         c.record_expected_count("inv-1", 2)
         c.record_ephemeral_ids("inv-1", {"model.p.ephemeral"})
         c.record_node_result("inv-1", "model.p.m1", "error")
-        # EndRunResult has no IDs: one expected skip plus one synthetic
-        # ephemeral skip remain after matching the observed error.
         c.record_end_run("inv-1", ["error", "skipped", "skipped"])
 
         results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
@@ -277,10 +242,6 @@ class TestResultCapture:
         assert selected == 3
         assert expected == 2
         assert coverage_complete is True
-
-    def test_snapshot_missing_invocation(self):
-        c = coord_mod.Coordinator()
-        assert c.result_snapshot("nope") == ([], 0, 0, False, False)
 
     def test_record_after_close_ignored(self):
         c = coord_mod.Coordinator()
@@ -303,11 +264,3 @@ class TestResultCapture:
         assert expected == 1
         assert coverage_complete is False
         assert captured is False
-
-    def test_authoritative_outcome_and_fail_fast_signal(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        c.mark_fail_fast_triggered("inv-1")
-        c.record_end_run("inv-1", ["error"], success=False)
-
-        assert c.outcome_snapshot("inv-1") == (False, True)

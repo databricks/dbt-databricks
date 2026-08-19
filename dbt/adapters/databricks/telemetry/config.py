@@ -7,7 +7,6 @@ ELIGIBLE_COMMANDS = {"build", "run", "test", "seed", "snapshot"}
 
 
 def is_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
-    """True only when the user explicitly opted in on this target."""
     if credentials is None:
         return False
     params = credentials.connection_parameters or {}
@@ -15,7 +14,6 @@ def is_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
 
 
 def is_eligible_command() -> bool:
-    """Whether this invocation has the two producer boundaries required by v1."""
     try:
         from dbt.flags import get_flags
 
@@ -31,11 +29,7 @@ def is_enabled_for_invocation(credentials: Optional[DatabricksCredentials]) -> b
 
 
 def has_reusable_transport(credentials: Optional[DatabricksCredentials]) -> bool:
-    """Avoid triggering a second interactive login for kernel OAuth U2M.
-
-    The kernel owns its U2M provider and does not expose it to the adapter. Other
-    paths use a non-interactive or already-initialized credential manager.
-    """
+    """Exclude kernel OAuth U2M, whose credential provider is not exposed."""
     if credentials is None:
         return False
     params = credentials.connection_parameters or {}

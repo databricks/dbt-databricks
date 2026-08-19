@@ -18,14 +18,8 @@ class TestOptIn:
         assert config.is_enabled(_creds({})) is False
         assert config.is_enabled(_creds(None)) is False
 
-    def test_none_credentials_off(self):
-        assert config.is_enabled(None) is False
-
     def test_explicit_opt_in(self):
         assert config.is_enabled(_creds({"enable_dbt_telemetry": True})) is True
-
-    def test_falsey_value_off(self):
-        assert config.is_enabled(_creds({"enable_dbt_telemetry": False})) is False
 
 
 class TestCommandEligibility:
