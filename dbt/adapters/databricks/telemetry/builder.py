@@ -51,7 +51,7 @@ def classify_auth_family(creds: DatabricksCredentials) -> models.AuthFamily:
         return models.AuthFamily.AZURE_SERVICE_PRINCIPAL
     if not getattr(creds, "client_secret", None):
         return models.AuthFamily.OAUTH_U2M
-    # client_secret can select M2M or legacy Azure auth.
+    # client_secret is ambiguous between M2M and legacy Azure.
     return models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
 
 
@@ -63,7 +63,7 @@ def classify_command(which: Optional[str]) -> models.DbtCommand:
 
 
 def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> models.WarnErrorPolicy:
-    # dbt-core gives the legacy boolean precedence.
+    # The legacy boolean takes precedence.
     if warn_error:
         return models.WarnErrorPolicy.WARN_ERROR_ALL
     if warn_error_options:
@@ -74,7 +74,7 @@ def classify_warn_error_policy(warn_error: Any, warn_error_options: Any) -> mode
         error = get("error") or get("include") or []
         warn = get("warn") or get("exclude") or []
         silence = get("silence") or []
-        # Named overrides make `error: all` a custom policy.
+        # Named overrides make `error: all` custom.
         if error in ("all", "*") and not warn and not silence:
             return models.WarnErrorPolicy.WARN_ERROR_ALL
         has_policy = bool(error or warn or silence)
@@ -147,7 +147,7 @@ def aggregate_manifest(manifest: Any) -> models.ManifestStats:
 
 
 def ephemeral_resource_ids(manifest: Any) -> set[str]:
-    """Return only selected-count metadata; IDs are never serialized."""
+    """Return ephemeral IDs for local counting only."""
     result = set()
     for node in (getattr(manifest, "nodes", None) or {}).values():
         config = getattr(node, "config", None)
@@ -191,7 +191,7 @@ def build_connection_config(creds: DatabricksCredentials) -> models.ConnectionCo
         default_compute_type=classify_compute_type(http_path),
         configured_auth_family=classify_auth_family(creds),
         named_compute_count=len(getattr(creds, "compute", None) or {}),
-        # Only the parsed `o` query parameter is recognized; its value is discarded.
+        # Parse only the `o` parameter; discard its value.
         spog_routing_configured=extract_workspace_id(http_path) is not None,
         use_kernel=bool(connection_parameters.get("use_kernel")),
     )
@@ -306,7 +306,8 @@ def aggregate_node_results(results: list) -> tuple:
             continue
         enum = _RESOURCE_TYPE.get(rtype)
         if enum is None:
-            unknown += 1
+            if unique_id is not None:
+                unknown += 1
         else:
             _bump_status(by_type.setdefault(enum, models.NodeStatusCounts()), status)
     _set_total(result_counts)
@@ -361,7 +362,6 @@ def build_post_run_log(
     fail_fast_triggered: bool = False,
     task_success: Optional[bool] = None,
 ) -> models.TelemetryLog:
-    """Build POST_RUN from authoritative or interrupt-fallback results."""
     result_counts, by_type, auxiliary, unknown = aggregate_node_results(results)
     has_failures = bool(
         result_counts.error

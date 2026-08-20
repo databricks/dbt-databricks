@@ -11,7 +11,7 @@ HeaderFactory = Callable[[], dict[str, str]]
 
 
 class Transport:
-    """Opaque reusable transport that redacts its representation."""
+    """Reusable transport with a redacted representation."""
 
     __slots__ = ("host", "header_factory", "workspace_id")
 
@@ -136,7 +136,7 @@ class Coordinator:
             state = self._states.get(invocation_id)
             if state is None or state.closed:
                 return
-            # Dedicated error events may precede NodeFinished for the same node.
+            # Error events may precede NodeFinished for the same node.
             for index, (observed_id, _) in enumerate(state.node_results):
                 if str(observed_id) == str(unique_id):
                     state.node_results[index] = (unique_id, status)
@@ -202,7 +202,7 @@ class Coordinator:
                 result for result in state.node_results if str(result[0]) not in state.ephemeral_ids
             ]
             if state.end_run_statuses is not None:
-                # EndRunResult has synthesized statuses but no unique IDs.
+                # EndRunResult statuses have no unique IDs.
                 remaining = Counter(_status_key(status) for status in state.end_run_statuses)
                 typed_results = top_level_results + state.hook_results
                 for _, status in typed_results:
@@ -228,7 +228,7 @@ class Coordinator:
                     len(top_level_results) + len(synthesized) >= state.expected_result_count,
                     True,
                 )
-            # Without EndRunResult, unobserved ephemerals make selection unknown.
+            # Missing ephemeral results make selection unknown.
             partial_selected_count: Optional[int]
             if not state.ephemeral_ids:
                 partial_selected_count = state.expected_result_count
@@ -253,7 +253,7 @@ class Coordinator:
             return int(max(elapsed_seconds, 0.0) * 1000)
 
     def send_if_ready(self, invocation_id: str) -> None:
-        # Keep connection-open off the telemetry network path.
+        # Keep connection-open off the network path.
         with self._lock:
             if not self._ready_to_send(self._states.get(invocation_id)):
                 return
@@ -284,7 +284,7 @@ class Coordinator:
 
     def flush(self, timeout: Optional[float] = None) -> None:
         if timeout is None:
-            timeout = float(client._TIMEOUT_SECONDS)
+            timeout = float(client._TIMEOUT_SECONDS * 2)
         deadline = time.monotonic() + timeout
         while True:
             with self._threads_lock:
@@ -298,7 +298,7 @@ class Coordinator:
             pending[0].join(remaining)
 
     def _drain(self, invocation_id: str) -> None:
-        # A single caller drains phases while network calls remain outside the lock.
+        # Serialize phases without holding the lock during sends.
         while True:
             with self._lock:
                 state = self._states.get(invocation_id)
@@ -359,7 +359,7 @@ class Coordinator:
 
     def close(self, invocation_id: str) -> None:
         with self._lock:
-            # A tombstone rejects late callbacks without retaining sensitive state.
+            # Reject late callbacks and clear sensitive state.
             state = self._states.get(invocation_id)
             if state is None:
                 state = _InvocationState()

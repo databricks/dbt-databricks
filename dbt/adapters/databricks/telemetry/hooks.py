@@ -125,7 +125,6 @@ def on_run_end(adapter: Any) -> None:
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
-        # Normal runs finalize at EndRunResult, which fires after cleanup.
         exc_type = sys.exc_info()[0]
         if exc_type is not None:
             _finalize_post_run(invocation_id, exc_type)

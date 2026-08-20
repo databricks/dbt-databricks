@@ -29,7 +29,7 @@ def is_enabled_for_invocation(credentials: Optional[DatabricksCredentials]) -> b
 
 
 def has_reusable_transport(credentials: Optional[DatabricksCredentials]) -> bool:
-    """Exclude kernel OAuth U2M, whose credential provider is not exposed."""
+    """Kernel OAuth U2M credentials are not reusable."""
     if credentials is None:
         return False
     params = credentials.connection_parameters or {}

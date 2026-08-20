@@ -150,7 +150,7 @@ class TestPostRun:
         assert self._entry(capture.calls[0])["event_type"] == "POST_PARSE"
         assert self._entry(capture.calls[1])["event_type"] == "POST_RUN"
 
-    def test_post_run_waits_for_in_flight_post_parse(self, monkeypatch):
+    def test_close_waits_for_post_run_behind_slow_post_parse(self, monkeypatch):
         started = threading.Event()
         release = threading.Event()
         phases = []
@@ -164,15 +164,18 @@ class TestPostRun:
             return True
 
         monkeypatch.setattr(coord_mod.client, "send", blocking_send)
+        monkeypatch.setattr(coord_mod.client, "_TIMEOUT_SECONDS", 0.25)
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-1", _log())
         c.set_transport("inv-1", _transport())
         assert started.wait(timeout=2)
-
         c.set_post_run("inv-1", _run_log())
-        assert phases == ["POST_PARSE"]
-        release.set()
-        c.flush(timeout=2)
+
+        timer = threading.Timer(0.35, release.set)
+        timer.start()
+        c.flush()
+        c.close("inv-1")
+        timer.join()
 
         assert phases == ["POST_PARSE", "POST_RUN"]
 

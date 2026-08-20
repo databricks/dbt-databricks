@@ -10,7 +10,6 @@ DRIVER_NAME = "dbt-databricks"
 
 
 def _proto_dict(log: TelemetryLog) -> dict[str, Any]:
-    # Drop unset fields and convert enums and escaped Python names to proto JSON.
     def factory(items: list) -> dict:
         out = {}
         for k, v in items:

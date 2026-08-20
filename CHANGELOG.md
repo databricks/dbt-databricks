@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Features
+
+- Add opt-in invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1620](https://github.com/databricks/dbt-databricks/pull/1620))
+
 ### Fixes
 
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))

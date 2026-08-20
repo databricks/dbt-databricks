@@ -53,7 +53,7 @@ def _on_event(msg: Any) -> None:
         elif name == "ConcurrencyLine":
             coord.record_expected_count(invocation_id, msg.data.node_count)
         elif name == "GenericExceptionOnRun":
-            # This path does not subsequently fire NodeFinished.
+            # No NodeFinished event follows.
             unique_id = msg.data.unique_id or msg.data.node_info.unique_id
             if unique_id:
                 coord.record_node_result(invocation_id, unique_id, "error")
