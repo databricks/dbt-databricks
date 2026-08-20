@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-19_
+_Last updated: 2026-08-20_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -47,6 +47,9 @@ flowchart LR
 
 For an ordinary existing table, configuration changes are detected before the temporary relation
 is built but are applied only after the incremental SQL runs. This ordering differs from V2.
+On the fallback metadata path, V1 and V2 share `IncrementalTableAPI._describe_relation`: the three
+constraint-specific `information_schema` queries run only when the model has an enforced contract;
+the consolidated `DESCRIBE TABLE EXTENDED AS JSON` path is unchanged.
 
 ## New Incremental Flow
 
@@ -88,6 +91,4 @@ the incremental branch even when its configuration changes. Safe staging is sele
 `use_safer_relation_operations` is enabled and the existing relation can be renamed; otherwise a
 non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
 path, V2 does not call `persist_docs` — relation and column comments are handled via
-`apply_config_changeset` or the create/insert path. On the fallback metadata path, the three
-constraint-specific `information_schema` queries run only when the model has an enforced contract;
-the consolidated `DESCRIBE TABLE EXTENDED AS JSON` path is unchanged.
+`apply_config_changeset` or the create/insert path.

@@ -259,4 +259,5 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         return ConstraintsConfig(
             set_non_nulls=set(non_nulls),
             set_constraints=set(other_constraints),
+            contract_enforced=True,
         )

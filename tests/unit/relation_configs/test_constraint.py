@@ -133,7 +133,11 @@ class TestConstraintsProcessor:
     def test_from_relation_config__without_constraints(self):
         model = self._make_model_with_contract(constraints=[], columns={})
         spec = ConstraintsProcessor.from_relation_config(model)
-        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        assert spec == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints=set(),
+            contract_enforced=True,
+        )
 
     def test_from_relation_config__without_contract(self):
         """Constraints should be empty when contract is not enforced (issue #1342)."""

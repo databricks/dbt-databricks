@@ -8,17 +8,7 @@ from tests.functional.adapter.fixtures import (
 from tests.functional.adapter.incremental import fixtures
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalMetadataFetchSkips:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        return {
-            "flags": {
-                "use_materialization_v2": True,
-                "use_describe_as_json_for_relation_metadata": False,
-            }
-        }
-
+class IncrementalMetadataFetchSkipsMixin:
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -47,6 +37,30 @@ class TestIncrementalMetadataFetchSkips:
         rows = project.run_sql("select id from metadata_fetch_incremental", fetch="all")
         assert fetches == []
         assert rows == [(1,)]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalMetadataFetchSkips(IncrementalMetadataFetchSkipsMixin):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": False,
+                "use_describe_as_json_for_relation_metadata": False,
+            }
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalMetadataFetchSkipsV2(IncrementalMetadataFetchSkipsMixin):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": False,
+            }
+        }
 
 
 @pytest.mark.skip_profile("databricks_cluster")

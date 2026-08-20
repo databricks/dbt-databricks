@@ -1718,6 +1718,10 @@ class TestDescribeRelationMetadataFetchPlanning:
         assert results["non_null_constraint_columns"] == "fetch_non_null_constraint_columns_result"
         assert results["primary_key_constraints"] == "fetch_primary_key_constraints_result"
         assert results["foreign_key_constraints"] == "fetch_foreign_key_constraints_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" in called_macro_names
+        assert "fetch_primary_key_constraints" in called_macro_names
+        assert "fetch_foreign_key_constraints" in called_macro_names
 
     def test_incremental_describe_relation_skips_tag_queries_for_hive_metastore(self):
         adapter = self._create_adapter()
