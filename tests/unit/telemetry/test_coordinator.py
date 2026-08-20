@@ -63,6 +63,7 @@ class TestSendOrdering:
         c.set_post_parse("inv-1", _log())
         assert capture.calls == []
         c.set_transport("inv-1", _transport())
+        c.flush()
         assert len(capture.calls) == 1
 
     def test_transport_then_parse_sends_once(self, monkeypatch):
@@ -72,6 +73,7 @@ class TestSendOrdering:
         c.set_transport("inv-1", _transport())
         assert capture.calls == []
         c.set_post_parse("inv-1", _log())
+        c.flush()
         assert len(capture.calls) == 1
 
     def test_repeated_parse_is_idempotent(self, monkeypatch):
@@ -81,6 +83,7 @@ class TestSendOrdering:
         c.set_transport("inv-1", _transport())
         c.set_post_parse("inv-1", _log())
         c.set_post_parse("inv-1", _log())
+        c.flush()
         assert len(capture.calls) == 1
 
     def test_transport_without_auth_headers_does_not_send(self, monkeypatch):
@@ -89,7 +92,26 @@ class TestSendOrdering:
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-1", _log())
         c.set_transport("inv-1", _transport(header_factory=None))
+        c.flush()
         assert capture.calls == []
+
+    def test_transport_does_not_block_on_slow_send(self, monkeypatch):
+        in_send = threading.Event()
+        release = threading.Event()
+
+        def slow_send(host, body, header_factory=None, workspace_id=None):
+            in_send.set()
+            assert release.wait(timeout=2)
+            return True
+
+        monkeypatch.setattr(coord_mod.client, "send", slow_send)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        # The connection-open path must return without waiting for the send.
+        c.set_transport("inv-1", _transport())
+        assert in_send.wait(timeout=2)
+        release.set()
+        c.flush(timeout=2)
 
 
 class TestIsolationAndClose:
@@ -99,6 +121,7 @@ class TestIsolationAndClose:
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-A", _log("inv-A"))
         c.set_transport("inv-B", _transport())
+        c.flush()
         assert capture.calls == []
 
     def test_closed_invocation_rejects_late_callbacks(self, monkeypatch):
@@ -108,6 +131,7 @@ class TestIsolationAndClose:
         c.close("inv-1")
         c.set_post_parse("inv-1", _log())
         c.set_transport("inv-1", _transport())
+        c.flush()
         assert capture.calls == []
 
 
@@ -122,6 +146,7 @@ class TestPostRun:
         c.set_post_parse("inv-1", _log())
         c.set_post_run("inv-1", _run_log())
         c.set_transport("inv-1", _transport())
+        c.flush()
         assert len(capture.calls) == 2
         assert self._entry(capture.calls[0])["event_type"] == "POST_PARSE"
         assert self._entry(capture.calls[1])["event_type"] == "POST_RUN"
@@ -142,16 +167,14 @@ class TestPostRun:
         monkeypatch.setattr(coord_mod.client, "send", blocking_send)
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-1", _log())
-        sender = threading.Thread(target=lambda: c.set_transport("inv-1", _transport()))
-        sender.start()
+        c.set_transport("inv-1", _transport())
         assert started.wait(timeout=2)
 
         c.set_post_run("inv-1", _run_log())
         assert phases == ["POST_PARSE"]
         release.set()
-        sender.join(timeout=2)
+        c.flush(timeout=2)
 
-        assert not sender.is_alive()
         assert phases == ["POST_PARSE", "POST_RUN"]
 
     def test_phases_use_distinct_event_ids(self, monkeypatch):
@@ -161,19 +184,17 @@ class TestPostRun:
         c.set_transport("inv-1", _transport())
         c.set_post_parse("inv-1", _log())
         c.set_post_run("inv-1", _run_log())
+        c.flush()
         ids = {
             json.loads(call[1]["protoLogs"][0])["frontend_log_event_id"] for call in capture.calls
         }
         assert len(ids) == 2
 
-    def test_elapsed_ms_excludes_synchronous_telemetry_delivery(self, monkeypatch):
-        ticks = iter([0.0, 2.0, 3.5, 10.0])
+    def test_elapsed_ms_is_wall_clock(self, monkeypatch):
+        ticks = iter([0.0, 8.5])
         monkeypatch.setattr(coord_mod.time, "monotonic", lambda: next(ticks))
-        monkeypatch.setattr(coord_mod.client, "send", lambda *args, **kwargs: True)
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
-        c.set_post_parse("inv-1", _log())
-        c.set_transport("inv-1", _transport())
 
         assert c.elapsed_ms("inv-1") == 8500
 

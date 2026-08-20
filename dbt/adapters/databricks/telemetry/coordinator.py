@@ -50,7 +50,6 @@ class _InvocationState:
         "expected_result_count",
         "ephemeral_ids",
         "results_captured",
-        "telemetry_delivery_seconds",
         "closed",
     )
 
@@ -73,7 +72,6 @@ class _InvocationState:
         self.expected_result_count: int = 0
         self.ephemeral_ids: set[str] = set()
         self.results_captured: bool = False
-        self.telemetry_delivery_seconds: float = 0.0
         self.closed: bool = False
 
 
@@ -81,6 +79,8 @@ class Coordinator:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._states: dict[str, _InvocationState] = {}
+        self._threads_lock = threading.Lock()
+        self._threads: list[threading.Thread] = []
 
     def _state(self, invocation_id: str) -> Optional[_InvocationState]:
         state = self._states.get(invocation_id)
@@ -241,10 +241,57 @@ class Coordinator:
             if state is None:
                 return 0
             elapsed_seconds = time.monotonic() - state.start_monotonic
-            # The proto excludes telemetry delivery from invocation duration.
-            return int(max(elapsed_seconds - state.telemetry_delivery_seconds, 0.0) * 1000)
+            return int(max(elapsed_seconds, 0.0) * 1000)
 
     def send_if_ready(self, invocation_id: str) -> None:
+        # Deliver on a background thread so callers—most importantly the
+        # connection-open path—never block on telemetry network I/O.
+        with self._lock:
+            if not self._ready_to_send(self._states.get(invocation_id)):
+                return
+        thread = threading.Thread(
+            target=self._drain,
+            args=(invocation_id,),
+            name="dbt-telemetry-send",
+            daemon=True,
+        )
+        with self._threads_lock:
+            self._threads = [t for t in self._threads if t.is_alive()]
+            self._threads.append(thread)
+        thread.start()
+
+    def _ready_to_send(self, state: Optional[_InvocationState]) -> bool:
+        # Cheap pre-check under the caller's lock to avoid spawning idle threads.
+        if state is None or state.closed or state.sending:
+            return False
+        transport = state.transport
+        if transport is None or transport.header_factory is None:
+            return False
+        if state.post_parse is not None and not state.post_parse_sent:
+            return True
+        return (
+            state.post_run is not None
+            and not state.post_run_sent
+            and (state.post_parse_terminal or state.post_parse is None)
+        )
+
+    def flush(self, timeout: Optional[float] = None) -> None:
+        # Bounded wait for in-flight background sends before teardown/exit.
+        if timeout is None:
+            timeout = float(client._TIMEOUT_SECONDS)
+        deadline = time.monotonic() + timeout
+        while True:
+            with self._threads_lock:
+                self._threads = [t for t in self._threads if t.is_alive()]
+                pending = list(self._threads)
+            if not pending:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            pending[0].join(remaining)
+
+    def _drain(self, invocation_id: str) -> None:
         # A single caller drains phases while network calls remain outside the lock.
         while True:
             with self._lock:
@@ -298,18 +345,11 @@ class Coordinator:
         header_factory: Optional[HeaderFactory],
         workspace_id: Optional[Any],
     ) -> None:
-        started = time.monotonic()
         try:
             body = encoder.encode_request(payload, event_id, workspace_id=workspace_id)
             client.send(host, body, header_factory=header_factory, workspace_id=workspace_id)
         except Exception as e:  # pragma: no cover - best-effort
             logger.debug(f"dbt telemetry: send failed (ignored): {e}")
-        finally:
-            delivery_seconds = time.monotonic() - started
-            with self._lock:
-                state = self._states.get(payload.invocation_id)
-                if state is not None:
-                    state.telemetry_delivery_seconds += delivery_seconds
 
     def close(self, invocation_id: str) -> None:
         with self._lock:
