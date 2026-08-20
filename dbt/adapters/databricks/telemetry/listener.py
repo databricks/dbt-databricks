@@ -1,6 +1,5 @@
 from typing import Any
 
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.telemetry.coordinator import coordinator
 
 
@@ -65,7 +64,7 @@ def _on_event(msg: Any) -> None:
         elif name in ("RunResultFailure", "RunResultError") and _fail_fast_enabled():
             coord.mark_fail_fast_triggered(invocation_id)
     except Exception:  # pragma: no cover - best-effort
-        pass
+        return
 
 
 def register() -> bool:
@@ -78,6 +77,5 @@ def register() -> bool:
         if _on_event not in get_event_manager().callbacks:
             add_callback_to_manager(_on_event)
         return True
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: listener register failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
         return False

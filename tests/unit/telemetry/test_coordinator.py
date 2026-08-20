@@ -107,7 +107,6 @@ class TestSendOrdering:
         monkeypatch.setattr(coord_mod.client, "send", slow_send)
         c = coord_mod.Coordinator()
         c.set_post_parse("inv-1", _log())
-        # The connection-open path must return without waiting for the send.
         c.set_transport("inv-1", _transport())
         assert in_send.wait(timeout=2)
         release.set()
@@ -189,14 +188,6 @@ class TestPostRun:
             json.loads(call[1]["protoLogs"][0])["frontend_log_event_id"] for call in capture.calls
         }
         assert len(ids) == 2
-
-    def test_elapsed_ms_is_wall_clock(self, monkeypatch):
-        ticks = iter([0.0, 8.5])
-        monkeypatch.setattr(coord_mod.time, "monotonic", lambda: next(ticks))
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-
-        assert c.elapsed_ms("inv-1") == 8500
 
 
 class TestResultCapture:

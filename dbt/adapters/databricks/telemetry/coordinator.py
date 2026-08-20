@@ -4,7 +4,6 @@ import uuid
 from collections import Counter
 from typing import Any, Callable, Optional
 
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.telemetry import client, encoder
 from dbt.adapters.databricks.telemetry.models import TelemetryLog
 
@@ -121,6 +120,16 @@ class Coordinator:
     def mark_start(self, invocation_id: str) -> None:
         with self._lock:
             self._state(invocation_id)
+
+    def is_closed(self, invocation_id: str) -> bool:
+        with self._lock:
+            state = self._states.get(invocation_id)
+            return state is not None and state.closed
+
+    def needs_post_parse(self, invocation_id: str) -> bool:
+        with self._lock:
+            state = self._states.get(invocation_id)
+            return state is None or (not state.closed and state.post_parse is None)
 
     def record_node_result(self, invocation_id: str, unique_id: str, status: str) -> None:
         with self._lock:
@@ -244,8 +253,7 @@ class Coordinator:
             return int(max(elapsed_seconds, 0.0) * 1000)
 
     def send_if_ready(self, invocation_id: str) -> None:
-        # Deliver on a background thread so callers—most importantly the
-        # connection-open path—never block on telemetry network I/O.
+        # Keep connection-open off the telemetry network path.
         with self._lock:
             if not self._ready_to_send(self._states.get(invocation_id)):
                 return
@@ -261,7 +269,6 @@ class Coordinator:
         thread.start()
 
     def _ready_to_send(self, state: Optional[_InvocationState]) -> bool:
-        # Cheap pre-check under the caller's lock to avoid spawning idle threads.
         if state is None or state.closed or state.sending:
             return False
         transport = state.transport
@@ -276,7 +283,6 @@ class Coordinator:
         )
 
     def flush(self, timeout: Optional[float] = None) -> None:
-        # Bounded wait for in-flight background sends before teardown/exit.
         if timeout is None:
             timeout = float(client._TIMEOUT_SECONDS)
         deadline = time.monotonic() + timeout
@@ -348,8 +354,8 @@ class Coordinator:
         try:
             body = encoder.encode_request(payload, event_id, workspace_id=workspace_id)
             client.send(host, body, header_factory=header_factory, workspace_id=workspace_id)
-        except Exception as e:  # pragma: no cover - best-effort
-            logger.debug(f"dbt telemetry: send failed (ignored): {e}")
+        except Exception:  # pragma: no cover - best-effort
+            return
 
     def close(self, invocation_id: str) -> None:
         with self._lock:

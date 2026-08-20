@@ -2,7 +2,6 @@ import sys
 from typing import Any, Optional
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
-from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.telemetry import builder, listener
 from dbt.adapters.databricks.telemetry.config import (
     has_reusable_transport,
@@ -33,8 +32,8 @@ def on_adapter_init(adapter: Any) -> None:
         coord.mark_start(invocation_id)
         if not listener.register():
             coord.close(invocation_id)
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: on_adapter_init failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
+        return
 
 
 def on_post_parse(adapter: Any, manifest: Any) -> None:
@@ -42,6 +41,10 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
         config = getattr(adapter, "config", None)
         creds = getattr(config, "credentials", None)
         if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
+            return
+        invocation_id = _current_invocation_id()
+        coord = coordinator()
+        if invocation_id and not coord.needs_post_parse(invocation_id):
             return
         log = builder.build_post_parse_log(
             manifest=manifest,
@@ -51,11 +54,10 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
         )
         if not log.invocation_id:
             return
-        coord = coordinator()
         coord.record_ephemeral_ids(log.invocation_id, builder.ephemeral_resource_ids(manifest))
         coord.set_post_parse(log.invocation_id, log)
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: on_post_parse failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
+        return
 
 
 def on_connection_open(
@@ -78,12 +80,14 @@ def on_connection_open(
             workspace_id=getattr(credentials_manager, "workspace_id", None),
         )
         coordinator().set_transport(invocation_id, transport)
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: on_connection_open failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
+        return
 
 
 def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
     coord = coordinator()
+    if coord.is_closed(invocation_id):
+        return
     results, selected, expected, coverage_complete, results_captured = coord.result_snapshot(
         invocation_id
     )
@@ -101,7 +105,6 @@ def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
         task_success=task_success,
     )
     coord.set_post_run(invocation_id, log)
-    # Deliver the queued background sends before tearing down invocation state.
     coord.flush()
     coord.close(invocation_id)
 
@@ -109,8 +112,8 @@ def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
 def on_end_run_result(invocation_id: str) -> None:
     try:
         _finalize_post_run(invocation_id, None)
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: EndRunResult finalization failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
+        return
 
 
 def on_run_end(adapter: Any) -> None:
@@ -126,5 +129,5 @@ def on_run_end(adapter: Any) -> None:
         exc_type = sys.exc_info()[0]
         if exc_type is not None:
             _finalize_post_run(invocation_id, exc_type)
-    except Exception as e:  # pragma: no cover - best-effort
-        logger.debug(f"dbt telemetry: on_run_end failed (ignored): {e}")
+    except Exception:  # pragma: no cover - best-effort
+        return
