@@ -10,7 +10,14 @@ def is_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
     if credentials is None:
         return False
     params = credentials.connection_parameters or {}
-    return bool(params.get(ENABLE_FLAG, False))
+    value = params.get(ENABLE_FLAG, False)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value == 1
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
 
 
 def is_eligible_command() -> bool:

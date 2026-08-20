@@ -301,10 +301,10 @@ class TestAggregateNodeResults:
         assert rc.total == 2
         assert [r.resource_type for r in by_type] == [models.ResourceType.MODEL]
 
-    def test_unavailable_resource_type_is_not_unknown(self):
+    def test_unavailable_resource_type_is_unknown(self):
         rc, _, _, unknown = builder.aggregate_node_results([(None, "skipped")])
         assert rc.total == 1
-        assert unknown == 0
+        assert unknown == 1
 
     def test_invariant_known_plus_unknown_equals_total(self):
         rc, by_type, _, unknown = builder.aggregate_node_results(

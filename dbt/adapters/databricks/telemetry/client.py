@@ -2,6 +2,8 @@ from typing import Any, Callable, Optional
 
 import requests
 
+from dbt.adapters.databricks.credentials import BearerAuth
+
 TELEMETRY_AUTHENTICATED_PATH = "/telemetry-ext"
 TELEMETRY_UNAUTHENTICATED_PATH = "/telemetry-unauth"
 
@@ -30,11 +32,9 @@ def send(
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         path = TELEMETRY_AUTHENTICATED_PATH
         if header_factory is not None:
-            try:
-                headers.update(header_factory())
-            except Exception:
-                return False
+            auth = BearerAuth(header_factory)
         else:
+            auth = None
             path = TELEMETRY_UNAUTHENTICATED_PATH
 
         if workspace_id is not None:
@@ -42,7 +42,13 @@ def send(
 
         url = _normalize_host(host) + path
 
-        response = requests.post(url, json=body, headers=headers, timeout=_TIMEOUT_SECONDS)
+        response = requests.post(
+            url,
+            json=body,
+            headers=headers,
+            auth=auth,
+            timeout=_TIMEOUT_SECONDS,
+        )
 
         if response.status_code // 100 != 2:
             return False

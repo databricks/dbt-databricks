@@ -306,8 +306,7 @@ def aggregate_node_results(results: list) -> tuple:
             continue
         enum = _RESOURCE_TYPE.get(rtype)
         if enum is None:
-            if unique_id is not None:
-                unknown += 1
+            unknown += 1
         else:
             _bump_status(by_type.setdefault(enum, models.NodeStatusCounts()), status)
     _set_total(result_counts)
