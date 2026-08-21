@@ -4,12 +4,18 @@
   {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
   {% set contract_config = config.get('contract') %}
   {% set contract_enforced = contract_config and contract_config.enforced %}
-  {% if contract_enforced %}
-    {% set model_constraints = model.get('constraints', []) %}
-  {% else %}
-    {% set model_constraints = [] %}
-  {% endif %}
-  {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints, contract_enforced, model.name) %}
+  {% set persist_constraints = config.get('persist_constraints', False) | as_bool %}
+  {% set model_constraints = model.get('constraints', []) %}
+  {% set model_meta_constraints = model.get('meta', {}).get('constraints') %}
+  {% set columns_and_constraints = adapter.parse_columns_and_constraints(
+      existing_columns,
+      model_columns,
+      model_constraints,
+      contract_enforced,
+      model.name,
+      persist_constraints,
+      model_meta_constraints
+  ) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   
   {% call statement('main') %}

@@ -158,6 +158,30 @@ class TestConstraintsProcessor:
             contract_enforced=False,
         )
 
+    def test_from_relation_config__with_legacy_constraints(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {"constraints": [{"name": "id_positive", "condition": "id > 0"}]}
+        model.columns = {
+            "id": ColumnInfo(name="id"),
+            "name": ColumnInfo(name="name", meta={"constraint": "not_null"}),
+        }
+        model.constraints = []
+
+        spec = ConstraintsProcessor.from_relation_config(model)
+
+        assert spec == ConstraintsConfig(
+            set_non_nulls={"name"},
+            set_constraints={
+                CheckConstraint(
+                    type=ConstraintType.check,
+                    name="id_positive",
+                    expression="id > 0",
+                )
+            },
+        )
+
     def test_from_relation_config__with_check_constraint(self):
         model = self._make_model_with_contract(
             columns={},

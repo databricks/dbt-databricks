@@ -28,9 +28,9 @@
       {% if column_tags %}
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
-      {#-- Reconcile constraints only when the contract is enforced. --#}
       {% set contract_config = config.get('contract') %}
-      {% if constraints and contract_config and contract_config.enforced %}
+      {% set persist_constraints = config.get('persist_constraints', False) | as_bool %}
+      {% if constraints and ((contract_config and contract_config.enforced) or persist_constraints) %}
         {{ apply_constraints(target_relation, constraints) }}
       {% endif %}
       {% if column_masks %}
