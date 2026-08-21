@@ -1,5 +1,9 @@
 ## dbt-databricks next
 
+### Features
+
+- Add opt-in invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1620](https://github.com/databricks/dbt-databricks/pull/1620))
+
 ### Fixes
 
 - Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
