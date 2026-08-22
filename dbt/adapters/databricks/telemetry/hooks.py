@@ -8,6 +8,10 @@ from dbt.adapters.databricks.telemetry.config import (
 )
 from dbt.adapters.databricks.telemetry.coordinator import Transport, coordinator
 
+# Bound at adapter init. dbt-core resets the process-global invocation ID
+# before leftover adapter cleanup, so teardown must not read the live ID.
+_INVOCATION_ID_ATTR = "_dbt_telemetry_invocation_id"
+
 
 def _current_invocation_id() -> Optional[str]:
     try:
@@ -19,6 +23,11 @@ def _current_invocation_id() -> Optional[str]:
         return None
 
 
+def _stored_invocation_id(adapter: Any) -> Optional[str]:
+    invocation_id = getattr(adapter, _INVOCATION_ID_ATTR, None)
+    return str(invocation_id) if invocation_id else None
+
+
 def on_adapter_init(adapter: Any) -> None:
     try:
         creds = getattr(getattr(adapter, "config", None), "credentials", None)
@@ -27,6 +36,7 @@ def on_adapter_init(adapter: Any) -> None:
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
+        setattr(adapter, _INVOCATION_ID_ATTR, invocation_id)
         coordinator().mark_start(invocation_id)
     except Exception:  # pragma: no cover - best-effort
         return
@@ -85,7 +95,7 @@ def on_run_end(adapter: Any) -> None:
         creds = getattr(config, "credentials", None)
         if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
             return
-        invocation_id = _current_invocation_id()
+        invocation_id = _stored_invocation_id(adapter)
         if not invocation_id:
             return
         coordinator().close(invocation_id)
