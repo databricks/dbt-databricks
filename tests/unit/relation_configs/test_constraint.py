@@ -158,6 +158,64 @@ class TestConstraintsProcessor:
             contract_enforced=False,
         )
 
+    def test_from_relation_config__with_legacy_constraints(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {"constraints": [{"name": "id_positive", "condition": "id > 0"}]}
+        model.columns = {
+            "id": ColumnInfo(name="id"),
+            "name": ColumnInfo(name="name", meta={"constraint": "not_null"}),
+        }
+        model.constraints = []
+
+        spec = ConstraintsProcessor.from_relation_config(model)
+
+        assert spec == ConstraintsConfig(
+            set_non_nulls={"name"},
+            set_constraints={
+                CheckConstraint(
+                    type=ConstraintType.check,
+                    name="id_positive",
+                    expression="id > 0",
+                )
+            },
+        )
+
+    def test_from_relation_config__legacy_skips_unique(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {
+            "constraints": [
+                {"type": "unique", "columns": ["id"], "warn_unsupported": True},
+            ]
+        }
+        model.columns = {}
+        model.constraints = []
+        model.identifier = "orders"
+
+        spec = ConstraintsProcessor.from_relation_config(model)
+
+        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+
+    def test_from_relation_config__legacy_generates_stable_names(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {"constraints": [{"type": "check", "expression": "id > 0"}]}
+        model.columns = {}
+        model.constraints = []
+        model.identifier = "my_table"
+
+        first = ConstraintsProcessor.from_relation_config(model)
+        second = ConstraintsProcessor.from_relation_config(model)
+
+        assert first == second
+        assert len(first.set_constraints) == 1
+        constraint = next(iter(first.set_constraints))
+        assert constraint.name == "ca209567b6d1fd0b464a46ae4ef55306"
+
     def test_from_relation_config__with_check_constraint(self):
         model = self._make_model_with_contract(
             columns={},

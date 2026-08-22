@@ -1042,12 +1042,22 @@ class DatabricksAdapter(SparkAdapter):
         model_constraints: list[dict[str, Any]],
         contract_enforced: bool = False,
         model_name: str = "",
+        persist_constraints: bool = False,
+        model_meta_constraints: Optional[list[Any]] = None,
+        include_model_columns: bool = False,
+        skip_unsupported: bool = False,
+        relation_identifier: str = "",
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
-        if contract_enforced:
-            not_null_set, parsed_constraints = constraints.parse_constraints(
-                list(model_columns.values()), model_constraints
+        if contract_enforced or persist_constraints:
+            not_null_set, parsed_constraints = constraints.parse_model_and_legacy_constraints(
+                model_columns,
+                model_constraints,
+                persist_constraints,
+                model_meta_constraints,
+                skip_unsupported,
+                relation_identifier,
             )
         else:
             not_null_set = set()
@@ -1076,6 +1086,21 @@ class DatabricksAdapter(SparkAdapter):
                 if column_name_lower in not_null_set_lower:
                     column.not_null = True
                 enriched_columns.append(column)
+
+        if include_model_columns:
+            existing_column_names = {column.name.lower() for column in existing_columns}
+            for column_name, column_info in model_columns.items():
+                if column_name.lower() not in existing_column_names:
+                    column = DatabricksColumn(
+                        column=column_name,
+                        dtype=column_info.get("data_type") or "",
+                    )
+                    enriched_columns.append(
+                        column.enrich(
+                            column_info,
+                            column_name.lower() in not_null_set_lower,
+                        )
+                    )
 
         return enriched_columns, parsed_constraints
 

@@ -9,6 +9,7 @@
 
 ### Under the Hood
 
+- Unify v1/v2 constraint parsing and rendering onto the Python `TypedConstraint` path, matching v1 skip-unsupported and stable MD5 names for `persist_constraints` ([#1645](https://github.com/databricks/dbt-databricks/pull/1645))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 
 ## dbt-databricks 1.12.4 (Aug 12, 2026)

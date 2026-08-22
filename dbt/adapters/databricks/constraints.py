@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from hashlib import md5
 from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
@@ -13,6 +15,8 @@ from dbt_common.contracts.constraints import (
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
 
+from dbt.adapters.databricks.logging import logger
+
 # Support constants
 CONSTRAINT_SUPPORT = {
     ConstraintType.check: ConstraintSupport.ENFORCED,
@@ -25,6 +29,10 @@ CONSTRAINT_SUPPORT = {
 # Types
 """Generic type variable for constraints."""
 T = TypeVar("T", bound="TypedConstraint")
+
+
+def _quote_identifier(identifier: str) -> str:
+    return f"`{identifier.replace('`', '``')}`"
 
 
 @dataclass
@@ -44,6 +52,9 @@ class TypedConstraint(ModelLevelConstraint, ABC):
 
     def render(self) -> str:
         return f"{self._render_prefix()}{self._render_suffix()}"
+
+    def render_for_apply(self) -> str:
+        return self.render() if validate_constraint(self) else ""
 
     def _render_prefix(self) -> str:
         if self.name:
@@ -103,7 +114,7 @@ class PrimaryKeyConstraint(TypedConstraint):
             raise self._render_error([["columns"]])
 
     def _render_suffix(self) -> str:
-        suffix = f"PRIMARY KEY ({', '.join(self.columns)})"
+        suffix = f"PRIMARY KEY ({', '.join(_quote_identifier(c) for c in self.columns)})"
         if self.expression:
             suffix += f" {self.expression}"
         return suffix
@@ -122,10 +133,13 @@ class ForeignKeyConstraint(TypedConstraint):
         if self.expression:
             if self.expression.strip().startswith("("):
                 return f"FOREIGN KEY {self.expression}"
-            return f"FOREIGN KEY ({', '.join(self.columns)}) {self.expression}"
+            return (
+                f"FOREIGN KEY ({', '.join(_quote_identifier(c) for c in self.columns)}) "
+                f"{self.expression}"
+            )
         return (
-            f"FOREIGN KEY ({', '.join(self.columns)}) REFERENCES "
-            + f"{self.to} ({', '.join(self.to_columns)})"
+            f"FOREIGN KEY ({', '.join(_quote_identifier(c) for c in self.columns)}) REFERENCES "
+            + f"{self.to} ({', '.join(_quote_identifier(c) for c in self.to_columns)})"
         )
 
 
@@ -196,6 +210,144 @@ def parse_constraints(
     return not_nulls.union(
         not_nulls_from_models
     ), constraints_from_columns + constraints_from_models
+
+
+def parse_model_and_legacy_constraints(
+    model_columns: Mapping[str, dict[str, Any]],
+    model_constraints: list[dict[str, Any]],
+    persist_constraints: bool = False,
+    model_meta_constraints: Optional[Sequence[Any]] = None,
+    skip_unsupported: bool = False,
+    relation_identifier: str = "",
+) -> tuple[set[str], list[TypedConstraint]]:
+    # Legacy persist_constraints matches v1: warn/skip unsupported types (e.g. unique).
+    skip_unsupported = skip_unsupported or persist_constraints
+    parsed_columns = []
+    for column_name, column in model_columns.items():
+        parsed_column = dict(column)
+        if persist_constraints and column.get("meta", {}).get("constraint"):
+            parsed_column["constraints"] = _convert_legacy_constraints(
+                [column["meta"]["constraint"]], column_name
+            )
+        if skip_unsupported:
+            parsed_column["constraints"] = _without_unsupported_constraints(
+                parsed_column.get("constraints", [])
+            )
+        if relation_identifier:
+            parsed_column["constraints"] = _with_generated_constraint_names(
+                parsed_column.get("constraints", []),
+                relation_identifier,
+                column_name,
+            )
+        parsed_columns.append({"name": column_name, **parsed_column})
+
+    parsed_model_constraints = model_constraints
+    if persist_constraints and model_meta_constraints is not None:
+        parsed_model_constraints = _convert_legacy_constraints(model_meta_constraints)
+    if skip_unsupported:
+        parsed_model_constraints = _without_unsupported_constraints(parsed_model_constraints)
+    if relation_identifier:
+        parsed_model_constraints = _with_generated_constraint_names(
+            parsed_model_constraints,
+            relation_identifier,
+        )
+
+    return parse_constraints(parsed_columns, parsed_model_constraints)
+
+
+def _convert_legacy_constraints(
+    raw_constraints: Sequence[Any], column_name: Optional[str] = None
+) -> list[dict[str, Any]]:
+    converted = []
+    for raw_constraint in raw_constraints:
+        if isinstance(raw_constraint, Mapping) and raw_constraint.get("type"):
+            converted.append(dict(raw_constraint))
+        elif column_name is not None:
+            if raw_constraint != "not_null":
+                raise DbtValidationError(
+                    f"Invalid constraint for column {column_name}. Only `not_null` is supported."
+                )
+            converted.append({"type": "not_null", "columns": [column_name]})
+        else:
+            if not isinstance(raw_constraint, Mapping) or not raw_constraint.get("name"):
+                raise DbtValidationError("Invalid check constraint name")
+            if not raw_constraint.get("condition"):
+                raise DbtValidationError("Invalid check constraint condition")
+            converted.append(
+                {
+                    "name": raw_constraint["name"],
+                    "type": "check",
+                    "expression": raw_constraint["condition"],
+                }
+            )
+    return converted
+
+
+def _without_unsupported_constraints(
+    raw_constraints: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    supported = set(CONSTRAINT_TYPE_MAP) | {"not_null"}
+    filtered = []
+    for constraint in raw_constraints:
+        constraint_type = constraint.get("type")
+        constraint_type_value = getattr(constraint_type, "value", constraint_type)
+        if constraint_type_value not in supported:
+            if constraint.get("warn_unsupported"):
+                warn_or_error(
+                    ConstraintNotSupported(
+                        constraint=str(constraint_type_value),
+                        adapter="DatabricksAdapter",
+                    )
+                )
+            continue
+        filtered.append(constraint)
+    return filtered
+
+
+def _with_generated_constraint_names(
+    raw_constraints: Sequence[dict[str, Any]],
+    relation_identifier: str,
+    column_name: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    named = []
+    for raw_constraint in raw_constraints:
+        constraint = dict(raw_constraint)
+        if constraint.get("name"):
+            named.append(constraint)
+            continue
+
+        constraint_type = constraint.get("type")
+        constraint_type_value = getattr(constraint_type, "value", constraint_type)
+        columns = constraint.get("columns") or ([column_name] if column_name else [])
+        expression = constraint.get("expression")
+
+        if constraint_type_value == "check":
+            hash_input = f"{relation_identifier};{column_name or ''};{expression or ''};"
+        elif constraint_type_value == "primary_key":
+            hash_input = f"primary_key;{relation_identifier};{columns};"
+            if expression:
+                hash_input += f"{expression};"
+        elif constraint_type_value == "foreign_key":
+            if expression:
+                hash_input = f"foreign_key;{relation_identifier};{expression};"
+            else:
+                hash_input = (
+                    f"foreign_key;{relation_identifier};{columns};{constraint.get('to') or ''};"
+                )
+        elif constraint_type_value == "custom":
+            hash_input = f"{relation_identifier};{expression or ''};"
+        else:
+            named.append(constraint)
+            continue
+
+        logger.warning(
+            f"Constraint of type {constraint_type_value} with no `name` provided. "
+            f"Generating hash instead for relation {relation_identifier}"
+        )
+        constraint["name"] = md5(hash_input.encode(), usedforsecurity=False).hexdigest()
+        named.append(constraint)
+
+    return named
 
 
 def parse_column_constraints(
