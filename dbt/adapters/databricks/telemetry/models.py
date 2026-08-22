@@ -6,6 +6,7 @@ from typing import Optional
 class EventType(Enum):
     TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
     POST_PARSE = "POST_PARSE"
+    POST_RUN = "POST_RUN"
 
 
 class ComputeType(Enum):
@@ -48,6 +49,37 @@ class WarnErrorPolicy(Enum):
     WARN_ERROR_DISABLED = "WARN_ERROR_DISABLED"
     WARN_ERROR_ALL = "WARN_ERROR_ALL"
     WARN_ERROR_CUSTOM_POLICY = "WARN_ERROR_CUSTOM_POLICY"
+
+
+class ResourceType(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    MODEL = "MODEL"
+    DATA_TEST = "DATA_TEST"
+    UNIT_TEST = "UNIT_TEST"
+    SEED = "SEED"
+    SNAPSHOT = "SNAPSHOT"
+    SOURCE = "SOURCE"
+    FUNCTION = "FUNCTION"
+    EXPOSURE = "EXPOSURE"
+    SAVED_QUERY = "SAVED_QUERY"
+    OTHER = "OTHER"
+
+
+class InvocationStatus(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    SUCCESS = "SUCCESS"
+    HANDLED_ERROR = "HANDLED_ERROR"
+    INTERRUPTED = "INTERRUPTED"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+class TerminationReason(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    NORMAL = "NORMAL"
+    FAIL_FAST = "FAIL_FAST"
+    INTERRUPTED = "INTERRUPTED"
+    TASK_ERROR = "TASK_ERROR"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
 @dataclass
@@ -110,9 +142,51 @@ class PostParsePayload:
 
 
 @dataclass
+class NodeStatusCounts:
+    total: int = 0
+    success: int = 0
+    error: int = 0
+    fail: int = 0
+    warn: int = 0
+    skipped: int = 0
+    partial_success: int = 0
+    pass_: int = 0  # proto field: pass
+    runtime_error: int = 0
+    no_op: int = 0
+    reused: int = 0
+
+
+@dataclass
+class ResourceOutcomeStats:
+    resource_type: ResourceType = ResourceType.TYPE_UNSPECIFIED
+    status_counts: NodeStatusCounts = field(default_factory=NodeStatusCounts)
+
+
+@dataclass
+class RunOutcome:
+    invocation_status: InvocationStatus = InvocationStatus.TYPE_UNSPECIFIED
+    termination_reason: TerminationReason = TerminationReason.TYPE_UNSPECIFIED
+    invocation_duration_ms: int = 0
+    result_aggregates_available: bool = False
+    expected_result_coverage_complete: Optional[bool] = None
+
+
+@dataclass
+class PostRunPayload:
+    run_outcome: RunOutcome = field(default_factory=RunOutcome)
+    selected_resources: Optional[int] = None
+    expected_result_resources: int = 0
+    result_counts: Optional[NodeStatusCounts] = None
+    results_by_resource_type: Optional[list[ResourceOutcomeStats]] = None
+    auxiliary_hook_results: Optional[NodeStatusCounts] = None
+    unknown_resource_type_results: Optional[int] = None
+
+
+@dataclass
 class TelemetryLog:
     invocation_id: str
     adapter_version: str
     dbt_core_version: str
     event_type: EventType = EventType.POST_PARSE
     post_parse: Optional[PostParsePayload] = None
+    post_run: Optional[PostRunPayload] = None
