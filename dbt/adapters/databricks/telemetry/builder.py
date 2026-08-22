@@ -37,6 +37,8 @@ def classify_compute_type(http_path: Optional[str]) -> models.ComputeType:
     if not http_path:
         return models.ComputeType.TYPE_UNSPECIFIED
     path = http_path.split("?", 1)[0]
+    if path and not path.startswith("/"):
+        path = f"/{path}"
     if path.startswith(("/sql/1.0/warehouses/", "/sql/1.0/endpoints/")):
         return models.ComputeType.SQL_WAREHOUSE
     if path.startswith("/sql/protocolv1/"):

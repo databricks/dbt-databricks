@@ -21,7 +21,7 @@ def _proto_dict(log: TelemetryLog) -> dict[str, Any]:
     return dataclasses.asdict(log, dict_factory=factory)
 
 
-def _coerce_workspace_id(workspace_id: Optional[Any]) -> Optional[int]:
+def coerce_workspace_id(workspace_id: Optional[Any]) -> Optional[int]:
     try:
         return int(workspace_id) if workspace_id is not None else None
     except (TypeError, ValueError):
@@ -44,7 +44,7 @@ def encode_frontend_log(
         },
         "entry": entry,
     }
-    coerced = _coerce_workspace_id(workspace_id)
+    coerced = coerce_workspace_id(workspace_id)
     if coerced is not None:
         frontend_log["workspace_id"] = coerced
     return json.dumps(frontend_log)
