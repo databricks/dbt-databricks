@@ -182,6 +182,40 @@ class TestConstraintsProcessor:
             },
         )
 
+    def test_from_relation_config__legacy_skips_unique(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {
+            "constraints": [
+                {"type": "unique", "columns": ["id"], "warn_unsupported": True},
+            ]
+        }
+        model.columns = {}
+        model.constraints = []
+        model.identifier = "orders"
+
+        spec = ConstraintsProcessor.from_relation_config(model)
+
+        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+
+    def test_from_relation_config__legacy_generates_stable_names(self):
+        model = Mock()
+        model.config.contract.enforced = False
+        model.config.extra = {"persist_constraints": True}
+        model.meta = {"constraints": [{"type": "check", "expression": "id > 0"}]}
+        model.columns = {}
+        model.constraints = []
+        model.identifier = "my_table"
+
+        first = ConstraintsProcessor.from_relation_config(model)
+        second = ConstraintsProcessor.from_relation_config(model)
+
+        assert first == second
+        assert len(first.set_constraints) == 1
+        constraint = next(iter(first.set_constraints))
+        assert constraint.name == "ca209567b6d1fd0b464a46ae4ef55306"
+
     def test_from_relation_config__with_check_constraint(self):
         model = self._make_model_with_contract(
             columns={},

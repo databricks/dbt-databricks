@@ -416,6 +416,20 @@ class TestParseModelAndLegacyConstraints:
             skip_unsupported=True,
         )
 
+    def test_persist_constraints_skips_unsupported_without_explicit_flag(self):
+        assert (set(), []) == parse_model_and_legacy_constraints(
+            {},
+            [{"type": "unique", "columns": ["id"], "warn_unsupported": True}],
+            persist_constraints=True,
+        )
+
+    def test_contract_unique_still_raises_without_persist_constraints(self):
+        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
+            parse_model_and_legacy_constraints(
+                {},
+                [{"type": ConstraintType.unique, "columns": ["id"]}],
+            )
+
     def test_v1_generates_stable_constraint_names(self):
         raw_constraints = [{"type": "check", "expression": "id > 0"}]
 

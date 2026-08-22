@@ -259,11 +259,21 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         }
         meta = getattr(relation_config, "meta", {}) or {}
 
+        relation_identifier = ""
+        if persist_constraints:
+            for attr in ("identifier", "name"):
+                value = getattr(relation_config, attr, None)
+                if isinstance(value, str) and value:
+                    relation_identifier = value
+                    break
+
         non_nulls, other_constraints = parse_model_and_legacy_constraints(
             columns,
             constraints,
             persist_constraints,
             meta.get("constraints"),
+            persist_constraints,
+            relation_identifier,
         )
 
         return ConstraintsConfig(

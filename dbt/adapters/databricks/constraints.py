@@ -220,6 +220,8 @@ def parse_model_and_legacy_constraints(
     skip_unsupported: bool = False,
     relation_identifier: str = "",
 ) -> tuple[set[str], list[TypedConstraint]]:
+    # Legacy persist_constraints matches v1: warn/skip unsupported types (e.g. unique).
+    skip_unsupported = skip_unsupported or persist_constraints
     parsed_columns = []
     for column_name, column in model_columns.items():
         parsed_column = dict(column)

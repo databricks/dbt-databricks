@@ -14,7 +14,10 @@
       contract_enforced,
       model.name,
       persist_constraints,
-      model_meta_constraints
+      model_meta_constraints,
+      False,
+      persist_constraints,
+      relation.identifier if persist_constraints else ""
   ) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   
