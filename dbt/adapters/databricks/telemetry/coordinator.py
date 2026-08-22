@@ -121,7 +121,8 @@ class Coordinator:
     ) -> Optional[tuple[Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]]:
         if not self._ready_to_send(state) or state is None or state.transport is None:
             return None
-        if state.post_parse is None or state.transport.header_factory is None:
+        header_factory = state.transport.header_factory
+        if state.post_parse is None or header_factory is None:
             return None
         transport = state.transport
         payload = state.post_parse
@@ -132,7 +133,7 @@ class Coordinator:
             transport.host,
             payload,
             event_id,
-            transport.header_factory,
+            header_factory,
             transport.workspace_id,
         )
 
