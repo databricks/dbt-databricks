@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`
+- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
 
 ### Fixes
 

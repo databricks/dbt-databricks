@@ -21,7 +21,7 @@ def test_post_parse_is_not_rebuilt(monkeypatch):
     build.assert_not_called()
 
 
-def test_run_end_flushes_and_closes(monkeypatch):
+def test_run_end_closes_without_waiting(monkeypatch):
     coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
@@ -31,5 +31,5 @@ def test_run_end_flushes_and_closes(monkeypatch):
 
     hooks.on_run_end(adapter)
 
-    coord.flush.assert_called_once_with()
+    coord.flush.assert_not_called()
     coord.close.assert_called_once_with("inv-1")

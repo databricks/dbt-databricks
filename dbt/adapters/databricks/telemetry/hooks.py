@@ -88,8 +88,6 @@ def on_run_end(adapter: Any) -> None:
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
-        coord = coordinator()
-        coord.flush()
-        coord.close(invocation_id)
+        coordinator().close(invocation_id)
     except Exception:  # pragma: no cover - best-effort
         return
