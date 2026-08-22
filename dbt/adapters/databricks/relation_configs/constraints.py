@@ -27,6 +27,7 @@ class ConstraintsConfig(DatabricksComponentConfig):
     unset_non_nulls: set[str] = set()
     set_constraints: set[TypedConstraint]
     unset_constraints: set[TypedConstraint] = set()
+    contract_enforced: bool = True
 
     def normalize_expression(self, expression: Optional[str]) -> str:
         if expression:
@@ -113,6 +114,15 @@ class ConstraintsConfig(DatabricksComponentConfig):
                 unset_constraints=constraints_to_unset,
             )
         return None
+
+    def requires_server_metadata_for_diff(self) -> bool:
+        """
+        Indicates whether server metadata is required to compute the diff for this component.
+        """
+        # Both consumers of a constraint diff (the incremental and table materializations) apply
+        # it only when the contract is enforced, so without enforcement the catalog lookups the
+        # diff needs cannot change what dbt does.
+        return self.contract_enforced
 
 
 class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
@@ -232,6 +242,7 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
             return ConstraintsConfig(
                 set_non_nulls=set(),
                 set_constraints=set(),
+                contract_enforced=False,
             )
 
         constraints = getattr(relation_config, "constraints", [])

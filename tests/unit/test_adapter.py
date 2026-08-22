@@ -44,6 +44,10 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
+from dbt.adapters.databricks.relation_configs.constraints import (
+    ConstraintsConfig,
+    ConstraintsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
@@ -1550,13 +1554,19 @@ class TestDescribeRelationMetadataFetchPlanning:
     def _create_incremental_config(
         tags: dict[str, str] | None = None,
         column_tags: dict[str, dict[str, str]] | None = None,
+        contract_enforced: bool | None = None,
     ) -> IncrementalTableConfig:
-        return IncrementalTableConfig(
-            config={
-                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
-                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
-            }
-        )
+        config = {
+            TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+            ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+        }
+        if contract_enforced is not None:
+            config[ConstraintsProcessor.name] = ConstraintsConfig(
+                set_non_nulls=set(),
+                set_constraints=set(),
+                contract_enforced=contract_enforced,
+            )
+        return IncrementalTableConfig(config=config)
 
     @staticmethod
     def _create_view_config(
@@ -1693,6 +1703,48 @@ class TestDescribeRelationMetadataFetchPlanning:
         assert "fetch_column_tags" not in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
         assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+
+    def test_incremental_describe_relation_skips_constraint_queries_without_contract(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(contract_enforced=False)
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["non_null_constraint_columns"] is None
+        assert results["primary_key_constraints"] is None
+        assert results["foreign_key_constraints"] is None
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" not in called_macro_names
+        assert "fetch_primary_key_constraints" not in called_macro_names
+        assert "fetch_foreign_key_constraints" not in called_macro_names
+        assert "fetch_column_masks" in called_macro_names
+        assert "fetch_row_filters" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_constraint_queries_with_contract(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(contract_enforced=True)
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["primary_key_constraints"] == "fetch_primary_key_constraints_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" in called_macro_names
+        assert "fetch_primary_key_constraints" in called_macro_names
+        assert "fetch_foreign_key_constraints" in called_macro_names
+
+    def test_incremental_describe_relation_fetches_constraint_queries_when_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, None)
+
+        assert results["primary_key_constraints"] == "fetch_primary_key_constraints_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" in called_macro_names
+        assert "fetch_primary_key_constraints" in called_macro_names
+        assert "fetch_foreign_key_constraints" in called_macro_names
 
     def test_view_describe_relation_skips_tag_query_without_tags(self):
         adapter = self._create_adapter()
