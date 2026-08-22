@@ -148,7 +148,19 @@ class TestConstraintsProcessor:
             )
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
-        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        assert spec == ConstraintsConfig(
+            set_non_nulls=set(), set_constraints=set(), contract_enforced=False
+        )
+        assert spec.requires_server_metadata_for_diff() is False
+
+    def test_from_relation_config__with_contract_requires_server_metadata(self):
+        model = self._make_model_with_contract(constraints=[], columns={})
+        spec = ConstraintsProcessor.from_relation_config(model)
+        assert spec.requires_server_metadata_for_diff() is True
+
+    def test_from_relation_results__requires_server_metadata(self):
+        spec = ConstraintsProcessor.from_relation_results({})
+        assert spec.requires_server_metadata_for_diff() is True
 
     def test_from_relation_config__with_check_constraint(self):
         model = self._make_model_with_contract(
