@@ -394,6 +394,8 @@ class SqlUtils:
 
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
+        connection_parameters.pop("enable_dbt_telemetry", None)
+
         http_headers: list[tuple[str, str]] = list(
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()
         )
