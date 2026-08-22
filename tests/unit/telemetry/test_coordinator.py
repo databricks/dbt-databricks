@@ -133,6 +133,60 @@ class TestIsolationAndClose:
         c.flush()
         assert capture.calls == []
 
+    def test_close_does_not_cancel_already_queued_send(self, monkeypatch):
+        pending = []
+
+        class DelayedThread:
+            def __init__(self, target, args, name, daemon):
+                self.target = target
+                self.args = args
+
+            def is_alive(self):
+                return False
+
+            def start(self):
+                pending.append(self)
+
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.threading, "Thread", DelayedThread)
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+
+        assert len(pending) == 1
+        c.close("inv-1")
+        pending[0].target(*pending[0].args)
+
+        assert len(capture.calls) == 1
+
+    def test_close_does_not_cancel_queued_post_run_with_parse(self, monkeypatch):
+        pending = []
+
+        class DelayedThread:
+            def __init__(self, target, args, name, daemon):
+                self.target = target
+                self.args = args
+
+            def is_alive(self):
+                return False
+
+            def start(self):
+                pending.append(self)
+
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.threading, "Thread", DelayedThread)
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_post_run("inv-1", _run_log())
+        c.set_transport("inv-1", _transport())
+        c.close("inv-1")
+        for worker in pending:
+            worker.target(*worker.args)
+
+        assert len(capture.calls) == 2
+
 
 class TestPostRun:
     def _entry(self, call):
