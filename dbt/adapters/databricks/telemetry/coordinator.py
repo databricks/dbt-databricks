@@ -91,13 +91,15 @@ class Coordinator:
             return state is None or (not state.closed and state.post_parse is None)
 
     def send_if_ready(self, invocation_id: str) -> None:
-        # Keep connection-open off the network path.
+        # Keep connection-open off the network path. Claim send inputs under
+        # the lock so a later close() cannot cancel already-scheduled work.
         with self._lock:
-            if not self._ready_to_send(self._states.get(invocation_id)):
+            claimed = self._claim_send(self._states.get(invocation_id))
+            if claimed is None:
                 return
         thread = threading.Thread(
-            target=self._drain,
-            args=(invocation_id,),
+            target=self._send_claimed,
+            args=(invocation_id, *claimed),
             name="dbt-telemetry-send",
             daemon=True,
         )
@@ -114,6 +116,26 @@ class Coordinator:
             return False
         return state.post_parse is not None and not state.post_parse_sent
 
+    def _claim_send(
+        self, state: Optional[_InvocationState]
+    ) -> Optional[tuple[Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]]:
+        if not self._ready_to_send(state) or state is None or state.transport is None:
+            return None
+        if state.post_parse is None or state.transport.header_factory is None:
+            return None
+        transport = state.transport
+        payload = state.post_parse
+        event_id = state.post_parse_event_id
+        state.post_parse_sent = True
+        state.sending = True
+        return (
+            transport.host,
+            payload,
+            event_id,
+            transport.header_factory,
+            transport.workspace_id,
+        )
+
     def flush(self, timeout: Optional[float] = None) -> None:
         if timeout is None:
             timeout = float(client._TIMEOUT_SECONDS * 2)
@@ -129,26 +151,16 @@ class Coordinator:
                 return
             pending[0].join(remaining)
 
-    def _drain(self, invocation_id: str) -> None:
-        with self._lock:
-            state = self._states.get(invocation_id)
-            if state is None or state.closed or state.sending:
-                return
-            transport = state.transport
-            if transport is None or transport.header_factory is None:
-                return
-            if state.post_parse is None or state.post_parse_sent:
-                return
-            payload = state.post_parse
-            event_id = state.post_parse_event_id
-            state.post_parse_sent = True
-            state.sending = True
-            host = transport.host
-            header_factory = transport.header_factory
-            workspace_id = transport.workspace_id
-
+    def _send_claimed(
+        self,
+        invocation_id: str,
+        host: Optional[str],
+        payload: TelemetryLog,
+        event_id: str,
+        header_factory: HeaderFactory,
+        workspace_id: Optional[Any],
+    ) -> None:
         self._send(host, payload, event_id, header_factory, workspace_id)
-
         with self._lock:
             state = self._states.get(invocation_id)
             if state is None or state.closed:
