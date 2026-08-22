@@ -50,3 +50,29 @@ def test_finalize_does_not_wait_for_send(monkeypatch):
     coord.set_post_run.assert_called_once_with("inv-1", "log")
     coord.flush.assert_not_called()
     coord.close.assert_called_once_with("inv-1")
+
+
+def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkeypatch):
+    coord = Mock()
+    coord.is_closed.return_value = False
+    coord.result_snapshot.return_value = ([], 0, 0, False, False)
+    coord.outcome_snapshot.return_value = (None, False)
+    coord.elapsed_ms.return_value = 1
+    build = Mock(return_value="log")
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-2")
+    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
+    monkeypatch.setattr(hooks.sys, "exc_info", lambda: (RuntimeError, RuntimeError("boom"), None))
+    adapter = SimpleNamespace(
+        config=SimpleNamespace(credentials=SimpleNamespace()),
+        _dbt_telemetry_invocation_id="inv-1",
+    )
+
+    hooks.on_run_end(adapter)
+
+    build.assert_called_once()
+    assert build.call_args.args[0] == "inv-1"
+    coord.set_post_run.assert_called_once_with("inv-1", "log")
+    coord.close.assert_called_once_with("inv-1")
