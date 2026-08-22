@@ -194,3 +194,126 @@ class TestAggregateManifest:
         ms = builder.aggregate_manifest(self._manifest())
         assert ms.enabled_root_project.model_count == 1
         assert ms.enabled_installed_packages.model_count == 1
+
+
+class TestBuildPostRunLog:
+    def test_success_when_no_exception(self):
+        log = builder.build_post_run_log("inv", 250, None, [], 0, True, True)
+        assert log.event_type == models.EventType.POST_RUN
+        outcome = log.post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.SUCCESS
+        assert outcome.termination_reason == models.TerminationReason.NORMAL
+        assert outcome.invocation_duration_ms == 250
+        assert outcome.result_aggregates_available is True
+
+    def test_handled_error_when_failures(self):
+        outcome = builder.build_post_run_log(
+            "inv", 1, None, [("model.p.m1", "error")], 1, True, True
+        ).post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.HANDLED_ERROR
+        assert outcome.termination_reason == models.TerminationReason.NORMAL
+
+    def test_fail_fast_termination_when_observed(self):
+        outcome = builder.build_post_run_log(
+            "inv",
+            1,
+            None,
+            [("model.p.m1", "error"), ("model.p.m2", "skipped")],
+            2,
+            True,
+            True,
+            selected_resources=2,
+            fail_fast_triggered=True,
+            task_success=False,
+        ).post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.HANDLED_ERROR
+        assert outcome.termination_reason == models.TerminationReason.FAIL_FAST
+
+    def test_keyboard_interrupt(self):
+        outcome = builder.build_post_run_log(
+            "inv", 1, KeyboardInterrupt, [], 0, False, True
+        ).post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.INTERRUPTED
+        assert outcome.termination_reason == models.TerminationReason.INTERRUPTED
+
+    def test_authoritative_task_failure_includes_auxiliary_failures(self):
+        outcome = builder.build_post_run_log(
+            "inv",
+            1,
+            None,
+            [("operation.p.h", "error"), ("model.p.m", "skipped")],
+            1,
+            True,
+            True,
+            task_success=False,
+        ).post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.HANDLED_ERROR
+
+    def test_other_exception_is_internal_error(self):
+        outcome = builder.build_post_run_log(
+            "inv", 1, RuntimeError, [], 0, False, True
+        ).post_run.run_outcome
+        assert outcome.invocation_status == models.InvocationStatus.INTERNAL_ERROR
+        assert outcome.termination_reason == models.TerminationReason.INTERNAL_ERROR
+
+    def test_aggregates_unavailable_when_not_captured(self):
+        post_run = builder.build_post_run_log("inv", 1, None, [], 0, False, False).post_run
+        outcome = post_run.run_outcome
+        assert outcome.result_aggregates_available is False
+        assert outcome.expected_result_coverage_complete is None
+        assert post_run.result_counts is None
+        assert post_run.results_by_resource_type is None
+        assert post_run.auxiliary_hook_results is None
+        assert post_run.unknown_resource_type_results is None
+
+
+class TestAggregateNodeResults:
+    def test_result_counts_and_total(self):
+        rc, _, _, unknown = builder.aggregate_node_results(
+            [("model.p.a", "success"), ("model.p.b", "error"), ("test.p.t", "pass")]
+        )
+        assert rc.total == 3
+        assert rc.success == 1 and rc.error == 1 and rc.pass_ == 1
+        assert unknown == 0
+
+    def test_results_by_resource_type(self):
+        _, by_type, _, _ = builder.aggregate_node_results(
+            [("model.p.a", "success"), ("model.p.b", "success"), ("test.p.t", "pass")]
+        )
+        by = {r.resource_type: r.status_counts for r in by_type}
+        assert by[models.ResourceType.MODEL].success == 2
+        assert by[models.ResourceType.MODEL].total == 2
+        assert by[models.ResourceType.DATA_TEST].pass_ == 1
+
+    def test_operations_are_auxiliary(self):
+        rc, by_type, aux, _ = builder.aggregate_node_results(
+            [("operation.p.hook", "success"), ("model.p.a", "success")]
+        )
+        assert aux.total == 1 and aux.success == 1
+        assert rc.total == 1
+        assert [r.resource_type for r in by_type] == [models.ResourceType.MODEL]
+
+    def test_unknown_resource_type(self):
+        rc, by_type, _, unknown = builder.aggregate_node_results(
+            [("analysis.p.a", "success"), ("model.p.m", "success")]
+        )
+        assert unknown == 1
+        assert rc.total == 2
+        assert [r.resource_type for r in by_type] == [models.ResourceType.MODEL]
+
+    def test_unavailable_resource_type_is_unknown(self):
+        rc, _, _, unknown = builder.aggregate_node_results([(None, "skipped")])
+        assert rc.total == 1
+        assert unknown == 1
+
+    def test_invariant_known_plus_unknown_equals_total(self):
+        rc, by_type, _, unknown = builder.aggregate_node_results(
+            [
+                ("model.p.m", "success"),
+                ("test.p.t", "pass"),
+                ("analysis.p.a", "fail"),
+                ("operation.p.h", "success"),
+            ]
+        )
+        known_total = sum(r.status_counts.total for r in by_type)
+        assert known_total + unknown == rc.total

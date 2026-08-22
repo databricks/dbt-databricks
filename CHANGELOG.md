@@ -3,6 +3,7 @@
 ### Features
 
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`
+- Add POST_RUN outcome telemetry to the opt-in invocation telemetry path
 
 ### Fixes
 
