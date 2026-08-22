@@ -289,7 +289,8 @@ class Coordinator:
     ) -> list[tuple[str, Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]]:
         if not self._ready_to_send(state) or state is None or state.transport is None:
             return []
-        if state.transport.header_factory is None:
+        header_factory = state.transport.header_factory
+        if header_factory is None:
             return []
         transport = state.transport
         claimed: list[
@@ -304,7 +305,7 @@ class Coordinator:
                     transport.host,
                     state.post_parse,
                     state.post_parse_event_id,
-                    transport.header_factory,
+                    header_factory,
                     transport.workspace_id,
                 )
             )
@@ -320,7 +321,7 @@ class Coordinator:
                     transport.host,
                     state.post_run,
                     state.post_run_event_id,
-                    transport.header_factory,
+                    header_factory,
                     transport.workspace_id,
                 )
             )
