@@ -105,7 +105,6 @@ def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
         task_success=task_success,
     )
     coord.set_post_run(invocation_id, log)
-    coord.flush()
     coord.close(invocation_id)
 
 

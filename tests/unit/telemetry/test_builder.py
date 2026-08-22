@@ -52,6 +52,14 @@ class TestClassifyComputeType:
     def test_missing_is_unspecified(self):
         assert builder.classify_compute_type(None) == models.ComputeType.TYPE_UNSPECIFIED
 
+    def test_optional_leading_slash(self):
+        assert builder.classify_compute_type("sql/1.0/warehouses/a") == (
+            models.ComputeType.SQL_WAREHOUSE
+        )
+        assert builder.classify_compute_type("sql/protocolv1/o/1/2") == (
+            models.ComputeType.ALL_PURPOSE_CLUSTER
+        )
+
 
 class TestClassifyAuthFamily:
     def test_token_is_pat(self):

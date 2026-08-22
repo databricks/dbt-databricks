@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional
 import requests
 
 from dbt.adapters.databricks.credentials import BearerAuth
+from dbt.adapters.databricks.telemetry.encoder import coerce_workspace_id
 
 TELEMETRY_AUTHENTICATED_PATH = "/telemetry-ext"
 TELEMETRY_UNAUTHENTICATED_PATH = "/telemetry-unauth"
@@ -23,7 +24,7 @@ def send(
     host: Optional[str],
     body: dict[str, Any],
     header_factory: Optional[HeaderFactory] = None,
-    workspace_id: Optional[int] = None,
+    workspace_id: Optional[Any] = None,
 ) -> bool:
     if not host:
         return False
@@ -37,8 +38,9 @@ def send(
             auth = None
             path = TELEMETRY_UNAUTHENTICATED_PATH
 
-        if workspace_id is not None:
-            headers["x-databricks-org-id"] = str(workspace_id)
+        coerced_workspace_id = coerce_workspace_id(workspace_id)
+        if coerced_workspace_id is not None:
+            headers["x-databricks-org-id"] = str(coerced_workspace_id)
 
         url = _normalize_host(host) + path
 
