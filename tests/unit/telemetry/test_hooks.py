@@ -84,9 +84,7 @@ def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
     manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=None)
 
-    hooks.on_connection_open(
-        SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42"
-    )
+    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42")
 
     transport = coord.set_transport.call_args.args[1]
     assert transport.workspace_id == "42"
