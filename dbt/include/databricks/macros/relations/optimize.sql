@@ -2,6 +2,33 @@
   {{ return(adapter.dispatch('optimize', 'dbt')(relation)) }}
 {% endmacro %}
 
+{% macro optimize_from_plan(relation, renderer_variant) %}
+  {%- if var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and
+        var('databricks_skip_optimize', 'false')|lower != 'true' -%}
+    {%- call statement('run_optimize_stmt') -%}
+      {{ get_optimize_sql_from_plan(relation, renderer_variant) }}
+    {%- endcall -%}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro get_optimize_sql_from_plan(relation, renderer_variant) %}
+  optimize {{ relation.render() }}
+  {%- if renderer_variant == 'zorder' %}
+    {%- set zorder = config.get('zorder') %}
+    zorder by (
+    {%- if zorder is sequence and zorder is not string -%}
+      {%- for col in zorder -%}
+        {{ col }}{% if not loop.last %}, {% endif %}
+      {%- endfor -%}
+    {%- else -%}
+      {{ zorder }}
+    {%- endif -%}
+    )
+  {%- elif renderer_variant != 'plain' -%}
+    {{ exceptions.raise_compiler_error("Unknown planned optimize renderer variant: " ~ renderer_variant) }}
+  {%- endif %}
+{% endmacro %}
+
 {%- macro databricks__optimize(relation) -%}
   {%- if config.get('skip_optimize', false) | as_bool -%}
   {%- elif var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and

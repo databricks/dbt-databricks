@@ -36,9 +36,10 @@
   {% do return(target_relation) %}
 {% endmacro %}
 
-{% macro insert_from_relation(target_relation, intermediate_relation) %}
+{% macro insert_from_relation(target_relation, intermediate_relation, use_insert_by_name=none) %}
   {% call statement('merge into target') %}
-    insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
+    insert into {{ target_relation }}{% if use_insert_by_name is not false %} by name{% endif %}
+    select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
 

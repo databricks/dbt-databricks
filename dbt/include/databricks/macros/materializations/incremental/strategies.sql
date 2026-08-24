@@ -8,7 +8,22 @@
 {% endmacro %}
 
 {% macro databricks__get_incremental_append_sql(arg_dict) %}
-  {% do return(get_insert_into_sql(arg_dict["temp_relation"], arg_dict["target_relation"])) %}
+  {%- set plan = arg_dict.get('incremental_plan') -%}
+  {%- if plan is not none and plan.renderer_variant in ('append_by_name', 'append_positional') -%}
+    {%- set source_relation = arg_dict["temp_relation"] -%}
+    {%- set target_relation = arg_dict["target_relation"] -%}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
+    {{ return(insert_into_sql_impl(
+        target_relation,
+        dest_columns,
+        source_relation,
+        source_columns,
+        plan.renderer_variant == 'append_by_name'
+    )) }}
+  {%- else -%}
+    {% do return(get_insert_into_sql(arg_dict["temp_relation"], arg_dict["target_relation"])) %}
+  {%- endif -%}
 {% endmacro %}
 
 {% macro databricks__get_incremental_replace_where_sql(arg_dict) %}
@@ -280,10 +295,10 @@ where {{ incremental_predicates }}
     {{ insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) }}
 {% endmacro %}
 
-{% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns) %}
+{% macro insert_into_sql_impl(target_relation, dest_columns, source_relation, source_columns, use_insert_by_name=none) %}
     {%- set dest_cols_lower = dest_columns | map('lower') | list -%}
     {%- set source_cols_lower = source_columns | map('lower') | list -%}
-    {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+    {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') if use_insert_by_name is none else use_insert_by_name -%}
 
     {%- if dest_cols_lower | sort == source_cols_lower | sort -%}
         {#-- All columns match (case-insensitive) --#}

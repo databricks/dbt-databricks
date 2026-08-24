@@ -527,7 +527,14 @@ class DatabricksAdapter(SparkAdapter):
             if managed_iceberg
             else facts.format.file_format
         )
-        capabilities.append("managed_iceberg" if managed_iceberg else "uniform_or_native_format")
+        if managed_iceberg:
+            capabilities.append("managed_iceberg")
+        elif table_format == constants.ICEBERG_TABLE_FORMAT and provider == (
+            constants.DELTA_FILE_FORMAT
+        ):
+            capabilities.append("uniform_iceberg")
+        else:
+            capabilities.append("native_table_format")
         return replace(
             facts,
             format=replace(facts.format, table_provider=provider),
@@ -565,7 +572,9 @@ class DatabricksAdapter(SparkAdapter):
         provider = facts.format.table_provider
         runtime_capabilities = set(facts.capabilities)
         if effective == "insert_overwrite":
-            use_replace_on = "replace_on" in runtime_capabilities and (
+            use_replace_on = provider == constants.DELTA_FILE_FORMAT and (
+                "replace_on" in runtime_capabilities
+            ) and (
                 facts.runtime.engine == "databricks_runtime"
                 or "replace_on_for_insert_overwrite" in runtime_capabilities
             )
@@ -593,6 +602,12 @@ class DatabricksAdapter(SparkAdapter):
                 "replace_where_by_name"
                 if "insert_by_name_replace_where" in runtime_capabilities
                 else "replace_where_positional"
+            )
+        elif effective == "append":
+            renderer_variant = (
+                "append_by_name"
+                if "insert_by_name" in runtime_capabilities
+                else "append_positional"
             )
         else:
             renderer_variant = f"{effective}_{provider or 'unknown'}"
@@ -661,8 +676,13 @@ class DatabricksAdapter(SparkAdapter):
     def _create_and_populate_from_relation_operations(
         relation: MaterializationRelationRole,
         source: MaterializationRelationRole,
+        *,
+        use_insert_by_name: bool,
+        apply_tags: bool,
+        apply_column_tags: bool,
+        tag_renderer_variant: str,
     ) -> tuple[MaterializationOperation, ...]:
-        return (
+        operations = [
             MaterializationOperation(
                 kind=MaterializationOperationKind.CREATE_STRUCTURE_FROM_RELATION,
                 relation=relation,
@@ -672,20 +692,112 @@ class DatabricksAdapter(SparkAdapter):
                 kind=MaterializationOperationKind.APPLY_ALTER_CONSTRAINTS,
                 relation=relation,
             ),
-            MaterializationOperation(
-                kind=MaterializationOperationKind.APPLY_TAGS,
-                relation=relation,
-            ),
-            MaterializationOperation(
-                kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
-                relation=relation,
-            ),
+        ]
+        if apply_tags:
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_TAGS,
+                    relation=relation,
+                    renderer_variant=tag_renderer_variant,
+                )
+            )
+        if apply_column_tags:
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
+                    relation=relation,
+                    renderer_variant=tag_renderer_variant,
+                )
+            )
+        operations.append(
             MaterializationOperation(
                 kind=MaterializationOperationKind.INSERT_FROM_RELATION,
                 relation=relation,
                 source=source,
-            ),
+                renderer_variant="by_name" if use_insert_by_name else "positional",
+            )
         )
+        return tuple(operations)
+
+    @staticmethod
+    def _config_as_bool(value: Any, *, default: bool = False) -> bool:
+        """Match Jinja's ``as_bool`` semantics for planner inputs."""
+
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().casefold()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off", ""}:
+                return False
+        return bool(value)
+
+    @classmethod
+    def _planned_optimize_variant(
+        cls,
+        config: Mapping[str, Any],
+        facts: TableMaterializationFacts,
+    ) -> Optional[str]:
+        """Resolve whether and how OPTIMIZE renders before execution begins."""
+
+        if (
+            facts.create.format.table_provider != constants.DELTA_FILE_FORMAT
+            or cls._config_as_bool(config.get("skip_optimize"))
+        ):
+            return None
+        liquid = bool(config.get("liquid_clustered_by")) or cls._config_as_bool(
+            config.get("auto_liquid_cluster")
+        )
+        zorder = bool(config.get("zorder"))
+        if not liquid and not zorder:
+            return None
+        return "plain" if liquid else "zorder"
+
+    @staticmethod
+    def _column_comment_renderer_variant(facts: TableMaterializationFacts) -> str:
+        provider = facts.create.format.table_provider
+        if provider not in {constants.DELTA_FILE_FORMAT, constants.HUDI_FILE_FORMAT}:
+            return "unsupported"
+        if "comment_on_column" in facts.execution.capabilities:
+            return "comment_on_column"
+        return "alter_column"
+
+    @classmethod
+    def _constraints_requested(cls, config: Mapping[str, Any]) -> bool:
+        contract = config.get("contract")
+        contract_enforced = (
+            contract.get("enforced")
+            if isinstance(contract, Mapping)
+            else getattr(contract, "enforced", False)
+        )
+        return cls._config_as_bool(contract_enforced) or cls._config_as_bool(
+            config.get("persist_constraints")
+        )
+
+    @staticmethod
+    def _constraint_renderer_variant(facts: TableMaterializationFacts) -> str:
+        if facts.create.format.table_provider == constants.DELTA_FILE_FORMAT:
+            return "delta"
+        return "unsupported"
+
+    def _planned_tag_operations(
+        self,
+        model: RelationConfig,
+        config: Mapping[str, Any],
+        facts: TableMaterializationFacts,
+    ) -> tuple[bool, bool, str]:
+        apply_tags = bool(config.get("databricks_tags"))
+        column_tags = self.get_column_tags_from_model(model)
+        apply_column_tags = bool(column_tags and column_tags.set_column_tags)
+        catalog_type = facts.create.catalog.catalog_type or "unknown"
+        if catalog_type == constants.HIVE_METASTORE_CATALOG_TYPE and (
+            apply_tags or apply_column_tags
+        ):
+            raise DbtConfigError("Tags are only supported for Unity Catalog")
+        return apply_tags, apply_column_tags, catalog_type
 
     def get_table_materialization_execution_facts(
         self,
@@ -873,13 +985,31 @@ class DatabricksAdapter(SparkAdapter):
             contract_enforced=contract_enforced,
             materialization_plan=materialization_plan,
         )
+        use_insert_by_name = "insert_by_name" in base_plan.facts.execution.capabilities
         if model.config is None:
             raise DbtConfigError("Databricks incremental planning requires model configuration")
         config = model.config
+        apply_config_changes = self._config_as_bool(
+            config.get("incremental_apply_config_changes"), default=True
+        )
+        optimize_variant = self._planned_optimize_variant(config, base_plan.facts)
+        apply_tags, apply_column_tags, tag_variant = self._planned_tag_operations(
+            model, config, base_plan.facts
+        )
+        if (
+            mutation_plan.requested_strategy == "insert_overwrite"
+            and mutation_plan.facts.format.table_provider == constants.ICEBERG_TABLE_FORMAT
+            and config.get("partition_by")
+        ):
+            raise DbtConfigError(
+                "Partition-scoped insert_overwrite is only supported for Delta tables; "
+                "managed Iceberg supports whole-table INSERT OVERWRITE"
+            )
         if not self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"]):
             return self._resolve_v1_incremental_lifecycle_plan(
                 base_plan,
                 mutation_plan,
+                model,
                 existing_relation,
                 full_refresh,
                 staging_is_temporary,
@@ -909,7 +1039,7 @@ class DatabricksAdapter(SparkAdapter):
             ),
         ]
         replacing = existing_relation is not None and full_refresh
-        safe_create = bool(config.get("use_safer_relation_operations", False))
+        safe_create = self._config_as_bool(config.get("use_safer_relation_operations"))
         if existing_relation is None or replacing:
             if (
                 replacing
@@ -920,7 +1050,12 @@ class DatabricksAdapter(SparkAdapter):
                 operations.extend(
                     (
                         *self._create_and_populate_from_relation_operations(
-                            staging, intermediate
+                            staging,
+                            intermediate,
+                            use_insert_by_name=use_insert_by_name,
+                            apply_tags=apply_tags,
+                            apply_column_tags=apply_column_tags,
+                            tag_renderer_variant=tag_variant,
                         ),
                         MaterializationOperation(
                             kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
@@ -959,7 +1094,14 @@ class DatabricksAdapter(SparkAdapter):
                         )
                     )
                 operations.extend(
-                    self._create_and_populate_from_relation_operations(target, intermediate)
+                    self._create_and_populate_from_relation_operations(
+                        target,
+                        intermediate,
+                        use_insert_by_name=use_insert_by_name,
+                        apply_tags=apply_tags,
+                        apply_column_tags=apply_column_tags,
+                        tag_renderer_variant=tag_variant,
+                    )
                 )
         else:
             use_dynamic_overwrite = mutation_plan.requested_strategy == "insert_overwrite" and bool(
@@ -972,23 +1114,27 @@ class DatabricksAdapter(SparkAdapter):
                         name="DYNAMIC",
                     )
                 )
-            operations.extend(
-                (
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.PROCESS_SCHEMA_CHANGES,
-                        relation=existing,
-                        source=intermediate,
-                    ),
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.PROCESS_SCHEMA_CHANGES,
+                    relation=existing,
+                    source=intermediate,
+                )
+            )
+            if apply_config_changes:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.PROCESS_CONFIG_CHANGES,
                         relation=target,
                         source=existing,
-                    ),
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.EXECUTE_INCREMENTAL_MUTATION,
-                        relation=target,
-                        source=intermediate,
-                    ),
+                        renderer_variant="enabled",
+                    )
+                )
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.EXECUTE_INCREMENTAL_MUTATION,
+                    relation=target,
+                    source=intermediate,
                 )
             )
             if mutation_plan.requested_strategy == "insert_overwrite":
@@ -998,16 +1144,22 @@ class DatabricksAdapter(SparkAdapter):
                         name="STATIC",
                     )
                 )
-        operations.extend(
-            (
-                MaterializationOperation(
-                    kind=MaterializationOperationKind.APPLY_GRANTS,
-                    relation=target,
-                ),
+        operations.append(
+            MaterializationOperation(
+                kind=MaterializationOperationKind.APPLY_GRANTS,
+                relation=target,
+            )
+        )
+        if optimize_variant is not None:
+            operations.append(
                 MaterializationOperation(
                     kind=MaterializationOperationKind.OPTIMIZE,
                     relation=target,
-                ),
+                    renderer_variant=optimize_variant,
+                )
+            )
+        operations.extend(
+            (
                 MaterializationOperation(
                     kind=MaterializationOperationKind.RUN_HOOKS,
                     name="post",
@@ -1039,6 +1191,7 @@ class DatabricksAdapter(SparkAdapter):
         self,
         base_plan: IncrementalLifecyclePlan,
         mutation_plan: IncrementalMutationPlan,
+        model: RelationConfig,
         existing_relation: Optional[BaseRelation],
         full_refresh: bool,
         staging_is_temporary: bool,
@@ -1047,6 +1200,16 @@ class DatabricksAdapter(SparkAdapter):
         existing = MaterializationRelationRole.EXISTING
         target = MaterializationRelationRole.TARGET
         temp = MaterializationRelationRole.TEMP
+        apply_config_changes = self._config_as_bool(
+            config.get("incremental_apply_config_changes"), default=True
+        )
+        optimize_variant = self._planned_optimize_variant(config, base_plan.facts)
+        column_comment_variant = self._column_comment_renderer_variant(base_plan.facts)
+        constraints_requested = self._constraints_requested(config)
+        constraint_variant = self._constraint_renderer_variant(base_plan.facts)
+        apply_tags, apply_column_tags, tag_variant = self._planned_tag_operations(
+            model, config, base_plan.facts
+        )
         operations = [
             MaterializationOperation(
                 kind=MaterializationOperationKind.RUN_HOOKS,
@@ -1075,7 +1238,7 @@ class DatabricksAdapter(SparkAdapter):
                     auto_begin=False,
                 )
             )
-            if (
+            if constraints_requested and (
                 existing_relation is None
                 or base_plan.facts.existing is None
                 or base_plan.facts.existing.relation.relation_type != "view"
@@ -1084,23 +1247,31 @@ class DatabricksAdapter(SparkAdapter):
                     MaterializationOperation(
                         kind=MaterializationOperationKind.PERSIST_CONSTRAINTS,
                         relation=target,
+                        renderer_variant=constraint_variant,
                     )
                 )
-            operations.extend(
-                (
+            if apply_tags:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.APPLY_TAGS,
                         relation=target,
-                    ),
+                        renderer_variant=tag_variant,
+                    )
+                )
+            if apply_column_tags:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
                         relation=target,
-                    ),
+                        renderer_variant=tag_variant,
+                    )
+                )
+            operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
                         relation=target,
-                    ),
-                )
+                        renderer_variant=column_comment_variant,
+                    )
             )
         else:
             use_dynamic_overwrite = mutation_plan.requested_strategy == "insert_overwrite" and bool(
@@ -1113,12 +1284,15 @@ class DatabricksAdapter(SparkAdapter):
                         name="DYNAMIC",
                     )
                 )
-            operations.extend(
-                (
+            if apply_config_changes:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.CAPTURE_CONFIG_CHANGES,
                         relation=existing,
-                    ),
+                    )
+                )
+            operations.extend(
+                (
                     MaterializationOperation(
                         kind=MaterializationOperationKind.CREATE_FROM_QUERY,
                         relation=temp,
@@ -1135,28 +1309,40 @@ class DatabricksAdapter(SparkAdapter):
                         relation=target,
                         source=temp,
                     ),
+                )
+            )
+            if apply_config_changes:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.APPLY_CONFIG_CHANGES,
                         relation=target,
                         source=existing,
-                    ),
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
-                        relation=target,
-                        name="for_relation",
-                    ),
+                    )
+                )
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
+                    relation=target,
+                    name="for_relation",
+                    renderer_variant=column_comment_variant,
+                )
+            )
+        operations.append(
+            MaterializationOperation(
+                kind=MaterializationOperationKind.APPLY_GRANTS,
+                relation=target,
+            )
+        )
+        if optimize_variant is not None:
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.OPTIMIZE,
+                    relation=target,
+                    renderer_variant=optimize_variant,
                 )
             )
         operations.extend(
             (
-                MaterializationOperation(
-                    kind=MaterializationOperationKind.APPLY_GRANTS,
-                    relation=target,
-                ),
-                MaterializationOperation(
-                    kind=MaterializationOperationKind.OPTIMIZE,
-                    relation=target,
-                ),
                 MaterializationOperation(
                     kind=MaterializationOperationKind.RUN_HOOKS,
                     name="post",
@@ -1207,6 +1393,14 @@ class DatabricksAdapter(SparkAdapter):
         staging = MaterializationRelationRole.STAGING
         backup = MaterializationRelationRole.BACKUP
         use_v2 = "materialization_v2" in facts.execution.capabilities
+        use_insert_by_name = "insert_by_name" in facts.execution.capabilities
+        optimize_variant = self._planned_optimize_variant(config, facts)
+        column_comment_variant = self._column_comment_renderer_variant(facts)
+        constraints_requested = self._constraints_requested(config)
+        constraint_variant = self._constraint_renderer_variant(facts)
+        apply_tags, apply_column_tags, tag_variant = self._planned_tag_operations(
+            model, config, facts
+        )
         if use_v2:
             operations = [
                 MaterializationOperation(
@@ -1226,12 +1420,17 @@ class DatabricksAdapter(SparkAdapter):
                     auto_begin=False,
                 ),
             ]
-            safe_create = bool(config.get("use_safer_relation_operations", False))
+            safe_create = self._config_as_bool(config.get("use_safer_relation_operations"))
             if facts.existing is not None and safe_create and facts.existing.can_be_renamed:
                 operations.extend(
                     (
                         *self._create_and_populate_from_relation_operations(
-                            staging, intermediate
+                            staging,
+                            intermediate,
+                            use_insert_by_name=use_insert_by_name,
+                            apply_tags=apply_tags,
+                            apply_column_tags=apply_column_tags,
+                            tag_renderer_variant=tag_variant,
                         ),
                         MaterializationOperation(
                             kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
@@ -1266,18 +1465,31 @@ class DatabricksAdapter(SparkAdapter):
                         )
                     )
                 operations.extend(
-                    self._create_and_populate_from_relation_operations(target, intermediate)
+                    self._create_and_populate_from_relation_operations(
+                        target,
+                        intermediate,
+                        use_insert_by_name=use_insert_by_name,
+                        apply_tags=apply_tags,
+                        apply_column_tags=apply_column_tags,
+                        tag_renderer_variant=tag_variant,
+                    )
                 )
-            operations.extend(
-                (
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.APPLY_GRANTS,
-                        relation=target,
-                    ),
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_GRANTS,
+                    relation=target,
+                )
+            )
+            if optimize_variant is not None:
+                operations.append(
                     MaterializationOperation(
                         kind=MaterializationOperationKind.OPTIMIZE,
                         relation=target,
-                    ),
+                        renderer_variant=optimize_variant,
+                    )
+                )
+            operations.extend(
+                (
                     MaterializationOperation(
                         kind=MaterializationOperationKind.RUN_HOOKS,
                         name="post",
@@ -1330,31 +1542,52 @@ class DatabricksAdapter(SparkAdapter):
                     kind=MaterializationOperationKind.APPLY_GRANTS,
                     relation=target,
                 ),
+            )
+        )
+        if apply_tags:
+            operations.append(
                 MaterializationOperation(
                     kind=MaterializationOperationKind.APPLY_TAGS,
                     relation=target,
-                ),
+                    renderer_variant=tag_variant,
+                )
+            )
+        if apply_column_tags:
+            operations.append(
                 MaterializationOperation(
                     kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
                     relation=target,
-                ),
-                MaterializationOperation(
-                    kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
-                    relation=target,
-                ),
+                    renderer_variant=tag_variant,
+                )
+            )
+        operations.append(
+            MaterializationOperation(
+                kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
+                relation=target,
+                renderer_variant=column_comment_variant,
+            )
+        )
+        if constraints_requested:
+            operations.append(
                 MaterializationOperation(
                     kind=MaterializationOperationKind.PERSIST_CONSTRAINTS,
                     relation=target,
-                ),
+                    renderer_variant=constraint_variant,
+                )
+            )
+        if optimize_variant is not None:
+            operations.append(
                 MaterializationOperation(
                     kind=MaterializationOperationKind.OPTIMIZE,
                     relation=target,
-                ),
-                MaterializationOperation(
-                    kind=MaterializationOperationKind.RUN_HOOKS,
-                    name="post",
-                    inside_transaction=True,
-                ),
+                    renderer_variant=optimize_variant,
+                )
+            )
+        operations.append(
+            MaterializationOperation(
+                kind=MaterializationOperationKind.RUN_HOOKS,
+                name="post",
+                inside_transaction=True,
             )
         )
         return plan.resolve(

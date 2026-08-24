@@ -267,3 +267,10 @@
     {{ apply_config_changeset(target_relation, model, configuration_changes, existing_relation) }}
   {% endif %}
 {% endmacro %}
+
+{% macro process_config_changes_from_plan(target_relation, existing_relation=none) %}
+  {%- set model_config = adapter.get_config_from_model(config.model) -%}
+  {%- set existing_config = adapter.get_relation_config(target_relation, model_config) -%}
+  {%- set configuration_changes = model_config.get_changeset(existing_config) -%}
+  {{ apply_config_changeset(target_relation, model, configuration_changes, existing_relation) }}
+{% endmacro %}

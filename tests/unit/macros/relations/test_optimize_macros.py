@@ -28,6 +28,30 @@ class TestOptimizeMacros(MacroTestBase):
 
         assert sql == "optimize `some_database`.`some_schema`.`some_table` zorder by (foo, bar)"
 
+    @pytest.mark.parametrize(
+        ("renderer_variant", "zorder", "expected"),
+        [
+            ("plain", None, "optimize `some_database`.`some_schema`.`some_table`"),
+            (
+                "zorder",
+                ["foo", "bar"],
+                "optimize `some_database`.`some_schema`.`some_table` zorder by (foo, bar)",
+            ),
+        ],
+    )
+    def test_planned_optimize_renders_only_selected_variant(
+        self, renderer_variant, zorder, expected, config, template_bundle
+    ):
+        config["zorder"] = zorder
+
+        sql = self.render_bundle(
+            template_bundle,
+            "get_optimize_sql_from_plan",
+            renderer_variant,
+        )
+
+        assert sql == expected
+
     def test_macros_optimize_with_extraneous_info(self, config, var, template_bundle):
         config["zorder"] = ["foo", "bar"]
         var["FOO"] = True
