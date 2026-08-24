@@ -602,17 +602,17 @@ class DatabricksAdapter(SparkAdapter):
             language != "sql"
             or materialization_macro_id
             != "macro.dbt_databricks.materialization_incremental_databricks"
-            or not self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"])
         ):
             return None
+        use_v2 = self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"])
         return IncrementalMaterializationPlan(
             materialization_macro_id=materialization_macro_id,
             provenance=(
                 PlanProvenance(
-                    rule="databricks.incremental.v2",
+                    rule=("databricks.incremental.v2" if use_v2 else "databricks.incremental.v1"),
                     detail=(
-                        "Databricks v2 SQL incremental materialization uses an ordered "
-                        "create-then-insert or mutation program"
+                        "Databricks SQL incremental materialization uses an ordered "
+                        f"{'create-then-insert' if use_v2 else 'direct create'} or mutation program"
                     ),
                 ),
             ),
@@ -663,6 +663,15 @@ class DatabricksAdapter(SparkAdapter):
         if model.config is None:
             raise DbtConfigError("Databricks incremental planning requires model configuration")
         config = model.config
+        if not self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"]):
+            return self._resolve_v1_incremental_lifecycle_plan(
+                base_plan,
+                mutation_plan,
+                existing_relation,
+                full_refresh,
+                staging_is_temporary,
+                config,
+            )
         existing = MaterializationRelationRole.EXISTING
         target = MaterializationRelationRole.TARGET
         intermediate = MaterializationRelationRole.INTERMEDIATE
@@ -814,6 +823,158 @@ class DatabricksAdapter(SparkAdapter):
                     detail=(
                         "Databricks v2 staging, replacement or mutation, config changes, "
                         "overwrite mode, grants, optimize, and hooks are ordered explicitly"
+                    ),
+                ),
+            ),
+        )
+
+    def _resolve_v1_incremental_lifecycle_plan(
+        self,
+        base_plan: IncrementalLifecyclePlan,
+        mutation_plan: IncrementalMutationPlan,
+        existing_relation: Optional[BaseRelation],
+        full_refresh: bool,
+        staging_is_temporary: bool,
+        config: BaseConfig,
+    ) -> IncrementalLifecyclePlan:
+        existing = MaterializationRelationRole.EXISTING
+        target = MaterializationRelationRole.TARGET
+        temp = MaterializationRelationRole.TEMP
+        operations = [
+            MaterializationOperation(
+                kind=MaterializationOperationKind.RUN_HOOKS,
+                name="pre",
+                inside_transaction=True,
+            )
+        ]
+        replacing = existing_relation is not None and full_refresh
+        if existing_relation is None or replacing:
+            if (
+                replacing
+                and base_plan.facts.existing is not None
+                and base_plan.facts.existing.requires_drop_before_replace
+            ):
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                        relation=existing,
+                    )
+                )
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.CREATE_FROM_QUERY,
+                    relation=target,
+                    temporary=False,
+                    auto_begin=False,
+                )
+            )
+            if (
+                existing_relation is None
+                or base_plan.facts.existing is None
+                or base_plan.facts.existing.relation.relation_type != "view"
+            ):
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PERSIST_CONSTRAINTS,
+                        relation=target,
+                    )
+                )
+            operations.extend(
+                (
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.APPLY_TAGS,
+                        relation=target,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
+                        relation=target,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
+                        relation=target,
+                    ),
+                )
+            )
+        else:
+            use_dynamic_overwrite = mutation_plan.requested_strategy == "insert_overwrite" and bool(
+                config.get("partition_by")
+            )
+            if use_dynamic_overwrite:
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.SET_INCREMENTAL_OVERWRITE_MODE,
+                        name="DYNAMIC",
+                    )
+                )
+            operations.extend(
+                (
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.CAPTURE_CONFIG_CHANGES,
+                        relation=existing,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.CREATE_FROM_QUERY,
+                        relation=temp,
+                        temporary=staging_is_temporary,
+                        auto_begin=False,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PROCESS_SCHEMA_CHANGES,
+                        relation=existing,
+                        source=temp,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.EXECUTE_INCREMENTAL_MUTATION,
+                        relation=target,
+                        source=temp,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.APPLY_CONFIG_CHANGES,
+                        relation=target,
+                        source=existing,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
+                        relation=target,
+                        name="for_relation",
+                    ),
+                )
+            )
+        operations.extend(
+            (
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_GRANTS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.OPTIMIZE,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="post",
+                    inside_transaction=True,
+                ),
+            )
+        )
+        if mutation_plan.requested_strategy == "insert_overwrite" and not full_refresh:
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.SET_INCREMENTAL_OVERWRITE_MODE,
+                    name="STATIC",
+                )
+            )
+        return replace(
+            base_plan,
+            operations=tuple(operations),
+            provenance=base_plan.provenance
+            + (
+                PlanProvenance(
+                    rule="databricks.incremental.v1.operations",
+                    detail=(
+                        "Databricks v1 creation or mutation, captured config changes, "
+                        "overwrite mode, metadata, grants, optimize, and hooks are "
+                        "ordered explicitly"
                     ),
                 ),
             ),

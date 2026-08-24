@@ -8,13 +8,13 @@ from unittest.mock import Mock, patch
 import agate
 import dbt.flags as flags
 import pytest
+from agate import Row
 from dbt.adapters.planning import (
     DdlAtomicity,
     IncrementalMutationPlan,
     IncrementalMutationStrategy,
     PlanProvenance,
 )
-from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.clients.agate_helper import merge_tables
 from dbt_common.events.event_manager_client import add_callback_to_manager
@@ -2085,6 +2085,67 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             "run_hooks",
             "run_hooks",
         ]
+
+    def test_v1_incremental_plan_captures_then_applies_config_changes(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.behavior.use_materialization_v2.setting = False
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter)
+        model = self._planning_model()
+        model.config.update(
+            {
+                "materialized": "incremental",
+                "incremental_strategy": "merge",
+            }
+        )
+        target = self._planning_relation()
+        existing = self._planning_relation(provider=constants.DELTA_FILE_FORMAT)
+        mutation = IncrementalMutationPlan(
+            requested_strategy="merge",
+            strategy=IncrementalMutationStrategy.MERGE,
+            renderer_macro="get_incremental_merge_sql",
+            atomicity=DdlAtomicity.UNKNOWN,
+            provenance=(
+                PlanProvenance(
+                    rule="test.databricks.merge",
+                    detail="Test Databricks merge",
+                ),
+            ),
+        )
+        materialization = adapter.plan_incremental_materialization(
+            "macro.dbt_databricks.materialization_incremental_databricks",
+            "sql",
+            model,
+        )
+        assert materialization is not None
+
+        resolved = adapter.resolve_incremental_lifecycle_plan(
+            mutation,
+            model,
+            target,
+            existing,
+            full_refresh=False,
+            on_schema_change="append_new_columns",
+            staging_is_temporary=True,
+            contract_enforced=False,
+            materialization_plan=materialization,
+        )
+
+        assert [operation.kind.value for operation in resolved.operations] == [
+            "run_hooks",
+            "capture_config_changes",
+            "create_from_query",
+            "process_schema_changes",
+            "execute_incremental_mutation",
+            "apply_config_changes",
+            "persist_documentation",
+            "apply_grants",
+            "optimize",
+            "run_hooks",
+        ]
+        assert resolved.operations[6].name == "for_relation"
 
     def test_is_uniform_with_managed_iceberg_returns_false(
         self, adapter, mock_config, unity_catalog_relation_managed_iceberg_relation
