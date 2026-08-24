@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from dbt.adapters.databricks import constants
@@ -39,12 +41,32 @@ class TestCreateTableAs(MacroTestBase):
         """
         template.globals["adapter"].is_uniform.return_value = False
         template.globals["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {}
+        template.globals["adapter"].behavior.use_managed_iceberg = False
         return template.globals
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
         external_path = f"/mnt/root/{template_bundle.relation.identifier}"
         adapter_mock = template_bundle.template.globals["adapter"]
         adapter_mock.compute_external_path.return_value = external_path
+        catalog_relation = adapter_mock.build_catalog_relation.return_value
+        managed_iceberg = (
+            catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT
+            and adapter_mock.behavior.use_managed_iceberg is True
+        )
+        adapter_mock.plan_create_from_query.return_value = SimpleNamespace(
+            facts=SimpleNamespace(
+                catalog=SimpleNamespace(catalog_type=catalog_relation.catalog_type),
+                format=SimpleNamespace(
+                    table_format=catalog_relation.table_format,
+                    file_format=catalog_relation.file_format,
+                    table_provider=(
+                        constants.ICEBERG_TABLE_FORMAT
+                        if managed_iceberg
+                        else catalog_relation.file_format
+                    ),
+                )
+            )
+        )
         return self.run_macro(
             template_bundle.template,
             "databricks__create_table_as",
@@ -58,6 +80,38 @@ class TestCreateTableAs(MacroTestBase):
         sql = self.render_create_table_as(template_bundle)
         assert (
             sql == f"create or replace table {template_bundle.relation.render()}"
+            " using delta as select 1"
+        )
+
+    def test_typed_create_renderer_uses_supplied_plan(self, template_bundle):
+        catalog_relation = unity_relation()
+        adapter = template_bundle.context["adapter"]
+        adapter.build_catalog_relation.return_value = catalog_relation
+        adapter.plan_create_from_query.side_effect = AssertionError(
+            "typed renderer must not resolve a second create plan"
+        )
+        plan = SimpleNamespace(
+            temporary=False,
+            facts=SimpleNamespace(
+                catalog=SimpleNamespace(catalog_type=catalog_relation.catalog_type),
+                format=SimpleNamespace(
+                    table_format=catalog_relation.table_format,
+                    file_format=catalog_relation.file_format,
+                    table_provider=catalog_relation.file_format,
+                ),
+            ),
+        )
+
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__render_create_from_query_plan",
+            plan,
+            template_bundle.relation,
+            "select 1",
+        )
+
+        assert sql == (
+            f"create or replace table {template_bundle.relation.render()}"
             " using delta as select 1"
         )
 
@@ -260,10 +314,7 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].is_uniform.return_value = True
-        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
-            "delta.appendOnly": "true"
-        }
+        config["tblproperties"] = {"delta.appendOnly": "true"}
         template_bundle.context["model"].description = "Description Test"
 
         sql = self.render_create_table_as(template_bundle)
@@ -294,10 +345,7 @@ class TestCreateTableAs(MacroTestBase):
         config["clustered_by"] = ["cluster_1", "cluster_2"]
         config["buckets"] = "1"
         config["persist_docs"] = {"relation": True}
-        template_bundle.context["adapter"].is_uniform.return_value = True
-        template_bundle.context["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {
-            "delta.appendOnly": "true"
-        }
+        config["tblproperties"] = {"delta.appendOnly": "true"}
         template_bundle.context["model"].description = "Description Test"
 
         sql = self.render_create_table_as(template_bundle)

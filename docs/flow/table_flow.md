@@ -12,6 +12,12 @@ format, physical Delta versus managed-Iceberg provider, catalog type/provider, D
 and live replacement safety are plan inputs. The macros remain compatibility fallbacks and leaf SQL
 renderers; they are not the source of those decisions on the typed path.
 
+The serialization boundary is deliberate: the plan owns every decision that changes the selected
+strategy, operation ordering, replacement safety, or SQL renderer variant. Relations, compiled SQL,
+resolved columns, and literal configuration payloads such as tag values remain late-bound execution
+arguments. Leaf renderers may interpolate those values, but must not re-resolve catalog, format,
+provider, runtime, version, or capability policy when plan facts are present.
+
 ## V1 Table Flow
 
 ```mermaid
@@ -66,7 +72,9 @@ flowchart LR
     CLEAN --> POST
 ```
 
-The `create_table_at` helper applies constraints, table tags, and column tags before inserting from
-the intermediate relation. The safe-replacement helper performs its own intermediate cleanup;
-Python paths also clean up the intermediate relation after optimization. Unlike V1, V2 does not call
-`persist_docs` — column and relation comments are handled on the create/insert path.
+On the typed SQL path, `create_table_at` is decomposed into explicit create-structure,
+alter-constraint, table-tag, column-tag, and insert-from-intermediate operations. The compatibility
+macro composes those same leaf macros for callers that have not opted into typed execution. The
+safe-replacement path performs its own intermediate cleanup; Python paths also clean up the
+intermediate relation after optimization. Unlike V1, V2 does not call `persist_docs` — column and
+relation comments are handled on the create/insert path.

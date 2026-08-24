@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from importlib import metadata
 from multiprocessing.context import SpawnContext
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Sequence, Union, cast
 from uuid import uuid4
 
 from dbt.adapters.base import AdapterConfig, PythonJobHelper
@@ -22,10 +22,16 @@ from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
 from dbt.adapters.planning import (
     CreateFromQueryFacts,
+    DdlAtomicity,
     FormatFacts,
+    IncrementalMutationFacts,
     IncrementalLifecyclePlan,
     IncrementalMaterializationPlan,
     IncrementalMutationPlan,
+    IncrementalMutationStrategyOffer,
+    IncrementalSourceConsistency,
+    IncrementalStrategyRequirements,
+    IncrementalUniqueKeyRequirement,
     MaterializationExecutionFacts,
     MaterializationHookStrategy,
     MaterializationOperation,
@@ -38,6 +44,8 @@ from dbt.adapters.planning import (
     RuntimeFacts,
     TableLifecyclePlan,
     TableMaterializationFacts,
+    incremental_renderer_macro,
+    incremental_strategy,
 )
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
@@ -466,6 +474,216 @@ class DatabricksAdapter(SparkAdapter):
                     self.resolve_file_format(model_config),
                     canonical=True,
                 ),
+                table_provider=(
+                    constants.ICEBERG_TABLE_FORMAT
+                    if table_format == constants.ICEBERG_TABLE_FORMAT
+                    and self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+                    else self._create_from_query_fact_value(
+                        self.resolve_file_format(model_config),
+                        canonical=True,
+                    )
+                ),
+            ),
+        )
+
+    def build_incremental_mutation_facts(
+        self,
+        *,
+        requested_strategy: Optional[str],
+        language: str,
+        unique_key: Optional[Union[str, Sequence[str]]],
+        requested_temp_relation_type: Optional[str],
+        catalog_relation: Optional[CatalogRelation],
+    ) -> IncrementalMutationFacts:
+        facts = super().build_incremental_mutation_facts(
+            requested_strategy=requested_strategy,
+            language=language,
+            unique_key=unique_key,
+            requested_temp_relation_type=requested_temp_relation_type,
+            catalog_relation=catalog_relation,
+        )
+        connection = cast(
+            DatabricksDBTConnection,
+            self.connections.get_thread_connection(),
+        )
+        runtime = connection.capabilities
+        capabilities = [
+            capability.value for capability in sorted(
+                runtime.enabled_capabilities(), key=lambda item: item.value
+            )
+        ]
+        if runtime.is_sql_warehouse:
+            capabilities.append("sql_warehouse")
+        if self.get_behavior_flag_no_warn(USE_REPLACE_ON_FOR_INSERT_OVERWRITE["name"]):
+            capabilities.append("replace_on_for_insert_overwrite")
+
+        table_format = facts.format.table_format
+        managed_iceberg = (
+            table_format == constants.ICEBERG_TABLE_FORMAT
+            and self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+        )
+        provider = (
+            constants.ICEBERG_TABLE_FORMAT
+            if managed_iceberg
+            else facts.format.file_format
+        )
+        capabilities.append("managed_iceberg" if managed_iceberg else "uniform_or_native_format")
+        return replace(
+            facts,
+            format=replace(facts.format, table_provider=provider),
+            runtime=RuntimeFacts(
+                engine=(
+                    "databricks_sql_warehouse"
+                    if runtime.is_sql_warehouse
+                    else "databricks_runtime"
+                ),
+                version=(
+                    None
+                    if runtime.dbr_version is None
+                    else f"{runtime.dbr_version[0]}.{runtime.dbr_version[1]}"
+                ),
+            ),
+            capabilities=tuple(capabilities),
+        )
+
+    def get_incremental_mutation_strategy_offers(
+        self, facts: IncrementalMutationFacts
+    ) -> tuple[IncrementalMutationStrategyOffer, ...]:
+        requested = facts.requested_strategy
+        effective = "merge" if requested == "default" else requested
+        strategy = incremental_strategy(requested)
+        unique_key = (
+            IncrementalUniqueKeyRequirement.REQUIRED
+            if effective == "delete+insert"
+            else IncrementalUniqueKeyRequirement.OPTIONAL
+        )
+        requirements = IncrementalStrategyRequirements(
+            unique_key=unique_key,
+            source_consistency=IncrementalSourceConsistency.STABLE_REUSE,
+            supported_languages=("sql",),
+        )
+        provider = facts.format.table_provider
+        runtime_capabilities = set(facts.capabilities)
+        if effective == "insert_overwrite":
+            use_replace_on = "replace_on" in runtime_capabilities and (
+                facts.runtime.engine == "databricks_runtime"
+                or "replace_on_for_insert_overwrite" in runtime_capabilities
+            )
+            renderer_variant = (
+                "replace_on"
+                if use_replace_on
+                else (
+                    "legacy_by_name"
+                    if "insert_by_name" in runtime_capabilities
+                    else "legacy_positional"
+                )
+            )
+        elif effective == "delete+insert":
+            renderer_variant = (
+                "replace_on"
+                if "replace_on" in runtime_capabilities
+                else (
+                    "delete_insert_by_name"
+                    if "insert_by_name" in runtime_capabilities
+                    else "delete_insert_positional"
+                )
+            )
+        elif effective == "replace_where":
+            renderer_variant = (
+                "replace_where_by_name"
+                if "insert_by_name_replace_where" in runtime_capabilities
+                else "replace_where_positional"
+            )
+        else:
+            renderer_variant = f"{effective}_{provider or 'unknown'}"
+        rejected_reason = None
+        managed_iceberg = "managed_iceberg" in facts.capabilities
+        if managed_iceberg and facts.catalog.catalog_type != constants.UNITY_CATALOG_TYPE:
+            rejected_reason = "Managed Iceberg incremental models require Unity Catalog"
+        elif (
+            managed_iceberg
+            and facts.runtime.engine == "databricks_runtime"
+            and facts.runtime.version is not None
+            and tuple(int(part) for part in facts.runtime.version.split(".", maxsplit=1)) < (16, 4)
+        ):
+            rejected_reason = "Managed Iceberg incremental models require DBR 16.4 or newer"
+        elif effective == "merge" and provider not in {
+            constants.DELTA_FILE_FORMAT,
+            constants.HUDI_FILE_FORMAT,
+            constants.ICEBERG_TABLE_FORMAT,
+        }:
+            rejected_reason = (
+                f"Incremental strategy '{requested}' requires a Delta, Hudi, or managed "
+                f"Iceberg table provider; resolved provider was '{provider}'"
+            )
+        elif effective in {"replace_where", "microbatch", "delete+insert"} and provider != (
+            constants.DELTA_FILE_FORMAT
+        ):
+            rejected_reason = (
+                f"Incremental strategy '{requested}' requires the Delta table provider; "
+                f"resolved provider was '{provider}'"
+            )
+
+        provenance = (
+            PlanProvenance(
+                rule=f"databricks.incremental.provider.{provider or 'unknown'}",
+                detail=(
+                    f"Resolved '{requested}' against logical format "
+                    f"'{facts.format.table_format}', physical provider '{provider}', catalog "
+                    f"'{facts.catalog.catalog_type}', provider "
+                    f"'{facts.catalog.catalog_provider}', and runtime '{facts.runtime.engine}' "
+                    f"version '{facts.runtime.version}', selecting renderer variant "
+                    f"'{renderer_variant}'"
+                ),
+            ),
+        )
+        if rejected_reason is not None:
+            return (
+                IncrementalMutationStrategyOffer.rejected(
+                    strategy=strategy,
+                    requirements=requirements,
+                    reason=rejected_reason,
+                    provenance=provenance,
+                ),
+            )
+        return (
+            IncrementalMutationStrategyOffer.available(
+                strategy=strategy,
+                renderer_macro=incremental_renderer_macro(requested),
+                atomicity=DdlAtomicity.UNKNOWN,
+                requirements=requirements,
+                provenance=provenance,
+                renderer_variant=renderer_variant,
+            ),
+        )
+
+    @staticmethod
+    def _create_and_populate_from_relation_operations(
+        relation: MaterializationRelationRole,
+        source: MaterializationRelationRole,
+    ) -> tuple[MaterializationOperation, ...]:
+        return (
+            MaterializationOperation(
+                kind=MaterializationOperationKind.CREATE_STRUCTURE_FROM_RELATION,
+                relation=relation,
+                source=source,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.APPLY_ALTER_CONSTRAINTS,
+                relation=relation,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.APPLY_TAGS,
+                relation=relation,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
+                relation=relation,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.INSERT_FROM_RELATION,
+                relation=relation,
+                source=source,
             ),
         )
 
@@ -531,13 +749,7 @@ class DatabricksAdapter(SparkAdapter):
             (getattr(existing_relation, "metadata", None) or {}).get(KEY_TABLE_PROVIDER),
             canonical=True,
         )
-        managed_iceberg = (
-            facts.create.format.table_format == constants.ICEBERG_TABLE_FORMAT
-            and self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
-        )
-        desired_provider = (
-            constants.ICEBERG_TABLE_FORMAT if managed_iceberg else facts.create.format.file_format
-        )
+        desired_provider = facts.create.format.table_provider
         existing = replace(
             facts.existing,
             format=FormatFacts(
@@ -547,6 +759,7 @@ class DatabricksAdapter(SparkAdapter):
                     else None
                 ),
                 file_format=existing_provider,
+                table_provider=existing_provider,
             ),
             requires_drop_before_replace=(
                 facts.existing.is_shallow_clone
@@ -706,10 +919,8 @@ class DatabricksAdapter(SparkAdapter):
             ):
                 operations.extend(
                     (
-                        MaterializationOperation(
-                            kind=MaterializationOperationKind.CREATE_FROM_RELATION,
-                            relation=staging,
-                            source=intermediate,
+                        *self._create_and_populate_from_relation_operations(
+                            staging, intermediate
                         ),
                         MaterializationOperation(
                             kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
@@ -747,12 +958,8 @@ class DatabricksAdapter(SparkAdapter):
                             relation=existing,
                         )
                     )
-                operations.append(
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.CREATE_FROM_RELATION,
-                        relation=target,
-                        source=intermediate,
-                    )
+                operations.extend(
+                    self._create_and_populate_from_relation_operations(target, intermediate)
                 )
         else:
             use_dynamic_overwrite = mutation_plan.requested_strategy == "insert_overwrite" and bool(
@@ -1023,10 +1230,8 @@ class DatabricksAdapter(SparkAdapter):
             if facts.existing is not None and safe_create and facts.existing.can_be_renamed:
                 operations.extend(
                     (
-                        MaterializationOperation(
-                            kind=MaterializationOperationKind.CREATE_FROM_RELATION,
-                            relation=staging,
-                            source=intermediate,
+                        *self._create_and_populate_from_relation_operations(
+                            staging, intermediate
                         ),
                         MaterializationOperation(
                             kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
@@ -1060,12 +1265,8 @@ class DatabricksAdapter(SparkAdapter):
                             relation=existing,
                         )
                     )
-                operations.append(
-                    MaterializationOperation(
-                        kind=MaterializationOperationKind.CREATE_FROM_RELATION,
-                        relation=target,
-                        source=intermediate,
-                    )
+                operations.extend(
+                    self._create_and_populate_from_relation_operations(target, intermediate)
                 )
             operations.extend(
                 (

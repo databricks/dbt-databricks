@@ -1,10 +1,11 @@
-{% macro location_clause(relation) %}
+{% macro location_clause(relation, catalog_facts=none) %}
   {#--
     Moving forward, `relation` should be a `CatalogRelation`, which is covered by the first condition.
     However, there could be existing macros that are still passing in a `BaseRelation`, including user macros.
     Hence, we need to support the old code still, which is covered by the second condition.
   --#}
-  {%- if relation.catalog_type is not none -%}
+  {%- if (catalog_facts is not none and catalog_facts.catalog_type is not none)
+      or (catalog_facts is none and relation.catalog_type is not none) -%}
 
     {%- if relation.location is not none -%}
     location '{{ relation.location }}{% if is_incremental() %}_tmp{% endif %}'

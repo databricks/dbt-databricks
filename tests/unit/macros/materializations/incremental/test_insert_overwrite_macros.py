@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -53,6 +54,47 @@ class TestInsertOverwriteMacros(MacroTestBase):
 
         # Mock exceptions.warn to return empty string to avoid polluting SQL output
         context["exceptions"].warn.return_value = ""
+
+    @pytest.mark.parametrize(
+        "variant,expected_fragment",
+        [
+            ("replace_on", "replace on"),
+            ("legacy_by_name", "by name"),
+            ("legacy_positional", "select * from source_table"),
+        ],
+    )
+    def test_typed_plan_selects_renderer_without_capability_inference(
+        self, template, context, config, variant, expected_fragment
+    ):
+        context["adapter"].has_dbr_capability = Mock(
+            side_effect=AssertionError("typed renderer must not probe runtime capabilities")
+        )
+        context["adapter"].is_cluster = Mock(
+            side_effect=AssertionError("typed renderer must not infer runtime type")
+        )
+        config["partition_by"] = ["a"]
+        source_relation = Mock()
+        source_relation.__str__ = lambda self: "source_table"
+        target_relation = Mock()
+        target_relation.__str__ = lambda self: "target_table"
+        plan = SimpleNamespace(
+            renderer_variant=variant,
+            facts=SimpleNamespace(runtime=SimpleNamespace(engine="databricks_cluster")),
+        )
+
+        result = self.run_macro_raw(
+            template,
+            "databricks__get_incremental_insert_overwrite_sql",
+            {
+                "temp_relation": source_relation,
+                "target_relation": target_relation,
+                "incremental_plan": plan,
+            },
+        )
+
+        assert expected_fragment in self.clean_sql(result)
+        if variant == "legacy_positional":
+            assert "by name" not in self.clean_sql(result)
 
     @pytest.mark.parametrize(
         "has_replace_on_capability,expected_sql",

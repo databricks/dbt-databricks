@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -35,6 +36,28 @@ class TestReplaceWhereMacros(MacroTestBase):
         temp_relation.render.return_value = "schema.temp_table"
 
         return target_relation, temp_relation
+
+    @pytest.mark.parametrize(
+        "variant,expects_by_name",
+        [("replace_where_by_name", True), ("replace_where_positional", False)],
+    )
+    def test_typed_plan_selects_renderer_without_capability_inference(
+        self, template_bundle, context, mock_relations, variant, expects_by_name
+    ):
+        context["adapter"].has_dbr_capability = Mock(
+            side_effect=AssertionError("typed renderer must not probe runtime capabilities")
+        )
+        target_relation, temp_relation = mock_relations
+        args_dict = {
+            "target_relation": target_relation,
+            "temp_relation": temp_relation,
+            "incremental_predicates": "date_col > '2023-01-01'",
+            "incremental_plan": SimpleNamespace(renderer_variant=variant),
+        }
+
+        result = self.run_macro(template_bundle.template, "get_replace_where_sql", args_dict)
+
+        assert ("by name" in self.clean_sql(result)) is expects_by_name
 
     def test_get_replace_where_sql_with_string_predicate(self, template_bundle, mock_relations):
         target_relation, temp_relation = mock_relations

@@ -230,8 +230,13 @@
 
 {%- endmaterialization %}
 
-{% macro set_overwrite_mode(value) %}
-  {% if adapter.is_cluster() %}
+{% macro set_overwrite_mode(value, runtime_engine=none) %}
+  {% if runtime_engine is not none %}
+    {% set use_cluster_statement = runtime_engine == 'databricks_runtime' %}
+  {% else %}
+    {% set use_cluster_statement = adapter.is_cluster() %}
+  {% endif %}
+  {% if use_cluster_statement %}
     {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}

@@ -19,6 +19,26 @@
   {% do return(get_delete_insert_sql(arg_dict)) %}
 {% endmacro %}
 
+{% macro databricks__get_incremental_insert_overwrite_sql(arg_dict) %}
+  {%- set plan = arg_dict.get('incremental_plan') -%}
+  {%- set variant = plan.renderer_variant if plan is not none else none -%}
+  {%- set source_relation = arg_dict['temp_relation'] -%}
+  {%- set target_relation = arg_dict['target_relation'] -%}
+  {%- if variant == 'replace_on' -%}
+    {{ return(get_insert_replace_on_sql(source_relation, target_relation)) }}
+  {%- elif variant in ('legacy_by_name', 'legacy_positional') -%}
+    {%- if plan.facts.runtime.engine == 'databricks_sql_warehouse' -%}
+      {{ exceptions.warn("insert_overwrite uses legacy overwrite semantics on this SQL warehouse; enable use_replace_on_for_insert_overwrite to select REPLACE ON") }}
+    {%- endif -%}
+    insert overwrite table {{ target_relation }}
+    {{ partition_cols(label="partition") }}
+    {%- if variant == 'legacy_by_name' %} by name{% endif %}
+    select * from {{ source_relation }}
+  {%- else -%}
+    {{ return(get_insert_overwrite_sql(source_relation, target_relation)) }}
+  {%- endif -%}
+{% endmacro %}
+
 {% macro get_incremental_replace_where_sql(arg_dict) %}
 
   {{ return(adapter.dispatch('get_incremental_replace_where_sql', 'dbt')(arg_dict)) }}
@@ -122,7 +142,12 @@
   {%- set temp_relation = args_dict['temp_relation'] -%}
   {#-- BY NAME + REPLACE WHERE needs DBR 18.0+ on clusters (SPARK-54803), a higher floor than
        plain insert_by_name; emitting it on older clusters fails to parse (issue #1532). --#}
-  {%- set has_by_name = adapter.has_dbr_capability('insert_by_name_replace_where') -%}
+  {%- set plan = args_dict.get('incremental_plan') -%}
+  {%- if plan is not none and plan.renderer_variant is not none -%}
+    {%- set has_by_name = plan.renderer_variant == 'replace_where_by_name' -%}
+  {%- else -%}
+    {%- set has_by_name = adapter.has_dbr_capability('insert_by_name_replace_where') -%}
+  {%- endif -%}
 INSERT INTO {{ target_relation.render() }}
 {%- if has_by_name %} BY NAME{% endif %}
 {%- if predicates %}
@@ -141,7 +166,16 @@ INSERT INTO {{ target_relation.render() }}
   {%- set incremental_predicates = config.get('incremental_predicates') -%}
   {%- set target_columns = (adapter.get_columns_in_relation(target_relation) | map(attribute='quoted') | list) -%}
   {%- set unique_key = config.require('unique_key') -%}
-  {% do return(delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates)) %}
+  {%- set plan = arg_dict.get('incremental_plan') -%}
+  {%- set variant = plan.renderer_variant if plan is not none else none -%}
+  {%- if variant == 'replace_on' -%}
+    {{ return(delete_insert_replace_on_sql(source_relation, target_relation, target_columns, unique_key, incremental_predicates)) }}
+  {%- elif variant in ('delete_insert_by_name', 'delete_insert_positional') -%}
+    {%- set unique_keys = unique_key if unique_key is sequence and unique_key is not string else [unique_key] -%}
+    {% do return(delete_insert_legacy_sql(source_relation, target_relation, target_columns, unique_keys, incremental_predicates, variant == 'delete_insert_by_name')) %}
+  {%- else -%}
+    {% do return(delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates)) %}
+  {%- endif -%}
 {% endmacro %}
 
 {% macro delete_insert_sql_impl(source_relation, target_relation, target_columns, unique_key, incremental_predicates) %}
@@ -157,23 +191,34 @@ INSERT INTO {{ target_relation.render() }}
   {%- set unique_keys = unique_key if unique_key is sequence and unique_key is not string else [unique_key] -%}
   
   {%- if adapter.has_dbr_capability('replace_on') -%}
-    {#-- DBR 17.1+: Use efficient REPLACE ON syntax --#}
-    {%- set replace_on_expr = [] -%}
-    {%- for key in unique_keys -%}
-      {%- do replace_on_expr.append('target.' ~ adapter.quote(key) ~ ' <=> temp.' ~ adapter.quote(key)) -%}
-    {%- endfor -%}
-    {%- set replace_on_expr = replace_on_expr | join(' and ') -%}
- insert into table {{ target_relation }} as target
-replace on ({{ replace_on_expr }})
-(select {{ target_cols_csv }}
-   from {{ source_relation }} {{ predicates }}) as temp
+    {{ return(delete_insert_replace_on_sql(source_relation, target_relation, target_columns, unique_keys, incremental_predicates)) }}
   {%- else -%}
     {#-- DBR < 17.1: Fallback to DELETE FROM + INSERT INTO --#}
     {% do return(delete_insert_legacy_sql(source_relation, target_relation, target_columns, unique_keys, incremental_predicates)) %}
   {%- endif -%}
 {% endmacro %}
 
-{% macro delete_insert_legacy_sql(source_relation, target_relation, target_columns, unique_keys, incremental_predicates) %}
+{% macro delete_insert_replace_on_sql(source_relation, target_relation, target_columns, unique_key, incremental_predicates) %}
+  {%- set target_cols_csv = target_columns | join(', ') -%}
+  {%- set predicates -%}
+    {%- if incremental_predicates is sequence and incremental_predicates is not string -%}
+      where {{ incremental_predicates | join(' and ') }}
+    {%- elif incremental_predicates is string and incremental_predicates is not none -%}
+      where {{ incremental_predicates }}
+    {%- endif -%}
+  {%- endset -%}
+  {%- set unique_keys = unique_key if unique_key is sequence and unique_key is not string else [unique_key] -%}
+  {%- set replace_on_expr = [] -%}
+  {%- for key in unique_keys -%}
+    {%- do replace_on_expr.append('target.' ~ adapter.quote(key) ~ ' <=> temp.' ~ adapter.quote(key)) -%}
+  {%- endfor -%}
+ insert into table {{ target_relation }} as target
+replace on ({{ replace_on_expr | join(' and ') }})
+(select {{ target_cols_csv }}
+   from {{ source_relation }} {{ predicates }}) as temp
+{% endmacro %}
+
+{% macro delete_insert_legacy_sql(source_relation, target_relation, target_columns, unique_keys, incremental_predicates, use_insert_by_name=none) %}
   {#-- Legacy implementation for DBR < 17.1 using DELETE FROM + INSERT INTO --#}
   {#-- Returns a list of SQL statements to be executed via execute_multiple_statements --#}
   {%- set target_cols_csv = target_columns | join(', ') -%}
@@ -211,7 +256,7 @@ where {{ delete_conditions | join('\n  and ') }}
   {%- do statements.append(delete_sql) -%}
 
   {#-- Step 2: INSERT new rows --#}
-  {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
+  {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') if use_insert_by_name is none else use_insert_by_name -%}
   {%- set insert_sql -%}
 insert into {{ target_relation }}{% if has_insert_by_name %} by name{% endif %}
 

@@ -8,10 +8,19 @@ _Last updated: 2026-08-23_
 > `dbt/include/databricks/macros/materializations/incremental/incremental.sql`.
 
 For SQL models on dbt-core versions that expose typed materialization execution, the adapter now
-serializes these branches as an ordered Python operation plan. The plan includes the mutation and
-schema-change strategies, logical and physical formats, explicit catalog provider, DBR capabilities,
-full-refresh state, config-change timing, overwrite-mode transitions, and multi-statement execution.
-The macro remains the compatibility fallback and supplies leaf SQL renderers where required.
+serializes these branches as an ordered Python operation plan. The mutation plan retains the
+resolved catalog binding, explicit catalog provider, logical table format, physical Delta/Hudi/
+Iceberg provider, runtime and version, and named DBR capabilities. The lifecycle adds schema-change
+strategy, full-refresh state, config-change timing, overwrite-mode transitions, and multi-statement
+execution. The macro remains the compatibility fallback and supplies leaf SQL renderers where
+required.
+
+The serialization boundary is deliberate: the plan owns every decision that changes the selected
+strategy, operation ordering, staging policy, replacement safety, overwrite behavior, or SQL
+renderer variant. Relations, compiled SQL, resolved destination columns, predicates, and literal
+configuration payloads remain late-bound execution arguments. Leaf renderers may interpolate those
+values, but must not re-resolve catalog, format, provider, runtime, version, or capability policy
+when plan facts are present.
 
 ## Existing Incremental Flow
 
@@ -94,4 +103,5 @@ the incremental branch even when its configuration changes. Safe staging is sele
 `use_safer_relation_operations` is enabled and the existing relation can be renamed; otherwise a
 non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
 path, V2 does not call `persist_docs` — relation and column comments are handled via
-`apply_config_changeset` or the create/insert path.
+`apply_config_changeset` or the create/insert path. Typed creation expands that latter path into
+create-structure, alter-constraint, table-tag, column-tag, and insert-from-intermediate operations.

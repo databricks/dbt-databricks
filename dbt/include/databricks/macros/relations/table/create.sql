@@ -1,5 +1,22 @@
 {% macro create_table_at(relation, intermediate_relation, compiled_code) %}
-  {% set tags = config.get('databricks_tags') %}
+  {% set target_relation = create_table_structure_at(relation, intermediate_relation, compiled_code) %}
+
+  {{ apply_alter_constraints(target_relation) }}
+  {{ apply_tags(target_relation, config.get('databricks_tags')) }}
+  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+  {% if column_tags and column_tags.set_column_tags %}
+    {{ apply_column_tags(target_relation, column_tags) }}
+  {% endif %}
+
+  {{ insert_from_relation(target_relation, intermediate_relation) }}
+{% endmacro %}
+
+{% macro create_table_structure_at(relation, intermediate_relation, compiled_code, format_facts=none, catalog_facts=none) %}
+  {% if format_facts is none %}
+    {% set create_plan = adapter.plan_create_from_query(False, relation, config.model) %}
+    {% set format_facts = create_plan.facts.format %}
+    {% set catalog_facts = create_plan.facts.catalog %}
+  {% endif %}
   {% set model_columns = model.get('columns', []) %}
   {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
   {% set contract_config = config.get('contract') %}
@@ -13,22 +30,19 @@
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   
   {% call statement('main') %}
-    {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
+    {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code, format_facts, catalog_facts) }}
   {% endcall %}
 
-  {{ apply_alter_constraints(target_relation) }}
-  {{ apply_tags(target_relation, tags) }}
-  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-  {% if column_tags and column_tags.set_column_tags %}
-    {{ apply_column_tags(target_relation, column_tags) }}
-  {% endif %}
+  {% do return(target_relation) %}
+{% endmacro %}
 
+{% macro insert_from_relation(target_relation, intermediate_relation) %}
   {% call statement('merge into target') %}
     insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}
 
-{% macro get_create_table_sql(target_relation, columns, compiled_code) %}
+{% macro get_create_table_sql(target_relation, columns, compiled_code, format_facts=none, catalog_facts=none) %}
 
   {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
 
@@ -38,24 +52,35 @@
     {{ get_assert_columns_equivalent(compiled_code) }}
   {%- endif -%}
 
-  {%- if catalog_relation.file_format in ('delta', 'iceberg') %}
+  {%- if format_facts is not none and format_facts.table_provider in ('delta', 'iceberg') %}
+  create or replace table {{ target_relation.render() }}
+  {% elif format_facts is none and catalog_relation.file_format in ('delta', 'iceberg') %}
   create or replace table {{ target_relation.render() }}
   {% else %}
   create table {{ target_relation.render() }}
   {% endif -%}
   {{ get_column_and_constraints_sql(target_relation, columns) }}
-  {{ file_format_clause(catalog_relation) }}
-  {{ databricks__options_clause(catalog_relation) }}
+  {{ file_format_clause(catalog_relation, format_facts) }}
+  {{ databricks__options_clause(catalog_relation, format_facts) }}
   {{ partition_cols(label="partitioned by") }}
   {{ get_create_row_filter_clause(target_relation) }}
   {{ liquid_clustered_cols() }}
   {{ clustered_cols(label="clustered by") }}
-  {{ location_clause(catalog_relation) }}
+  {{ location_clause(catalog_relation, catalog_facts) }}
   {{ comment_clause() }}
-  {{ tblproperties_clause() }}
+  {{ databricks__tblproperties_clause(format_facts=format_facts) }}
 {% endmacro %}
 
-{% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql') -%}
+{% macro databricks__render_create_from_query_plan(plan, relation, compiled_code) -%}
+  {{ return(databricks__create_table_as(
+      plan.temporary,
+      relation,
+      compiled_code,
+      create_plan=plan
+  )) }}
+{%- endmacro %}
+
+{% macro databricks__create_table_as(temporary, relation, compiled_code, language='sql', create_plan=none) -%}
 
   {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
 
@@ -63,7 +88,12 @@
     {%- if temporary -%}
       {{ create_temporary_view(relation, compiled_code) }}
     {%- else -%}
-      {% if catalog_relation.file_format == 'delta' %}
+      {%- if create_plan is none -%}
+        {%- set create_plan = adapter.plan_create_from_query(temporary, relation, config.model) -%}
+      {%- endif -%}
+      {%- set format_facts = create_plan.facts.format -%}
+      {%- set catalog_facts = create_plan.facts.catalog -%}
+      {% if format_facts.table_provider in ('delta', 'iceberg') %}
         create or replace table {{ relation.render() }}
       {% else %}
         create table {{ relation.render() }}
@@ -73,15 +103,15 @@
         {{ get_assert_columns_equivalent(compiled_code) }}
         {%- set compiled_code = get_select_subquery(compiled_code) %}
       {% endif %}
-      {{ file_format_clause(catalog_relation) }}
-      {{ databricks__options_clause(catalog_relation) }}
+      {{ file_format_clause(catalog_relation, format_facts) }}
+      {{ databricks__options_clause(catalog_relation, format_facts) }}
       {{ partition_cols(label="partitioned by") }}
       {{ get_create_row_filter_clause(relation) }}
       {{ liquid_clustered_cols() }}
       {{ clustered_cols(label="clustered by") }}
-      {{ location_clause(catalog_relation) }}
+      {{ location_clause(catalog_relation, catalog_facts) }}
       {{ comment_clause() }}
-      {{ tblproperties_clause() }}
+      {{ databricks__tblproperties_clause(format_facts=format_facts) }}
       as
       {{ compiled_code }}
     {%- endif -%}
@@ -97,7 +127,7 @@
   {%- endif -%}
 {%- endmacro -%}
 
-{% macro databricks__options_clause(catalog_relation=none) -%}
+{% macro databricks__options_clause(catalog_relation=none, format_facts=none) -%}
   {#-
     Moving forward, this macro should require a `catalog_relation`, which is covered by the first condition.
     However, there could be existing macros that is still passing no arguments, including user macros.
@@ -106,7 +136,9 @@
     all calls to `options_clause` will take the second path. This macro needs to be called directly
     via `databricks__options_clause`.
   -#}
-  {%- if catalog_relation is not none -%}
+  {%- if format_facts is not none -%}
+    {%- set file_format = format_facts.file_format -%}
+  {%- elif catalog_relation is not none -%}
     {%- set file_format = catalog_relation.file_format -%}
   {%- else -%}
     {%- set file_format = adapter.resolve_file_format(config) -%}

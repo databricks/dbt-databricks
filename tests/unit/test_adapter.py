@@ -11,6 +11,7 @@ import pytest
 from agate import Row
 from dbt.adapters.planning import (
     DdlAtomicity,
+    IncrementalMutationFacts,
     IncrementalMutationPlan,
     IncrementalMutationStrategy,
     PlanProvenance,
@@ -1889,10 +1890,155 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             metadata={KEY_TABLE_PROVIDER: provider} if provider is not None else {},
         )
 
-    def _set_planning_runtime(self, adapter):
+    def _set_planning_runtime(self, adapter, version=(14, 3), *, warehouse=False):
         connection = Mock()
-        connection.capabilities = DBRCapabilities(dbr_version=(14, 3))
+        connection.capabilities = DBRCapabilities(
+            dbr_version=version,
+            is_sql_warehouse=warehouse,
+        )
         adapter.connections.get_thread_connection = Mock(return_value=connection)
+
+    def test_incremental_plan_serializes_delta_catalog_provider_and_runtime(self, adapter):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.build_catalog_relation = Mock(
+            return_value=DatabricksCatalogRelation(
+                catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
+                catalog_name="hive_metastore",
+                table_format=constants.DEFAULT_TABLE_FORMAT,
+                file_format=constants.DELTA_FILE_FORMAT,
+                catalog_provider="glue",
+            )
+        )
+        self._set_planning_runtime(adapter, version=(17, 1))
+
+        plan = adapter.plan_incremental_mutation(
+            "merge",
+            language="sql",
+            unique_key="id",
+            catalog_relation=adapter.build_catalog_relation(Mock()),
+        )
+
+        assert plan.strategy == IncrementalMutationStrategy.MERGE
+        assert plan.renderer_variant == "merge_delta"
+        assert plan.facts is not None
+        assert plan.facts.catalog.catalog_type == constants.HIVE_METASTORE_CATALOG_TYPE
+        assert plan.facts.catalog.catalog_provider == "glue"
+        assert plan.facts.format.table_provider == constants.DELTA_FILE_FORMAT
+        assert plan.facts.runtime.engine == "databricks_runtime"
+        assert plan.facts.runtime.version == "17.1"
+        assert "replace_on" in plan.facts.capabilities
+        assert plan.to_dict()["facts"]["catalog"]["catalog_provider"] == "glue"
+
+    def test_incremental_plan_distinguishes_uniform_from_managed_iceberg(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter, version=(16, 4))
+
+        adapter.behavior.use_managed_iceberg.setting = False
+        uniform = adapter.plan_incremental_mutation(
+            "merge",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert uniform.facts is not None
+        assert uniform.facts.format.table_format == constants.ICEBERG_TABLE_FORMAT
+        assert uniform.facts.format.table_provider == constants.DELTA_FILE_FORMAT
+        assert uniform.strategy == IncrementalMutationStrategy.MERGE
+        assert uniform.renderer_variant == "merge_delta"
+
+        adapter.behavior.use_managed_iceberg.setting = True
+        managed = adapter.plan_incremental_mutation(
+            "merge",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert managed.facts is not None
+        assert managed.facts.format.table_format == constants.ICEBERG_TABLE_FORMAT
+        assert managed.facts.format.table_provider == constants.ICEBERG_TABLE_FORMAT
+        assert managed.strategy == IncrementalMutationStrategy.MERGE
+        assert managed.renderer_variant == "merge_iceberg"
+
+    def test_insert_overwrite_variant_is_resolved_from_runtime_and_flag(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.behavior.use_replace_on_for_insert_overwrite.setting = False
+
+        self._set_planning_runtime(adapter, version=(16, 4))
+        old_cluster = adapter.plan_incremental_mutation(
+            "insert_overwrite",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert old_cluster.renderer_variant == "legacy_by_name"
+
+        self._set_planning_runtime(adapter, version=(17, 1))
+        new_cluster = adapter.plan_incremental_mutation(
+            "insert_overwrite",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert new_cluster.renderer_variant == "replace_on"
+
+        self._set_planning_runtime(adapter, warehouse=True)
+        warehouse_legacy = adapter.plan_incremental_mutation(
+            "insert_overwrite",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert warehouse_legacy.renderer_variant == "legacy_by_name"
+
+        adapter.behavior.use_replace_on_for_insert_overwrite.setting = True
+        warehouse_replace_on = adapter.plan_incremental_mutation(
+            "insert_overwrite",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert warehouse_replace_on.renderer_variant == "replace_on"
+
+    def test_managed_iceberg_incremental_rejects_hms_and_old_runtime(
+        self, adapter, hive_catalog_relation, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = True
+        self._set_planning_runtime(adapter, version=(16, 4))
+        hms = adapter.plan_incremental_mutation(
+            "merge",
+            catalog_relation=hive_catalog_relation,
+        )
+        assert hms.strategy == IncrementalMutationStrategy.UNSUPPORTED
+        assert hms.reason == "Managed Iceberg incremental models require Unity Catalog"
+
+        self._set_planning_runtime(adapter, version=(15, 4))
+        old_runtime = adapter.plan_incremental_mutation(
+            "merge",
+            catalog_relation=unity_catalog_relation,
+        )
+        assert old_runtime.strategy == IncrementalMutationStrategy.UNSUPPORTED
+        assert old_runtime.reason == "Managed Iceberg incremental models require DBR 16.4 or newer"
+
+    def test_incremental_strategy_validation_uses_physical_provider(self, adapter):
+        adapter.behavior.use_managed_iceberg.setting = False
+        self._set_planning_runtime(adapter, version=(17, 1))
+        parquet = DatabricksCatalogRelation(
+            catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
+            file_format=constants.PARQUET_FILE_FORMAT,
+        )
+
+        merge = adapter.plan_incremental_mutation("merge", catalog_relation=parquet)
+        append = adapter.plan_incremental_mutation("append", catalog_relation=parquet)
+
+        assert merge.strategy == IncrementalMutationStrategy.UNSUPPORTED
+        assert "resolved provider was 'parquet'" in (merge.reason or "")
+        assert append.strategy == IncrementalMutationStrategy.APPEND
+
+    def test_custom_incremental_strategy_remains_available(self, adapter):
+        adapter.behavior.use_managed_iceberg.setting = False
+        self._set_planning_runtime(adapter, version=(17, 1))
+        parquet = DatabricksCatalogRelation(
+            catalog_type=constants.HIVE_METASTORE_CATALOG_TYPE,
+            file_format=constants.PARQUET_FILE_FORMAT,
+        )
+
+        plan = adapter.plan_incremental_mutation("custom_upsert", catalog_relation=parquet)
+
+        assert plan.strategy == IncrementalMutationStrategy.CUSTOM
+        assert plan.renderer_macro == "get_incremental_custom_upsert_sql"
+        assert plan.renderer_variant == "custom_upsert_parquet"
 
     def test_uniform_planning_keeps_delta_physical_provider(self, adapter, unity_catalog_relation):
         adapter.behavior.use_managed_iceberg.setting = False
@@ -1907,6 +2053,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
 
         assert facts.create.format.table_format == constants.ICEBERG_TABLE_FORMAT
         assert facts.create.format.file_format == constants.DELTA_FILE_FORMAT
+        assert facts.create.format.table_provider == constants.DELTA_FILE_FORMAT
         assert facts.existing is not None
         assert facts.existing.requires_drop_before_replace is False
         assert "uniform_iceberg" in facts.execution.capabilities
@@ -1934,6 +2081,7 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         )
 
         assert delta_facts.create.format.file_format == constants.PARQUET_FILE_FORMAT
+        assert delta_facts.create.format.table_provider == constants.ICEBERG_TABLE_FORMAT
         assert delta_facts.existing is not None
         assert delta_facts.existing.requires_drop_before_replace is True
         assert iceberg_facts.existing is not None
@@ -2007,7 +2155,11 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             "run_hooks",
             "run_hooks",
             "create_from_query",
-            "create_from_relation",
+            "create_structure_from_relation",
+            "apply_alter_constraints",
+            "apply_tags",
+            "apply_column_tags",
+            "insert_from_relation",
             "drop_relation_if_exists",
             "rename_relation",
             "rename_relation",
@@ -2050,6 +2202,11 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
                     rule="test.databricks.merge",
                     detail="Test Databricks merge",
                 ),
+            ),
+            facts=IncrementalMutationFacts(
+                requested_strategy="merge",
+                language="sql",
+                unique_key_present=False,
             ),
         )
         materialization = adapter.plan_incremental_materialization(
@@ -2112,6 +2269,11 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
                     rule="test.databricks.merge",
                     detail="Test Databricks merge",
                 ),
+            ),
+            facts=IncrementalMutationFacts(
+                requested_strategy="merge",
+                language="sql",
+                unique_key_present=False,
             ),
         )
         materialization = adapter.plan_incremental_materialization(
