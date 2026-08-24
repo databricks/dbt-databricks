@@ -33,6 +33,19 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro apply_column_tags_from_plan(relation, column_tags, renderer_variant) -%}
+  {% if renderer_variant != 'unity' %}
+    {{ exceptions.raise_compiler_error(
+      "Column tags are not supported for planned catalog type " ~ renderer_variant
+    ) }}
+  {% endif %}
+  {%- for column, tags in column_tags.set_column_tags.items() -%}
+    {%- call statement('main') -%}
+      {{ alter_set_column_tags(relation, column, tags) }}
+    {%- endcall -%}
+  {%- endfor -%}
+{%- endmacro -%}
+
 {% macro alter_set_column_tags(relation, column, tags) -%}
   {# ALTER VIEW does not support setting column tags, but ALTER TABLE works for views #}
   {%- if relation.type == 'view' -%}
@@ -92,4 +105,3 @@
   {{ return(false) }}
 {% endmacro %}
 
- 

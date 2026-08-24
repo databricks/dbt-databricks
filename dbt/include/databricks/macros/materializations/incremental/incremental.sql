@@ -230,8 +230,13 @@
 
 {%- endmaterialization %}
 
-{% macro set_overwrite_mode(value) %}
-  {% if adapter.is_cluster() %}
+{% macro set_overwrite_mode(value, runtime_engine=none) %}
+  {% if runtime_engine is not none %}
+    {% set use_cluster_statement = runtime_engine == 'databricks_runtime' %}
+  {% else %}
+    {% set use_cluster_statement = adapter.is_cluster() %}
+  {% endif %}
+  {% if use_cluster_statement %}
     {%- call statement('Setting partitionOverwriteMode: ' ~ value) -%}
       set spark.sql.sources.partitionOverwriteMode = {{ value }}
     {%- endcall -%}
@@ -261,4 +266,11 @@
     {%- set configuration_changes = model_config.get_changeset(existing_config) -%}
     {{ apply_config_changeset(target_relation, model, configuration_changes, existing_relation) }}
   {% endif %}
+{% endmacro %}
+
+{% macro process_config_changes_from_plan(target_relation, existing_relation=none) %}
+  {%- set model_config = adapter.get_config_from_model(config.model) -%}
+  {%- set existing_config = adapter.get_relation_config(target_relation, model_config) -%}
+  {%- set configuration_changes = model_config.get_changeset(existing_config) -%}
+  {{ apply_config_changeset(target_relation, model, configuration_changes, existing_relation) }}
 {% endmacro %}

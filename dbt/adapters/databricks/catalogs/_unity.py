@@ -5,7 +5,10 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt_common.exceptions import DbtValidationError
 
 from dbt.adapters.databricks import constants, parse_model
-from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+from dbt.adapters.databricks.catalogs._relation import (
+    DatabricksCatalogRelation,
+    normalize_catalog_provider,
+)
 from dbt.adapters.databricks.logging import logger
 
 
@@ -28,6 +31,9 @@ class UnityCatalogIntegration(CatalogIntegration):
                 )
             self.external_volume: Optional[str] = location_root
         self.file_format: Optional[str] = config.file_format
+        self.catalog_provider = normalize_catalog_provider(
+            config.adapter_properties.get("catalog_provider")
+        )
         if config.adapter_properties.get("use_uniform") is not None:
             logger.warning(
                 f"Catalog '{config.name}': use_uniform is not yet supported by the adapter "
@@ -64,4 +70,5 @@ class UnityCatalogIntegration(CatalogIntegration):
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
             catalog_database=self.catalog_database,
+            catalog_provider=self.catalog_provider,
         )

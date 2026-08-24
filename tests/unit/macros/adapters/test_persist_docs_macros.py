@@ -248,6 +248,28 @@ class TestPersistDocsMacros(MacroTestBase):
             "but file format parquet does not support that."
         )
 
+    def test_planned_column_comment_does_not_probe_format_or_runtime(
+        self, template_bundle, context, relation, mock_model_with_columns
+    ):
+        context["adapter"].resolve_file_format.side_effect = AssertionError(
+            "typed renderer must not resolve file format"
+        )
+        context["adapter"].has_dbr_capability.side_effect = AssertionError(
+            "typed renderer must not probe runtime capability"
+        )
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
+        context["run_query_as"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "databricks__alter_column_comment",
+            relation,
+            mock_model_with_columns.columns,
+            "comment_on_column",
+        )
+
+        assert context["run_query_as"].call_count == 2
+
     def test_databricks__persist_docs_relation_only(self, template_bundle, context, relation):
         context["config"] = MagicMock()
         context["config"].persist_relation_docs.return_value = True

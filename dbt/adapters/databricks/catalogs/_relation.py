@@ -7,6 +7,15 @@ from dbt_common.exceptions import DbtConfigError
 from dbt.adapters.databricks import constants
 
 
+def normalize_catalog_provider(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    provider = str(value).strip().casefold()
+    if not provider:
+        raise DbtConfigError("Databricks catalog_provider cannot be blank")
+    return provider
+
+
 @dataclass
 class DatabricksCatalogRelation:
     catalog_type: str = constants.DEFAULT_CATALOG.catalog_type
@@ -18,6 +27,7 @@ class DatabricksCatalogRelation:
     # The physical Unity catalog to route models to, independent of the dbt catalog
     # label. Takes precedence over catalog_name in generate_database_name.
     catalog_database: Optional[str] = None
+    catalog_provider: Optional[str] = None
 
     @property
     def location_root(self) -> Optional[str]:

@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
@@ -256,6 +258,35 @@ class TestDeleteInsertMacros(MacroTestBase):
         # since Jinja2 macro testing cannot capture the return value as a Python list
 
     # ========== Tests for routing logic (replace_on capability check) ==========
+
+    @pytest.mark.parametrize(
+        "variant", ["replace_on", "delete_insert_by_name", "delete_insert_positional"]
+    )
+    def test_typed_plan_selects_renderer_without_capability_inference(
+        self, template, context, variant
+    ):
+        context["adapter"].has_dbr_capability = lambda _cap: (_ for _ in ()).throw(
+            AssertionError("typed renderer must not probe runtime capabilities")
+        )
+        context["adapter"].get_columns_in_relation.return_value = [
+            SimpleNamespace(quoted="a"),
+            SimpleNamespace(quoted="b"),
+        ]
+        context["config"].require = lambda key: "a" if key == "unique_key" else None
+        plan = SimpleNamespace(renderer_variant=variant)
+
+        result = self.run_macro_raw(
+            template,
+            "get_delete_insert_sql",
+            {
+                "temp_relation": "source",
+                "target_relation": "target",
+                "incremental_plan": plan,
+            },
+        )
+
+        if variant == "replace_on":
+            assert "replace on" in self.clean_sql(result)
 
     def test_delete_insert_sql_impl__routes_to_replace_on(self, template, context):
         """Verify that with replace_on capability, we use REPLACE ON syntax"""

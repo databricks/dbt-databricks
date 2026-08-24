@@ -32,3 +32,20 @@ class TestTagsMacros(MacroTestBase):
         )
 
         assert sql == expected
+
+    def test_planned_tags_do_not_probe_relation_catalog(self, template_bundle):
+        template_bundle.context["statement"] = (
+            lambda label, fetch_result=False, caller=None: caller() if caller else label
+        )
+        template_bundle.relation.is_hive_metastore = lambda: (_ for _ in ()).throw(
+            AssertionError("typed renderer must not infer catalog type")
+        )
+
+        sql = self.render_bundle(
+            template_bundle,
+            "apply_tags_from_plan",
+            {"domain": "finance"},
+            "unity",
+        )
+
+        assert "set tags ('domain' = 'finance')" in sql

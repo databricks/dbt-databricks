@@ -25,6 +25,19 @@
   {% endif %}
 {% endmacro %}
 
+{% macro persist_constraints_from_plan(relation, model, renderer_variant) %}
+  {% if renderer_variant == 'delta' %}
+    {% do alter_column_set_constraints(relation, model) %}
+    {% do alter_table_add_constraints(relation, model) %}
+  {% elif renderer_variant == 'unsupported' %}
+    {{ exceptions.warn("Constraints are not supported for the planned table provider") }}
+  {% else %}
+    {{ exceptions.raise_compiler_error(
+      "Unknown planned constraint renderer variant: " ~ renderer_variant
+    ) }}
+  {% endif %}
+{% endmacro %}
+
 {% macro apply_alter_constraints(relation) %}
   {%- for constraint in relation.alter_constraints -%}
     {% call statement('add constraint') %}

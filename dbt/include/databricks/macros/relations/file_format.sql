@@ -1,10 +1,12 @@
-{% macro file_format_clause(catalog_relation=none) %}
+{% macro file_format_clause(catalog_relation=none, format_facts=none) %}
   {#--
     Moving forward, this macro should require a `catalog_relation`, which is covered by the first condition.
     However, there could be existing macros that is still passing no arguments, including user macros.
     Hence, we need to support the old code still, which is covered by the second condition.
   --#}
-  {% if catalog_relation is not none %}
+  {% if format_facts is not none %}
+    {%- set table_provider = format_facts.table_provider -%}
+  {% elif catalog_relation is not none %}
     {%- set table_format = catalog_relation.table_format -%}
     {%- set file_format = catalog_relation.file_format -%}
   {% else %}
@@ -13,7 +15,9 @@
   {% endif %}
   
   {#-- Use managed Iceberg if behavior flag is enabled and table_format is iceberg --#}
-  {% if table_format == 'iceberg' and adapter.behavior.use_managed_iceberg %}
+  {% if format_facts is not none %}
+    using {{ table_provider }}
+  {% elif table_format == 'iceberg' and adapter.behavior.use_managed_iceberg %}
     using iceberg
   {% else %}
     using {{ file_format }}

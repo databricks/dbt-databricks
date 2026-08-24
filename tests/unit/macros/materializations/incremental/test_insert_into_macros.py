@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -68,6 +69,35 @@ class TestInsertIntoMacros(MacroTestBase):
         target_relation.render.return_value = "target_table"
 
         return source_relation, target_relation
+
+    @pytest.mark.parametrize(
+        "variant,expects_by_name",
+        [("append_by_name", True), ("append_positional", False)],
+    )
+    def test_typed_append_uses_planned_renderer_variant(
+        self, template_bundle, mock_relations, variant, expects_by_name
+    ):
+        source_relation, target_relation = mock_relations
+        adapter = template_bundle.context["adapter"]
+        adapter.has_dbr_capability = Mock(
+            side_effect=AssertionError("typed append must not probe runtime capabilities")
+        )
+        adapter.get_columns_in_relation.side_effect = [
+            [SimpleNamespace(name="id"), SimpleNamespace(name="value")],
+            [SimpleNamespace(name="id"), SimpleNamespace(name="value")],
+        ]
+
+        result = self.run_macro(
+            template_bundle.template,
+            "databricks__get_incremental_append_sql",
+            {
+                "temp_relation": source_relation,
+                "target_relation": target_relation,
+                "incremental_plan": SimpleNamespace(renderer_variant=variant),
+            },
+        )
+
+        assert ("by name" in self.clean_sql(result)) is expects_by_name
 
     def test_insert_into_sql_impl__with_capability_matching_columns(
         self, template_bundle, mock_relations

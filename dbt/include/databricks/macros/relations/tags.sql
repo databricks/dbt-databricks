@@ -28,6 +28,19 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro apply_tags_from_plan(relation, set_tags, renderer_variant) -%}
+  {% if renderer_variant != 'unity' %}
+    {{ exceptions.raise_compiler_error(
+      "Tags are not supported for planned catalog type " ~ renderer_variant
+    ) }}
+  {% endif %}
+  {%- if set_tags and set_tags != [] %}
+    {%- call statement('main') -%}
+       {{ alter_set_tags(relation, set_tags) }}
+    {%- endcall -%}
+  {%- endif %}
+{%- endmacro -%}
+
 {% macro alter_set_tags(relation, tags) -%}
   ALTER {{ relation.type.render_for_alter() }} {{ relation.render() }} SET TAGS (
     {% for tag in tags -%}

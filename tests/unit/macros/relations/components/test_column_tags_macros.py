@@ -61,6 +61,21 @@ class TestColumnTagsMacros(MacroTestBase):
         assert "alter" not in sql
         assert "set tags" not in sql
 
+    def test_planned_column_tags_do_not_probe_relation_catalog(self, passthrough_statement):
+        passthrough_statement.relation.is_hive_metastore = lambda: (_ for _ in ()).throw(
+            AssertionError("typed renderer must not infer catalog type")
+        )
+        config = ColumnTagsConfig(set_column_tags={"email": {"pii": "true"}})
+
+        sql = self.render_bundle(
+            passthrough_statement,
+            "apply_column_tags_from_plan",
+            config,
+            "unity",
+        )
+
+        assert "alter column `email` set tags ('pii' = 'true')" in sql
+
     def test_alter_unset_column_tags_table(self, template_bundle):
         sql = self.render_bundle(
             template_bundle, "alter_unset_column_tags", "email", ["pii", "team"]

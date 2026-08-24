@@ -4,7 +4,10 @@ from dbt.adapters.catalogs import CatalogIntegration, CatalogIntegrationConfig
 from dbt.adapters.contracts.relation import RelationConfig
 
 from dbt.adapters.databricks import constants, parse_model
-from dbt.adapters.databricks.catalogs._relation import DatabricksCatalogRelation
+from dbt.adapters.databricks.catalogs._relation import (
+    DatabricksCatalogRelation,
+    normalize_catalog_provider,
+)
 
 
 class HiveMetastoreCatalogIntegration(CatalogIntegration):
@@ -14,6 +17,9 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
         self.file_format: Optional[str] = config.file_format
+        self.catalog_provider = normalize_catalog_provider(
+            config.adapter_properties.get("catalog_provider")
+        )
 
     @property
     def location_root(self) -> Optional[str]:
@@ -42,4 +48,5 @@ class HiveMetastoreCatalogIntegration(CatalogIntegration):
             file_format=parse_model.file_format(model) or self.file_format,
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
+            catalog_provider=self.catalog_provider,
         )
