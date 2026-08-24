@@ -3,9 +3,12 @@ from typing import Any, Optional
 
 import pytest
 from dbt.adapters.capability import Capability, Support
-from dbt_common.exceptions import DbtValidationError
+from dbt_common.exceptions import DbtConfigError, DbtValidationError
 
-from dbt.adapters.databricks.catalogs import UnityCatalogIntegration
+from dbt.adapters.databricks.catalogs import (
+    HiveMetastoreCatalogIntegration,
+    UnityCatalogIntegration,
+)
 from dbt.adapters.databricks.impl import DatabricksAdapter
 
 
@@ -100,6 +103,23 @@ def test_unity_no_catalog_database_defaults_none():
     integration = UnityCatalogIntegration(_Config())
     assert integration.catalog_database is None
     assert integration.build_relation(_Model()).catalog_database is None
+
+
+def test_unity_catalog_provider_is_explicit_and_canonical():
+    integration = UnityCatalogIntegration(
+        _Config(adapter_properties={"catalog_provider": " Glue "})
+    )
+    assert integration.build_relation(_Model()).catalog_provider == "glue"
+
+
+def test_hive_metastore_does_not_imply_glue_provider():
+    integration = HiveMetastoreCatalogIntegration(_Config(catalog_type="hive_metastore"))
+    assert integration.build_relation(_Model()).catalog_provider is None
+
+
+def test_blank_catalog_provider_is_rejected():
+    with pytest.raises(DbtConfigError, match="catalog_provider cannot be blank"):
+        UnityCatalogIntegration(_Config(adapter_properties={"catalog_provider": "  "}))
 
 
 def test_unity_catalog_database_absent_on_older_adapters():

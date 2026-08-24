@@ -3,10 +3,10 @@ import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import metadata
 from multiprocessing.context import SpawnContext
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, NamedTuple, Optional, Union, cast
@@ -20,6 +20,22 @@ from dbt.adapters.capability import Capability, CapabilityDict, CapabilitySuppor
 from dbt.adapters.catalogs import CatalogRelation
 from dbt.adapters.contracts.connection import AdapterResponse, Connection
 from dbt.adapters.contracts.relation import RelationConfig, RelationType
+from dbt.adapters.planning import (
+    CreateFromQueryFacts,
+    FormatFacts,
+    MaterializationExecutionFacts,
+    MaterializationHookStrategy,
+    MaterializationOperation,
+    MaterializationOperationKind,
+    MaterializationRelationRole,
+    MaterializationStatementStrategy,
+    MaterializationTransactionMode,
+    MaterializationTransactionStrategy,
+    PlanProvenance,
+    RuntimeFacts,
+    TableLifecyclePlan,
+    TableMaterializationFacts,
+)
 from dbt.adapters.relation_configs import RelationResults
 from dbt.adapters.spark.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
@@ -366,6 +382,401 @@ class DatabricksAdapter(SparkAdapter):
             return not self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         else:
             return False
+
+    def get_create_from_query_catalog_provider(
+        self,
+        catalog_relation: CatalogRelation,
+        model: Optional[RelationConfig],
+    ) -> Optional[str]:
+        """Return an explicit provider without inferring Glue from Hive Metastore."""
+
+        provider = getattr(catalog_relation, "catalog_provider", None)
+        return str(provider).casefold() if provider is not None else None
+
+    def get_create_from_query_runtime_facts(
+        self,
+        temporary: bool,
+        relation: BaseRelation,
+        model: Optional[RelationConfig],
+    ) -> RuntimeFacts:
+        connection = cast(
+            DatabricksDBTConnection,
+            self.connections.get_thread_connection(),
+        )
+        capabilities = connection.capabilities
+        runtime_version = capabilities.dbr_version
+        return RuntimeFacts(
+            engine=(
+                "databricks_sql_warehouse"
+                if capabilities.is_sql_warehouse
+                else "databricks_runtime"
+            ),
+            version=(
+                f"{runtime_version[0]}.{runtime_version[1]}"
+                if runtime_version is not None
+                else None
+            ),
+        )
+
+    def build_create_from_query_facts(
+        self,
+        temporary: bool,
+        relation: BaseRelation,
+        model: Optional[RelationConfig] = None,
+    ) -> CreateFromQueryFacts:
+        facts = super().build_create_from_query_facts(temporary, relation, model)
+        if model is None:
+            return facts
+        if model.config is None:
+            raise DbtConfigError("Databricks create planning requires model configuration")
+        model_config = model.config
+
+        catalog_relation = cast(
+            Optional[DatabricksCatalogRelation],
+            self.build_catalog_relation(model),
+        )
+        table_format = (
+            catalog_relation.table_format
+            if catalog_relation is not None
+            else model_config.get("table_format")
+        )
+        if table_format == constants.ICEBERG_TABLE_FORMAT:
+            self.require_capability(DBRCapability.ICEBERG)
+            if (
+                self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+                and catalog_relation is not None
+                and catalog_relation.catalog_type != constants.UNITY_CATALOG_TYPE
+            ):
+                raise DbtConfigError(
+                    "Managed Iceberg tables are only supported in Unity Catalog. "
+                    "Set 'use_managed_iceberg' behavior flag to false for Hive Metastore."
+                )
+
+        return replace(
+            facts,
+            format=FormatFacts(
+                table_format=self._create_from_query_fact_value(
+                    table_format,
+                    canonical=True,
+                ),
+                file_format=self._create_from_query_fact_value(
+                    self.resolve_file_format(model_config),
+                    canonical=True,
+                ),
+            ),
+        )
+
+    def get_table_materialization_execution_facts(
+        self,
+        model: RelationConfig,
+        target_relation: BaseRelation,
+    ) -> MaterializationExecutionFacts:
+        if model.config is None:
+            raise DbtConfigError("Databricks table planning requires model configuration")
+        model_config = model.config
+        connection = cast(
+            DatabricksDBTConnection,
+            self.connections.get_thread_connection(),
+        )
+        enabled = tuple(
+            sorted(
+                capability.value for capability in connection.capabilities.enabled_capabilities()
+            )
+        )
+        catalog_relation = cast(
+            Optional[DatabricksCatalogRelation],
+            self.build_catalog_relation(model),
+        )
+        capabilities = list(enabled)
+        if catalog_relation is not None:
+            capabilities.append(f"catalog_type:{catalog_relation.catalog_type}")
+            if catalog_relation.catalog_provider is not None:
+                capabilities.append(f"catalog_provider:{catalog_relation.catalog_provider}")
+        table_format = (
+            catalog_relation.table_format
+            if catalog_relation is not None
+            else model_config.get("table_format")
+        )
+        if table_format == constants.ICEBERG_TABLE_FORMAT:
+            capabilities.append(
+                "managed_iceberg"
+                if self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+                else "uniform_iceberg"
+            )
+        if self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"]):
+            capabilities.append("materialization_v2")
+        return MaterializationExecutionFacts(
+            transaction_mode=MaterializationTransactionMode.NONE,
+            capabilities=tuple(dict.fromkeys(capabilities)),
+        )
+
+    def build_table_materialization_facts(
+        self,
+        model: RelationConfig,
+        target_relation: BaseRelation,
+        existing_relation: Optional[BaseRelation],
+    ) -> TableMaterializationFacts:
+        facts = super().build_table_materialization_facts(
+            model,
+            target_relation,
+            existing_relation,
+        )
+        if facts.existing is None or existing_relation is None:
+            return facts
+
+        existing_provider = self._create_from_query_fact_value(
+            (getattr(existing_relation, "metadata", None) or {}).get(KEY_TABLE_PROVIDER),
+            canonical=True,
+        )
+        managed_iceberg = (
+            facts.create.format.table_format == constants.ICEBERG_TABLE_FORMAT
+            and self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
+        )
+        desired_provider = (
+            constants.ICEBERG_TABLE_FORMAT if managed_iceberg else facts.create.format.file_format
+        )
+        existing = replace(
+            facts.existing,
+            format=FormatFacts(
+                table_format=(
+                    constants.ICEBERG_TABLE_FORMAT
+                    if existing_provider == constants.ICEBERG_TABLE_FORMAT
+                    else None
+                ),
+                file_format=existing_provider,
+            ),
+            requires_drop_before_replace=(
+                facts.existing.is_shallow_clone
+                or facts.existing.relation.relation_type != "table"
+                or not facts.existing.can_be_replaced
+                or desired_provider
+                not in {
+                    constants.DELTA_FILE_FORMAT,
+                    constants.ICEBERG_TABLE_FORMAT,
+                }
+                or existing_provider != desired_provider
+            ),
+        )
+        return replace(facts, existing=existing)
+
+    @available.parse_none
+    def plan_table_materialization(
+        self,
+        materialization_macro_id: str,
+        language: str,
+        model: Optional[RelationConfig] = None,
+    ) -> Optional[TableLifecyclePlan]:
+        if (
+            language != "sql"
+            or materialization_macro_id != "macro.dbt_databricks.materialization_table_databricks"
+        ):
+            return None
+        use_v2 = self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"])
+        return TableLifecyclePlan.direct_replace(
+            transaction=MaterializationTransactionStrategy.ADAPTER_MANAGED,
+            hooks=MaterializationHookStrategy.IN_TRANSACTION,
+            statement=MaterializationStatementStrategy.NO_AUTO_BEGIN,
+            provenance=(
+                PlanProvenance(
+                    rule="databricks.table.v2" if use_v2 else "databricks.table.v1",
+                    detail=(
+                        "Databricks SQL table materialization uses an ordered "
+                        f"{'create-then-insert' if use_v2 else 'direct replacement'} "
+                        "program resolved from physical Delta or Iceberg provider facts"
+                    ),
+                ),
+            ),
+        )
+
+    @available
+    def resolve_table_lifecycle_plan(
+        self,
+        plan: TableLifecyclePlan,
+        model: RelationConfig,
+        target_relation: BaseRelation,
+        existing_relation: Optional[BaseRelation],
+        config: Mapping[str, Any],
+    ) -> TableLifecyclePlan:
+        facts = self.build_table_materialization_facts(
+            model,
+            target_relation,
+            existing_relation,
+        )
+        target = MaterializationRelationRole.TARGET
+        existing = MaterializationRelationRole.EXISTING
+        intermediate = MaterializationRelationRole.INTERMEDIATE
+        staging = MaterializationRelationRole.STAGING
+        backup = MaterializationRelationRole.BACKUP
+        use_v2 = "materialization_v2" in facts.execution.capabilities
+        if use_v2:
+            operations = [
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="pre",
+                    inside_transaction=False,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="pre",
+                    inside_transaction=True,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.CREATE_FROM_QUERY,
+                    relation=intermediate,
+                    temporary=True,
+                    auto_begin=False,
+                ),
+            ]
+            safe_create = bool(config.get("use_safer_relation_operations", False))
+            if facts.existing is not None and safe_create and facts.existing.can_be_renamed:
+                operations.extend(
+                    (
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.CREATE_FROM_RELATION,
+                            relation=staging,
+                            source=intermediate,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.RENAME_RELATION,
+                            relation=existing,
+                            destination=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.RENAME_RELATION,
+                            relation=staging,
+                            destination=target,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=intermediate,
+                        ),
+                    )
+                )
+            else:
+                if facts.existing is not None and facts.existing.requires_drop_before_replace:
+                    operations.append(
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=existing,
+                        )
+                    )
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.CREATE_FROM_RELATION,
+                        relation=target,
+                        source=intermediate,
+                    )
+                )
+            operations.extend(
+                (
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.APPLY_GRANTS,
+                        relation=target,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.OPTIMIZE,
+                        relation=target,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.RUN_HOOKS,
+                        name="post",
+                        inside_transaction=True,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.RUN_HOOKS,
+                        name="post",
+                        inside_transaction=False,
+                    ),
+                )
+            )
+            return plan.resolve(
+                facts=facts,
+                operations=tuple(operations),
+                provenance=(
+                    PlanProvenance(
+                        rule="databricks.table.v2.operations",
+                        detail=(
+                            "Databricks create-then-insert, safe replacement, grants, "
+                            "optimization, and split hooks are ordered explicitly"
+                        ),
+                    ),
+                ),
+            )
+
+        operations = [
+            MaterializationOperation(
+                kind=MaterializationOperationKind.RUN_HOOKS,
+                name="pre",
+                inside_transaction=True,
+            )
+        ]
+        if facts.existing is not None and facts.existing.requires_drop_before_replace:
+            operations.append(
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                    relation=existing,
+                )
+            )
+        operations.extend(
+            (
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.CREATE_FROM_QUERY,
+                    relation=target,
+                    temporary=False,
+                    auto_begin=False,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_GRANTS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_TAGS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_COLUMN_TAGS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.PERSIST_DOCUMENTATION,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.PERSIST_CONSTRAINTS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.OPTIMIZE,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="post",
+                    inside_transaction=True,
+                ),
+            )
+        )
+        return plan.resolve(
+            facts=facts,
+            operations=tuple(operations),
+            provenance=(
+                PlanProvenance(
+                    rule="databricks.table.v1.operations",
+                    detail=(
+                        "Databricks table hooks, replacement, grants, tags, "
+                        "documentation, constraints, and optimization are ordered explicitly"
+                    ),
+                ),
+            ),
+        )
 
     @available.parse(lambda *a, **k: 0)
     def update_tblproperties_for_uniform_iceberg(

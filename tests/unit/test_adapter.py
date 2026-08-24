@@ -25,6 +25,7 @@ from dbt.adapters.databricks.column import DatabricksColumn
 from dbt.adapters.databricks.credentials import (
     CATALOG_KEY_IN_SESSION_PROPERTIES,
 )
+from dbt.adapters.databricks.dbr_capabilities import DBRCapabilities
 from dbt.adapters.databricks.impl import (
     DESCRIBE_TABLE_EXTENDED_MACRO_NAME,
     DatabricksConfig,
@@ -36,6 +37,7 @@ from dbt.adapters.databricks.impl import (
     get_identifier_list_string,
 )
 from dbt.adapters.databricks.relation import (
+    KEY_TABLE_PROVIDER,
     DatabricksRelation,
     DatabricksRelationType,
     DatabricksTableType,
@@ -1859,6 +1861,162 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
             table_format=constants.ICEBERG_TABLE_FORMAT,
             file_format=constants.DELTA_FILE_FORMAT,
         )
+
+    def _planning_model(self):
+        model = Mock()
+        model.database = "test_catalog"
+        model.schema = "analytics"
+        model.identifier = "model"
+        model.config = {
+            "materialized": "table",
+            "table_format": constants.ICEBERG_TABLE_FORMAT,
+        }
+        return model
+
+    def _planning_relation(self, *, provider: Optional[str] = None):
+        return DatabricksRelation.create(
+            database="test_catalog",
+            schema="analytics",
+            identifier="model",
+            type=DatabricksRelationType.Table,
+            is_delta=provider == constants.DELTA_FILE_FORMAT,
+            metadata={KEY_TABLE_PROVIDER: provider} if provider is not None else {},
+        )
+
+    def _set_planning_runtime(self, adapter):
+        connection = Mock()
+        connection.capabilities = DBRCapabilities(dbr_version=(14, 3))
+        adapter.connections.get_thread_connection = Mock(return_value=connection)
+
+    def test_uniform_planning_keeps_delta_physical_provider(self, adapter, unity_catalog_relation):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter)
+
+        facts = adapter.build_table_materialization_facts(
+            self._planning_model(),
+            self._planning_relation(),
+            self._planning_relation(provider=constants.DELTA_FILE_FORMAT),
+        )
+
+        assert facts.create.format.table_format == constants.ICEBERG_TABLE_FORMAT
+        assert facts.create.format.file_format == constants.DELTA_FILE_FORMAT
+        assert facts.existing is not None
+        assert facts.existing.requires_drop_before_replace is False
+        assert "uniform_iceberg" in facts.execution.capabilities
+
+    def test_managed_iceberg_drops_delta_but_replaces_native_iceberg(
+        self, adapter, unity_catalog_relation_managed_iceberg_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = True
+        adapter.build_catalog_relation = Mock(
+            return_value=unity_catalog_relation_managed_iceberg_relation
+        )
+        self._set_planning_runtime(adapter)
+        model = self._planning_model()
+        target = self._planning_relation()
+
+        delta_facts = adapter.build_table_materialization_facts(
+            model,
+            target,
+            self._planning_relation(provider=constants.DELTA_FILE_FORMAT),
+        )
+        iceberg_facts = adapter.build_table_materialization_facts(
+            model,
+            target,
+            self._planning_relation(provider=constants.ICEBERG_TABLE_FORMAT),
+        )
+
+        assert delta_facts.create.format.file_format == constants.PARQUET_FILE_FORMAT
+        assert delta_facts.existing is not None
+        assert delta_facts.existing.requires_drop_before_replace is True
+        assert iceberg_facts.existing is not None
+        assert iceberg_facts.existing.requires_drop_before_replace is False
+        assert "managed_iceberg" in iceberg_facts.execution.capabilities
+
+    def test_v1_table_plan_encapsulates_databricks_post_create_operations(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.behavior.use_materialization_v2.setting = False
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter)
+        model = self._planning_model()
+        target = self._planning_relation()
+        existing = self._planning_relation(provider=constants.DELTA_FILE_FORMAT)
+
+        plan = adapter.plan_table_materialization(
+            "macro.dbt_databricks.materialization_table_databricks",
+            "sql",
+            model,
+        )
+        assert plan is not None
+        resolved = adapter.resolve_table_lifecycle_plan(
+            plan,
+            model,
+            target,
+            existing,
+            model.config,
+        )
+
+        assert [operation.kind.value for operation in resolved.operations] == [
+            "run_hooks",
+            "create_from_query",
+            "apply_grants",
+            "apply_tags",
+            "apply_column_tags",
+            "persist_documentation",
+            "persist_constraints",
+            "optimize",
+            "run_hooks",
+        ]
+
+    def test_v2_safe_table_plan_encapsulates_create_insert_and_swap(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.behavior.use_materialization_v2.setting = True
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter)
+        model = self._planning_model()
+        model.config["use_safer_relation_operations"] = True
+        target = self._planning_relation()
+        existing = self._planning_relation(provider=constants.DELTA_FILE_FORMAT)
+
+        plan = adapter.plan_table_materialization(
+            "macro.dbt_databricks.materialization_table_databricks",
+            "sql",
+            model,
+        )
+        assert plan is not None
+        resolved = adapter.resolve_table_lifecycle_plan(
+            plan,
+            model,
+            target,
+            existing,
+            model.config,
+        )
+
+        assert [operation.kind.value for operation in resolved.operations] == [
+            "run_hooks",
+            "run_hooks",
+            "create_from_query",
+            "create_from_relation",
+            "drop_relation_if_exists",
+            "rename_relation",
+            "rename_relation",
+            "drop_relation_if_exists",
+            "drop_relation_if_exists",
+            "apply_grants",
+            "optimize",
+            "run_hooks",
+            "run_hooks",
+        ]
+        create_intermediate = resolved.operations[2]
+        assert create_intermediate.relation.value == "intermediate"
+        assert create_intermediate.temporary is True
+        assert resolved.operations[3].source.value == "intermediate"
+        assert resolved.operations[3].relation.value == "staging"
 
     def test_is_uniform_with_managed_iceberg_returns_false(
         self, adapter, mock_config, unity_catalog_relation_managed_iceberg_relation
