@@ -1,10 +1,16 @@
 # Table Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-23_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
 > selection works. Source: `dbt/include/databricks/macros/materializations/table.sql`.
+
+For SQL models on dbt-core versions that expose typed materialization execution, the adapter now
+resolves the same flow into an ordered Python operation plan before mutation begins. Logical table
+format, physical Delta versus managed-Iceberg provider, catalog type/provider, DBR capabilities,
+and live replacement safety are plan inputs. The macros remain compatibility fallbacks and leaf SQL
+renderers; they are not the source of those decisions on the typed path.
 
 ## V1 Table Flow
 

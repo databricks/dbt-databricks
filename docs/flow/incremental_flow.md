@@ -1,11 +1,17 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-23_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
 > flag is and how the selection works. Source:
 > `dbt/include/databricks/macros/materializations/incremental/incremental.sql`.
+
+For SQL models on dbt-core versions that expose typed materialization execution, the adapter now
+serializes these branches as an ordered Python operation plan. The plan includes the mutation and
+schema-change strategies, logical and physical formats, explicit catalog provider, DBR capabilities,
+full-refresh state, config-change timing, overwrite-mode transitions, and multi-statement execution.
+The macro remains the compatibility fallback and supplies leaf SQL renderers where required.
 
 ## Existing Incremental Flow
 
