@@ -7,7 +7,7 @@
 
 ### Under the Hood
 
-- Add typed table and incremental operation planning for compatible dbt-core versions, including explicit catalog-provider and DBR-capability facts and distinct Delta, UniForm Iceberg, and managed Iceberg replacement behavior.
+- Add typed table and incremental operation planning for compatible dbt-core versions, including explicit catalog-provider and DBR-capability facts and distinct Delta, UniForm Iceberg, and managed Iceberg replacement behavior. ([#1651](https://github.com/databricks/dbt-databricks/pull/1651))
 
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 
