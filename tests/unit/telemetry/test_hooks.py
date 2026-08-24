@@ -73,3 +73,34 @@ def test_stale_cleanup_does_not_tombstone_next_invocation(monkeypatch):
     assert leftover._dbt_telemetry_invocation_id == "inv-1"
     assert next_adapter._dbt_telemetry_invocation_id == "inv-2"
     assert coord.needs_post_parse("inv-2") is True
+    assert "inv-1" not in coord._states
+
+
+def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
+    coord = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
+    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=None)
+
+    hooks.on_connection_open(
+        SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42"
+    )
+
+    transport = coord.set_transport.call_args.args[1]
+    assert transport.workspace_id == "42"
+
+
+def test_connection_open_falls_back_to_manager_workspace_id(monkeypatch):
+    coord = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
+    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
+
+    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/default")
+
+    transport = coord.set_transport.call_args.args[1]
+    assert transport.workspace_id == "7"

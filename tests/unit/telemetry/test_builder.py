@@ -162,6 +162,16 @@ class TestBuildConnectionConfig:
         )
         assert cc.spog_routing_configured is False
 
+    def test_named_compute_o_parameter_sets_spog_flag(self):
+        cc = builder.build_connection_config(
+            _creds(
+                token="dapi",
+                http_path="/sql/1.0/warehouses/default",
+                compute={"named": {"http_path": "/sql/1.0/warehouses/named?o=42"}},
+            )
+        )
+        assert cc.spog_routing_configured is True
+
 
 class TestAggregateManifest:
     def _manifest(self):
