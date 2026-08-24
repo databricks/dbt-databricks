@@ -187,6 +187,20 @@ class TestIsolationAndClose:
 
         assert len(capture.calls) == 2
 
+    def test_mark_start_prunes_closed_invocations(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.close("inv-1")
+        c.mark_start("inv-2")
+
+        assert "inv-1" not in c._states
+        assert "inv-2" in c._states
+        assert c.needs_post_parse("inv-2") is True
+
+        c.close("inv-1")
+        assert c._states["inv-1"].closed
+        assert not c._states["inv-2"].closed
+
 
 class TestPostRun:
     def _entry(self, call):

@@ -76,3 +76,33 @@ def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkey
     assert build.call_args.args[0] == "inv-1"
     coord.set_post_run.assert_called_once_with("inv-1", "log")
     coord.close.assert_called_once_with("inv-1")
+
+
+def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
+    coord = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
+    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=None)
+
+    hooks.on_connection_open(
+        SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42"
+    )
+
+    transport = coord.set_transport.call_args.args[1]
+    assert transport.workspace_id == "42"
+
+
+def test_connection_open_falls_back_to_manager_workspace_id(monkeypatch):
+    coord = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
+    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
+
+    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/default")
+
+    transport = coord.set_transport.call_args.args[1]
+    assert transport.workspace_id == "7"

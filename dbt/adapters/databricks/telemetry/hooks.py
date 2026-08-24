@@ -2,6 +2,7 @@ import sys
 from typing import Any, Optional
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.telemetry import builder, listener
 from dbt.adapters.databricks.telemetry.config import (
     has_reusable_transport,
@@ -73,6 +74,7 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
 def on_connection_open(
     credentials: Optional[DatabricksCredentials],
     credentials_manager: Optional[Any],
+    http_path: Optional[str] = None,
 ) -> None:
     try:
         if (
@@ -84,10 +86,13 @@ def on_connection_open(
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
+        workspace_id = extract_workspace_id(http_path)
+        if workspace_id is None:
+            workspace_id = getattr(credentials_manager, "workspace_id", None)
         transport = Transport(
             host=getattr(credentials_manager, "host", None),
             header_factory=getattr(credentials_manager, "header_factory", None),
-            workspace_id=getattr(credentials_manager, "workspace_id", None),
+            workspace_id=workspace_id,
         )
         coordinator().set_transport(invocation_id, transport)
     except Exception:  # pragma: no cover - best-effort

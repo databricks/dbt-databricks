@@ -186,6 +186,18 @@ def build_invocation_config(config: Any) -> models.InvocationConfig:
     )
 
 
+def _profile_http_paths(creds: DatabricksCredentials) -> list[str]:
+    paths: list[str] = []
+    default = getattr(creds, "http_path", None)
+    if default:
+        paths.append(default)
+    for cfg in (getattr(creds, "compute", None) or {}).values():
+        path = cfg.get("http_path") if cfg else None
+        if path:
+            paths.append(path)
+    return paths
+
+
 def build_connection_config(creds: DatabricksCredentials) -> models.ConnectionConfig:
     http_path = getattr(creds, "http_path", None)
     connection_parameters = getattr(creds, "connection_parameters", None) or {}
@@ -194,7 +206,9 @@ def build_connection_config(creds: DatabricksCredentials) -> models.ConnectionCo
         configured_auth_family=classify_auth_family(creds),
         named_compute_count=len(getattr(creds, "compute", None) or {}),
         # Parse only the `o` parameter; discard its value.
-        spog_routing_configured=extract_workspace_id(http_path) is not None,
+        spog_routing_configured=any(
+            extract_workspace_id(path) is not None for path in _profile_http_paths(creds)
+        ),
         use_kernel=bool(connection_parameters.get("use_kernel")),
     )
 

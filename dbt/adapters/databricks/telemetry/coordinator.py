@@ -119,6 +119,11 @@ class Coordinator:
 
     def mark_start(self, invocation_id: str) -> None:
         with self._lock:
+            self._states = {
+                key: state
+                for key, state in self._states.items()
+                if key == invocation_id or not state.closed
+            }
             self._state(invocation_id)
 
     def is_closed(self, invocation_id: str) -> bool:
