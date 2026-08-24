@@ -8,6 +8,12 @@ from unittest.mock import Mock, patch
 import agate
 import dbt.flags as flags
 import pytest
+from dbt.adapters.planning import (
+    DdlAtomicity,
+    IncrementalMutationPlan,
+    IncrementalMutationStrategy,
+    PlanProvenance,
+)
 from agate import Row
 from dbt.config import RuntimeConfig
 from dbt_common.clients.agate_helper import merge_tables
@@ -2017,6 +2023,68 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         assert create_intermediate.temporary is True
         assert resolved.operations[3].source.value == "intermediate"
         assert resolved.operations[3].relation.value == "staging"
+
+    def test_v2_incremental_plan_orders_config_schema_and_mutation(
+        self, adapter, unity_catalog_relation
+    ):
+        adapter.behavior.use_managed_iceberg.setting = False
+        adapter.behavior.use_materialization_v2.setting = True
+        adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
+        self._set_planning_runtime(adapter)
+        model = self._planning_model()
+        model.config.update(
+            {
+                "materialized": "incremental",
+                "incremental_strategy": "merge",
+            }
+        )
+        target = self._planning_relation()
+        existing = self._planning_relation(provider=constants.DELTA_FILE_FORMAT)
+        mutation = IncrementalMutationPlan(
+            requested_strategy="merge",
+            strategy=IncrementalMutationStrategy.MERGE,
+            renderer_macro="get_incremental_merge_sql",
+            atomicity=DdlAtomicity.UNKNOWN,
+            provenance=(
+                PlanProvenance(
+                    rule="test.databricks.merge",
+                    detail="Test Databricks merge",
+                ),
+            ),
+        )
+        materialization = adapter.plan_incremental_materialization(
+            "macro.dbt_databricks.materialization_incremental_databricks",
+            "sql",
+            model,
+        )
+        assert materialization is not None
+
+        resolved = adapter.resolve_incremental_lifecycle_plan(
+            mutation,
+            model,
+            target,
+            existing,
+            full_refresh=False,
+            on_schema_change="sync_all_columns",
+            staging_is_temporary=True,
+            contract_enforced=False,
+            materialization_plan=materialization,
+        )
+
+        assert resolved.facts.create.format.table_format == "iceberg"
+        assert resolved.facts.create.format.file_format == "delta"
+        assert [operation.kind.value for operation in resolved.operations] == [
+            "run_hooks",
+            "run_hooks",
+            "create_from_query",
+            "process_schema_changes",
+            "process_config_changes",
+            "execute_incremental_mutation",
+            "apply_grants",
+            "optimize",
+            "run_hooks",
+            "run_hooks",
+        ]
 
     def test_is_uniform_with_managed_iceberg_returns_false(
         self, adapter, mock_config, unity_catalog_relation_managed_iceberg_relation

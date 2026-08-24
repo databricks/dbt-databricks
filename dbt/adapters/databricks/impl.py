@@ -23,6 +23,9 @@ from dbt.adapters.contracts.relation import RelationConfig, RelationType
 from dbt.adapters.planning import (
     CreateFromQueryFacts,
     FormatFacts,
+    IncrementalLifecyclePlan,
+    IncrementalMaterializationPlan,
+    IncrementalMutationPlan,
     MaterializationExecutionFacts,
     MaterializationHookStrategy,
     MaterializationOperation,
@@ -583,6 +586,234 @@ class DatabricksAdapter(SparkAdapter):
                         "Databricks SQL table materialization uses an ordered "
                         f"{'create-then-insert' if use_v2 else 'direct replacement'} "
                         "program resolved from physical Delta or Iceberg provider facts"
+                    ),
+                ),
+            ),
+        )
+
+    @available.parse_none
+    def plan_incremental_materialization(
+        self,
+        materialization_macro_id: str,
+        language: str,
+        model: Optional[RelationConfig] = None,
+    ) -> Optional[IncrementalMaterializationPlan]:
+        if (
+            language != "sql"
+            or materialization_macro_id
+            != "macro.dbt_databricks.materialization_incremental_databricks"
+            or not self.get_behavior_flag_no_warn(USE_MATERIALIZATION_V2["name"])
+        ):
+            return None
+        return IncrementalMaterializationPlan(
+            materialization_macro_id=materialization_macro_id,
+            provenance=(
+                PlanProvenance(
+                    rule="databricks.incremental.v2",
+                    detail=(
+                        "Databricks v2 SQL incremental materialization uses an ordered "
+                        "create-then-insert or mutation program"
+                    ),
+                ),
+            ),
+        )
+
+    @available
+    def resolve_incremental_lifecycle_plan(
+        self,
+        mutation_plan: IncrementalMutationPlan,
+        model: RelationConfig,
+        target_relation: BaseRelation,
+        existing_relation: Optional[BaseRelation],
+        *,
+        full_refresh: bool,
+        on_schema_change: Optional[str],
+        staging_is_temporary: bool,
+        contract_enforced: bool,
+        materialization_plan: Optional[IncrementalMaterializationPlan] = None,
+    ) -> IncrementalLifecyclePlan:
+        if (
+            materialization_plan is None
+            or materialization_plan.materialization_macro_id
+            != "macro.dbt_databricks.materialization_incremental_databricks"
+        ):
+            return super().resolve_incremental_lifecycle_plan(
+                mutation_plan,
+                model,
+                target_relation,
+                existing_relation,
+                full_refresh=full_refresh,
+                on_schema_change=on_schema_change,
+                staging_is_temporary=staging_is_temporary,
+                contract_enforced=contract_enforced,
+                materialization_plan=materialization_plan,
+            )
+
+        base_plan = super().resolve_incremental_lifecycle_plan(
+            mutation_plan,
+            model,
+            target_relation,
+            existing_relation,
+            full_refresh=full_refresh,
+            on_schema_change=on_schema_change,
+            staging_is_temporary=staging_is_temporary,
+            contract_enforced=contract_enforced,
+            materialization_plan=materialization_plan,
+        )
+        if model.config is None:
+            raise DbtConfigError("Databricks incremental planning requires model configuration")
+        config = model.config
+        existing = MaterializationRelationRole.EXISTING
+        target = MaterializationRelationRole.TARGET
+        intermediate = MaterializationRelationRole.INTERMEDIATE
+        staging = MaterializationRelationRole.STAGING
+        backup = MaterializationRelationRole.BACKUP
+        operations = [
+            MaterializationOperation(
+                kind=MaterializationOperationKind.RUN_HOOKS,
+                name="pre",
+                inside_transaction=False,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.RUN_HOOKS,
+                name="pre",
+                inside_transaction=True,
+            ),
+            MaterializationOperation(
+                kind=MaterializationOperationKind.CREATE_FROM_QUERY,
+                relation=intermediate,
+                temporary=True,
+                auto_begin=False,
+            ),
+        ]
+        replacing = existing_relation is not None and full_refresh
+        safe_create = bool(config.get("use_safer_relation_operations", False))
+        if existing_relation is None or replacing:
+            if (
+                replacing
+                and safe_create
+                and base_plan.facts.existing is not None
+                and base_plan.facts.existing.can_be_renamed
+            ):
+                operations.extend(
+                    (
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.CREATE_FROM_RELATION,
+                            relation=staging,
+                            source=intermediate,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.RENAME_RELATION,
+                            relation=existing,
+                            destination=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.RENAME_RELATION,
+                            relation=staging,
+                            destination=target,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=backup,
+                        ),
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=intermediate,
+                        ),
+                    )
+                )
+            else:
+                if (
+                    replacing
+                    and base_plan.facts.existing is not None
+                    and base_plan.facts.existing.requires_drop_before_replace
+                ):
+                    operations.append(
+                        MaterializationOperation(
+                            kind=MaterializationOperationKind.DROP_RELATION_IF_EXISTS,
+                            relation=existing,
+                        )
+                    )
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.CREATE_FROM_RELATION,
+                        relation=target,
+                        source=intermediate,
+                    )
+                )
+        else:
+            use_dynamic_overwrite = mutation_plan.requested_strategy == "insert_overwrite" and bool(
+                config.get("partition_by")
+            )
+            if use_dynamic_overwrite:
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.SET_INCREMENTAL_OVERWRITE_MODE,
+                        name="DYNAMIC",
+                    )
+                )
+            operations.extend(
+                (
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PROCESS_SCHEMA_CHANGES,
+                        relation=existing,
+                        source=intermediate,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.PROCESS_CONFIG_CHANGES,
+                        relation=target,
+                        source=existing,
+                    ),
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.EXECUTE_INCREMENTAL_MUTATION,
+                        relation=target,
+                        source=intermediate,
+                    ),
+                )
+            )
+            if mutation_plan.requested_strategy == "insert_overwrite":
+                operations.append(
+                    MaterializationOperation(
+                        kind=MaterializationOperationKind.SET_INCREMENTAL_OVERWRITE_MODE,
+                        name="STATIC",
+                    )
+                )
+        operations.extend(
+            (
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.APPLY_GRANTS,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.OPTIMIZE,
+                    relation=target,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="post",
+                    inside_transaction=True,
+                ),
+                MaterializationOperation(
+                    kind=MaterializationOperationKind.RUN_HOOKS,
+                    name="post",
+                    inside_transaction=False,
+                ),
+            )
+        )
+        return replace(
+            base_plan,
+            operations=tuple(operations),
+            provenance=base_plan.provenance
+            + (
+                PlanProvenance(
+                    rule="databricks.incremental.v2.operations",
+                    detail=(
+                        "Databricks v2 staging, replacement or mutation, config changes, "
+                        "overwrite mode, grants, optimize, and hooks are ordered explicitly"
                     ),
                 ),
             ),
