@@ -26,7 +26,9 @@
           model.get('meta', {}).get('constraints'),
           True,
           True,
-          relation.identifier
+          relation.identifier,
+          relation.database,
+          relation.schema
       ) %}
       {% set constrained_relation = relation.enrich(columns_and_constraints[1]) %}
       {% set set_non_nulls = [] %}

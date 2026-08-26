@@ -447,6 +447,86 @@ class TestParseModelAndLegacyConstraints:
         assert first[0].name == second[0].name
         assert first[0].name == "ca209567b6d1fd0b464a46ae4ef55306"
 
+    def test_qualifies_unqualified_fk_to(self):
+        _, parsed = parse_model_and_legacy_constraints(
+            {},
+            [
+                {
+                    "type": "foreign_key",
+                    "name": "fk_id",
+                    "columns": ["id"],
+                    "to": "parent",
+                    "to_columns": ["id"],
+                }
+            ],
+            relation_database="cat",
+            relation_schema="sch",
+        )
+
+        assert parsed[0].to == "`cat`.`sch`.`parent`"
+        assert "REFERENCES `cat`.`sch`.`parent`" in parsed[0].render()
+
+    def test_leaves_dotted_fk_to_unchanged(self):
+        _, parsed = parse_model_and_legacy_constraints(
+            {},
+            [
+                {
+                    "type": "foreign_key",
+                    "name": "fk_id",
+                    "columns": ["id"],
+                    "to": "`other_cat`.`other_sch`.`parent`",
+                    "to_columns": ["id"],
+                }
+            ],
+            relation_database="cat",
+            relation_schema="sch",
+        )
+
+        assert parsed[0].to == "`other_cat`.`other_sch`.`parent`"
+
+    def test_fk_name_hash_uses_qualified_to(self):
+        raw_constraints = [
+            {
+                "type": "foreign_key",
+                "columns": ["id"],
+                "to": "parent",
+                "to_columns": ["id"],
+            }
+        ]
+        _, first = parse_model_and_legacy_constraints(
+            {},
+            raw_constraints,
+            relation_identifier="child",
+            relation_database="cat",
+            relation_schema="sch",
+        )
+        _, second = parse_model_and_legacy_constraints(
+            {},
+            raw_constraints,
+            relation_identifier="child",
+            relation_database="cat",
+            relation_schema="sch",
+        )
+
+        assert first[0].name == second[0].name
+        assert first[0].to == "`cat`.`sch`.`parent`"
+
+    def test_skips_fk_qualify_without_database_or_schema(self):
+        _, parsed = parse_model_and_legacy_constraints(
+            {},
+            [
+                {
+                    "type": "foreign_key",
+                    "name": "fk_id",
+                    "columns": ["id"],
+                    "to": "parent",
+                    "to_columns": ["id"],
+                }
+            ],
+        )
+
+        assert parsed[0].to == "parent"
+
 
 class TestParseColumnsAndConstraintsGate:
     @staticmethod

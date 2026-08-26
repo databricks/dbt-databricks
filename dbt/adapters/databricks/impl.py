@@ -1047,6 +1047,8 @@ class DatabricksAdapter(SparkAdapter):
         include_model_columns: bool = False,
         skip_unsupported: bool = False,
         relation_identifier: str = "",
+        relation_database: str = "",
+        relation_schema: str = "",
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
         enriched_columns = []
@@ -1058,6 +1060,8 @@ class DatabricksAdapter(SparkAdapter):
                 model_meta_constraints,
                 skip_unsupported,
                 relation_identifier,
+                relation_database,
+                relation_schema,
             )
         else:
             not_null_set = set()

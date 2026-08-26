@@ -17,7 +17,9 @@
       model_meta_constraints,
       False,
       persist_constraints,
-      relation.identifier if persist_constraints else ""
+      relation.identifier if persist_constraints else "",
+      relation.database,
+      relation.schema
   ) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   

@@ -219,6 +219,8 @@ def parse_model_and_legacy_constraints(
     model_meta_constraints: Optional[Sequence[Any]] = None,
     skip_unsupported: bool = False,
     relation_identifier: str = "",
+    relation_database: str = "",
+    relation_schema: str = "",
 ) -> tuple[set[str], list[TypedConstraint]]:
     # Legacy persist_constraints matches v1: warn/skip unsupported types (e.g. unique).
     skip_unsupported = skip_unsupported or persist_constraints
@@ -233,6 +235,11 @@ def parse_model_and_legacy_constraints(
             parsed_column["constraints"] = _without_unsupported_constraints(
                 parsed_column.get("constraints", [])
             )
+        parsed_column["constraints"] = _with_qualified_fk_targets(
+            parsed_column.get("constraints", []),
+            relation_database,
+            relation_schema,
+        )
         if relation_identifier:
             parsed_column["constraints"] = _with_generated_constraint_names(
                 parsed_column.get("constraints", []),
@@ -246,6 +253,11 @@ def parse_model_and_legacy_constraints(
         parsed_model_constraints = _convert_legacy_constraints(model_meta_constraints)
     if skip_unsupported:
         parsed_model_constraints = _without_unsupported_constraints(parsed_model_constraints)
+    parsed_model_constraints = _with_qualified_fk_targets(
+        parsed_model_constraints,
+        relation_database,
+        relation_schema,
+    )
     if relation_identifier:
         parsed_model_constraints = _with_generated_constraint_names(
             parsed_model_constraints,
@@ -253,6 +265,27 @@ def parse_model_and_legacy_constraints(
         )
 
     return parse_constraints(parsed_columns, parsed_model_constraints)
+
+
+def _with_qualified_fk_targets(
+    raw_constraints: Sequence[dict[str, Any]],
+    database: str,
+    schema: str,
+) -> list[dict[str, Any]]:
+    if not database or not schema:
+        return [dict(constraint) for constraint in raw_constraints]
+    qualified = []
+    for raw_constraint in raw_constraints:
+        constraint = dict(raw_constraint)
+        constraint_type = constraint.get("type")
+        constraint_type_value = getattr(constraint_type, "value", constraint_type)
+        to = constraint.get("to")
+        if constraint_type_value == "foreign_key" and isinstance(to, str) and to and "." not in to:
+            constraint["to"] = (
+                f"{_quote_identifier(database)}.{_quote_identifier(schema)}.{_quote_identifier(to)}"
+            )
+        qualified.append(constraint)
+    return qualified
 
 
 def _convert_legacy_constraints(
