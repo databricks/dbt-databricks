@@ -130,6 +130,16 @@ class TestForeignKeyConstraint:
         )
         assert constraint.render() == "FOREIGN KEY (`id`) REFERENCES other_table (`other_id`)"
 
+    def test_foreign_key_constraint_render__without_to_columns(self):
+        constraint = ForeignKeyConstraint.from_dict(
+            {
+                "type": "foreign_key",
+                "columns": ["id"],
+                "to": "other_table",
+            }
+        )
+        assert constraint.render() == "FOREIGN KEY (`id`) REFERENCES other_table"
+
     def test_foreign_key_constraint_render__with_expression(self):
         constraint = ForeignKeyConstraint(
             type=ConstraintType.foreign_key,

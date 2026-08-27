@@ -124,10 +124,8 @@ class ForeignKeyConstraint(TypedConstraint):
     str_type = "foreign_key"
 
     def _validate(self) -> None:
-        if not self.columns or (not (self.to_columns and self.to) and not self.expression):
-            raise self._render_error(
-                [["columns", "to", "to_columns"], ["columns", "expression"]],
-            )
+        if not self.columns or (not self.to and not self.expression):
+            raise self._render_error([["columns", "to"], ["columns", "expression"]])
 
     def _render_suffix(self) -> str:
         if self.expression:
@@ -137,10 +135,13 @@ class ForeignKeyConstraint(TypedConstraint):
                 f"FOREIGN KEY ({', '.join(_quote_identifier(c) for c in self.columns)}) "
                 f"{self.expression}"
             )
-        return (
+        suffix = (
             f"FOREIGN KEY ({', '.join(_quote_identifier(c) for c in self.columns)}) REFERENCES "
-            + f"{self.to} ({', '.join(_quote_identifier(c) for c in self.to_columns)})"
+            + f"{self.to}"
         )
+        if self.to_columns:
+            suffix += f" ({', '.join(_quote_identifier(c) for c in self.to_columns)})"
+        return suffix
 
 
 class CheckConstraint(TypedConstraint):
