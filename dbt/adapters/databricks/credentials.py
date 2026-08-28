@@ -52,6 +52,9 @@ class DatabricksCredentials(Credentials):
     connection_parameters: Optional[dict[str, Any]] = None
     auth_type: Optional[str] = None
 
+    # Path of the file holding the OIDC ID token, for `auth_type: file-oidc`.
+    oidc_token_filepath: Optional[str] = None
+
     # Named compute resources specified in the profile. Used for
     # creating a connection when a model specifies a compute resource.
     compute: Optional[dict[str, Any]] = None
@@ -144,6 +147,14 @@ class DatabricksCredentials(Credentials):
             raise DbtConfigError(
                 "The config `auth_type` must be one of `oauth`, `env-oidc`, or `file-oidc` "
                 "when not using an access token"
+            )
+
+        # Without an explicit client_id the SDK is handed the `dbt-databricks`
+        # public client, which carries no federation policy, and fails with a 401.
+        if not self.token and self.auth_type in ("env-oidc", "file-oidc") and not self.client_id:
+            raise DbtConfigError(
+                "The config 'client_id' is required to connect to Databricks "
+                f"with 'auth_type: {self.auth_type}'"
             )
 
         if not self.client_id and self.client_secret:
@@ -282,6 +293,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
     oauth_scopes: list[str] = field(default_factory=lambda: SCOPES)
     token: Optional[str] = None
     auth_type: Optional[str] = None
+    oidc_token_filepath: Optional[str] = None
     workspace_id: Optional[str] = None
 
     @classmethod
@@ -296,6 +308,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
             oauth_redirect_url=credentials.oauth_redirect_url or REDIRECT_URL,
             oauth_scopes=credentials.oauth_scopes or SCOPES,
             auth_type=credentials.auth_type,
+            oidc_token_filepath=credentials.oidc_token_filepath,
             workspace_id=extract_workspace_id(credentials.http_path),
         )
 
@@ -325,13 +338,14 @@ class DatabricksCredentialManager(DataClassDictMixin):
         )
 
     def authenticate_with_oidc(self) -> Config:
-        return Config(
-            **self._config_kwargs(
-                host=self.host,
-                client_id=self.client_id,
-                auth_type=self.auth_type,
-            )
+        kwargs = self._config_kwargs(
+            host=self.host,
+            client_id=self.client_id,
+            auth_type=self.auth_type,
         )
+        if self.oidc_token_filepath:
+            kwargs["oidc_token_filepath"] = self.oidc_token_filepath
+        return Config(**kwargs)
 
     def authenticate_with_external_browser(self) -> Config:
         return Config(

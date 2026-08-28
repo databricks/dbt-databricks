@@ -439,9 +439,10 @@ class SqlUtils:
         PAT, Databricks OAuth M2M, and OAuth U2M — we forward the raw credentials it
         understands so the connector owns the token lifecycle and refresh.
 
-        The kernel has no Azure-AD flow, so an Azure service principal cannot connect
-        through it; any auth other than the three above is rejected here with a clear
-        error directing the user to the default backend.
+        The kernel has no Azure-AD or OIDC federation flow, so neither an Azure
+        service principal nor a federated identity can connect through it; any auth
+        other than the three above is rejected here with a clear error directing the
+        user to the default backend.
         """
         # PAT: forward the token directly.
         if creds_manager.token:
@@ -462,21 +463,15 @@ class SqlUtils:
             args["oauth_scopes"] = creds_manager.oauth_scopes
             return
 
-        # OIDC federation has no kernel equivalent; reject on the raw auth_type
-        # before falling into the oauth-m2m check below, which would otherwise
-        # resolve `.config` and trigger the SDK's OIDC token exchange here.
-        if creds.auth_type in ("env-oidc", "file-oidc"):
-            raise DbtConfigError(
-                "use_kernel=True supports only personal access tokens and Databricks "
-                "OAuth (M2M/U2M); the configured authentication (auth_type: "
-                f"{creds.auth_type}) is not supported by the kernel backend. Remove "
-                "use_kernel to use the default backend."
-            )
-
         # Databricks OAuth M2M: forward OAuth creds so the kernel owns refresh. The
         # resolved auth_type distinguishes genuine Databricks OAuth from an Azure SP
-        # supplied through the client_id/client_secret fields.
-        if not creds_manager.azure_client_secret and creds_manager.config.auth_type == "oauth-m2m":
+        # in the client_id/client_secret fields. The OIDC term must stay first:
+        # resolving `.config` for a federated auth_type triggers a token exchange.
+        if (
+            creds.auth_type not in ("env-oidc", "file-oidc")
+            and not creds_manager.azure_client_secret
+            and creds_manager.config.auth_type == "oauth-m2m"
+        ):
             args["oauth_client_id"] = creds_manager.client_id
             args["oauth_client_secret"] = creds_manager.client_secret
             args["oauth_scopes"] = creds_manager.oauth_scopes
@@ -485,6 +480,6 @@ class SqlUtils:
         raise DbtConfigError(
             "use_kernel=True supports only personal access tokens and Databricks "
             "OAuth (M2M/U2M); the configured authentication (e.g. an Azure service "
-            "principal) is not supported by the kernel backend. Remove use_kernel to "
-            "use the default backend."
+            "principal, or OIDC workload identity federation) is not supported by the "
+            "kernel backend. Remove use_kernel to use the default backend."
         )

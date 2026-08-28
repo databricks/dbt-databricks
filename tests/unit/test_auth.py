@@ -3,6 +3,7 @@ from threading import Barrier, Lock
 from unittest import mock
 
 import pytest
+from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
@@ -56,6 +57,34 @@ class TestParseTimeIsOffline:
         with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             DatabricksCredentials(client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS)
             mock_config.assert_not_called()
+
+
+class TestValidateCreds:
+    """`validate_creds` runs at connect time and is the only place that rejects
+    an unusable combination of profile fields before the SDK is involved."""
+
+    def test_oidc_auth_types_need_no_token(self):
+        for auth_type in ("env-oidc", "file-oidc"):
+            creds = DatabricksCredentials(client_id="cid", auth_type=auth_type, **_COMMON_KWARGS)
+            creds.validate_creds()
+
+    def test_unknown_auth_type_without_token_raises(self):
+        creds = DatabricksCredentials(
+            client_id="cid", auth_type="not-a-real-auth-type", **_COMMON_KWARGS
+        )
+        with pytest.raises(DbtConfigError, match="must be one of"):
+            creds.validate_creds()
+
+    @pytest.mark.parametrize("auth_type", ["env-oidc", "file-oidc"])
+    def test_oidc_without_client_id_raises(self, auth_type):
+        creds = DatabricksCredentials(auth_type=auth_type, **_COMMON_KWARGS)
+        with pytest.raises(DbtConfigError, match="'client_id' is required"):
+            creds.validate_creds()
+
+    @pytest.mark.parametrize("auth_type", ["env-oidc", "file-oidc"])
+    def test_token_removes_the_client_id_requirement(self, auth_type):
+        creds = DatabricksCredentials(token="foo", auth_type=auth_type, **_COMMON_KWARGS)
+        creds.validate_creds()
 
 
 class TestEnsureConfigTriggersTheRightAuth:
@@ -147,6 +176,22 @@ class TestEnsureConfigTriggersTheRightAuth:
                 host=_COMMON_KWARGS["host"],
                 client_id="cid",
                 auth_type="file-oidc",
+            )
+
+    def test_file_oidc_forwards_token_filepath(self):
+        creds = DatabricksCredentials(
+            client_id="cid",
+            auth_type="file-oidc",
+            oidc_token_filepath="/var/run/secrets/token",
+            **_COMMON_KWARGS,
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="file-oidc",
+                oidc_token_filepath="/var/run/secrets/token",
             )
 
     def test_token_takes_precedence_over_oidc_auth_type(self):

@@ -2,7 +2,7 @@
 
 ### Features
 
-- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX))
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX))
 
 ### Fixes
 
