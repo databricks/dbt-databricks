@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.5 (TBD)
 
+### Features
+
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX))
+
 ### Fixes
 
 - Replace an existing table or view with a metric view using backup-and-create instead of `CREATE OR REPLACE VIEW ... WITH METRICS` ([#1640](https://github.com/databricks/dbt-databricks/pull/1640) resolves [#1639](https://github.com/databricks/dbt-databricks/issues/1639))

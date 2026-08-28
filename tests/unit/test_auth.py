@@ -52,6 +52,11 @@ class TestParseTimeIsOffline:
             )
             mock_config.assert_not_called()
 
+    def test_env_oidc_credentials_init_does_not_call_config(self):
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS)
+            mock_config.assert_not_called()
+
 
 class TestEnsureConfigTriggersTheRightAuth:
     """Connect-time counterpart to TestParseTimeIsOffline: when something
@@ -123,6 +128,34 @@ class TestEnsureConfigTriggersTheRightAuth:
                 azure_client_secret="plain-secret",
                 auth_type="azure-client-secret",
             )
+
+    def test_env_oidc_uses_oidc_auth(self):
+        creds = DatabricksCredentials(client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="env-oidc",
+            )
+
+    def test_file_oidc_uses_oidc_auth(self):
+        creds = DatabricksCredentials(client_id="cid", auth_type="file-oidc", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="file-oidc",
+            )
+
+    def test_token_takes_precedence_over_oidc_auth_type(self):
+        creds = DatabricksCredentials(
+            token="foo", client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(host=_COMMON_KWARGS["host"], token="foo")
 
     def test_falls_back_to_second_method_when_first_raises(self):
         creds = DatabricksCredentials(

@@ -462,6 +462,17 @@ class SqlUtils:
             args["oauth_scopes"] = creds_manager.oauth_scopes
             return
 
+        # OIDC federation has no kernel equivalent; reject on the raw auth_type
+        # before falling into the oauth-m2m check below, which would otherwise
+        # resolve `.config` and trigger the SDK's OIDC token exchange here.
+        if creds.auth_type in ("env-oidc", "file-oidc"):
+            raise DbtConfigError(
+                "use_kernel=True supports only personal access tokens and Databricks "
+                "OAuth (M2M/U2M); the configured authentication (auth_type: "
+                f"{creds.auth_type}) is not supported by the kernel backend. Remove "
+                "use_kernel to use the default backend."
+            )
+
         # Databricks OAuth M2M: forward OAuth creds so the kernel owns refresh. The
         # resolved auth_type distinguishes genuine Databricks OAuth from an Azure SP
         # supplied through the client_id/client_secret fields.

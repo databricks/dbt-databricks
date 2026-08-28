@@ -140,9 +140,10 @@ class DatabricksCredentials(Credentials):
         for key in ["host", "http_path"]:
             if not getattr(self, key):
                 raise DbtConfigError(f"The config '{key}' is required to connect to Databricks")
-        if not self.token and self.auth_type != "oauth":
+        if not self.token and self.auth_type not in ("oauth", "env-oidc", "file-oidc"):
             raise DbtConfigError(
-                "The config `auth_type: oauth` is required when not using access token"
+                "The config `auth_type` must be one of `oauth`, `env-oidc`, or `file-oidc` "
+                "when not using an access token"
             )
 
         if not self.client_id and self.client_secret:
@@ -323,6 +324,15 @@ class DatabricksCredentialManager(DataClassDictMixin):
             )
         )
 
+    def authenticate_with_oidc(self) -> Config:
+        return Config(
+            **self._config_kwargs(
+                host=self.host,
+                client_id=self.client_id,
+                auth_type=self.auth_type,
+            )
+        )
+
     def authenticate_with_external_browser(self) -> Config:
         return Config(
             **self._config_kwargs(
@@ -373,6 +383,8 @@ class DatabricksCredentialManager(DataClassDictMixin):
 
             if self.token:
                 self._config = self.authenticate_with_pat()
+            elif self.auth_type in ("env-oidc", "file-oidc"):
+                self._config = self.authenticate_with_oidc()
             elif self.azure_client_id and self.azure_client_secret:
                 self._config = self.authenticate_with_azure_client_secret()
             elif not self.client_secret:
