@@ -74,6 +74,8 @@
 
     {{ execute_multiple_statements(build_sql) }}
 
+    {% do validate_persist_doc_columns(target_relation, model) %}
+
     {%- do apply_tags(target_relation, tags) -%}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}

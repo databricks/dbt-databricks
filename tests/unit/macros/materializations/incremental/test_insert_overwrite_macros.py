@@ -70,8 +70,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
                 True,  # DBR >= 17.1
                 """
                 insert into table target_table as t
-                replace on (t.a <=> s.a)
-                (select a, b from source_table) as s
+                replace on (t.`a` <=> s.`a`)
+                (select `a`, `b` from source_table) as s
                 """,
             ),
         ],
@@ -150,10 +150,39 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax with multiple conditions
         expected_sql = """
             insert into table target_table as t
-            replace on (t.a <=> s.a AND t.b <=> s.b)
-            (select a, b from source_table) as s
+            replace on (t.`a` <=> s.`a` AND t.`b` <=> s.`b`)
+            (select `a`, `b` from source_table) as s
         """
 
+        self.assert_sql_equal(result, expected_sql)
+
+    def test_get_insert_overwrite_sql__non_ascii_columns_replace_on(
+        self, template, context, config
+    ):
+        """Non-ASCII columns must be back-quoted in the REPLACE ON path (issue #1594)."""
+        mock_col = Mock()
+        mock_col.name = "あ"
+        mock_col.quoted = "`あ`"
+        context["adapter"].get_columns_in_relation.return_value = [mock_col]
+        config["partition_by"] = ["あ"]
+
+        source_relation = Mock()
+        source_relation.__str__ = lambda self: "source_table"
+        target_relation = Mock()
+        target_relation.__str__ = lambda self: "target_table"
+
+        result = self.run_macro_raw(
+            template,
+            "get_insert_overwrite_sql",
+            source_relation,
+            target_relation,
+        )
+
+        expected_sql = """
+            insert into table target_table as t
+            replace on (t.`あ` <=> s.`あ`)
+            (select `あ` from source_table) as s
+        """
         self.assert_sql_equal(result, expected_sql)
 
     @pytest.mark.parametrize("has_replace_on", [False, True])
@@ -231,8 +260,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
         # Verify it uses REPLACE ON syntax because cluster with DBR 17.1+ always uses new syntax
         expected_sql = """
             insert into table target_table as t
-            replace on (t.a <=> s.a)
-            (select a, b from source_table) as s
+            replace on (t.`a` <=> s.`a`)
+            (select `a`, `b` from source_table) as s
         """
 
         self.assert_sql_equal(result, expected_sql)
@@ -307,8 +336,8 @@ class TestInsertOverwriteMacros(MacroTestBase):
                 True,  # Behavior flag enabled
                 """
                 insert into table target_table as t
-                replace on (t.a <=> s.a)
-                (select a, b from source_table) as s
+                replace on (t.`a` <=> s.`a`)
+                (select `a`, `b` from source_table) as s
                 """,
             ),
         ],
