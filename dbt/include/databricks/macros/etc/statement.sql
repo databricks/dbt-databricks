@@ -16,6 +16,11 @@
   {%- endif -%}
 {%- endmacro %}
 
+{#- Multi-statement strategies (e.g. the delete+insert DBR<17.1 fallback) build any
+    preparatory statements first and their real data-writing statement last, so the
+    last statement in the list is treated as authoritative and named 'main' — its
+    rowcount becomes the model's adapter response. Earlier statements are executed
+    for their side effects only and are not surfaced to run_results.json. -#}
 {% macro execute_multiple_statements(statements) %}
   {%- if statements is string %}
     {% call statement(name="main") %}
