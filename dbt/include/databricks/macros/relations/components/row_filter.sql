@@ -96,7 +96,6 @@ The duplication exists because:
 {#-- ===== APPLY MACRO (executes SQL) ===== --#}
 
 {%- macro apply_row_filter(target_relation, row_filter) -%}
-  {#- Executes SQL immediately via call statement('main') -#}
   {#- row_filter is a RowFilterConfig object with is_change, should_unset, function fields -#}
   {%- if target_relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Row filters are not supported for Hive Metastore") }}
@@ -104,11 +103,11 @@ The duplication exists because:
 
   {%- if row_filter.is_change -%}
     {%- if row_filter.should_unset -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_row_filter') -%}
         {{ alter_drop_row_filter(target_relation) }}
       {%- endcall -%}
     {%- elif row_filter.function -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_row_filter') -%}
         {{ alter_set_row_filter(target_relation, row_filter) }}
       {%- endcall -%}
     {%- endif -%}
