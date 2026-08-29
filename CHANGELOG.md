@@ -2,7 +2,7 @@
 
 ### Features
 
-- Report `rows_affected` from Databricks cursor rowcount in adapter responses so batch incremental runs display updated row counts. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632))
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632))
 - Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
