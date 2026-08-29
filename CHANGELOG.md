@@ -2,7 +2,7 @@
 
 ### Features
 
-- Report `rows_affected` from Databricks cursor rowcount in adapter responses so batch incremental runs display updated row counts. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632))
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632))
 
 ### Fixes
 
