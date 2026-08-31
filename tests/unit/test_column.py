@@ -290,3 +290,80 @@ class TestDatabricksColumn:
             type_info = {"name": type_name}
             result = DatabricksColumn._parse_type_from_json(type_info)
             assert result == type_name
+
+
+class TestTypeClassification:
+    @pytest.mark.parametrize(
+        "dtype",
+        [
+            "string",
+            "varchar",
+            "char",
+            "text",
+            "character varying",
+            "character",
+            "nchar",
+            "nvarchar",
+            "STRING",
+            "VARCHAR",
+            "CHAR",
+        ],
+    )
+    def test_is_string_true(self, dtype):
+        assert DatabricksColumn("col", dtype).is_string() is True
+
+    @pytest.mark.parametrize("dtype", ["int", "bigint", "double", "decimal(10,2)"])
+    def test_is_string_false(self, dtype):
+        assert DatabricksColumn("col", dtype).is_string() is False
+
+    @pytest.mark.parametrize(
+        "dtype",
+        ["tinyint", "smallint", "int", "integer", "bigint", "long", "INT", "BIGINT"],
+    )
+    def test_is_integer_true(self, dtype):
+        assert DatabricksColumn("col", dtype).is_integer() is True
+
+    @pytest.mark.parametrize("dtype", ["float", "double", "string", "decimal(10,2)"])
+    def test_is_integer_false(self, dtype):
+        assert DatabricksColumn("col", dtype).is_integer() is False
+
+    @pytest.mark.parametrize("dtype", ["float", "double", "real", "FLOAT", "DOUBLE"])
+    def test_is_float_true(self, dtype):
+        assert DatabricksColumn("col", dtype).is_float() is True
+
+    @pytest.mark.parametrize("dtype", ["int", "bigint", "string", "decimal(10,2)"])
+    def test_is_float_false(self, dtype):
+        assert DatabricksColumn("col", dtype).is_float() is False
+
+    @pytest.mark.parametrize(
+        "dtype",
+        [
+            "tinyint",
+            "smallint",
+            "int",
+            "integer",
+            "bigint",
+            "long",
+            "float",
+            "double",
+            "decimal",
+            "numeric",
+            "real",
+            "decimal(10,2)",
+            "decimal(38,0)",
+            "DECIMAL(10,2)",
+        ],
+    )
+    def test_is_number_true(self, dtype):
+        assert DatabricksColumn("col", dtype).is_number() is True
+
+    @pytest.mark.parametrize("dtype", ["string", "varchar", "boolean", "date", "timestamp"])
+    def test_is_number_false(self, dtype):
+        assert DatabricksColumn("col", dtype).is_number() is False
+
+    def test_is_numeric_delegates_to_is_number(self):
+        col = DatabricksColumn("col", "bigint")
+        assert col.is_numeric() == col.is_number()
+
+    def test_is_numeric_false_for_string(self):
+        assert DatabricksColumn("col", "string").is_numeric() is False
