@@ -23,21 +23,21 @@ def test_post_parse_is_not_rebuilt(monkeypatch):
 
 def test_closed_invocation_is_not_finalized_again(monkeypatch):
     coord = Mock()
-    coord.is_closed.return_value = True
+    coord.is_active.return_value = False
     build = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
 
     hooks._finalize_post_run("inv-1", None)
 
-    coord.is_closed.assert_called_once_with("inv-1")
+    coord.is_active.assert_called_once_with("inv-1")
     coord.result_snapshot.assert_not_called()
     build.assert_not_called()
 
 
 def test_finalize_does_not_wait_for_send(monkeypatch):
     coord = Mock()
-    coord.is_closed.return_value = False
+    coord.is_active.return_value = True
     coord.result_snapshot.return_value = ([], 0, 0, False, False)
     coord.outcome_snapshot.return_value = (None, False)
     coord.elapsed_ms.return_value = 1
@@ -54,7 +54,7 @@ def test_finalize_does_not_wait_for_send(monkeypatch):
 
 def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkeypatch):
     coord = Mock()
-    coord.is_closed.return_value = False
+    coord.is_active.return_value = True
     coord.result_snapshot.return_value = ([], 0, 0, False, False)
     coord.outcome_snapshot.return_value = (None, False)
     coord.elapsed_ms.return_value = 1
@@ -76,6 +76,40 @@ def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkey
     assert build.call_args.args[0] == "inv-1"
     coord.set_post_run.assert_called_once_with("inv-1", "log")
     coord.close.assert_called_once_with("inv-1")
+
+
+def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
+    from dbt.adapters.databricks.telemetry.coordinator import Coordinator
+
+    coord = Coordinator()
+    captured = {}
+
+    def capture(
+        invocation_id,
+        elapsed_ms,
+        exc_type,
+        results,
+        expected,
+        coverage_complete,
+        results_captured,
+        selected_resources=None,
+        fail_fast_triggered=False,
+        task_success=None,
+    ):
+        captured["elapsed_ms"] = elapsed_ms
+        captured["task_success"] = task_success
+        return SimpleNamespace()
+
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks.builder, "build_post_run_log", capture)
+    coord.mark_start("inv-1")
+    coord.record_end_run("inv-1", ["success"], success=True)
+
+    hooks.on_command_completed("inv-1", False, 9.5)
+
+    assert captured["task_success"] is False
+    assert captured["elapsed_ms"] == 9500
+    assert coord.is_closed("inv-1") is True
 
 
 def test_connection_open_uses_opened_path_workspace_id(monkeypatch):

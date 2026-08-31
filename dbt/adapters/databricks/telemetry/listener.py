@@ -24,6 +24,7 @@ def _on_event(msg: Any) -> None:
         if name not in (
             "NodeFinished",
             "EndRunResult",
+            "CommandCompleted",
             "LogHookEndLine",
             "ConcurrencyLine",
             "GenericExceptionOnRun",
@@ -37,14 +38,23 @@ def _on_event(msg: Any) -> None:
             return
         coord = coordinator()
         if name == "EndRunResult":
+            if not coord.is_active(invocation_id):
+                return
             coord.record_end_run(
                 invocation_id,
                 [r.status for r in msg.data.results],
                 success=getattr(msg.data, "success", None),
             )
+        elif name == "CommandCompleted":
+            if not coord.is_active(invocation_id):
+                return
             from dbt.adapters.databricks.telemetry import hooks
 
-            hooks.on_end_run_result(invocation_id)
+            hooks.on_command_completed(
+                invocation_id,
+                getattr(msg.data, "success", None),
+                getattr(msg.data, "elapsed", None),
+            )
         elif name == "NodeFinished":
             info = msg.data.node_info
             coord.record_node_result(invocation_id, info.unique_id, info.node_status)

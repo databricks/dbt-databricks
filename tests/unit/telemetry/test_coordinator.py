@@ -247,6 +247,31 @@ class TestPostRun:
 
         assert phases == ["POST_PARSE", "POST_RUN"]
 
+    def test_close_does_not_drop_post_run_behind_in_flight_parse(self, monkeypatch):
+        started = threading.Event()
+        release = threading.Event()
+        phases = []
+
+        def blocking_send(host, body, header_factory=None, workspace_id=None):
+            entry = json.loads(body["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
+            phases.append(entry["event_type"])
+            if entry["event_type"] == "POST_PARSE":
+                started.set()
+                assert release.wait(timeout=2)
+            return True
+
+        monkeypatch.setattr(coord_mod.client, "send", blocking_send)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+        assert started.wait(timeout=2)
+        c.set_post_run("inv-1", _run_log())
+        c.close("inv-1")
+        release.set()
+        c.flush(timeout=2)
+
+        assert phases == ["POST_PARSE", "POST_RUN"]
+
     def test_phases_use_distinct_event_ids(self, monkeypatch):
         capture = _Capture()
         monkeypatch.setattr(coord_mod.client, "send", capture)
@@ -323,6 +348,37 @@ class TestResultCapture:
 
         assert results == [("model.p.m1", "error"), (None, "skipped")]
         assert selected == 3
+        assert expected == 2
+        assert coverage_complete is True
+
+    def test_observed_ephemeral_is_not_double_counted_on_fail_fast(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_ephemeral_ids("inv-1", {"model.p.ephemeral"})
+        c.record_node_result("inv-1", "model.p.ephemeral", "success")
+        c.record_node_result("inv-1", "model.p.failed", "error")
+        c.record_end_run("inv-1", ["error", "skipped", "skipped"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [("model.p.failed", "error"), (None, "skipped")]
+        assert selected == 3
+        assert expected == 2
+        assert coverage_complete is True
+
+    def test_build_unit_test_raises_expected_above_concurrency_line(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 1)
+        c.record_node_result("inv-1", "unit_test.p.u1", "pass")
+        c.record_node_result("inv-1", "model.p.m1", "success")
+        c.record_end_run("inv-1", ["pass", "success"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [("unit_test.p.u1", "pass"), ("model.p.m1", "success")]
+        assert selected == 2
         assert expected == 2
         assert coverage_complete is True
 

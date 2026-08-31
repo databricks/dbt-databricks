@@ -99,17 +99,25 @@ def on_connection_open(
         return
 
 
-def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
+def _finalize_post_run(
+    invocation_id: str,
+    exc_type: Optional[type],
+    *,
+    elapsed_ms: Optional[int] = None,
+    command_success: Optional[bool] = None,
+) -> None:
     coord = coordinator()
-    if coord.is_closed(invocation_id):
+    if not coord.is_active(invocation_id):
         return
     results, selected, expected, coverage_complete, results_captured = coord.result_snapshot(
         invocation_id
     )
     task_success, fail_fast_triggered = coord.outcome_snapshot(invocation_id)
+    if command_success is not None:
+        task_success = command_success
     log = builder.build_post_run_log(
         invocation_id,
-        coord.elapsed_ms(invocation_id),
+        coord.elapsed_ms(invocation_id) if elapsed_ms is None else elapsed_ms,
         exc_type,
         results,
         expected,
@@ -123,9 +131,18 @@ def _finalize_post_run(invocation_id: str, exc_type: Optional[type]) -> None:
     coord.close(invocation_id)
 
 
-def on_end_run_result(invocation_id: str) -> None:
+def on_command_completed(invocation_id: str, success: Any, elapsed: Any) -> None:
     try:
-        _finalize_post_run(invocation_id, None)
+        elapsed_ms = None
+        if elapsed is not None:
+            elapsed_ms = int(max(float(elapsed), 0.0) * 1000)
+        command_success = None if success is None else bool(success)
+        _finalize_post_run(
+            invocation_id,
+            None,
+            elapsed_ms=elapsed_ms,
+            command_success=command_success,
+        )
     except Exception:  # pragma: no cover - best-effort
         return
 

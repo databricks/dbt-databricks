@@ -122,7 +122,7 @@ class Coordinator:
             self._states = {
                 key: state
                 for key, state in self._states.items()
-                if key == invocation_id or not state.closed
+                if key == invocation_id or self._retain_closed_state(state)
             }
             self._state(invocation_id)
 
@@ -130,6 +130,11 @@ class Coordinator:
         with self._lock:
             state = self._states.get(invocation_id)
             return state is not None and state.closed
+
+    def is_active(self, invocation_id: str) -> bool:
+        with self._lock:
+            state = self._states.get(invocation_id)
+            return state is not None and not state.closed
 
     def needs_post_parse(self, invocation_id: str) -> bool:
         with self._lock:
@@ -217,20 +222,22 @@ class Coordinator:
                 remaining_statuses = [
                     status for status in state.end_run_statuses if _take_status(remaining, status)
                 ]
-                missing_expected = max(state.expected_result_count - len(top_level_results), 0)
+                expected_count = max(state.expected_result_count, len(top_level_results))
+                missing_expected = max(expected_count - len(top_level_results), 0)
                 synthesized = [(None, status) for status in remaining_statuses[:missing_expected]]
-                synthetic_ephemeral_count = max(len(remaining_statuses) - missing_expected, 0)
+                leftover_after_expected = max(len(remaining_statuses) - missing_expected, 0)
+                synthetic_ephemeral_count = max(
+                    leftover_after_expected - observed_ephemeral_count, 0
+                )
                 selected_count = (
-                    state.expected_result_count
-                    + observed_ephemeral_count
-                    + synthetic_ephemeral_count
+                    expected_count + observed_ephemeral_count + synthetic_ephemeral_count
                 )
                 reconciled_results = top_level_results + synthesized + state.hook_results
                 return (
                     reconciled_results,
                     selected_count,
-                    state.expected_result_count,
-                    len(top_level_results) + len(synthesized) >= state.expected_result_count,
+                    expected_count,
+                    len(top_level_results) + len(synthesized) >= expected_count,
                     True,
                 )
             # Missing ephemeral results make selection unknown.
@@ -276,8 +283,11 @@ class Coordinator:
         thread.start()
 
     def _ready_to_send(self, state: Optional[_InvocationState]) -> bool:
-        if state is None or state.closed or state.sending:
+        if state is None or state.sending:
             return False
+        return self._unclaimed_send_ready(state)
+
+    def _unclaimed_send_ready(self, state: _InvocationState) -> bool:
         transport = state.transport
         if transport is None or transport.header_factory is None:
             return False
@@ -288,6 +298,16 @@ class Coordinator:
             and not state.post_run_sent
             and (state.post_parse_terminal or state.post_parse is None)
         )
+
+    def _retain_closed_state(self, state: _InvocationState) -> bool:
+        if not state.closed:
+            return True
+        return state.sending or self._unclaimed_send_ready(state)
+
+    def _scrub(self, state: _InvocationState) -> None:
+        state.post_parse = None
+        state.post_run = None
+        state.transport = None
 
     def _claim_sends(
         self, state: Optional[_InvocationState]
@@ -359,10 +379,12 @@ class Coordinator:
                 self._send(host, payload, event_id, header_factory, workspace_id)
             with self._lock:
                 state = self._states.get(invocation_id)
-                if state is None or state.closed:
+                if state is None:
                     return
                 state.sending = False
                 claimed = self._claim_sends(state)
+                if not claimed and state.closed:
+                    self._scrub(state)
 
     def _send(
         self,
@@ -380,21 +402,21 @@ class Coordinator:
 
     def close(self, invocation_id: str) -> None:
         with self._lock:
-            # Reject late callbacks and clear sensitive state.
+            # Reject late callbacks. Keep unsent payloads so an in-flight
+            # POST_PARSE can still claim POST_RUN after this returns.
             state = self._states.get(invocation_id)
             if state is None:
                 state = _InvocationState()
                 self._states[invocation_id] = state
             state.closed = True
-            state.post_parse = None
-            state.post_run = None
-            state.transport = None
             state.node_results.clear()
             state.hook_results.clear()
             state.end_run_statuses = None
             state.end_run_success = None
             state.fail_fast_triggered = False
             state.ephemeral_ids.clear()
+            if not state.sending and not self._unclaimed_send_ready(state):
+                self._scrub(state)
 
 
 def _status_key(status: Any) -> str:
