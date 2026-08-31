@@ -16,6 +16,7 @@
 - Redact all `credential` and `encryption` clauses in logged SQL, regardless of keyword case (thanks @SreeramaYeshwanthGowd!) ([#1610](https://github.com/databricks/dbt-databricks/pull/1610) resolves [#1609](https://github.com/databricks/dbt-databricks/issues/1609))
 - Stop `delete+insert` with a composite `unique_key` from deleting unmatched rows on DBR below 17.1 (thanks @SreeramaYeshwanthGowd!) ([#1612](https://github.com/databricks/dbt-databricks/pull/1612) resolves [#1611](https://github.com/databricks/dbt-databricks/issues/1611))
 - Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
+- Stop the `table` materialization from re-applying every `databricks_tags` and column-level `databricks_tags` on every run. When an existing table is replaced in place (`CREATE OR REPLACE`, which preserves its tags), a re-run now diffs the configured tags against the current server tags and issues `SET TAGS` only for those that are new or changed (matching the incremental path); fresh creates and drop+recreates still apply all tags, and tag-free tables skip the metadata fetch entirely ([#1572](https://github.com/databricks/dbt-databricks/pull/1572) resolves [#1308](https://github.com/databricks/dbt-databricks/issues/1308))
 
 ### Under the Hood
 

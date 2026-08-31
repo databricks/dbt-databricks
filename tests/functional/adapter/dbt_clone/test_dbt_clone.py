@@ -337,3 +337,53 @@ class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
             fetch="all",
         )
         assert [row[0] for row in rows] == [1]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestRebuildOverShallowCloneAppliesAllTags(BaseClone, CleanupMixin):
+    """Rebuilding a tagged table over a shallow clone drops the clone, so the resulting table
+    inherits no tags and every configured tag must be applied rather than diffed away."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "tagged_table_model.sql": fixtures.tagged_table_model_sql,
+            "schema.yml": fixtures.tagged_table_model_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def test_rebuild_over_shallow_clone_applies_all_tags(
+        self, project, unique_schema, other_schema
+    ):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        # Clone into the other schema so the target starts life as a shallow clone.
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+        assert _table_type(project, other_schema, "tagged_table_model") == "MANAGED_SHALLOW_CLONE"
+
+        run_dbt(["run", "--target", "otherschema", "--full-refresh", "-s", "tagged_table_model"])
+        assert _table_type(project, other_schema, "tagged_table_model") == "MANAGED"
+
+        table_tags = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
+            f" where schema_name = '{other_schema}' and table_name = 'tagged_table_model'",
+            fetch="all",
+        )
+        assert {(row[0], row[1]) for row in table_tags} == {("classification", "internal")}
+
+        column_tags = project.run_sql(
+            "select column_name, tag_name, tag_value from"
+            " `system`.`information_schema`.`column_tags`"
+            f" where schema_name = '{other_schema}' and table_name = 'tagged_table_model'",
+            fetch="all",
+        )
+        assert {(row[0], row[1], row[2]) for row in column_tags} == {("id", "pii", "false")}

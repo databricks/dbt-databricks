@@ -30,3 +30,23 @@ auto_cluster_incremental_model_sql = """
 
 select 1 as id
 """
+
+tagged_table_model_sql = """
+{{ config(
+    materialized = 'table',
+    databricks_tags = {'classification': 'internal'},
+) }}
+
+select 1 as id
+"""
+
+tagged_table_model_schema_yml = """
+version: 2
+
+models:
+  - name: tagged_table_model
+    columns:
+      - name: id
+        databricks_tags:
+          pii: 'false'
+"""
