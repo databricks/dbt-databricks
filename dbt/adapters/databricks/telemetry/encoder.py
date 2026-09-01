@@ -32,13 +32,19 @@ def encode_frontend_log(
     log: TelemetryLog,
     frontend_log_event_id: str,
     workspace_id: Optional[Any] = None,
+    event_timestamp_millis: Optional[int] = None,
 ) -> str:
     entry = {"dbt_databricks_telemetry_log": _proto_dict(log)}
+    timestamp_millis = (
+        int(event_timestamp_millis)
+        if event_timestamp_millis is not None
+        else int(time.time() * 1000)
+    )
     frontend_log: dict[str, Any] = {
         "frontend_log_event_id": frontend_log_event_id,
         "context": {
             "client_context": {
-                "timestamp_millis": int(time.time() * 1000),
+                "timestamp_millis": timestamp_millis,
                 "user_agent": f"{DRIVER_NAME}/{log.adapter_version}",
             }
         },
@@ -54,9 +60,17 @@ def encode_request(
     log: TelemetryLog,
     frontend_log_event_id: str,
     workspace_id: Optional[Any] = None,
+    event_timestamp_millis: Optional[int] = None,
 ) -> dict[str, Any]:
     return {
         "uploadTime": int(time.time() * 1000),
         "items": [],
-        "protoLogs": [encode_frontend_log(log, frontend_log_event_id, workspace_id)],
+        "protoLogs": [
+            encode_frontend_log(
+                log,
+                frontend_log_event_id,
+                workspace_id,
+                event_timestamp_millis=event_timestamp_millis,
+            )
+        ],
     }

@@ -112,6 +112,43 @@ def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
     assert coord.is_closed("inv-1") is True
 
 
+def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
+    coord = Mock()
+    log = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "logger", log)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
+    monkeypatch.setattr(hooks.listener, "register", lambda: True)
+    adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
+
+    hooks.on_adapter_init(adapter)
+
+    log.warning.assert_called_once()
+    assert "kernel" in log.warning.call_args.args[0].lower()
+    coord.mark_start.assert_called_once_with("inv-1")
+
+
+def test_reusable_transport_does_not_warn_on_init(monkeypatch):
+    coord = Mock()
+    log = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "logger", log)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
+    monkeypatch.setattr(hooks.listener, "register", lambda: True)
+    adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
+
+    hooks.on_adapter_init(adapter)
+
+    log.warning.assert_not_called()
+    coord.mark_start.assert_called_once_with("inv-1")
+
+
 def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
     coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)

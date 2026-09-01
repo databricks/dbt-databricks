@@ -8,6 +8,9 @@ from dbt.adapters.databricks.telemetry import client, encoder
 from dbt.adapters.databricks.telemetry.models import TelemetryLog
 
 HeaderFactory = Callable[[], dict[str, str]]
+_ClaimedSend = tuple[
+    str, Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any], Optional[int]
+]
 
 
 class Transport:
@@ -50,6 +53,8 @@ class _InvocationState:
         "ephemeral_ids",
         "results_captured",
         "closed",
+        "post_parse_timestamp_millis",
+        "post_run_timestamp_millis",
     )
 
     def __init__(self) -> None:
@@ -72,6 +77,8 @@ class _InvocationState:
         self.ephemeral_ids: set[str] = set()
         self.results_captured: bool = False
         self.closed: bool = False
+        self.post_parse_timestamp_millis: Optional[int] = None
+        self.post_run_timestamp_millis: Optional[int] = None
 
 
 class Coordinator:
@@ -97,6 +104,7 @@ class Coordinator:
                 return
             if state.post_parse is None:
                 state.post_parse = payload
+                state.post_parse_timestamp_millis = int(time.time() * 1000)
         self.send_if_ready(invocation_id)
 
     def set_post_run(self, invocation_id: str, payload: TelemetryLog) -> None:
@@ -106,6 +114,7 @@ class Coordinator:
                 return
             if state.post_run is None:
                 state.post_run = payload
+                state.post_run_timestamp_millis = int(time.time() * 1000)
         self.send_if_ready(invocation_id)
 
     def set_transport(self, invocation_id: str, transport: Transport) -> None:
@@ -309,18 +318,14 @@ class Coordinator:
         state.post_run = None
         state.transport = None
 
-    def _claim_sends(
-        self, state: Optional[_InvocationState]
-    ) -> list[tuple[str, Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]]:
+    def _claim_sends(self, state: Optional[_InvocationState]) -> list[_ClaimedSend]:
         if not self._ready_to_send(state) or state is None or state.transport is None:
             return []
         header_factory = state.transport.header_factory
         if header_factory is None:
             return []
         transport = state.transport
-        claimed: list[
-            tuple[str, Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]
-        ] = []
+        claimed: list[_ClaimedSend] = []
         if state.post_parse is not None and not state.post_parse_sent:
             state.post_parse_sent = True
             state.post_parse_terminal = True
@@ -332,6 +337,7 @@ class Coordinator:
                     state.post_parse_event_id,
                     header_factory,
                     transport.workspace_id,
+                    state.post_parse_timestamp_millis,
                 )
             )
         if (
@@ -348,6 +354,7 @@ class Coordinator:
                     state.post_run_event_id,
                     header_factory,
                     transport.workspace_id,
+                    state.post_run_timestamp_millis,
                 )
             )
         if claimed:
@@ -372,11 +379,26 @@ class Coordinator:
     def _send_claimed(
         self,
         invocation_id: str,
-        claimed: list[tuple[str, Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]],
+        claimed: list[_ClaimedSend],
     ) -> None:
         while claimed:
-            for _phase, host, payload, event_id, header_factory, workspace_id in claimed:
-                self._send(host, payload, event_id, header_factory, workspace_id)
+            for (
+                _phase,
+                host,
+                payload,
+                event_id,
+                header_factory,
+                workspace_id,
+                event_timestamp_millis,
+            ) in claimed:
+                self._send(
+                    host,
+                    payload,
+                    event_id,
+                    header_factory,
+                    workspace_id,
+                    event_timestamp_millis,
+                )
             with self._lock:
                 state = self._states.get(invocation_id)
                 if state is None:
@@ -393,9 +415,15 @@ class Coordinator:
         event_id: str,
         header_factory: Optional[HeaderFactory],
         workspace_id: Optional[Any],
+        event_timestamp_millis: Optional[int] = None,
     ) -> None:
         try:
-            body = encoder.encode_request(payload, event_id, workspace_id=workspace_id)
+            body = encoder.encode_request(
+                payload,
+                event_id,
+                workspace_id=workspace_id,
+                event_timestamp_millis=event_timestamp_millis,
+            )
             client.send(host, body, header_factory=header_factory, workspace_id=workspace_id)
         except Exception:  # pragma: no cover - best-effort
             return

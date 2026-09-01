@@ -285,6 +285,44 @@ class TestPostRun:
         }
         assert len(ids) == 2
 
+    def test_timestamp_millis_is_event_time_not_send_time(self, monkeypatch):
+        pending = []
+
+        class DelayedThread:
+            def __init__(self, target, args, name, daemon):
+                self.target = target
+                self.args = args
+
+            def is_alive(self):
+                return False
+
+            def start(self):
+                pending.append(self)
+
+        clock = {"now": 10.0}
+        monkeypatch.setattr(coord_mod.time, "time", lambda: clock["now"])
+        monkeypatch.setattr(coord_mod.encoder.time, "time", lambda: clock["now"])
+        monkeypatch.setattr(coord_mod.threading, "Thread", DelayedThread)
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+        clock["now"] = 20.0
+        c.set_post_run("inv-1", _run_log())
+        clock["now"] = 40.0
+        for worker in pending:
+            worker.target(*worker.args)
+
+        parse_body = capture.calls[0][1]
+        run_body = capture.calls[1][1]
+        parse_fe = json.loads(parse_body["protoLogs"][0])
+        run_fe = json.loads(run_body["protoLogs"][0])
+        assert parse_fe["context"]["client_context"]["timestamp_millis"] == 10_000
+        assert run_fe["context"]["client_context"]["timestamp_millis"] == 20_000
+        assert parse_body["uploadTime"] == 40_000
+        assert run_body["uploadTime"] == 40_000
+
 
 class TestResultCapture:
     def test_node_results_fallback_snapshot(self):

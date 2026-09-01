@@ -483,9 +483,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
         creds: DatabricksCredentials = connection.credentials
         timeout = creds.connect_timeout
 
-        # Avoid a manager overwritten by another concurrent open.
-        credentials_manager = creds.authenticate()
-        cls.credentials_manager = credentials_manager
+        cls.credentials_manager = creds.authenticate()
 
         # SPOG decision matrix: collect every http_path in play (default +
         # per-compute) and validate them against the host's discovery probe.
@@ -505,7 +503,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
             merged_query_tags = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
 
         conn_args = SqlUtils.prepare_connection_arguments(
-            creds, credentials_manager, databricks_connection.http_path, merged_query_tags
+            creds, cls.credentials_manager, databricks_connection.http_path, merged_query_tags
         )
 
         def connect() -> DatabricksHandle:
@@ -523,7 +521,7 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     )
 
                     telemetry_hooks.on_connection_open(
-                        creds, credentials_manager, databricks_connection.http_path
+                        creds, cls.credentials_manager, databricks_connection.http_path
                     )
                     return conn
                 else:
