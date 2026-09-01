@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-08-14_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -8,14 +8,15 @@ replace an existing relation. Table and incremental V2 use their dedicated
 `dbt/include/databricks/macros/relations/replace.sql`.
 
 `get_replace_sql` does not support a table target: that input raises a not-implemented compiler
-error before any replacement decision. Metric-view targets always use direct
-`CREATE OR REPLACE`, independently of `use_safer_relation_operations`.
+error before any replacement decision. Direct `CREATE OR REPLACE` for a metric-view target is used
+only when the existing relation is also a metric view; otherwise the incompatible-type fallback
+tree runs (table/view → `backup_and_create_in_place`, since metric views cannot be renamed).
 
 ```mermaid
 flowchart TD
     START[get_replace_sql] --> TABLE{Target is a table?}
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
-    TABLE -- no --> METRIC{Target is a metric view?}
+    TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
     METRIC -- no --> SAFE{use_safer_relation_operations?}
 
