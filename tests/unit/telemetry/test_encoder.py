@@ -101,3 +101,10 @@ class TestEncoder:
         ]
         assert "post_parse" in entry
         assert "post_run" not in entry
+
+    def test_timestamp_millis_uses_event_time_not_upload_time(self, monkeypatch):
+        monkeypatch.setattr(encoder.time, "time", lambda: 40.0)
+        body = encoder.encode_request(_log(), "e", event_timestamp_millis=10_000)
+        fe = json.loads(body["protoLogs"][0])
+        assert fe["context"]["client_context"]["timestamp_millis"] == 10_000
+        assert body["uploadTime"] == 40_000

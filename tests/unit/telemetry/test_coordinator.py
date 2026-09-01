@@ -1,3 +1,4 @@
+import json
 import threading
 
 from dbt.adapters.databricks.telemetry import coordinator as coord_mod
@@ -100,6 +101,22 @@ class TestSendOrdering:
         assert in_send.wait(timeout=2)
         release.set()
         c.flush(timeout=2)
+
+    def test_timestamp_millis_is_parse_time_not_send_time(self, monkeypatch):
+        clock = {"now": 10.0}
+        monkeypatch.setattr(coord_mod.time, "time", lambda: clock["now"])
+        monkeypatch.setattr(coord_mod.encoder.time, "time", lambda: clock["now"])
+        capture = _Capture()
+        monkeypatch.setattr(coord_mod.client, "send", capture)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        clock["now"] = 40.0
+        c.set_transport("inv-1", _transport())
+        c.flush()
+        body = capture.calls[0][1]
+        fe = json.loads(body["protoLogs"][0])
+        assert fe["context"]["client_context"]["timestamp_millis"] == 10_000
+        assert body["uploadTime"] == 40_000
 
 
 class TestIsolationAndClose:

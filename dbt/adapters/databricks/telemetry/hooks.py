@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
+from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.telemetry import builder
 from dbt.adapters.databricks.telemetry.config import (
@@ -34,6 +35,11 @@ def on_adapter_init(adapter: Any) -> None:
         creds = getattr(getattr(adapter, "config", None), "credentials", None)
         if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
             return
+        if not has_reusable_transport(creds):
+            logger.warning(
+                "enable_dbt_telemetry is set but kernel OAuth U2M credentials cannot be "
+                "reused for telemetry HTTP; events will not be sent."
+            )
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return

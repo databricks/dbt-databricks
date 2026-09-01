@@ -34,6 +34,7 @@ class _InvocationState:
         "transport",
         "post_parse_event_id",
         "post_parse_sent",
+        "post_parse_timestamp_millis",
         "sending",
         "closed",
     )
@@ -43,6 +44,7 @@ class _InvocationState:
         self.transport: Optional[Transport] = None
         self.post_parse_event_id: str = str(uuid.uuid4())
         self.post_parse_sent: bool = False
+        self.post_parse_timestamp_millis: Optional[int] = None
         self.sending: bool = False
         self.closed: bool = False
 
@@ -70,6 +72,7 @@ class Coordinator:
                 return
             if state.post_parse is None:
                 state.post_parse = payload
+                state.post_parse_timestamp_millis = int(time.time() * 1000)
         self.send_if_ready(invocation_id)
 
     def set_transport(self, invocation_id: str, transport: Transport) -> None:
@@ -123,7 +126,9 @@ class Coordinator:
 
     def _claim_send(
         self, state: Optional[_InvocationState]
-    ) -> Optional[tuple[Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any]]]:
+    ) -> Optional[
+        tuple[Optional[str], TelemetryLog, str, HeaderFactory, Optional[Any], Optional[int]]
+    ]:
         if not self._ready_to_send(state) or state is None or state.transport is None:
             return None
         header_factory = state.transport.header_factory
@@ -132,6 +137,7 @@ class Coordinator:
         transport = state.transport
         payload = state.post_parse
         event_id = state.post_parse_event_id
+        event_timestamp_millis = state.post_parse_timestamp_millis
         state.post_parse_sent = True
         state.sending = True
         return (
@@ -140,6 +146,7 @@ class Coordinator:
             event_id,
             header_factory,
             transport.workspace_id,
+            event_timestamp_millis,
         )
 
     def flush(self, timeout: Optional[float] = None) -> None:
@@ -165,8 +172,9 @@ class Coordinator:
         event_id: str,
         header_factory: HeaderFactory,
         workspace_id: Optional[Any],
+        event_timestamp_millis: Optional[int],
     ) -> None:
-        self._send(host, payload, event_id, header_factory, workspace_id)
+        self._send(host, payload, event_id, header_factory, workspace_id, event_timestamp_millis)
         with self._lock:
             state = self._states.get(invocation_id)
             if state is None or state.closed:
@@ -180,9 +188,15 @@ class Coordinator:
         event_id: str,
         header_factory: Optional[HeaderFactory],
         workspace_id: Optional[Any],
+        event_timestamp_millis: Optional[int] = None,
     ) -> None:
         try:
-            body = encoder.encode_request(payload, event_id, workspace_id=workspace_id)
+            body = encoder.encode_request(
+                payload,
+                event_id,
+                workspace_id=workspace_id,
+                event_timestamp_millis=event_timestamp_millis,
+            )
             client.send(host, body, header_factory=header_factory, workspace_id=workspace_id)
         except Exception:  # pragma: no cover - best-effort
             return
