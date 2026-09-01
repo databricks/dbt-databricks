@@ -553,7 +553,7 @@ wheels = [
 
 [[package]]
 name = "dbt-core"
-version = "1.12.0"
+version = "1.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agate" },
@@ -570,6 +570,7 @@ dependencies = [
     { name = "metricflow" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "opentelemetry-api" },
     { name = "packaging" },
     { name = "pathspec" },
     { name = "protobuf" },
@@ -582,22 +583,16 @@ dependencies = [
     { name = "sqlparse" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/50/a8/da65cff9c221b944040b35122ffcbaf0e7b583c6f0729a473c63d15536c5/dbt_core-1.12.0.tar.gz", hash = "sha256:f7d6a34f6600a371b8771e813f6b1566ab6d1fb8cea691619c791f527b1f8d7e", size = 1027023, upload-time = "2026-07-16T13:57:34.041Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/a4/4f6d455d7d0dce48c052e6ed67b6f566eae84e7f432aca21f1fcf408126d/dbt_core-1.12.3.tar.gz", hash = "sha256:d608042c9ff034c0e11d06123a00b79cdf21b12068aac580e90e8326f1872c52", size = 1033601, upload-time = "2026-08-21T00:29:47.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/88/ebcb8fa7f2fd8e82ed1bbbd0950fe3717101f1c16d10ee3aa33fac520ed2/dbt_core-1.12.0-py3-none-any.whl", hash = "sha256:8a91ec6aabaf329efc603330b629e72551ea6be8321483d7c284c598541faaab", size = 1123180, upload-time = "2026-07-16T13:57:32.277Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/72/c34e187ef55d429fac3655ee7234a1392cae0fe7364733239ea6ef3c321a/dbt_core-1.12.3-py3-none-any.whl", hash = "sha256:3f4ea56be117ec579ae183389ef7107a3969e959ea9efc28f3499e46d089b753", size = 1130274, upload-time = "2026-08-21T00:29:46.184Z" },
 ]
 
 [[package]]
 name = "dbt-core-experimental-parser"
-version = "2.0.0a4"
+version = "2.0.0b2"
 source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/65/33390a43639b5903efe407850deef642a417014853ffdba7b70874b44c8e/dbt_core_experimental_parser-2.0.0a4-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:244f18a1eaf67cde836344c551368cc25e10c22f0158fafbbc9d950693e75a0d", size = 47916300, upload-time = "2026-07-06T08:21:39.63Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/d0/9b47b20d8dc45532ddb9d608d31e724bee0434ad831808daac79c853be12/dbt_core_experimental_parser-2.0.0a4-py3-none-macosx_11_0_arm64.whl", hash = "sha256:02109d850288009a85f58095774c2d32f73d77174e2c6aec129d2944b0e8ecb4", size = 43368044, upload-time = "2026-07-06T08:21:42.194Z" },
-    { url = "https://files.pythonhosted.org/packages/05/46/545a2a6fdd5943888d4f6c26db2ba0b1837f4e1ce08daa34a7c3b689d943/dbt_core_experimental_parser-2.0.0a4-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:2bd6245abed8e1f48aa7cdbd4170a6fb3605fd763657440d36bbf90c8d989731", size = 44301868, upload-time = "2026-07-06T08:21:45.297Z" },
-    { url = "https://files.pythonhosted.org/packages/f8/ca/5b7b7d0934b1cdcc76dbeb14f88d0794446e1e8ab593ba767932da845a6b/dbt_core_experimental_parser-2.0.0a4-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:07649f912a7eb9fb54b9cfd1a63747020c88977d8050a1a29445966012c09b9a", size = 48495883, upload-time = "2026-07-06T08:21:48.545Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/01/9fa6693d919a9a602110eb177552c1e9d5bd7dc6a4e369a94e79ffc75a6e/dbt_core_experimental_parser-2.0.0a4-py3-none-win_amd64.whl", hash = "sha256:c6b5d1f0b8271a29a70094c40e75be8de6dfe2234e5258ad63601693ef6d4225", size = 53925614, upload-time = "2026-07-06T08:21:51.468Z" },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/d5/9084bd0356b83c7037ca5e8a6872cab6790d3f0a1fefaf876f4c5c8c56c2/dbt_core_experimental_parser-2.0.0b2.tar.gz", hash = "sha256:47de95deeeed7182b846e490267a99bde7153a3c1856511a7213259343555292", size = 4472, upload-time = "2026-08-18T18:01:39.574Z" }
 
 [[package]]
 name = "dbt-databricks"
@@ -625,6 +620,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-dotenv" },
     { name = "pytest-rerunfailures" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "types-requests" },
@@ -636,6 +632,7 @@ test = [
     { name = "pytest-cov" },
     { name = "pytest-dotenv" },
     { name = "pytest-rerunfailures" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
 ]
 
@@ -646,7 +643,7 @@ requires-dist = [
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.1.1,<4.4.1" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.39.0" },
-    { name = "dbt-core", specifier = ">=1.11.2,<1.12.1" },
+    { name = "dbt-core", specifier = ">=1.11.2,<1.12.4" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
     { name = "packaging", specifier = ">=21.0,<26.0" },
     { name = "pydantic", specifier = ">=1.10.0,<2.13.0" },
@@ -663,6 +660,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "pytest-dotenv", specifier = ">=0.5.2" },
     { name = "pytest-rerunfailures", specifier = ">=16.2" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.6.1" },
     { name = "ruff", specifier = "==0.14.2" },
     { name = "types-requests" },
@@ -674,6 +672,7 @@ test = [
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "pytest-dotenv", specifier = ">=0.5.2" },
     { name = "pytest-rerunfailures", specifier = ">=16.2" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.6.1" },
 ]
 
@@ -1553,6 +1552,18 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-api"
+version = "1.44.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ee/8b/aa9e2d8b8dfa7c946f7dec5d1f8f6ba8eca062f43509a06bdb5ce93d26c0/opentelemetry_api-1.44.0.tar.gz", hash = "sha256:67647e5e9566edcf421166fdf022b3537f818635daa852b289e34604dc6fb33a", size = 72406, upload-time = "2026-07-16T15:25:32.678Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/6f/a04e900f465ff3221ccc395522503e2d10e79fa21f2723c8e177aae1e0d1/opentelemetry_api-1.44.0-py3-none-any.whl", hash = "sha256:94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef", size = 60018, upload-time = "2026-07-16T15:25:11.657Z" },
+]
+
+[[package]]
 name = "orderly-set"
 version = "5.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1992,6 +2003,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6b/27/fd0209642f3a1069da3e0be3c7e339f942d052d81ccb1fb4eb9b187d3633/pytest_rerunfailures-16.2.tar.gz", hash = "sha256:5f5a32f15674a3d54f7598388fcd3cc1bc5c37284731a4704a44485dcdda5e23", size = 32121, upload-time = "2026-05-13T08:13:26.998Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/a5/d8c1ad74529b483044b787ead2d24ecc624bca4084a509002102e4bab8cc/pytest_rerunfailures-16.2-py3-none-any.whl", hash = "sha256:c22a53d2827becc76f057d4ded123c0e726523f2f0e5f0bb4efb31fd59e1f14e", size = 14505, upload-time = "2026-05-13T08:13:25.485Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
 ]
 
 [[package]]
