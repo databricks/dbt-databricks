@@ -130,18 +130,38 @@ def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
 
 def test_command_completed_waits_for_all_telemetry_senders(monkeypatch):
     coord = Mock()
+    log = Mock()
     order = []
 
     def finalize(*args, **kwargs):
         order.append("finalize")
 
-    coord.flush.side_effect = lambda: order.append("flush")
+    def flush():
+        order.append("flush")
+        return True
+
+    coord.flush.side_effect = flush
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "logger", log)
     monkeypatch.setattr(hooks, "_finalize_post_run", finalize)
 
     hooks.on_command_completed("inv-1", True, 1.0)
 
     assert order == ["finalize", "flush"]
+    log.warning.assert_not_called()
+
+
+def test_command_completed_warns_when_flush_times_out(monkeypatch):
+    coord = Mock()
+    coord.flush.return_value = False
+    log = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "logger", log)
+    monkeypatch.setattr(hooks, "_finalize_post_run", Mock())
+
+    hooks.on_command_completed("inv-1", True, 1.0)
+
+    log.warning.assert_called_once_with("Timed out waiting for dbt telemetry delivery to finish.")
 
 
 def test_command_completed_still_flushes_when_finalization_fails(monkeypatch):
