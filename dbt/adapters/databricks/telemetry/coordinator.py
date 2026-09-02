@@ -361,7 +361,7 @@ class Coordinator:
             state.sending = True
         return claimed
 
-    def flush(self, timeout: Optional[float] = None) -> None:
+    def flush(self, timeout: Optional[float] = None) -> bool:
         if timeout is None:
             timeout = float(client._TIMEOUT_SECONDS * 2)
         deadline = time.monotonic() + timeout
@@ -370,10 +370,10 @@ class Coordinator:
                 self._threads = [t for t in self._threads if t.is_alive()]
                 pending = list(self._threads)
             if not pending:
-                return
+                return True
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                return
+                return False
             pending[0].join(remaining)
 
     def _send_claimed(

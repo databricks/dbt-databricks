@@ -2,6 +2,22 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from dbt.adapters.databricks.telemetry import hooks
+from dbt.adapters.databricks.telemetry.coordinator import Coordinator, Transport
+
+
+def _coordinator_with_retained_state() -> Coordinator:
+    coord = Coordinator()
+    coord.mark_start("inv-1")
+    coord.set_post_parse("inv-1", Mock())
+    coord.set_transport("inv-1", Transport("https://example.test", None, "42"))
+    return coord
+
+
+def _assert_invocation_closed_and_scrubbed(coord: Coordinator) -> None:
+    state = coord._states["inv-1"]
+    assert state.closed is True
+    assert state.post_parse is None
+    assert state.transport is None
 
 
 def test_post_parse_is_not_rebuilt(monkeypatch):
@@ -110,6 +126,52 @@ def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
     assert captured["task_success"] is False
     assert captured["elapsed_ms"] == 9500
     assert coord.is_closed("inv-1") is True
+
+
+def test_command_completed_waits_for_all_telemetry_senders(monkeypatch):
+    coord = Mock()
+    order = []
+
+    def finalize(*args, **kwargs):
+        order.append("finalize")
+
+    coord.flush.side_effect = lambda: order.append("flush")
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_finalize_post_run", finalize)
+
+    hooks.on_command_completed("inv-1", True, 1.0)
+
+    assert order == ["finalize", "flush"]
+
+
+def test_command_completed_still_flushes_when_finalization_fails(monkeypatch):
+    coord = _coordinator_with_retained_state()
+    flush = Mock(wraps=coord.flush)
+    monkeypatch.setattr(coord, "flush", flush)
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(
+        hooks,
+        "_finalize_post_run",
+        Mock(side_effect=RuntimeError("finalization failed")),
+    )
+
+    hooks.on_command_completed("inv-1", False, 1.0)
+
+    _assert_invocation_closed_and_scrubbed(coord)
+    flush.assert_called_once_with()
+
+
+def test_command_completed_closes_when_elapsed_conversion_fails(monkeypatch):
+    coord = _coordinator_with_retained_state()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+
+    class InvalidElapsed:
+        def __float__(self) -> float:
+            raise ValueError("invalid elapsed")
+
+    hooks.on_command_completed("inv-1", False, InvalidElapsed())
+
+    _assert_invocation_closed_and_scrubbed(coord)
 
 
 def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):

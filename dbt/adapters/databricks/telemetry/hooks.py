@@ -139,16 +139,22 @@ def _finalize_post_run(
 
 def on_command_completed(invocation_id: str, success: Any, elapsed: Any) -> None:
     try:
-        elapsed_ms = None
-        if elapsed is not None:
-            elapsed_ms = int(max(float(elapsed), 0.0) * 1000)
-        command_success = None if success is None else bool(success)
-        _finalize_post_run(
-            invocation_id,
-            None,
-            elapsed_ms=elapsed_ms,
-            command_success=command_success,
-        )
+        coord = coordinator()
+        try:
+            elapsed_ms = None
+            if elapsed is not None:
+                elapsed_ms = int(max(float(elapsed), 0.0) * 1000)
+            command_success = None if success is None else bool(success)
+            _finalize_post_run(
+                invocation_id,
+                None,
+                elapsed_ms=elapsed_ms,
+                command_success=command_success,
+            )
+        finally:
+            if coord.is_active(invocation_id):
+                coord.close(invocation_id)
+            coord.flush()
     except Exception:  # pragma: no cover - best-effort
         return
 
