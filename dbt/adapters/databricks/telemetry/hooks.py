@@ -154,7 +154,8 @@ def on_command_completed(invocation_id: str, success: Any, elapsed: Any) -> None
         finally:
             if coord.is_active(invocation_id):
                 coord.close(invocation_id)
-            coord.flush()
+            if not coord.flush():
+                logger.warning("Timed out waiting for dbt telemetry delivery to finish.")
     except Exception:  # pragma: no cover - best-effort
         return
 
