@@ -43,6 +43,22 @@ def test_command_completed_finalizes(monkeypatch):
     finalize.assert_called_once_with("inv-1", False, 9.5)
 
 
+def test_command_completed_reaches_hook_after_early_close(monkeypatch):
+    coord = Mock()
+    coord.is_active.return_value = False
+    monkeypatch.setattr(listener, "coordinator", lambda: coord)
+    monkeypatch.setattr(listener, "_current_invocation_id", lambda: "inv-1")
+
+    from dbt.adapters.databricks.telemetry import hooks
+
+    finalize = Mock()
+    monkeypatch.setattr(hooks, "on_command_completed", finalize)
+
+    listener._on_event(_message("CommandCompleted", SimpleNamespace(success=False, elapsed=9.5)))
+
+    finalize.assert_called_once_with("inv-1", False, 9.5)
+
+
 def test_opt_out_end_run_does_not_create_state(monkeypatch):
     coord = Coordinator()
     monkeypatch.setattr(listener, "coordinator", lambda: coord)

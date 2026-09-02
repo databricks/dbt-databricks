@@ -112,6 +112,25 @@ class TestSendOrdering:
         release.set()
         c.flush(timeout=2)
 
+    def test_flush_reports_whether_all_senders_stopped(self, monkeypatch):
+        in_send = threading.Event()
+        release = threading.Event()
+
+        def slow_send(host, body, header_factory=None, workspace_id=None):
+            in_send.set()
+            assert release.wait(timeout=2)
+            return True
+
+        monkeypatch.setattr(coord_mod.client, "send", slow_send)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+        assert in_send.wait(timeout=2)
+
+        assert c.flush(timeout=0) is False
+        release.set()
+        assert c.flush(timeout=2) is True
+
 
 class TestIsolationAndClose:
     def test_distinct_invocations_do_not_cross_pair(self, monkeypatch):

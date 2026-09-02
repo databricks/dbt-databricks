@@ -46,8 +46,6 @@ def _on_event(msg: Any) -> None:
                 success=getattr(msg.data, "success", None),
             )
         elif name == "CommandCompleted":
-            if not coord.is_active(invocation_id):
-                return
             from dbt.adapters.databricks.telemetry import hooks
 
             hooks.on_command_completed(
