@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import hooks
 from dbt.adapters.databricks.telemetry.coordinator import Coordinator
 
@@ -77,7 +79,8 @@ def test_stale_cleanup_does_not_tombstone_next_invocation(monkeypatch):
     assert "inv-1" not in coord._states
 
 
-def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
+@pytest.mark.parametrize("reusable_transport", [False, True])
+def test_kernel_warning_depends_on_transport(monkeypatch, reusable_transport):
     coord = Mock()
     log = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
@@ -85,56 +88,39 @@ def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
     monkeypatch.setattr(hooks, "DatabricksCredentials", object)
     monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: reusable_transport)
     adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
 
     hooks.on_adapter_init(adapter)
 
-    log.warning.assert_called_once()
-    assert "kernel" in log.warning.call_args.args[0].lower()
+    if reusable_transport:
+        log.warning.assert_not_called()
+    else:
+        log.warning.assert_called_once()
+        assert "kernel" in log.warning.call_args.args[0].lower()
     coord.mark_start.assert_called_once_with("inv-1")
 
 
-def test_reusable_transport_does_not_warn_on_init(monkeypatch):
-    coord = Mock()
-    log = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
-
-    hooks.on_adapter_init(adapter)
-
-    log.warning.assert_not_called()
-    coord.mark_start.assert_called_once_with("inv-1")
-
-
-def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
+@pytest.mark.parametrize(
+    ("manager_workspace_id", "opened_path", "expected_workspace_id"),
+    [
+        (None, "/sql/1.0/warehouses/named?o=42", "42"),
+        ("7", "/sql/1.0/warehouses/default", "7"),
+    ],
+)
+def test_connection_open_sets_workspace_id(
+    monkeypatch, manager_workspace_id, opened_path, expected_workspace_id
+):
     coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
     monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=None)
+    manager = SimpleNamespace(
+        host="https://h", header_factory=lambda: {}, workspace_id=manager_workspace_id
+    )
 
-    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42")
+    hooks.on_connection_open(SimpleNamespace(), manager, opened_path)
 
     transport = coord.set_transport.call_args.args[1]
-    assert transport.workspace_id == "42"
-
-
-def test_connection_open_falls_back_to_manager_workspace_id(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
-
-    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/default")
-
-    transport = coord.set_transport.call_args.args[1]
-    assert transport.workspace_id == "7"
+    assert transport.workspace_id == expected_workspace_id

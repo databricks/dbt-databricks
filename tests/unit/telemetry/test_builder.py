@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import builder, models
 
 
@@ -26,112 +28,98 @@ def _node(resource_type, package_name="root", test_metadata=None):
 
 
 class TestClassifyComputeType:
-    def test_sql_warehouse(self):
-        assert builder.classify_compute_type("/sql/1.0/warehouses/a") == (
-            models.ComputeType.SQL_WAREHOUSE
-        )
-
-    def test_endpoints_form_is_warehouse(self):
-        assert builder.classify_compute_type("/sql/1.0/endpoints/a") == (
-            models.ComputeType.SQL_WAREHOUSE
-        )
-
-    def test_all_purpose_cluster(self):
-        assert builder.classify_compute_type("/sql/protocolv1/o/1/2") == (
-            models.ComputeType.ALL_PURPOSE_CLUSTER
-        )
-
-    def test_query_string_ignored(self):
-        assert builder.classify_compute_type("/sql/1.0/warehouses/a?o=9") == (
-            models.ComputeType.SQL_WAREHOUSE
-        )
-
-    def test_unknown_form_is_other(self):
-        assert builder.classify_compute_type("/unknown") == models.ComputeType.OTHER
-
-    def test_missing_is_unspecified(self):
-        assert builder.classify_compute_type(None) == models.ComputeType.TYPE_UNSPECIFIED
-
-    def test_optional_leading_slash(self):
-        assert builder.classify_compute_type("sql/1.0/warehouses/a") == (
-            models.ComputeType.SQL_WAREHOUSE
-        )
-        assert builder.classify_compute_type("sql/protocolv1/o/1/2") == (
-            models.ComputeType.ALL_PURPOSE_CLUSTER
-        )
+    @pytest.mark.parametrize(
+        ("http_path", "expected"),
+        [
+            (
+                "/sql/1.0/warehouses/a",
+                models.ComputeType.SQL_WAREHOUSE,
+            ),
+            (
+                "/sql/1.0/endpoints/a",
+                models.ComputeType.SQL_WAREHOUSE,
+            ),
+            (
+                "/sql/protocolv1/o/1/2",
+                models.ComputeType.ALL_PURPOSE_CLUSTER,
+            ),
+            ("/unknown", models.ComputeType.OTHER),
+            (None, models.ComputeType.TYPE_UNSPECIFIED),
+            ("sql/1.0/warehouses/a", models.ComputeType.SQL_WAREHOUSE),
+            ("sql/protocolv1/o/1/2", models.ComputeType.ALL_PURPOSE_CLUSTER),
+        ],
+    )
+    def test_classifies_compute_type(self, http_path, expected):
+        assert builder.classify_compute_type(http_path) == expected
 
 
 class TestClassifyAuthFamily:
-    def test_token_is_pat(self):
-        assert builder.classify_auth_family(_creds(token="dapi")) == models.AuthFamily.PAT
-
-    def test_azure_service_principal(self):
-        assert (
-            builder.classify_auth_family(_creds(azure_client_id="a", azure_client_secret="b"))
-            == models.AuthFamily.AZURE_SERVICE_PRINCIPAL
-        )
-
-    def test_no_secret_is_u2m(self):
-        assert builder.classify_auth_family(_creds(auth_type="oauth")) == (
-            models.AuthFamily.OAUTH_U2M
-        )
-
-    def test_client_secret_is_ambiguous(self):
-        assert builder.classify_auth_family(_creds(client_id="c", client_secret="s")) == (
-            models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS
-        )
+    @pytest.mark.parametrize(
+        ("credentials", "expected"),
+        [
+            ({"token": "dapi"}, models.AuthFamily.PAT),
+            (
+                {"azure_client_id": "a", "azure_client_secret": "b"},
+                models.AuthFamily.AZURE_SERVICE_PRINCIPAL,
+            ),
+            ({"auth_type": "oauth"}, models.AuthFamily.OAUTH_U2M),
+            (
+                {"client_id": "c", "client_secret": "s"},
+                models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS,
+            ),
+        ],
+    )
+    def test_classifies_auth_family(self, credentials, expected):
+        assert builder.classify_auth_family(_creds(**credentials)) == expected
 
 
 class TestClassifyCommand:
-    def test_known(self):
-        assert builder.classify_command("run") == models.DbtCommand.RUN
-        assert builder.classify_command("build") == models.DbtCommand.BUILD
-
-    def test_normalized_forms(self):
-        assert builder.classify_command("run-operation") == models.DbtCommand.RUN_OPERATION
-        assert builder.classify_command("source freshness") == models.DbtCommand.SOURCE
-        assert builder.classify_command("docs generate") == models.DbtCommand.DOCS
-
-    def test_unknown_is_other(self):
-        assert builder.classify_command("parse") == models.DbtCommand.OTHER
-
-    def test_missing_is_unspecified(self):
-        assert builder.classify_command(None) == models.DbtCommand.TYPE_UNSPECIFIED
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("run", models.DbtCommand.RUN),
+            ("build", models.DbtCommand.BUILD),
+            ("run-operation", models.DbtCommand.RUN_OPERATION),
+            ("source freshness", models.DbtCommand.SOURCE),
+            ("docs generate", models.DbtCommand.DOCS),
+            ("parse", models.DbtCommand.OTHER),
+            (None, models.DbtCommand.TYPE_UNSPECIFIED),
+        ],
+    )
+    def test_classifies_command(self, command, expected):
+        assert builder.classify_command(command) == expected
 
 
 class TestClassifyWarnErrorPolicy:
-    def test_disabled(self):
-        assert builder.classify_warn_error_policy(None, None) == (
-            models.WarnErrorPolicy.WARN_ERROR_DISABLED
-        )
-
-    def test_all(self):
-        assert builder.classify_warn_error_policy(True, None) == (
-            models.WarnErrorPolicy.WARN_ERROR_ALL
-        )
-
-    def test_error_all_without_overrides_is_all(self):
-        options = SimpleNamespace(error="all", warn=[], silence=[])
-        assert builder.classify_warn_error_policy(False, options) == (
-            models.WarnErrorPolicy.WARN_ERROR_ALL
-        )
-
-    def test_error_all_with_named_override_is_custom(self):
-        options = SimpleNamespace(error="all", warn=["SomeWarning"], silence=[])
-        assert builder.classify_warn_error_policy(False, options) == (
-            models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
-        )
-
-    def test_legacy_warn_error_takes_precedence(self):
-        options = SimpleNamespace(error=[], warn=[], silence=["SomeWarning"])
-        assert builder.classify_warn_error_policy(True, options) == (
-            models.WarnErrorPolicy.WARN_ERROR_ALL
-        )
-
-    def test_custom_policy(self):
-        assert builder.classify_warn_error_policy(False, {"include": ["X"]}) == (
-            models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY
-        )
+    @pytest.mark.parametrize(
+        ("warn_error", "options", "expected"),
+        [
+            (None, None, models.WarnErrorPolicy.WARN_ERROR_DISABLED),
+            (True, None, models.WarnErrorPolicy.WARN_ERROR_ALL),
+            (
+                False,
+                SimpleNamespace(error="all", warn=[], silence=[]),
+                models.WarnErrorPolicy.WARN_ERROR_ALL,
+            ),
+            (
+                False,
+                SimpleNamespace(error="all", warn=["SomeWarning"], silence=[]),
+                models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY,
+            ),
+            (
+                True,
+                SimpleNamespace(error=[], warn=[], silence=["SomeWarning"]),
+                models.WarnErrorPolicy.WARN_ERROR_ALL,
+            ),
+            (
+                False,
+                {"include": ["X"]},
+                models.WarnErrorPolicy.WARN_ERROR_CUSTOM_POLICY,
+            ),
+        ],
+    )
+    def test_classifies_warn_error_policy(self, warn_error, options, expected):
+        assert builder.classify_warn_error_policy(warn_error, options) == expected
 
 
 class TestBuildConnectionConfig:

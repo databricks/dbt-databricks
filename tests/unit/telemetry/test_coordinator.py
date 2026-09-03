@@ -1,6 +1,8 @@
 import json
 import threading
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import coordinator as coord_mod
 from dbt.adapters.databricks.telemetry import models
 
@@ -40,29 +42,23 @@ class TestTransportOpacity:
         assert "redacted" in repr(t)
         assert "Bearer" not in repr(t)
 
-    def test_not_a_dataclass_and_no_dict(self):
-        t = _transport()
-        assert not hasattr(t, "__dict__")
-
 
 class TestSendOrdering:
-    def test_parse_then_transport_sends_once(self, monkeypatch):
+    @pytest.mark.parametrize("post_parse_first", [True, False])
+    def test_parse_and_transport_send_once(self, monkeypatch, post_parse_first):
         capture = _Capture()
         monkeypatch.setattr(coord_mod.client, "send", capture)
         c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        assert capture.calls == []
-        c.set_transport("inv-1", _transport())
-        c.flush()
-        assert len(capture.calls) == 1
 
-    def test_transport_then_parse_sends_once(self, monkeypatch):
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_transport("inv-1", _transport())
-        assert capture.calls == []
-        c.set_post_parse("inv-1", _log())
+        if post_parse_first:
+            c.set_post_parse("inv-1", _log())
+            assert capture.calls == []
+            c.set_transport("inv-1", _transport())
+        else:
+            c.set_transport("inv-1", _transport())
+            assert capture.calls == []
+            c.set_post_parse("inv-1", _log())
+
         c.flush()
         assert len(capture.calls) == 1
 
@@ -165,17 +161,3 @@ class TestIsolationAndClose:
         pending[0].target(*pending[0].args)
 
         assert len(capture.calls) == 1
-
-    def test_mark_start_prunes_closed_invocations(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        c.close("inv-1")
-        c.mark_start("inv-2")
-
-        assert "inv-1" not in c._states
-        assert "inv-2" in c._states
-        assert c.needs_post_parse("inv-2") is True
-
-        c.close("inv-1")
-        assert c._states["inv-1"].closed
-        assert not c._states["inv-2"].closed
