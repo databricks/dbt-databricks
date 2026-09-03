@@ -13,6 +13,7 @@
 
 ### Under the Hood
 
+- Trim redundant POST_PARSE telemetry unit tests and consolidate equivalent cases (test-only, no runtime impact) ([#1664](https://github.com/databricks/dbt-databricks/pull/1664))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
