@@ -243,6 +243,32 @@ class TestResultCapture:
 
         assert selected is None
         assert coverage_complete is False
+        assert captured is True
+
+    def test_partial_snapshot_emits_observed_aggregates_without_coverage(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_node_result("inv-1", "model.p.m1", "success")
+        c.record_hook_result("inv-1", "success")
+
+        results, selected, expected, coverage_complete, captured = c.result_snapshot("inv-1")
+
+        assert results == [("model.p.m1", "success"), ("operation", "success")]
+        assert selected == expected == 2
+        assert coverage_complete is False
+        assert captured is True
+
+    def test_partial_snapshot_without_observations_omits_aggregates(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+
+        results, selected, expected, coverage_complete, captured = c.result_snapshot("inv-1")
+
+        assert results == []
+        assert selected == expected == 2
+        assert coverage_complete is False
         assert captured is False
 
     def test_end_run_is_authoritative_and_complete(self):
@@ -315,6 +341,54 @@ class TestResultCapture:
         assert expected == 2
         assert coverage_complete is True
 
+    def test_fail_fast_error_becomes_skipped_with_threads_1(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_node_result("inv-1", "model.p.m1", "error")
+        c.record_end_run("inv-1", ["skipped", "skipped"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [("model.p.m1", "skipped"), (None, "skipped")]
+        assert selected == expected == 2
+        assert coverage_complete is True
+
+    def test_fail_fast_concurrent_errors_rewritten_to_skipped(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 2)
+        c.record_node_result("inv-1", "model.p.m1", "error")
+        c.record_node_result("inv-1", "model.p.m2", "error")
+        c.record_end_run("inv-1", ["skipped", "skipped"])
+
+        first = c.result_snapshot("inv-1")
+        assert first == c.result_snapshot("inv-1")
+        results, selected, expected, coverage_complete, _ = first
+
+        assert results == [("model.p.m1", "skipped"), ("model.p.m2", "skipped")]
+        assert selected == expected == 2
+        assert coverage_complete is True
+
+    def test_fail_fast_repeated_concurrent_runs_rewrite_errors_to_skipped(self):
+        for invocation_id in ("inv-1", "inv-2"):
+            c = coord_mod.Coordinator()
+            c.mark_start(invocation_id)
+            c.record_expected_count(invocation_id, 3)
+            c.record_node_result(invocation_id, "model.p.m1", "error")
+            c.record_node_result(invocation_id, "model.p.m2", "error")
+            c.record_end_run(invocation_id, ["skipped", "skipped", "skipped"])
+
+            results, selected, expected, coverage_complete, _ = c.result_snapshot(invocation_id)
+
+            assert results == [
+                ("model.p.m1", "skipped"),
+                ("model.p.m2", "skipped"),
+                (None, "skipped"),
+            ]
+            assert selected == expected == 3
+            assert coverage_complete is True
+
     def test_ephemeral_is_selected_but_not_a_top_level_result(self):
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
@@ -327,4 +401,4 @@ class TestResultCapture:
         assert selected == 2
         assert expected == 1
         assert coverage_complete is False
-        assert captured is False
+        assert captured is True

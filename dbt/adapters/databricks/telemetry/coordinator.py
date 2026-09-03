@@ -221,32 +221,20 @@ class Coordinator:
                 result for result in state.node_results if str(result[0]) not in state.ephemeral_ids
             ]
             if state.end_run_statuses is not None:
-                # EndRunResult statuses have no unique IDs.
-                remaining = Counter(_status_key(status) for status in state.end_run_statuses)
-                typed_results = top_level_results + state.hook_results
-                for _, status in typed_results:
-                    key = _status_key(status)
-                    if remaining[key] > 0:
-                        remaining[key] -= 1
-                remaining_statuses = [
-                    status for status in state.end_run_statuses if _take_status(remaining, status)
-                ]
-                expected_count = max(state.expected_result_count, len(top_level_results))
-                missing_expected = max(expected_count - len(top_level_results), 0)
-                synthesized = [(None, status) for status in remaining_statuses[:missing_expected]]
-                leftover_after_expected = max(len(remaining_statuses) - missing_expected, 0)
-                synthetic_ephemeral_count = max(
-                    leftover_after_expected - observed_ephemeral_count, 0
+                reconciled_results, selected_count, expected_count, coverage_complete = (
+                    _reconcile_end_run(
+                        top_level_results,
+                        state.hook_results,
+                        state.end_run_statuses,
+                        state.expected_result_count,
+                        observed_ephemeral_count,
+                    )
                 )
-                selected_count = (
-                    expected_count + observed_ephemeral_count + synthetic_ephemeral_count
-                )
-                reconciled_results = top_level_results + synthesized + state.hook_results
                 return (
                     reconciled_results,
                     selected_count,
                     expected_count,
-                    len(top_level_results) + len(synthesized) >= expected_count,
+                    coverage_complete,
                     True,
                 )
             # Missing ephemeral results make selection unknown.
@@ -262,7 +250,7 @@ class Coordinator:
                 partial_selected_count,
                 state.expected_result_count,
                 False,
-                False,
+                state.results_captured,
             )
 
     def elapsed_ms(self, invocation_id: str) -> int:
@@ -457,6 +445,53 @@ def _take_status(remaining: Counter, status: Any) -> bool:
         return False
     remaining[key] -= 1
     return True
+
+
+def _reconcile_end_run(
+    top_level_results: list,
+    hook_results: list,
+    end_run_statuses: list,
+    expected_result_count: int,
+    observed_ephemeral_count: int,
+) -> tuple:
+    # Node events supply unique IDs; EndRunResult is the terminal status population.
+    remaining = Counter(_status_key(status) for status in end_run_statuses)
+    pending = object()
+    typed_nodes = []
+    for unique_id, status in top_level_results:
+        key = _status_key(status)
+        if remaining[key] > 0:
+            remaining[key] -= 1
+            typed_nodes.append((unique_id, status))
+        else:
+            typed_nodes.append((unique_id, pending))
+    for _, status in hook_results:
+        key = _status_key(status)
+        if remaining[key] > 0:
+            remaining[key] -= 1
+    leftover = [status for status in end_run_statuses if _take_status(remaining, status)]
+    leftover_i = 0
+    attributed = []
+    for unique_id, status in typed_nodes:
+        if status is not pending:
+            attributed.append((unique_id, status))
+            continue
+        if leftover_i < len(leftover):
+            attributed.append((unique_id, leftover[leftover_i]))
+            leftover_i += 1
+    leftover_after = leftover[leftover_i:]
+    expected_count = max(expected_result_count, len(attributed))
+    missing_expected = max(expected_count - len(attributed), 0)
+    synthesized = [(None, status) for status in leftover_after[:missing_expected]]
+    leftover_after_expected = max(len(leftover_after) - missing_expected, 0)
+    synthetic_ephemeral_count = max(leftover_after_expected - observed_ephemeral_count, 0)
+    selected_count = expected_count + observed_ephemeral_count + synthetic_ephemeral_count
+    return (
+        attributed + synthesized + hook_results,
+        selected_count,
+        expected_count,
+        len(attributed) + len(synthesized) >= expected_count,
+    )
 
 
 _COORDINATOR = Coordinator()

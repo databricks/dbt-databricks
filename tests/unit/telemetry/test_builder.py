@@ -260,6 +260,16 @@ class TestBuildPostRunLog:
         assert post_run.auxiliary_hook_results is None
         assert post_run.unknown_resource_type_results is None
 
+    def test_partial_aggregates_keep_counts_and_incomplete_coverage(self):
+        post_run = builder.build_post_run_log(
+            "inv", 1, None, [("model.p.m1", "success")], 2, False, True
+        ).post_run
+        outcome = post_run.run_outcome
+        assert outcome.result_aggregates_available is True
+        assert outcome.expected_result_coverage_complete is False
+        assert post_run.result_counts.success == 1
+        assert post_run.result_counts.total == 1
+
 
 class TestAggregateNodeResults:
     def test_mixed_results_preserve_accounting(self):
