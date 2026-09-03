@@ -1,16 +1,20 @@
 from types import SimpleNamespace
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import config
 
 
-def _creds(connection_parameters):
-    return SimpleNamespace(
+def _creds(connection_parameters, **overrides):
+    values = dict(
         connection_parameters=connection_parameters,
         auth_type=None,
         token=None,
         client_secret=None,
         azure_client_secret=None,
     )
+    values.update(overrides)
+    return SimpleNamespace(**values)
 
 
 class TestOptIn:
@@ -23,31 +27,35 @@ class TestOptIn:
 
 
 class TestCommandEligibility:
-    def test_warehouse_graph_commands_are_eligible(self, monkeypatch):
+    @pytest.mark.parametrize(
+        "command, eligible",
+        [
+            ("build", True),
+            ("run", True),
+            ("test", True),
+            ("seed", True),
+            ("snapshot", True),
+            ("compile", False),
+            ("source freshness", False),
+            ("run-operation", False),
+            ("parse", False),
+        ],
+    )
+    def test_command_eligibility(self, monkeypatch, command, eligible):
         from dbt import flags
 
-        monkeypatch.setattr(flags, "get_flags", lambda: SimpleNamespace(WHICH="build"))
-        assert config.is_eligible_command() is True
-
-    def test_parse_only_and_unwired_task_shapes_are_ineligible(self, monkeypatch):
-        from dbt import flags
-
-        for command in ("compile", "source freshness", "run-operation"):
-            monkeypatch.setattr(
-                flags,
-                "get_flags",
-                lambda command=command: SimpleNamespace(WHICH=command),
-            )
-            assert config.is_eligible_command() is False
+        monkeypatch.setattr(flags, "get_flags", lambda: SimpleNamespace(WHICH=command))
+        assert config.is_eligible_command() is eligible
 
 
 class TestTransportEligibility:
-    def test_kernel_u2m_is_ineligible(self):
-        creds = _creds({"use_kernel": True})
-        creds.auth_type = "oauth"
-        assert config.has_reusable_transport(creds) is False
-
-    def test_kernel_pat_is_eligible(self):
-        creds = _creds({"use_kernel": True})
-        creds.token = "token"
-        assert config.has_reusable_transport(creds) is True
+    @pytest.mark.parametrize(
+        "overrides, reusable",
+        [
+            pytest.param({"auth_type": "oauth"}, False, id="kernel_u2m"),
+            pytest.param({"token": "token"}, True, id="kernel_pat"),
+        ],
+    )
+    def test_kernel_transport(self, overrides, reusable):
+        creds = _creds({"use_kernel": True}, **overrides)
+        assert config.has_reusable_transport(creds) is reusable

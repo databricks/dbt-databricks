@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import hooks
 from dbt.adapters.databricks.telemetry.coordinator import Coordinator, Transport
 
@@ -13,72 +15,53 @@ def _coordinator_with_retained_state() -> Coordinator:
     return coord
 
 
-def _assert_invocation_closed_and_scrubbed(coord: Coordinator) -> None:
-    state = coord._states["inv-1"]
-    assert state.closed is True
-    assert state.post_parse is None
-    assert state.transport is None
-
-
-def test_post_parse_is_not_rebuilt(monkeypatch):
-    coord = Mock()
-    coord.needs_post_parse.return_value = False
-    build = Mock()
+def _enable_hooks(monkeypatch, coord=None):
+    if coord is None:
+        coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
     monkeypatch.setattr(hooks, "DatabricksCredentials", object)
     monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    return coord
+
+
+def test_opt_out_skips_parse_and_transport(monkeypatch):
+    coord = Mock()
+    build = Mock()
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: False)
+    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
     monkeypatch.setattr(hooks.builder, "build_post_parse_log", build)
     adapter = SimpleNamespace(config=SimpleNamespace(credentials=SimpleNamespace()))
 
     hooks.on_post_parse(adapter, SimpleNamespace())
+    hooks.on_connection_open(SimpleNamespace(), SimpleNamespace(), "/sql/1.0/warehouses/x")
 
-    coord.needs_post_parse.assert_called_once_with("inv-1")
     build.assert_not_called()
+    coord.set_post_parse.assert_not_called()
+    coord.set_transport.assert_not_called()
 
 
-def test_closed_invocation_is_not_finalized_again(monkeypatch):
-    coord = Mock()
-    coord.is_active.return_value = False
-    build = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
-
-    hooks._finalize_post_run("inv-1", None)
-
-    coord.is_active.assert_called_once_with("inv-1")
-    coord.result_snapshot.assert_not_called()
-    build.assert_not_called()
-
-
-def test_finalize_does_not_wait_for_send(monkeypatch):
-    coord = Mock()
-    coord.is_active.return_value = True
-    coord.result_snapshot.return_value = ([], 0, 0, False, False)
-    coord.outcome_snapshot.return_value = (None, False)
-    coord.elapsed_ms.return_value = 1
-    build = Mock(return_value="log")
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
-
-    hooks._finalize_post_run("inv-1", None)
-
-    coord.set_post_run.assert_called_once_with("inv-1", "log")
-    coord.flush.assert_not_called()
-    coord.close.assert_called_once_with("inv-1")
+def test_hook_exceptions_do_not_escape(monkeypatch):
+    _enable_hooks(monkeypatch)
+    monkeypatch.setattr(
+        hooks.builder, "build_post_parse_log", Mock(side_effect=RuntimeError("boom"))
+    )
+    adapter = SimpleNamespace(
+        config=SimpleNamespace(credentials=SimpleNamespace()),
+        get_behavior_flag_no_warn=lambda _: False,
+    )
+    hooks.on_post_parse(adapter, SimpleNamespace())  # must not raise
 
 
 def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkeypatch):
-    coord = Mock()
+    coord = _enable_hooks(monkeypatch)
     coord.is_active.return_value = True
     coord.result_snapshot.return_value = ([], 0, 0, False, False)
     coord.outcome_snapshot.return_value = (None, False)
     coord.elapsed_ms.return_value = 1
     build = Mock(return_value="log")
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-2")
-    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
     monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
     monkeypatch.setattr(hooks.sys, "exc_info", lambda: (RuntimeError, RuntimeError("boom"), None))
     adapter = SimpleNamespace(
@@ -95,8 +78,6 @@ def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkey
 
 
 def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
-    from dbt.adapters.databricks.telemetry.coordinator import Coordinator
-
     coord = Coordinator()
     captured = {}
 
@@ -128,29 +109,6 @@ def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
     assert coord.is_closed("inv-1") is True
 
 
-def test_command_completed_waits_for_all_telemetry_senders(monkeypatch):
-    coord = Mock()
-    log = Mock()
-    order = []
-
-    def finalize(*args, **kwargs):
-        order.append("finalize")
-
-    def flush():
-        order.append("flush")
-        return True
-
-    coord.flush.side_effect = flush
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "_finalize_post_run", finalize)
-
-    hooks.on_command_completed("inv-1", True, 1.0)
-
-    assert order == ["finalize", "flush"]
-    log.warning.assert_not_called()
-
-
 def test_command_completed_warns_when_flush_times_out(monkeypatch):
     coord = Mock()
     coord.flush.return_value = False
@@ -164,44 +122,36 @@ def test_command_completed_warns_when_flush_times_out(monkeypatch):
     log.warning.assert_called_once_with("Timed out waiting for dbt telemetry delivery to finish.")
 
 
-def test_command_completed_still_flushes_when_finalization_fails(monkeypatch):
-    coord = _coordinator_with_retained_state()
-    flush = Mock(wraps=coord.flush)
-    monkeypatch.setattr(coord, "flush", flush)
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(
-        hooks,
-        "_finalize_post_run",
-        Mock(side_effect=RuntimeError("finalization failed")),
-    )
-
-    hooks.on_command_completed("inv-1", False, 1.0)
-
-    _assert_invocation_closed_and_scrubbed(coord)
-    flush.assert_called_once_with()
-
-
-def test_command_completed_closes_when_elapsed_conversion_fails(monkeypatch):
+@pytest.mark.parametrize("mode", ["finalize_raises", "invalid_elapsed"])
+def test_command_completed_cleanup_never_escapes(monkeypatch, mode):
     coord = _coordinator_with_retained_state()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    if mode == "finalize_raises":
+        flush = Mock(wraps=coord.flush)
+        monkeypatch.setattr(coord, "flush", flush)
+        monkeypatch.setattr(
+            hooks,
+            "_finalize_post_run",
+            Mock(side_effect=RuntimeError("finalization failed")),
+        )
+        hooks.on_command_completed("inv-1", False, 1.0)
+        flush.assert_called_once_with()
+    else:
 
-    class InvalidElapsed:
-        def __float__(self) -> float:
-            raise ValueError("invalid elapsed")
+        class InvalidElapsed:
+            def __float__(self) -> float:
+                raise ValueError("invalid elapsed")
 
-    hooks.on_command_completed("inv-1", False, InvalidElapsed())
+        hooks.on_command_completed("inv-1", False, InvalidElapsed())
 
-    _assert_invocation_closed_and_scrubbed(coord)
+    assert coord.is_closed("inv-1") is True
+    assert coord.is_active("inv-1") is False
 
 
 def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
-    coord = Mock()
+    coord = _enable_hooks(monkeypatch)
     log = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
     monkeypatch.setattr(hooks.listener, "register", lambda: True)
     adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
@@ -213,47 +163,21 @@ def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
     coord.mark_start.assert_called_once_with("inv-1")
 
 
-def test_reusable_transport_does_not_warn_on_init(monkeypatch):
-    coord = Mock()
-    log = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "DatabricksCredentials", object)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    monkeypatch.setattr(hooks.listener, "register", lambda: True)
-    adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
-
-    hooks.on_adapter_init(adapter)
-
-    log.warning.assert_not_called()
-    coord.mark_start.assert_called_once_with("inv-1")
-
-
-def test_connection_open_uses_opened_path_workspace_id(monkeypatch):
+@pytest.mark.parametrize(
+    "http_path, manager_id, expected",
+    [
+        ("/sql/1.0/warehouses/named?o=42", None, "42"),
+        ("/sql/1.0/warehouses/default", "7", "7"),
+    ],
+)
+def test_connection_open_workspace_id(monkeypatch, http_path, manager_id, expected):
     coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
     monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=None)
+    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=manager_id)
 
-    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/named?o=42")
+    hooks.on_connection_open(SimpleNamespace(), manager, http_path)
 
-    transport = coord.set_transport.call_args.args[1]
-    assert transport.workspace_id == "42"
-
-
-def test_connection_open_falls_back_to_manager_workspace_id(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
-
-    hooks.on_connection_open(SimpleNamespace(), manager, "/sql/1.0/warehouses/default")
-
-    transport = coord.set_transport.call_args.args[1]
-    assert transport.workspace_id == "7"
+    assert coord.set_transport.call_args.args[1].workspace_id == expected

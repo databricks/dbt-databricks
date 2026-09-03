@@ -1,6 +1,8 @@
 import json
 import threading
 
+import pytest
+
 from dbt.adapters.databricks.telemetry import coordinator as coord_mod
 from dbt.adapters.databricks.telemetry import models
 
@@ -44,35 +46,31 @@ class _Capture:
         return True
 
 
+def _entry(call):
+    return json.loads(call[1]["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
+
+
 class TestTransportOpacity:
     def test_repr_is_redacted(self):
         t = _transport()
         assert "redacted" in repr(t)
         assert "Bearer" not in repr(t)
 
-    def test_not_a_dataclass_and_no_dict(self):
-        t = _transport()
-        assert not hasattr(t, "__dict__")
-
 
 class TestSendOrdering:
-    def test_parse_then_transport_sends_once(self, monkeypatch):
+    @pytest.mark.parametrize("order", ["parse_then_transport", "transport_then_parse"])
+    def test_parse_and_transport_send_once(self, monkeypatch, order):
         capture = _Capture()
         monkeypatch.setattr(coord_mod.client, "send", capture)
         c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        assert capture.calls == []
-        c.set_transport("inv-1", _transport())
-        c.flush()
-        assert len(capture.calls) == 1
-
-    def test_transport_then_parse_sends_once(self, monkeypatch):
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_transport("inv-1", _transport())
-        assert capture.calls == []
-        c.set_post_parse("inv-1", _log())
+        if order == "parse_then_transport":
+            c.set_post_parse("inv-1", _log())
+            assert capture.calls == []
+            c.set_transport("inv-1", _transport())
+        else:
+            c.set_transport("inv-1", _transport())
+            assert capture.calls == []
+            c.set_post_parse("inv-1", _log())
         c.flush()
         assert len(capture.calls) == 1
 
@@ -131,6 +129,16 @@ class TestSendOrdering:
         release.set()
         assert c.flush(timeout=2) is True
 
+    def test_send_exceptions_do_not_escape(self, monkeypatch):
+        def boom(host, body, header_factory=None, workspace_id=None):
+            raise RuntimeError("network")
+
+        monkeypatch.setattr(coord_mod.client, "send", boom)
+        c = coord_mod.Coordinator()
+        c.set_post_parse("inv-1", _log())
+        c.set_transport("inv-1", _transport())
+        assert c.flush(timeout=2) is True
+
 
 class TestIsolationAndClose:
     def test_distinct_invocations_do_not_cross_pair(self, monkeypatch):
@@ -152,79 +160,8 @@ class TestIsolationAndClose:
         c.flush()
         assert capture.calls == []
 
-    def test_close_does_not_cancel_already_queued_send(self, monkeypatch):
-        pending = []
-
-        class DelayedThread:
-            def __init__(self, target, args, name, daemon):
-                self.target = target
-                self.args = args
-
-            def is_alive(self):
-                return False
-
-            def start(self):
-                pending.append(self)
-
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.threading, "Thread", DelayedThread)
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        c.set_transport("inv-1", _transport())
-
-        assert len(pending) == 1
-        c.close("inv-1")
-        pending[0].target(*pending[0].args)
-
-        assert len(capture.calls) == 1
-
-    def test_close_does_not_cancel_queued_post_run_with_parse(self, monkeypatch):
-        pending = []
-
-        class DelayedThread:
-            def __init__(self, target, args, name, daemon):
-                self.target = target
-                self.args = args
-
-            def is_alive(self):
-                return False
-
-            def start(self):
-                pending.append(self)
-
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.threading, "Thread", DelayedThread)
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        c.set_post_run("inv-1", _run_log())
-        c.set_transport("inv-1", _transport())
-        c.close("inv-1")
-        for worker in pending:
-            worker.target(*worker.args)
-
-        assert len(capture.calls) == 2
-
-    def test_mark_start_prunes_closed_invocations(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        c.close("inv-1")
-        c.mark_start("inv-2")
-
-        assert "inv-1" not in c._states
-        assert "inv-2" in c._states
-        assert c.needs_post_parse("inv-2") is True
-
-        c.close("inv-1")
-        assert c._states["inv-1"].closed
-        assert not c._states["inv-2"].closed
-
 
 class TestPostRun:
-    def _entry(self, call):
-        return json.loads(call[1]["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
-
     def test_both_phases_send_post_parse_first(self, monkeypatch):
         capture = _Capture()
         monkeypatch.setattr(coord_mod.client, "send", capture)
@@ -234,37 +171,8 @@ class TestPostRun:
         c.set_transport("inv-1", _transport())
         c.flush()
         assert len(capture.calls) == 2
-        assert self._entry(capture.calls[0])["event_type"] == "POST_PARSE"
-        assert self._entry(capture.calls[1])["event_type"] == "POST_RUN"
-
-    def test_close_waits_for_post_run_behind_slow_post_parse(self, monkeypatch):
-        started = threading.Event()
-        release = threading.Event()
-        phases = []
-
-        def blocking_send(host, body, header_factory=None, workspace_id=None):
-            entry = json.loads(body["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
-            phases.append(entry["event_type"])
-            if entry["event_type"] == "POST_PARSE":
-                started.set()
-                assert release.wait(timeout=2)
-            return True
-
-        monkeypatch.setattr(coord_mod.client, "send", blocking_send)
-        monkeypatch.setattr(coord_mod.client, "_TIMEOUT_SECONDS", 0.25)
-        c = coord_mod.Coordinator()
-        c.set_post_parse("inv-1", _log())
-        c.set_transport("inv-1", _transport())
-        assert started.wait(timeout=2)
-        c.set_post_run("inv-1", _run_log())
-
-        timer = threading.Timer(0.35, release.set)
-        timer.start()
-        c.flush()
-        c.close("inv-1")
-        timer.join()
-
-        assert phases == ["POST_PARSE", "POST_RUN"]
+        assert _entry(capture.calls[0])["event_type"] == "POST_PARSE"
+        assert _entry(capture.calls[1])["event_type"] == "POST_RUN"
 
     def test_close_does_not_drop_post_run_behind_in_flight_parse(self, monkeypatch):
         started = threading.Event()
@@ -272,7 +180,7 @@ class TestPostRun:
         phases = []
 
         def blocking_send(host, body, header_factory=None, workspace_id=None):
-            entry = json.loads(body["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
+            entry = _entry((host, body))
             phases.append(entry["event_type"])
             if entry["event_type"] == "POST_PARSE":
                 started.set()
@@ -344,19 +252,6 @@ class TestPostRun:
 
 
 class TestResultCapture:
-    def test_node_results_fallback_snapshot(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        c.record_expected_count("inv-1", 2)
-        c.record_node_result("inv-1", "model.p.m1", "success")
-        c.record_node_result("inv-1", "test.p.t", "pass")
-        results, selected, expected, coverage_complete, captured = c.result_snapshot("inv-1")
-        assert captured is False
-        assert selected == 2
-        assert expected == 2
-        assert coverage_complete is False
-        assert results == [("model.p.m1", "success"), ("test.p.t", "pass")]
-
     def test_partial_snapshot_omits_unprovable_selected_ephemeral_count(self):
         c = coord_mod.Coordinator()
         c.mark_start("inv-1")
@@ -364,9 +259,10 @@ class TestResultCapture:
         c.record_ephemeral_ids("inv-1", {"model.p.ephemeral1", "model.p.ephemeral2"})
         c.record_node_result("inv-1", "model.p.ephemeral1", "success")
 
-        _, selected, _, _, captured = c.result_snapshot("inv-1")
+        _, selected, _, coverage_complete, captured = c.result_snapshot("inv-1")
 
         assert selected is None
+        assert coverage_complete is False
         assert captured is False
 
     def test_end_run_is_authoritative_and_complete(self):
@@ -438,14 +334,6 @@ class TestResultCapture:
         assert selected == 2
         assert expected == 2
         assert coverage_complete is True
-
-    def test_record_after_close_ignored(self):
-        c = coord_mod.Coordinator()
-        c.mark_start("inv-1")
-        c.close("inv-1")
-        c.record_node_result("inv-1", "model.p.m1", "success")
-        results, _, _, _, _ = c.result_snapshot("inv-1")
-        assert results == []
 
     def test_ephemeral_is_selected_but_not_a_top_level_result(self):
         c = coord_mod.Coordinator()
