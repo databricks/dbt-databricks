@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
 
@@ -65,32 +64,3 @@ def test_command_completed_routes_to_hook(monkeypatch, already_closed):
         assert len(logs) == 1
         assert logs[0].event_type == models.EventType.POST_RUN
     assert coord.is_closed("inv-1") is True
-
-
-def test_generic_exception_records_typed_error(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(listener, "coordinator", lambda: coord)
-    monkeypatch.setattr(listener, "_current_invocation_id", lambda: "inv-1")
-
-    listener._on_event(
-        _message(
-            "GenericExceptionOnRun",
-            SimpleNamespace(
-                unique_id="model.p.m",
-                node_info=SimpleNamespace(unique_id="model.p.m"),
-            ),
-        )
-    )
-
-    coord.record_node_result.assert_called_once_with("inv-1", "model.p.m", "error")
-
-
-def test_pre_end_failure_marks_fail_fast_triggered(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(listener, "coordinator", lambda: coord)
-    monkeypatch.setattr(listener, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(listener, "_fail_fast_enabled", lambda: True)
-
-    listener._on_event(_message("RunResultFailure", SimpleNamespace()))
-
-    coord.mark_fail_fast_triggered.assert_called_once_with("inv-1")

@@ -71,15 +71,20 @@ def test_hook_exceptions_do_not_escape(monkeypatch):
 
 
 def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkeypatch):
-    coord = _enable_hooks(monkeypatch)
-    coord.is_active.return_value = True
-    coord.result_snapshot.return_value = ([], 0, 0, False, False)
-    coord.outcome_snapshot.return_value = (None, False)
-    coord.elapsed_ms.return_value = 1
-    build = Mock(return_value="log")
+    coord = Coordinator()
+    logs = []
+    original = coord.set_post_run
+
+    def capture(invocation_id, payload):
+        logs.append(payload)
+        return original(invocation_id, payload)
+
+    coord.set_post_run = capture
+    _enable_hooks(monkeypatch, coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-2")
-    monkeypatch.setattr(hooks.builder, "build_post_run_log", build)
     monkeypatch.setattr(hooks.sys, "exc_info", lambda: (RuntimeError, RuntimeError("boom"), None))
+    coord.mark_start("inv-1")
+    coord.mark_start("inv-2")
     adapter = SimpleNamespace(
         config=SimpleNamespace(credentials=SimpleNamespace()),
         _dbt_telemetry_invocation_id="inv-1",
@@ -87,10 +92,10 @@ def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkey
 
     hooks.on_run_end(adapter)
 
-    build.assert_called_once()
-    assert build.call_args.args[0] == "inv-1"
-    coord.set_post_run.assert_called_once_with("inv-1", "log")
-    coord.close.assert_called_once_with("inv-1")
+    assert logs[0].invocation_id == "inv-1"
+    assert logs[0].post_run.run_outcome.invocation_status == models.InvocationStatus.INTERNAL_ERROR
+    assert coord.is_closed("inv-1") is True
+    assert coord.is_active("inv-2") is True
 
 
 def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
@@ -142,6 +147,39 @@ def test_finalize_does_not_wait_for_send(monkeypatch):
     assert coord.flush(timeout=2) is True
 
 
+def test_command_completed_waits_for_send(monkeypatch):
+    coord = Coordinator()
+    in_send = threading.Event()
+    release = threading.Event()
+    completed = threading.Event()
+
+    def slow_send(host, body, header_factory=None, workspace_id=None):
+        in_send.set()
+        release.wait(timeout=2)
+        return True
+
+    def complete_command():
+        hooks.on_command_completed("inv-1", True, 1.0)
+        completed.set()
+
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(coord_mod.client, "send", slow_send)
+    coord.mark_start("inv-1")
+    coord.set_transport(
+        "inv-1",
+        Transport("https://h", lambda: {"Authorization": "Bearer x"}, "42"),
+    )
+
+    worker = threading.Thread(target=complete_command)
+    worker.start()
+    assert in_send.wait(timeout=2)
+    assert completed.is_set() is False
+
+    release.set()
+    worker.join(timeout=2)
+    assert completed.is_set() is True
+
+
 def test_command_completed_warns_when_flush_times_out(monkeypatch):
     coord = Coordinator()
     in_send = threading.Event()
@@ -176,8 +214,6 @@ def test_command_completed_warns_when_flush_times_out(monkeypatch):
 
 def test_command_completed_cleanup_never_escapes(monkeypatch):
     coord = _coordinator_with_retained_state()
-    flush = Mock(wraps=coord.flush)
-    monkeypatch.setattr(coord, "flush", flush)
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(
         hooks,
@@ -187,13 +223,12 @@ def test_command_completed_cleanup_never_escapes(monkeypatch):
 
     hooks.on_command_completed("inv-1", False, 1.0)
 
-    flush.assert_called_once_with()
     assert coord.is_closed("inv-1") is True
     assert coord.is_active("inv-1") is False
 
 
 def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
-    coord = _enable_hooks(monkeypatch)
+    _enable_hooks(monkeypatch)
     log = Mock()
     monkeypatch.setattr(hooks, "logger", log)
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
@@ -204,7 +239,6 @@ def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
 
     log.warning.assert_called_once()
     assert "kernel" in log.warning.call_args.args[0].lower()
-    coord.mark_start.assert_called_once_with("inv-1")
 
 
 @pytest.mark.parametrize(

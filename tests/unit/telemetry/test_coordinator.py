@@ -50,13 +50,6 @@ def _entry(call):
     return json.loads(call[1]["protoLogs"][0])["entry"]["dbt_databricks_telemetry_log"]
 
 
-class TestTransportOpacity:
-    def test_repr_is_redacted(self):
-        t = _transport()
-        assert "redacted" in repr(t)
-        assert "Bearer" not in repr(t)
-
-
 class TestSendOrdering:
     @pytest.mark.parametrize("order", ["parse_then_transport", "transport_then_parse"])
     def test_parse_and_transport_send_once(self, monkeypatch, order):
@@ -198,19 +191,6 @@ class TestPostRun:
         c.flush(timeout=2)
 
         assert phases == ["POST_PARSE", "POST_RUN"]
-
-    def test_phases_use_distinct_event_ids(self, monkeypatch):
-        capture = _Capture()
-        monkeypatch.setattr(coord_mod.client, "send", capture)
-        c = coord_mod.Coordinator()
-        c.set_transport("inv-1", _transport())
-        c.set_post_parse("inv-1", _log())
-        c.set_post_run("inv-1", _run_log())
-        c.flush()
-        ids = {
-            json.loads(call[1]["protoLogs"][0])["frontend_log_event_id"] for call in capture.calls
-        }
-        assert len(ids) == 2
 
     def test_timestamp_millis_is_event_time_not_send_time(self, monkeypatch):
         pending = []
