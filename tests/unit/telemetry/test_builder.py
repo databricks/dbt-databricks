@@ -188,15 +188,6 @@ class TestBuildPostRunLog:
                 id="fail_fast",
             ),
             pytest.param(
-                None,
-                [("operation.p.h", "error"), ("model.p.m", "skipped")],
-                False,
-                False,
-                models.InvocationStatus.HANDLED_ERROR,
-                models.TerminationReason.NORMAL,
-                id="authoritative_aux_failure",
-            ),
-            pytest.param(
                 KeyboardInterrupt,
                 [],
                 False,
@@ -242,6 +233,23 @@ class TestBuildPostRunLog:
         assert outcome.invocation_status == status
         assert outcome.termination_reason == reason
 
+    def test_authoritative_task_failure_includes_auxiliary_failures(self):
+        post_run = builder.build_post_run_log(
+            "inv",
+            1,
+            None,
+            [("operation.p.h", "error"), ("model.p.m", "skipped")],
+            1,
+            True,
+            True,
+            task_success=False,
+        ).post_run
+        assert post_run.run_outcome.invocation_status == models.InvocationStatus.HANDLED_ERROR
+        assert post_run.auxiliary_hook_results.error == 1
+        assert post_run.auxiliary_hook_results.total == 1
+        assert post_run.result_counts.error == 0
+        assert post_run.result_counts.skipped == 1
+
     def test_aggregates_unavailable_when_not_captured(self):
         post_run = builder.build_post_run_log("inv", 1, None, [], 0, False, False).post_run
         outcome = post_run.run_outcome
@@ -261,12 +269,13 @@ class TestAggregateNodeResults:
                 ("test.p.t", "pass"),
                 ("analysis.p.a", "fail"),
                 ("operation.p.h", "success"),
+                (None, "skipped"),
             ]
         )
         assert aux.total == 1 and aux.success == 1
-        assert unknown == 1
-        assert rc.success == 1 and rc.pass_ == 1 and rc.fail == 1
-        assert rc.total == 3
+        assert unknown == 2
+        assert rc.success == 1 and rc.pass_ == 1 and rc.fail == 1 and rc.skipped == 1
+        assert rc.total == 4
         by = {r.resource_type: r.status_counts for r in by_type}
         assert by[models.ResourceType.MODEL].success == 1
         assert by[models.ResourceType.DATA_TEST].pass_ == 1

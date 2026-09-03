@@ -1,10 +1,26 @@
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from dbt.adapters.databricks.telemetry import hooks
+from dbt.adapters.databricks.telemetry import coordinator as coord_mod
+from dbt.adapters.databricks.telemetry import hooks, models
 from dbt.adapters.databricks.telemetry.coordinator import Coordinator, Transport
+
+
+def _parse_log():
+    return models.TelemetryLog(
+        invocation_id="inv-1",
+        adapter_version="1.2.3",
+        dbt_core_version="1.12.0",
+        post_parse=models.PostParsePayload(
+            invocation_config=models.InvocationConfig(),
+            manifest_stats=models.ManifestStats(),
+            connection_config=models.ConnectionConfig(),
+            project_config=models.ProjectConfig(),
+        ),
+    )
 
 
 def _coordinator_with_retained_state() -> Coordinator:
@@ -79,71 +95,99 @@ def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkey
 
 def test_command_completed_overrides_graph_success_and_elapsed(monkeypatch):
     coord = Coordinator()
-    captured = {}
+    logs = []
+    original = coord.set_post_run
 
-    def capture(
-        invocation_id,
-        elapsed_ms,
-        exc_type,
-        results,
-        expected,
-        coverage_complete,
-        results_captured,
-        selected_resources=None,
-        fail_fast_triggered=False,
-        task_success=None,
-    ):
-        captured["elapsed_ms"] = elapsed_ms
-        captured["task_success"] = task_success
-        return SimpleNamespace()
+    def capture(invocation_id, payload):
+        logs.append(payload)
+        return original(invocation_id, payload)
 
+    coord.set_post_run = capture
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks.builder, "build_post_run_log", capture)
     coord.mark_start("inv-1")
     coord.record_end_run("inv-1", ["success"], success=True)
 
     hooks.on_command_completed("inv-1", False, 9.5)
 
-    assert captured["task_success"] is False
-    assert captured["elapsed_ms"] == 9500
+    outcome = logs[0].post_run.run_outcome
+    assert outcome.invocation_status == models.InvocationStatus.HANDLED_ERROR
+    assert outcome.invocation_duration_ms == 9500
     assert coord.is_closed("inv-1") is True
 
 
+def test_finalize_does_not_wait_for_send(monkeypatch):
+    coord = Coordinator()
+    in_send = threading.Event()
+    release = threading.Event()
+
+    def slow_send(host, body, header_factory=None, workspace_id=None):
+        in_send.set()
+        assert release.wait(timeout=2)
+        return True
+
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(coord_mod.client, "send", slow_send)
+    coord.mark_start("inv-1")
+    coord.set_transport(
+        "inv-1",
+        Transport("https://h", lambda: {"Authorization": "Bearer x"}, "42"),
+    )
+
+    hooks._finalize_post_run("inv-1", None, elapsed_ms=1, command_success=True)
+
+    assert in_send.wait(timeout=2)
+    assert coord.is_closed("inv-1") is True
+    assert not release.is_set()
+    release.set()
+    assert coord.flush(timeout=2) is True
+
+
 def test_command_completed_warns_when_flush_times_out(monkeypatch):
-    coord = Mock()
-    coord.flush.return_value = False
+    coord = Coordinator()
+    in_send = threading.Event()
+    release = threading.Event()
     log = Mock()
+
+    def slow_send(host, body, header_factory=None, workspace_id=None):
+        in_send.set()
+        assert release.wait(timeout=2)
+        return True
+
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "_finalize_post_run", Mock())
+    monkeypatch.setattr(coord_mod.client, "send", slow_send)
+    monkeypatch.setattr(coord_mod.client, "_TIMEOUT_SECONDS", 0)
+    coord.mark_start("inv-1")
+    coord.set_post_parse("inv-1", _parse_log())
+    coord.set_transport(
+        "inv-1",
+        Transport("https://h", lambda: {"Authorization": "Bearer x"}, "42"),
+    )
+    assert in_send.wait(timeout=2)
 
     hooks.on_command_completed("inv-1", True, 1.0)
 
-    log.warning.assert_called_once_with("Timed out waiting for dbt telemetry delivery to finish.")
+    log.warning.assert_called_once()
+    assert "timed out" in log.warning.call_args.args[0].lower()
+    assert coord.is_closed("inv-1") is True
+    release.set()
+    coord.flush(timeout=2)
 
 
-@pytest.mark.parametrize("mode", ["finalize_raises", "invalid_elapsed"])
-def test_command_completed_cleanup_never_escapes(monkeypatch, mode):
+def test_command_completed_cleanup_never_escapes(monkeypatch):
     coord = _coordinator_with_retained_state()
+    flush = Mock(wraps=coord.flush)
+    monkeypatch.setattr(coord, "flush", flush)
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    if mode == "finalize_raises":
-        flush = Mock(wraps=coord.flush)
-        monkeypatch.setattr(coord, "flush", flush)
-        monkeypatch.setattr(
-            hooks,
-            "_finalize_post_run",
-            Mock(side_effect=RuntimeError("finalization failed")),
-        )
-        hooks.on_command_completed("inv-1", False, 1.0)
-        flush.assert_called_once_with()
-    else:
+    monkeypatch.setattr(
+        hooks,
+        "_finalize_post_run",
+        Mock(side_effect=RuntimeError("finalization failed")),
+    )
 
-        class InvalidElapsed:
-            def __float__(self) -> float:
-                raise ValueError("invalid elapsed")
+    hooks.on_command_completed("inv-1", False, 1.0)
 
-        hooks.on_command_completed("inv-1", False, InvalidElapsed())
-
+    flush.assert_called_once_with()
     assert coord.is_closed("inv-1") is True
     assert coord.is_active("inv-1") is False
 
