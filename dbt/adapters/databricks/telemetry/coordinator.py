@@ -456,6 +456,10 @@ def _reconcile_end_run(
 ) -> tuple:
     # Node events supply unique IDs; EndRunResult is the terminal status population.
     remaining = Counter(_status_key(status) for status in end_run_statuses)
+    for _, status in hook_results:
+        key = _status_key(status)
+        if remaining[key] > 0:
+            remaining[key] -= 1
     pending = object()
     typed_nodes = []
     for unique_id, status in top_level_results:
@@ -465,10 +469,6 @@ def _reconcile_end_run(
             typed_nodes.append((unique_id, status))
         else:
             typed_nodes.append((unique_id, pending))
-    for _, status in hook_results:
-        key = _status_key(status)
-        if remaining[key] > 0:
-            remaining[key] -= 1
     leftover = [status for status in end_run_statuses if _take_status(remaining, status)]
     leftover_i = 0
     attributed = []

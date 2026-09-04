@@ -370,6 +370,26 @@ class TestResultCapture:
         assert selected == expected == 2
         assert coverage_complete is True
 
+    def test_fail_fast_reconciliation_reserves_hook_statuses(self):
+        c = coord_mod.Coordinator()
+        c.mark_start("inv-1")
+        c.record_expected_count("inv-1", 3)
+        c.record_node_result("inv-1", "model.p.failed", "error")
+        c.record_node_result("inv-1", "model.p.cancelled", "error")
+        c.record_hook_result("inv-1", "error")
+        c.record_end_run("inv-1", ["error", "skipped", "skipped", "error"])
+
+        results, selected, expected, coverage_complete, _ = c.result_snapshot("inv-1")
+
+        assert results == [
+            ("model.p.failed", "error"),
+            ("model.p.cancelled", "skipped"),
+            (None, "skipped"),
+            ("operation", "error"),
+        ]
+        assert selected == expected == 3
+        assert coverage_complete is True
+
     def test_fail_fast_repeated_concurrent_runs_rewrite_errors_to_skipped(self):
         for invocation_id in ("inv-1", "inv-2"):
             c = coord_mod.Coordinator()
