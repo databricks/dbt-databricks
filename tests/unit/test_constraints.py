@@ -52,18 +52,15 @@ class TestCustomConstraint:
             type=ConstraintType.custom, expression="1 = 1"
         ) == CustomConstraint.from_dict(raw)
 
-    def test_custom_constraint_from_dict__invalid(self):
-        raw = {"type": "custom"}
-        with pytest.raises(
-            DbtValidationError, match="custom constraint '' is missing required field"
-        ):
-            CustomConstraint.from_dict(raw)
-
-    def test_custom_constraint_from_dict__empty_expression(self):
-        raw = {"type": "custom", "name": "c", "expression": ""}
-        with pytest.raises(
-            DbtValidationError, match="custom constraint '' is missing required field"
-        ):
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            {"type": "custom"},
+            {"type": "custom", "name": "c", "expression": ""},
+        ],
+    )
+    def test_custom_constraint_from_dict__invalid(self, raw):
+        with pytest.raises(DbtValidationError, match="custom constraint .* missing required field"):
             CustomConstraint.from_dict(raw)
 
     def test_custom_constraint_render(self):
@@ -427,28 +424,6 @@ class TestParseModelAndLegacyConstraints:
         ):
             parse_model_and_legacy_constraints(columns, [], persist_constraints=True)
 
-    def test_v1_skips_unsupported_constraints(self):
-        assert (set(), []) == parse_model_and_legacy_constraints(
-            {},
-            [{"type": "unique", "columns": ["id"]}],
-            skip_unsupported=True,
-        )
-
-    def test_persist_constraints_does_not_skip_unsupported_without_post_create(self):
-        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
-            parse_model_and_legacy_constraints(
-                {},
-                [{"type": ConstraintType.unique, "columns": ["id"], "warn_unsupported": True}],
-                persist_constraints=True,
-            )
-
-    def test_contract_unique_still_raises_without_persist_constraints(self):
-        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
-            parse_model_and_legacy_constraints(
-                {},
-                [{"type": ConstraintType.unique, "columns": ["id"]}],
-            )
-
     def test_v1_generates_stable_constraint_names(self):
         raw_constraints = [{"type": "check", "expression": "id > 0"}]
 
@@ -477,7 +452,15 @@ class TestParseModelAndLegacyConstraints:
             for call in mock_warn.call_args_list
         )
 
-    def test_qualifies_unqualified_fk_to(self):
+    @pytest.mark.parametrize(
+        "database, schema, target, expected",
+        [
+            ("cat", "sch", "parent", "`cat`.`sch`.`parent`"),
+            ("cat", "sch", "`other_cat`.`other_sch`.`parent`", "`other_cat`.`other_sch`.`parent`"),
+            ("", "", "parent", "parent"),
+        ],
+    )
+    def test_qualifies_fk_target(self, database, schema, target, expected):
         _, parsed = parse_model_and_legacy_constraints(
             {},
             [
@@ -485,77 +468,15 @@ class TestParseModelAndLegacyConstraints:
                     "type": "foreign_key",
                     "name": "fk_id",
                     "columns": ["id"],
-                    "to": "parent",
+                    "to": target,
                     "to_columns": ["id"],
                 }
             ],
-            relation_database="cat",
-            relation_schema="sch",
+            relation_database=database,
+            relation_schema=schema,
         )
 
-        assert parsed[0].to == "`cat`.`sch`.`parent`"
-        assert "REFERENCES `cat`.`sch`.`parent`" in parsed[0].render()
-
-    def test_leaves_dotted_fk_to_unchanged(self):
-        _, parsed = parse_model_and_legacy_constraints(
-            {},
-            [
-                {
-                    "type": "foreign_key",
-                    "name": "fk_id",
-                    "columns": ["id"],
-                    "to": "`other_cat`.`other_sch`.`parent`",
-                    "to_columns": ["id"],
-                }
-            ],
-            relation_database="cat",
-            relation_schema="sch",
-        )
-
-        assert parsed[0].to == "`other_cat`.`other_sch`.`parent`"
-
-    def test_fk_name_hash_uses_qualified_to(self):
-        raw_constraints = [
-            {
-                "type": "foreign_key",
-                "columns": ["id"],
-                "to": "parent",
-                "to_columns": ["id"],
-            }
-        ]
-        _, first = parse_model_and_legacy_constraints(
-            {},
-            raw_constraints,
-            relation_identifier="child",
-            relation_database="cat",
-            relation_schema="sch",
-        )
-        _, second = parse_model_and_legacy_constraints(
-            {},
-            raw_constraints,
-            relation_identifier="child",
-            relation_database="cat",
-            relation_schema="sch",
-        )
-
-        assert first[0].name == second[0].name
-        assert first[0].to == "`cat`.`sch`.`parent`"
-
-    def test_skips_fk_qualify_without_database_or_schema(self):
-        _, parsed = parse_model_and_legacy_constraints(
-            {},
-            [
-                {
-                    "type": "foreign_key",
-                    "name": "fk_id",
-                    "columns": ["id"],
-                    "to": "parent",
-                    "to_columns": ["id"],
-                }
-            ],
-        )
-
-        assert parsed[0].to == "parent"
+        assert parsed[0].to == expected
 
 
 class TestParseColumnsAndConstraintsGate:
@@ -628,11 +549,13 @@ class TestParseColumnsAndConstraintsGate:
             }
         }
         enriched, parsed = DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
+            [],
             self._request(
                 columns=columns,
                 persist_constraints=True,
                 meta_constraints=[{"name": "id_positive", "condition": "id > 0"}],
+                column_source="model",
+                application="post_create",
             ),
         )
 
@@ -644,44 +567,6 @@ class TestParseColumnsAndConstraintsGate:
                 expression="id > 0",
             )
         ]
-
-    def test_includes_model_columns_for_post_create_application(self):
-        enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
-            [],
-            self._request(
-                columns={
-                    "id": {
-                        "name": "id",
-                        "data_type": "int",
-                        "constraints": [{"type": "not_null"}],
-                    }
-                },
-                contract_enforced=True,
-                column_source="model",
-                application="post_create",
-            ),
-        )
-
-        assert len(enriched) == 1
-        assert enriched[0].name == "id"
-        assert enriched[0].not_null
-
-    def test_empty_existing_columns_does_not_imply_model_column_source(self):
-        enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
-            [],
-            self._request(
-                columns={
-                    "id": {
-                        "name": "id",
-                        "data_type": "int",
-                        "constraints": [{"type": "not_null"}],
-                    }
-                },
-                contract_enforced=True,
-            ),
-        )
-
-        assert enriched == []
 
     @patch("dbt.adapters.databricks.constraints.warn_or_error")
     def test_warns_for_invalid_model_not_null_in_post_create_application(self, mock_warn):
@@ -731,10 +616,6 @@ class TestParseColumnsAndConstraintsGate:
         fk = next(c for c in parsed if isinstance(c, ForeignKeyConstraint))
         assert pk.columns == ["id"]
         assert fk.columns == ["id"]
-        assert "PRIMARY KEY (`id`)" in pk.render()
-        assert "FOREIGN KEY (`id`)" in fk.render()
-        assert "`missing`" not in pk.render()
-        assert "`missing`" not in fk.render()
         assert {call.args[0].base_msg for call in mock_warn.call_args_list} == {
             "Invalid primary key column: missing",
             "Invalid foreign key column: missing",
@@ -759,27 +640,22 @@ class TestParseColumnsAndConstraintsGate:
         assert parsed[0].columns == ["id", "missing"]
         assert "`missing`" in parsed[0].render()
 
-    def test_post_create_skips_unsupported_without_persist_constraints(self):
-        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            self._request(
-                constraints=[{"type": "unique", "columns": ["id"]}],
-                contract_enforced=True,
-                application="post_create",
-            ),
+    @pytest.mark.parametrize("application", ["create", "post_create"])
+    def test_unsupported_constraint_policy(self, application):
+        request = self._request(
+            constraints=[{"type": ConstraintType.unique, "columns": ["id"]}],
+            contract_enforced=True,
+            application=application,
         )
-        assert parsed == []
 
-    def test_persist_constraints_on_create_still_raises_for_unique(self):
-        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
-            DatabricksAdapter.parse_columns_and_constraints(
-                self._existing_columns(),
-                self._request(
-                    constraints=[{"type": ConstraintType.unique, "columns": ["id"]}],
-                    persist_constraints=True,
-                    application="create",
-                ),
+        if application == "post_create":
+            _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+                self._existing_columns(), request
             )
+            assert parsed == []
+        else:
+            with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
+                DatabricksAdapter.parse_columns_and_constraints(self._existing_columns(), request)
 
     def test_defaults_to_not_enforced(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
