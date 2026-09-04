@@ -1,9 +1,10 @@
+import sys
 from typing import Any, Optional
 
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
-from dbt.adapters.databricks.telemetry import builder
+from dbt.adapters.databricks.telemetry import builder, listener
 from dbt.adapters.databricks.telemetry.config import (
     has_reusable_transport,
     is_enabled_for_invocation,
@@ -44,7 +45,10 @@ def on_adapter_init(adapter: Any) -> None:
         if not invocation_id:
             return
         setattr(adapter, _INVOCATION_ID_ATTR, invocation_id)
-        coordinator().mark_start(invocation_id)
+        coord = coordinator()
+        coord.mark_start(invocation_id)
+        if not listener.register():
+            coord.close(invocation_id)
     except Exception:  # pragma: no cover - best-effort
         return
 
@@ -67,6 +71,7 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
         )
         if not log.invocation_id:
             return
+        coord.record_ephemeral_ids(log.invocation_id, builder.ephemeral_resource_ids(manifest))
         coord.set_post_parse(log.invocation_id, log)
     except Exception:  # pragma: no cover - best-effort
         return
@@ -100,6 +105,61 @@ def on_connection_open(
         return
 
 
+def _finalize_post_run(
+    invocation_id: str,
+    exc_type: Optional[type],
+    *,
+    elapsed_ms: Optional[int] = None,
+    command_success: Optional[bool] = None,
+) -> None:
+    coord = coordinator()
+    if not coord.is_active(invocation_id):
+        return
+    results, selected, expected, coverage_complete, results_captured = coord.result_snapshot(
+        invocation_id
+    )
+    task_success, fail_fast_triggered = coord.outcome_snapshot(invocation_id)
+    if command_success is not None:
+        task_success = command_success
+    log = builder.build_post_run_log(
+        invocation_id,
+        coord.elapsed_ms(invocation_id) if elapsed_ms is None else elapsed_ms,
+        exc_type,
+        results,
+        expected,
+        coverage_complete,
+        results_captured,
+        selected_resources=selected,
+        fail_fast_triggered=fail_fast_triggered,
+        task_success=task_success,
+    )
+    coord.set_post_run(invocation_id, log)
+    coord.close(invocation_id)
+
+
+def on_command_completed(invocation_id: str, success: Any, elapsed: Any) -> None:
+    try:
+        coord = coordinator()
+        try:
+            elapsed_ms = None
+            if elapsed is not None:
+                elapsed_ms = int(max(float(elapsed), 0.0) * 1000)
+            command_success = None if success is None else bool(success)
+            _finalize_post_run(
+                invocation_id,
+                None,
+                elapsed_ms=elapsed_ms,
+                command_success=command_success,
+            )
+        finally:
+            if coord.is_active(invocation_id):
+                coord.close(invocation_id)
+            if not coord.flush():
+                logger.warning("Timed out waiting for dbt telemetry delivery to finish.")
+    except Exception:  # pragma: no cover - best-effort
+        return
+
+
 def on_run_end(adapter: Any) -> None:
     try:
         config = getattr(adapter, "config", None)
@@ -109,6 +169,8 @@ def on_run_end(adapter: Any) -> None:
         invocation_id = _stored_invocation_id(adapter)
         if not invocation_id:
             return
-        coordinator().close(invocation_id)
+        exc_type = sys.exc_info()[0]
+        if exc_type is not None:
+            _finalize_post_run(invocation_id, exc_type)
     except Exception:  # pragma: no cover - best-effort
         return
