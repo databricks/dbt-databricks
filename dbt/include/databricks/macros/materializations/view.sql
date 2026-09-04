@@ -36,6 +36,7 @@
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
     {% endif %}
+    {% do validate_persist_doc_columns(target_relation, model) %}
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
 
@@ -66,6 +67,8 @@
       {{ apply_column_tags(target_relation, column_tags) }}
     {% endif %}
 
+    {% do validate_persist_doc_columns(target_relation, model) %}
+
     {{ run_hooks(post_hooks) }}
   {% endif %}
 
@@ -86,6 +89,9 @@
 {% endmacro %}
 
 {% macro relation_should_be_altered(existing_relation) %}
+  {% if should_full_refresh() %}
+    {{ return(False) }}
+  {% endif %}
   {% set update_via_alter = config.get('view_update_via_alter', False) | as_bool %}
   {% if (existing_relation.is_view or existing_relation.is_metric_view) and update_via_alter %}
     {% if existing_relation.is_hive_metastore() %}

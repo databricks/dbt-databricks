@@ -81,6 +81,7 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
+from dbt.adapters.databricks.relation_configs.constraints import ConstraintsProcessor
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -101,6 +102,7 @@ from dbt.adapters.databricks.spog.capabilities import (
     sdk_supports_workspace_id,
 )
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
+from dbt.adapters.databricks.telemetry import hooks as telemetry_hooks
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -295,6 +297,8 @@ class DatabricksAdapter(SparkAdapter):
         GlobalState.set_use_managed_iceberg(
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
+
+        telemetry_hooks.on_adapter_init(self)
 
         # Warehouses always meet capability cutoffs at parse time; clusters keep the
         # conservative False until a real connection is available.
@@ -903,6 +907,14 @@ class DatabricksAdapter(SparkAdapter):
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
 
+    def set_macro_resolver(self, macro_resolver: Any) -> None:
+        super().set_macro_resolver(macro_resolver)
+        telemetry_hooks.on_post_parse(self, macro_resolver)
+
+    def cleanup_connections(self) -> None:
+        telemetry_hooks.on_run_end(self)
+        super().cleanup_connections()
+
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
         DatabricksAdapterAddQueryRecord,
@@ -1354,6 +1366,12 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
         kwargs = {"relation": relation}
 
+        table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
+        if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+        else:
+            results["information_schema.tags"] = None
+
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
         if adapter.is_describe_as_json_supported(relation):
@@ -1414,15 +1432,26 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                 results["column_masks"] = relation_metadata.column_masks
                 results["row_filters"] = relation_metadata.row_filters
             else:
-                results["non_null_constraint_columns"] = adapter.execute_macro(
-                    "fetch_non_null_constraint_columns", kwargs=kwargs
+                constraint_config = (
+                    model_config.config.get(ConstraintsProcessor.name) if model_config else None
                 )
-                results["primary_key_constraints"] = adapter.execute_macro(
-                    "fetch_primary_key_constraints", kwargs=kwargs
-                )
-                results["foreign_key_constraints"] = adapter.execute_macro(
-                    "fetch_foreign_key_constraints", kwargs=kwargs
-                )
+                if (
+                    constraint_config is None
+                    or constraint_config.requires_server_metadata_for_diff()
+                ):
+                    results["non_null_constraint_columns"] = adapter.execute_macro(
+                        "fetch_non_null_constraint_columns", kwargs=kwargs
+                    )
+                    results["primary_key_constraints"] = adapter.execute_macro(
+                        "fetch_primary_key_constraints", kwargs=kwargs
+                    )
+                    results["foreign_key_constraints"] = adapter.execute_macro(
+                        "fetch_foreign_key_constraints", kwargs=kwargs
+                    )
+                else:
+                    results["non_null_constraint_columns"] = None
+                    results["primary_key_constraints"] = None
+                    results["foreign_key_constraints"] = None
                 results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
                 results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 

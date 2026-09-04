@@ -127,6 +127,30 @@ models:
           classification: internal
 """
 
+record_constraint_fetches_macros = """
+{% macro record_constraint_fetch(relation, fetch_name) %}
+  {% call statement('record_' ~ fetch_name) %}
+    insert into {{ relation.database }}.{{ relation.schema }}.metadata_constraint_fetches
+    values ('{{ fetch_name }}')
+  {% endcall %}
+{% endmacro %}
+
+{% macro fetch_non_null_constraint_columns(relation) %}
+  {{ record_constraint_fetch(relation, 'non_null') }}
+  {% do return(run_query(fetch_non_null_constraint_columns_sql(relation))) %}
+{% endmacro %}
+
+{% macro fetch_primary_key_constraints(relation) %}
+  {{ record_constraint_fetch(relation, 'primary_key') }}
+  {% do return(run_query(fetch_primary_key_constraints_sql(relation))) %}
+{% endmacro %}
+
+{% macro fetch_foreign_key_constraints(relation) %}
+  {{ record_constraint_fetch(relation, 'foreign_key') }}
+  {% do return(run_query(fetch_foreign_key_constraints_sql(relation))) %}
+{% endmacro %}
+"""
+
 tblproperties_a = """
 version: 2
 
@@ -309,6 +333,13 @@ delete_insert_expected = """id,msg
 3,anyway
 """
 
+delete_insert_composite_key_expected = """id,color,msg
+1,blue,replaced
+1,red,updated
+2,blue,updated
+2,red,goodbye
+"""
+
 delete_insert_update_schema_expected = """id
 1
 2
@@ -445,6 +476,48 @@ select cast(2 as bigint) as id, 'goodbye' as msg, 'red' as color
 {% else %}
 
 select cast(3 as bigint) as id, 'anyway' as msg, 'purple' as color
+
+{% endif %}
+"""
+
+force_legacy_delete_insert_macros = """
+{% macro delete_insert_sql_impl(
+     source_relation, target_relation, target_columns, unique_key, incremental_predicates
+   ) %}
+  {#-- Force the DBR < 17.1 path so the legacy DELETE predicate runs on any compute --#}
+  {%- set keys = unique_key
+        if unique_key is sequence and unique_key is not string
+        else [unique_key] -%}
+  {% do return(delete_insert_legacy_sql(
+       source_relation, target_relation, target_columns, keys, incremental_predicates
+     )) %}
+{% endmacro %}
+"""
+
+delete_insert_composite_key_model = """
+{{ config(
+    materialized = 'incremental',
+    unique_key = ['id', 'color'],
+    incremental_strategy = 'delete+insert',
+) }}
+
+{% if not is_incremental() %}
+
+select cast(1 as bigint) as id, 'blue' as color, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'red' as color, 'goodbye' as msg
+
+{% else %}
+
+-- (1, blue) is an exact key match and must be replaced with its new payload.
+-- (1, red) and (2, blue) only bait a per-column match; matching each column on
+-- its own would wrongly delete both existing rows, so they must only insert.
+-- (2, red) is absent from this run and so must survive untouched.
+select cast(1 as bigint) as id, 'blue' as color, 'replaced' as msg
+union all
+select cast(1 as bigint) as id, 'red' as color, 'updated' as msg
+union all
+select cast(2 as bigint) as id, 'blue' as color, 'updated' as msg
 
 {% endif %}
 """

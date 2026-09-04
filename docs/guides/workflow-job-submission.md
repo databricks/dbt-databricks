@@ -1,4 +1,6 @@
-## Databricks Workflow Job Submission
+# Databricks Workflow Job Submission
+
+_Last updated: 2026-08-09_
 
 Use the `workflow_job` submission method to run your python model as a long-lived
 Databricks Workflow. Models look the same as they would using the `job_cluster` submission

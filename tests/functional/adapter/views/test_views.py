@@ -60,6 +60,35 @@ class BaseUpdateNothing(BaseUpdateView):
         assert results[0][2] == "This is the id column"
 
 
+class BaseUpdateFullRefresh(BaseUpdateView):
+    """Ensure that a full refresh forces a recreation even when there are no changes."""
+
+    def test_view_update_full_refresh(self, project):
+        util.run_dbt(["build"])
+
+        project.run_sql(
+            "alter view {database}.{schema}.initial_view "
+            "set tblproperties ('triage_marker' = 'present')"
+        )
+        properties_before = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
+        )
+        assert properties_before["triage_marker"] == "present"
+
+        util.run_dbt(["run", "--full-refresh"])
+
+        properties_after = dict(
+            project.run_sql(
+                "show tblproperties {database}.{schema}.initial_view",
+                fetch="all",
+            )
+        )
+        assert "triage_marker" not in properties_after
+
+
 class BaseUpdateTblProperties(BaseUpdateView):
     def test_view_update_tblproperties(self, project):
         util.run_dbt(["build"])
@@ -204,6 +233,22 @@ class TestUpdateViewViaAlterDescriptionDescribeJsonOn(
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterNothing(BaseUpdateNothing):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterFullRefresh(BaseUpdateFullRefresh):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

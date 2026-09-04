@@ -1,12 +1,18 @@
 import pytest
+from dbt.tests import util
 from dbt.tests.util import get_manifest, run_dbt
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.metric_views.fixtures import (
     basic_metric_view,
     metric_view_bare_ref,
     metric_view_with_config,
     metric_view_with_filter,
     metric_view_with_tblproperties,
+    order_metrics_as_table,
+    order_metrics_as_view,
+    query_schema_relation_names,
+    query_uc_table_type,
     source_table,
 )
 
@@ -279,3 +285,78 @@ class TestMetricViewCreateTblProperties:
         )
         tblprops = {row[0]: row[1] for row in rows}
         assert tblprops.get("quality") == "gold"
+
+
+class _NonMetricToMetricViewBase(RerunSafeMixin):
+    expected_initial_type: str
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("source_orders", "order_metrics", "order_metrics__dbt_backup")
+
+    def _assert_metric_view_replaced_non_metric(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        assert all(result.status == "success" for result in results)
+        assert query_uc_table_type(project, "order_metrics") == self.expected_initial_type
+
+        row_count = project.run_sql(
+            f"select count(*) from {project.database}.{project.test_schema}.order_metrics",
+            fetch="one",
+        )[0]
+        assert row_count == 3
+
+        util.write_file(basic_metric_view, "models", "order_metrics.sql")
+        results = run_dbt(["run", "--models", "order_metrics"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert query_uc_table_type(project, "order_metrics") == "METRIC_VIEW"
+        assert query_schema_relation_names(project, "order_metrics%") == ["order_metrics"]
+
+        metric_view_name = f"{project.database}.{project.test_schema}.order_metrics"
+        query_result = project.run_sql(
+            f"""
+            select
+                status,
+                measure(total_orders) as order_count,
+                measure(total_revenue) as revenue
+            from {metric_view_name}
+            group by status
+            order by status
+            """,
+            fetch="all",
+        )
+        status_data = {row[0]: (row[1], row[2]) for row in query_result}
+        assert status_data["completed"] == (2, 250)
+        assert status_data["pending"] == (1, 200)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMetricViewReplacesTable(_NonMetricToMetricViewBase):
+    expected_initial_type = "MANAGED"
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "order_metrics.sql": order_metrics_as_table,
+        }
+
+    def test_table_is_replaced_by_metric_view(self, project):
+        self._assert_metric_view_replaced_non_metric(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestMetricViewReplacesView(_NonMetricToMetricViewBase):
+    expected_initial_type = "VIEW"
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "order_metrics.sql": order_metrics_as_view,
+        }
+
+    def test_view_is_replaced_by_metric_view(self, project):
+        self._assert_metric_view_replaced_non_metric(project)

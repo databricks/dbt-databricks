@@ -9,7 +9,11 @@
 
   {%- if not defer_relation -%}
       -- nothing to do
-      {{ log("No relation found in state manifest for " ~ model.unique_id, info=True) }}
+      {%- if model.config.materialized == 'ephemeral' -%}
+          {{ log("Skipping clone for ephemeral model " ~ model.unique_id, info=True) }}
+      {%- else -%}
+          {{ log("No relation found in state manifest for " ~ model.unique_id, info=True) }}
+      {%- endif -%}
       {{ return(relations) }}
   {%- endif -%}
 
@@ -32,8 +36,8 @@
   {%- if other_existing_relation and other_existing_relation.type == 'table' and can_clone_table -%}
 
       {%- set target_relation = this.incorporate(type='table') -%}
-      {% if existing_relation is not none and not existing_relation.is_table %}
-        {{ log("Dropping relation " ~ existing_relation ~ " because it is of type " ~ existing_relation.type) }}
+      {% if clone_requires_drop(existing_relation) %}
+        {{ log("Dropping relation " ~ existing_relation ~ " because it cannot be replaced by a shallow clone in place (table type " ~ existing_relation.databricks_table_type ~ ")") }}
         {{ drop_relation_if_exists(existing_relation) }}
       {% endif %}
 

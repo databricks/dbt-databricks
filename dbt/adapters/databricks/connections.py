@@ -55,6 +55,7 @@ from dbt.adapters.databricks.handle import (
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.run_tracking import PythonRunTracker
 from dbt.adapters.databricks.spog.decision import check_spog_preconditions
+from dbt.adapters.databricks.telemetry import hooks as telemetry_hooks
 from dbt.adapters.databricks.utils import QueryTagsUtils, is_cluster_http_path, redact_credentials
 
 if TYPE_CHECKING:
@@ -517,6 +518,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     cls._cache_dbr_capabilities(creds, databricks_connection.http_path)
                     databricks_connection.capabilities = cls._get_capabilities_for_http_path(
                         databricks_connection.http_path
+                    )
+
+                    telemetry_hooks.on_connection_open(
+                        creds, cls.credentials_manager, databricks_connection.http_path
                     )
                     return conn
                 else:

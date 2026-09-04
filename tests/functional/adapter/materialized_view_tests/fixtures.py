@@ -51,6 +51,7 @@ version: 2
 
 models:
   - name: my_materialized_view
+    description: "Bob's materialized view"
     columns:
       - name: id
         data_type: bigint
@@ -221,6 +222,20 @@ metadata_fetch_materialized_view_with_tags_sql = """
 select * from {{ ref('mv_metadata_fetch_seed') }}
 """
 
+materialized_view_streaming_source_seed_csv = """id,value
+1,100
+""".lstrip()
+
+materialized_view_streaming_source_table_sql = """
+{{ config(materialized='streaming_table') }}
+select * from stream {{ ref('materialized_view_streaming_source_seed') }}
+"""
+
+materialized_view_streaming_source_sql = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('materialized_view_streaming_source_table') }}
+"""
+
 
 mv_norebuild_seed_csv = """id,value
 1,100
@@ -256,4 +271,49 @@ mv_norebuild_v3_refresh_changed = """
     schedule={'every': '4 WEEKS'},
 ) }}
 select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+# Issue #1359: upstream select * schema evolution against an existing MV.
+schema_evolution_base_v1_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'foo' as name
+"""
+
+schema_evolution_base_v2_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'foo' as name, 42 as new_column
+"""
+
+schema_evolution_mv_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='apply') }}
+select * from {{ ref('schema_evolution_base') }}
+"""
+
+schema_evolution_mv_yml = """
+version: 2
+models:
+  - name: schema_evolution_mv
+    columns:
+      - name: id
+      - name: name
+"""
+
+schema_evolution_mv_yml_v2 = """
+version: 2
+models:
+  - name: schema_evolution_mv
+    columns:
+      - name: id
+      - name: name
+      - name: new_column
+"""
+
+schema_evolution_mv_fail_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='fail') }}
+select * from {{ ref('schema_evolution_base') }}
+"""
+
+schema_evolution_mv_continue_sql = """
+{{ config(materialized='materialized_view', on_configuration_change='continue') }}
+select * from {{ ref('schema_evolution_base') }}
 """

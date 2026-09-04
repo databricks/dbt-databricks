@@ -3,10 +3,68 @@
 ### Features
 
 - Add `merge_actions_explicit` model config for the `merge` incremental strategy, allowing the full `WHEN … THEN` block to be supplied as a raw SQL string. This enables multiple `WHEN MATCHED` clauses, conditional `DELETE`, and `WHEN NOT MATCHED BY SOURCE` in a single merge — use-cases not expressible through the individual `skip_matched_step` / `matched_condition` / `not_matched_by_source_action` knobs. When it is set, those individual action configs are ignored and a warning is emitted if any of them are also supplied (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018))
+- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
+- Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
+
+### Fixes
+
+- Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
+- Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
+- Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
+- Extend the missing-column `persist_docs` warning to the view, materialized-view, and streaming-table create paths (post-build validation against the actual relation, gated on `persist_docs.columns`), completing the create-time coverage left as a follow-up to [#1563](https://github.com/databricks/dbt-databricks/pull/1563) ([#1615](https://github.com/databricks/dbt-databricks/pull/1615)).
+- Improve clone materialization logging to distinguish ephemeral models from missing state manifest entries ([#1663](https://github.com/databricks/dbt-databricks/pull/1663) ports resolution for [#14474](https://github.com/dbt-labs/dbt-core/issues/14474)).
 
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
+
+## dbt-databricks 1.12.5 (Sep 1, 2026)
+
+### Fixes
+
+- Replace an existing table or view with a metric view using backup-and-create instead of `CREATE OR REPLACE VIEW ... WITH METRICS` ([#1640](https://github.com/databricks/dbt-databricks/pull/1640) resolves [#1639](https://github.com/databricks/dbt-databricks/issues/1639))
+- Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1642](https://github.com/databricks/dbt-databricks/pull/1642) resolves [#1637](https://github.com/databricks/dbt-databricks/issues/1637))
+
+### Under the Hood
+
+- Raise the `dbt-core` upper bound to `<1.12.4` to include dbt-core 1.12.3 ([#1656](https://github.com/databricks/dbt-databricks/pull/1656))
+
+## dbt-databricks 1.12.4 (Aug 12, 2026)
+
+### Fixes
+
+- Redact all `credential` and `encryption` clauses in logged SQL, regardless of keyword case (thanks @SreeramaYeshwanthGowd!) ([#1610](https://github.com/databricks/dbt-databricks/pull/1610) resolves [#1609](https://github.com/databricks/dbt-databricks/issues/1609))
+- Stop `delete+insert` with a composite `unique_key` from deleting unmatched rows on DBR below 17.1 (thanks @SreeramaYeshwanthGowd!) ([#1612](https://github.com/databricks/dbt-databricks/pull/1612) resolves [#1611](https://github.com/databricks/dbt-databricks/issues/1611))
+- Escape single quotes in relation comments so materialized views and streaming tables with an apostrophe in the description can be created (thanks @SreeramaYeshwanthGowd!) ([#1613](https://github.com/databricks/dbt-databricks/pull/1613) resolves [#1251](https://github.com/databricks/dbt-databricks/issues/1251))
+
+### Under the Hood
+
+- Raise the `pytest-rerunfailures` lower bound to `>=16.2` and remove the `SchemaNameVarMixin` workaround so min-deps CI no longer pins 14.0, which leaked class-scoped dbt test fixtures across reruns (test-only, no runtime impact) ([#1618](https://github.com/databricks/dbt-databricks/pull/1618))
+- Bump `databricks-sql-connector` ceiling to `<4.4.1` and pin to 4.4.0, which requires `thrift>=0.24.0`; resolves CVE-2026-48586 (data amplification DoS), CVE-2026-41603 (TLS cert hostname bypass), and CVE-2026-43868 (memory allocation) ([#1623](https://github.com/databricks/dbt-databricks/pull/1623) resolves [#1622](https://github.com/databricks/dbt-databricks/issues/1622))
+- Reorganize `docs/` into `docs/flow/` and `docs/guides/`, and sync materialization flow diagrams with the current macros ([#1627](https://github.com/databricks/dbt-databricks/pull/1627))
+- Raise the `dbt-common` upper bound to `<1.39.0` (thanks @itsnamangoyal!) ([#1630](https://github.com/databricks/dbt-databricks/pull/1630))
+
+## dbt-databricks 1.12.3 (Jul 29, 2026)
+
+### Features
+
+- Support `catalog_database` in v2 catalogs.yml to route Unity catalog models to a physical catalog independent of the dbt catalog name (requires `dbt-core>=1.12` and `dbt-adapters>=1.24.4`). (thanks @aahel!) ([#1590](https://github.com/databricks/dbt-databricks/pull/1590))
+
+### Fixes
+
+- Prevent concurrent connection opens from racing during lazy SDK configuration initialization ([#1606](https://github.com/databricks/dbt-databricks/pull/1606))
+- Avoid treating unchanged Streaming Table `databricks_tags` as configuration changes by diffing against existing table tags. ([#1602](https://github.com/databricks/dbt-databricks/pull/1602) resolves [#1601](https://github.com/databricks/dbt-databricks/issues/1601))
+- Allow dropping a column that has governed tags ([#1597](https://github.com/databricks/dbt-databricks/pull/1597) resolves [#1323](https://github.com/databricks/dbt-databricks/issues/1323))
+- Fix view materialization incorrectly producing a no-op instead of forcing recreation when `--full-refresh` is provided alongside `view_update_via_alter: true` and `use_materialization_v2: true` (thanks @aarushisingh04!) ([#1456](https://github.com/databricks/dbt-databricks/pull/1456) resolves [#1404](https://github.com/databricks/dbt-databricks/issues/1404))
+- Support `dbt clone` and rebuilds over an existing shallow clone ([#1592](https://github.com/databricks/dbt-databricks/pull/1592) resolves [#1165](https://github.com/databricks/dbt-databricks/issues/1165), follow-up [#1608](https://github.com/databricks/dbt-databricks/pull/1608))
+- Fix managed Iceberg Python models failing with `MANAGED_TABLE_FORMAT` by emitting `.format("iceberg")` instead of the `parquet` sentinel from `resolve_file_format` (thanks @Divya-Kovvuru-0802!) ([#1593](https://github.com/databricks/dbt-databricks/pull/1593) resolves [#1591](https://github.com/databricks/dbt-databricks/issues/1591))
+- Quote generated column identifiers in incremental strategies so non-ASCII column names no longer fail on subsequent runs (thanks @ash2shukla!) ([#1595](https://github.com/databricks/dbt-databricks/pull/1595) resolves [#1594](https://github.com/databricks/dbt-databricks/issues/1594))
+- Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
+
+### Under the Hood
+
+- Remove the unused `keyring` dependency and its transitive packages ([#1588](https://github.com/databricks/dbt-databricks/pull/1588))
+- Raise the `dbt-core` upper bound to `<1.12.1` to include dbt-core 1.12.0 ([#1605](https://github.com/databricks/dbt-databricks/pull/1605))
 
 ## dbt-databricks 1.12.2 (Jul 9, 2026)
 

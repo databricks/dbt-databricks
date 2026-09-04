@@ -240,6 +240,13 @@ class TestSqlUtils:
         assert "oauth_client_id" not in args
         assert "access_token" not in args
 
+    def test_prepare_connection_arguments__strips_telemetry_flag(self):
+        args = _prepare_connection_args(
+            token="dapiabc123",
+            connection_parameters={"enable_dbt_telemetry": True},
+        )
+        assert "enable_dbt_telemetry" not in args
+
     def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
         """use_kernel with a PAT forwards the token directly as access_token
         (PATs are long-lived, so no refresh concern), dropping credentials_provider."""
