@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from dbt.adapters.events.types import AdapterEventWarning
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -443,19 +444,30 @@ class TestParseModelAndLegacyConstraints:
     def test_v1_generates_stable_constraint_names(self):
         raw_constraints = [{"type": "check", "expression": "id > 0"}]
 
-        _, first = parse_model_and_legacy_constraints(
-            {},
-            raw_constraints,
-            relation_identifier="my_table",
-        )
-        _, second = parse_model_and_legacy_constraints(
-            {},
-            raw_constraints,
-            relation_identifier="my_table",
-        )
+        with patch("dbt.adapters.databricks.constraints.warn_or_error") as mock_warn:
+            _, first = parse_model_and_legacy_constraints(
+                {},
+                raw_constraints,
+                relation_identifier="my_table",
+            )
+            _, second = parse_model_and_legacy_constraints(
+                {},
+                raw_constraints,
+                relation_identifier="my_table",
+            )
 
         assert first[0].name == second[0].name
         assert first[0].name == "ca209567b6d1fd0b464a46ae4ef55306"
+        assert mock_warn.call_count == 2
+        assert all(
+            isinstance(call.args[0], AdapterEventWarning)
+            and call.args[0].base_msg
+            == (
+                "Constraint of type check with no `name` provided. "
+                "Generating hash instead for relation my_table"
+            )
+            for call in mock_warn.call_args_list
+        )
 
     def test_qualifies_unqualified_fk_to(self):
         _, parsed = parse_model_and_legacy_constraints(
@@ -635,6 +647,21 @@ class TestParseColumnsAndConstraintsGate:
         assert len(enriched) == 1
         assert enriched[0].name == "id"
         assert enriched[0].not_null
+
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_warns_for_invalid_model_not_null_in_post_create_application(self, mock_warn):
+        DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            {"id": {"name": "id", "data_type": "int"}},
+            [{"type": "not_null", "columns": ["missing"]}],
+            contract_enforced=True,
+            include_model_columns=True,
+        )
+
+        mock_warn.assert_called_once()
+        event = mock_warn.call_args.args[0]
+        assert isinstance(event, AdapterEventWarning)
+        assert event.base_msg == "not_null constraint on invalid column: missing"
 
     def test_defaults_to_not_enforced(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(

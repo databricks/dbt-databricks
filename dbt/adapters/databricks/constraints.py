@@ -6,7 +6,11 @@ from typing import Any, ClassVar, Optional, TypeVar
 from uuid import uuid4
 
 from dbt.adapters.base import ConstraintSupport
-from dbt.adapters.events.types import ConstraintNotEnforced, ConstraintNotSupported
+from dbt.adapters.events.types import (
+    AdapterEventWarning,
+    ConstraintNotEnforced,
+    ConstraintNotSupported,
+)
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -14,8 +18,6 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
-
-from dbt.adapters.databricks.logging import logger
 
 # Support constants
 CONSTRAINT_SUPPORT = {
@@ -374,7 +376,7 @@ def _with_generated_constraint_names(
             named.append(constraint)
             continue
 
-        logger.warning(
+        _adapter_warning(
             f"Constraint of type {constraint_type_value} with no `name` provided. "
             f"Generating hash instead for relation {relation_identifier}"
         )
@@ -382,6 +384,18 @@ def _with_generated_constraint_names(
         named.append(constraint)
 
     return named
+
+
+def _adapter_warning(msg: str) -> None:
+    warn_or_error(AdapterEventWarning(name="Databricks", base_msg=msg, args=[]))
+
+
+def warn_invalid_not_null_columns(
+    not_null_columns: set[str],
+    model_columns: Mapping[str, dict[str, Any]],
+) -> None:
+    for column_name in sorted(not_null_columns - model_columns.keys()):
+        _adapter_warning(f"not_null constraint on invalid column: {column_name}")
 
 
 def parse_column_constraints(

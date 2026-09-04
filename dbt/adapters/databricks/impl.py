@@ -1063,6 +1063,8 @@ class DatabricksAdapter(SparkAdapter):
                 relation_database,
                 relation_schema,
             )
+            if include_model_columns:
+                constraints.warn_invalid_not_null_columns(not_null_set, model_columns)
         else:
             not_null_set = set()
             parsed_constraints = []
