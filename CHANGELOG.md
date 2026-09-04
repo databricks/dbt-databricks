@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
 - Replace an existing table or view with a metric view using backup-and-create instead of `CREATE OR REPLACE VIEW ... WITH METRICS` ([#1640](https://github.com/databricks/dbt-databricks/pull/1640) resolves [#1639](https://github.com/databricks/dbt-databricks/issues/1639))
 - Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1642](https://github.com/databricks/dbt-databricks/pull/1642) resolves [#1637](https://github.com/databricks/dbt-databricks/issues/1637))
 

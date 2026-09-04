@@ -135,6 +135,30 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         ):
             yield
 
+    @pytest.mark.parametrize(
+        "column_names",
+        [
+            ["Principal", "ActionType", "ObjectType", "ObjectKey"],
+            ["principal", "actiontype", "objecttype", "objectkey"],
+            ["principal", "actionType", "objectType", "objectKey"],
+        ],
+    )
+    def test_standardize_grants_dict_ignores_column_name_case(self, column_names):
+        grants_table = agate.Table(
+            [
+                ["analysts", "SELECT", "TABLE", "catalog.schema.model"],
+                ["engineers", "SELECT", "TABLE", "catalog.schema.model"],
+                ["owner", "OWN", "TABLE", "catalog.schema.model"],
+                ["catalog_user", "USE CATALOG", "CATALOG", "catalog"],
+            ],
+            column_names=column_names,
+        )
+        adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+        assert adapter.standardize_grants_dict(grants_table) == {
+            "SELECT": ["analysts", "engineers"]
+        }
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
