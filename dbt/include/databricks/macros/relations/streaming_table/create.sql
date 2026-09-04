@@ -26,7 +26,22 @@
   {%- set model_columns = model.get('columns', {}) -%}
   {%- set contract_config = config.get('contract') -%}
   {%- set contract_enforced = contract_config and contract_config.enforced -%}
-  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, [], contract_enforced, model.name) -%}
+  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(
+        columns,
+        {
+            "columns": model_columns,
+            "constraints": [],
+            "contract_enforced": contract_enforced,
+            "column_source": "query",
+            "application": "create",
+            "model_name": model.name,
+            "relation": {
+                "database": relation.database,
+                "schema": relation.schema,
+                "identifier": relation.identifier,
+            },
+        }
+      ) -%}
 
   {#-- We don't enrich the relation with model constraints because they are not supported for streaming tables --#}
   CREATE STREAMING TABLE {{ relation.render() }}

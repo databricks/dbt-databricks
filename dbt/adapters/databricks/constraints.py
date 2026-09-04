@@ -215,6 +215,69 @@ def parse_constraints(
     ), constraints_from_columns + constraints_from_models
 
 
+def _mapping_str(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+@dataclass(frozen=True)
+class ConstraintParseRequest:
+    """Portable parse input from Jinja: strings, lists, and dicts only."""
+
+    columns: Mapping[str, dict[str, Any]]
+    constraints: list[dict[str, Any]]
+    meta_constraints: Optional[Sequence[Any]]
+    contract_enforced: bool
+    persist_constraints: bool
+    column_source: str
+    application: str
+    model_name: str
+    relation_database: str
+    relation_schema: str
+    relation_identifier: str
+
+    @classmethod
+    def from_mapping(cls, request: Mapping[str, Any]) -> "ConstraintParseRequest":
+        raw_relation = request.get("relation")
+        relation: Mapping[str, Any] = raw_relation if isinstance(raw_relation, Mapping) else {}
+        raw_columns = request.get("columns")
+        columns: Mapping[str, dict[str, Any]] = (
+            raw_columns if isinstance(raw_columns, Mapping) else {}
+        )
+        raw_constraints = request.get("constraints")
+        constraints: list[dict[str, Any]]
+        if isinstance(raw_constraints, Sequence) and not isinstance(raw_constraints, (str, bytes)):
+            constraints = [
+                dict(item) if isinstance(item, Mapping) else {} for item in raw_constraints
+            ]
+        else:
+            constraints = []
+        return cls(
+            columns=columns,
+            constraints=constraints,
+            meta_constraints=request.get("meta_constraints"),
+            contract_enforced=bool(request.get("contract_enforced")),
+            persist_constraints=bool(request.get("persist_constraints")),
+            column_source=_mapping_str(request.get("column_source")) or "query",
+            application=_mapping_str(request.get("application")) or "create",
+            model_name=_mapping_str(request.get("model_name")),
+            relation_database=_mapping_str(relation.get("database")),
+            relation_schema=_mapping_str(relation.get("schema")),
+            relation_identifier=_mapping_str(relation.get("identifier")),
+        )
+
+    @property
+    def is_post_create(self) -> bool:
+        return self.application == "post_create"
+
+    @property
+    def skip_unsupported(self) -> bool:
+        return self.is_post_create
+
+    @property
+    def include_model_columns(self) -> bool:
+        return self.column_source == "model"
+
+
 def parse_model_and_legacy_constraints(
     model_columns: Mapping[str, dict[str, Any]],
     model_constraints: list[dict[str, Any]],
@@ -225,8 +288,6 @@ def parse_model_and_legacy_constraints(
     relation_database: str = "",
     relation_schema: str = "",
 ) -> tuple[set[str], list[TypedConstraint]]:
-    # Legacy persist_constraints matches v1: warn/skip unsupported types (e.g. unique).
-    skip_unsupported = skip_unsupported or persist_constraints
     parsed_columns = []
     for column_name, column in model_columns.items():
         parsed_column = dict(column)

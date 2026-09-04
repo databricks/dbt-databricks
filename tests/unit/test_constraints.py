@@ -427,12 +427,13 @@ class TestParseModelAndLegacyConstraints:
             skip_unsupported=True,
         )
 
-    def test_persist_constraints_skips_unsupported_without_explicit_flag(self):
-        assert (set(), []) == parse_model_and_legacy_constraints(
-            {},
-            [{"type": "unique", "columns": ["id"], "warn_unsupported": True}],
-            persist_constraints=True,
-        )
+    def test_persist_constraints_does_not_skip_unsupported_without_post_create(self):
+        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
+            parse_model_and_legacy_constraints(
+                {},
+                [{"type": ConstraintType.unique, "columns": ["id"], "warn_unsupported": True}],
+                persist_constraints=True,
+            )
 
     def test_contract_unique_still_raises_without_persist_constraints(self):
         with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
@@ -573,30 +574,38 @@ class TestParseColumnsAndConstraintsGate:
             }
         }
 
+    @staticmethod
+    def _request(**kwargs):
+        request = {
+            "columns": kwargs.pop("columns", {}),
+            "constraints": kwargs.pop("constraints", []),
+            "contract_enforced": kwargs.pop("contract_enforced", False),
+            "persist_constraints": kwargs.pop("persist_constraints", False),
+            "column_source": kwargs.pop("column_source", "query"),
+            "application": kwargs.pop("application", "create"),
+            "model_name": kwargs.pop("model_name", ""),
+        }
+        request.update(kwargs)
+        return request
+
     def test_skips_column_constraints_when_not_enforced(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
+            self._request(columns=self._model_columns_with_fk()),
         )
         assert parsed == []
 
     def test_skips_column_not_null_when_not_enforced(self):
         enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
+            self._request(columns=self._model_columns_with_fk()),
         )
         assert all(not getattr(col, "not_null", False) for col in enriched)
 
     def test_parses_column_constraints_when_enforced(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=True,
+            self._request(columns=self._model_columns_with_fk(), contract_enforced=True),
         )
         assert len(parsed) == 1
         assert isinstance(parsed[0], ForeignKeyConstraint)
@@ -613,11 +622,11 @@ class TestParseColumnsAndConstraintsGate:
         }
         enriched, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            columns,
-            [],
-            contract_enforced=False,
-            persist_constraints=True,
-            model_meta_constraints=[{"name": "id_positive", "condition": "id > 0"}],
+            self._request(
+                columns=columns,
+                persist_constraints=True,
+                meta_constraints=[{"name": "id_positive", "condition": "id > 0"}],
+            ),
         )
 
         assert enriched[0].not_null
@@ -632,30 +641,52 @@ class TestParseColumnsAndConstraintsGate:
     def test_includes_model_columns_for_post_create_application(self):
         enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
             [],
-            {
-                "id": {
-                    "name": "id",
-                    "data_type": "int",
-                    "constraints": [{"type": "not_null"}],
-                }
-            },
-            [],
-            contract_enforced=True,
-            include_model_columns=True,
+            self._request(
+                columns={
+                    "id": {
+                        "name": "id",
+                        "data_type": "int",
+                        "constraints": [{"type": "not_null"}],
+                    }
+                },
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+            ),
         )
 
         assert len(enriched) == 1
         assert enriched[0].name == "id"
         assert enriched[0].not_null
 
+    def test_empty_existing_columns_does_not_imply_model_column_source(self):
+        enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                columns={
+                    "id": {
+                        "name": "id",
+                        "data_type": "int",
+                        "constraints": [{"type": "not_null"}],
+                    }
+                },
+                contract_enforced=True,
+            ),
+        )
+
+        assert enriched == []
+
     @patch("dbt.adapters.databricks.constraints.warn_or_error")
     def test_warns_for_invalid_model_not_null_in_post_create_application(self, mock_warn):
         DatabricksAdapter.parse_columns_and_constraints(
             [],
-            {"id": {"name": "id", "data_type": "int"}},
-            [{"type": "not_null", "columns": ["missing"]}],
-            contract_enforced=True,
-            include_model_columns=True,
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[{"type": "not_null", "columns": ["missing"]}],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+            ),
         )
 
         mock_warn.assert_called_once()
@@ -663,11 +694,32 @@ class TestParseColumnsAndConstraintsGate:
         assert isinstance(event, AdapterEventWarning)
         assert event.base_msg == "not_null constraint on invalid column: missing"
 
+    def test_post_create_skips_unsupported_without_persist_constraints(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._request(
+                constraints=[{"type": "unique", "columns": ["id"]}],
+                contract_enforced=True,
+                application="post_create",
+            ),
+        )
+        assert parsed == []
+
+    def test_persist_constraints_on_create_still_raises_for_unique(self):
+        with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
+            DatabricksAdapter.parse_columns_and_constraints(
+                self._existing_columns(),
+                self._request(
+                    constraints=[{"type": ConstraintType.unique, "columns": ["id"]}],
+                    persist_constraints=True,
+                    application="create",
+                ),
+            )
+
     def test_defaults_to_not_enforced(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
+            self._request(columns=self._model_columns_with_fk()),
         )
         assert parsed == []
 
@@ -675,10 +727,7 @@ class TestParseColumnsAndConstraintsGate:
     def test_logs_info_when_constraints_skipped(self, mock_logger):
         DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
-            model_name="my_model",
+            self._request(columns=self._model_columns_with_fk(), model_name="my_model"),
         )
         mock_logger.info.assert_called_once()
 
@@ -686,10 +735,10 @@ class TestParseColumnsAndConstraintsGate:
     def test_no_log_when_no_constraints_declared(self, mock_logger):
         DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            {"id": {"name": "id", "data_type": "int"}},
-            [],
-            contract_enforced=False,
-            model_name="my_model",
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                model_name="my_model",
+            ),
         )
         mock_logger.info.assert_not_called()
 
@@ -697,9 +746,10 @@ class TestParseColumnsAndConstraintsGate:
     def test_no_skip_log_when_enforced(self, mock_logger):
         DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=True,
-            model_name="my_model",
+            self._request(
+                columns=self._model_columns_with_fk(),
+                contract_enforced=True,
+                model_name="my_model",
+            ),
         )
         mock_logger.info.assert_not_called()

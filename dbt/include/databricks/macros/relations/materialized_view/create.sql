@@ -32,7 +32,22 @@
   {%- else -%}
     {%- set model_constraints = [] -%}
   {%- endif -%}
-  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(columns, model_columns, model_constraints, contract_enforced, model.name) -%}
+  {%- set columns_and_constraints = adapter.parse_columns_and_constraints(
+        columns,
+        {
+            "columns": model_columns,
+            "constraints": model_constraints,
+            "contract_enforced": contract_enforced,
+            "column_source": "query",
+            "application": "create",
+            "model_name": model.name,
+            "relation": {
+                "database": relation.database,
+                "schema": relation.schema,
+                "identifier": relation.identifier,
+            },
+        }
+      ) -%}
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
   create or replace materialized view {{ target_relation.render() }}
