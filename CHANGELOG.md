@@ -3,6 +3,8 @@
 ### Features
 
 - Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632) resolves [#351](https://github.com/databricks/dbt-databricks/issues/351), partially resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
+- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
+- Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 
 ### Fixes
 
@@ -10,6 +12,7 @@
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
 - Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
 - Extend the missing-column `persist_docs` warning to the view, materialized-view, and streaming-table create paths (post-build validation against the actual relation, gated on `persist_docs.columns`), completing the create-time coverage left as a follow-up to [#1563](https://github.com/databricks/dbt-databricks/pull/1563) ([#1615](https://github.com/databricks/dbt-databricks/pull/1615)).
+- Improve clone materialization logging to distinguish ephemeral models from missing state manifest entries ([#1663](https://github.com/databricks/dbt-databricks/pull/1663) ports resolution for [#14474](https://github.com/dbt-labs/dbt-core/issues/14474)).
 
 ### Under the Hood
 

@@ -102,6 +102,7 @@ from dbt.adapters.databricks.spog.capabilities import (
     sdk_supports_workspace_id,
 )
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
+from dbt.adapters.databricks.telemetry import hooks as telemetry_hooks
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -295,6 +296,8 @@ class DatabricksAdapter(SparkAdapter):
         GlobalState.set_use_managed_iceberg(
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
+
+        telemetry_hooks.on_adapter_init(self)
 
         # Warehouses always meet capability cutoffs at parse time; clusters keep the
         # conservative False until a real connection is available.
@@ -902,6 +905,14 @@ class DatabricksAdapter(SparkAdapter):
         # As intended - This method will error out if the behavior flag is missing.
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
+
+    def set_macro_resolver(self, macro_resolver: Any) -> None:
+        super().set_macro_resolver(macro_resolver)
+        telemetry_hooks.on_post_parse(self, macro_resolver)
+
+    def cleanup_connections(self) -> None:
+        telemetry_hooks.on_run_end(self)
+        super().cleanup_connections()
 
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
