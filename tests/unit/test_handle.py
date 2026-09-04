@@ -664,8 +664,11 @@ class TestDatabricksAdapterResponse:
     def test_from_cursor__no_context(self):
         cursor = Mock()
         cursor.query_id = "q1"
+        cursor.rowcount = 12
         resp = DatabricksAdapterResponse.from_cursor(cursor)
         assert resp.query_id == "q1"
+        assert resp.rows_affected == 12
+        assert str(resp) == "OK 12"
         assert resp.job_id is None
         assert resp.job_run_id is None
         assert resp.task_run_id is None
@@ -673,11 +676,47 @@ class TestDatabricksAdapterResponse:
     def test_from_cursor__with_context(self):
         cursor = Mock()
         cursor.query_id = "qid"
+        cursor.rowcount = 3
         with patch.dict(
             os.environ,
             {"DBT_DATABRICKS_HTTP_SESSION_HEADERS": _build_session_headers()},
         ):
             resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.rows_affected == 3
+        assert str(resp) == "OK 3"
         assert resp.job_id == "222"
         assert resp.job_run_id == "111"
         assert resp.task_run_id == "333"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__unknown_rowcount(self):
+        cursor = Mock()
+        cursor.query_id = "q2"
+        cursor.rowcount = -1
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+        assert resp.query_id == "q2"
+        assert resp.rows_affected is None
+        assert str(resp) == "OK"
+
+    @pytest.mark.parametrize("rowcount", [0, None])
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__zero_or_missing_rowcount(self, rowcount):
+        cursor = Mock()
+        cursor.query_id = "q3"
+        if rowcount is None:
+            del cursor.rowcount
+        else:
+            cursor.rowcount = rowcount
+
+        resp = DatabricksAdapterResponse.from_cursor(cursor)
+
+        assert resp.rows_affected == rowcount
+        assert str(resp) == ("OK 0" if rowcount == 0 else "OK")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_from_cursor__none_cursor(self):
+        resp = DatabricksAdapterResponse.from_cursor(None)
+
+        assert resp.query_id == "N/A"
+        assert resp.rows_affected is None
+        assert str(resp) == "OK"

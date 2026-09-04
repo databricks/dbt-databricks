@@ -2,6 +2,7 @@
 
 ### Features
 
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632) resolves [#351](https://github.com/databricks/dbt-databricks/issues/351), partially resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 
