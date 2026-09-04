@@ -101,7 +101,7 @@ class CustomConstraint(TypedConstraint):
     str_type = "custom"
 
     def _validate(self) -> None:
-        if self.expression is None:
+        if not self.expression:
             raise self._render_error([["expression"]])
 
     def _render_suffix(self) -> str:
@@ -457,6 +457,29 @@ def warn_invalid_not_null_columns(
 ) -> None:
     for column_name in sorted(not_null_columns - model_columns.keys()):
         _adapter_warning(f"not_null constraint on invalid column: {column_name}")
+
+
+def warn_and_filter_invalid_key_columns(
+    parsed_constraints: list[TypedConstraint],
+    model_columns: Mapping[str, dict[str, Any]],
+) -> None:
+    declared = set(model_columns.keys())
+    for constraint in parsed_constraints:
+        if isinstance(constraint, ForeignKeyConstraint) and constraint.expression:
+            continue
+        if isinstance(constraint, PrimaryKeyConstraint):
+            kind = "primary key"
+        elif isinstance(constraint, ForeignKeyConstraint):
+            kind = "foreign key"
+        else:
+            continue
+        kept = []
+        for column_name in constraint.columns or []:
+            if column_name in declared:
+                kept.append(column_name)
+            else:
+                _adapter_warning(f"Invalid {kind} column: {column_name}")
+        constraint.columns = kept
 
 
 def parse_column_constraints(

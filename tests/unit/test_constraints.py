@@ -59,6 +59,13 @@ class TestCustomConstraint:
         ):
             CustomConstraint.from_dict(raw)
 
+    def test_custom_constraint_from_dict__empty_expression(self):
+        raw = {"type": "custom", "name": "c", "expression": ""}
+        with pytest.raises(
+            DbtValidationError, match="custom constraint '' is missing required field"
+        ):
+            CustomConstraint.from_dict(raw)
+
     def test_custom_constraint_render(self):
         constraint = CustomConstraint(type=ConstraintType.custom, expression="1 = 1")
         assert constraint.render() == "1 = 1"
@@ -693,6 +700,64 @@ class TestParseColumnsAndConstraintsGate:
         event = mock_warn.call_args.args[0]
         assert isinstance(event, AdapterEventWarning)
         assert event.base_msg == "not_null constraint on invalid column: missing"
+
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_filters_invalid_pk_fk_columns_when_using_model_columns(self, mock_warn):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[
+                    {
+                        "type": "primary_key",
+                        "name": "pk",
+                        "columns": ["id", "missing"],
+                    },
+                    {
+                        "type": "foreign_key",
+                        "name": "fk",
+                        "columns": ["id", "missing"],
+                        "to": "parent",
+                        "to_columns": ["parent_id"],
+                    },
+                ],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+            ),
+        )
+
+        pk = next(c for c in parsed if isinstance(c, PrimaryKeyConstraint))
+        fk = next(c for c in parsed if isinstance(c, ForeignKeyConstraint))
+        assert pk.columns == ["id"]
+        assert fk.columns == ["id"]
+        assert "PRIMARY KEY (`id`)" in pk.render()
+        assert "FOREIGN KEY (`id`)" in fk.render()
+        assert "`missing`" not in pk.render()
+        assert "`missing`" not in fk.render()
+        assert {call.args[0].base_msg for call in mock_warn.call_args_list} == {
+            "Invalid primary key column: missing",
+            "Invalid foreign key column: missing",
+        }
+
+    def test_create_path_keeps_undeclared_pk_columns(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[
+                    {
+                        "type": "primary_key",
+                        "name": "pk",
+                        "columns": ["id", "missing"],
+                    }
+                ],
+                contract_enforced=True,
+            ),
+        )
+
+        assert parsed[0].columns == ["id", "missing"]
+        assert "`missing`" in parsed[0].render()
 
     def test_post_create_skips_unsupported_without_persist_constraints(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
