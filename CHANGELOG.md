@@ -15,6 +15,7 @@
 
 ### Under the Hood
 
+- Route v1 constraint parsing and rendering through the Python `TypedConstraint` path ([#1653](https://github.com/databricks/dbt-databricks/pull/1653) resolves [#1196](https://github.com/databricks/dbt-databricks/issues/1196))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)

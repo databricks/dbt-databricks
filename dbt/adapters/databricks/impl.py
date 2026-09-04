@@ -3,7 +3,7 @@ import posixpath
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -1049,22 +1049,32 @@ class DatabricksAdapter(SparkAdapter):
     @staticmethod
     def parse_columns_and_constraints(
         existing_columns: list[DatabricksColumn],
-        model_columns: dict[str, dict[str, Any]],
-        model_constraints: list[dict[str, Any]],
-        contract_enforced: bool = False,
-        model_name: str = "",
+        request: Mapping[str, Any],
     ) -> tuple[list[DatabricksColumn], list[constraints.TypedConstraint]]:
         """Returns a list of columns that have been updated with features for table create."""
+        req = constraints.ConstraintParseRequest.from_mapping(request)
+        model_columns = req.columns
         enriched_columns = []
-        if contract_enforced:
-            not_null_set, parsed_constraints = constraints.parse_constraints(
-                list(model_columns.values()), model_constraints
+        if req.contract_enforced or req.persist_constraints:
+            post_create = req.is_post_create
+            not_null_set, parsed_constraints = constraints.parse_model_and_legacy_constraints(
+                model_columns,
+                req.constraints,
+                req.persist_constraints,
+                req.meta_constraints,
+                req.skip_unsupported,
+                req.relation_identifier if post_create else "",
+                req.relation_database if post_create else "",
+                req.relation_schema if post_create else "",
             )
+            if req.include_model_columns:
+                constraints.warn_invalid_not_null_columns(not_null_set, model_columns)
+                constraints.warn_and_filter_invalid_key_columns(parsed_constraints, model_columns)
         else:
             not_null_set = set()
             parsed_constraints = []
             if any(col.get("constraints") for col in model_columns.values()):
-                model_ref = f" on '{model_name}'" if model_name else ""
+                model_ref = f" on '{req.model_name}'" if req.model_name else ""
                 logger.info(
                     f"Skipping column-level constraints{model_ref}: set `contract.enforced: "
                     "true` to apply NOT NULL / primary key / foreign key / check constraints."
@@ -1087,6 +1097,21 @@ class DatabricksAdapter(SparkAdapter):
                 if column_name_lower in not_null_set_lower:
                     column.not_null = True
                 enriched_columns.append(column)
+
+        if req.include_model_columns:
+            existing_column_names = {column.name.lower() for column in existing_columns}
+            for column_name, column_info in model_columns.items():
+                if column_name.lower() not in existing_column_names:
+                    column = DatabricksColumn(
+                        column=column_name,
+                        dtype=column_info.get("data_type") or "",
+                    )
+                    enriched_columns.append(
+                        column.enrich(
+                            column_info,
+                            column_name.lower() in not_null_set_lower,
+                        )
+                    )
 
         return enriched_columns, parsed_constraints
 
