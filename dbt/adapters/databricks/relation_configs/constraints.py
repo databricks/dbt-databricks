@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from dataclasses import asdict
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
 import sqlparse  # type: ignore[import-untyped]
 from agate import Table
@@ -12,12 +13,33 @@ from dbt.adapters.databricks.constraints import (
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     TypedConstraint,
-    parse_constraints,
+    parse_model_and_legacy_constraints,
 )
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
 )
+
+
+def _config_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in ("true", "1", "yes"):
+        return True
+    if normalized in ("false", "0", "no", ""):
+        return False
+    return bool(value)
+
+
+def _relation_str_attr(relation_config: RelationConfig, *attrs: str) -> str:
+    for attr in attrs:
+        value = getattr(relation_config, attr, None)
+        if isinstance(value, str) and value:
+            return value
+    return ""
 
 
 class ConstraintsConfig(DatabricksComponentConfig):
@@ -231,8 +253,12 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         config = getattr(relation_config, "config", None)
         contract = getattr(config, "contract", None) if config else None
         contract_enforced = getattr(contract, "enforced", False)
+        config_extra = getattr(config, "extra", {}) if config else {}
+        persist_constraints = isinstance(config_extra, Mapping) and _config_bool(
+            config_extra.get("persist_constraints", False)
+        )
 
-        if not contract_enforced:
+        if not contract_enforced and not persist_constraints:
             return ConstraintsConfig(
                 set_non_nulls=set(),
                 set_constraints=set(),
@@ -249,12 +275,25 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         ]
 
         columns = getattr(relation_config, "columns", {})
-        columns = [
-            {"name": name, **(col if isinstance(col, dict) else asdict(col))}
-            for name, col in columns.items()
-        ]
+        columns = {
+            name: col if isinstance(col, dict) else asdict(col) for name, col in columns.items()
+        }
+        meta = getattr(relation_config, "meta", {}) or {}
 
-        non_nulls, other_constraints = parse_constraints(columns, constraints)
+        relation_identifier = ""
+        if persist_constraints:
+            relation_identifier = _relation_str_attr(relation_config, "identifier", "name")
+
+        non_nulls, other_constraints = parse_model_and_legacy_constraints(
+            columns,
+            constraints,
+            persist_constraints,
+            meta.get("constraints"),
+            persist_constraints,
+            relation_identifier,
+            _relation_str_attr(relation_config, "database"),
+            _relation_str_attr(relation_config, "schema"),
+        )
 
         return ConstraintsConfig(
             set_non_nulls=set(non_nulls),
