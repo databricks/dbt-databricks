@@ -1,10 +1,20 @@
-## dbt-databricks 1.12.5 (TBD)
+## dbt-databricks 1.12.6 (TBD)
+
+### Under the Hood
+
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+
+## dbt-databricks 1.12.5 (Sep 1, 2026)
 
 ### Fixes
 
 - Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
 - Replace an existing table or view with a metric view using backup-and-create instead of `CREATE OR REPLACE VIEW ... WITH METRICS` ([#1640](https://github.com/databricks/dbt-databricks/pull/1640) resolves [#1639](https://github.com/databricks/dbt-databricks/issues/1639))
 - Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1642](https://github.com/databricks/dbt-databricks/pull/1642) resolves [#1637](https://github.com/databricks/dbt-databricks/issues/1637))
+
+### Under the Hood
+
+- Raise the `dbt-core` upper bound to `<1.12.4` to include dbt-core 1.12.3 ([#1656](https://github.com/databricks/dbt-databricks/pull/1656))
 
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 
