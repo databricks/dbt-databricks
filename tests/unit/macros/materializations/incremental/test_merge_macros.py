@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
@@ -87,3 +89,80 @@ class TestGetMergeSQL(MacroTestBase):
         sql = self.render_insert(template, on_schema_change="append", source_columns=["a", "b"])
         expected = "(`a`, `b`) VALUES (src.`a`, src.`b`)"
         self.assert_sql_equal(sql, expected)
+
+
+class TestMergeActionsExplicit(MacroTestBase):
+    """Tests for the merge_actions_explicit config key in databricks__get_merge_sql."""
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/incremental"]
+
+    @pytest.fixture(autouse=True)
+    def setup_merge_context(self, context):
+        """Set up adapter mocks required by databricks__get_merge_sql."""
+        mock_col = Mock()
+        mock_col.name = "id"
+        mock_col.quoted = "`id`"
+        context["adapter"].get_columns_in_relation.return_value = [mock_col]
+        context["incremental_validate_on_schema_change"] = lambda val, default="ignore": (
+            val if val else default
+        )
+        # These sibling macros from strategies.sql are called unqualified inside
+        # databricks__get_merge_sql; inject minimal stubs so the macro can render.
+        context["get_merge_update_columns"] = lambda *a, **kw: None
+        context["get_merge_update_set"] = lambda *a, **kw: "*"
+        context["get_merge_insert"] = lambda *a, **kw: "*"
+
+    def render_merge_sql(
+        self, template, config, unique_key="id", source="src_rel", target="tgt_rel"
+    ):
+        config.setdefault("target_alias", "DBT_INTERNAL_DEST")
+        config.setdefault("source_alias", "DBT_INTERNAL_SOURCE")
+        return self.run_macro_raw(
+            template,
+            "databricks__get_merge_sql",
+            target,
+            source,
+            unique_key,
+            [],  # dest_columns — overridden by adapter.get_columns_in_relation inside macro
+            None,  # incremental_predicates
+        )
+
+    def test_explicit_actions_replace_default_when_clauses(self, template, config):
+        """Explicit block is emitted verbatim and fully replaces the default clauses."""
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched then fake_action" in sql
+        # Default path renders "then update set *"; explicit block must replace it entirely
+        assert "then update set" not in sql
+
+    @pytest.mark.parametrize("value", ["", "   \n\t  "])
+    def test_blank_explicit_actions_fall_back_to_default(self, template, config, value):
+        """Empty / whitespace-only config is trimmed away and the default path is used."""
+        config["merge_actions_explicit"] = value
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched" in sql
+        assert "then update set" in sql
+
+    @pytest.mark.parametrize(
+        "extra_config, expect_warning",
+        [
+            ({}, False),
+            ({"matched_condition": "1 = 1"}, True),
+            ({"skip_matched_step": "true"}, True),
+            ({"not_matched_by_source_action": "delete"}, True),
+        ],
+    )
+    def test_conflicting_configs_warn(
+        self, template, config, context, extra_config, expect_warning
+    ):
+        """A conflicting individual action config triggers exactly one warning."""
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config.update(extra_config)
+        self.render_merge_sql(template, config)
+        assert context["exceptions"].warn.called is expect_warning
