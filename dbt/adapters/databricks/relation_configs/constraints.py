@@ -13,6 +13,7 @@ from dbt.adapters.databricks.constraints import (
     PrimaryKeyConstraint,
     TypedConstraint,
     parse_constraints,
+    synthesize_constraint_name,
 )
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
@@ -250,6 +251,12 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         ]
 
         non_nulls, other_constraints = parse_constraints(columns, constraints)
+
+        for constraint in other_constraints:
+            if constraint.name is None and isinstance(
+                constraint, (PrimaryKeyConstraint, ForeignKeyConstraint)
+            ):
+                constraint.name = synthesize_constraint_name(constraint, relation_config.identifier)
 
         return ConstraintsConfig(
             set_non_nulls=set(non_nulls),
