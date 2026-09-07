@@ -90,6 +90,38 @@ class TestTableConstraints(TestConstraints):
         util.check_relations_equal(project.adapter, [model_name, updated_model_name])
 
 
+class TestV2LegacyTableConstraints(TestConstraints):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {"+persist_constraints": True},
+            "flags": {"use_materialization_v2": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "table_model.sql": fixtures.base_model,
+            "schema.yml": fixtures.schema_yml,
+        }
+
+    def test_v2_applies_legacy_constraints(self, project):
+        util.run_dbt(["seed"])
+        util.run_dbt(["run", "--select", "table_model"])
+
+        self.check_constraints(
+            project,
+            "table_model",
+            {"delta.constraints.id_greater_than_zero": "id > 0"},
+        )
+
+        project.run_sql(fixtures.insert_invalid_name)
+        self.run_and_check_failure(
+            "table_model",
+            err_msg="NOT NULL constraint violated for column: name",
+        )
+
+
 class TestIncrementalConstraints(TestConstraints):
     def test_incremental_constraints(self, project):
         util.run_dbt(["seed"])
