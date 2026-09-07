@@ -68,6 +68,7 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
             config=config,
             creds=creds,
             behavior_flag=adapter.get_behavior_flag_no_warn,
+            catalog_relation_builder=adapter.build_catalog_relation,
         )
         if not log.invocation_id:
             return

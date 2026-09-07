@@ -1,3 +1,5 @@
+from collections import Counter
+from dataclasses import dataclass, field
 from importlib.metadata import version as _pkg_version
 from typing import Any, Callable, Optional
 
@@ -31,6 +33,125 @@ _COMMAND_MAP = {
     "source": models.DbtCommand.SOURCE,
     "run_operation": models.DbtCommand.RUN_OPERATION,
 }
+
+_MATERIALIZATION_MAP = {
+    "table": models.Materialization.TABLE,
+    "view": models.Materialization.VIEW,
+    "incremental": models.Materialization.INCREMENTAL,
+    "ephemeral": models.Materialization.EPHEMERAL,
+    "materialized_view": models.Materialization.MATERIALIZED_VIEW,
+    "streaming_table": models.Materialization.STREAMING_TABLE,
+    "metric_view": models.Materialization.METRIC_VIEW,
+}
+
+_LANGUAGE_MAP = {
+    "sql": models.Language.SQL,
+    "python": models.Language.PYTHON,
+}
+
+_INCREMENTAL_STRATEGY_MAP = {
+    "merge": models.IncrementalStrategy.MERGE,
+    "append": models.IncrementalStrategy.APPEND,
+    "delete+insert": models.IncrementalStrategy.DELETE_INSERT,
+    "delete_insert": models.IncrementalStrategy.DELETE_INSERT,
+    "insert_overwrite": models.IncrementalStrategy.INSERT_OVERWRITE,
+    "replace_where": models.IncrementalStrategy.REPLACE_WHERE,
+    "microbatch": models.IncrementalStrategy.MICROBATCH,
+}
+
+_PYTHON_SUBMISSION_METHOD_MAP = {
+    "serverless_cluster": models.PythonSubmissionMethod.SERVERLESS_CLUSTER,
+    "job_cluster": models.PythonSubmissionMethod.JOB_CLUSTER,
+    "all_purpose_cluster": models.PythonSubmissionMethod.ALL_PURPOSE_CLUSTER,
+    "workflow_job": models.PythonSubmissionMethod.WORKFLOW_JOB,
+}
+
+_CATALOG_TYPE_MAP = {
+    "unity": models.CatalogType.UNITY_CATALOG,
+    "unity_catalog": models.CatalogType.UNITY_CATALOG,
+    "hive_metastore": models.CatalogType.HIVE_METASTORE,
+}
+
+_FILE_FORMAT_MAP = {
+    "delta": models.EffectiveStorageFormat.DELTA,
+    "parquet": models.EffectiveStorageFormat.PARQUET,
+    "hudi": models.EffectiveStorageFormat.HUDI,
+}
+
+_CONSTRAINT_CONFIG_MAP = {
+    "not_null": models.ModelConfig.NOT_NULL_CONSTRAINT,
+    "check": models.ModelConfig.CHECK_CONSTRAINT,
+    "primary_key": models.ModelConfig.PRIMARY_KEY_CONSTRAINT,
+    "foreign_key": models.ModelConfig.FOREIGN_KEY_CONSTRAINT,
+    "custom": models.ModelConfig.CUSTOM_CONSTRAINT,
+}
+
+_STORAGE_FORMAT_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+}
+
+
+@dataclass
+class _ModelConfigAccumulator:
+    scope: models.ModelConfigScope
+    model_count: int = 0
+    materializations: Counter = field(default_factory=Counter)
+    languages: Counter = field(default_factory=Counter)
+    incremental_model_count: int = 0
+    incremental_strategies: Counter = field(default_factory=Counter)
+    incremental_config_usage: Counter = field(default_factory=Counter)
+    storage_formats: Counter = field(default_factory=Counter)
+    catalog_types: Counter = field(default_factory=Counter)
+    compute_types: Counter = field(default_factory=Counter)
+    python_model_count: int = 0
+    python_submission_methods: Counter = field(default_factory=Counter)
+    config_usage: Counter = field(default_factory=Counter)
+
+    def to_model(self) -> models.ModelConfigStats:
+        return models.ModelConfigStats(
+            scope=self.scope,
+            model_count=self.model_count,
+            materialization_counts=_count_rows(
+                self.materializations, models.Materialization, models.MaterializationCount
+            ),
+            language_counts=_count_rows(self.languages, models.Language, models.LanguageCount),
+            incremental_model_stats=models.IncrementalModelStats(
+                model_count=self.incremental_model_count,
+                strategy_counts=_count_rows(
+                    self.incremental_strategies,
+                    models.IncrementalStrategy,
+                    models.IncrementalStrategyCount,
+                ),
+                config_usage=_count_rows(
+                    self.incremental_config_usage,
+                    models.ModelConfig,
+                    models.ModelConfigUsage,
+                ),
+            ),
+            effective_storage_format_counts=_count_rows(
+                self.storage_formats,
+                models.EffectiveStorageFormat,
+                models.EffectiveStorageFormatCount,
+            ),
+            catalog_type_counts=_count_rows(
+                self.catalog_types, models.CatalogType, models.CatalogTypeCount
+            ),
+            effective_compute_type_counts=_count_rows(
+                self.compute_types, models.ComputeType, models.ComputeTypeCount
+            ),
+            python_model_stats=models.PythonModelStats(
+                model_count=self.python_model_count,
+                submission_method_counts=_count_rows(
+                    self.python_submission_methods,
+                    models.PythonSubmissionMethod,
+                    models.PythonSubmissionMethodCount,
+                ),
+            ),
+            config_usage=_count_rows(
+                self.config_usage, models.ModelConfig, models.ModelConfigUsage
+            ),
+        )
 
 
 def classify_compute_type(http_path: Optional[str]) -> models.ComputeType:
@@ -148,6 +269,225 @@ def aggregate_manifest(manifest: Any) -> models.ManifestStats:
     return stats
 
 
+def _count_rows(counts: Counter, enum_type: Any, row_type: type) -> list:
+    return [row_type(value, counts[value]) for value in enum_type if counts[value]]
+
+
+def _value(obj: Any, name: str, default: Any = None) -> Any:
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    getter = getattr(obj, "get", None)
+    if getter is not None:
+        try:
+            return getter(name, default)
+        except TypeError:
+            value = getter(name)
+            return default if value is None else value
+    return getattr(obj, name, default)
+
+
+def _normalized(value: Any) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _enabled(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return bool(value)
+
+
+def _materialization(config: Any) -> models.Materialization:
+    value = _normalized(_value(config, "materialized"))
+    return _MATERIALIZATION_MAP.get(value, models.Materialization.OTHER)
+
+
+def _language(node: Any) -> models.Language:
+    value = _normalized(getattr(node, "language", "sql"))
+    return _LANGUAGE_MAP.get(value, models.Language.OTHER)
+
+
+def _incremental_strategy(config: Any) -> models.IncrementalStrategy:
+    value = _normalized(_value(config, "incremental_strategy") or "merge")
+    return _INCREMENTAL_STRATEGY_MAP.get(value, models.IncrementalStrategy.OTHER)
+
+
+def _python_submission_method(config: Any) -> models.PythonSubmissionMethod:
+    value = _normalized(_value(config, "submission_method") or "all_purpose_cluster")
+    return _PYTHON_SUBMISSION_METHOD_MAP.get(value, models.PythonSubmissionMethod.OTHER)
+
+
+def _catalog_type(catalog_relation: Any) -> models.CatalogType:
+    if catalog_relation is None:
+        return models.CatalogType.TYPE_UNSPECIFIED
+    value = _normalized(getattr(catalog_relation, "catalog_type", None))
+    return _CATALOG_TYPE_MAP.get(value, models.CatalogType.OTHER)
+
+
+def _storage_format(
+    catalog_relation: Any, use_managed_iceberg: bool
+) -> models.EffectiveStorageFormat:
+    if catalog_relation is None:
+        return models.EffectiveStorageFormat.TYPE_UNSPECIFIED
+    if _normalized(getattr(catalog_relation, "table_format", None)) == "iceberg":
+        if use_managed_iceberg:
+            return models.EffectiveStorageFormat.MANAGED_ICEBERG
+        return models.EffectiveStorageFormat.UNIFORM_ICEBERG
+    file_format = _normalized(getattr(catalog_relation, "file_format", None))
+    if not file_format:
+        return models.EffectiveStorageFormat.TYPE_UNSPECIFIED
+    return _FILE_FORMAT_MAP.get(file_format, models.EffectiveStorageFormat.OTHER)
+
+
+def _compute_type(config: Any, creds: DatabricksCredentials) -> models.ComputeType:
+    compute_name = _value(config, "databricks_compute")
+    if not compute_name:
+        return classify_compute_type(getattr(creds, "http_path", None))
+    compute = getattr(creds, "compute", None) or {}
+    compute_config = compute.get(compute_name)
+    return classify_compute_type(_value(compute_config, "http_path"))
+
+
+def _columns(node: Any) -> list[Any]:
+    columns = getattr(node, "columns", None) or {}
+    return list(columns.values()) if isinstance(columns, dict) else list(columns)
+
+
+def _column_extra(column: Any) -> dict:
+    extra = _value(column, "_extra", {})
+    return extra if isinstance(extra, dict) else {}
+
+
+def _constraint_name(constraint: Any) -> str:
+    return _normalized(_value(constraint, "type"))
+
+
+def _constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
+    constraint_names = {
+        _constraint_name(constraint) for constraint in (getattr(node, "constraints", None) or [])
+    }
+    columns = _columns(node)
+    for column in columns:
+        constraint_names.update(
+            _constraint_name(constraint) for constraint in (_value(column, "constraints", []) or [])
+        )
+
+    if _enabled(_value(config, "persist_constraints")):
+        meta = getattr(node, "meta", None) or {}
+        for constraint in _value(meta, "constraints", []) or []:
+            constraint_type = _constraint_name(constraint)
+            constraint_names.add(constraint_type or "check")
+        for column in columns:
+            legacy_constraint = _value(_value(column, "meta", {}), "constraint")
+            if legacy_constraint:
+                constraint_names.add(
+                    _constraint_name(legacy_constraint) or _normalized(legacy_constraint)
+                )
+
+    return {
+        model_config
+        for name in constraint_names
+        if (model_config := _CONSTRAINT_CONFIG_MAP.get(name)) is not None
+    }
+
+
+def _shared_config_usage(node: Any, config: Any) -> set[models.ModelConfig]:
+    usage = _constraint_configs(node, config)
+    auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
+    if _value(config, "liquid_clustered_by") or auto_liquid_cluster:
+        usage.add(models.ModelConfig.LIQUID_CLUSTERING)
+    if auto_liquid_cluster:
+        usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
+    if _value(config, "zorder"):
+        usage.add(models.ModelConfig.ZORDER)
+    if _value(config, "databricks_tags"):
+        usage.add(models.ModelConfig.DATABRICKS_RELATION_TAGS)
+    columns = _columns(node)
+    if any(_column_extra(column).get("databricks_tags") for column in columns):
+        usage.add(models.ModelConfig.COLUMN_TAGS)
+    if any(_column_extra(column).get("column_mask") for column in columns):
+        usage.add(models.ModelConfig.COLUMN_MASKS)
+    if _value(config, "row_filter"):
+        usage.add(models.ModelConfig.ROW_FILTER)
+    if _value(config, "databricks_compute"):
+        usage.add(models.ModelConfig.NAMED_COMPUTE_ROUTING)
+    return usage
+
+
+def _incremental_config_usage(config: Any) -> set[models.ModelConfig]:
+    usage = set()
+    if _enabled(_value(config, "merge_with_schema_evolution")):
+        usage.add(models.ModelConfig.MERGE_SCHEMA_EVOLUTION)
+    if _value(config, "not_matched_by_source_action"):
+        usage.add(models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE)
+    return usage
+
+
+def _catalog_relation(node: Any, builder: Callable[[Any], Any]) -> Any:
+    try:
+        return builder(node)
+    except Exception:
+        return None
+
+
+def aggregate_model_configs(
+    manifest: Any,
+    creds: DatabricksCredentials,
+    behavior_flag: Callable[[str], bool],
+    catalog_relation_builder: Callable[[Any], Any],
+) -> list[models.ModelConfigStats]:
+    root_project = getattr(getattr(manifest, "metadata", None), "project_name", None)
+    accumulators = {
+        models.ModelConfigScope.ROOT_PROJECT: _ModelConfigAccumulator(
+            models.ModelConfigScope.ROOT_PROJECT
+        ),
+        models.ModelConfigScope.INSTALLED_PACKAGES: _ModelConfigAccumulator(
+            models.ModelConfigScope.INSTALLED_PACKAGES
+        ),
+    }
+    use_managed_iceberg = bool(behavior_flag("use_managed_iceberg"))
+    for node in (getattr(manifest, "nodes", None) or {}).values():
+        if _resource_type(node) != "model":
+            continue
+        scope = (
+            models.ModelConfigScope.ROOT_PROJECT
+            if getattr(node, "package_name", None) == root_project
+            else models.ModelConfigScope.INSTALLED_PACKAGES
+        )
+        acc = accumulators[scope]
+        config = getattr(node, "config", None)
+        materialization = _materialization(config)
+        language = _language(node)
+
+        acc.model_count += 1
+        acc.materializations[materialization] += 1
+        acc.languages[language] += 1
+        acc.config_usage.update(_shared_config_usage(node, config))
+
+        if materialization == models.Materialization.INCREMENTAL:
+            acc.incremental_model_count += 1
+            acc.incremental_strategies[_incremental_strategy(config)] += 1
+            acc.incremental_config_usage.update(_incremental_config_usage(config))
+
+        if language == models.Language.PYTHON:
+            acc.python_model_count += 1
+            acc.python_submission_methods[_python_submission_method(config)] += 1
+
+        if materialization != models.Materialization.EPHEMERAL:
+            relation = _catalog_relation(node, catalog_relation_builder)
+            acc.catalog_types[_catalog_type(relation)] += 1
+            acc.compute_types[_compute_type(config, creds)] += 1
+            if materialization in _STORAGE_FORMAT_MATERIALIZATIONS:
+                acc.storage_formats[_storage_format(relation, use_managed_iceberg)] += 1
+
+    return [
+        accumulators[models.ModelConfigScope.ROOT_PROJECT].to_model(),
+        accumulators[models.ModelConfigScope.INSTALLED_PACKAGES].to_model(),
+    ]
+
+
 def ephemeral_resource_ids(manifest: Any) -> set[str]:
     """Return ephemeral IDs for local counting only."""
     result = set()
@@ -223,6 +563,7 @@ def build_post_parse_log(
     config: Any,
     creds: DatabricksCredentials,
     behavior_flag: Callable[[str], bool],
+    catalog_relation_builder: Callable[[Any], Any],
 ) -> models.TelemetryLog:
     invocation_id = _invocation_id(manifest)
     payload = models.PostParsePayload(
@@ -230,6 +571,12 @@ def build_post_parse_log(
         manifest_stats=aggregate_manifest(manifest),
         connection_config=build_connection_config(creds),
         project_config=build_project_config(behavior_flag),
+        model_config_stats=aggregate_model_configs(
+            manifest,
+            creds,
+            behavior_flag,
+            catalog_relation_builder,
+        ),
     )
     return models.TelemetryLog(
         invocation_id=invocation_id,
