@@ -363,20 +363,32 @@ def _python_submission_method(config: Any) -> models.PythonSubmissionMethod:
     return _PYTHON_SUBMISSION_METHOD_MAP.get(value, models.PythonSubmissionMethod.OTHER)
 
 
+def _physical_catalog_name(catalog_relation: Any, node: Any) -> str:
+    if catalog_relation is not None:
+        for attr in ("catalog_database", "catalog_name"):
+            value = _normalized(getattr(catalog_relation, attr, None))
+            if value:
+                return value
+    return _normalized(getattr(node, "database", None))
+
+
 def _catalog_type(catalog_relation: Any, node: Any) -> models.CatalogType:
-    # Physical hive_metastore is HMS even when the default Unity integration
-    # supplies catalog_type="unity".
-    physical = _normalized(
-        getattr(catalog_relation, "catalog_name", None) if catalog_relation is not None else None
-    )
-    if not physical:
-        physical = _normalized(getattr(node, "database", None))
-    if physical in _HMS_CATALOG_NAMES:
+    # Physical hive_metastore is HMS even when the Unity integration supplies
+    # catalog_type="unity", including the v2 catalog_database override.
+    if _physical_catalog_name(catalog_relation, node) in _HMS_CATALOG_NAMES:
         return models.CatalogType.HIVE_METASTORE
     if catalog_relation is None:
         return models.CatalogType.TYPE_UNSPECIFIED
     value = _normalized(getattr(catalog_relation, "catalog_type", None))
     return _CATALOG_TYPE_MAP.get(value, models.CatalogType.OTHER)
+
+
+def _resolved_file_format(catalog_relation: Any, use_managed_iceberg: bool) -> str:
+    if catalog_relation is None:
+        return ""
+    if _normalized(getattr(catalog_relation, "table_format", None)) == "iceberg":
+        return "parquet" if use_managed_iceberg else "delta"
+    return _normalized(getattr(catalog_relation, "file_format", None)) or "delta"
 
 
 def _storage_format(
@@ -417,7 +429,15 @@ def _constraint_name(constraint: Any) -> str:
     return _normalized(_value(constraint, "type"))
 
 
-def _constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
+def _constraints_activated(config: Any) -> bool:
+    if _enabled(_value(config, "persist_constraints")):
+        return True
+    return _enabled(_value(_value(config, "contract"), "enforced"))
+
+
+def _constraint_configs(node: Any, config: Any, is_delta: bool) -> set[models.ModelConfig]:
+    if not is_delta or not _constraints_activated(config):
+        return set()
     constraint_names = {
         _constraint_name(constraint) for constraint in (getattr(node, "constraints", None) or [])
     }
@@ -447,18 +467,23 @@ def _constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
 
 
 def _shared_config_usage(
-    node: Any, config: Any, materialization: models.Materialization
+    node: Any, config: Any, materialization: models.Materialization, is_delta: bool
 ) -> set[models.ModelConfig]:
     usage: set[models.ModelConfig] = set()
     if materialization in _CONSTRAINT_MATERIALIZATIONS:
-        usage.update(_constraint_configs(node, config))
+        usage.update(_constraint_configs(node, config, is_delta))
     auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
     has_liquid = bool(_value(config, "liquid_clustered_by") or auto_liquid_cluster)
     if has_liquid and materialization in _LIQUID_MATERIALIZATIONS:
         usage.add(models.ModelConfig.LIQUID_CLUSTERING)
         if auto_liquid_cluster:
             usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
-    if _value(config, "zorder") and materialization in _ZORDER_MATERIALIZATIONS and not has_liquid:
+    if (
+        _value(config, "zorder")
+        and materialization in _ZORDER_MATERIALIZATIONS
+        and not has_liquid
+        and is_delta
+    ):
         usage.add(models.ModelConfig.ZORDER)
     if _value(config, "databricks_tags") and materialization in _TAG_MATERIALIZATIONS:
         usage.add(models.ModelConfig.DATABRICKS_RELATION_TAGS)
@@ -480,11 +505,16 @@ def _shared_config_usage(
     return usage
 
 
-def _incremental_config_usage(config: Any) -> set[models.ModelConfig]:
+def _incremental_config_usage(
+    config: Any, strategy: models.IncrementalStrategy
+) -> set[models.ModelConfig]:
+    if strategy != models.IncrementalStrategy.MERGE:
+        return set()
     usage = set()
     if _enabled(_value(config, "merge_with_schema_evolution")):
         usage.add(models.ModelConfig.MERGE_SCHEMA_EVOLUTION)
-    if _value(config, "not_matched_by_source_action"):
+    action = _normalized(_value(config, "not_matched_by_source_action"))
+    if action == "delete" or action.startswith("update"):
         usage.add(models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE)
     return usage
 
@@ -528,19 +558,25 @@ def aggregate_model_configs(
         acc.model_count += 1
         acc.materializations[materialization] += 1
         acc.languages[language] += 1
-        acc.config_usage.update(_shared_config_usage(node, config, materialization))
+        relation = (
+            _catalog_relation(node, catalog_relation_builder)
+            if materialization != models.Materialization.EPHEMERAL
+            else None
+        )
+        is_delta = _resolved_file_format(relation, use_managed_iceberg) == "delta"
+        acc.config_usage.update(_shared_config_usage(node, config, materialization, is_delta))
 
         if materialization == models.Materialization.INCREMENTAL:
+            strategy = _incremental_strategy(config)
             acc.incremental_model_count += 1
-            acc.incremental_strategies[_incremental_strategy(config)] += 1
-            acc.config_usage.update(_incremental_config_usage(config))
+            acc.incremental_strategies[strategy] += 1
+            acc.config_usage.update(_incremental_config_usage(config, strategy))
 
         if language == models.Language.PYTHON:
             acc.python_model_count += 1
             acc.python_submission_methods[_python_submission_method(config)] += 1
 
         if materialization != models.Materialization.EPHEMERAL:
-            relation = _catalog_relation(node, catalog_relation_builder)
             acc.catalog_types[_catalog_type(relation, node)] += 1
             acc.compute_types[_compute_type(config, creds)] += 1
             if materialization in _STORAGE_FORMAT_MATERIALIZATIONS:

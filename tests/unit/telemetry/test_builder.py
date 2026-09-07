@@ -305,6 +305,80 @@ class TestAggregateModelConfigs:
             models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
         ]
 
+    def test_v2_catalog_database_hive_metastore_is_classified_as_hms(self):
+        node = _model("table", database="main")
+        node.schema = "analytics"
+        node.identifier = "model_one"
+        integration = UnityCatalogIntegration(
+            SimpleNamespace(
+                name="v2_routed_catalog",
+                catalog_type="unity",
+                catalog_name="logical_catalog_label",
+                catalog_database="hive_metastore",
+                table_format="default",
+                external_volume=None,
+                file_format="delta",
+                adapter_properties={},
+            )
+        )
+        relation = integration.build_relation(node)
+        assert relation.catalog_type == "unity"
+        assert relation.catalog_name == "logical_catalog_label"
+        assert relation.catalog_database == "hive_metastore"
+
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"model": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            integration.build_relation,
+        )[0]
+
+        assert root.catalog_type_counts == [
+            models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
+        ]
+
+    def test_zorder_and_constraints_follow_delta_and_activation_gates(self):
+        columns = {"id": {"constraints": [{"type": "not_null"}]}}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={
+                "parquet": _model(
+                    "table",
+                    file_format="parquet",
+                    zorder=["id"],
+                    columns=columns,
+                ),
+                "active": _model(
+                    "table",
+                    zorder=["id"],
+                    contract={"enforced": True},
+                    columns=columns,
+                ),
+            },
+        )
+
+        def build_relation(node):
+            return SimpleNamespace(
+                catalog_type="unity",
+                table_format="default",
+                file_format=node.config.get("file_format", "delta"),
+            )
+
+        root = builder.aggregate_model_configs(
+            manifest,
+            _creds(),
+            lambda flag: False,
+            build_relation,
+        )[0]
+
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.ZORDER: 1,
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+        }
+
     def test_config_usage_follows_runtime_applicability(self):
         columns = {"id": {"_extra": {"column_mask": {"function": "mask_id"}}}}
         manifest = SimpleNamespace(
@@ -328,6 +402,16 @@ class TestAggregateModelConfigs:
                     "incremental",
                     merge_with_schema_evolution=True,
                     not_matched_by_source_action="delete",
+                ),
+                "incremental_append": _model(
+                    "incremental",
+                    incremental_strategy="append",
+                    merge_with_schema_evolution=True,
+                    not_matched_by_source_action="delete",
+                ),
+                "incremental_invalid_action": _model(
+                    "incremental",
+                    not_matched_by_source_action="drop",
                 ),
                 "ephemeral_compute": _model(
                     "ephemeral", databricks_compute="cluster", zorder=["id"]
