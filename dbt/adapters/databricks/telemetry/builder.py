@@ -91,6 +91,56 @@ _STORAGE_FORMAT_MATERIALIZATIONS = {
     models.Materialization.INCREMENTAL,
 }
 
+_HMS_CATALOG_NAMES = {"hive_metastore"}
+
+_TAG_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+    models.Materialization.VIEW,
+    models.Materialization.MATERIALIZED_VIEW,
+    models.Materialization.STREAMING_TABLE,
+    models.Materialization.METRIC_VIEW,
+}
+_COLUMN_TAG_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+    models.Materialization.VIEW,
+    models.Materialization.MATERIALIZED_VIEW,
+    models.Materialization.STREAMING_TABLE,
+}
+_LIQUID_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+    models.Materialization.MATERIALIZED_VIEW,
+    models.Materialization.STREAMING_TABLE,
+}
+_ZORDER_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+}
+_MASK_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+}
+_ROW_FILTER_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+    models.Materialization.MATERIALIZED_VIEW,
+    models.Materialization.STREAMING_TABLE,
+}
+_CONSTRAINT_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+}
+_NAMED_COMPUTE_MATERIALIZATIONS = {
+    models.Materialization.TABLE,
+    models.Materialization.INCREMENTAL,
+    models.Materialization.VIEW,
+    models.Materialization.MATERIALIZED_VIEW,
+    models.Materialization.STREAMING_TABLE,
+    models.Materialization.METRIC_VIEW,
+}
+
 
 @dataclass
 class _ModelConfigAccumulator:
@@ -313,7 +363,16 @@ def _python_submission_method(config: Any) -> models.PythonSubmissionMethod:
     return _PYTHON_SUBMISSION_METHOD_MAP.get(value, models.PythonSubmissionMethod.OTHER)
 
 
-def _catalog_type(catalog_relation: Any) -> models.CatalogType:
+def _catalog_type(catalog_relation: Any, node: Any) -> models.CatalogType:
+    # Physical hive_metastore is HMS even when the default Unity integration
+    # supplies catalog_type="unity".
+    physical = _normalized(
+        getattr(catalog_relation, "catalog_name", None) if catalog_relation is not None else None
+    )
+    if not physical:
+        physical = _normalized(getattr(node, "database", None))
+    if physical in _HMS_CATALOG_NAMES:
+        return models.CatalogType.HIVE_METASTORE
     if catalog_relation is None:
         return models.CatalogType.TYPE_UNSPECIFIED
     value = _normalized(getattr(catalog_relation, "catalog_type", None))
@@ -387,25 +446,36 @@ def _constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
     }
 
 
-def _shared_config_usage(node: Any, config: Any) -> set[models.ModelConfig]:
-    usage = _constraint_configs(node, config)
+def _shared_config_usage(
+    node: Any, config: Any, materialization: models.Materialization
+) -> set[models.ModelConfig]:
+    usage: set[models.ModelConfig] = set()
+    if materialization in _CONSTRAINT_MATERIALIZATIONS:
+        usage.update(_constraint_configs(node, config))
     auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
-    if _value(config, "liquid_clustered_by") or auto_liquid_cluster:
+    has_liquid = bool(_value(config, "liquid_clustered_by") or auto_liquid_cluster)
+    if has_liquid and materialization in _LIQUID_MATERIALIZATIONS:
         usage.add(models.ModelConfig.LIQUID_CLUSTERING)
-    if auto_liquid_cluster:
-        usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
-    if _value(config, "zorder"):
+        if auto_liquid_cluster:
+            usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
+    if _value(config, "zorder") and materialization in _ZORDER_MATERIALIZATIONS and not has_liquid:
         usage.add(models.ModelConfig.ZORDER)
-    if _value(config, "databricks_tags"):
+    if _value(config, "databricks_tags") and materialization in _TAG_MATERIALIZATIONS:
         usage.add(models.ModelConfig.DATABRICKS_RELATION_TAGS)
     columns = _columns(node)
-    if any(_column_extra(column).get("databricks_tags") for column in columns):
+    if (
+        any(_column_extra(column).get("databricks_tags") for column in columns)
+        and materialization in _COLUMN_TAG_MATERIALIZATIONS
+    ):
         usage.add(models.ModelConfig.COLUMN_TAGS)
-    if any(_column_extra(column).get("column_mask") for column in columns):
+    if (
+        any(_column_extra(column).get("column_mask") for column in columns)
+        and materialization in _MASK_MATERIALIZATIONS
+    ):
         usage.add(models.ModelConfig.COLUMN_MASKS)
-    if _value(config, "row_filter"):
+    if _value(config, "row_filter") and materialization in _ROW_FILTER_MATERIALIZATIONS:
         usage.add(models.ModelConfig.ROW_FILTER)
-    if _value(config, "databricks_compute"):
+    if _value(config, "databricks_compute") and materialization in _NAMED_COMPUTE_MATERIALIZATIONS:
         usage.add(models.ModelConfig.NAMED_COMPUTE_ROUTING)
     return usage
 
@@ -458,7 +528,7 @@ def aggregate_model_configs(
         acc.model_count += 1
         acc.materializations[materialization] += 1
         acc.languages[language] += 1
-        acc.config_usage.update(_shared_config_usage(node, config))
+        acc.config_usage.update(_shared_config_usage(node, config, materialization))
 
         if materialization == models.Materialization.INCREMENTAL:
             acc.incremental_model_count += 1
@@ -471,7 +541,7 @@ def aggregate_model_configs(
 
         if materialization != models.Materialization.EPHEMERAL:
             relation = _catalog_relation(node, catalog_relation_builder)
-            acc.catalog_types[_catalog_type(relation)] += 1
+            acc.catalog_types[_catalog_type(relation, node)] += 1
             acc.compute_types[_compute_type(config, creds)] += 1
             if materialization in _STORAGE_FORMAT_MATERIALIZATIONS:
                 acc.storage_formats[_storage_format(relation, use_managed_iceberg)] += 1

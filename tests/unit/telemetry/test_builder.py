@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.catalogs._unity import UnityCatalogIntegration
 from dbt.adapters.databricks.telemetry import builder, models
 
 
@@ -33,6 +35,7 @@ def _model(
     *,
     package_name="root",
     language="sql",
+    database="main",
     columns=None,
     constraints=None,
     **config,
@@ -41,6 +44,7 @@ def _model(
         resource_type="model",
         package_name=package_name,
         language=language,
+        database=database,
         config={"materialized": materialized, **config},
         columns=columns or {},
         constraints=constraints or [],
@@ -280,7 +284,6 @@ class TestAggregateModelConfigs:
             for config in (
                 models.ModelConfig.LIQUID_CLUSTERING,
                 models.ModelConfig.AUTO_LIQUID_CLUSTERING,
-                models.ModelConfig.ZORDER,
                 models.ModelConfig.DATABRICKS_RELATION_TAGS,
                 models.ModelConfig.COLUMN_TAGS,
                 models.ModelConfig.COLUMN_MASKS,
@@ -364,6 +367,62 @@ class TestAggregateModelConfigs:
         assert {row.config: row.count for row in root.config_usage} == {
             models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
             models.ModelConfig.CHECK_CONSTRAINT: 1,
+        }
+
+    def test_physical_hive_metastore_is_classified_as_hms(self):
+        node = _model("table", database="hive_metastore")
+        node.schema = "dbt"
+        node.identifier = "hms"
+        relation = UnityCatalogIntegration(constants.DEFAULT_UNITY_CATALOG).build_relation(node)
+        assert relation.catalog_type == "unity"
+        assert relation.catalog_name == "hive_metastore"
+
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"hms": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            lambda _: relation,
+        )[0]
+
+        assert root.catalog_type_counts == [
+            models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
+        ]
+
+    def test_config_usage_follows_runtime_applicability(self):
+        columns = {"id": {"_extra": {"column_mask": {"function": "mask_id"}}}}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={
+                "view_zorder": _model(
+                    "view",
+                    zorder=["id"],
+                    liquid_clustered_by=["id"],
+                    columns=columns,
+                    row_filter={"function": "f", "columns": ["id"]},
+                ),
+                "table_both": _model("table", zorder=["id"], liquid_clustered_by=["id"]),
+                "table_zorder": _model("table", zorder=["id"]),
+                "ephemeral_compute": _model(
+                    "ephemeral", databricks_compute="cluster", zorder=["id"]
+                ),
+            },
+        )
+
+        root = builder.aggregate_model_configs(
+            manifest,
+            _creds(compute={"cluster": {"http_path": "/sql/protocolv1/o/1/cluster"}}),
+            lambda flag: False,
+            lambda node: SimpleNamespace(
+                catalog_type="unity", table_format="default", file_format="delta"
+            ),
+        )[0]
+
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.LIQUID_CLUSTERING: 1,
+            models.ModelConfig.ZORDER: 1,
         }
 
 
