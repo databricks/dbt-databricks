@@ -18,17 +18,21 @@
     {% else %}
       {% set columns_and_constraints = adapter.parse_columns_and_constraints(
           [],
-          model.get('columns', {}),
-          model.get('constraints', []),
-          has_model_contract,
-          model.get('name', ''),
-          has_databricks_constraints,
-          model.get('meta', {}).get('constraints'),
-          True,
-          True,
-          relation.identifier,
-          relation.database,
-          relation.schema
+          {
+              "columns": model.get("columns", {}),
+              "constraints": model.get("constraints", []),
+              "meta_constraints": model.get("meta", {}).get("constraints"),
+              "contract_enforced": has_model_contract,
+              "persist_constraints": has_databricks_constraints,
+              "column_source": "model",
+              "application": "post_create",
+              "model_name": model.get("name", ""),
+              "relation": {
+                  "database": relation.database,
+                  "schema": relation.schema,
+                  "identifier": relation.identifier,
+              },
+          }
       ) %}
       {% set constrained_relation = relation.enrich(columns_and_constraints[1]) %}
       {% set set_non_nulls = [] %}

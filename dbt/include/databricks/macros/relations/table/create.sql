@@ -9,17 +9,21 @@
   {% set model_meta_constraints = model.get('meta', {}).get('constraints') %}
   {% set columns_and_constraints = adapter.parse_columns_and_constraints(
       existing_columns,
-      model_columns,
-      model_constraints,
-      contract_enforced,
-      model.name,
-      persist_constraints,
-      model_meta_constraints,
-      False,
-      persist_constraints,
-      relation.identifier if persist_constraints else "",
-      relation.database,
-      relation.schema
+      {
+          "columns": model_columns,
+          "constraints": model_constraints,
+          "meta_constraints": model_meta_constraints,
+          "contract_enforced": contract_enforced,
+          "persist_constraints": persist_constraints,
+          "column_source": "query",
+          "application": "post_create" if persist_constraints else "create",
+          "model_name": model.name,
+          "relation": {
+              "database": relation.database,
+              "schema": relation.schema,
+              "identifier": relation.identifier,
+          },
+      }
   ) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   
