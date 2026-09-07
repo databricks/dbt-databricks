@@ -100,7 +100,6 @@ class _ModelConfigAccumulator:
     languages: Counter = field(default_factory=Counter)
     incremental_model_count: int = 0
     incremental_strategies: Counter = field(default_factory=Counter)
-    incremental_config_usage: Counter = field(default_factory=Counter)
     storage_formats: Counter = field(default_factory=Counter)
     catalog_types: Counter = field(default_factory=Counter)
     compute_types: Counter = field(default_factory=Counter)
@@ -122,11 +121,6 @@ class _ModelConfigAccumulator:
                     self.incremental_strategies,
                     models.IncrementalStrategy,
                     models.IncrementalStrategyCount,
-                ),
-                config_usage=_count_rows(
-                    self.incremental_config_usage,
-                    models.ModelConfig,
-                    models.ModelConfigUsage,
                 ),
             ),
             effective_storage_format_counts=_count_rows(
@@ -469,7 +463,7 @@ def aggregate_model_configs(
         if materialization == models.Materialization.INCREMENTAL:
             acc.incremental_model_count += 1
             acc.incremental_strategies[_incremental_strategy(config)] += 1
-            acc.incremental_config_usage.update(_incremental_config_usage(config))
+            acc.config_usage.update(_incremental_config_usage(config))
 
         if language == models.Language.PYTHON:
             acc.python_model_count += 1

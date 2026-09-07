@@ -266,7 +266,6 @@ class PythonSubmissionMethodCount:
 class IncrementalModelStats:
     model_count: int = 0
     strategy_counts: list[IncrementalStrategyCount] = field(default_factory=list)
-    config_usage: list[ModelConfigUsage] = field(default_factory=list)
 
 
 @dataclass

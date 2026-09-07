@@ -254,10 +254,6 @@ class TestAggregateModelConfigs:
         assert root.incremental_model_stats.strategy_counts == [
             models.IncrementalStrategyCount(models.IncrementalStrategy.MERGE, 1)
         ]
-        assert {row.config: row.count for row in root.incremental_model_stats.config_usage} == {
-            models.ModelConfig.MERGE_SCHEMA_EVOLUTION: 1,
-            models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE: 1,
-        }
         assert {
             row.effective_storage_format: row.count for row in root.effective_storage_format_counts
         } == {
@@ -295,6 +291,8 @@ class TestAggregateModelConfigs:
                 models.ModelConfig.FOREIGN_KEY_CONSTRAINT,
                 models.ModelConfig.CUSTOM_CONSTRAINT,
                 models.ModelConfig.NAMED_COMPUTE_ROUTING,
+                models.ModelConfig.MERGE_SCHEMA_EVOLUTION,
+                models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE,
             )
         }
 
