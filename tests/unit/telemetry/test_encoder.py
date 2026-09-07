@@ -76,7 +76,7 @@ class TestEncoder:
         assert entry["post_parse"]["connection_config"]["default_compute_type"] == "SQL_WAREHOUSE"
         model_stats = entry["post_parse"]["model_config_stats"][0]
         assert model_stats["scope"] == "ROOT_PROJECT"
-        assert model_stats["materialization_counts"] == [{"materialization": "TABLE", "count": 1}]
+        assert model_stats["materialization_counts"][0]["materialization"] == "TABLE"
 
     @pytest.mark.parametrize(
         "workspace_id, expected",

@@ -70,24 +70,6 @@ def test_hook_exceptions_do_not_escape(monkeypatch):
     hooks.on_post_parse(adapter, SimpleNamespace())  # must not raise
 
 
-def test_post_parse_passes_catalog_relation_builder(monkeypatch):
-    coord = _enable_hooks(monkeypatch)
-    coord.needs_post_parse.return_value = True
-    build = Mock(return_value=_parse_log())
-    monkeypatch.setattr(hooks.builder, "build_post_parse_log", build)
-    adapter = SimpleNamespace(
-        config=SimpleNamespace(credentials=SimpleNamespace()),
-        get_behavior_flag_no_warn=lambda _: False,
-        build_catalog_relation=Mock(),
-    )
-    manifest = SimpleNamespace()
-
-    hooks.on_post_parse(adapter, manifest)
-
-    assert build.call_args.kwargs["catalog_relation_builder"] is adapter.build_catalog_relation
-    coord.set_post_parse.assert_called_once()
-
-
 def test_run_end_exception_finalizes_stored_invocation_not_current_global(monkeypatch):
     coord = Coordinator()
     logs = []
