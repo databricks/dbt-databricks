@@ -237,8 +237,13 @@ where {{ incremental_predicates }}
 
 {% macro get_insert_into_sql(source_relation, target_relation, dest_columns=none) %}
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
-    {#-- Reuse dest_columns from the materialization when provided; otherwise DESCRIBE. --#}
-    {%- if dest_columns is none -%}
+    {#-- Reuse dest_columns from the materialization when provided; otherwise DESCRIBE.
+         `dest_columns` comes from `process_schema_changes`, which returns the *source*
+         columns, so it can omit a column the target still has (`on_schema_change:
+         append_new_columns`). That subset is only safe where the emitted statement
+         matches columns by name; without `insert_by_name` the matching-sets branch
+         degrades to a positional `select *`, so pay for the DESCRIBE instead. --#}
+    {%- if dest_columns is none or not adapter.has_dbr_capability('insert_by_name') -%}
       {%- set dest_cols_list = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
     {%- else -%}
       {%- set dest_cols_list = dest_columns | map(attribute="name") | list -%}
