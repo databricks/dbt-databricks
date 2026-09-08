@@ -2,7 +2,7 @@
 
 ### Under the Hood
 
-- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS`, without unsetting remote-only tags
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS`, without unsetting remote-only tags ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
