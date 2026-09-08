@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.6 (TBD)
+
+### Under the Hood
+
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS`, without unsetting remote-only tags
+
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
 ### Fixes
