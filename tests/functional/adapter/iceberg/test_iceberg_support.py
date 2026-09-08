@@ -26,6 +26,19 @@ def get_tblproperty(project, identifier, key):
     return values[0] if values else None
 
 
+def get_version_zero_timestamp(project, identifier):
+    """Timestamp of the table's first history entry. A `create or replace` keeps it; dropping
+    and recreating the table starts a new history, so the value changes."""
+    rows = project.run_sql(
+        f"describe history {{database}}.{{schema}}.{identifier}",
+        fetch="all",
+    )
+    for row in rows:
+        if int(row[0]) == 0:
+            return str(row[1])
+    return None
+
+
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIcebergTables:
     @pytest.fixture(scope="class")
@@ -172,3 +185,24 @@ class TestIcebergIncrementalMerge(ManagedIcebergMixin):
         assert result[0][1] == "updated"  # Updated via merge
         assert result[1][0] == 2
         assert result[1][1] == "new"  # New row
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestManagedIcebergFullRefresh(ManagedIcebergMixin):
+    """A full refresh must replace a managed Iceberg table in place rather than dropping it
+    first, so the table stays queryable for the whole rebuild (issue #1662)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"iceberg_full_refresh.sql": fixtures.incremental_iceberg_base}
+
+    def test_full_refresh_keeps_the_table(self, project):
+        util.run_dbt()
+        created = get_version_zero_timestamp(project, "iceberg_full_refresh")
+        assert created is not None, "expected history on the managed Iceberg table"
+
+        util.run_dbt(["run", "--full-refresh"])
+
+        assert get_version_zero_timestamp(project, "iceberg_full_refresh") == created, (
+            "history restarted, so the full refresh dropped and recreated the table"
+        )
