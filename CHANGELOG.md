@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Fixes
+
+- Use `create or replace table` instead of dropping the table first when a full refresh rebuilds an incremental model on a Unity Catalog managed Iceberg table ([#1669](https://github.com/databricks/dbt-databricks/pull/1669) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+
 ### Under the Hood
 
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
