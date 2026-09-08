@@ -32,6 +32,6 @@ drift; treat them as starting points, not authoritative reference.
 - **[guides/databricks-jobs.md](guides/databricks-jobs.md)** — running a dbt project as a Databricks
   job.
 - **[guides/workflow-job-submission.md](guides/workflow-job-submission.md)** — submitting Python
-  models as long-lived Databricks Workflows.
+  models as long-lived Databricks Workflows, including serverless environment configuration.
 - **[guides/databricks-copy-into-macro-aws.md](guides/databricks-copy-into-macro-aws.md)** — loading
   S3 data into Delta with the `databricks_copy_into` macro.

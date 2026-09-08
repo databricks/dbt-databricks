@@ -2,7 +2,8 @@
 
 ### Under the Hood
 
-- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS`, without unsetting remote-only tags ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 

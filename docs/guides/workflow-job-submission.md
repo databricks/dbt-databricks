@@ -8,6 +8,9 @@ method, but allow for additional configuration.
 
 Some of that configuration can also be used for `job_cluster` models.
 
+For one-time serverless runs instead of a long-lived workflow, see
+[Serverless environments](#serverless-environments).
+
 ```python
 # my_model.py
 import pyspark.sql.types as T
@@ -109,6 +112,52 @@ dbt will generate a name based on the catalog, schema, and model identifier.
 - If `config.python_job_config.existing_cluster_id` is defined, dbt will use that cluster
 - Similarly, you can define a reusable job cluster for the workflow and tell the task to use that
 - If none of those are in the configuration, the task cluster will be serverless
+
+#### Serverless environments
+
+Python models submitted with `serverless_cluster` can install dependencies in a
+[Databricks serverless environment](https://docs.databricks.com/aws/en/compute/serverless/dependencies).
+Set both `environment_key` and `environment_dependencies` in the model's YAML configuration:
+
+```yaml
+version: 2
+
+models:
+  - name: my_python_model
+    config:
+      submission_method: serverless_cluster
+      environment_key: dbt_env
+      environment_dependencies:
+        - pandas==2.2.3
+        - /Workspace/Shared/libraries/my_package-1.0.0-py3-none-any.whl
+```
+
+`environment_key` assigns the environment to the Python model task. When
+`environment_dependencies` is also set, dbt-databricks creates a serverless environment using
+environment version `4` and installs each listed PyPI package or workspace file.
+
+To control other environment settings, define the full Jobs API environment in
+`python_job_config.environments`. The key used by the task must match the key in that list:
+
+```yaml
+version: 2
+
+models:
+  - name: my_python_model
+    config:
+      submission_method: serverless_cluster
+      environment_key: dbt_env
+      python_job_config:
+        environments:
+          - environment_key: dbt_env
+            spec:
+              environment_version: "4"
+              dependencies:
+                - pandas==2.2.3
+```
+
+When `python_job_config.environments` contains an environment, it takes precedence over the
+environment that dbt-databricks would generate from `environment_dependencies`.
 
 ```yaml
 # Reusable job cluster config example
