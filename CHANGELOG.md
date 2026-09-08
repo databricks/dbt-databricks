@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+- Reuse the columns returned by `process_schema_changes` in the incremental materialization so the downstream strategy macros (`merge`, `append`, `delete+insert`) no longer re-issue `DESCRIBE TABLE EXTENDED` on the target. Saves one metadata round-trip per incremental model. Mirrors the existing `dbt-snowflake` pattern. ([#1412](https://github.com/databricks/dbt-databricks/pull/1412) resolves [#1411](https://github.com/databricks/dbt-databricks/issues/1411))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
