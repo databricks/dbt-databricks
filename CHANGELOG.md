@@ -8,7 +8,7 @@
 
 ### Under the Hood
 
-- Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags
+- Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
