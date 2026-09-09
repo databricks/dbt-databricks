@@ -30,7 +30,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up Python
@@ -41,10 +46,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Create Hatch environment
+        run: hatch env create default
 
       - name: Collect tests and assign to shards
         run: |
@@ -55,14 +66,27 @@ jobs:
             [databricks_uc_cluster]=3
             [databricks_uc_sql_endpoint]=3
           )
+          # Capture full output per profile so collection failures are visible.
+          declare -A PIDS
           for PROFILE in "${!NUM_SHARDS[@]}"; do
-            (
-              hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional 2>&1 \
-                | grep "::" \
-                > "shard-assignments/${PROFILE}-collected.txt"
-            ) &
+            hatch run pytest --collect-only -q --profile "$PROFILE" tests/functional \
+              > "shard-assignments/${PROFILE}-raw.log" 2>&1 &
+            PIDS[$PROFILE]=$!
           done
-          wait
+          COLLECT_FAILED=0
+          for PROFILE in "${!NUM_SHARDS[@]}"; do
+            RC=0
+            wait "${PIDS[$PROFILE]}" || RC=$?
+            if [ "$RC" -ne 0 ]; then
+              echo "::error::Test collection failed for profile ${PROFILE} (exit ${RC}); output below:"
+              cat "shard-assignments/${PROFILE}-raw.log"
+              COLLECT_FAILED=1
+              continue
+            fi
+            grep "::" "shard-assignments/${PROFILE}-raw.log" \
+              > "shard-assignments/${PROFILE}-collected.txt" || true
+          done
+          [ "$COLLECT_FAILED" -eq 0 ] || exit 1
           for PROFILE in "${!NUM_SHARDS[@]}"; do
             python3 scripts/shard_assign.py \
               --profile "$PROFILE" \
@@ -104,7 +128,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
@@ -119,10 +148,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -186,7 +218,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
@@ -201,10 +238,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
@@ -266,7 +306,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Setup JFrog PyPI Proxy
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-jfrog-pypi
 
       - name: Set up python
@@ -281,10 +326,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
         with:
+          version: "0.11.18"
           cache-local-path: ~/.cache/uv
 
       - name: Install Hatch
         uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
 
       - name: Download shard assignments
         uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7

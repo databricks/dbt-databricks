@@ -1,5 +1,7 @@
 # Using dbt-databricks with Unity Catalog
 
+_Last updated: 2026-08-09_
+
 [Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a SQL interface to manage tables, views and more across Databricks workspaces using standard SQL. This page describes how to use dbt-databricks with Unity Catalog.
 
 # Benefits of Unity Catalog for analytics engineers

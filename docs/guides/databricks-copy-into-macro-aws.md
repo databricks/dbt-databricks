@@ -1,6 +1,8 @@
 # Loading data from S3 into Delta using the `databricks_copy_into` macro
 
-While dbt is primarily a tool for transforming data, dbt-databricks provides a handy macro `databricks_copy_into` for loading many different file formats, including Parquet and CSV, into tables in Databricks. This macro wraps the [COPY INTO](https://docs.databricks.com/sql/language-manual/delta-copy-into.html) SQL command.
+_Last updated: 2026-08-09_
+
+While dbt is primarily a tool for transforming data, dbt-databricks provides the `databricks_copy_into` macro for loading many different file formats, including Parquet and CSV, into tables in Databricks. This macro wraps the [COPY INTO](https://docs.databricks.com/sql/language-manual/delta-copy-into.html) SQL command.
 
 **We strongly recommend using _temporary credentials_ with `COPY INTO`.** The rest of this guide follows this best practice.
 

@@ -1,15 +1,17 @@
 # Developing dbt-databricks
 
+_Last updated: 2026-08-09_
+
 This guide covers the essential setup and workflow for developing the dbt-databricks adapter.
 
 ## Quick Start
 
 ### 1. Environment Setup
 
-**Prerequisites**: Python 3.9+ installed on your system
+**Prerequisites**: Python 3.10+ installed on your system
 
 - Hatch will manage development environment Python versions for you
-- You just need Python 3.9+ to install Hatch itself
+- You just need Python 3.10+ to install Hatch itself
 
 **Install Hatch** (recommended):
 
@@ -32,7 +34,7 @@ hatch run unit                   # Run unit tests
 hatch run cluster-e2e-dev        # Run functional tests
 ```
 
-> 📖 **See [Testing Guide](testing.md)** for comprehensive testing documentation
+> 📖 **See [Testing Guide](testing.md)** for the full testing documentation
 
 ### 3. VS Code/Cursor Setup (Optional)
 
@@ -151,7 +153,7 @@ hatch run cluster-e2e-dev        # Run functional tests
 
 **Additional Development Documentation:**
 
-- **[Testing Guide](testing.md)**: Comprehensive testing strategy, environments, and best practices
+- **[Testing Guide](testing.md)**: Testing strategy, environments, and practices
 - **[Contributing Guidelines](../CONTRIBUTING.MD)**: Code standards and contribution process
 
 **Process:**
