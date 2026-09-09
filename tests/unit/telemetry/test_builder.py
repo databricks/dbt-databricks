@@ -313,6 +313,35 @@ class TestAggregateModelConfigs:
             models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
         }
 
+    def test_v1_legacy_constraints_replace_modern_at_the_same_level(self):
+        node = _model(
+            "table",
+            persist_constraints=True,
+            contract={"enforced": True},
+            columns={
+                "id": {
+                    "constraints": [{"type": "foreign_key"}],
+                    "meta": {"constraint": "not_null"},
+                }
+            },
+            constraints=[{"type": "primary_key"}],
+        )
+        node.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"mixed": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.CHECK_CONSTRAINT: 1,
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+        }
+
     def test_physical_hive_metastore_is_classified_as_hms(self):
         node = _model("table", database="hive_metastore")
         node.schema = "dbt"

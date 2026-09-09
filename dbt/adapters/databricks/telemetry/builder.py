@@ -429,6 +429,21 @@ def _constraint_name(constraint: Any) -> str:
     return _normalized(_value(constraint, "type"))
 
 
+def _constraint_type_key(constraint: Any) -> str:
+    if isinstance(constraint, str):
+        return _normalized(constraint)
+    name = _constraint_name(constraint)
+    if name:
+        return name
+    if _value(constraint, "name") or _value(constraint, "condition"):
+        return "check"
+    return ""
+
+
+def _constraint_type_keys(constraints: Any) -> set[str]:
+    return {key for constraint in (constraints or []) if (key := _constraint_type_key(constraint))}
+
+
 def _constraints_activated(config: Any, use_materialization_v2: bool) -> bool:
     if _enabled(_value(_value(config, "contract"), "enforced")):
         return True
@@ -440,27 +455,19 @@ def _constraint_configs(
 ) -> set[models.ModelConfig]:
     if not is_delta or not _constraints_activated(config, use_materialization_v2):
         return set()
-    constraint_names = {
-        _constraint_name(constraint) for constraint in (getattr(node, "constraints", None) or [])
-    }
-    columns = _columns(node)
-    for column in columns:
-        constraint_names.update(
-            _constraint_name(constraint) for constraint in (_value(column, "constraints", []) or [])
-        )
-
-    if not use_materialization_v2 and _enabled(_value(config, "persist_constraints")):
-        meta = getattr(node, "meta", None) or {}
-        for constraint in _value(meta, "constraints", []) or []:
-            constraint_type = _constraint_name(constraint)
-            constraint_names.add(constraint_type or "check")
-        for column in columns:
-            legacy_constraint = _value(_value(column, "meta", {}), "constraint")
-            if legacy_constraint:
-                constraint_names.add(
-                    _constraint_name(legacy_constraint) or _normalized(legacy_constraint)
-                )
-
+    persist = not use_materialization_v2 and _enabled(_value(config, "persist_constraints"))
+    meta = getattr(node, "meta", None) or {}
+    legacy_model = _value(meta, "constraints")
+    if persist and isinstance(legacy_model, (list, tuple)):
+        constraint_names = _constraint_type_keys(legacy_model)
+    else:
+        constraint_names = _constraint_type_keys(getattr(node, "constraints", None))
+    for column in _columns(node):
+        legacy_column = _value(_value(column, "meta", {}), "constraint")
+        if persist and legacy_column:
+            constraint_names.update(_constraint_type_keys([legacy_column]))
+        else:
+            constraint_names.update(_constraint_type_keys(_value(column, "constraints", [])))
     return {
         model_config
         for name in constraint_names
