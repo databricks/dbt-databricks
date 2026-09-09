@@ -342,6 +342,164 @@ class TestAggregateModelConfigs:
             models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
         }
 
+    def test_materialized_view_counts_enforced_contract_constraints(self):
+        contracted = _model(
+            "materialized_view",
+            persist_constraints=True,
+            contract={"enforced": True},
+            file_format="parquet",
+            columns={"id": {"constraints": [{"type": "not_null"}]}},
+            constraints=[{"type": "primary_key"}],
+        )
+        contracted.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        unenforced = _model(
+            "materialized_view",
+            persist_constraints=True,
+            columns={"id": {"constraints": [{"type": "not_null"}]}},
+            constraints=[{"type": "check", "expression": "id > 0"}],
+        )
+        unenforced.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={"contracted": contracted, "unenforced": unenforced},
+        )
+
+        def build_relation(node):
+            return SimpleNamespace(
+                catalog_type="unity",
+                table_format="default",
+                file_format=node.config.get("file_format", "delta"),
+            )
+
+        expected = {
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+            models.ModelConfig.PRIMARY_KEY_CONSTRAINT: 1,
+        }
+        for use_v2 in (False, True):
+            root = builder.aggregate_model_configs(
+                manifest,
+                _creds(),
+                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
+                build_relation,
+            )[0]
+            assert {row.config: row.count for row in root.config_usage} == expected
+
+    def test_streaming_table_counts_only_enforced_column_not_null(self):
+        mixed = _model(
+            "streaming_table",
+            persist_constraints=True,
+            contract={"enforced": True},
+            columns={
+                "id": {
+                    "constraints": [
+                        {"type": "not_null"},
+                        {"type": "check", "expression": "id > 0"},
+                        {"type": "primary_key"},
+                        {"type": "foreign_key"},
+                        {"type": "custom", "expression": "id <> 99"},
+                    ]
+                }
+            },
+            constraints=[
+                {"type": "not_null", "columns": ["id"]},
+                {"type": "check", "name": "model_check", "expression": "id < 100"},
+                {"type": "primary_key"},
+            ],
+        )
+        mixed.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
+        unenforced = _model(
+            "streaming_table",
+            columns={"id": {"constraints": [{"type": "not_null"}]}},
+        )
+        model_only = _model(
+            "streaming_table",
+            contract={"enforced": True},
+            constraints=[{"type": "not_null", "columns": ["id"]}],
+        )
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={"mixed": mixed, "unenforced": unenforced, "model_only": model_only},
+        )
+        for use_v2 in (False, True):
+            root = builder.aggregate_model_configs(
+                manifest,
+                _creds(),
+                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
+                _unity_delta_relation,
+            )[0]
+            assert {row.config: row.count for row in root.config_usage} == {
+                models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+            }
+
+    def test_column_masks_follow_v2_and_streaming_paths(self):
+        columns = {"id": {"_extra": {"column_mask": {"function": "mask_id"}}}}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={
+                "table": _model("table", columns=columns),
+                "incremental": _model("incremental", columns=columns),
+                "streaming": _model("streaming_table", columns=columns),
+                "view": _model("view", columns=columns),
+                "mv": _model("materialized_view", columns=columns),
+            },
+        )
+        expected = {
+            False: {models.ModelConfig.COLUMN_MASKS: 1},
+            True: {models.ModelConfig.COLUMN_MASKS: 3},
+        }
+        for use_v2, usage in expected.items():
+            root = builder.aggregate_model_configs(
+                manifest,
+                _creds(),
+                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
+                _unity_delta_relation,
+            )[0]
+            assert {row.config: row.count for row in root.config_usage} == usage
+
+    def test_v1_python_table_ignores_auto_liquid_and_row_filter(self):
+        row_filter = {"function": "f", "columns": ["id"]}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={
+                "py_table_auto": _model(
+                    "table",
+                    language="python",
+                    auto_liquid_cluster=True,
+                    row_filter=row_filter,
+                ),
+                "py_table_explicit": _model("table", language="python", liquid_clustered_by=["id"]),
+                "py_incremental": _model(
+                    "incremental",
+                    language="python",
+                    auto_liquid_cluster=True,
+                    row_filter=row_filter,
+                ),
+                "sql_table": _model("table", auto_liquid_cluster=True, row_filter=row_filter),
+            },
+        )
+        v1 = builder.aggregate_model_configs(
+            manifest,
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in v1.config_usage} == {
+            models.ModelConfig.LIQUID_CLUSTERING: 3,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 2,
+            models.ModelConfig.ROW_FILTER: 2,
+        }
+        v2 = builder.aggregate_model_configs(
+            manifest,
+            _creds(),
+            lambda flag: flag == "use_materialization_v2",
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in v2.config_usage} == {
+            models.ModelConfig.LIQUID_CLUSTERING: 4,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 3,
+            models.ModelConfig.ROW_FILTER: 3,
+        }
+
     def test_physical_hive_metastore_is_classified_as_hms(self):
         node = _model("table", database="hive_metastore")
         node.schema = "dbt"
