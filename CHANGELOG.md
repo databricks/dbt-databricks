@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+- Raise the `dbt-spark` upper bound to `<1.12.0` to include dbt-spark 1.11.0 ([#1673](https://github.com/databricks/dbt-databricks/pull/1673))
 - Raise the `dbt-common` upper bound to `<1.40.0` to include dbt-common 1.39.0 ([#1670](https://github.com/databricks/dbt-databricks/pull/1670))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
