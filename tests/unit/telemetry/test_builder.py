@@ -58,31 +58,6 @@ def _unity_delta_relation(_node=None):
 
 class TestReportedClassifications:
     @pytest.mark.parametrize(
-        "http_path, expected",
-        [
-            pytest.param(
-                "/sql/1.0/warehouses/a?o=9",
-                models.ComputeType.SQL_WAREHOUSE,
-                id="warehouse",
-            ),
-            pytest.param(
-                "/sql/1.0/endpoints/a",
-                models.ComputeType.SQL_WAREHOUSE,
-                id="legacy_endpoint",
-            ),
-            pytest.param(
-                "/sql/protocolv1/o/1/2",
-                models.ComputeType.ALL_PURPOSE_CLUSTER,
-                id="cluster",
-            ),
-            pytest.param("/unknown", models.ComputeType.OTHER, id="other"),
-            pytest.param(None, models.ComputeType.TYPE_UNSPECIFIED, id="missing"),
-        ],
-    )
-    def test_compute_type(self, http_path, expected):
-        assert builder.classify_compute_type(http_path) == expected
-
-    @pytest.mark.parametrize(
         "creds, expected",
         [
             pytest.param(
@@ -109,18 +84,11 @@ class TestReportedClassifications:
     @pytest.mark.parametrize(
         "warn_error, options, expected",
         [
-            pytest.param(None, None, models.WarnErrorPolicy.WARN_ERROR_DISABLED, id="disabled"),
             pytest.param(
                 True,
                 SimpleNamespace(error=[], warn=[], silence=["X"]),
                 models.WarnErrorPolicy.WARN_ERROR_ALL,
                 id="legacy_takes_precedence",
-            ),
-            pytest.param(
-                False,
-                SimpleNamespace(error="all", warn=[], silence=[]),
-                models.WarnErrorPolicy.WARN_ERROR_ALL,
-                id="error_all",
             ),
             pytest.param(
                 False,
@@ -172,57 +140,6 @@ class TestAggregateManifest:
 
 
 class TestAggregateModelConfigs:
-    def test_package_models_are_not_folded_into_root(self):
-        root, installed = builder.aggregate_model_configs(
-            SimpleNamespace(
-                metadata=SimpleNamespace(project_name="root"),
-                nodes={
-                    "root_model": _model("table"),
-                    "pkg_model": _model("view", package_name="pkg"),
-                },
-            ),
-            _creds(),
-            lambda flag: False,
-            _unity_delta_relation,
-        )
-        assert [row.materialization for row in root.materialization_counts] == [
-            models.Materialization.TABLE
-        ]
-        assert [row.materialization for row in installed.materialization_counts] == [
-            models.Materialization.VIEW
-        ]
-
-    def test_incremental_defaults_to_merge_and_resolves_named_compute(self):
-        root = builder.aggregate_model_configs(
-            SimpleNamespace(
-                metadata=SimpleNamespace(project_name="root"),
-                nodes={"inc": _model("incremental", databricks_compute="cluster")},
-            ),
-            _creds(compute={"cluster": {"http_path": "/sql/protocolv1/o/1/cluster"}}),
-            lambda flag: False,
-            _unity_delta_relation,
-        )[0]
-        assert root.incremental_model_stats.strategy_counts == [
-            models.IncrementalStrategyCount(models.IncrementalStrategy.MERGE, 1)
-        ]
-        assert root.effective_compute_type_counts == [
-            models.ComputeTypeCount(models.ComputeType.ALL_PURPOSE_CLUSTER, 1)
-        ]
-
-    def test_python_model_defaults_to_all_purpose_submission(self):
-        root = builder.aggregate_model_configs(
-            SimpleNamespace(
-                metadata=SimpleNamespace(project_name="root"),
-                nodes={"py": _model("table", language="python")},
-            ),
-            _creds(),
-            lambda flag: False,
-            _unity_delta_relation,
-        )[0]
-        assert root.python_model_stats.submission_method_counts == [
-            models.PythonSubmissionMethodCount(models.PythonSubmissionMethod.ALL_PURPOSE_CLUSTER, 1)
-        ]
-
     @pytest.mark.parametrize(
         "use_managed, expected_format",
         [

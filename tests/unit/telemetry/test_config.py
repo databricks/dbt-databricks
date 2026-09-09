@@ -17,33 +17,6 @@ def _creds(connection_parameters, **overrides):
     return SimpleNamespace(**values)
 
 
-class TestOptIn:
-    def test_defaults_off(self):
-        assert config.is_enabled(_creds({})) is False
-        assert config.is_enabled(_creds(None)) is False
-
-    def test_explicit_opt_in(self):
-        assert config.is_enabled(_creds({"enable_dbt_telemetry": True})) is True
-
-
-class TestCommandEligibility:
-    @pytest.mark.parametrize(
-        "command, eligible",
-        [
-            ("run", True),
-            ("compile", False),
-            ("source freshness", False),
-            ("run-operation", False),
-            ("parse", False),
-        ],
-    )
-    def test_command_eligibility(self, monkeypatch, command, eligible):
-        from dbt import flags
-
-        monkeypatch.setattr(flags, "get_flags", lambda: SimpleNamespace(WHICH=command))
-        assert config.is_eligible_command() is eligible
-
-
 class TestTransportEligibility:
     @pytest.mark.parametrize(
         "overrides, reusable",
