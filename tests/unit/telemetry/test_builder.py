@@ -283,6 +283,36 @@ class TestAggregateModelConfigs:
             models.ModelConfig.CHECK_CONSTRAINT: 1,
         }
 
+    def test_v2_ignores_legacy_persist_constraints(self):
+        legacy = _model(
+            "table",
+            persist_constraints=True,
+            columns={"id": {"meta": {"constraint": "not_null"}}},
+        )
+        legacy.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        contracted = _model(
+            "table",
+            persist_constraints=True,
+            contract={"enforced": True},
+            columns={"id": {"constraints": [{"type": "not_null"}]}},
+        )
+        contracted.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={"legacy": legacy, "contracted": contracted},
+        )
+
+        root = builder.aggregate_model_configs(
+            manifest,
+            _creds(),
+            lambda flag: flag == "use_materialization_v2",
+            _unity_delta_relation,
+        )[0]
+
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+        }
+
     def test_physical_hive_metastore_is_classified_as_hms(self):
         node = _model("table", database="hive_metastore")
         node.schema = "dbt"
@@ -391,8 +421,14 @@ class TestAggregateModelConfigs:
                     columns=columns,
                     row_filter={"function": "f", "columns": ["id"]},
                 ),
-                "table_both": _model("table", zorder=["id"], liquid_clustered_by=["id"]),
+                "table_both": _model(
+                    "table",
+                    zorder=["id"],
+                    liquid_clustered_by=["id"],
+                    auto_liquid_cluster=True,
+                ),
                 "table_zorder": _model("table", zorder=["id"]),
+                "table_auto": _model("table", auto_liquid_cluster=True),
                 "table_merge": _model(
                     "table",
                     merge_with_schema_evolution=True,
@@ -427,7 +463,8 @@ class TestAggregateModelConfigs:
         )[0]
 
         assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.LIQUID_CLUSTERING: 1,
+            models.ModelConfig.LIQUID_CLUSTERING: 2,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
             models.ModelConfig.ZORDER: 1,
             models.ModelConfig.MERGE_SCHEMA_EVOLUTION: 1,
             models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE: 1,

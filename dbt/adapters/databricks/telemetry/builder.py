@@ -429,14 +429,16 @@ def _constraint_name(constraint: Any) -> str:
     return _normalized(_value(constraint, "type"))
 
 
-def _constraints_activated(config: Any) -> bool:
-    if _enabled(_value(config, "persist_constraints")):
+def _constraints_activated(config: Any, use_materialization_v2: bool) -> bool:
+    if _enabled(_value(_value(config, "contract"), "enforced")):
         return True
-    return _enabled(_value(_value(config, "contract"), "enforced"))
+    return not use_materialization_v2 and _enabled(_value(config, "persist_constraints"))
 
 
-def _constraint_configs(node: Any, config: Any, is_delta: bool) -> set[models.ModelConfig]:
-    if not is_delta or not _constraints_activated(config):
+def _constraint_configs(
+    node: Any, config: Any, is_delta: bool, use_materialization_v2: bool
+) -> set[models.ModelConfig]:
+    if not is_delta or not _constraints_activated(config, use_materialization_v2):
         return set()
     constraint_names = {
         _constraint_name(constraint) for constraint in (getattr(node, "constraints", None) or [])
@@ -447,7 +449,7 @@ def _constraint_configs(node: Any, config: Any, is_delta: bool) -> set[models.Mo
             _constraint_name(constraint) for constraint in (_value(column, "constraints", []) or [])
         )
 
-    if _enabled(_value(config, "persist_constraints")):
+    if not use_materialization_v2 and _enabled(_value(config, "persist_constraints")):
         meta = getattr(node, "meta", None) or {}
         for constraint in _value(meta, "constraints", []) or []:
             constraint_type = _constraint_name(constraint)
@@ -467,16 +469,21 @@ def _constraint_configs(node: Any, config: Any, is_delta: bool) -> set[models.Mo
 
 
 def _shared_config_usage(
-    node: Any, config: Any, materialization: models.Materialization, is_delta: bool
+    node: Any,
+    config: Any,
+    materialization: models.Materialization,
+    is_delta: bool,
+    use_materialization_v2: bool,
 ) -> set[models.ModelConfig]:
     usage: set[models.ModelConfig] = set()
     if materialization in _CONSTRAINT_MATERIALIZATIONS:
-        usage.update(_constraint_configs(node, config, is_delta))
+        usage.update(_constraint_configs(node, config, is_delta, use_materialization_v2))
     auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
-    has_liquid = bool(_value(config, "liquid_clustered_by") or auto_liquid_cluster)
+    explicit_liquid = bool(_value(config, "liquid_clustered_by"))
+    has_liquid = explicit_liquid or auto_liquid_cluster
     if has_liquid and materialization in _LIQUID_MATERIALIZATIONS:
         usage.add(models.ModelConfig.LIQUID_CLUSTERING)
-        if auto_liquid_cluster:
+        if auto_liquid_cluster and not explicit_liquid:
             usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
     if (
         _value(config, "zorder")
@@ -542,6 +549,7 @@ def aggregate_model_configs(
         ),
     }
     use_managed_iceberg = bool(behavior_flag("use_managed_iceberg"))
+    use_materialization_v2 = bool(behavior_flag("use_materialization_v2"))
     for node in (getattr(manifest, "nodes", None) or {}).values():
         if _resource_type(node) != "model":
             continue
@@ -564,7 +572,9 @@ def aggregate_model_configs(
             else None
         )
         is_delta = _resolved_file_format(relation, use_managed_iceberg) == "delta"
-        acc.config_usage.update(_shared_config_usage(node, config, materialization, is_delta))
+        acc.config_usage.update(
+            _shared_config_usage(node, config, materialization, is_delta, use_materialization_v2)
+        )
 
         if materialization == models.Materialization.INCREMENTAL:
             strategy = _incremental_strategy(config)
