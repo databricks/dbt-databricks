@@ -644,7 +644,7 @@ requires-dist = [
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.39.0" },
     { name = "dbt-core", specifier = ">=1.11.2,<1.12.4" },
-    { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
+    { name = "dbt-spark", specifier = ">=1.10.0,<1.12.0" },
     { name = "packaging", specifier = ">=21.0,<26.0" },
     { name = "pydantic", specifier = ">=1.10.0,<2.13.0" },
 ]
@@ -713,7 +713,7 @@ wheels = [
 
 [[package]]
 name = "dbt-spark"
-version = "1.10.1"
+version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dbt-adapters" },
@@ -721,9 +721,9 @@ dependencies = [
     { name = "dbt-core" },
     { name = "sqlparams" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/01/16/fa90c03bbc83dd44b6ce3a4a06dffee224b8763a08a7bc64fe745b49e2c3/dbt_spark-1.10.1.tar.gz", hash = "sha256:fc39d57e6bc6afc8bc75472bfd25f6d6fbfbf178c9e455e927300748270d1a5e", size = 77182, upload-time = "2026-02-12T00:42:04.41Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/9b/5f6e07aef31f89e1dd7f3e0fe959013052efc15ea28f6157c239e30f5d48/dbt_spark-1.11.0.tar.gz", hash = "sha256:436aa57d662ebad8e56f606863e02045f73116566f85a600b9fa890a763f8c37", size = 83739, upload-time = "2026-07-16T17:03:55.317Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/9c/fd9429f4a5bb211a6a5d61000f03639d6f748a939b5ba46e041cc36f49a6/dbt_spark-1.10.1-py3-none-any.whl", hash = "sha256:6904822cad26014ecdc93d52b8d288ef10c8354f58da55d33baf702b707bd9f9", size = 51432, upload-time = "2026-02-12T00:42:02.54Z" },
+    { url = "https://files.pythonhosted.org/packages/07/77/f0163101e23650ad4f0905c426e3e1c7fc613c215be40164d74b175b9c48/dbt_spark-1.11.0-py3-none-any.whl", hash = "sha256:00d9c9cd3e13473df05b90740fddd8c3082083c45971aaba2fae7b01ab82f4f5", size = 51733, upload-time = "2026-07-16T17:03:53.614Z" },
 ]
 
 [[package]]
