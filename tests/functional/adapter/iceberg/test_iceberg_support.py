@@ -206,3 +206,24 @@ class TestManagedIcebergFullRefresh(ManagedIcebergMixin):
         assert get_version_zero_timestamp(project, "iceberg_full_refresh") == created, (
             "history restarted, so the full refresh dropped and recreated the table"
         )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestManagedIcebergTableRebuild(ManagedIcebergMixin):
+    """Rebuilding a `table` model must replace a managed Iceberg table in place rather than
+    dropping it first, so the table stays queryable for the whole rebuild (issue #1662)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"iceberg_table_rebuild.sql": fixtures.basic_iceberg_swap}
+
+    def test_rebuild_keeps_the_table(self, project):
+        util.run_dbt()
+        created = get_version_zero_timestamp(project, "iceberg_table_rebuild")
+        assert created is not None, "expected history on the managed Iceberg table"
+
+        util.run_dbt()
+
+        assert get_version_zero_timestamp(project, "iceberg_table_rebuild") == created, (
+            "history restarted, so the rebuild dropped and recreated the table"
+        )
