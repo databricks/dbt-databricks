@@ -493,7 +493,7 @@ def _constraint_configs(
 def _materialized_view_constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
     if not _contract_enforced(config):
         return set()
-    return _constraint_configs_from_names(_modern_constraint_type_keys(node))
+    return _constraint_configs_from_names(_modern_constraint_type_keys(node) - {"check"})
 
 
 def _streaming_table_constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:

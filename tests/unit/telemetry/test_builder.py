@@ -349,14 +349,22 @@ class TestAggregateModelConfigs:
             contract={"enforced": True},
             file_format="parquet",
             columns={"id": {"constraints": [{"type": "not_null"}]}},
-            constraints=[{"type": "primary_key"}],
+            constraints=[
+                {"type": "primary_key"},
+                {"type": "check", "name": "positive", "expression": "id > 0"},
+                {"type": "foreign_key"},
+                {"type": "custom", "expression": "CONSTRAINT custom_positive CHECK (id > 0)"},
+            ],
         )
-        contracted.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        contracted.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
         unenforced = _model(
             "materialized_view",
             persist_constraints=True,
             columns={"id": {"constraints": [{"type": "not_null"}]}},
-            constraints=[{"type": "check", "expression": "id > 0"}],
+            constraints=[
+                {"type": "check", "expression": "id > 0"},
+                {"type": "primary_key"},
+            ],
         )
         unenforced.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
         manifest = SimpleNamespace(
@@ -374,6 +382,8 @@ class TestAggregateModelConfigs:
         expected = {
             models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
             models.ModelConfig.PRIMARY_KEY_CONSTRAINT: 1,
+            models.ModelConfig.FOREIGN_KEY_CONSTRAINT: 1,
+            models.ModelConfig.CUSTOM_CONSTRAINT: 1,
         }
         for use_v2 in (False, True):
             root = builder.aggregate_model_configs(
