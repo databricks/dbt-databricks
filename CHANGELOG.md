@@ -3,6 +3,7 @@
 ### Under the Hood
 
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+- Raise the `databricks-sql-connector` upper bound to `<4.5.1` to include databricks-sql-connector 4.5.0 ([#1671](https://github.com/databricks/dbt-databricks/pull/1671))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
