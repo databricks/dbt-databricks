@@ -93,54 +93,6 @@ _STORAGE_FORMAT_MATERIALIZATIONS = {
 
 _HMS_CATALOG_NAMES = {"hive_metastore"}
 
-_TAG_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-    models.Materialization.VIEW,
-    models.Materialization.MATERIALIZED_VIEW,
-    models.Materialization.STREAMING_TABLE,
-    models.Materialization.METRIC_VIEW,
-}
-_COLUMN_TAG_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-    models.Materialization.VIEW,
-    models.Materialization.MATERIALIZED_VIEW,
-    models.Materialization.STREAMING_TABLE,
-}
-_LIQUID_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-    models.Materialization.MATERIALIZED_VIEW,
-    models.Materialization.STREAMING_TABLE,
-}
-_ZORDER_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-}
-_MASK_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-}
-_ROW_FILTER_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-    models.Materialization.MATERIALIZED_VIEW,
-    models.Materialization.STREAMING_TABLE,
-}
-_CONSTRAINT_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-}
-_NAMED_COMPUTE_MATERIALIZATIONS = {
-    models.Materialization.TABLE,
-    models.Materialization.INCREMENTAL,
-    models.Materialization.VIEW,
-    models.Materialization.MATERIALIZED_VIEW,
-    models.Materialization.STREAMING_TABLE,
-    models.Materialization.METRIC_VIEW,
-}
-
 
 @dataclass
 class _ModelConfigAccumulator:
@@ -444,17 +396,15 @@ def _constraint_type_keys(constraints: Any) -> set[str]:
     return {key for constraint in (constraints or []) if (key := _constraint_type_key(constraint))}
 
 
-def _contract_enforced(config: Any) -> bool:
-    return _enabled(_value(_value(config, "contract"), "enforced"))
-
-
-def _constraints_activated(config: Any, use_materialization_v2: bool) -> bool:
-    if _contract_enforced(config):
-        return True
-    return not use_materialization_v2 and _enabled(_value(config, "persist_constraints"))
-
-
-def _constraint_configs_from_names(constraint_names: set[str]) -> set[models.ModelConfig]:
+def _constraint_configs(node: Any) -> set[models.ModelConfig]:
+    constraint_names = _constraint_type_keys(getattr(node, "constraints", None))
+    meta = getattr(node, "meta", None) or {}
+    constraint_names.update(_constraint_type_keys(_value(meta, "constraints")))
+    for column in _columns(node):
+        constraint_names.update(_constraint_type_keys(_value(column, "constraints", [])))
+        legacy_column = _value(_value(column, "meta", {}), "constraint")
+        if legacy_column:
+            constraint_names.update(_constraint_type_keys([legacy_column]))
     return {
         model_config
         for name in constraint_names
@@ -462,125 +412,29 @@ def _constraint_configs_from_names(constraint_names: set[str]) -> set[models.Mod
     }
 
 
-def _modern_constraint_type_keys(node: Any) -> set[str]:
-    constraint_names = _constraint_type_keys(getattr(node, "constraints", None))
-    for column in _columns(node):
-        constraint_names.update(_constraint_type_keys(_value(column, "constraints", [])))
-    return constraint_names
-
-
-def _constraint_configs(
-    node: Any, config: Any, is_delta: bool, use_materialization_v2: bool
-) -> set[models.ModelConfig]:
-    if not is_delta or not _constraints_activated(config, use_materialization_v2):
-        return set()
-    persist = not use_materialization_v2 and _enabled(_value(config, "persist_constraints"))
-    meta = getattr(node, "meta", None) or {}
-    legacy_model = _value(meta, "constraints")
-    if persist and isinstance(legacy_model, (list, tuple)):
-        constraint_names = _constraint_type_keys(legacy_model)
-    else:
-        constraint_names = _constraint_type_keys(getattr(node, "constraints", None))
-    for column in _columns(node):
-        legacy_column = _value(_value(column, "meta", {}), "constraint")
-        if persist and legacy_column:
-            constraint_names.update(_constraint_type_keys([legacy_column]))
-        else:
-            constraint_names.update(_constraint_type_keys(_value(column, "constraints", [])))
-    return _constraint_configs_from_names(constraint_names)
-
-
-def _materialized_view_constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
-    if not _contract_enforced(config):
-        return set()
-    return _constraint_configs_from_names(_modern_constraint_type_keys(node) - {"check"})
-
-
-def _streaming_table_constraint_configs(node: Any, config: Any) -> set[models.ModelConfig]:
-    if not _contract_enforced(config):
-        return set()
-    for column in _columns(node):
-        if "not_null" in _constraint_type_keys(_value(column, "constraints", [])):
-            return {models.ModelConfig.NOT_NULL_CONSTRAINT}
-    return set()
-
-
-def _counts_column_masks(
-    materialization: models.Materialization, use_materialization_v2: bool
-) -> bool:
-    if materialization == models.Materialization.STREAMING_TABLE:
-        return True
-    return use_materialization_v2 and materialization in _MASK_MATERIALIZATIONS
-
-
-def _shared_config_usage(
-    node: Any,
-    config: Any,
-    materialization: models.Materialization,
-    language: models.Language,
-    is_delta: bool,
-    use_materialization_v2: bool,
-) -> set[models.ModelConfig]:
-    usage: set[models.ModelConfig] = set()
-    if materialization in _CONSTRAINT_MATERIALIZATIONS:
-        usage.update(_constraint_configs(node, config, is_delta, use_materialization_v2))
-    elif materialization == models.Materialization.MATERIALIZED_VIEW:
-        usage.update(_materialized_view_constraint_configs(node, config))
-    elif materialization == models.Materialization.STREAMING_TABLE:
-        usage.update(_streaming_table_constraint_configs(node, config))
+def _config_usage(node: Any, config: Any) -> set[models.ModelConfig]:
+    usage = _constraint_configs(node)
     auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
-    explicit_liquid = bool(_value(config, "liquid_clustered_by"))
-    has_liquid = explicit_liquid or auto_liquid_cluster
-    v1_python_table = (
-        not use_materialization_v2
-        and language == models.Language.PYTHON
-        and materialization == models.Materialization.TABLE
-    )
-    if has_liquid and materialization in _LIQUID_MATERIALIZATIONS:
-        if not (v1_python_table and not explicit_liquid):
-            usage.add(models.ModelConfig.LIQUID_CLUSTERING)
-            if auto_liquid_cluster and not explicit_liquid:
-                usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
-    if (
-        _value(config, "zorder")
-        and materialization in _ZORDER_MATERIALIZATIONS
-        and not has_liquid
-        and is_delta
-    ):
+    if _value(config, "liquid_clustered_by") or auto_liquid_cluster:
+        usage.add(models.ModelConfig.LIQUID_CLUSTERING)
+    if auto_liquid_cluster:
+        usage.add(models.ModelConfig.AUTO_LIQUID_CLUSTERING)
+    if _value(config, "zorder"):
         usage.add(models.ModelConfig.ZORDER)
-    if _value(config, "databricks_tags") and materialization in _TAG_MATERIALIZATIONS:
+    if _value(config, "databricks_tags"):
         usage.add(models.ModelConfig.DATABRICKS_RELATION_TAGS)
     columns = _columns(node)
-    if (
-        any(_column_extra(column).get("databricks_tags") for column in columns)
-        and materialization in _COLUMN_TAG_MATERIALIZATIONS
-    ):
+    if any(_column_extra(column).get("databricks_tags") for column in columns):
         usage.add(models.ModelConfig.COLUMN_TAGS)
-    if any(_column_extra(column).get("column_mask") for column in columns) and _counts_column_masks(
-        materialization, use_materialization_v2
-    ):
+    if any(_column_extra(column).get("column_mask") for column in columns):
         usage.add(models.ModelConfig.COLUMN_MASKS)
-    if (
-        _value(config, "row_filter")
-        and materialization in _ROW_FILTER_MATERIALIZATIONS
-        and not v1_python_table
-    ):
+    if _value(config, "row_filter"):
         usage.add(models.ModelConfig.ROW_FILTER)
-    if _value(config, "databricks_compute") and materialization in _NAMED_COMPUTE_MATERIALIZATIONS:
+    if _value(config, "databricks_compute"):
         usage.add(models.ModelConfig.NAMED_COMPUTE_ROUTING)
-    return usage
-
-
-def _incremental_config_usage(
-    config: Any, strategy: models.IncrementalStrategy
-) -> set[models.ModelConfig]:
-    if strategy != models.IncrementalStrategy.MERGE:
-        return set()
-    usage = set()
     if _enabled(_value(config, "merge_with_schema_evolution")):
         usage.add(models.ModelConfig.MERGE_SCHEMA_EVOLUTION)
-    action = _normalized(_value(config, "not_matched_by_source_action"))
-    if action == "delete" or action.startswith("update"):
+    if _value(config, "not_matched_by_source_action"):
         usage.add(models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE)
     return usage
 
@@ -608,7 +462,6 @@ def aggregate_model_configs(
         ),
     }
     use_managed_iceberg = bool(behavior_flag("use_managed_iceberg"))
-    use_materialization_v2 = bool(behavior_flag("use_materialization_v2"))
     for node in (getattr(manifest, "nodes", None) or {}).values():
         if _resource_type(node) != "model":
             continue
@@ -630,18 +483,12 @@ def aggregate_model_configs(
             if materialization != models.Materialization.EPHEMERAL
             else None
         )
-        is_delta = _resolved_file_format(relation, use_managed_iceberg) == "delta"
-        acc.config_usage.update(
-            _shared_config_usage(
-                node, config, materialization, language, is_delta, use_materialization_v2
-            )
-        )
+        acc.config_usage.update(_config_usage(node, config))
 
         if materialization == models.Materialization.INCREMENTAL:
             strategy = _incremental_strategy(config)
             acc.incremental_model_count += 1
             acc.incremental_strategies[strategy] += 1
-            acc.config_usage.update(_incremental_config_usage(config, strategy))
 
         if language == models.Language.PYTHON:
             acc.python_model_count += 1

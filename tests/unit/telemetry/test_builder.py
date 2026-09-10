@@ -170,80 +170,21 @@ class TestAggregateModelConfigs:
             models.ComputeTypeCount(models.ComputeType.TYPE_UNSPECIFIED, 1)
         ]
 
-    def test_legacy_constraints_require_persist_constraints(self):
-        legacy = _model(
-            "table",
-            persist_constraints=True,
-            columns={"id": {"meta": {"constraint": "not_null"}}},
-        )
-        legacy.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
-        ignored = _model(
-            "table",
-            persist_constraints=False,
-            columns={"id": {"meta": {"constraint": "not_null"}}},
-        )
-        ignored.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={"legacy": legacy, "ignored": ignored},
-        )
-
-        root = builder.aggregate_model_configs(
-            manifest,
-            _creds(),
-            lambda flag: False,
-            _unity_delta_relation,
-        )[0]
-
-        assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
-            models.ModelConfig.CHECK_CONSTRAINT: 1,
-        }
-
-    def test_v2_ignores_legacy_persist_constraints(self):
-        legacy = _model(
-            "table",
-            persist_constraints=True,
-            columns={"id": {"meta": {"constraint": "not_null"}}},
-        )
-        legacy.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
-        contracted = _model(
-            "table",
-            persist_constraints=True,
-            contract={"enforced": True},
-            columns={"id": {"constraints": [{"type": "not_null"}]}},
-        )
-        contracted.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={"legacy": legacy, "contracted": contracted},
-        )
-
-        root = builder.aggregate_model_configs(
-            manifest,
-            _creds(),
-            lambda flag: flag == "use_materialization_v2",
-            _unity_delta_relation,
-        )[0]
-
-        assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
-        }
-
-    def test_v1_legacy_constraints_replace_modern_at_the_same_level(self):
+    def test_config_usage_unions_all_declared_constraint_sources(self):
         node = _model(
-            "table",
-            persist_constraints=True,
-            contract={"enforced": True},
+            "view",
             columns={
                 "id": {
                     "constraints": [{"type": "foreign_key"}],
                     "meta": {"constraint": "not_null"},
                 }
             },
-            constraints=[{"type": "primary_key"}],
+            constraints=[
+                {"type": "primary_key"},
+                {"type": "check", "expression": "id > 0"},
+            ],
         )
-        node.meta = {"constraints": [{"name": "positive", "condition": "id > 0"}]}
+        node.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
         root = builder.aggregate_model_configs(
             SimpleNamespace(
                 metadata=SimpleNamespace(project_name="root"),
@@ -253,178 +194,114 @@ class TestAggregateModelConfigs:
             lambda flag: False,
             _unity_delta_relation,
         )[0]
-
         assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.CHECK_CONSTRAINT: 1,
-            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
-        }
-
-    def test_materialized_view_counts_enforced_contract_constraints(self):
-        contracted = _model(
-            "materialized_view",
-            persist_constraints=True,
-            contract={"enforced": True},
-            file_format="parquet",
-            columns={"id": {"constraints": [{"type": "not_null"}]}},
-            constraints=[
-                {"type": "primary_key"},
-                {"type": "check", "name": "positive", "expression": "id > 0"},
-                {"type": "foreign_key"},
-                {"type": "custom", "expression": "CONSTRAINT custom_positive CHECK (id > 0)"},
-            ],
-        )
-        contracted.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
-        unenforced = _model(
-            "materialized_view",
-            persist_constraints=True,
-            columns={"id": {"constraints": [{"type": "not_null"}]}},
-            constraints=[
-                {"type": "check", "expression": "id > 0"},
-                {"type": "primary_key"},
-            ],
-        )
-        unenforced.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={"contracted": contracted, "unenforced": unenforced},
-        )
-
-        def build_relation(node):
-            return SimpleNamespace(
-                catalog_type="unity",
-                table_format="default",
-                file_format=node.config.get("file_format", "delta"),
-            )
-
-        expected = {
-            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
             models.ModelConfig.PRIMARY_KEY_CONSTRAINT: 1,
             models.ModelConfig.FOREIGN_KEY_CONSTRAINT: 1,
-            models.ModelConfig.CUSTOM_CONSTRAINT: 1,
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+            models.ModelConfig.CHECK_CONSTRAINT: 1,
         }
-        for use_v2 in (False, True):
-            root = builder.aggregate_model_configs(
-                manifest,
-                _creds(),
-                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
-                build_relation,
-            )[0]
-            assert {row.config: row.count for row in root.config_usage} == expected
 
-    def test_streaming_table_counts_only_enforced_column_not_null(self):
-        mixed = _model(
-            "streaming_table",
-            persist_constraints=True,
-            contract={"enforced": True},
-            columns={
-                "id": {
-                    "constraints": [
-                        {"type": "not_null"},
-                        {"type": "check", "expression": "id > 0"},
-                        {"type": "primary_key"},
-                        {"type": "foreign_key"},
-                        {"type": "custom", "expression": "id <> 99"},
-                    ]
-                }
-            },
-            constraints=[
-                {"type": "not_null", "columns": ["id"]},
-                {"type": "check", "name": "model_check", "expression": "id < 100"},
-                {"type": "primary_key"},
-            ],
-        )
-        mixed.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
-        unenforced = _model(
-            "streaming_table",
-            columns={"id": {"constraints": [{"type": "not_null"}]}},
-        )
-        model_only = _model(
-            "streaming_table",
-            contract={"enforced": True},
-            constraints=[{"type": "not_null", "columns": ["id"]}],
-        )
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={"mixed": mixed, "unenforced": unenforced, "model_only": model_only},
-        )
-        for use_v2 in (False, True):
-            root = builder.aggregate_model_configs(
-                manifest,
-                _creds(),
-                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
-                _unity_delta_relation,
-            )[0]
-            assert {row.config: row.count for row in root.config_usage} == {
-                models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
-            }
-
-    def test_column_masks_follow_v2_and_streaming_paths(self):
-        columns = {"id": {"_extra": {"column_mask": {"function": "mask_id"}}}}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={
-                "table": _model("table", columns=columns),
-                "incremental": _model("incremental", columns=columns),
-                "streaming": _model("streaming_table", columns=columns),
-                "view": _model("view", columns=columns),
-                "mv": _model("materialized_view", columns=columns),
-            },
-        )
-        expected = {
-            False: {models.ModelConfig.COLUMN_MASKS: 1},
-            True: {models.ModelConfig.COLUMN_MASKS: 3},
-        }
-        for use_v2, usage in expected.items():
-            root = builder.aggregate_model_configs(
-                manifest,
-                _creds(),
-                lambda flag, use_v2=use_v2: use_v2 if flag == "use_materialization_v2" else False,
-                _unity_delta_relation,
-            )[0]
-            assert {row.config: row.count for row in root.config_usage} == usage
-
-    def test_v1_python_table_ignores_auto_liquid_and_row_filter(self):
-        row_filter = {"function": "f", "columns": ["id"]}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={
-                "py_table_auto": _model(
-                    "table",
-                    language="python",
-                    auto_liquid_cluster=True,
-                    row_filter=row_filter,
-                ),
-                "py_table_explicit": _model("table", language="python", liquid_clustered_by=["id"]),
-                "py_incremental": _model(
-                    "incremental",
-                    language="python",
-                    auto_liquid_cluster=True,
-                    row_filter=row_filter,
-                ),
-                "sql_table": _model("table", auto_liquid_cluster=True, row_filter=row_filter),
-            },
-        )
-        v1 = builder.aggregate_model_configs(
-            manifest,
+    def test_config_usage_counts_conflicting_clustering_declarations(self):
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "both": _model(
+                        "table",
+                        zorder=["id"],
+                        liquid_clustered_by=["id"],
+                        auto_liquid_cluster=True,
+                    )
+                },
+            ),
             _creds(),
             lambda flag: False,
             _unity_delta_relation,
         )[0]
-        assert {row.config: row.count for row in v1.config_usage} == {
-            models.ModelConfig.LIQUID_CLUSTERING: 3,
-            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 2,
-            models.ModelConfig.ROW_FILTER: 2,
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.ZORDER: 1,
+            models.ModelConfig.LIQUID_CLUSTERING: 1,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
         }
-        v2 = builder.aggregate_model_configs(
-            manifest,
+
+    def test_config_usage_counts_merge_options_regardless_of_strategy(self):
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "table": _model(
+                        "table",
+                        merge_with_schema_evolution=True,
+                        not_matched_by_source_action="delete",
+                    ),
+                    "append": _model(
+                        "incremental",
+                        incremental_strategy="append",
+                        merge_with_schema_evolution=True,
+                        not_matched_by_source_action="delete",
+                    ),
+                    "invalid": _model(
+                        "incremental",
+                        not_matched_by_source_action="drop",
+                    ),
+                },
+            ),
             _creds(),
-            lambda flag: flag == "use_materialization_v2",
+            lambda flag: False,
             _unity_delta_relation,
         )[0]
-        assert {row.config: row.count for row in v2.config_usage} == {
-            models.ModelConfig.LIQUID_CLUSTERING: 4,
-            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 3,
-            models.ModelConfig.ROW_FILTER: 3,
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.MERGE_SCHEMA_EVOLUTION: 2,
+            models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE: 3,
+        }
+
+    def test_config_usage_counts_declarations_on_any_materialization(self):
+        extra = {
+            "id": {
+                "_extra": {"column_mask": {"function": "mask_id"}, "databricks_tags": {"k": "v"}}
+            }
+        }
+        row_filter = {"function": "f", "columns": ["id"]}
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "view": _model(
+                        "view",
+                        zorder=["id"],
+                        liquid_clustered_by=["id"],
+                        columns=extra,
+                        row_filter=row_filter,
+                        databricks_tags={"a": "b"},
+                        databricks_compute="cluster",
+                    ),
+                    "ephemeral": _model("ephemeral", databricks_compute="cluster", zorder=["id"]),
+                    "py": _model(
+                        "table",
+                        language="python",
+                        auto_liquid_cluster=True,
+                        row_filter=row_filter,
+                        columns=extra,
+                    ),
+                },
+            ),
+            _creds(compute={"cluster": {"http_path": "/sql/protocolv1/o/1/cluster"}}),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.ZORDER: 2,
+            models.ModelConfig.LIQUID_CLUSTERING: 2,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
+            models.ModelConfig.COLUMN_MASKS: 2,
+            models.ModelConfig.ROW_FILTER: 2,
+            models.ModelConfig.DATABRICKS_RELATION_TAGS: 1,
+            models.ModelConfig.COLUMN_TAGS: 2,
+            models.ModelConfig.NAMED_COMPUTE_ROUTING: 2,
+        }
+        assert {row.compute_type: row.count for row in root.effective_compute_type_counts} == {
+            models.ComputeType.ALL_PURPOSE_CLUSTER: 1,
+            models.ComputeType.SQL_WAREHOUSE: 1,
         }
 
     def test_physical_hive_metastore_is_classified_as_hms(self):
@@ -483,110 +360,6 @@ class TestAggregateModelConfigs:
         assert root.catalog_type_counts == [
             models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
         ]
-
-    def test_zorder_and_constraints_follow_delta_and_activation_gates(self):
-        columns = {"id": {"constraints": [{"type": "not_null"}]}}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={
-                "parquet": _model(
-                    "table",
-                    file_format="parquet",
-                    zorder=["id"],
-                    columns=columns,
-                ),
-                "active": _model(
-                    "table",
-                    zorder=["id"],
-                    contract={"enforced": True},
-                    columns=columns,
-                ),
-            },
-        )
-
-        def build_relation(node):
-            return SimpleNamespace(
-                catalog_type="unity",
-                table_format="default",
-                file_format=node.config.get("file_format", "delta"),
-            )
-
-        root = builder.aggregate_model_configs(
-            manifest,
-            _creds(),
-            lambda flag: False,
-            build_relation,
-        )[0]
-
-        assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.ZORDER: 1,
-            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
-        }
-
-    def test_config_usage_follows_runtime_applicability(self):
-        columns = {"id": {"_extra": {"column_mask": {"function": "mask_id"}}}}
-        manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root"),
-            nodes={
-                "view_zorder": _model(
-                    "view",
-                    zorder=["id"],
-                    liquid_clustered_by=["id"],
-                    columns=columns,
-                    row_filter={"function": "f", "columns": ["id"]},
-                ),
-                "table_both": _model(
-                    "table",
-                    zorder=["id"],
-                    liquid_clustered_by=["id"],
-                    auto_liquid_cluster=True,
-                ),
-                "table_zorder": _model("table", zorder=["id"]),
-                "table_auto": _model("table", auto_liquid_cluster=True),
-                "table_merge": _model(
-                    "table",
-                    merge_with_schema_evolution=True,
-                    not_matched_by_source_action="delete",
-                ),
-                "incremental_merge": _model(
-                    "incremental",
-                    merge_with_schema_evolution=True,
-                    not_matched_by_source_action="delete",
-                ),
-                "incremental_append": _model(
-                    "incremental",
-                    incremental_strategy="append",
-                    merge_with_schema_evolution=True,
-                    not_matched_by_source_action="delete",
-                ),
-                "incremental_invalid_action": _model(
-                    "incremental",
-                    not_matched_by_source_action="drop",
-                ),
-                "ephemeral_compute": _model(
-                    "ephemeral", databricks_compute="cluster", zorder=["id"]
-                ),
-            },
-        )
-
-        root = builder.aggregate_model_configs(
-            manifest,
-            _creds(compute={"cluster": {"http_path": "/sql/protocolv1/o/1/cluster"}}),
-            lambda flag: False,
-            _unity_delta_relation,
-        )[0]
-
-        assert {row.config: row.count for row in root.config_usage} == {
-            models.ModelConfig.LIQUID_CLUSTERING: 2,
-            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
-            models.ModelConfig.ZORDER: 1,
-            models.ModelConfig.MERGE_SCHEMA_EVOLUTION: 1,
-            models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE: 1,
-        }
-        assert not any(
-            row.compute_type == models.ComputeType.ALL_PURPOSE_CLUSTER
-            for row in root.effective_compute_type_counts
-        )
 
 
 class TestBuildPostRunLog:
