@@ -211,7 +211,9 @@ class DatabricksConfig(AdapterConfig):
         default=None, metadata=MergeBehavior.Update.meta()
     )
     query_tags: Optional[str] = None
-    tblproperties: Optional[dict[str, str]] = None
+    tblproperties: Optional[dict[str, str]] = field(
+        default=None, metadata=MergeBehavior.Update.meta()
+    )
     zorder: Optional[Union[list[str], str]] = None
     skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
