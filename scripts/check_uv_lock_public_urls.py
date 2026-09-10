@@ -67,7 +67,7 @@ def main() -> int:
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="normalize source registries before checking the lock file",
+        help="normalize source registries and package URLs before checking the lock file",
     )
     parser.add_argument("lockfile", nargs="?", type=Path, default=Path("uv.lock"))
     args = parser.parse_args()
