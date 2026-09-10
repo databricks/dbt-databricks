@@ -2,6 +2,7 @@
 
 ### Under the Hood
 
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
 - Normalize artifact URLs as well as source registries in `check_uv_lock_public_urls.py --fix`, so regenerating `uv.lock` against a mirrored index no longer needs a manual edit (tooling-only, no runtime impact) ([#1675](https://github.com/databricks/dbt-databricks/pull/1675))
 
