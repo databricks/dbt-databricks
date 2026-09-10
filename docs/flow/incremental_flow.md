@@ -1,11 +1,18 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-12_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
 > flag is and how the selection works. Source:
 > `dbt/include/databricks/macros/materializations/incremental/incremental.sql`.
+
+> **Concurrent microbatch:** dbt-core runs this materialization once per batch. The
+> configuration-change application (`CLUSTER BY`, `SET TBLPROPERTIES`, tags, comments, masks,
+> constraints — and, in the Existing path, `persist_docs`) is claimed by the first batch via
+> `adapter.claim_first_batch_operation`, which dbt-core runs alone before the parallel batches, so
+> those metadata statements run once instead of colliding with the other batches' concurrent
+> writes. The incremental write and `optimize` still run on every batch.
 
 ## Existing Incremental Flow
 

@@ -2051,3 +2051,55 @@ class TestDebugEmitSpogBlock:
             DatabricksAdapter.debug_emit_spog_block(host="", http_path="")
         mock_probe.assert_not_called()
         mock_logger.info.assert_not_called()
+
+
+class TestClaimFirstBatchOperation(DatabricksAdapterBase):
+    """`claim_first_batch_operation` confines per-model microbatch work to the first batch."""
+
+    @pytest.fixture
+    def adapter(self, setUp) -> DatabricksAdapter:
+        return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    def test_first_claim_wins_and_rest_lose(self, adapter):
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is True
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is False
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is False
+
+    def test_claims_are_independent_per_operation(self, adapter):
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is True
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "optimize") is True
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "optimize") is False
+
+    def test_claims_are_independent_per_relation(self, adapter):
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is True
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`other`", "config_changes") is True
+
+    def test_claim_resets_across_invocations(self, adapter):
+        from dbt_common.invocation import reset_invocation_id
+
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is True
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is False
+        # `dbt retry` runs under a fresh invocation id, which must re-open the claim.
+        reset_invocation_id()
+        assert adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes") is True
+
+    def test_exactly_one_winner_under_concurrency(self, adapter):
+        import threading
+
+        results: list[bool] = []
+        results_lock = threading.Lock()
+        start = threading.Barrier(20)
+
+        def worker():
+            start.wait()
+            won = adapter.claim_first_batch_operation("`cat`.`sch`.`tbl`", "config_changes")
+            with results_lock:
+                results.append(won)
+
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert sum(results) == 1

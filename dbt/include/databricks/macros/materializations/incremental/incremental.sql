@@ -29,6 +29,10 @@
 
     {{ run_pre_hooks() }}
 
+    {#-- Confine per-model config work to the first batch (dbt-core runs it alone before the
+         parallel batches) so concurrent batches' metadata ALTERs don't collide. --#}
+    {%- set is_first_batch = not model.batch or adapter.claim_first_batch_operation(target_relation.render(), 'config_changes') -%}
+
     {% call statement('main', language=language) %}
       {{ get_create_intermediate_table(intermediate_relation, compiled_code, language) }}
     {% endcall %}
@@ -59,7 +63,9 @@
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- do process_schema_changes(on_schema_change, intermediate_relation, existing_relation) -%}
-      {{ process_config_changes(target_relation, existing_relation) }}
+      {%- if is_first_batch -%}
+        {{ process_config_changes(target_relation, existing_relation) }}
+      {%- endif -%}
       {% set build_sql = get_build_sql(incremental_strategy, target_relation, intermediate_relation) %}
       {%- if language == 'sql' -%}
         {#-- Check if build_sql is a list (multi-statement strategy) or a string (single statement) --#}
@@ -100,6 +106,11 @@
 
     {#-- Run pre-hooks --#}
     {{ run_hooks(pre_hooks) }}
+
+    {#-- Confine per-model config work to the first batch (dbt-core runs it alone before the
+         parallel batches) so concurrent batches' metadata ALTERs don't collide. --#}
+    {%- set is_first_batch = not model.batch or adapter.claim_first_batch_operation(target_relation.render(), 'config_changes') -%}
+
     {#-- Incremental run logic --#}
     {%- if existing_relation is none -%}
       {#-- Relation must be created --#}
@@ -142,7 +153,7 @@
       {%- endif -%}
       {#-- Relation must be merged --#}
       {%- set _configuration_changes = none -%}
-      {%- if config.get('incremental_apply_config_changes', True) | as_bool -%}
+      {%- if is_first_batch and config.get('incremental_apply_config_changes', True) | as_bool -%}
         {%- set model_config = adapter.get_config_from_model(config.model) -%}
         {%- set _existing_config = adapter.get_relation_config(existing_relation, model_config) -%}
         {%- set _configuration_changes = model_config.get_changeset(_existing_config) -%}
@@ -212,7 +223,9 @@
           {{ apply_constraints(target_relation, constraints) }}
         {% endif %}
       {%- endif -%}
-      {% do persist_docs(target_relation, model, for_relation=True) %}
+      {%- if is_first_batch -%}
+        {% do persist_docs(target_relation, model, for_relation=True) %}
+      {%- endif -%}
     {%- endif -%}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}

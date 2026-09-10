@@ -1,6 +1,7 @@
 import json
 import posixpath
 import re
+import threading
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
@@ -32,6 +33,7 @@ from dbt.adapters.spark.impl import (
 from dbt_common.behavior_flags import BehaviorFlag
 from dbt_common.contracts.config.base import BaseConfig, MergeBehavior
 from dbt_common.exceptions import DbtConfigError, DbtInternalError, DbtRuntimeError
+from dbt_common.invocation import get_invocation_id
 from dbt_common.record import auto_record_function, record_function
 from dbt_common.utils import executor
 from dbt_common.utils.dict import AttrDict
@@ -302,6 +304,10 @@ class DatabricksAdapter(SparkAdapter):
             **self.__class__._parse_replacements_,  # type: ignore[has-type]
             "has_dbr_capability": self._has_dbr_capability_parse,
         }
+
+        # State for `claim_first_batch_operation` (first-microbatch-batch gating).
+        self._first_batch_lock = threading.Lock()
+        self._first_batch_claims: set[tuple[str, str, str]] = set()
 
     def _has_dbr_capability_parse(self, capability_name: str) -> bool:
         """Parse-time stub: True only on SQL warehouses for warehouse-supported capabilities."""
@@ -1127,6 +1133,22 @@ class DatabricksAdapter(SparkAdapter):
     def is_cluster(self) -> bool:
         """Check if the current connection is a cluster."""
         return self.connections.is_cluster()
+
+    @available
+    def claim_first_batch_operation(self, relation_name: str, operation: str) -> bool:
+        """Return True only for the first caller of (invocation, relation, operation), else False.
+
+        dbt-core runs the first microbatch batch alone before the parallel ones, so the first
+        caller here is that batch — letting callers confine per-model metadata writes (CLUSTER BY,
+        SET TBLPROPERTIES) to it and avoid colliding ALTERs. Thread-safe shared state, so a Python
+        method not a macro (Fusion parity owed). Keyed on invocation id so `dbt retry` re-claims.
+        """
+        key = (get_invocation_id(), relation_name, operation)
+        with self._first_batch_lock:
+            if key in self._first_batch_claims:
+                return False
+            self._first_batch_claims.add(key)
+            return True
 
     @available.parse(lambda *a, **k: {})
     def clean_sql(self, sql: str) -> str:
