@@ -24,9 +24,11 @@ PR head branch and approves each gate, verified commits on that branch.
 - Run and read every selected test and lint command. Commit only verified work.
 - Stop if the PR head moves after the run starts. Never overwrite a contributor's
   newer head.
-- Never make tracked repairs in the repository's shared primary checkout. Prefer
-  a separate worktree supplied by the active agent harness; create the
-  `.agents/worktrees` fallback only when the harness did not supply one.
+- Never make tracked repairs in the repository's shared primary checkout. Do
+  writable work in a git worktree that is not that checkout. Use the worktree
+  the active harness already supplied, or create one; its location does not
+  matter. Keep the run report under the primary checkout's ignored
+  `.agents/pr-ready/` directory.
 - Do not put run reports, generated evaluation output, personal paths, accounts,
   or local tooling details into committed files. The co-located `eval-spec.md`
   is a checked-in behavioral contract, not run output.
@@ -34,23 +36,15 @@ PR head branch and approves each gate, verified commits on that branch.
 ## Phase 1 — Resolve the PR, write scope, and worktree
 
 1. Set `ACTIVE_ROOT` to `git rev-parse --show-toplevel`, `COMMON_GIT_DIR` to
-   `git rev-parse --path-format=absolute --git-common-dir`, `PRIMARY_ROOT` to
-   the parent of `COMMON_GIT_DIR`, and `REPO` to
-   `databricks/dbt-databricks`. Require a non-bare repository whose common Git
-   directory is `PRIMARY_ROOT/.git`, and require at least one configured remote
-   whose normalized GitHub slug is exactly `REPO`; otherwise stop before any
-   mutation.
+   `git -C "$ACTIVE_ROOT" rev-parse --git-common-dir` resolved against
+   `ACTIVE_ROOT` when the result is relative, `PRIMARY_ROOT` to the parent of
+   `COMMON_GIT_DIR`, and `REPO` to `databricks/dbt-databricks`. Require a
+   non-bare repository whose common Git directory is `PRIMARY_ROOT/.git`, and
+   require at least one configured remote whose normalized GitHub slug is
+   exactly `REPO`; otherwise stop before any mutation.
 
-   Select the worktree as follows:
-   - When `ACTIVE_ROOT` differs from `PRIMARY_ROOT`, treat `ACTIVE_ROOT` as the
-     worktree supplied by Codex, Claude, Cursor, or another agent harness and
-     set `WT=$ACTIVE_ROOT`. Prefer this path regardless of its platform-specific
-     location.
-   - When `ACTIVE_ROOT` equals `PRIMARY_ROOT`, no separate harness worktree was
-     supplied. Set `WT=$PRIMARY_ROOT/.agents/worktrees/pr-<N>` as the fallback.
-
-   Set `REPORT` to `$PRIMARY_ROOT/.agents/pr-ready/pr-<N>/report.md`. The report
-   and fallback worktree are ignored local artifacts.
+   Set `REPORT` to `$PRIMARY_ROOT/.agents/pr-ready/pr-<N>/report.md`. Do not
+   use `PRIMARY_ROOT` as the repair worktree.
 2. Confirm `gh auth status`, capture `ME` with `gh api user -q .login`, and
    fetch PR metadata including its state, draft status, author, base branch,
    head branch, head SHA, head repository, head repository owner,
@@ -82,31 +76,36 @@ PR head branch and approves each gate, verified commits on that branch.
    into `refs/pr-ready/<N>/head` and verify it equals `SOURCE_SHA`. Do not use
    `gh pr checkout`: it does not provide a stable, unambiguous push target for
    this workflow.
-   - For a harness-supplied `WT`, require that it uses `COMMON_GIT_DIR`, differs
-     from `PRIMARY_ROOT`, and is clean, including untracked files. If `HEAD`
-     differs from the fetched source ref, stop if it is detached and not
-     reachable from any other local or remote ref; otherwise check out the
-     exact fetched ref detached. This preserves a harness-created branch while
-     refusing to orphan unreferenced work. Verify `HEAD` now equals
-     `SOURCE_SHA`.
-   - For the fallback, create `WT` as a detached worktree at the fetched ref
-     when it does not exist. When it exists, require the same common Git
-     directory, require it to differ from `PRIMARY_ROOT`, require it to be
-     clean, and require `HEAD` to equal the fetched source ref. If it contains
-     prior local commits or diverges, report the condition and stop without
-     discarding or including that work.
+   - If `ACTIVE_ROOT` differs from `PRIMARY_ROOT`, set `WT` to `ACTIVE_ROOT`.
+     Require it to use `COMMON_GIT_DIR` and to have an empty
+     `git status --porcelain` (do not pass `--ignored`). If `HEAD` equals the
+     fetched source ref, keep it. If `HEAD` differs and the current commit is
+     detached and not reachable from any local branch or remote-tracking ref,
+     do not check out into that worktree; create a different detached worktree
+     at the fetched ref using the host's usual worktree location and set `WT`
+     to that path. Otherwise check out the exact fetched ref detached.
+   - If `ACTIVE_ROOT` equals `PRIMARY_ROOT`, create a detached worktree at the
+     fetched ref using the host's usual worktree location and set `WT` to that
+     path. When creating a worktree, if the chosen path already exists and
+     diverges, pick another path or stop; never discard its work.
    - Do not create symlinks or shared configuration inside the worktree.
    - In `read-only` mode, do not create, check out, edit, or configure `WT`.
      Gather assessment evidence from PR metadata, the PR diff, public check
      output, and other non-mutating reads instead.
+   After `WT` is final in a writable mode, require
+   `git -C "$WT" rev-parse --show-toplevel` to equal `WT` and to differ from
+   `PRIMARY_ROOT`, then verify `HEAD` equals `SOURCE_SHA` before edits. Run
+   every later edit, test, and git command with `WT` as the working directory.
+   If the host can retarget the visible workspace root, do that immediately;
+   if it cannot, keep using explicit paths under `WT` and do not edit
+   `PRIMARY_ROOT`.
 6. In a writable mode only, install pre-commit hooks in `WT` when
    `core.hooksPath` is unset. When it is set, record that hooks are configured
    externally. Never install or run pre-commit hooks in `read-only` mode; hooks
    may mutate files. The explicit all-files pre-commit run in Phase 5 remains
    mandatory for writable runs.
 7. Create the report skeleton at `REPORT`, noting PR URL, `SOURCE_SHA`, write
-   mode, resolved head slug, worktree source (`harness` or `fallback`), worktree
-   path, and whether an existing fallback worktree was reused.
+   mode, resolved head slug, and worktree path.
 
 ## Phase 2 — Assessment
 

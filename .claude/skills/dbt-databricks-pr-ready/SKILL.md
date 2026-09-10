@@ -8,4 +8,5 @@ description: "Use for an open dbt-databricks pull request, including your own PR
 Derive the active repository root first with
 `ROOT="$(git rev-parse --show-toplevel)"`. Then read and follow the canonical
 skill at `$ROOT/.agents/skills/dbt-databricks-pr-ready/SKILL.md`. That file is
-the only source of the workflow and its rubric.
+the only source of the workflow and its rubric. The eval contract is
+`$ROOT/.agents/skills/dbt-databricks-pr-ready/eval-spec.md`.
