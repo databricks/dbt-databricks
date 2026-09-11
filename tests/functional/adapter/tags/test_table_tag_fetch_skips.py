@@ -157,21 +157,37 @@ class TestChangedTableTagValueIsApplied(RerunSafeMixin):
     def relations_to_reset(self):
         return ("metadata_fetch_table",)
 
-    def test_changed_tag_value_reaches_server(self, project):
-        util.run_dbt(["run"])
-        util.write_file(
-            fixtures.metadata_fetch_table_with_changed_tags_sql,
-            "models",
-            "metadata_fetch_table.sql",
-        )
-        util.run_dbt(["run"])
+    @pytest.fixture(scope="class", params=["table", "incremental"])
+    def materialization(self, request):
+        return request.param
 
+    def assert_tags(self, project, value):
         results = project.run_sql(
             "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
             " where schema_name = '{schema}' and table_name='metadata_fetch_table'",
             fetch="all",
         )
-        assert set((row[0], row[1]) for row in results) == {("classification", "confidential")}
+        assert {(row[0], row[1]) for row in results} == {("classification", value)}
+
+    def test_changed_tag_value_reaches_server(self, project, materialization):
+        util.write_file(
+            fixtures.metadata_fetch_table_with_tags_sql.replace("'table'", repr(materialization)),
+            "models",
+            "metadata_fetch_table.sql",
+        )
+        util.run_dbt(["run"])
+        self.assert_tags(project, "internal")
+        util.run_dbt(["run", "--full-refresh"])
+        self.assert_tags(project, "internal")
+        util.write_file(
+            fixtures.metadata_fetch_table_with_changed_tags_sql.replace(
+                "'table'", repr(materialization)
+            ),
+            "models",
+            "metadata_fetch_table.sql",
+        )
+        util.run_dbt(["run", "--full-refresh"])
+        self.assert_tags(project, "confidential")
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -189,17 +205,42 @@ class TestChangedColumnTagValueIsApplied(RerunSafeMixin):
     def relations_to_reset(self):
         return ("metadata_fetch_table",)
 
-    def test_changed_column_tag_value_reaches_server(self, project):
-        util.run_dbt(["run"])
-        util.write_file(fixtures.metadata_fetch_changed_column_tags_schema, "models", "schema.yml")
-        util.run_dbt(["run"])
+    @pytest.fixture(scope="class", params=["table", "incremental"])
+    def materialization(self, request):
+        return request.param
 
+    def assert_tags(self, project, value):
         results = project.run_sql(
             "select column_name, tag_name, tag_value from"
             " `system`.`information_schema`.`column_tags`"
             " where schema_name = '{schema}' and table_name='metadata_fetch_table'",
             fetch="all",
         )
-        assert set((row[0], row[1], row[2]) for row in results) == {
-            ("id", "classification", "confidential")
-        }
+        assert {(row[0], row[1], row[2]) for row in results} == {("id", "classification", value)}
+
+    def test_changed_column_tag_value_reaches_server(self, project, materialization):
+        util.write_file(fixtures.metadata_fetch_column_tags_schema, "models", "schema.yml")
+        util.write_file(
+            fixtures.metadata_fetch_table_sql.replace("'table'", repr(materialization)),
+            "models",
+            "metadata_fetch_table.sql",
+        )
+        util.run_dbt(["run"])
+        self.assert_tags(project, "internal")
+        util.run_dbt(["run", "--full-refresh"])
+        self.assert_tags(project, "internal")
+        util.write_file(fixtures.metadata_fetch_changed_column_tags_schema, "models", "schema.yml")
+        util.run_dbt(["run", "--full-refresh"])
+        self.assert_tags(project, "confidential")
+
+
+class TestChangedTableTagValueIsAppliedV2(
+    MaterializationV2Mixin, TestChangedTableTagValueIsApplied
+):
+    pass
+
+
+class TestChangedColumnTagValueIsAppliedV2(
+    MaterializationV2Mixin, TestChangedColumnTagValueIsApplied
+):
+    pass

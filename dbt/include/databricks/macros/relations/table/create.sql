@@ -16,18 +16,7 @@
   {% endcall %}
 
   {{ apply_alter_constraints(target_relation) }}
-  {%- if replaced_in_place -%}
-    {# Replace preserves tags, so apply only new/changed ones; otherwise apply all. #}
-    {% set tags = adapter.get_table_tags_changes(target_relation, config.model) %}
-    {% set column_tags = adapter.get_column_tags_changes(target_relation, config.model) %}
-  {%- else -%}
-    {% set tags = config.get('databricks_tags') %}
-    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-  {%- endif -%}
-  {{ apply_tags(target_relation, tags) }}
-  {% if column_tags and column_tags.set_column_tags %}
-    {{ apply_column_tags(target_relation, column_tags) }}
-  {% endif %}
+  {{ reconcile_tags(target_relation, replaced_in_place) }}
 
   {% call statement('merge into target') %}
     insert into {{ target_relation }} by name select * from {{ intermediate_relation }}

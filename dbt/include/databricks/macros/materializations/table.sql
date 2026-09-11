@@ -4,7 +4,6 @@
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}
   {%- set tblproperties = config.get('tblproperties') -%}
-  {%- set tags = config.get('databricks_tags') -%}
   {%- set safe_create = config.get('use_safer_relation_operations', False) %}
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
@@ -65,19 +64,7 @@
     {% if language=="python" %}
       {% do apply_tblproperties(target_relation, tblproperties) %}
     {% endif %}
-    {%- if replaced_in_place -%}
-      {# Replace preserves tags, so apply only new/changed ones. #}
-      {%- set tags_to_set = adapter.get_table_tags_changes(target_relation, config.model) -%}
-      {%- set column_tags = adapter.get_column_tags_changes(target_relation, config.model) -%}
-    {%- else -%}
-      {%- set tags_to_set = tags -%}
-      {%- set column_tags = adapter.get_column_tags_from_model(config.model) -%}
-    {%- endif -%}
-    {%- do apply_tags(target_relation, tags_to_set) -%}
-
-    {% if column_tags and column_tags.set_column_tags %}
-      {{ apply_column_tags(target_relation, column_tags) }}
-    {% endif %}
+    {{ reconcile_tags(target_relation, replaced_in_place) }}
 
     {% do persist_docs(target_relation, model, for_relation=language=='python') %}
 

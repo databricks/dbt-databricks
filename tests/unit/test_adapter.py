@@ -123,6 +123,65 @@ class DatabricksAdapterBase:
         return config_from_parts_or_dicts(self.project_cfg, self.profile_cfg)
 
 
+class TestChangedTags:
+    @pytest.mark.parametrize("table_tags", [False, True])
+    @pytest.mark.parametrize("column_tags", [False, True])
+    @pytest.mark.parametrize("hms", [False, True])
+    def test_fetches_only_configured_tags(self, table_tags, column_tags, hms):
+        adapter = Mock()
+        relation = Mock()
+        relation.is_hive_metastore.return_value = hms
+        model = Mock()
+        model.config.extra = {
+            "databricks_tags": {"classification": "internal"} if table_tags else {}
+        }
+        model.columns = (
+            {"id": {"_extra": {"databricks_tags": {"pii": "false"}}}} if column_tags else {}
+        )
+        adapter.execute_macro.side_effect = lambda name, **kwargs: agate.Table(
+            [],
+            ["tag_name", "tag_value"]
+            if name == "fetch_tags"
+            else ["column_name", "tag_name", "tag_value"],
+        )
+
+        result = DatabricksAdapter.get_table_replacement_tag_changes(adapter, relation, model)
+
+        assert result == {
+            "table_tags": {"classification": "internal"} if table_tags else {},
+            "column_tags": {"id": {"pii": "false"}} if column_tags else {},
+        }
+        expected = (
+            []
+            if hms
+            else (
+                (["fetch_tags"] if table_tags else [])
+                + (["fetch_column_tags"] if column_tags else [])
+            )
+        )
+        assert [call.args[0] for call in adapter.execute_macro.call_args_list] == expected
+
+    def test_unchanged_tags_are_empty(self):
+        adapter = Mock()
+        relation = Mock()
+        relation.is_hive_metastore.return_value = False
+        model = Mock()
+        model.config.extra = {"databricks_tags": {"classification": "internal"}}
+        model.columns = {"ID": {"_extra": {"databricks_tags": {"pii": "false"}}}}
+        adapter.execute_macro.side_effect = [
+            agate.Table([("classification", "internal")], ["tag_name", "tag_value"]),
+            agate.Table(
+                [("id", "pii", "false")],
+                ["column_name", "tag_name", "tag_value"],
+                column_types=[agate.Text(), agate.Text(), agate.Text()],
+            ),
+        ]
+        assert DatabricksAdapter.get_table_replacement_tag_changes(adapter, relation, model) == {
+            "table_tags": {},
+            "column_tags": {},
+        }
+
+
 class TestDatabricksAdapter(DatabricksAdapterBase):
     @pytest.fixture(autouse=True)
     def _stub_spog_probe(self):

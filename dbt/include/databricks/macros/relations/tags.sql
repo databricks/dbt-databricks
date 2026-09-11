@@ -1,3 +1,18 @@
+{% macro reconcile_tags(relation, replaced_in_place=false) -%}
+  {%- if replaced_in_place -%}
+    {%- set changes = adapter.get_table_replacement_tag_changes(relation, config.model) -%}
+    {%- set tags = changes['table_tags'] -%}
+    {%- set column_tags = {'set_column_tags': changes['column_tags']} -%}
+  {%- else -%}
+    {%- set tags = config.get('databricks_tags') -%}
+    {%- set column_tags = adapter.get_column_tags_from_model(config.model) -%}
+  {%- endif -%}
+  {%- do apply_tags(relation, tags) -%}
+  {%- if column_tags and column_tags.set_column_tags -%}
+    {%- do apply_column_tags(relation, column_tags) -%}
+  {%- endif -%}
+{%- endmacro %}
+
 {% macro fetch_tags(relation) -%}
   {% if relation.is_hive_metastore() %}
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}

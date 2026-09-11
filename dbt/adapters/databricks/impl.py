@@ -1161,36 +1161,37 @@ class DatabricksAdapter(SparkAdapter):
         return ColumnTagsProcessor.from_relation_config(model)
 
     @available
-    def get_table_tags_changes(
+    def get_table_replacement_tag_changes(
         self, relation: DatabricksRelation, model: RelationConfig
-    ) -> dict[str, str]:
-        """Table tags to set: only those new or changed vs the server."""
-        desired = TagsProcessor.from_relation_config(model)
-        if not desired.set_tags:
-            return {}
-        # Defer the hive_metastore error to apply_tags.
-        if relation.is_hive_metastore():
-            return desired.set_tags
-        existing_rows = self.execute_macro("fetch_tags", kwargs={"relation": relation})
-        existing = TagsProcessor.from_relation_results({"information_schema.tags": existing_rows})
-        diff = desired.get_diff(existing)
-        return diff.set_tags if diff else {}
+    ) -> dict[str, Union[dict[str, str], dict[str, dict[str, str]]]]:
+        """Reconcile tags retained by CREATE OR REPLACE TABLE.
 
-    @available
-    def get_column_tags_changes(
-        self, relation: DatabricksRelation, model: RelationConfig
-    ) -> Optional[ColumnTagsConfig]:
-        """Column tags to set: only those new or changed vs the server."""
-        desired = ColumnTagsProcessor.from_relation_config(model)
-        if not desired.set_column_tags:
-            return None
-        if relation.is_hive_metastore():
-            return desired
-        existing_rows = self.execute_macro("fetch_column_tags", kwargs={"relation": relation})
-        existing = ColumnTagsProcessor.from_relation_results(
-            {"information_schema.column_tags": existing_rows}
-        )
-        return desired.get_diff(existing)
+        Table rebuilds and incremental full-refresh replacements bypass the normal ALTER
+        changeset flow. This Jinja API reuses the Python tag processors and component diffs
+        while fetching only tag metadata, avoiding a full relation-config read after replacement.
+        """
+        tags = TagsProcessor.from_relation_config(model)
+        column_tags = ColumnTagsProcessor.from_relation_config(model)
+        table_tags_to_set = tags.set_tags
+        column_tags_to_set = column_tags.set_column_tags
+        # Preserve the existing UC-only errors in the apply macros.
+        if not relation.is_hive_metastore():
+            if tags.requires_server_metadata_for_diff():
+                rows = self.execute_macro("fetch_tags", kwargs={"relation": relation})
+                existing = TagsProcessor.from_relation_results({"information_schema.tags": rows})
+                tags_diff = tags.get_diff(existing)
+                table_tags_to_set = tags_diff.set_tags if tags_diff else {}
+            if column_tags.requires_server_metadata_for_diff():
+                rows = self.execute_macro("fetch_column_tags", kwargs={"relation": relation})
+                existing_columns = ColumnTagsProcessor.from_relation_results(
+                    {"information_schema.column_tags": rows}
+                )
+                column_tags_diff = column_tags.get_diff(existing_columns)
+                column_tags_to_set = column_tags_diff.set_column_tags if column_tags_diff else {}
+        return {
+            "table_tags": table_tags_to_set,
+            "column_tags": column_tags_to_set,
+        }
 
     @available
     def resolve_file_format(self, config: BaseConfig) -> str:

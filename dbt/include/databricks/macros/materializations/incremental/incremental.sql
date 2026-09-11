@@ -49,7 +49,10 @@
           {% do adapter.drop_relation(existing_relation) %}
         {% endif %}
         {{ log("Replacing target relation") }}
-        {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
+        {{ create_table_at(
+            target_relation, intermediate_relation, compiled_code,
+            replaced_in_place=is_replaceable and not existing_relation.is_shallow_clone
+        ) }}
       {% endif %}
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
@@ -93,7 +96,6 @@
 
   {% else %}
     {%- set tblproperties = config.get('tblproperties') -%}
-    {%- set tags = config.get('databricks_tags') -%}
     {% set temp_relation = make_temp_relation(target_relation) %}
     {% set incremental_predicates = config.get('predicates') or config.get('incremental_predicates') %}
     {%- set unique_key = config.get('unique_key') -%}
@@ -107,11 +109,7 @@
         {{ create_table_as(False, target_relation, compiled_code, language) }}
       {%- endcall -%}
       {% do persist_constraints(target_relation, model) %}
-      {% do apply_tags(target_relation, tags) %}
-      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-      {% if column_tags and column_tags.set_column_tags %}
-        {{ apply_column_tags(target_relation, column_tags) }}
-      {% endif %}
+      {{ reconcile_tags(target_relation) }}
       {%- if language == 'python' -%}
         {%- do apply_tblproperties(target_relation, tblproperties) %}
       {%- endif -%}
@@ -129,11 +127,10 @@
       {% if not existing_relation.is_view %}
         {% do persist_constraints(target_relation, model) %}
       {% endif %}
-      {% do apply_tags(target_relation, tags) %}
-      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-      {% if column_tags and column_tags.set_column_tags %}
-        {{ apply_column_tags(target_relation, column_tags) }}
-      {% endif %}
+      {{ reconcile_tags(
+          target_relation,
+          replaced_in_place=is_replaceable_format and not existing_relation.is_shallow_clone
+      ) }}
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- else -%}
       {#-- Set Overwrite Mode to DYNAMIC for subsequent incremental operations --#}
