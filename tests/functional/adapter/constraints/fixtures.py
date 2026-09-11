@@ -379,7 +379,6 @@ models:
         constraints:
           - type: not_null
           - type: primary_key
-            name: pk_rely_parent
             expression: RELY
   - name: rely_child
     config:
@@ -409,6 +408,55 @@ incremental_rely_pk_child_sql = """
 -- depends_on: {{ ref('rely_parent') }}
 
 select 1 as parent_n, 10 as child_id
+"""
+
+incremental_multiple_fk_schema_yml = """
+version: 2
+models:
+  - name: multi_fk_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_multi_fk_parent
+  - name: multi_fk_child
+    config:
+      materialized: incremental
+      unique_key: child_id
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    columns:
+      - name: child_id
+        data_type: int
+      - name: parent_a
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('multi_fk_parent')
+            to_columns: ["id"]
+      - name: parent_b
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('multi_fk_parent')
+            to_columns: ["id"]
+"""
+
+incremental_multiple_fk_parent_sql = """
+select 1 as id
+"""
+
+incremental_multiple_fk_child_sql = """
+-- depends_on: {{ ref('multi_fk_parent') }}
+
+select 1 as child_id, 1 as parent_a, 1 as parent_b
 """
 
 
@@ -462,4 +510,50 @@ models:
         data_type: int
       - name: color
         data_type: string
+"""
+
+incremental_v2_unnamed_pk_cascade_schema_yml = """
+version: 2
+models:
+  - name: v2_unnamed_pk_parent
+    config:
+      materialized: incremental
+      unique_key: n
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    columns:
+      - name: n
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: v2_unnamed_pk_child
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        name: fk_v2_unnamed_pk_child
+        columns: ["parent_n"]
+        to: ref('v2_unnamed_pk_parent')
+        to_columns: ["n"]
+    columns:
+      - name: parent_n
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: child_id
+        data_type: int
+"""
+
+incremental_v2_unnamed_pk_parent_sql = """
+select 1 as n
+"""
+
+incremental_v2_unnamed_pk_child_sql = """
+-- depends_on: {{ ref('v2_unnamed_pk_parent') }}
+
+select 1 as parent_n, 10 as child_id
 """
