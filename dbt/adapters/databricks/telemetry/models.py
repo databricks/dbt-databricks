@@ -82,6 +82,87 @@ class TerminationReason(Enum):
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
+class ModelConfigScope(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    ROOT_PROJECT = "ROOT_PROJECT"
+    INSTALLED_PACKAGES = "INSTALLED_PACKAGES"
+
+
+class Materialization(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    TABLE = "TABLE"
+    VIEW = "VIEW"
+    INCREMENTAL = "INCREMENTAL"
+    EPHEMERAL = "EPHEMERAL"
+    MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
+    STREAMING_TABLE = "STREAMING_TABLE"
+    METRIC_VIEW = "METRIC_VIEW"
+    OTHER = "OTHER"
+
+
+class Language(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    SQL = "SQL"
+    PYTHON = "PYTHON"
+    OTHER = "OTHER"
+
+
+class IncrementalStrategy(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    MERGE = "MERGE"
+    APPEND = "APPEND"
+    DELETE_INSERT = "DELETE_INSERT"
+    INSERT_OVERWRITE = "INSERT_OVERWRITE"
+    REPLACE_WHERE = "REPLACE_WHERE"
+    MICROBATCH = "MICROBATCH"
+    OTHER = "OTHER"
+
+
+class EffectiveStorageFormat(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    DELTA = "DELTA"
+    MANAGED_ICEBERG = "MANAGED_ICEBERG"
+    UNIFORM_ICEBERG = "UNIFORM_ICEBERG"
+    PARQUET = "PARQUET"
+    HUDI = "HUDI"
+    OTHER = "OTHER"
+
+
+class CatalogType(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    UNITY_CATALOG = "UNITY_CATALOG"
+    HIVE_METASTORE = "HIVE_METASTORE"
+    OTHER = "OTHER"
+
+
+class PythonSubmissionMethod(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    SERVERLESS_CLUSTER = "SERVERLESS_CLUSTER"
+    JOB_CLUSTER = "JOB_CLUSTER"
+    ALL_PURPOSE_CLUSTER = "ALL_PURPOSE_CLUSTER"
+    WORKFLOW_JOB = "WORKFLOW_JOB"
+    OTHER = "OTHER"
+
+
+class ModelConfig(Enum):
+    TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED"
+    LIQUID_CLUSTERING = "LIQUID_CLUSTERING"
+    AUTO_LIQUID_CLUSTERING = "AUTO_LIQUID_CLUSTERING"
+    ZORDER = "ZORDER"
+    DATABRICKS_RELATION_TAGS = "DATABRICKS_RELATION_TAGS"
+    COLUMN_TAGS = "COLUMN_TAGS"
+    COLUMN_MASKS = "COLUMN_MASKS"
+    ROW_FILTER = "ROW_FILTER"
+    NOT_NULL_CONSTRAINT = "NOT_NULL_CONSTRAINT"
+    CHECK_CONSTRAINT = "CHECK_CONSTRAINT"
+    PRIMARY_KEY_CONSTRAINT = "PRIMARY_KEY_CONSTRAINT"
+    FOREIGN_KEY_CONSTRAINT = "FOREIGN_KEY_CONSTRAINT"
+    CUSTOM_CONSTRAINT = "CUSTOM_CONSTRAINT"
+    NAMED_COMPUTE_ROUTING = "NAMED_COMPUTE_ROUTING"
+    MERGE_SCHEMA_EVOLUTION = "MERGE_SCHEMA_EVOLUTION"
+    MERGE_NOT_MATCHED_BY_SOURCE = "MERGE_NOT_MATCHED_BY_SOURCE"
+
+
 @dataclass
 class ResourceCounts:
     model_count: int = 0
@@ -134,11 +215,86 @@ class ProjectConfig:
 
 
 @dataclass
+class ModelConfigUsage:
+    config: ModelConfig = ModelConfig.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class MaterializationCount:
+    materialization: Materialization = Materialization.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class LanguageCount:
+    language: Language = Language.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class IncrementalStrategyCount:
+    incremental_strategy: IncrementalStrategy = IncrementalStrategy.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class EffectiveStorageFormatCount:
+    effective_storage_format: EffectiveStorageFormat = EffectiveStorageFormat.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class CatalogTypeCount:
+    catalog_type: CatalogType = CatalogType.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class ComputeTypeCount:
+    compute_type: ComputeType = ComputeType.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class PythonSubmissionMethodCount:
+    submission_method: PythonSubmissionMethod = PythonSubmissionMethod.TYPE_UNSPECIFIED
+    count: int = 0
+
+
+@dataclass
+class IncrementalModelStats:
+    model_count: int = 0
+    strategy_counts: list[IncrementalStrategyCount] = field(default_factory=list)
+
+
+@dataclass
+class PythonModelStats:
+    model_count: int = 0
+    submission_method_counts: list[PythonSubmissionMethodCount] = field(default_factory=list)
+
+
+@dataclass
+class ModelConfigStats:
+    scope: ModelConfigScope = ModelConfigScope.TYPE_UNSPECIFIED
+    model_count: int = 0
+    materialization_counts: list[MaterializationCount] = field(default_factory=list)
+    language_counts: list[LanguageCount] = field(default_factory=list)
+    incremental_model_stats: IncrementalModelStats = field(default_factory=IncrementalModelStats)
+    effective_storage_format_counts: list[EffectiveStorageFormatCount] = field(default_factory=list)
+    catalog_type_counts: list[CatalogTypeCount] = field(default_factory=list)
+    effective_compute_type_counts: list[ComputeTypeCount] = field(default_factory=list)
+    python_model_stats: PythonModelStats = field(default_factory=PythonModelStats)
+    config_usage: list[ModelConfigUsage] = field(default_factory=list)
+
+
+@dataclass
 class PostParsePayload:
     invocation_config: InvocationConfig
     manifest_stats: ManifestStats
     connection_config: ConnectionConfig
     project_config: ProjectConfig
+    model_config_stats: list[ModelConfigStats] = field(default_factory=list)
 
 
 @dataclass

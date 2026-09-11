@@ -4,6 +4,7 @@
 
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
+- Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
 
 ### Fixes
 
