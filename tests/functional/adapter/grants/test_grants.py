@@ -4,6 +4,10 @@ from dbt.tests.adapter.grants.test_invalid_grants import BaseInvalidGrants
 from dbt.tests.adapter.grants.test_model_grants import BaseModelGrants
 from dbt.tests.adapter.grants.test_seed_grants import BaseSeedGrants
 from dbt.tests.adapter.grants.test_snapshot_grants import BaseSnapshotGrants
+from dbt.tests.util import run_dbt
+
+from tests.functional.adapter.fixtures import RerunSafeMixin
+from tests.functional.adapter.grants import fixtures
 
 
 @pytest.mark.skip(reason="DECO team must provide DBT_TEST_USER_1/2/3 before we re-enable")
@@ -49,3 +53,29 @@ class TestInvalidGrantsDatabricks(BaseInvalidGrants):
 
     def privilege_does_not_exist_error(self):
         return "INVALID_PARAMETER_VALUE"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestTableGrantReconciliation(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("granted_table",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "granted_table.sql": fixtures.granted_table_sql,
+            "schema.yml": fixtures.granted_table_schema_yml,
+        }
+
+    def test_second_run_reconciles_show_grants(self, project):
+        run_dbt(["run"])
+        run_dbt(["run"])
+
+        rows = project.run_sql(
+            "select grantee, privilege_type from {database}.information_schema.table_privileges "
+            "where table_schema = '{schema}' and table_name = 'granted_table' "
+            "and inherited_from = 'NONE'",
+            fetch="all",
+        )
+        assert ("account users", "SELECT") in {(row[0], row[1]) for row in rows}
