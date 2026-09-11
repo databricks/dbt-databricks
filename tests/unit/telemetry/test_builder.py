@@ -201,6 +201,23 @@ class TestAggregateModelConfigs:
             models.ModelConfig.CHECK_CONSTRAINT: 1,
         }
 
+    def test_config_usage_ignores_non_sequence_legacy_constraint_metadata(self):
+        invalid = _model("table")
+        invalid.meta = {"constraints": True}
+        declared = _model("table", constraints=[{"type": "not_null"}])
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"invalid": invalid, "declared": declared},
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+        }
+
     def test_config_usage_counts_conflicting_clustering_declarations(self):
         root = builder.aggregate_model_configs(
             SimpleNamespace(

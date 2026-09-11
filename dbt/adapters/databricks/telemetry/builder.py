@@ -335,14 +335,6 @@ def _catalog_type(catalog_relation: Any, node: Any) -> models.CatalogType:
     return _CATALOG_TYPE_MAP.get(value, models.CatalogType.OTHER)
 
 
-def _resolved_file_format(catalog_relation: Any, use_managed_iceberg: bool) -> str:
-    if catalog_relation is None:
-        return ""
-    if _normalized(getattr(catalog_relation, "table_format", None)) == "iceberg":
-        return "parquet" if use_managed_iceberg else "delta"
-    return _normalized(getattr(catalog_relation, "file_format", None)) or "delta"
-
-
 def _storage_format(
     catalog_relation: Any, use_managed_iceberg: bool
 ) -> models.EffectiveStorageFormat:
@@ -393,7 +385,9 @@ def _constraint_type_key(constraint: Any) -> str:
 
 
 def _constraint_type_keys(constraints: Any) -> set[str]:
-    return {key for constraint in (constraints or []) if (key := _constraint_type_key(constraint))}
+    if not isinstance(constraints, (list, tuple)):
+        return set()
+    return {key for constraint in constraints if (key := _constraint_type_key(constraint))}
 
 
 def _constraint_configs(node: Any) -> set[models.ModelConfig]:
@@ -413,6 +407,10 @@ def _constraint_configs(node: Any) -> set[models.ModelConfig]:
 
 
 def _config_usage(node: Any, config: Any) -> set[models.ModelConfig]:
+    """POST_PARSE measures resolved configuration intent.
+
+    Declarations are counted independently of runtime applicability.
+    """
     usage = _constraint_configs(node)
     auto_liquid_cluster = _enabled(_value(config, "auto_liquid_cluster"))
     if _value(config, "liquid_clustered_by") or auto_liquid_cluster:
