@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Fixes
+
+- Honor `transaction: false` hooks by executing all hooks without transaction filtering or an explicit `COMMIT` ([#1549](https://github.com/databricks/dbt-databricks/issues/1549))
+
 ### Under the Hood
 
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))

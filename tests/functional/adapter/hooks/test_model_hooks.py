@@ -82,3 +82,58 @@ class TestPrePostModelHooks(BaseTestPrePost):
         util.run_dbt()
         self.check_hooks("start", project, dbt_profile_target)
         self.check_hooks("end", project, dbt_profile_target)
+
+
+class TestTransactionFalseModelHooks(TestPrePostModelHooks):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "test": {
+                    "pre-hook": [
+                        override_fixtures.MODEL_PRE_HOOK,
+                        {
+                            "sql": override_fixtures.MODEL_PRE_HOOK,
+                            "transaction": False,
+                        },
+                    ],
+                    "post-hook": [
+                        override_fixtures.MODEL_POST_HOOK,
+                        {
+                            "sql": override_fixtures.MODEL_POST_HOOK,
+                            "transaction": False,
+                        },
+                    ],
+                }
+            }
+        }
+
+    def test_transaction_false_hooks(self, project, dbt_profile_target):
+        util.run_dbt()
+        self.check_hooks("start", project, dbt_profile_target, count=2)
+        self.check_hooks("end", project, dbt_profile_target, count=2)
+
+class TestTransactionFalseModelHooksV2(TestTransactionFalseModelHooks):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "test": {
+                    "pre-hook": [
+                        override_fixtures.MODEL_PRE_HOOK,
+                        {
+                            "sql": override_fixtures.MODEL_PRE_HOOK,
+                            "transaction": False,
+                        },
+                    ],
+                    "post-hook": [
+                        override_fixtures.MODEL_POST_HOOK,
+                        {
+                            "sql": override_fixtures.MODEL_POST_HOOK,
+                            "transaction": False,
+                        },
+                    ],
+                }
+            },
+        }
