@@ -82,16 +82,17 @@ class TestFormatAllowsCreateOrReplace(MacroTestBase):
         assert result == "True"
 
     def test_managed_iceberg_target_on_delta_relation(self, template_bundle):
-        """A project that has just switched the flag on still has a Delta table. The Delta arm
-        already covered this before #1662 and is left alone, so the full refresh keeps replacing
-        rather than dropping."""
+        """A project that has just switched the flag on still has a Delta table. `create or
+        replace` cannot change a table's provider -- Databricks rejects it with
+        MANAGED_ICEBERG_OPERATION_NOT_SUPPORTED -- so this has to drop and recreate even though
+        `file_format` still reads delta for a managed Iceberg model."""
         result = self.run_predicate(
             template_bundle,
             self._catalog_relation(table_format="iceberg"),
             self._existing_relation(is_delta=True),
             managed_iceberg=True,
         )
-        assert result == "True"
+        assert result == "False"
 
     def test_non_delta_file_format(self, template_bundle):
         result = self.run_predicate(

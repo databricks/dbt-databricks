@@ -206,3 +206,29 @@ class TestManagedIcebergFullRefresh(ManagedIcebergMixin):
         assert get_version_zero_timestamp(project, "iceberg_full_refresh") == created, (
             "history restarted, so the full refresh dropped and recreated the table"
         )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestManagedIcebergOverExistingDelta(ManagedIcebergMixin):
+    """Switching `use_managed_iceberg` on over tables a project already has as Delta must drop and
+    recreate them. `create or replace` cannot change a table's provider, so replacing here fails
+    with MANAGED_ICEBERG_OPERATION_NOT_SUPPORTED and leaves the table Delta (issue #1662)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"iceberg_over_delta.sql": fixtures.incremental_iceberg_base}
+
+    def test_full_refresh_converts_the_delta_table(self, project):
+        project.run_sql(
+            "create or replace table {database}.{schema}.iceberg_over_delta using delta "
+            "as select 1 as id, 'initial' as status"
+        )
+        assert get_provider(project, "iceberg_over_delta") == "delta"
+
+        util.run_dbt(["run", "--full-refresh"])
+
+        assert get_provider(project, "iceberg_over_delta") == "iceberg"
+        rows = project.run_sql(
+            "select id, status from {database}.{schema}.iceberg_over_delta", fetch="all"
+        )
+        assert len(rows) == 1
