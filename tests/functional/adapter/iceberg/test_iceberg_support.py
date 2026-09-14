@@ -252,3 +252,35 @@ class TestManagedIcebergTableRebuild(ManagedIcebergMixin):
         assert get_version_zero_timestamp(project, "iceberg_table_rebuild") == created, (
             "history restarted, so the rebuild dropped and recreated the table"
         )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestManagedIcebergTableOverExistingDelta(ManagedIcebergMixin):
+    """`table` counterpart of TestManagedIcebergOverExistingDelta: switching `use_managed_iceberg`
+    on over an existing Delta table must drop and recreate it on the next run, since
+    `create or replace` cannot change a table's provider (issue #1662).
+
+    This does not reproduce the original bug: the pre-#1674 gate also dropped here, because
+    `resolve_file_format` returned `parquet`. It guards the composition instead -- with the
+    `table.sql` from #1674 it fails with MANAGED_ICEBERG_OPERATION_NOT_SUPPORTED if
+    `format_allows_create_or_replace` ever loses its provider check (the symmetric arm from
+    #1669), which is the part someone could plausibly "simplify" away later."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"iceberg_table_over_delta.sql": fixtures.basic_iceberg_swap}
+
+    def test_run_converts_the_delta_table(self, project):
+        project.run_sql(
+            "create or replace table {database}.{schema}.iceberg_table_over_delta using delta "
+            "as select 1 as id"
+        )
+        assert get_provider(project, "iceberg_table_over_delta") == "delta"
+
+        util.run_dbt()
+
+        assert get_provider(project, "iceberg_table_over_delta") == "iceberg"
+        rows = project.run_sql(
+            "select id from {database}.{schema}.iceberg_table_over_delta", fetch="all"
+        )
+        assert len(rows) == 1
