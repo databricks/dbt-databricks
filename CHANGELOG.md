@@ -18,6 +18,7 @@
 ### Under the Hood
 
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
+- Gate connector telemetry with the dbt-databricks server-side feature flag ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
