@@ -1,5 +1,10 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Fixes
+
+- Use `create or replace table` instead of dropping the table first when a full refresh rebuilds an incremental model on a Unity Catalog managed Iceberg table ([#1669](https://github.com/databricks/dbt-databricks/pull/1669) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+- Use `create or replace table` instead of dropping the table first when the `table` materialization rebuilds a Unity Catalog managed Iceberg table ([#1674](https://github.com/databricks/dbt-databricks/pull/1674) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+
 ### Under the Hood
 
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
