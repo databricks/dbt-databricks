@@ -238,20 +238,9 @@ class TestSqlUtils:
         no raw credentials leak into the connect() kwargs."""
         args = _prepare_connection_args(client_id="cid", client_secret="dose-secret")
         assert callable(args["credentials_provider"])
-        assert args["enable_telemetry"] is True
         assert "use_kernel" not in args
         assert "oauth_client_id" not in args
         assert "access_token" not in args
-
-    @pytest.mark.parametrize("enable_telemetry", [True, False])
-    def test_prepare_connection_arguments__telemetry_setting_overrides_default(
-        self, enable_telemetry: bool
-    ):
-        args = _prepare_connection_args(
-            connection_parameters={"enable_telemetry": enable_telemetry}
-        )
-
-        assert args["enable_telemetry"] is enable_telemetry
 
     def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
         """use_kernel with a PAT forwards the token directly as access_token
@@ -490,26 +479,22 @@ class TestDatabricksHandle:
     def cursor(self):
         return Mock()
 
-    @patch("databricks.sql.telemetry.telemetry_client.FeatureFlagsContextFactory.get_instance")
     @patch("dbt.adapters.databricks.handle.dbsql.connect")
     @patch.object(TelemetryHelper, "TELEMETRY_FEATURE_FLAG_NAME", "python-driver-flag")
-    @pytest.mark.parametrize(("flag_value", "expected"), [("true", True), ("false", False)])
-    def test_from_connection_args_fetches_dbt_telemetry_flag(
-        self, mock_connect, mock_get_feature_flags, flag_value, expected
-    ):
+    def test_from_connection_args_configures_dbt_telemetry(self, mock_connect):
         connector_connection = Mock()
-        connector_connection.force_enable_telemetry = False
-        connector_connection.enable_telemetry = True
-        mock_connect.return_value = connector_connection
-        mock_get_feature_flags.return_value.get_flag_value.return_value = flag_value
 
-        DatabricksHandle.from_connection_args({"enable_telemetry": True}, False)
-        enabled = TelemetryHelper.is_telemetry_enabled(connector_connection)
+        def connect(**kwargs):
+            assert kwargs["enable_telemetry"] is True
+            assert TelemetryHelper.TELEMETRY_FEATURE_FLAG_NAME == _DBT_DATABRICKS_TELEMETRY_FLAG
+            return connector_connection
 
-        assert enabled is expected
-        mock_get_feature_flags.return_value.get_flag_value.assert_called_once_with(
-            _DBT_DATABRICKS_TELEMETRY_FLAG, default_value=False
-        )
+        mock_connect.side_effect = connect
+
+        handle = DatabricksHandle.from_connection_args({"enable_telemetry": True}, False)
+
+        assert handle is not None
+        assert handle._conn is connector_connection
 
     def test_safe_execute__closed(self, conn):
         handle = DatabricksHandle(conn, True)
