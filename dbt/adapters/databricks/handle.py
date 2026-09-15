@@ -417,6 +417,7 @@ class SqlUtils:
             "schema": creds.schema,
             "_user_agent_entry": user_agent_entry,
             "user_agent_entry": user_agent_entry,
+            "enable_telemetry": True,
         }
 
         if connection_parameters.get("use_kernel"):

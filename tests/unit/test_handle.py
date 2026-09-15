@@ -236,9 +236,20 @@ class TestSqlUtils:
         no raw credentials leak into the connect() kwargs."""
         args = _prepare_connection_args(client_id="cid", client_secret="dose-secret")
         assert callable(args["credentials_provider"])
+        assert args["enable_telemetry"] is True
         assert "use_kernel" not in args
         assert "oauth_client_id" not in args
         assert "access_token" not in args
+
+    @pytest.mark.parametrize("enable_telemetry", [True, False])
+    def test_prepare_connection_arguments__telemetry_setting_overrides_default(
+        self, enable_telemetry: bool
+    ):
+        args = _prepare_connection_args(
+            connection_parameters={"enable_telemetry": enable_telemetry}
+        )
+
+        assert args["enable_telemetry"] is enable_telemetry
 
     def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
         """use_kernel with a PAT forwards the token directly as access_token
