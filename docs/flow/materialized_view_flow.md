@@ -30,8 +30,9 @@ flowchart TD
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
     CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
 
-    CREATE --> CHECK
-    REPLACE --> CHECK
+    CREATE --> TAGS[Append full table and column tag statements]
+    REPLACE --> TAGS
+    TAGS --> CHECK
     REFRESH --> CHECK
     ALTER --> CHECK
     NOOPSQL --> CHECK
@@ -39,10 +40,7 @@ flowchart TD
     CHECK{build_sql empty?}
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
     CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
-    INTX --> OUTERREPLACE{"Initial create, explicit full refresh,<br/>or wrong-type replacement?"}
-    OUTERREPLACE -- yes --> TAGS[Append full table and column tag statements]
-    OUTERREPLACE -- no --> EXEC["execute_multiple_statements(build_statements)"]
-    TAGS --> EXEC
+    INTX --> EXEC["execute_multiple_statements(build_sql)"]
     EXEC --> GRANTS[Apply grants]
     GRANTS --> POSTIN["Run post-hooks (inside transaction)"]
     NOOP --> POSTOUT
@@ -59,6 +57,6 @@ Notes:
 - An in-place alter ends with `refresh_materialized_view` unless the desired schedule is
   auto-refreshed (`every` / `on_update`), so a configuration change never skips the run's data
   refresh. Unlike the streaming table in-place path, auto-refreshed MVs are not refreshed.
-- Configuration-driven replacements append the complete desired table and column tag state to the
-  replacement statement list. Initial creation, explicit full refresh, and wrong-type replacement
-  append the same full desired state through `get_set_tag_statements` before executing the list.
+- Every create or replacement path appends the complete desired table and column tag state through
+  `get_set_tag_statements` while building the statement list. The execution macro only executes
+  that completed list.

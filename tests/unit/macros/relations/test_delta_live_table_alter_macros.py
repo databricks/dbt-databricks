@@ -305,14 +305,23 @@ class DeltaLiveTableMaterializationTagsTestBase(MacroTestBase):
         return environment
 
     @staticmethod
-    def configure_execution_context(context, full_refresh):
+    def configure_execution_context(context):
         context["pre_hooks"] = []
         context["run_hooks"] = jinja_safe_mock(return_value="")
         context["execute_multiple_statements"] = jinja_safe_mock(return_value="")
-        context["get_set_tag_statements"] = jinja_safe_mock(return_value=[])
-        context["should_full_refresh"] = jinja_safe_mock(return_value=full_refresh)
         context["should_revoke"] = jinja_safe_mock(return_value=False)
         context["apply_grants"] = jinja_safe_mock(return_value="")
+
+    @staticmethod
+    def configure_build_context(context, full_refresh):
+        context["sql"] = "select 1 as id"
+        context["adapter"].clean_sql.return_value = context["sql"]
+        context["adapter"].clean_sql.unsafe_callable = False
+        context["adapter"].clean_sql.alters_data = False
+        context["should_full_refresh"] = jinja_safe_mock(return_value=full_refresh)
+        context["get_set_tag_statements"] = jinja_safe_mock(
+            return_value=["TABLE TAGS", "COLUMN TAGS"]
+        )
         context["adapter"].get_column_tags_from_model.unsafe_callable = False
         context["adapter"].get_column_tags_from_model.alters_data = False
 
@@ -334,8 +343,8 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
     def macro_folders_to_load(self) -> list:
         return ["macros/materializations"]
 
-    def test_ordinary_execution_does_not_reapply_full_tags(self, template_bundle, context, config):
-        self.configure_execution_context(context, full_refresh=False)
+    def test_execution_only_executes_completed_build_sql(self, template_bundle, context):
+        self.configure_execution_context(context)
         existing_relation = Mock(is_materialized_view=True)
 
         self.run_macro_raw(
@@ -347,11 +356,7 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
             [],
         )
 
-        context["get_set_tag_statements"].assert_not_called()
-        context["adapter"].get_column_tags_from_model.assert_not_called()
-        context["execute_multiple_statements"].assert_called_once_with(
-            ["REFRESH MATERIALIZED VIEW"]
-        )
+        context["execute_multiple_statements"].assert_called_once_with("REFRESH MATERIALIZED VIEW")
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(
@@ -360,26 +365,33 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
         full_table_tags = {"owner": "analytics"}
         full_column_tags = ColumnTagsConfig(set_column_tags={"id": {"classification": "internal"}})
         config["databricks_tags"] = full_table_tags
-        self.configure_execution_context(context, full_refresh=scenario == "full_refresh")
+        self.configure_build_context(context, full_refresh=scenario == "full_refresh")
         context["adapter"].get_column_tags_from_model.return_value = full_column_tags
-        context["get_set_tag_statements"].return_value = ["TABLE TAGS", "COLUMN TAGS"]
+        context["get_create_materialized_view_as_sql"] = jinja_safe_mock(
+            return_value="CREATE MATERIALIZED VIEW"
+        )
+        context["get_replace_sql"] = jinja_safe_mock(
+            return_value="CREATE OR REPLACE MATERIALIZED VIEW"
+        )
         existing_relation = self.existing_relation(scenario, "is_materialized_view")
 
-        self.run_macro_raw(
+        statements = capture_macro_return(
+            context,
             template_bundle.template,
-            "dbt_macro__materialized_view_execute_build_sql",
-            "CREATE OR REPLACE MATERIALIZED VIEW",
+            "dbt_macro__materialized_view_get_build_sql",
             existing_relation,
             template_bundle.relation,
-            [],
         )
 
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, full_table_tags, full_column_tags
         )
-        context["execute_multiple_statements"].assert_called_once_with(
-            ["CREATE OR REPLACE MATERIALIZED VIEW", "TABLE TAGS", "COLUMN TAGS"]
+        expected_build = (
+            "CREATE MATERIALIZED VIEW"
+            if scenario == "create"
+            else "CREATE OR REPLACE MATERIALIZED VIEW"
         )
+        assert statements == [expected_build, "TABLE TAGS", "COLUMN TAGS"]
 
 
 class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTestBase):
@@ -391,8 +403,8 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
     def macro_folders_to_load(self) -> list:
         return ["macros/materializations"]
 
-    def test_ordinary_execution_does_not_reapply_full_tags(self, template_bundle, context, config):
-        self.configure_execution_context(context, full_refresh=False)
+    def test_execution_only_executes_completed_build_sql(self, template_bundle, context):
+        self.configure_execution_context(context)
         existing_relation = Mock(is_streaming_table=True)
 
         self.run_macro_raw(
@@ -404,9 +416,7 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
             [],
         )
 
-        context["get_set_tag_statements"].assert_not_called()
-        context["adapter"].get_column_tags_from_model.assert_not_called()
-        context["execute_multiple_statements"].assert_called_once_with(["REFRESH STREAMING TABLE"])
+        context["execute_multiple_statements"].assert_called_once_with("REFRESH STREAMING TABLE")
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(
@@ -415,23 +425,30 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
         full_table_tags = {"owner": "analytics"}
         full_column_tags = ColumnTagsConfig(set_column_tags={"id": {"classification": "internal"}})
         config["databricks_tags"] = full_table_tags
-        self.configure_execution_context(context, full_refresh=scenario == "full_refresh")
+        self.configure_build_context(context, full_refresh=scenario == "full_refresh")
         context["adapter"].get_column_tags_from_model.return_value = full_column_tags
-        context["get_set_tag_statements"].return_value = ["TABLE TAGS", "COLUMN TAGS"]
+        context["get_create_streaming_table_as_sql"] = jinja_safe_mock(
+            return_value="CREATE STREAMING TABLE"
+        )
+        context["get_replace_sql"] = jinja_safe_mock(
+            return_value="CREATE OR REPLACE STREAMING TABLE"
+        )
         existing_relation = self.existing_relation(scenario, "is_streaming_table")
 
-        self.run_macro_raw(
+        statements = capture_macro_return(
+            context,
             template_bundle.template,
-            "dbt_macro__streaming_table_execute_build_sql",
-            "CREATE OR REPLACE STREAMING TABLE",
+            "dbt_macro__streaming_table_get_build_sql",
             existing_relation,
             template_bundle.relation,
-            [],
         )
 
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, full_table_tags, full_column_tags
         )
-        context["execute_multiple_statements"].assert_called_once_with(
-            ["CREATE OR REPLACE STREAMING TABLE", "TABLE TAGS", "COLUMN TAGS"]
+        expected_build = (
+            "CREATE STREAMING TABLE"
+            if scenario == "create"
+            else "CREATE OR REPLACE STREAMING TABLE"
         )
+        assert statements == [expected_build, "TABLE TAGS", "COLUMN TAGS"]

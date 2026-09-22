@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-09-15_
+_Last updated: 2026-09-22_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -28,8 +28,9 @@ flowchart TD
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
     CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
 
-    CREATE --> CHECK
-    REPLACE --> CHECK
+    CREATE --> TAGS[Append full table and column tag statements]
+    REPLACE --> TAGS
+    TAGS --> CHECK
     REFRESH --> CHECK
     ALTER --> CHECK
     NOOPSQL --> CHECK
@@ -37,10 +38,7 @@ flowchart TD
     CHECK{build_sql empty?}
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
     CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
-    INTX --> OUTERREPLACE{"Initial create, explicit full refresh,<br/>or wrong-type replacement?"}
-    OUTERREPLACE -- yes --> TAGS[Append full table and column tag statements]
-    OUTERREPLACE -- no --> EXEC["execute_multiple_statements(build_statements)"]
-    TAGS --> EXEC
+    INTX --> EXEC["execute_multiple_statements(build_sql)"]
     EXEC --> GRANTS[Apply grants]
     GRANTS --> POSTIN["Run post-hooks (inside transaction)"]
     NOOP --> POSTOUT
@@ -61,7 +59,6 @@ Notes:
 - Table- and column-tag changesets contain only changed keys; unchanged columns and unchanged keys
   within changed columns are omitted even though structural components retain their existing
   full-state handling.
-- Ordinary refreshes and unrelated alters do not reapply tags. Configuration-driven replacements
-  append the complete desired table and column tag state to the replacement statement list;
-  initial creation, explicit full refresh, and wrong-type replacement append it through
-  `get_set_tag_statements` before executing the list.
+- Ordinary refreshes and unrelated alters do not reapply tags. Every create or replacement path
+  appends the complete desired table and column tag state through `get_set_tag_statements` while
+  building the statement list. The execution macro only executes that completed list.
