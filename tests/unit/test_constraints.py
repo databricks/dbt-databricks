@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from dbt.adapters.events.types import AdapterEventWarning
 from dbt_common.contracts.constraints import (
     ColumnLevelConstraint,
     ConstraintType,
@@ -19,6 +20,7 @@ from dbt.adapters.databricks.constraints import (
     parse_column_constraints,
     parse_constraint,
     parse_constraints,
+    parse_model_and_legacy_constraints,
     parse_model_constraints,
     process_constraint,
     validate_constraint,
@@ -50,11 +52,15 @@ class TestCustomConstraint:
             type=ConstraintType.custom, expression="1 = 1"
         ) == CustomConstraint.from_dict(raw)
 
-    def test_custom_constraint_from_dict__invalid(self):
-        raw = {"type": "custom"}
-        with pytest.raises(
-            DbtValidationError, match="custom constraint '' is missing required field"
-        ):
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            {"type": "custom"},
+            {"type": "custom", "name": "c", "expression": ""},
+        ],
+    )
+    def test_custom_constraint_from_dict__invalid(self, raw):
+        with pytest.raises(DbtValidationError, match="custom constraint .* missing required field"):
             CustomConstraint.from_dict(raw)
 
     def test_custom_constraint_render(self):
@@ -97,13 +103,13 @@ class TestPrimaryKeyConstraint:
 
     def test_primary_key_constraint_render__no_expression(self):
         constraint = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
-        assert constraint.render() == "PRIMARY KEY (id)"
+        assert constraint.render() == "PRIMARY KEY (`id`)"
 
     def test_primary_key_constraint_render__with_expression(self):
         constraint = PrimaryKeyConstraint(
             type=ConstraintType.primary_key, columns=["id", "other"], expression="DEFERRABLE"
         )
-        assert constraint.render() == "PRIMARY KEY (id, other) DEFERRABLE"
+        assert constraint.render() == "PRIMARY KEY (`id`, `other`) DEFERRABLE"
 
 
 class TestForeignKeyConstraint:
@@ -127,7 +133,17 @@ class TestForeignKeyConstraint:
             to="other_table",
             to_columns=["other_id"],
         )
-        assert constraint.render() == "FOREIGN KEY (id) REFERENCES other_table (other_id)"
+        assert constraint.render() == "FOREIGN KEY (`id`) REFERENCES other_table (`other_id`)"
+
+    def test_foreign_key_constraint_render__without_to_columns(self):
+        constraint = ForeignKeyConstraint.from_dict(
+            {
+                "type": "foreign_key",
+                "columns": ["id"],
+                "to": "other_table",
+            }
+        )
+        assert constraint.render() == "FOREIGN KEY (`id`) REFERENCES other_table"
 
     def test_foreign_key_constraint_render__with_expression(self):
         constraint = ForeignKeyConstraint(
@@ -137,7 +153,7 @@ class TestForeignKeyConstraint:
         )
         assert (
             constraint.render()
-            == "FOREIGN KEY (id, other) REFERENCES other_table (other_id) DEFERRABLE"
+            == "FOREIGN KEY (`id`, `other`) REFERENCES other_table (other_id) DEFERRABLE"
         )
 
 
@@ -323,6 +339,83 @@ class TestParseConstraints:
         ) == parse_constraints(columns, constraints)
 
 
+class TestParseModelAndLegacyConstraints:
+    def test_legacy_constraints_override_contract_constraints(self):
+        columns = {
+            "id": {
+                "constraints": [{"type": "primary_key"}],
+                "meta": {"constraint": "not_null"},
+            }
+        }
+        model_constraints = [{"type": "custom", "expression": "CHECK (id > 0)"}]
+        meta_constraints = [{"name": "id_positive", "condition": "id > 0"}]
+
+        assert (
+            {"id"},
+            [
+                CheckConstraint(
+                    type=ConstraintType.check,
+                    name="id_positive",
+                    expression="id > 0",
+                )
+            ],
+        ) == parse_model_and_legacy_constraints(
+            columns,
+            model_constraints,
+            persist_constraints=True,
+            model_meta_constraints=meta_constraints,
+        )
+
+    def test_accepts_contract_format_in_meta_constraints(self):
+        meta_constraints = [
+            {
+                "type": "custom",
+                "name": "id_positive",
+                "expression": "CHECK (id > 0)",
+            }
+        ]
+
+        _, parsed = parse_model_and_legacy_constraints(
+            {},
+            [],
+            persist_constraints=True,
+            model_meta_constraints=meta_constraints,
+        )
+
+        assert parsed == [
+            CustomConstraint(
+                type=ConstraintType.custom,
+                name="id_positive",
+                expression="CHECK (id > 0)",
+            )
+        ]
+
+    @pytest.mark.parametrize(
+        "meta_constraints, message",
+        [
+            ([{"condition": "id > 0"}], "Invalid check constraint name"),
+            ([{"name": "id_positive", "condition": ""}], "Invalid check constraint condition"),
+        ],
+    )
+    def test_rejects_invalid_legacy_model_constraint(self, meta_constraints, message):
+        with pytest.raises(DbtValidationError, match=message):
+            parse_model_and_legacy_constraints(
+                {},
+                [],
+                persist_constraints=True,
+                model_meta_constraints=meta_constraints,
+            )
+
+    def test_rejects_invalid_legacy_column_constraint(self):
+        columns = {"id": {"meta": {"constraint": "primary_key"}}}
+
+        with pytest.raises(
+            DbtValidationError,
+            match="Invalid constraint for column id. Only `not_null` is supported.",
+        ):
+            parse_model_and_legacy_constraints(columns, [], persist_constraints=True)
+
+
 class TestParseColumnsAndConstraintsGate:
     @staticmethod
     def _existing_columns():
@@ -346,73 +439,209 @@ class TestParseColumnsAndConstraintsGate:
             }
         }
 
-    def test_skips_column_constraints_when_not_enforced(self):
+    @staticmethod
+    def _request(**kwargs):
+        request = {
+            "columns": kwargs.pop("columns", {}),
+            "constraints": kwargs.pop("constraints", []),
+            "contract_enforced": kwargs.pop("contract_enforced", False),
+            "persist_constraints": kwargs.pop("persist_constraints", False),
+            "column_source": kwargs.pop("column_source", "query"),
+            "application": kwargs.pop("application", "create"),
+            "model_name": kwargs.pop("model_name", ""),
+        }
+        request.update(kwargs)
+        return request
+
+    @staticmethod
+    def _fk_constraint():
+        return {
+            "type": "foreign_key",
+            "name": "fk_id",
+            "columns": ["id"],
+            "to": "parent",
+            "to_columns": ["id"],
+        }
+
+    @pytest.mark.parametrize("contract_enforced", [False, True])
+    def test_column_constraints_follow_contract_enforcement(self, contract_enforced):
+        enriched, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            self._existing_columns(),
+            self._request(
+                columns=self._model_columns_with_fk(),
+                contract_enforced=contract_enforced,
+            ),
+        )
+
+        if contract_enforced:
+            assert len(parsed) == 1
+            assert isinstance(parsed[0], ForeignKeyConstraint)
+            assert parsed[0].name == "fk_id"
+            assert parsed[0].columns == ["id"]
+            assert enriched[0].not_null
+        else:
+            assert parsed == []
+            assert all(not getattr(col, "not_null", False) for col in enriched)
+
+    def test_parses_legacy_constraints_without_contract(self):
+        columns = {
+            "id": {
+                "name": "id",
+                "data_type": "int",
+                "meta": {"constraint": "not_null"},
+            }
+        }
+        enriched, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                columns=columns,
+                persist_constraints=True,
+                meta_constraints=[{"name": "id_positive", "condition": "id > 0"}],
+                column_source="model",
+                application="post_create",
+            ),
+        )
+
+        assert enriched[0].not_null
+        assert parsed == [
+            CheckConstraint(
+                type=ConstraintType.check,
+                name="id_positive",
+                expression="id > 0",
+            )
+        ]
+
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_warns_for_invalid_model_not_null_in_post_create_application(self, mock_warn):
+        DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[{"type": "not_null", "columns": ["missing"]}],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+            ),
+        )
+
+        mock_warn.assert_called_once()
+        event = mock_warn.call_args.args[0]
+        assert isinstance(event, AdapterEventWarning)
+        assert event.base_msg == "not_null constraint on invalid column: missing"
+
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_filters_invalid_pk_fk_columns_when_using_model_columns(self, mock_warn):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[
+                    {
+                        "type": "primary_key",
+                        "name": "pk",
+                        "columns": ["id", "missing"],
+                    },
+                    {
+                        "type": "foreign_key",
+                        "name": "fk",
+                        "columns": ["id", "missing"],
+                        "to": "parent",
+                        "to_columns": ["parent_id"],
+                    },
+                ],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+            ),
+        )
+
+        pk = next(c for c in parsed if isinstance(c, PrimaryKeyConstraint))
+        fk = next(c for c in parsed if isinstance(c, ForeignKeyConstraint))
+        assert pk.columns == ["id"]
+        assert fk.columns == ["id"]
+        assert {call.args[0].base_msg for call in mock_warn.call_args_list} == {
+            "Invalid primary key column: missing",
+            "Invalid foreign key column: missing",
+        }
+
+    def test_create_path_keeps_undeclared_pk_columns(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
+            self._request(
+                columns={"id": {"name": "id", "data_type": "int"}},
+                constraints=[
+                    {
+                        "type": "primary_key",
+                        "name": "pk",
+                        "columns": ["id", "missing"],
+                    }
+                ],
+                contract_enforced=True,
+            ),
         )
-        assert parsed == []
 
-    def test_skips_column_not_null_when_not_enforced(self):
-        enriched, _ = DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
-        )
-        assert all(not getattr(col, "not_null", False) for col in enriched)
+        assert parsed[0].columns == ["id", "missing"]
 
-    def test_parses_column_constraints_when_enforced(self):
-        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
+    @pytest.mark.parametrize("application", ["create", "post_create"])
+    def test_unsupported_constraint_policy(self, application):
+        request = self._request(
+            constraints=[{"type": ConstraintType.unique, "columns": ["id"]}],
             contract_enforced=True,
+            application=application,
         )
-        assert len(parsed) == 1
-        assert isinstance(parsed[0], ForeignKeyConstraint)
-        assert parsed[0].name == "fk_id"
-        assert parsed[0].columns == ["id"]
 
-    def test_defaults_to_not_enforced(self):
+        if application == "post_create":
+            _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+                self._existing_columns(), request
+            )
+            assert parsed == []
+        else:
+            with pytest.raises(DbtValidationError, match="Unique constraints are not supported"):
+                DatabricksAdapter.parse_columns_and_constraints(self._existing_columns(), request)
+
+    def test_post_create_qualifies_unqualified_fk_target(self):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
+            [],
+            self._request(
+                constraints=[self._fk_constraint()],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+                relation={"database": "cat", "schema": "sch", "identifier": "child"},
+            ),
+        )
+
+        assert parsed[0].to == "`cat`.`sch`.`parent`"
+
+    def test_create_does_not_qualify_fk_from_relation(self):
         _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
+            self._request(
+                constraints=[self._fk_constraint()],
+                contract_enforced=True,
+                relation={"database": "cat", "schema": "sch", "identifier": "child"},
+            ),
         )
-        assert parsed == []
 
-    @patch("dbt.adapters.databricks.impl.logger")
-    def test_logs_info_when_constraints_skipped(self, mock_logger):
-        DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=False,
-            model_name="my_model",
-        )
-        mock_logger.info.assert_called_once()
+        assert parsed[0].to == "parent"
 
-    @patch("dbt.adapters.databricks.impl.logger")
-    def test_no_log_when_no_constraints_declared(self, mock_logger):
-        DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            {"id": {"name": "id", "data_type": "int"}},
+    @patch("dbt.adapters.databricks.constraints.warn_or_error")
+    def test_post_create_hashes_unnamed_constraints(self, mock_warn):
+        _, parsed = DatabricksAdapter.parse_columns_and_constraints(
             [],
-            contract_enforced=False,
-            model_name="my_model",
+            self._request(
+                constraints=[{"type": "check", "expression": "id > 0"}],
+                contract_enforced=True,
+                column_source="model",
+                application="post_create",
+                relation={"database": "cat", "schema": "sch", "identifier": "my_table"},
+            ),
         )
-        mock_logger.info.assert_not_called()
 
-    @patch("dbt.adapters.databricks.impl.logger")
-    def test_no_skip_log_when_enforced(self, mock_logger):
-        DatabricksAdapter.parse_columns_and_constraints(
-            self._existing_columns(),
-            self._model_columns_with_fk(),
-            [],
-            contract_enforced=True,
-            model_name="my_model",
+        assert parsed[0].name == "ca209567b6d1fd0b464a46ae4ef55306"
+        event = mock_warn.call_args.args[0]
+        assert isinstance(event, AdapterEventWarning)
+        assert event.base_msg == (
+            "Constraint of type check with no `name` provided. "
+            "Generating hash instead for relation my_table"
         )
-        mock_logger.info.assert_not_called()

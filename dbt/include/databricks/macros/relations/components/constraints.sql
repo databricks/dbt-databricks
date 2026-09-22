@@ -82,9 +82,9 @@
   ORDER BY kcu.ordinal_position;
 {%- endmacro -%}
 
-{% macro apply_constraints(relation, constraints) -%}
+{% macro apply_constraints(relation, constraints, check_hive_metastore=True) -%}
   {{ log("Applying constraints to relation " ~ constraints) }}
-  {%- if constraints and relation.is_hive_metastore() -%}
+  {%- if check_hive_metastore and constraints and relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Constraints are only supported for Unity Catalog") }}
   {%- endif -%}
   {# Order matters here because key constraints depend on non-null constraints #} 
@@ -127,7 +127,7 @@
 {%- endmacro -%}
 
 {% macro alter_set_constraint(relation, constraint) -%}
-  ALTER {{ relation.type.render() }} {{ relation.render() }} ADD {{ constraint.render() }};
+  ALTER {{ relation.type.render() }} {{ relation.render() }} ADD {{ constraint.render_for_apply() }};
 {%- endmacro -%}
 
 {% macro alter_unset_constraint(relation, constraint) -%}
