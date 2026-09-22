@@ -43,6 +43,13 @@ class TestMaterializedViewAlterTags(MacroTestBase):
     def materialized_view_relation(self, relation):
         relation.type = DatabricksRelationType.MaterializedView
 
+    @pytest.fixture(autouse=True)
+    def desired_refresh(self, context):
+        context["refresh_materialized_view"] = Mock(return_value="REFRESH MATERIALIZED VIEW")
+        model_config = context["adapter"].get_config_from_model.return_value
+        model_config.config = {"refresh": RefreshConfig()}
+        return model_config
+
     def test_in_place_alter_appends_only_tag_changes(self, template_bundle, context):
         table_tags = TagsConfig(set_tags={"updated": "new"})
         column_tags = ColumnTagsConfig(
@@ -67,10 +74,50 @@ class TestMaterializedViewAlterTags(MacroTestBase):
             None,
         )
 
-        assert statements == ["TABLE TAG DELTA", "COLUMN TAGS FOR ID"]
+        assert statements == [
+            "TABLE TAG DELTA",
+            "COLUMN TAGS FOR ID",
+            "REFRESH MATERIALIZED VIEW",
+        ]
         get_set_tag_statements.assert_called_once_with(
             template_bundle.relation, table_tags.set_tags, column_tags
         )
+
+    @pytest.mark.parametrize(
+        "refresh, expects_refresh",
+        [
+            (RefreshConfig(), True),
+            (RefreshConfig(cron="0 0 * * * ? *"), True),
+            (RefreshConfig(every="4 WEEKS"), False),
+            (RefreshConfig(on_update=True), False),
+        ],
+    )
+    def test_in_place_alter_refreshes_unless_auto_refreshed(
+        self, template_bundle, context, desired_refresh, refresh, expects_refresh
+    ):
+        desired_refresh.config = {"refresh": refresh}
+        configuration_changes = DatabricksRelationChangeSet(
+            changes={"tags": TagsConfig(set_tags={"updated": "new"})},
+            requires_full_refresh=False,
+        )
+        context["get_set_tag_statements"] = Mock(return_value=["TABLE TAG DELTA"])
+
+        statements = capture_macro_return(
+            context,
+            template_bundle.template,
+            "databricks__get_alter_materialized_view_as_sql",
+            template_bundle.relation,
+            configuration_changes,
+            "select 1 as id",
+            Mock(),
+            None,
+            None,
+        )
+
+        expected = ["TABLE TAG DELTA"]
+        if expects_refresh:
+            expected.append("REFRESH MATERIALIZED VIEW")
+        assert statements == expected
 
     def test_unrelated_alter_appends_no_tag_statements(self, template_bundle, context):
         row_filter = RowFilterConfig(is_change=True, should_unset=True)
@@ -92,7 +139,7 @@ class TestMaterializedViewAlterTags(MacroTestBase):
             None,
         )
 
-        assert statements == ["DROP ROW FILTER"]
+        assert statements == ["DROP ROW FILTER", "REFRESH MATERIALIZED VIEW"]
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, None, None
         )
@@ -129,6 +176,7 @@ class TestMaterializedViewAlterTags(MacroTestBase):
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, full_table_tags, full_column_tags
         )
+        context["refresh_materialized_view"].assert_not_called()
 
 
 class TestStreamingTableAlterTags(MacroTestBase):

@@ -3,6 +3,7 @@
 ### Fixes
 
 - Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1685](https://github.com/databricks/dbt-databricks/pull/1685))
+- Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1685](https://github.com/databricks/dbt-databricks/pull/1685))
 
 ### Under the Hood
 

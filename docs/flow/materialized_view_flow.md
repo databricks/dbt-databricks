@@ -1,6 +1,6 @@
 # Materialized View Flow
 
-_Last updated: 2026-09-15_
+_Last updated: 2026-09-22_
 
 > Materialized views do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/materialized_view.sql`.
@@ -25,7 +25,7 @@ flowchart TD
     AUTO -- yes --> NOOPSQL[build_sql = ''\n（skip manual REFRESH）]
     AUTO -- no --> REFRESH[refresh_materialized_view]
 
-    CFG -- "changes +\non_configuration_change=apply" --> ALTER["get_alter_materialized_view_as_sql<br/>in-place: changed tags only<br/>config replacement: DDL + full tags"]
+    CFG -- "changes +\non_configuration_change=apply" --> ALTER["get_alter_materialized_view_as_sql<br/>in-place: changed tags only,<br/>then REFRESH unless auto_refreshed<br/>config replacement: DDL + full tags"]
     CFG -- "changes + continue" --> WARN[Warn; build_sql = '']
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
     CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
@@ -56,6 +56,9 @@ Notes:
   [replace flow](replace_flow.md) are the same.
 - Table- and column-tag changesets contain only changed keys; unchanged columns and unchanged keys
   within changed columns are omitted. Ordinary refreshes and unrelated alters do not reapply tags.
+- An in-place alter ends with `refresh_materialized_view` unless the desired schedule is
+  auto-refreshed (`every` / `on_update`), so a configuration change never skips the run's data
+  refresh. Unlike the streaming table in-place path, auto-refreshed MVs are not refreshed.
 - Configuration-driven replacements append the complete desired table and column tag state to the
   replacement statement list. Initial creation, explicit full refresh, and wrong-type replacement
   append the same full desired state through `get_set_tag_statements` before executing the list.

@@ -63,6 +63,12 @@
           {%- endif -%}
         {%- endif -%}
 
+        {#- An in-place alter replaces this run's REFRESH, so re-add it unless the server auto-refreshes -#}
+        {%- set refresh = adapter.get_config_from_model(config.model).config["refresh"] -%}
+        {%- if not refresh.auto_refreshed -%}
+          {{ return_statements.append(refresh_materialized_view(relation)) }}
+        {%- endif -%}
+
         {% do return(return_statements) %}
     {%- endif -%}
 {% endmacro %}
