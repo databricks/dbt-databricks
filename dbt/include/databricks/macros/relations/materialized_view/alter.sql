@@ -30,10 +30,15 @@
         {#- CREATE OR REPLACE cannot change partition_by, so use DROP + CREATE when partition_by changes -#}
         {% if configuration_changes.changes["partition_by"] %}
             {{- log('Applying REPLACE to: ' ~ existing_relation) -}}
-            {% do return(drop_and_create(existing_relation, relation, sql)) %}
+            {% set replace_sql = drop_and_create(existing_relation, relation, sql) %}
         {% else %}
-            {% do return(get_replace_sql(existing_relation, relation, sql)) %}
+            {% set replace_sql = get_replace_sql(existing_relation, relation, sql) %}
         {% endif %}
+        {%- set return_statements = [replace_sql] if replace_sql is string else replace_sql | list -%}
+        {%- set tags = config.get('databricks_tags') -%}
+        {%- set column_tags = adapter.get_column_tags_from_model(config.model) -%}
+        {%- do return_statements.extend(get_set_tag_statements(relation, tags, column_tags)) -%}
+        {% do return(return_statements) %}
 
     -- otherwise apply individual changes as needed
     {% else %}
@@ -42,10 +47,10 @@
         {%- if alter_statement -%}
             {{ return_statements.append(alter_statement) }}
         {%- endif -%}
-        {%- set tags = configuration_changes.changes["tags"] -%}
-        {%- if tags and tags.set_tags and tags.set_tags != [] -%}
-            {{ return_statements.append(alter_set_tags(relation, tags.set_tags)) }}
-        {%- endif -%}
+        {%- set tags = configuration_changes.changes.get("tags") -%}
+        {%- set column_tags = configuration_changes.changes.get("column_tags") -%}
+        {%- set set_tags = tags.set_tags if tags else none -%}
+        {%- do return_statements.extend(get_set_tag_statements(relation, set_tags, column_tags)) -%}
 
         {#- Row filter handling - append SQL to list, don't execute -#}
         {#- is_change guard prevents false alters when row_filter is unchanged -#}

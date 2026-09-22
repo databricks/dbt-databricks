@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-09-15_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -23,7 +23,7 @@ flowchart TD
     AUTO -- yes --> NOOPSQL[build_sql = ''\n（skip manual REFRESH）]
     AUTO -- no --> REFRESH[refresh_streaming_table]
 
-    CFG -- "changes +\non_configuration_change=apply" --> ALTER[get_alter_streaming_table_as_sql]
+    CFG -- "changes +\non_configuration_change=apply" --> ALTER["get_alter_streaming_table_as_sql<br/>in-place: changed tags only<br/>config replacement: DDL + full tags"]
     CFG -- "changes + continue" --> WARN[Warn; build_sql = '']
     CFG -- "changes + fail" --> FAIL[raise_fail_fast_error]
     CFG -- "changes + other value" --> INVALID["Raise compiler error:<br/>Unexpected configuration scenario"]
@@ -37,11 +37,12 @@ flowchart TD
     CHECK{build_sql empty?}
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
     CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
-    INTX --> EXEC["execute_multiple_statements(build_sql)"]
-    EXEC --> TAGS[Apply table tags]
-    TAGS --> GRANTS[Apply grants]
-    GRANTS --> COLTAGS[Apply column tags]
-    COLTAGS --> POSTIN["Run post-hooks (inside transaction)"]
+    INTX --> OUTERREPLACE{"Initial create, explicit full refresh,<br/>or wrong-type replacement?"}
+    OUTERREPLACE -- yes --> TAGS[Append full table and column tag statements]
+    OUTERREPLACE -- no --> EXEC["execute_multiple_statements(build_statements)"]
+    TAGS --> EXEC
+    EXEC --> GRANTS[Apply grants]
+    GRANTS --> POSTIN["Run post-hooks (inside transaction)"]
     NOOP --> POSTOUT
     POSTIN --> POSTOUT["Run post-hooks (outside transaction)"]
 ```
@@ -57,3 +58,10 @@ Notes:
   `apply` alters in place, `continue` warns and skips, `fail` raises immediately.
 - **Replace** (full refresh, or the existing relation is not a streaming table) delegates to the
   shared [replace flow](replace_flow.md).
+- Table- and column-tag changesets contain only changed keys; unchanged columns and unchanged keys
+  within changed columns are omitted even though structural components retain their existing
+  full-state handling.
+- Ordinary refreshes and unrelated alters do not reapply tags. Configuration-driven replacements
+  append the complete desired table and column tag state to the replacement statement list;
+  initial creation, explicit full refresh, and wrong-type replacement append it through
+  `get_set_tag_statements` before executing the list.

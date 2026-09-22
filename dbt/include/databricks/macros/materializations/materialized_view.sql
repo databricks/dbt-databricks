@@ -70,16 +70,14 @@
     {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
     {% set grant_config = config.get('grants') %}
-    {% set tags = config.get('databricks_tags') %}
-
-    {{ execute_multiple_statements(build_sql) }}
-
-    {%- do apply_tags(target_relation, tags) -%}
-
-    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-    {% if column_tags %}
-      {{ apply_column_tags(target_relation, column_tags) }}
+    {% set build_statements = [build_sql] if build_sql is string else build_sql | list %}
+    {% set creates_or_replaces = existing_relation is none or should_full_refresh() or not existing_relation.is_materialized_view %}
+    {% if creates_or_replaces %}
+      {% set tags = config.get('databricks_tags') %}
+      {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+      {% do build_statements.extend(get_set_tag_statements(target_relation, tags, column_tags)) %}
     {% endif %}
+    {{ execute_multiple_statements(build_statements) }}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
