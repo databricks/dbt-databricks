@@ -1,5 +1,10 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Fixes
+
+- Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+- Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+
 ### Under the Hood
 
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
