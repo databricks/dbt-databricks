@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Fixes
+
+- Use the shared replacement flow when a V1 view replaces a different relation type.
+
 ### Under the Hood
 
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
