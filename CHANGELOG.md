@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Use the shared replacement flow when a V1 view replaces a different relation type.
+- Use the shared replacement flow when a V1 view replaces a different relation type. ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
 
 ### Under the Hood
 
