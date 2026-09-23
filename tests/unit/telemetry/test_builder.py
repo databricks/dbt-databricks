@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import pytest
 from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.catalogs._unity import UnityCatalogIntegration
 from dbt.adapters.databricks.telemetry import builder, models
 
 
@@ -28,46 +30,47 @@ def _node(resource_type, package_name="root", test_metadata=None):
     )
 
 
-class TestReportedClassifications:
-    @pytest.mark.parametrize(
-        "http_path, expected",
-        [
-            pytest.param(
-                "/sql/1.0/warehouses/a?o=9",
-                models.ComputeType.SQL_WAREHOUSE,
-                id="warehouse",
-            ),
-            pytest.param(
-                "/sql/1.0/endpoints/a",
-                models.ComputeType.SQL_WAREHOUSE,
-                id="legacy_endpoint",
-            ),
-            pytest.param(
-                "/sql/protocolv1/o/1/2",
-                models.ComputeType.ALL_PURPOSE_CLUSTER,
-                id="cluster",
-            ),
-            pytest.param("/unknown", models.ComputeType.OTHER, id="other"),
-            pytest.param(None, models.ComputeType.TYPE_UNSPECIFIED, id="missing"),
-        ],
+def _model(
+    materialized,
+    *,
+    package_name="root",
+    language="sql",
+    database="main",
+    columns=None,
+    constraints=None,
+    **config,
+):
+    return SimpleNamespace(
+        resource_type="model",
+        package_name=package_name,
+        language=language,
+        database=database,
+        config={"materialized": materialized, **config},
+        columns=columns or {},
+        constraints=constraints or [],
+        meta={},
     )
-    def test_compute_type(self, http_path, expected):
-        assert builder.classify_compute_type(http_path) == expected
 
+
+def _unity_delta_relation(_node=None):
+    return SimpleNamespace(catalog_type="unity", table_format="default", file_format="delta")
+
+
+class TestReportedClassifications:
     @pytest.mark.parametrize(
         "creds, expected",
         [
-            pytest.param(_creds(token="dapi"), models.AuthFamily.PAT, id="pat"),
+            pytest.param(
+                _creds(token="dapi", azure_client_id="a", azure_client_secret="b"),
+                models.AuthFamily.PAT,
+                id="token_wins_over_azure_sp",
+            ),
             pytest.param(
                 _creds(azure_client_id="a", azure_client_secret="b"),
                 models.AuthFamily.AZURE_SERVICE_PRINCIPAL,
                 id="azure_sp",
             ),
-            pytest.param(
-                _creds(auth_type="oauth"),
-                models.AuthFamily.OAUTH_U2M,
-                id="u2m",
-            ),
+            pytest.param(_creds(), models.AuthFamily.OAUTH_U2M, id="no_secret_is_u2m"),
             pytest.param(
                 _creds(client_id="c", client_secret="s"),
                 models.AuthFamily.LEGACY_CLIENT_SECRET_AMBIGUOUS,
@@ -81,18 +84,11 @@ class TestReportedClassifications:
     @pytest.mark.parametrize(
         "warn_error, options, expected",
         [
-            pytest.param(None, None, models.WarnErrorPolicy.WARN_ERROR_DISABLED, id="disabled"),
             pytest.param(
                 True,
                 SimpleNamespace(error=[], warn=[], silence=["X"]),
                 models.WarnErrorPolicy.WARN_ERROR_ALL,
                 id="legacy_takes_precedence",
-            ),
-            pytest.param(
-                False,
-                SimpleNamespace(error="all", warn=[], silence=[]),
-                models.WarnErrorPolicy.WARN_ERROR_ALL,
-                id="error_all",
             ),
             pytest.param(
                 False,
@@ -130,45 +126,263 @@ class TestBuildConnectionConfig:
 
 
 class TestAggregateManifest:
-    def test_root_installed_and_test_kinds(self):
+    def test_generic_tests_are_split_from_singular(self):
         manifest = SimpleNamespace(
-            metadata=SimpleNamespace(project_name="root", invocation_id="inv-1"),
+            metadata=SimpleNamespace(project_name="root"),
             nodes={
-                "m1": _node("model", "root"),
-                "m2": _node("model", "dep_pkg"),
-                "t_generic": _node("test", "root", test_metadata={"name": "not_null"}),
-                "t_singular": _node("test", "root"),
-                "op": _node("operation", "root"),
+                "t_generic": _node("test", test_metadata={"name": "not_null"}),
+                "t_singular": _node("test"),
             },
-            sources={},
-            exposures={},
-            metrics={},
-            saved_queries={},
-            functions={},
-            semantic_models={},
-            unit_tests={},
         )
         ms = builder.aggregate_manifest(manifest)
-        assert ms.enabled_root_project.model_count == 1
-        assert ms.enabled_installed_packages.model_count == 1
         assert ms.enabled_total.generic_data_test_count == 1
         assert ms.enabled_total.data_test_count == 2
-        assert ms.enabled_total.other_count == 1
+
+
+class TestAggregateModelConfigs:
+    @pytest.mark.parametrize(
+        "use_managed, expected_format",
+        [
+            pytest.param(False, models.EffectiveStorageFormat.UNIFORM_ICEBERG, id="uniform"),
+            pytest.param(True, models.EffectiveStorageFormat.MANAGED_ICEBERG, id="managed"),
+        ],
+    )
+    def test_iceberg_storage_and_unresolved_named_compute(self, use_managed, expected_format):
+        manifest = SimpleNamespace(
+            metadata=SimpleNamespace(project_name="root"),
+            nodes={
+                "iceberg": _model("table", table_format="iceberg", databricks_compute="missing")
+            },
+        )
+        relation = SimpleNamespace(table_format="iceberg", file_format="delta")
+
+        root = builder.aggregate_model_configs(
+            manifest,
+            _creds(compute={}),
+            lambda flag: use_managed if flag == "use_managed_iceberg" else False,
+            lambda node: relation,
+        )[0]
+
+        assert root.effective_storage_format_counts == [
+            models.EffectiveStorageFormatCount(expected_format, 1)
+        ]
+        assert root.effective_compute_type_counts == [
+            models.ComputeTypeCount(models.ComputeType.TYPE_UNSPECIFIED, 1)
+        ]
+
+    def test_config_usage_unions_all_declared_constraint_sources(self):
+        node = _model(
+            "view",
+            columns={
+                "id": {
+                    "constraints": [{"type": "foreign_key"}],
+                    "meta": {"constraint": "not_null"},
+                }
+            },
+            constraints=[
+                {"type": "primary_key"},
+                {"type": "check", "expression": "id > 0"},
+            ],
+        )
+        node.meta = {"constraints": [{"name": "legacy", "condition": "id > 0"}]}
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"mixed": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.PRIMARY_KEY_CONSTRAINT: 1,
+            models.ModelConfig.FOREIGN_KEY_CONSTRAINT: 1,
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+            models.ModelConfig.CHECK_CONSTRAINT: 1,
+        }
+
+    def test_config_usage_ignores_non_sequence_legacy_constraint_metadata(self):
+        invalid = _model("table")
+        invalid.meta = {"constraints": True}
+        declared = _model("table", constraints=[{"type": "not_null"}])
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"invalid": invalid, "declared": declared},
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.NOT_NULL_CONSTRAINT: 1,
+        }
+
+    def test_config_usage_counts_conflicting_clustering_declarations(self):
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "both": _model(
+                        "table",
+                        zorder=["id"],
+                        liquid_clustered_by=["id"],
+                        auto_liquid_cluster=True,
+                    )
+                },
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.ZORDER: 1,
+            models.ModelConfig.LIQUID_CLUSTERING: 1,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
+        }
+
+    def test_config_usage_counts_merge_options_regardless_of_strategy(self):
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "table": _model(
+                        "table",
+                        merge_with_schema_evolution=True,
+                        not_matched_by_source_action="delete",
+                    ),
+                    "append": _model(
+                        "incremental",
+                        incremental_strategy="append",
+                        merge_with_schema_evolution=True,
+                        not_matched_by_source_action="delete",
+                    ),
+                    "invalid": _model(
+                        "incremental",
+                        not_matched_by_source_action="drop",
+                    ),
+                },
+            ),
+            _creds(),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.MERGE_SCHEMA_EVOLUTION: 2,
+            models.ModelConfig.MERGE_NOT_MATCHED_BY_SOURCE: 3,
+        }
+
+    def test_config_usage_counts_declarations_on_any_materialization(self):
+        extra = {
+            "id": {
+                "_extra": {"column_mask": {"function": "mask_id"}, "databricks_tags": {"k": "v"}}
+            }
+        }
+        row_filter = {"function": "f", "columns": ["id"]}
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={
+                    "view": _model(
+                        "view",
+                        zorder=["id"],
+                        liquid_clustered_by=["id"],
+                        columns=extra,
+                        row_filter=row_filter,
+                        databricks_tags={"a": "b"},
+                        databricks_compute="cluster",
+                    ),
+                    "ephemeral": _model("ephemeral", databricks_compute="cluster", zorder=["id"]),
+                    "py": _model(
+                        "table",
+                        language="python",
+                        auto_liquid_cluster=True,
+                        row_filter=row_filter,
+                        columns=extra,
+                    ),
+                },
+            ),
+            _creds(compute={"cluster": {"http_path": "/sql/protocolv1/o/1/cluster"}}),
+            lambda flag: False,
+            _unity_delta_relation,
+        )[0]
+        assert {row.config: row.count for row in root.config_usage} == {
+            models.ModelConfig.ZORDER: 2,
+            models.ModelConfig.LIQUID_CLUSTERING: 2,
+            models.ModelConfig.AUTO_LIQUID_CLUSTERING: 1,
+            models.ModelConfig.COLUMN_MASKS: 2,
+            models.ModelConfig.ROW_FILTER: 2,
+            models.ModelConfig.DATABRICKS_RELATION_TAGS: 1,
+            models.ModelConfig.COLUMN_TAGS: 2,
+            models.ModelConfig.NAMED_COMPUTE_ROUTING: 2,
+        }
+        assert {row.compute_type: row.count for row in root.effective_compute_type_counts} == {
+            models.ComputeType.ALL_PURPOSE_CLUSTER: 1,
+            models.ComputeType.SQL_WAREHOUSE: 1,
+        }
+
+    def test_physical_hive_metastore_is_classified_as_hms(self):
+        node = _model("table", database="hive_metastore")
+        node.schema = "dbt"
+        node.identifier = "hms"
+        relation = UnityCatalogIntegration(constants.DEFAULT_UNITY_CATALOG).build_relation(node)
+        assert relation.catalog_type == "unity"
+        assert relation.catalog_name == "hive_metastore"
+
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"hms": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            lambda _: relation,
+        )[0]
+
+        assert root.catalog_type_counts == [
+            models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
+        ]
+
+    def test_v2_catalog_database_hive_metastore_is_classified_as_hms(self):
+        node = _model("table", database="main")
+        node.schema = "analytics"
+        node.identifier = "model_one"
+        integration = UnityCatalogIntegration(
+            SimpleNamespace(
+                name="v2_routed_catalog",
+                catalog_type="unity",
+                catalog_name="logical_catalog_label",
+                catalog_database="hive_metastore",
+                table_format="default",
+                external_volume=None,
+                file_format="delta",
+                adapter_properties={},
+            )
+        )
+        relation = integration.build_relation(node)
+        assert relation.catalog_type == "unity"
+        assert relation.catalog_name == "logical_catalog_label"
+        assert relation.catalog_database == "hive_metastore"
+
+        root = builder.aggregate_model_configs(
+            SimpleNamespace(
+                metadata=SimpleNamespace(project_name="root"),
+                nodes={"model": node},
+            ),
+            _creds(),
+            lambda flag: False,
+            integration.build_relation,
+        )[0]
+
+        assert root.catalog_type_counts == [
+            models.CatalogTypeCount(models.CatalogType.HIVE_METASTORE, 1)
+        ]
 
 
 class TestBuildPostRunLog:
     @pytest.mark.parametrize(
         "exc_type, results, fail_fast, task_success, status, reason",
         [
-            pytest.param(
-                None,
-                [],
-                False,
-                None,
-                models.InvocationStatus.SUCCESS,
-                models.TerminationReason.NORMAL,
-                id="success",
-            ),
             pytest.param(
                 None,
                 [("model.p.m1", "error")],

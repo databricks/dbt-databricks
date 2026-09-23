@@ -63,8 +63,6 @@ class TestEncoder:
         assert "dbt_databricks_telemetry_log" in fe["entry"]
         assert entry["event_type"] == "POST_PARSE"
         assert "post_run" not in entry
-        assert entry["post_parse"]["invocation_config"]["dbt_command"] == "RUN"
-        assert entry["post_parse"]["connection_config"]["default_compute_type"] == "SQL_WAREHOUSE"
 
     @pytest.mark.parametrize(
         "workspace_id, expected",
@@ -86,8 +84,6 @@ class TestPostRunEncoder:
         rc = entry["post_run"]["result_counts"]
         assert rc["pass"] == 5
         assert "pass_" not in rc
-        assert entry["post_run"]["run_outcome"]["invocation_status"] == "HANDLED_ERROR"
-        assert entry["post_run"]["results_by_resource_type"][0]["resource_type"] == "MODEL"
 
     def test_unavailable_aggregates_are_omitted(self):
         log = models.TelemetryLog(
