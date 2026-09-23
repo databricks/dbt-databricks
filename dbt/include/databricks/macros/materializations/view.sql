@@ -9,7 +9,7 @@
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {{ run_pre_hooks() }}
     {% if existing_relation %}
-      {% if relation_should_be_altered(existing_relation) %}
+      {% if relation_should_be_altered(existing_relation, target_relation) %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
         {% if configuration_changes and configuration_changes.changes %}
           {% if configuration_changes.requires_full_refresh %}
@@ -85,8 +85,8 @@
   {% endif %}
 {% endmacro %}
 
-{% macro relation_should_be_altered(existing_relation) %}
-  {% if should_full_refresh() %}
+{% macro relation_should_be_altered(existing_relation, target_relation) %}
+  {% if existing_relation.type != target_relation.type or should_full_refresh() %}
     {{ return(False) }}
   {% endif %}
   {% set update_via_alter = config.get('view_update_via_alter', False) | as_bool %}
