@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view.
+- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view. ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
 
 ### Under the Hood
 
