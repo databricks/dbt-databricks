@@ -2,7 +2,7 @@
 
 ### Features
 
-- Add `skip_merge_on_empty_source` incremental config to bypass MERGE and associated metadata queries when the compiled source SELECT returns no rows, significantly reducing no-op incremental run time. ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
+- Add opt-in `skip_merge_on_empty_source` incremental config that skips the incremental run when the model returns no rows, for `append`, `delete+insert`, and `merge` without `not_matched_by_source_action` with `on_schema_change: ignore`; configuration changes are applied on the next run with data ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
 
 ### Under the Hood
 

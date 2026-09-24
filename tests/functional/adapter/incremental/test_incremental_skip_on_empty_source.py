@@ -1,84 +1,80 @@
 import pytest
-from dbt.tests.util import check_relations_equal, run_dbt
+from dbt.tests import util
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
-
-_MODEL_SQL = """
-{{ config(
-    materialized='incremental',
-    unique_key='id',
-    skip_merge_on_empty_source=true,
-) }}
-
-{% if not is_incremental() %}
-
-select cast(1 as bigint) as id, 'hello' as msg
-union all
-select cast(2 as bigint) as id, 'goodbye' as msg
-
-{% else %}
-
--- Delta filter: only rows with id greater than existing max (=> empty on 2nd run)
-select cast(id as bigint) as id, msg from (
-  select 1 as id, 'hello' as msg
-  union all
-  select 2 as id, 'goodbye' as msg
-) src
-where id > (select max(id) from {{ this }})
-
-{% endif %}
-"""
-
-_SEED_AFTER_FIRST_RUN = """id,msg
-1,hello
-2,goodbye
-"""
+from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
+from tests.functional.adapter.incremental import fixtures
 
 
-class TestSkipMergeOnEmptySource:
+class SkipOnEmptySourceBase(RerunSafeMixin):
+    model_config = "skip_merge_on_empty_source=true"
+
     @pytest.fixture(scope="class")
     def models(self):
-        return {"skip_merge_model.sql": _MODEL_SQL}
+        return {"skip_model.sql": fixtures.skip_on_empty_source_sql(self.model_config)}
 
     @pytest.fixture(scope="class")
-    def seeds(self):
-        return {"expected.csv": _SEED_AFTER_FIRST_RUN}
+    def relations_to_reset(self):
+        return ("skip_model",)
 
-    def test_skip_merge_when_source_empty(self, project):
-        # 1st run: seeds target with 2 rows
-        results = run_dbt(["seed"])
-        assert len(results) == 1
-        results = run_dbt(["run"])
-        assert len(results) == 1
+    def latest_history(self, project):
+        relation = util.relation_from_name(project.adapter, "skip_model")
+        history = project.run_sql(f"describe history {relation}", fetch="all")
+        latest = max(history, key=lambda row: row[0])
+        return latest[0], latest[4]
 
-        # 2nd run: incremental with empty delta -> short-circuit should trigger
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        # Data must be unchanged (no MERGE happened, table same as after 1st run)
-        check_relations_equal(project.adapter, ["skip_merge_model", "expected"])
+    def ids(self, project):
+        relation = util.relation_from_name(project.adapter, "skip_model")
+        rows = project.run_sql(f"select id from {relation} order by id", fetch="all")
+        return [row[0] for row in rows]
+
+
+class TestSkipMergeOnEmptySource(SkipOnEmptySourceBase):
+    def test_empty_source_skips_and_nonempty_source_merges(self, project):
+        util.run_dbt(["run"])
+        version, _ = self.latest_history(project)
+
+        util.run_dbt(["run"])
+        assert self.latest_history(project)[0] == version
+
+        util.run_dbt(["run", "--vars", "max_id: 3"])
+        new_version, operation = self.latest_history(project)
+        assert new_version > version
+        assert operation == "MERGE"
+        assert self.ids(project) == [1, 2, 3]
 
 
 class TestSkipMergeOnEmptySourceV2(MaterializationV2Mixin, TestSkipMergeOnEmptySource):
-    """Same behavior under V2 materialization path."""
+    pass
 
 
-class TestSkipMergeDefaultDisabled:
-    """When `skip_merge_on_empty_source` is not set, behavior is unchanged
-    (MERGE runs as before, even if source is empty)."""
+class SkipNotAppliedBase(SkipOnEmptySourceBase):
+    expected_ids: list[int] = [1, 2]
 
-    @pytest.fixture(scope="class")
-    def models(self):
-        # Same model but WITHOUT the skip flag
-        return {"default_model.sql": _MODEL_SQL.replace("skip_merge_on_empty_source=true,", "")}
+    def test_empty_source_still_runs_strategy(self, project):
+        util.run_dbt(["run"])
+        version, _ = self.latest_history(project)
 
-    @pytest.fixture(scope="class")
-    def seeds(self):
-        return {"expected.csv": _SEED_AFTER_FIRST_RUN}
+        util.run_dbt(["run"])
+        assert self.latest_history(project)[0] > version
+        assert self.ids(project) == self.expected_ids
 
-    def test_default_no_skip(self, project):
-        run_dbt(["seed"])
-        run_dbt(["run"])
-        # 2nd run without the flag still succeeds (MERGE with empty source)
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        check_relations_equal(project.adapter, ["default_model", "expected"])
+
+class TestSkipMergeDisabledByDefault(SkipNotAppliedBase):
+    model_config = "incremental_strategy='merge'"
+
+
+class TestSkipNotAppliedToReplaceWhere(SkipNotAppliedBase):
+    model_config = (
+        "incremental_strategy='replace_where', incremental_predicates='id >= 2',"
+        " skip_merge_on_empty_source=true"
+    )
+    expected_ids = [1]
+
+
+class TestSkipNotAppliedToMergeWithNotMatchedBySource(SkipNotAppliedBase):
+    model_config = "not_matched_by_source_action='delete', skip_merge_on_empty_source=true"
+    expected_ids = []
+
+
+class TestSkipNotAppliedWhenOnSchemaChangeIsNotIgnore(SkipNotAppliedBase):
+    model_config = "on_schema_change='fail', skip_merge_on_empty_source=true"
