@@ -35,7 +35,7 @@ flowchart LR
     NEWTAGS --> NEWCOLTAGS[Apply column tags]
     NEWCOLTAGS --> GRANTS[Apply grants]
 
-    EXIST -- yes --> ALTERABLE{"Not full refresh, existing is view or metric view,\nand view_update_via_alter is true?"}
+    EXIST -- yes --> ALTERABLE{"Not full refresh, existing and target are ordinary views,\nand view_update_via_alter is true?"}
     ALTERABLE -- no --> REPLACE[replace_with_view]
     ALTERABLE -- yes --> HMS{Hive metastore?}
     HMS -- yes --> ERROR[Raise compiler error]
