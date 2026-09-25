@@ -3,6 +3,8 @@
 ### Fixes
 
 - Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view. ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
+- Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+- Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 
 ### Under the Hood
 
