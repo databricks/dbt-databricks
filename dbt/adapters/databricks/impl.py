@@ -317,6 +317,20 @@ class DatabricksAdapter(SparkAdapter):
     def _v2_to_v1_type(self, catalog_type: str) -> str:
         return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
+    def standardize_grants_dict(self, grants_table: "Table") -> dict[str, list[str]]:
+        column_names = {name.lower(): name for name in grants_table.column_names}
+        grants_dict: dict[str, list[str]] = {}
+
+        for row in grants_table:
+            grantee = row[column_names["principal"]]
+            privilege = row[column_names["actiontype"]]
+            object_type = row[column_names["objecttype"]]
+
+            if object_type == "TABLE" and privilege != "OWN":
+                grants_dict.setdefault(privilege, []).append(grantee)
+
+        return grants_dict
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
