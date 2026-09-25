@@ -35,7 +35,6 @@ class _TableToViewBase(RerunSafeMixin):
         return relation.type if relation is not None else None
 
     def _materialize_table_then_view(self, project):
-        util.write_file(fixtures.flip_relation_as_table_sql, "models", "flip_relation.sql")
         util.run_dbt(["run"])
         assert self._relation_type(project) == "table"
         util.write_file(fixtures.flip_relation_as_view_sql, "models", "flip_relation.sql")
@@ -65,7 +64,6 @@ class TestTableConvertsToView(_TableToViewBase):
     )
     def test_invalid_view_preserves_table(self, project, use_materialization_v2):
         self._configure_materialization_version(project, use_materialization_v2)
-        util.write_file(fixtures.flip_relation_as_table_sql, "models", "flip_relation.sql")
         util.run_dbt(["run"])
         assert self._relation_type(project) == "table"
 
