@@ -8,6 +8,11 @@ flip_relation_as_view_sql = """
 select 1 as id
 """
 
+flip_relation_as_invalid_view_sql = """
+{{ config(materialized='view') }}
+select missing_column from (select 1 as id)
+"""
+
 safer_ops_table_sql = """
 {{ config(materialized='table') }}
 select 1 as id

@@ -5,11 +5,11 @@ from dbt.tests.adapter.relations.test_changing_relation_type import (
 )
 
 from tests.functional.adapter.fixtures import (
-    MaterializationV1Mixin,
-    MaterializationV2Mixin,
     RerunSafeMixin,
 )
 from tests.functional.adapter.relations import fixtures
+
+MATERIALIZATION_VERSIONS = [pytest.param(False, id="v1"), pytest.param(True, id="v2")]
 
 
 class TestChangeRelationTypesDatabricks(BaseChangeRelationTypeValidator):
@@ -17,12 +17,6 @@ class TestChangeRelationTypesDatabricks(BaseChangeRelationTypeValidator):
 
 
 class _TableToViewBase(RerunSafeMixin):
-    """Materialize a model as a table, then switch it to a view WITHOUT --full-refresh.
-
-    There is no handle_existing_table override in the adapter, so neither path raises; both
-    drop/convert the table to a view. This pins that server-observable outcome on each flag.
-    """
-
     @pytest.fixture(scope="class")
     def models(self):
         return {"flip_relation.sql": fixtures.flip_relation_as_table_sql}
@@ -44,21 +38,42 @@ class _TableToViewBase(RerunSafeMixin):
         util.run_dbt(["run"])
         assert self._relation_type(project) == "table"
         util.write_file(fixtures.flip_relation_as_view_sql, "models", "flip_relation.sql")
-        util.run_dbt(["run"])  # no --full-refresh
+        util.run_dbt(["run"])
+
+    def _configure_materialization_version(self, project, use_materialization_v2):
+        util.update_config_file(
+            {"flags": {"use_materialization_v2": use_materialization_v2}},
+            project.project_root,
+            "dbt_project.yml",
+        )
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestTableToViewWithoutFullRefreshV1(_TableToViewBase, MaterializationV1Mixin):
-    def test_table_converted_to_view(self, project):
+class TestTableConvertsToView(_TableToViewBase):
+    @pytest.mark.parametrize(
+        "use_materialization_v2",
+        MATERIALIZATION_VERSIONS,
+    )
+    def test_table_converts_to_view(self, project, use_materialization_v2):
+        self._configure_materialization_version(project, use_materialization_v2)
         self._materialize_table_then_view(project)
         assert self._relation_type(project) == "view"
 
+    @pytest.mark.parametrize(
+        "use_materialization_v2",
+        MATERIALIZATION_VERSIONS,
+    )
+    def test_invalid_view_preserves_table(self, project, use_materialization_v2):
+        self._configure_materialization_version(project, use_materialization_v2)
+        util.run_dbt(["run"])
+        assert self._relation_type(project) == "table"
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestTableToViewWithoutFullRefreshV2(_TableToViewBase, MaterializationV2Mixin):
-    def test_table_converted_to_view(self, project):
-        self._materialize_table_then_view(project)
-        assert self._relation_type(project) == "view"
+        util.write_file(fixtures.flip_relation_as_invalid_view_sql, "models", "flip_relation.sql")
+        util.run_dbt(["run"], expect_pass=False)
+
+        assert self._relation_type(project) == "table"
+        assert (
+            project.run_sql("select id from {database}.{schema}.flip_relation", fetch="one")[0] == 1
+        )
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
