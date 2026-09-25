@@ -1,3 +1,4 @@
+import hashlib
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,7 @@ from dbt.adapters.databricks.constraints import (
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     TypedConstraint,
+    _local_md5,
     is_enforced,
     is_supported,
     parse_column_constraints,
@@ -21,6 +23,7 @@ from dbt.adapters.databricks.constraints import (
     parse_constraints,
     parse_model_constraints,
     process_constraint,
+    synthesize_constraint_name,
     validate_constraint,
 )
 from dbt.adapters.databricks.impl import DatabricksAdapter
@@ -138,6 +141,72 @@ class TestForeignKeyConstraint:
         assert (
             constraint.render()
             == "FOREIGN KEY (id, other) REFERENCES other_table (other_id) DEFERRABLE"
+        )
+
+
+class TestSynthesizeConstraintName:
+    """The model side must reproduce the deterministic name the create-time macro
+    (relations/constraints.sql) assigns to an unnamed PK/FK, so the catalog read matches and the
+    incremental diff is a no-op instead of churning + colliding (#1333, #1344)."""
+
+    def test_local_md5_reproduces_real_dbt_local_md5(self):
+        # `f945e062...` is a name a live create-macro run emitted via dbt's `local_md5` for this
+        # exact input, so this pins our `_local_md5` wrapper to dbt's, independent of the scheme.
+        assert (
+            _local_md5(
+                "foreign_key;multi_fk_child;['parent_b'];"
+                "`main`.`test17823128660395867514_test_constraints`.`multi_fk_parent`;"
+            )
+            == "f945e062b14a8f9a207b7900720295f0"
+        )
+
+    def test_foreign_key_column_form_input_format(self):
+        # Column-form FK identity folds in `to_columns`, so two FKs on the same column to the same
+        # parent but different parent columns get distinct names instead of colliding (#1344).
+        fk = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            name=None,
+            columns=["a", "b"],
+            to="`c`.`s`.`p`",
+            to_columns=["x", "y"],
+        )
+        expected = hashlib.md5(b"foreign_key;child;['a', 'b'];`c`.`s`.`p`;['x', 'y'];").hexdigest()
+        assert synthesize_constraint_name(fk, "child") == expected
+
+    def test_foreign_key_distinct_to_columns_get_distinct_names(self):
+        same = dict(type=ConstraintType.foreign_key, name=None, columns=["a"], to="`c`.`s`.`p`")
+        fk_x = ForeignKeyConstraint(to_columns=["x"], **same)
+        fk_y = ForeignKeyConstraint(to_columns=["y"], **same)
+        assert synthesize_constraint_name(fk_x, "child") != synthesize_constraint_name(
+            fk_y, "child"
+        )
+
+    def test_foreign_key_expression_form(self):
+        fk = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            name=None,
+            columns=["n"],
+            expression="(n) REFERENCES `c`.`s`.`p`",
+        )
+        expected = hashlib.md5(b"foreign_key;child;(n) REFERENCES `c`.`s`.`p`;").hexdigest()
+        assert synthesize_constraint_name(fk, "child") == expected
+
+    def test_primary_key_no_expression(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, name=None, columns=["n"])
+        expected = hashlib.md5(b"primary_key;child;['n'];").hexdigest()
+        assert synthesize_constraint_name(pk, "child") == expected
+
+    def test_primary_key_with_expression_includes_rely(self):
+        # The macro folds the expression into the PK hash, so a no-change RELY re-run matches
+        # (no churn) while a RELY edit changes the name and is reconciled.
+        pk_rely = PrimaryKeyConstraint(
+            type=ConstraintType.primary_key, name=None, columns=["n"], expression="RELY"
+        )
+        expected = hashlib.md5(b"primary_key;child;['n'];RELY;").hexdigest()
+        assert synthesize_constraint_name(pk_rely, "child") == expected
+        pk_plain = PrimaryKeyConstraint(type=ConstraintType.primary_key, name=None, columns=["n"])
+        assert synthesize_constraint_name(pk_rely, "child") != synthesize_constraint_name(
+            pk_plain, "child"
         )
 
 
