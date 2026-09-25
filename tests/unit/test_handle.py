@@ -320,6 +320,18 @@ class TestSqlUtils:
             with pytest.raises(DbtConfigError, match="use_kernel"):
                 SqlUtils.prepare_connection_arguments(creds, manager, _KERNEL_HTTP_PATH, {})
 
+    @pytest.mark.parametrize("auth_type", ["env-oidc", "file-oidc"])
+    def test_prepare_connection_arguments__kernel_oidc_raises(self, auth_type):
+        """The kernel has no OIDC flow. Rejected on the raw auth_type before the
+        oauth-m2m check, which would otherwise resolve `.config` and trigger the
+        SDK's OIDC token exchange here."""
+        with pytest.raises(DbtConfigError, match="use_kernel"):
+            _prepare_connection_args_without_config_auth(
+                client_id="cid",
+                auth_type=auth_type,
+                connection_parameters={"use_kernel": True},
+            )
+
     def test_prepare_connection_arguments__kernel_u2m_explicit_client_id(self):
         """use_kernel with OAuth U2M and an explicit client_id forwards that
         client_id and translates dbt's auth_type='oauth' to the kernel's
