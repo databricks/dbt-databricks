@@ -360,3 +360,47 @@ class TestMetricViewReplacesView(_NonMetricToMetricViewBase):
 
     def test_view_is_replaced_by_metric_view(self, project):
         self._assert_metric_view_replaced_non_metric(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestViewReplacesMetricViewWithAlterEnabled(RerunSafeMixin):
+    """An ordinary-view model replacing an existing metric view must not take the in-place
+    ALTER path even when view_update_via_alter is enabled, since the relation types differ."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+view_update_via_alter": True},
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("source_orders", "order_metrics", "order_metrics__dbt_backup")
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "source_orders.sql": source_table,
+            "order_metrics.sql": basic_metric_view,
+        }
+
+    def test_metric_view_is_replaced_by_view(self, project):
+        results = run_dbt(["run"])
+        assert len(results) == 2
+        assert all(result.status == "success" for result in results)
+        assert query_uc_table_type(project, "order_metrics") == "METRIC_VIEW"
+
+        util.write_file(order_metrics_as_view, "models", "order_metrics.sql")
+        results = run_dbt(["run", "--models", "order_metrics"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        assert query_uc_table_type(project, "order_metrics") == "VIEW"
+        assert query_schema_relation_names(project, "order_metrics%") == ["order_metrics"]
+
+        row_count = project.run_sql(
+            f"select count(*) from {project.database}.{project.test_schema}.order_metrics",
+            fetch="one",
+        )[0]
+        assert row_count == 3
