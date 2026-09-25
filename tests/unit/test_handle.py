@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from databricks.sql.client import Cursor
+from databricks.sql.telemetry.telemetry_client import TelemetryHelper
 from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
 from dbt.adapters.databricks.credentials import (
@@ -15,6 +16,7 @@ from dbt.adapters.databricks.credentials import (
     DatabricksCredentials,
 )
 from dbt.adapters.databricks.handle import (
+    _DBT_DATABRICKS_TELEMETRY_FLAG,
     CursorWrapper,
     DatabricksAdapterResponse,
     DatabricksHandle,
@@ -476,6 +478,23 @@ class TestDatabricksHandle:
     @pytest.fixture
     def cursor(self):
         return Mock()
+
+    @patch("dbt.adapters.databricks.handle.dbsql.connect")
+    @patch.object(TelemetryHelper, "TELEMETRY_FEATURE_FLAG_NAME", "python-driver-flag")
+    def test_from_connection_args_configures_dbt_telemetry(self, mock_connect):
+        connector_connection = Mock()
+
+        def connect(**kwargs):
+            assert kwargs["enable_telemetry"] is True
+            assert TelemetryHelper.TELEMETRY_FEATURE_FLAG_NAME == _DBT_DATABRICKS_TELEMETRY_FLAG
+            return connector_connection
+
+        mock_connect.side_effect = connect
+
+        handle = DatabricksHandle.from_connection_args({"enable_telemetry": True}, False)
+
+        assert handle is not None
+        assert handle._conn is connector_connection
 
     def test_safe_execute__closed(self, conn):
         handle = DatabricksHandle(conn, True)
