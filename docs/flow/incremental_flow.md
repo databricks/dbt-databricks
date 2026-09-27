@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-08-31_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -40,7 +40,7 @@ flowchart LR
     NEWCFG --> GRANTS[Apply grants]
     REPLACEDOCS --> GRANTS
     DOCS --> GRANTS
-    GRANTS --> OPT[Run optimize]
+    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> POST[Run post-hooks]
     POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
@@ -78,7 +78,7 @@ flowchart LR
     CREATE --> GRANTS[Apply grants]
     SAFE --> GRANTS
     MERGE --> GRANTS
-    GRANTS --> OPT[Run optimize]
+    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> PYCLEAN{Python model?}
     PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
     PYCLEAN -- no --> POST[Run post-hooks]

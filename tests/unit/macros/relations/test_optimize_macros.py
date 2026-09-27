@@ -35,8 +35,16 @@ class TestOptimizeMacros(MacroTestBase):
 
         assert result == "run_optimize_stmt"
 
+    def test_macros_optimize_skips_auto_liquid_clustering(self, config, template_bundle):
+        config["auto_liquid_cluster"] = True
+
+        result = self.render_bundle(template_bundle, "optimize")
+
+        assert result == ""
+
     @pytest.mark.parametrize("key_val", ["DATABRICKS_SKIP_OPTIMIZE", "databricks_skip_optimize"])
-    def test_macros_optimize_with_skip(self, key_val, var, template_bundle):
+    def test_macros_optimize_with_skip(self, key_val, config, var, template_bundle):
+        config["liquid_clustered_by"] = ["foo"]
         var[key_val] = True
         r = self.render_bundle(template_bundle, "optimize")
 
