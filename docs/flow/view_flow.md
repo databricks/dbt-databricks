@@ -11,16 +11,17 @@ _Last updated: 2026-09-23_
 ```mermaid
 flowchart LR
     PRE[Run pre-hooks] --> WRONG{Existing relation is not a view?}
-    WRONG -- yes --> HANDLE[handle_existing_table]
+    WRONG -- yes --> REPLACE[Replace using shared relation replacement flow]
     WRONG -- no --> CREATE[Create or replace view]
-    HANDLE --> CREATE
+    REPLACE --> GRANTS
     CREATE --> GRANTS[Apply grants]
     GRANTS --> TAGS[Apply table tags]
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> POST[Run post-hooks]
 ```
 
-V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
+V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot. For a
+different existing relation type, it uses the shared [replace flow](replace_flow.md).
 
 ## V2 View Flow
 
