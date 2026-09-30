@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Features
+
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter (thanks @Gerrit-K!) ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
+
 ### Fixes
 
 - Keep the existing table when a V1 view model that replaces it fails to build, matching V2 behavior ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
@@ -16,10 +20,6 @@
 - Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
-
-### Features
-
-- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
 
 ### Fixes
 
