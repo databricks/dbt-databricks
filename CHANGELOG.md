@@ -1,4 +1,25 @@
-## dbt-databricks 1.12.5 (TBD)
+## dbt-databricks 1.12.6 (TBD)
+
+### Fixes
+
+- Keep the existing table when a V1 view model that replaces it fails to build, matching V2 behavior ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
+- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view. ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
+- Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+- Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+
+### Under the Hood
+
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+- Normalize artifact URLs as well as source registries in `check_uv_lock_public_urls.py --fix`, so regenerating `uv.lock` against a mirrored index no longer needs a manual edit (tooling-only, no runtime impact) ([#1675](https://github.com/databricks/dbt-databricks/pull/1675))
+
+## dbt-databricks 1.12.6 (TBD)
+
+### Under the Hood
+
+- Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
+
+## dbt-databricks 1.12.5 (Sep 1, 2026)
 
 ### Features
 
@@ -8,6 +29,10 @@
 
 - Replace an existing table or view with a metric view using backup-and-create instead of `CREATE OR REPLACE VIEW ... WITH METRICS` ([#1640](https://github.com/databricks/dbt-databricks/pull/1640) resolves [#1639](https://github.com/databricks/dbt-databricks/issues/1639))
 - Interpolate lazily-formatted `databricks.sql` log records when mirroring them into dbt logs ([#1642](https://github.com/databricks/dbt-databricks/pull/1642) resolves [#1637](https://github.com/databricks/dbt-databricks/issues/1637))
+
+### Under the Hood
+
+- Raise the `dbt-core` upper bound to `<1.12.4` to include dbt-core 1.12.3 ([#1656](https://github.com/databricks/dbt-databricks/pull/1656))
 
 ## dbt-databricks 1.12.4 (Aug 12, 2026)
 

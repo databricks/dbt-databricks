@@ -90,6 +90,12 @@ class TestTagsConfig:
         diff = config.get_diff(config_old)
         assert diff == TagsConfig(set_tags={"a": "value", "b": "value"})
 
+    def test_get_diff__omits_unchanged_keys(self):
+        config = TagsConfig(set_tags={"stable": "1", "moved": "new"})
+        config_old = TagsConfig(set_tags={"stable": "1", "moved": "old", "remote_only": "x"})
+        diff = config.get_diff(config_old)
+        assert diff == TagsConfig(set_tags={"moved": "new"})
+
     def test_get_diff__no_changes(self):
         config = TagsConfig(set_tags={"tag": "value"})
         config_old = TagsConfig(set_tags={"tag": "value"})

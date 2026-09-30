@@ -5,6 +5,7 @@ from dbt.adapters.databricks.relation_configs.base import (
     DatabricksRelationChangeSet,
     DatabricksRelationConfigBase,
 )
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProcessor
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )
@@ -31,6 +32,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         TblPropertiesProcessor,
         RefreshProcessor,
         TagsProcessor,
+        ColumnTagsProcessor,
         DescribeQueryProcessor,
         RowFilterProcessor,
     ]
@@ -44,6 +46,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
         changes: dict[str, DatabricksComponentConfig] = {}
         requires_full_refresh = False
         has_changes = False
+        diff_only_component_keys = {"tags", "column_tags"}
 
         for component in self.config_components:
             key = component.name
@@ -54,7 +57,7 @@ class StreamingTableConfig(DatabricksRelationConfigBase):
                 if key == "partition_by":
                     requires_full_refresh = True
                 changes[key] = diff
-            else:
+            elif key not in diff_only_component_keys:
                 changes[key] = value
 
         if not has_changes:
