@@ -1,5 +1,9 @@
 ## dbt-databricks 1.12.6 (TBD)
 
+### Features
+
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter (thanks @Gerrit-K!) ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
+
 ### Fixes
 
 - Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
