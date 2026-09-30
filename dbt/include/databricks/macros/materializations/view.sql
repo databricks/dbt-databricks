@@ -43,7 +43,7 @@
     {{ run_post_hooks() }}
 
   {% else %}
-    {{ run_hooks(pre_hooks) }}
+    {{ run_pre_hooks() }}
 
     -- If there's a table with the same name and we weren't told to full refresh,
     -- that's an error. If we were told to full refresh, drop it. This behavior differs
@@ -69,7 +69,7 @@
 
     {% do validate_persist_doc_columns(target_relation, model) %}
 
-    {{ run_hooks(post_hooks) }}
+    {{ run_post_hooks() }}
   {% endif %}
 
   {{ return({'relations': [target_relation]}) }}

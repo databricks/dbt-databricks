@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-08-31_
+_Last updated: 2026-09-30_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -31,7 +31,8 @@ flowchart LR
     OPT --> POST[Run post-hooks]
 ```
 
-V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
+V1 and V2 both call the shared `run_pre_hooks` / `run_post_hooks` helpers; see [hook transaction
+categories](README.md#hook-transaction-categories).
 
 ## V2 Table Flow
 

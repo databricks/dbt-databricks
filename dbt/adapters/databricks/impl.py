@@ -184,6 +184,17 @@ USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_NON_TRANSACTIONAL_HOOKS = BehaviorFlag(
+    name="use_non_transactional_hooks",
+    default=False,
+    description=(
+        "Hooks configured with `transaction: false` (including `before_begin` and"
+        " `after_commit`) are being skipped. Databricks does not wrap models in a transaction;"
+        " enable this flag to run these hooks in their outside-transaction position without an"
+        " extra COMMIT."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -332,6 +343,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_MANAGED_ICEBERG,
             USE_CONCURRENT_MICROBATCH,
             USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA,
+            USE_NON_TRANSACTIONAL_HOOKS,
         ]
 
     def supports(self, capability: Capability) -> bool:
