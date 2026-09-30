@@ -14,8 +14,8 @@ Invariants asserted:
                   duplicate execution).
   I3  Containment: each shard's executed nodeids ⊆ its assigned nodeids
                    (no test ran on the wrong shard).
-  I4  Counts:    sum of per-shard junit testcase counts == manifest's
-                 total_tests.
+  I4  Counts:    sum of per-shard executed nodeid counts (rerun attempts
+                 collapsed) == manifest's total_tests.
 
 Exits 0 if all four pass; 1 otherwise. Always prints a summary table.
 """
@@ -83,19 +83,22 @@ def junit_to_nodeid_candidates(file_attr: str, classname: str, name: str) -> lis
 
 def parse_junit(
     path: Path, assigned_universe: set[str]
-) -> tuple[list[str], int, int, list[tuple[str, str]]]:
-    """Return (executed_nodeids, total_count, skipped_count, unresolved).
+) -> tuple[list[str], int, list[tuple[str, str]]]:
+    """Return (executed_nodeids, skipped_count, unresolved).
 
     `assigned_universe` is the union of all assigned nodeids; used to pick the
     right split when junit's classname is ambiguous. `unresolved` lists any
     (classname, name) pairs we couldn't map to an assigned nodeid — these are
     real bugs that I1 will catch as "extra" tests.
+
+    pytest-rerunfailures writes one `<testcase>` per attempt, so repeats of a
+    nodeid within one file are collapsed to a single execution.
     """
     tree = ET.parse(path)
     root = tree.getroot()
     suites = root.findall(".//testsuite") or [root]
     nodeids: list[str] = []
-    total = 0
+    seen: set[str] = set()
     skipped = 0
     unresolved: list[tuple[str, str]] = []
     for suite in suites:
@@ -110,11 +113,13 @@ def parse_junit(
                 # most-specific candidate so I1 will flag it as "extra".
                 picked = cands[0] if cands else f"{classname}::{name}"
                 unresolved.append((classname, name))
+            if picked in seen:
+                continue
+            seen.add(picked)
             nodeids.append(picked)
-            total += 1
             if tc.find("skipped") is not None:
                 skipped += 1
-    return nodeids, total, skipped, unresolved
+    return nodeids, skipped, unresolved
 
 
 def main() -> int:
@@ -151,7 +156,7 @@ def main() -> int:
         if not jp.exists():
             print(f"ERROR: missing junit file: {jp}", file=sys.stderr)
             return 1
-        nodeids, total, skipped, unresolved = parse_junit(jp, assigned_all)
+        nodeids, skipped, unresolved = parse_junit(jp, assigned_all)
         executed_per_shard.append(nodeids)
         skipped_per_shard.append(skipped)
         unresolved_per_shard.append(unresolved)
