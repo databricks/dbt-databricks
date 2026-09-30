@@ -46,6 +46,11 @@ The `use_non_transactional_hooks` behavior flag (defined as
 category. It **defaults to `False`**: those hooks are skipped without rendering their SQL, and dbt
 emits its behavior-change warning once per invocation, only if a skipped hook was encountered.
 When enabled, they run at their outside-transaction position with no `COMMIT`.
+
+The inherited function (UDF) materialization is an exception: it invokes only the
+inside-transaction hook category, so its `transaction: false` hooks remain skipped without a
+warning even when this flag is enabled.
+
 Inside-transaction hooks are unaffected. Each diagram's hook steps keep their existing positions, so
 materialized views and streaming tables still run the outside category on no-op branches that skip
 the inside category.
