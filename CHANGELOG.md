@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- Stop failing with `NO_ACTIVE_TRANSACTION` on hooks configured with `transaction: false`; they are now skipped with a warning on every materialization, and the new `use_non_transactional_hooks` behavior flag runs them instead ([#1693](https://github.com/databricks/dbt-databricks/pull/1693) resolves [#1549](https://github.com/databricks/dbt-databricks/issues/1549))
 - Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
 - Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))

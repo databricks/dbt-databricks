@@ -1,6 +1,6 @@
 # Materialization Flow Docs
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-09-30_
 
 These docs map how each dbt-databricks materialization executes — the decision branches, the
 order of operations, and where shared logic (like relation replacement) is reused. They are
@@ -32,6 +32,28 @@ Materializations that honor the flag show both diagrams in their doc:
 | Streaming table | [streaming_table_flow.md](streaming_table_flow.md) | No — single path |
 | Materialized view | [materialized_view_flow.md](materialized_view_flow.md) | No — single path |
 | _(shared)_ Relation replacement | [replace_flow.md](replace_flow.md) | Used by view, materialized-view, streaming-table, and metric-view replacement helpers |
+
+## Hook transaction categories
+
+dbt splits hooks into an inside-transaction category (unset or `transaction: true`) and an
+outside-transaction category (`transaction: false`, including `before_begin` / `after_commit`).
+Pre-hooks run outside then inside; post-hooks run inside then outside. dbt-databricks overrides
+`run_hooks` (`materializations/hooks.sql`) because the adapter never opens a transaction, and the
+global macro's literal `commit;` before the outside category fails on Databricks.
+
+The `use_non_transactional_hooks` behavior flag (defined as
+[`USE_NON_TRANSACTIONAL_HOOKS`](../../dbt/adapters/databricks/impl.py)) controls the outside
+category. It **defaults to `False`**: those hooks are skipped without rendering their SQL, and dbt
+emits its behavior-change warning once per invocation, only if a skipped hook was encountered.
+When enabled, they run at their outside-transaction position with no `COMMIT`.
+
+The inherited function (UDF) materialization is an exception: it invokes only the
+inside-transaction hook category, so its `transaction: false` hooks remain skipped without a
+warning even when this flag is enabled.
+
+Inside-transaction hooks are unaffected. Each diagram's hook steps keep their existing positions, so
+materialized views and streaming tables still run the outside category on no-op branches that skip
+the inside category.
 
 ## Not yet documented
 
