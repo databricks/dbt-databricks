@@ -1,3 +1,6 @@
+import csv
+import io
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -17,7 +20,7 @@ from dbt.tests.adapter.simple_seed.test_seed import (
     SeedTestBase,
 )
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.simple_seed import fixtures
 
 
@@ -38,17 +41,7 @@ class TestBasicSeedTests(DatabricksSetup, SeedTestBase):
         )
 
 
-class TestBasicSeedTestsV2(DatabricksSetup, SeedTestBase, MaterializationV2Mixin):
-    pass
-
-
 class TestDatabricksSeedWithUniqueDelimiter(DatabricksSetup, BaseSeedWithUniqueDelimiter):
-    pass
-
-
-class TestDatabricksSeedWithUniqueDelimiterV2(
-    DatabricksSetup, BaseSeedWithUniqueDelimiter, MaterializationV2Mixin
-):
     pass
 
 
@@ -56,19 +49,7 @@ class TestDatabricksSeedWithWrongDelimiter(DatabricksSetup, BaseSeedWithWrongDel
     pass
 
 
-class TestDatabricksSeedWithWrongDelimiterV2(
-    DatabricksSetup, BaseSeedWithWrongDelimiter, MaterializationV2Mixin
-):
-    pass
-
-
 class TestSeedConfigFullRefreshOff(DatabricksSetup, BaseSeedConfigFullRefreshOff):
-    pass
-
-
-class TestSeedConfigFullRefreshOffV2(
-    DatabricksSetup, BaseSeedConfigFullRefreshOff, MaterializationV2Mixin
-):
     pass
 
 
@@ -82,17 +63,7 @@ class TestSeedCustomSchema(DatabricksSetup, BaseSeedCustomSchema):
         project.run_sql(f"drop schema if exists {project.test_schema}_custom_schema cascade")
 
 
-class TestSeedCustomSchemaV2(TestSeedCustomSchema, MaterializationV2Mixin):
-    pass
-
-
 class TestDatabricksSeedWithEmptyDelimiter(DatabricksSetup, BaseSeedWithEmptyDelimiter):
-    pass
-
-
-class TestDatabricksSeedWithEmptyDelimiterV2(
-    DatabricksSetup, BaseSeedWithEmptyDelimiter, MaterializationV2Mixin
-):
     pass
 
 
@@ -100,23 +71,11 @@ class TestDatabricksEmptySeed(BaseTestEmptySeed):
     pass
 
 
-class TestDatabricksEmptySeedV2(BaseTestEmptySeed, MaterializationV2Mixin):
-    pass
-
-
 class TestSimpleSeedEnabledViaConfig(BaseSimpleSeedEnabledViaConfig):
     pass
 
 
-class TestSimpleSeedEnabledViaConfigV2(BaseSimpleSeedEnabledViaConfig, MaterializationV2Mixin):
-    pass
-
-
 class TestSeedParsing(DatabricksSetup, BaseSeedParsing):
-    pass
-
-
-class TestSeedParsingV2(DatabricksSetup, BaseSeedParsing, MaterializationV2Mixin):
     pass
 
 
@@ -134,10 +93,6 @@ class TestSimpleSeedWithBOM(BaseSimpleSeedWithBOM):
         )
 
 
-class TestSimpleSeedWithBOMV2(TestSimpleSeedWithBOM, MaterializationV2Mixin):
-    pass
-
-
 class TestSeedSpecificFormats(DatabricksSetup, BaseSeedSpecificFormats):
     @pytest.fixture(scope="class")
     def seeds(self):
@@ -151,10 +106,6 @@ class TestSeedSpecificFormats(DatabricksSetup, BaseSeedSpecificFormats):
     def test_simple_seed(self, project):
         results = util.run_dbt(["seed"])
         assert len(results) == 2
-
-
-class TestSeedSpecificFormatsV2(TestSeedSpecificFormats, MaterializationV2Mixin):
-    pass
 
 
 class TestSeedColumnTypes:
@@ -179,10 +130,6 @@ class TestSeedColumnTypes:
         assert column_types["amount"] == "decimal(10,2)"
         row_count = project.run_sql(f"select count(*) from {relation}", fetch="one")[0]
         assert row_count == 3
-
-
-class TestSeedColumnTypesV2(TestSeedColumnTypes, MaterializationV2Mixin):
-    pass
 
 
 class TestSeedOntoView(RerunSafeMixin):
@@ -210,5 +157,102 @@ class TestSeedOntoView(RerunSafeMixin):
         assert existing is not None and existing.is_view
 
 
-class TestSeedOntoViewV2(TestSeedOntoView, MaterializationV2Mixin):
-    pass
+class TestSeedMaterializationV2FlagOn(RerunSafeMixin):
+    """Seeds ignore use_materialization_v2; pin that the flag-on project gets the same lifecycle."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "seeds": {"post-hook": [fixtures.seeds__flag_on_post_hook_sql]},
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("seed_flag_on", "seed_flag_on_over_view")
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {
+            "seed_flag_on.csv": fixtures.seeds__flag_on_initial_csv,
+            "seed_flag_on_over_view.csv": fixtures.seeds__over_view_csv,
+            "schema.yml": fixtures.seeds__flag_on_schema_yml,
+        }
+
+    @staticmethod
+    def _expected_rows(csv_contents):
+        rows = []
+        for record in csv.DictReader(io.StringIO(csv_contents)):
+            row = (
+                int(record["id"]),
+                record["name"],
+                float(record["rate"]),
+                Decimal(record["amount"]).quantize(Decimal("0.01")),
+            )
+            if "note" in record:
+                row += (record["note"],)
+            rows.append(row)
+        return rows
+
+    def _seed(self, project, csv_contents, step, *args):
+        util.write_file(csv_contents, project.project_root, "seeds", "seed_flag_on.csv")
+        vars_arg = f"{{seed_step: {step}}}"
+        results = util.run_dbt(["seed", "--select", "seed_flag_on", "--vars", vars_arg, *args])
+        assert len(results) == 1
+
+    def _assert_seed_state(self, project, csv_contents, step):
+        relation = util.relation_from_name(project.adapter, "seed_flag_on")
+        expected_rows = self._expected_rows(csv_contents)
+        column_list = "id, name, rate, amount" + (", note" if len(expected_rows[0]) == 5 else "")
+        rows = project.run_sql(f"select {column_list} from {relation} order by id", fetch="all")
+        assert [tuple(row) for row in rows] == expected_rows
+
+        columns, table_comment = {}, None
+        in_column_section = True
+        for col_name, data_type, comment in project.run_sql(
+            f"describe table extended {relation}", fetch="all"
+        ):
+            if not col_name or col_name.startswith("#"):
+                in_column_section = False
+            elif in_column_section:
+                columns[col_name] = (data_type, comment)
+            elif col_name == "Comment":
+                table_comment = data_type
+        assert columns["rate"][0] == "double"
+        assert columns["amount"][0] == "decimal(10,2)"
+        assert columns["id"][1] == "An id column"
+        assert columns["name"][1] == "A name column"
+        assert table_comment == "A seed description"
+
+        properties = dict(project.run_sql(f"show tblproperties {relation}", fetch="all"))
+        assert properties["dbt_seed_post_hook"] == str(step)
+
+    def _seed_and_assert(self, project, csv_contents, step, *args):
+        self._seed(project, csv_contents, step, *args)
+        self._assert_seed_state(project, csv_contents, step)
+
+    def test_seed_lifecycle(self, project):
+        assert project.adapter.get_behavior_flag_no_warn("use_materialization_v2")
+
+        self._seed_and_assert(project, fixtures.seeds__flag_on_initial_csv, 1)
+        self._seed_and_assert(project, fixtures.seeds__flag_on_reseed_csv, 2)
+        self._seed_and_assert(
+            project, fixtures.seeds__flag_on_full_refresh_csv, 3, "--full-refresh"
+        )
+
+    def test_seed_onto_view_is_rejected(self, project):
+        relation = util.relation_from_name(project.adapter, "seed_flag_on_over_view")
+        project.run_sql(f"create or replace view {relation} as select 1 as id")
+
+        util.run_dbt(
+            ["seed", "--select", "seed_flag_on_over_view", "--vars", "{seed_step: 1}"],
+            expect_pass=False,
+        )
+
+        with project.adapter.connection_named("_check_seed_flag_on_over_view"):
+            existing = project.adapter.get_relation(
+                database=project.database,
+                schema=project.test_schema,
+                identifier="seed_flag_on_over_view",
+            )
+        assert existing is not None and existing.is_view
