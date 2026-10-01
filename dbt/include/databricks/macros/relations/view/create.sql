@@ -7,7 +7,7 @@
   {% endif %}
   {{ log("Creating view " ~ relation) }}
   create or replace view {{ relation.render() }}
-  {%- if config.persist_column_docs() -%}
+  {%- if config.persist_column_docs() and model.columns -%}
     {%- set model_columns = model.columns -%}
     {%- set query_columns = get_columns_in_query(sql) -%}
     {%- if query_columns %}
