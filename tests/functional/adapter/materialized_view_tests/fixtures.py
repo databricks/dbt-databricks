@@ -243,8 +243,9 @@ mv_norebuild_seed_csv = """id,value
 """.lstrip()
 
 # Updateable-change / no-rebuild fixtures: an identical query whose only difference
-# step-to-step is exactly one updateable component (tags, then refresh schedule).
-# The MV starts MANUAL (no schedule) and the refresh step moves it to EVERY 4 WEEKS.
+# step-to-step is exactly one updateable component (tags, column tags, then refresh
+# schedule). The MV starts MANUAL (no schedule) and the refresh step moves it to
+# EVERY 4 WEEKS.
 mv_norebuild_v1 = """
 {{ config(
     materialized='materialized_view',
@@ -261,6 +262,30 @@ mv_norebuild_v2_tag_changed = """
     databricks_tags={'lifecycle': 'a', 'extra': 'b'},
 ) }}
 select * from {{ ref('mv_norebuild_seed') }}
+"""
+
+mv_norebuild_schema_v1 = """
+version: 2
+models:
+  - name: mv_norebuild
+    columns:
+      - name: id
+      - name: value
+        databricks_tags:
+          pii: "true"
+"""
+
+mv_norebuild_schema_v2_column_tag_changed = """
+version: 2
+models:
+  - name: mv_norebuild
+    columns:
+      - name: id
+        databricks_tags:
+          pii: "false"
+      - name: value
+        databricks_tags:
+          pii: "true"
 """
 
 mv_norebuild_v3_refresh_changed = """
@@ -285,7 +310,11 @@ select 1 as id, 'foo' as name, 42 as new_column
 """
 
 schema_evolution_mv_sql = """
-{{ config(materialized='materialized_view', on_configuration_change='apply') }}
+{{ config(
+    materialized='materialized_view',
+    on_configuration_change='apply',
+    databricks_tags={'drift_tag': 'kept'},
+) }}
 select * from {{ ref('schema_evolution_base') }}
 """
 

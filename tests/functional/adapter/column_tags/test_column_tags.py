@@ -26,17 +26,20 @@ _GOVERNED_TAG_SETUP_SKIP_MARKERS = (
 
 
 class ColumnTagsMixin(RerunSafeMixin, MaterializationV2Mixin):
+    model_sql = fixtures.base_model_sql
+
     @pytest.fixture(scope="class")
     def relations_to_reset(self):
         return ("base_model",)
 
+    def render_schema(self, schema):
+        return schema.replace("materialized: table", f"materialized: {self.relation_type}")
+
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "base_model.sql": fixtures.base_model_sql,
-            "schema.yml": fixtures.initial_column_tag_model.replace(
-                "materialized: table", f"materialized: {self.relation_type}"
-            ),
+            "base_model.sql": self.model_sql,
+            "schema.yml": self.render_schema(fixtures.initial_column_tag_model),
         }
 
     def test_column_tags(self, project):
@@ -64,9 +67,7 @@ class ColumnTagsMixin(RerunSafeMixin, MaterializationV2Mixin):
 
         # Run a second time with an updated model
         util.write_file(
-            fixtures.updated_column_tag_model.replace(
-                "materialized: table", f"materialized: {self.relation_type}"
-            ),
+            self.render_schema(fixtures.updated_column_tag_model),
             "models",
             "schema.yml",
         )
@@ -95,28 +96,103 @@ class TestColumnTagsIncremental(ColumnTagsMixin):
     relation_type = "incremental"
 
 
+class DeltaLiveTableColumnTagsMixin(ColumnTagsMixin):
+    def render_schema(self, schema):
+        return (
+            super()
+            .render_schema(schema)
+            .replace(
+                f"materialized: {self.relation_type}",
+                f"""materialized: {self.relation_type}
+        on_configuration_change: apply
+        schedule:
+          every: 4 WEEKS
+        partition_by: id
+        databricks_tags:
+          lifecycle: current
+          owner: analytics""",
+            )
+        )
+
+    @staticmethod
+    def _table_tags(project):
+        rows = project.run_sql(
+            f"""
+            SELECT tag_name, tag_value
+            FROM `system`.`information_schema`.`table_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'base_model'
+            ORDER BY tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1]) for row in rows}
+
+    @staticmethod
+    def _column_tags(project):
+        rows = project.run_sql(
+            f"""
+            SELECT column_name, tag_name, tag_value
+            FROM `system`.`information_schema`.`column_tags`
+            WHERE catalog_name = '{project.database}'
+              AND schema_name = '{project.test_schema}'
+              AND table_name = 'base_model'
+            ORDER BY column_name, tag_name
+            """,
+            fetch="all",
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+    def _assert_initial_tags(self, project):
+        assert self._table_tags(project) == {
+            ("lifecycle", "current"),
+            ("owner", "analytics"),
+        }
+        assert self._column_tags(project) == {
+            ("account_number", "pii", "true"),
+            ("account_number", "sensitive", "true"),
+            ("account_number", "key_only", ""),
+            ("account_number", "null_value", ""),
+        }
+
+    def test_tags_survive_full_refresh(self, project):
+        util.run_dbt(["run"])
+        self._assert_initial_tags(project)
+
+        util.run_dbt(["run", "--full-refresh"])
+
+        self._assert_initial_tags(project)
+
+    def test_tags_survive_configuration_replacement(self, project):
+        util.run_dbt(["run"])
+        self._assert_initial_tags(project)
+        replacement_schema = self.render_schema(fixtures.initial_column_tag_model).replace(
+            "partition_by: id", "partition_by: account_number"
+        )
+        util.write_file(replacement_schema, "models", "schema.yml")
+
+        util.run_dbt(["run"])
+
+        self._assert_initial_tags(project)
+
+
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestColumnTagsMaterializedView(ColumnTagsMixin):
+class TestColumnTagsMaterializedView(DeltaLiveTableColumnTagsMixin):
     relation_type = "materialized_view"
 
 
+@pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestStreamingTableColumnTags(ColumnTagsMixin):
+class TestStreamingTableColumnTags(DeltaLiveTableColumnTagsMixin):
     relation_type = "streaming_table"
+    model_sql = fixtures.base_model_streaming_table
 
     @pytest.fixture(scope="class")
     def seeds(self):
         return {
             "base_model_seed.csv": fixtures.column_tags_seed,
-        }
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "base_model.sql": fixtures.base_model_streaming_table,
-            "schema.yml": fixtures.initial_column_tag_model.replace(
-                "materialized: table", "materialized: streaming_table"
-            ),
         }
 
     @pytest.fixture(scope="class", autouse=True)

@@ -139,6 +139,30 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
         ):
             yield
 
+    @pytest.mark.parametrize(
+        "column_names",
+        [
+            ["Principal", "ActionType", "ObjectType", "ObjectKey"],
+            ["principal", "actiontype", "objecttype", "objectkey"],
+            ["principal", "actionType", "objectType", "objectKey"],
+        ],
+    )
+    def test_standardize_grants_dict_ignores_column_name_case(self, column_names):
+        grants_table = agate.Table(
+            [
+                ["analysts", "SELECT", "TABLE", "catalog.schema.model"],
+                ["engineers", "SELECT", "TABLE", "catalog.schema.model"],
+                ["owner", "OWN", "TABLE", "catalog.schema.model"],
+                ["catalog_user", "USE CATALOG", "CATALOG", "catalog"],
+            ],
+            column_names=column_names,
+        )
+        adapter = DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+        assert adapter.standardize_grants_dict(grants_table) == {
+            "SELECT": ["analysts", "engineers"]
+        }
+
     def test_two_catalog_settings(self):
         with pytest.raises(DbtConfigError) as excinfo:
             self._get_config(
@@ -1581,12 +1605,28 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
-    def _create_mv_config(tags: dict[str, str] | None = None) -> MaterializedViewConfig:
-        return MaterializedViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+    def _create_mv_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> MaterializedViewConfig:
+        return MaterializedViewConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
 
     @staticmethod
-    def _create_st_config(tags: dict[str, str] | None = None) -> StreamingTableConfig:
-        return StreamingTableConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+    def _create_st_config(
+        tags: dict[str, str] | None = None,
+        column_tags: dict[str, dict[str, str]] | None = None,
+    ) -> StreamingTableConfig:
+        return StreamingTableConfig(
+            config={
+                TagsProcessor.name: TagsConfig(set_tags=tags or {}),
+                ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+            }
+        )
 
     @staticmethod
     def _called_macro_names(adapter: Mock) -> list[str]:
@@ -1808,8 +1848,10 @@ class TestDescribeRelationMetadataFetchPlanning:
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
         assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
 
@@ -1821,9 +1863,46 @@ class TestDescribeRelationMetadataFetchPlanning:
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
         assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
+
+    def test_mv_describe_relation_fetches_only_column_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config(column_tags={"id": {"classification": "internal"}})
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_mv_describe_relation_fetches_both_tag_queries_when_both_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+        relation_config = self._create_mv_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+
+    def test_mv_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation()
+
+        results = MaterializedViewAPI._describe_relation(adapter, relation, None)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
 
     def test_st_describe_relation_skips_tag_query_without_tags(self):
         adapter = self._create_adapter()
@@ -1833,8 +1912,10 @@ class TestDescribeRelationMetadataFetchPlanning:
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
         assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
         assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
 
@@ -1846,8 +1927,36 @@ class TestDescribeRelationMetadataFetchPlanning:
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
         assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" not in called_macro_names
+
+    def test_st_describe_relation_fetches_only_column_tags_when_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_st_relation()
+        relation_config = self._create_st_config(column_tags={"id": {"classification": "internal"}})
+
+        results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] is None
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_tags" not in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
+
+    def test_st_describe_relation_fetches_both_tag_queries_when_both_present(self):
+        adapter = self._create_adapter()
+        relation = self._create_st_relation()
+        relation_config = self._create_st_config(
+            tags={"classification": "internal"},
+            column_tags={"id": {"classification": "internal"}},
+        )
+
+        results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
 
     def test_st_describe_relation_fetches_tags_when_relation_config_is_none(self):
         adapter = self._create_adapter()
@@ -1856,8 +1965,10 @@ class TestDescribeRelationMetadataFetchPlanning:
         results = StreamingTableAPI._describe_relation(adapter, relation, None)
 
         assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" in called_macro_names
+        assert "fetch_column_tags" in called_macro_names
 
 
 class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):

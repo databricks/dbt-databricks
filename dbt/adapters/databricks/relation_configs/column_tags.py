@@ -29,13 +29,12 @@ class ColumnTagsConfig(DatabricksComponentConfig):
             col_lower = col.lower()
             # Use case-insensitive comparison for column names
             if col_lower not in other_column_tags_lower:
-                # Column doesn't exist in other, need to set it
                 set_column_tags[col] = tags
             else:
-                # Column exists, check if tags are different
                 _, other_tags = other_column_tags_lower[col_lower]
-                if other_tags != tags:
-                    set_column_tags[col] = tags
+                changed = {k: v for k, v in tags.items() if other_tags.get(k) != v}
+                if changed:
+                    set_column_tags[col] = changed
 
         if set_column_tags:
             return ColumnTagsConfig(set_column_tags=set_column_tags)
