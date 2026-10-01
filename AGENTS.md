@@ -370,6 +370,14 @@ When a macro needs to execute multiple SQL statements (e.g., DELETE followed by 
 
 **Note:** Databricks SQL connector does NOT support semicolon-separated statements in a single execute call. Always return a list.
 
+**Naming convention:** whichever statement is executed via `{% call statement('main') %}` becomes
+the model's `adapter_response` in `run_results.json` (including `rows_affected`). In a multi-statement
+list, `execute_multiple_statements()` names the *last* statement `'main'` — strategies must build any
+preparatory statements first and their real data-writing statement last. Never name a follow-up
+DDL/ALTER statement (tags, constraints, row filters, tblproperties, etc.) `'main'` if it runs after the
+statement that actually changes data — doing so silently discards the real `rows_affected` count. Use a
+descriptive name instead (e.g. `apply_tags`, `apply_constraints`, `apply_row_filter`).
+
 ### Configuration System
 
 Models can be configured with Databricks-specific options:

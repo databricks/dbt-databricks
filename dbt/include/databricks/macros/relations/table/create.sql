@@ -12,7 +12,7 @@
   {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints, contract_enforced, model.name) %}
   {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
   
-  {% call statement('main') %}
+  {% call statement('create_table') %}
     {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
   {% endcall %}
 
@@ -23,7 +23,9 @@
     {{ apply_column_tags(target_relation, column_tags) }}
   {% endif %}
 
-  {% call statement('merge into target') %}
+  {#- Named 'main': this INSERT is the statement that actually writes the model's rows,
+      so its rowcount is what should be reported as the model's adapter response. -#}
+  {% call statement('main') %}
     insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
 {% endmacro %}

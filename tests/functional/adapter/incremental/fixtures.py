@@ -116,6 +116,24 @@ models:
       - name: id
 """
 
+incremental_run_result_sql = """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    incremental_strategy='merge'
+) }}
+
+{% if not is_incremental() %}
+select cast(1 as bigint) as id, 'hello' as msg
+union all
+select cast(2 as bigint) as id, 'goodbye' as msg
+{% else %}
+select cast(2 as bigint) as id, 'updated' as msg
+union all
+select cast(3 as bigint) as id, 'new' as msg
+{% endif %}
+"""
+
 metadata_fetch_column_tags_schema = """
 version: 2
 

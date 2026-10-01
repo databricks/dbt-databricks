@@ -90,11 +90,21 @@ class DatabricksAdapterResponse(AdapterResponse):
 
     @classmethod
     def from_cursor(cls, cursor: Any) -> "DatabricksAdapterResponse":
+        rows_affected = cls._get_rows_affected(cursor)
+        message = "OK" if rows_affected is None else f"OK {rows_affected}"
         return cls(
-            _message="OK",
+            _message=message,
+            rows_affected=rows_affected,
             query_id=getattr(cursor, "query_id", None) or "N/A",
             **_get_job_run_context(),
         )
+
+    @staticmethod
+    def _get_rows_affected(cursor: Any) -> Optional[int]:
+        rowcount = getattr(cursor, "rowcount", None)
+        if isinstance(rowcount, int) and not isinstance(rowcount, bool) and rowcount >= 0:
+            return rowcount
+        return None
 
 
 class CursorWrapper:

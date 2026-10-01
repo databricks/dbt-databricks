@@ -90,28 +90,28 @@
   {# Order matters here because key constraints depend on non-null constraints #} 
   {%- if constraints.unset_constraints %}
     {%- for constraint in constraints.unset_constraints -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_unset_constraint(relation, constraint) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if constraints.unset_non_nulls %}
     {%- for column in constraints.unset_non_nulls -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_unset_non_null_constraint(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if constraints.set_non_nulls %}
     {%- for column in constraints.set_non_nulls -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_set_non_null_constraint(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if constraints.set_constraints %}
     {%- for constraint in constraints.set_constraints -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_set_constraint(relation, constraint) }}
       {%- endcall -%}
     {%- endfor -%}

@@ -22,7 +22,7 @@
     {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}
   {%- endif -%}
   {%- if set_tags and set_tags != [] %}
-    {%- call statement('main') -%}
+    {%- call statement('apply_tags') -%}
        {{ alter_set_tags(relation, set_tags) }}
     {%- endcall -%}
   {%- endif %}
