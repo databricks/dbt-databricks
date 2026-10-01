@@ -521,7 +521,10 @@ class DatabricksConnectionManager(SparkConnectionManager):
                     )
 
                     telemetry_hooks.on_connection_open(
-                        creds, cls.credentials_manager, databricks_connection.http_path
+                        creds,
+                        cls.credentials_manager,
+                        conn.connector_connection,
+                        databricks_connection.http_path,
                     )
                     return conn
                 else:
