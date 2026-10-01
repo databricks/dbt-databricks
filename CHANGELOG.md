@@ -1,4 +1,4 @@
-## dbt-databricks 1.12.6 (TBD)
+## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
 
@@ -8,7 +8,7 @@
 
 - Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
 - Keep the existing table when a V1 view model that replaces it fails to build, matching V2 behavior ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
-- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view. ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
+- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
 - Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 - Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 
@@ -16,9 +16,8 @@
 
 - Raise the `dbt-core` upper bound to `<1.12.6` to include dbt-core 1.12.4 and 1.12.5 ([#1689](https://github.com/databricks/dbt-databricks/pull/1689))
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
-- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
-- Normalize artifact URLs as well as source registries in `check_uv_lock_public_urls.py --fix`, so regenerating `uv.lock` against a mirrored index no longer needs a manual edit (tooling-only, no runtime impact) ([#1675](https://github.com/databricks/dbt-databricks/pull/1675))
 - Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
