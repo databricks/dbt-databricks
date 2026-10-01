@@ -317,6 +317,20 @@ class DatabricksAdapter(SparkAdapter):
     def _v2_to_v1_type(self, catalog_type: str) -> str:
         return self._V2_TO_V1_TYPE.get(catalog_type, catalog_type)
 
+    def standardize_grants_dict(self, grants_table: "Table") -> dict[str, list[str]]:
+        column_names = {name.lower(): name for name in grants_table.column_names}
+        grants_dict: dict[str, list[str]] = {}
+
+        for row in grants_table:
+            grantee = row[column_names["principal"]]
+            privilege = row[column_names["actiontype"]]
+            object_type = row[column_names["objecttype"]]
+
+            if object_type == "TABLE" and privilege != "OWN":
+                grants_dict.setdefault(privilege, []).append(grantee)
+
+        return grants_dict
+
     @property
     def _behavior_flags(self) -> list[BehaviorFlag]:
         return [
@@ -1314,6 +1328,16 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         else:
             results["information_schema.tags"] = None
 
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
+
         if adapter.is_describe_as_json_supported(relation):
             json_metadata = adapter.fetch_json_metadata(relation)
             results["information_schema.views"] = (
@@ -1358,6 +1382,16 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
             results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
         else:
             results["information_schema.tags"] = None
+
+        column_tag_config = (
+            model_config.config.get(ColumnTagsProcessor.name) if model_config else None
+        )
+        if column_tag_config is None or column_tag_config.requires_server_metadata_for_diff():
+            results["information_schema.column_tags"] = adapter.execute_macro(
+                "fetch_column_tags", kwargs=kwargs
+            )
+        else:
+            results["information_schema.column_tags"] = None
 
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 

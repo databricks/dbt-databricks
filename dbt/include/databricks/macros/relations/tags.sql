@@ -35,3 +35,16 @@
     {%- endfor %}
   )
 {%- endmacro -%}
+
+{% macro get_set_tag_statements(relation, set_tags, column_tags) -%}
+  {%- set statements = [] -%}
+  {%- if set_tags -%}
+    {%- do statements.append(alter_set_tags(relation, set_tags)) -%}
+  {%- endif -%}
+  {%- if column_tags and column_tags.set_column_tags -%}
+    {%- for column, tags in column_tags.set_column_tags.items() -%}
+      {%- do statements.append(alter_set_column_tags(relation, column, tags)) -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {{ return(statements) }}
+{%- endmacro -%}

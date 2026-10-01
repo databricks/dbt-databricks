@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-09-23_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -11,16 +11,17 @@ _Last updated: 2026-08-10_
 ```mermaid
 flowchart LR
     PRE[Run pre-hooks] --> WRONG{Existing relation is not a view?}
-    WRONG -- yes --> HANDLE[handle_existing_table]
+    WRONG -- yes --> REPLACE[Replace using shared relation replacement flow]
     WRONG -- no --> CREATE[Create or replace view]
-    HANDLE --> CREATE
+    REPLACE --> GRANTS
     CREATE --> GRANTS[Apply grants]
     GRANTS --> TAGS[Apply table tags]
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> POST[Run post-hooks]
 ```
 
-V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
+V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot. For a
+different existing relation type, it uses the shared [replace flow](replace_flow.md).
 
 ## V2 View Flow
 
@@ -34,7 +35,7 @@ flowchart LR
     NEWTAGS --> NEWCOLTAGS[Apply column tags]
     NEWCOLTAGS --> GRANTS[Apply grants]
 
-    EXIST -- yes --> ALTERABLE{"Not full refresh, existing is view or metric view,\nand view_update_via_alter is true?"}
+    EXIST -- yes --> ALTERABLE{"Not full refresh, existing and target are ordinary views,\nand view_update_via_alter is true?"}
     ALTERABLE -- no --> REPLACE[replace_with_view]
     ALTERABLE -- yes --> HMS{Hive metastore?}
     HMS -- yes --> ERROR[Raise compiler error]

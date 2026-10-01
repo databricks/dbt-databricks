@@ -173,3 +173,16 @@ class TestColumnTagsConfig:
         # Should detect that account_id tag changed
         diff = config.get_diff(other)
         assert diff == ColumnTagsConfig(set_column_tags={"account_id": {"pii": "false"}})
+
+    def test_get_diff__omits_unchanged_keys_within_column(self):
+        config = ColumnTagsConfig(
+            set_column_tags={"col1": {"stable": "1", "moved": "new"}, "col2": {"ok": "yes"}}
+        )
+        other = ColumnTagsConfig(
+            set_column_tags={
+                "col1": {"stable": "1", "moved": "old", "remote_only": "x"},
+                "col2": {"ok": "yes"},
+            }
+        )
+        diff = config.get_diff(other)
+        assert diff == ColumnTagsConfig(set_column_tags={"col1": {"moved": "new"}})
