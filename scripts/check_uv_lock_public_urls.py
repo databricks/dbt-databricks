@@ -10,9 +10,14 @@ from pathlib import Path
 
 PUBLIC_REGISTRY = "https://pypi.org/simple"
 PUBLIC_PACKAGE_URL_PREFIX = "https://files.pythonhosted.org/packages/"
+PUBLIC_PACKAGE_HOST = PUBLIC_PACKAGE_URL_PREFIX.removesuffix("/packages/")
 REGISTRY_PATTERN = re.compile(r'registry = "([^"]+)"')
 SOURCE_REGISTRY_PATTERN = re.compile(r'(source = \{ registry = ")([^"]+)(" \})')
 URL_PATTERN = re.compile(r'url = "([^"]+)"')
+# A mirror serves the same artifact tree, so only the host differs: the /packages/ path and
+# the hash recorded next to it are identical to public PyPI's. Anything not shaped like that
+# is left alone for the check to report rather than rewritten on a guess.
+MIRROR_PACKAGE_URL_PATTERN = re.compile(r'(url = ")https?://[^"/]+(/packages/[^"]+")')
 
 
 def check_uv_lock(lockfile: Path) -> list[str]:
@@ -30,21 +35,31 @@ def check_uv_lock(lockfile: Path) -> list[str]:
     return failures
 
 
-def fix_uv_lock(lockfile: Path) -> int:
+def fix_uv_lock(lockfile: Path) -> tuple[int, int]:
     contents = lockfile.read_text()
-    change_count = 0
+    registry_count = 0
+    url_count = 0
 
     def normalize_registry(match: re.Match[str]) -> str:
-        nonlocal change_count
+        nonlocal registry_count
         if match.group(2) == PUBLIC_REGISTRY:
             return match.group(0)
-        change_count += 1
+        registry_count += 1
         return f"{match.group(1)}{PUBLIC_REGISTRY}{match.group(3)}"
 
+    def normalize_package_url(match: re.Match[str]) -> str:
+        nonlocal url_count
+        rewritten = f"{match.group(1)}{PUBLIC_PACKAGE_HOST}{match.group(2)}"
+        if rewritten == match.group(0):
+            return match.group(0)
+        url_count += 1
+        return rewritten
+
     normalized = SOURCE_REGISTRY_PATTERN.sub(normalize_registry, contents)
-    if change_count:
+    normalized = MIRROR_PACKAGE_URL_PATTERN.sub(normalize_package_url, normalized)
+    if registry_count or url_count:
         lockfile.write_text(normalized)
-    return change_count
+    return registry_count, url_count
 
 
 def main() -> int:
@@ -52,7 +67,7 @@ def main() -> int:
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="normalize source registries before checking the lock file",
+        help="normalize source registries and package URLs before checking the lock file",
     )
     parser.add_argument("lockfile", nargs="?", type=Path, default=Path("uv.lock"))
     args = parser.parse_args()
@@ -63,8 +78,12 @@ def main() -> int:
         return 1
 
     if args.fix:
-        change_count = fix_uv_lock(lockfile)
-        print(f"Normalized {change_count} source registry entries in {lockfile}", flush=True)
+        registry_count, url_count = fix_uv_lock(lockfile)
+        print(
+            f"Normalized {registry_count} source registry entries and "
+            f"{url_count} package URLs in {lockfile}",
+            flush=True,
+        )
 
     failures = check_uv_lock(lockfile)
     if failures:

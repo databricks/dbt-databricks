@@ -45,6 +45,71 @@ base_model_streaming_table = """
 SELECT * FROM stream {{ ref('base_model_seed') }}
 """
 
+drop_tagged_column_model = """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    on_schema_change='sync_all_columns',
+    tblproperties={
+        'delta.columnMapping.mode': 'name',
+        'delta.minReaderVersion': '2',
+        'delta.minWriterVersion': '5',
+    }
+) }}
+{% if not is_incremental() %}
+select 1 as id, 'abc123' as account_number, 'x@y.com' as email
+{% else %}
+select 1 as id, 'abc123' as account_number
+{% endif %}
+"""
+
+drop_tagged_column_initial_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+        databricks_tags:
+          pii: "true"
+      - name: email
+        databricks_tags:
+          pii: "true"
+          contact: "true"
+"""
+
+drop_tagged_column_updated_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+        databricks_tags:
+          pii: "true"
+"""
+
+drop_governed_tagged_column_initial_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+      - name: email
+        databricks_tags:
+          {tag_key}: "true"
+"""
+
+drop_governed_tagged_column_updated_schema = """
+version: 2
+models:
+  - name: drop_model
+    columns:
+      - name: id
+      - name: account_number
+"""
+
 snapshot_column_tag_sql = """
 {% snapshot snapshot %}
     {{

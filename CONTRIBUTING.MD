@@ -46,19 +46,21 @@ See [docs/dbt-databricks-dev.md](docs/dbt-databricks-dev.md).
 
 ## Code Style
 
-We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79. You can run [`tox` linter command](#linting) to automatically format the source code before committing your changes.
+We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with one exception: lines can be up to 100 characters in length, not 79. You can run the [code-quality command](#linting) to automatically format the source code before committing your changes.
 
 ### Linting
 
-This project uses [Black](https://pypi.org/project/black/), [flake8](https://flake8.pycqa.org/en/latest/), and [mypy](https://www.mypy-lang.org/) for linting and static type checks. Run all three with the `linter` command and commit before opening your pull request.
+This project uses [Ruff](https://docs.astral.sh/ruff/) (formatting + linting) and [mypy](https://www.mypy-lang.org/) for static type checks, run via pre-commit. Run them all with the `code-quality` command and commit before opening your pull request.
 
 ```
-tox -e linter
+hatch run code-quality
 ```
 
 To simplify reviews you can commit any format changes in a separate commit.
 
 Alternatively, [install pre-commit hooks](https://pre-commit.com/#3-install-the-git-hook-scripts) and the linting will be run automatically prior to accepting your commit.
+
+See [docs/dbt-databricks-dev.md](docs/dbt-databricks-dev.md) for the full command reference.
 
 ## Sign your work
 
@@ -118,21 +120,21 @@ If you set your `user.name` and `user.email` git configs, you can sign your comm
 Unit tests do not require a Databricks account. Please confirm that your pull request passes our unit test suite before opening a pull request.
 
 ```bash
-tox -e unit
+hatch run unit
 ```
 
 ## Functional Tests
 
 Functional tests require a Databricks account with access to a workspace containing three specific compute resources as detailed below.
-The `tox` commands to run each set of these tests appear below:
+The commands to run each set of these tests appear below:
 
-| Compute Type        | Unity Catalog | Command                                         |
-| ------------------- | ------------- | ----------------------------------------------- |
-| SQL Warehouse       | Yes           | `tox -e integration-databricks-uc-sql-endpoint` |
-| All Purpose Cluster | Yes           | `tox -e integration-databricks-uc-cluster`      |
-| All Purpose         | No            | `tox -e integration-databricks-cluster`         |
+| Compute Type        | Unity Catalog | Command                        |
+| ------------------- | ------------- | ------------------------------ |
+| SQL Warehouse       | Yes           | `hatch run sqlw-e2e-dev`       |
+| All Purpose Cluster | Yes           | `hatch run uc-cluster-e2e-dev` |
+| All Purpose         | No            | `hatch run cluster-e2e-dev`    |
 
-These tests are configured with environment variables that `tox` reads from a file called [test.env](/test.env.example) which you can copy from the example:
+These tests are configured with environment variables read from a file called [test.env](/test.env.example) which you can copy from the example:
 
 ```sh
 cp test.env.example test.env

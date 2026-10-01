@@ -31,31 +31,6 @@ def verify_temp_table_cleaned(project, suffix):
     assert len(tmp_tables) == 0
 
 
-class SchemaNameVarMixin:
-    """Make the schema-change tests resilient to dbt-core test-isolation leakage.
-
-    These classes don't inherit ``BasePythonModelTests`` and run plain ``dbt run``. On
-    dbt-core 1.11.2 a sibling class's ``test_source`` schema.yml -- whose ``schema``
-    renders ``var(env_var('DBT_TEST_SCHEMA_NAME_VARIABLE'))`` -- can bleed into these
-    classes' parse when they run after one in the same xdist worker (``--dist=loadfile``),
-    failing with ``EnvVarMissingError``. Rendering that source needs both the env var
-    (read from the invocation context) and the ``test_run_schema`` var. Schema-yaml
-    rendering resolves ``var()`` from CLI vars only, so the var must be passed via
-    ``--vars`` -- exactly as dbt-core's ``BasePythonModelTests`` does -- not via
-    project-level ``vars``.
-    """
-
-    @pytest.fixture(scope="class", autouse=True)
-    def schema_name_env_var(self):
-        os.environ["DBT_TEST_SCHEMA_NAME_VARIABLE"] = "test_run_schema"
-        yield
-        os.environ.pop("DBT_TEST_SCHEMA_NAME_VARIABLE", None)
-
-    @staticmethod
-    def schema_name_vars(project):
-        return ["--vars", json.dumps({"test_run_schema": project.test_schema})]
-
-
 class PythonModelDataMixin:
     """Assert that the built ``my_python_model`` holds the expected rows.
 
@@ -127,7 +102,7 @@ class TestPythonIncrementalModel(BasePythonIncrementalTests):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchema(SchemaNameVarMixin):
+class TestChangingSchema:
     """Test Python model schema changes using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -139,14 +114,13 @@ class TestChangingSchema(SchemaNameVarMixin):
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema(self, project):
-        schema_vars = self.schema_name_vars(project)
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         util.write_file(
             override_fixtures.simple_python_model_v2,
             project.project_root + "/models",
             "simple_python_model.py",
         )
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         columns = project.run_sql(
             "SELECT column_name FROM {database}.information_schema.columns "
             "WHERE table_schema = '{schema}' AND table_name = 'simple_python_model' "
@@ -158,7 +132,7 @@ class TestChangingSchema(SchemaNameVarMixin):
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaIncremental(SchemaNameVarMixin):
+class TestChangingSchemaIncremental:
     """Test Python incremental schema changes using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -174,10 +148,9 @@ class TestChangingSchemaIncremental(SchemaNameVarMixin):
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_schema_via_incremental(self, project):
-        schema_vars = self.schema_name_vars(project)
-        util.run_dbt(["seed", *schema_vars])
-        util.run_dbt(["run", *schema_vars])
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["seed"])
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
 
         util.check_relations_equal(project.adapter, ["incremental_model", "expected_incremental"])
 
@@ -459,7 +432,7 @@ class TestPythonModelAccessControlList:
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaV2(SchemaNameVarMixin, MaterializationV2Mixin):
+class TestChangingSchemaV2(MaterializationV2Mixin):
     """Test Python model schema changes with V2 materialization using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -471,20 +444,19 @@ class TestChangingSchemaV2(SchemaNameVarMixin, MaterializationV2Mixin):
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
-        schema_vars = self.schema_name_vars(project)
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         util.write_file(
             override_fixtures.simple_python_model_v2,
             project.project_root + "/models",
             "simple_python_model.py",
         )
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         verify_temp_tables_cleaned(project)
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
-class TestChangingSchemaIncrementalV2(SchemaNameVarMixin, MaterializationV2Mixin):
+class TestChangingSchemaIncrementalV2(MaterializationV2Mixin):
     """Test Python incremental schema changes with V2 materialization using serverless compute."""
 
     @pytest.fixture(scope="class")
@@ -496,14 +468,13 @@ class TestChangingSchemaIncrementalV2(SchemaNameVarMixin, MaterializationV2Mixin
         return {"models": {"+create_notebook": "true"}}
 
     def test_changing_unique_tmp_table_suffix(self, project):
-        schema_vars = self.schema_name_vars(project)
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         util.write_file(
             override_fixtures.simple_incremental_python_model_v2,
             project.project_root + "/models",
             "incremental_model.py",
         )
-        util.run_dbt(["run", *schema_vars])
+        util.run_dbt(["run"])
         verify_temp_tables_cleaned(project)
 
 
@@ -587,7 +558,7 @@ class TestAllPurposeClusterCommandAPI(PythonModelDataMixin, BasePythonModelTests
 
 
 @pytest.mark.python
-class TestJobClusterMissingConfig(SchemaNameVarMixin):
+class TestJobClusterMissingConfig:
     """job_cluster submission requires job_cluster_config; omitting it fails the run."""
 
     @pytest.fixture(scope="class")
@@ -595,12 +566,12 @@ class TestJobClusterMissingConfig(SchemaNameVarMixin):
         return {"jc_no_config.py": override_fixtures.job_cluster_missing_config_model}
 
     def test_missing_job_cluster_config_fails(self, project):
-        util.run_dbt(["run", *self.schema_name_vars(project)], expect_pass=False)
+        util.run_dbt(["run"], expect_pass=False)
 
 
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
-class TestAllPurposeClusterMissingClusterId(SchemaNameVarMixin):
+class TestAllPurposeClusterMissingClusterId:
     """all_purpose_cluster needs a resolvable cluster_id; on a SQL warehouse connection
     neither http_path nor cluster_id resolves to one, so the run fails."""
 
@@ -609,7 +580,7 @@ class TestAllPurposeClusterMissingClusterId(SchemaNameVarMixin):
         return {"ap_no_cluster.py": override_fixtures.all_purpose_missing_cluster_model}
 
     def test_missing_cluster_id_fails(self, project):
-        util.run_dbt(["run", *self.schema_name_vars(project)], expect_pass=False)
+        util.run_dbt(["run"], expect_pass=False)
 
 
 @pytest.mark.python

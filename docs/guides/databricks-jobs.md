@@ -1,6 +1,8 @@
 # Running a dbt project as a job in Databricks Jobs
 
-Databricks Lakeflow Jobs is a highly-reliable, managed orchestrator that lets you author and schedule DAGs of notebooks, Python scripts as well as dbt projects as production jobs.
+_Last updated: 2026-08-09_
+
+Databricks Lakeflow Jobs is a managed orchestrator that lets you author and schedule DAGs of notebooks, Python scripts, and dbt projects as production jobs.
 
 In this guide, you will learn how to update an existing dbt project to run as a job, retrieve dbt run artifacts using the Jobs API and debug common issues.
 

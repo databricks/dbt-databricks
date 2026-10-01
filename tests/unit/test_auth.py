@@ -1,6 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from unittest import mock
 
 import pytest
+from dbt_common.exceptions import DbtConfigError
 
 from dbt.adapters.databricks.credentials import (
     DatabricksCredentialManager,
@@ -49,6 +52,39 @@ class TestParseTimeIsOffline:
                 **_COMMON_KWARGS,
             )
             mock_config.assert_not_called()
+
+    def test_env_oidc_credentials_init_does_not_call_config(self):
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            DatabricksCredentials(client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS)
+            mock_config.assert_not_called()
+
+
+class TestValidateCreds:
+    """`validate_creds` runs at connect time and is the only place that rejects
+    an unusable combination of profile fields before the SDK is involved."""
+
+    def test_oidc_auth_types_need_no_token(self):
+        for auth_type in ("env-oidc", "file-oidc"):
+            creds = DatabricksCredentials(client_id="cid", auth_type=auth_type, **_COMMON_KWARGS)
+            creds.validate_creds()
+
+    def test_unknown_auth_type_without_token_raises(self):
+        creds = DatabricksCredentials(
+            client_id="cid", auth_type="not-a-real-auth-type", **_COMMON_KWARGS
+        )
+        with pytest.raises(DbtConfigError, match="must be one of"):
+            creds.validate_creds()
+
+    @pytest.mark.parametrize("auth_type", ["env-oidc", "file-oidc"])
+    def test_oidc_without_client_id_raises(self, auth_type):
+        creds = DatabricksCredentials(auth_type=auth_type, **_COMMON_KWARGS)
+        with pytest.raises(DbtConfigError, match="'client_id' is required"):
+            creds.validate_creds()
+
+    @pytest.mark.parametrize("auth_type", ["env-oidc", "file-oidc"])
+    def test_token_removes_the_client_id_requirement(self, auth_type):
+        creds = DatabricksCredentials(token="foo", auth_type=auth_type, **_COMMON_KWARGS)
+        creds.validate_creds()
 
 
 class TestEnsureConfigTriggersTheRightAuth:
@@ -122,6 +158,50 @@ class TestEnsureConfigTriggersTheRightAuth:
                 auth_type="azure-client-secret",
             )
 
+    def test_env_oidc_uses_oidc_auth(self):
+        creds = DatabricksCredentials(client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="env-oidc",
+            )
+
+    def test_file_oidc_uses_oidc_auth(self):
+        creds = DatabricksCredentials(client_id="cid", auth_type="file-oidc", **_COMMON_KWARGS)
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="file-oidc",
+            )
+
+    def test_file_oidc_forwards_token_filepath(self):
+        creds = DatabricksCredentials(
+            client_id="cid",
+            auth_type="file-oidc",
+            oidc_token_filepath="/var/run/secrets/token",
+            **_COMMON_KWARGS,
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"],
+                client_id="cid",
+                auth_type="file-oidc",
+                oidc_token_filepath="/var/run/secrets/token",
+            )
+
+    def test_token_takes_precedence_over_oidc_auth_type(self):
+        creds = DatabricksCredentials(
+            token="foo", client_id="cid", auth_type="env-oidc", **_COMMON_KWARGS
+        )
+        with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
+            creds.authenticate().config
+            mock_config.assert_called_once_with(host=_COMMON_KWARGS["host"], token="foo")
+
     def test_falls_back_to_second_method_when_first_raises(self):
         creds = DatabricksCredentials(
             client_id="cid",
@@ -138,6 +218,58 @@ class TestEnsureConfigTriggersTheRightAuth:
             assert mock_config.call_args_list[0].kwargs["auth_type"] == "azure-client-secret"
             # Second call: oauth-m2m fallback.
             assert mock_config.call_args_list[1].kwargs["auth_type"] == "oauth-m2m"
+
+    def test_config_initializes_once_when_accessed_concurrently(self):
+        creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
+        manager = creds.authenticate()
+        workers = 8
+        start = Barrier(workers)
+        constructors = Barrier(workers)
+        config = mock.MagicMock()
+
+        class CoordinatedLock:
+            def __init__(self):
+                self.arrivals = 0
+                self._arrivals_lock = Lock()
+                self._lock = Lock()
+                self._all_callers = Barrier(workers)
+
+            def __enter__(self):
+                with self._arrivals_lock:
+                    self.arrivals += 1
+                self._all_callers.wait()
+                self._lock.acquire()
+
+            def __exit__(self, *_args):
+                self._lock.release()
+
+        initialization_lock = CoordinatedLock()
+
+        def build_config(**_kwargs):
+            if initialization_lock.arrivals == 0:
+                constructors.wait()
+            return config
+
+        def get_config(_worker):
+            start.wait()
+            return manager.config
+
+        with (
+            mock.patch(
+                "dbt.adapters.databricks.credentials._CONFIG_INITIALIZATION_LOCK",
+                initialization_lock,
+                create=True,
+            ),
+            mock.patch(
+                "dbt.adapters.databricks.credentials.Config", side_effect=build_config
+            ) as mock_config,
+        ):
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                configs = list(executor.map(get_config, range(workers)))
+
+        assert all(result is config for result in configs)
+        assert initialization_lock.arrivals == workers
+        assert mock_config.call_count == 1
 
 
 @pytest.mark.skip(reason="Need to mock requests to OIDC")

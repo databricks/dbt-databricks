@@ -9,9 +9,8 @@
     {{ exceptions.raise_not_implemented('get_replace_sql not implemented for target of table') }}
   {% endif %}
 
-  {#- Metric views always support CREATE OR REPLACE (no delta/file_format dependency) -#}
-  {#- Note: existing relation is typed as VIEW from DB, so check target for metric_view -#}
-  {% if target_relation.is_metric_view %}
+  {#- CREATE OR REPLACE VIEW WITH METRICS is same-type only; UC lists metric views as METRIC_VIEW. -#}
+  {% if target_relation.is_metric_view and existing_relation.is_metric_view %}
     {{ return(get_replace_metric_view_sql(target_relation, sql)) }}
   {% endif %}
 

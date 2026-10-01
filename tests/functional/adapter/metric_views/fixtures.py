@@ -114,3 +114,36 @@ measures:
   - name: order_count
     expr: count(1)
 """
+
+order_metrics_as_table = """
+{{ config(materialized='table') }}
+select * from {{ ref('source_orders') }}
+"""
+
+order_metrics_as_view = """
+{{ config(materialized='view') }}
+select * from {{ ref('source_orders') }}
+"""
+
+
+def query_uc_table_type(project, identifier: str):
+    row = project.run_sql(
+        "select table_type from `system`.`information_schema`.`tables`"
+        f" where table_catalog = '{project.database}'"
+        f" and table_schema = '{project.test_schema}'"
+        f" and table_name = '{identifier}'",
+        fetch="one",
+    )
+    return row[0] if row else None
+
+
+def query_schema_relation_names(project, like: str) -> list[str]:
+    rows = project.run_sql(
+        "select table_name from `system`.`information_schema`.`tables`"
+        f" where table_catalog = '{project.database}'"
+        f" and table_schema = '{project.test_schema}'"
+        f" and table_name like '{like}'"
+        " order by table_name",
+        fetch="all",
+    )
+    return [row[0] for row in rows]
