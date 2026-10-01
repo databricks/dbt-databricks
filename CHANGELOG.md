@@ -2,6 +2,7 @@
 
 ### Features
 
+- Add opt-in `skip_merge_on_empty_source` incremental config that skips the incremental run when the model returns no rows, for `append`, `delete+insert`, and `merge` without `not_matched_by_source_action` with `on_schema_change: ignore`; configuration changes are applied on the next run with data ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
 - Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter (thanks @Gerrit-K!) ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
 
 ### Fixes

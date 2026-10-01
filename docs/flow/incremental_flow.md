@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-09-24_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -27,7 +27,9 @@ flowchart LR
     REPLACETAGS --> REPLACECOLTAGS[Apply column tags]
     REPLACECOLTAGS --> REPLACEDOCS[Persist docs]
 
-    REPLACE -- no --> DYNAMIC[Set dynamic overwrite mode when required]
+    REPLACE -- no --> SKIP{"skip_merge_on_empty_source eligible\nand model SQL returns no rows?"}
+    SKIP -- yes --> SKIPPED[No-op main statement; apply grants]
+    SKIP -- no --> DYNAMIC[Set dynamic overwrite mode when required]
     DYNAMIC --> DETECT[Detect configuration changes when enabled]
     DETECT --> TEMP[Create temporary relation from model]
     TEMP --> SCHEMA[Process schema changes]
@@ -42,11 +44,19 @@ flowchart LR
     DOCS --> GRANTS
     GRANTS --> OPT[Run optimize]
     OPT --> POST[Run post-hooks]
+    SKIPPED --> POST
     POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
 
 For an ordinary existing table, configuration changes are detected before the temporary relation
 is built but are applied only after the incremental SQL runs. This ordering differs from V2.
+
+With `skip_merge_on_empty_source` enabled, a SQL model whose strategy is `append`, `delete+insert`,
+or `merge` without `not_matched_by_source_action`, and whose `on_schema_change` is `ignore`, first
+probes the model SQL with `LIMIT 1`. When it returns no rows, the run skips everything from dynamic
+overwrite mode through persist docs and optimize, so configuration changes are deferred until the
+next run with data. Other strategies ignore the flag because an empty source can still delete or
+overwrite rows.
 
 ## New Incremental Flow
 
@@ -67,7 +77,9 @@ flowchart LR
     DROPNEEDED -- no --> CREATE
     DROP --> CREATE
 
-    SHOULDREPLACE -- no --> DYNAMIC[Set dynamic overwrite mode when required]
+    SHOULDREPLACE -- no --> SKIP{"skip_merge_on_empty_source eligible\nand intermediate relation is empty?"}
+    SKIP -- yes --> SKIPPED[No-op main statement; apply grants]
+    SKIP -- no --> DYNAMIC[Set dynamic overwrite mode when required]
     DYNAMIC --> SCHEMA[Process schema changes]
     SCHEMA --> CONFIG["When incremental_apply_config_changes is enabled,<br/>process before merge: table tags; tblproperties;<br/>liquid clustering; relation comment; column comments;<br/>column tags; constraints; column masks; row filter"]
     CONFIG --> MERGE[Apply incremental strategy]
@@ -79,9 +91,13 @@ flowchart LR
     OPT --> PYCLEAN{Python model?}
     PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
     PYCLEAN -- no --> POST[Run post-hooks]
+    SKIPPED --> POST
     CLEAN --> POST
     POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
+
+The `skip_merge_on_empty_source` check matches the Existing path, except that it runs after the
+intermediate relation is created and probes that relation instead of the model SQL.
 
 V2 replaces only DLT relations, views, and full-refresh targets. An ordinary existing table takes
 the incremental branch even when its configuration changes. Safe staging is selected only when
