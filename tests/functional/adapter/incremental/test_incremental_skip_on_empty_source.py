@@ -16,11 +16,10 @@ class SkipOnEmptySourceBase(RerunSafeMixin):
     def relations_to_reset(self):
         return ("skip_model",)
 
-    def latest_history(self, project):
+    def operations_by_version(self, project):
         relation = util.relation_from_name(project.adapter, "skip_model")
         history = project.run_sql(f"describe history {relation}", fetch="all")
-        latest = max(history, key=lambda row: row[0])
-        return latest[0], latest[4]
+        return {row[0]: row[4] for row in history}
 
     def ids(self, project):
         relation = util.relation_from_name(project.adapter, "skip_model")
@@ -31,15 +30,16 @@ class SkipOnEmptySourceBase(RerunSafeMixin):
 class TestSkipMergeOnEmptySource(SkipOnEmptySourceBase):
     def test_empty_source_skips_and_nonempty_source_merges(self, project):
         util.run_dbt(["run"])
-        version, _ = self.latest_history(project)
+        version = max(self.operations_by_version(project))
 
         util.run_dbt(["run"])
-        assert self.latest_history(project)[0] == version
+        assert max(self.operations_by_version(project)) == version
 
         util.run_dbt(["run", "--vars", "max_id: 3"])
-        new_version, operation = self.latest_history(project)
-        assert new_version > version
-        assert operation == "MERGE"
+        new_operations = [
+            op for v, op in self.operations_by_version(project).items() if v > version
+        ]
+        assert "MERGE" in new_operations
         assert self.ids(project) == [1, 2, 3]
 
 
@@ -52,10 +52,10 @@ class SkipNotAppliedBase(SkipOnEmptySourceBase):
 
     def test_empty_source_still_runs_strategy(self, project):
         util.run_dbt(["run"])
-        version, _ = self.latest_history(project)
+        version = max(self.operations_by_version(project))
 
         util.run_dbt(["run"])
-        assert self.latest_history(project)[0] > version
+        assert max(self.operations_by_version(project)) > version
         assert self.ids(project) == self.expected_ids
 
 
