@@ -1,0 +1,127 @@
+# Engineer-bot follow-up — responds to review-thread replies on the engineer's
+# own fix PRs (re-evaluates, applies a fixup or replies/escalates, pushes back).
+# Runs catch-up over the PR's open threads. INERT until .bot/SETUP.md is complete.
+#
+# Self-contained / INLINED (public repo can't `uses:` the internal engine's
+# composites); protected runner + JFrog mirror.
+name: Engineer Bot — Follow-up
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  # `engineer-bot` label applied → catch-up over pre-existing review threads.
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write        # push fixup commits to the PR branch
+  pull-requests: write   # post inline replies
+  id-token: write        # JFrog OIDC exchange (setup-jfrog)
+
+concurrency:
+  group: engineer-bot-followup-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  followup:
+    # Skip forks (model/App secrets). Operate only on non-fork OPEN PRs carrying
+    # the `engineer-bot` label. Two event paths:
+    #   1. review_comment: trusted commenters only — humans OWNER/MEMBER/COLLABORATOR
+    #      (any GitHub user can comment on a public repo, and this runs with secrets);
+    #      bots ONLY by login allowlist (reviewer-bot/Copilot — author_association NONE
+    #      by design). Skip engineer-bot's own comments + reviewer reconcile replies.
+    #   2. pull_request (labeled): the `engineer-bot` label was applied by a human
+    #      (non-Bot labeler; applying a label needs triage+).
+    if: >-
+      github.event.pull_request.head.repo.fork == false
+      && github.event.pull_request.state == 'open'
+      && (
+        (
+          github.event_name == 'pull_request_review_comment'
+          && contains(github.event.pull_request.labels.*.name, 'engineer-bot')
+          && !startsWith(github.event.comment.user.login, 'peco-engineer-bot')
+          && !contains(github.event.comment.body, '<!-- pr-review-bot:v1 reconcile -->')
+          && (
+            contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+            || (
+              github.event.comment.user.type == 'Bot'
+              && (
+                startsWith(github.event.comment.user.login, 'peco-review-bot')
+                || startsWith(github.event.comment.user.login, 'copilot-pull-request-reviewer')
+                || startsWith(github.event.comment.user.login, 'Copilot')
+              )
+            )
+          )
+        )
+        || (
+          github.event_name == 'pull_request'
+          && github.event.action == 'labeled'
+          && github.event.label.name == 'engineer-bot'
+          && github.event.sender.type != 'Bot'
+          && !startsWith(github.event.sender.login, 'peco-engineer-bot')
+        )
+      )
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: [linux-ubuntu-latest]
+    timeout-minutes: 45
+    steps:
+      - name: Mint engineer-bot App token
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+          private-key: ${{ secrets.ENGINEER_BOT_PRIVATE_KEY }}
+
+      - name: Checkout PR head branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          # The PR head BRANCH (not the merge ref) so fixups push back to it.
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ steps.token.outputs.token }}
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Configure JFrog mirror (pip + npm)
+        uses: ./.github/actions/setup-jfrog
+        with:
+          configure-pip: 'true'
+          configure-npm: 'true'
+
+      - name: Install bot engine (pinned ref) + Claude SDK/CLI
+        env:
+          ENGINE_PAT: ${{ secrets.BOT_ENGINE_PAT }}
+          ENGINE_REF: 9d63045eb40ec3f9fc61090411f4672373c28770
+        run: |
+          set -euo pipefail
+          : "${ENGINE_REF:?pin the engine to a tag/SHA before activation (refusing @main)}"
+          python -m pip install --upgrade pip
+          pip install "databricks-bot-engine @ git+https://x-access-token:${ENGINE_PAT}@github.com/databricks/databricks-bot-engine@${ENGINE_REF}"
+          pip install 'claude-agent-sdk==0.2.102'
+          npm install -g @anthropic-ai/claude-code@2.1.61
+          pip install hatch
+
+      - name: Configure push remote (App token)
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Run engineer follow-up (catch-up over all unaddressed threads)
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+          MODEL_ENDPOINT:   https://${{ secrets.DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-4-8/invocations
+          REPO_RULES_FILES: AGENTS.md   # repo conventions (dbt uses AGENTS.md); needs ENGINE_REF incl. bot-engine #71
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TEST_REPO_ROOT: ${{ github.workspace }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: python -m databricks_bot_engine.engineer_bot.run --phase followup --bot .bot
