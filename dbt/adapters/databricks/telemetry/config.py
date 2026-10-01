@@ -5,8 +5,7 @@ from databricks.sql.common.feature_flag import FeatureFlagsContextFactory
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 
 ENABLE_FLAG = "enable_dbt_telemetry"
-CONNECTOR_ENABLE_FLAG = "enable_telemetry"
-CONNECTOR_FORCE_ENABLE_FLAG = "force_enable_telemetry"
+FORCE_ENABLE_FLAG = "force_enable_dbt_telemetry"
 SERVER_ENABLE_FLAG = (
     "databricks.partnerplatform.clientConfigsFeatureFlags.enableTelemetryForDbtDatabricks"
 )
@@ -35,15 +34,12 @@ def is_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
     return _as_bool(_connection_parameters(credentials).get(ENABLE_FLAG))
 
 
+def is_force_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
+    return _as_bool(_connection_parameters(credentials).get(FORCE_ENABLE_FLAG))
+
+
 def is_collection_enabled(credentials: Optional[DatabricksCredentials]) -> bool:
-    if credentials is None:
-        return False
-    params = _connection_parameters(credentials)
-    return (
-        is_enabled(credentials)
-        or _as_bool(params.get(CONNECTOR_FORCE_ENABLE_FLAG))
-        or _as_bool(params.get(CONNECTOR_ENABLE_FLAG), default=True)
-    )
+    return is_force_enabled(credentials) or is_enabled(credentials)
 
 
 def is_enabled_for_connection(
@@ -51,9 +47,9 @@ def is_enabled_for_connection(
 ) -> bool:
     if credentials is None or connection is None:
         return False
-    if is_enabled(credentials) or _as_bool(connection.force_enable_telemetry):
+    if is_force_enabled(credentials):
         return True
-    if not _as_bool(connection.enable_telemetry):
+    if not is_enabled(credentials):
         return False
     try:
         context = FeatureFlagsContextFactory.get_instance(connection)
