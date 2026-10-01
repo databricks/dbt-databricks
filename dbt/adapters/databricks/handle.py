@@ -14,7 +14,6 @@ from dbt_common.exceptions import DbtConfigError, DbtRuntimeError
 
 import databricks.sql as dbsql
 from databricks.sql.client import Connection, Cursor
-from databricks.sql.telemetry.telemetry_client import TelemetryHelper
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
@@ -35,9 +34,6 @@ FailLogOp = Callable[[Exception], str]
 
 # Set by the Databricks Jobs `dbt_task` runtime on the dbt CLI subprocess.
 _DBT_TASK_HEADERS_ENV = "DBT_DATABRICKS_HTTP_SESSION_HEADERS"
-_DBT_DATABRICKS_TELEMETRY_FLAG = (
-    "databricks.partnerplatform.clientConfigsFeatureFlags.enableTelemetryForDbtDatabricks"
-)
 
 
 def _get_job_run_context() -> dict[str, Optional[str]]:
@@ -223,6 +219,10 @@ class DatabricksHandle:
     def session_id(self) -> str:
         return self._conn.get_session_id_hex()
 
+    @property
+    def connector_connection(self) -> Connection:
+        return self._conn
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
         """
         Execute a SQL statement on the current session with optional bindings.
@@ -281,8 +281,6 @@ class DatabricksHandle:
         Create a new DatabricksHandle from the given connection arguments.
         """
 
-        # The connector reads this attribute when it fetches telemetry flags during connect.
-        TelemetryHelper.TELEMETRY_FEATURE_FLAG_NAME = _DBT_DATABRICKS_TELEMETRY_FLAG
         conn = dbsql.connect(**conn_args)
         if not conn:
             logger.warning(f"Failed to create connection for {conn_args.get('http_path')}")
