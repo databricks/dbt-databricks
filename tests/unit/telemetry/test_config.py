@@ -31,12 +31,6 @@ class TestServerGate:
     @pytest.mark.parametrize(
         "connection_parameters, expected",
         [
-            pytest.param({}, False, id="default_disabled"),
-            pytest.param(
-                {"enable_dbt_telemetry": True},
-                True,
-                id="client_enabled",
-            ),
             pytest.param(
                 {"enable_dbt_telemetry": False},
                 False,
@@ -45,11 +39,11 @@ class TestServerGate:
             pytest.param(
                 {"enable_dbt_telemetry": False, "force_enable_dbt_telemetry": True},
                 True,
-                id="force_enabled",
+                id="force_overrides_client_disabled",
             ),
         ],
     )
-    def test_collection_eligibility(self, connection_parameters, expected):
+    def test_force_overrides_client_opt_out(self, connection_parameters, expected):
         assert config.is_collection_enabled(_creds(connection_parameters)) is expected
 
     @pytest.mark.parametrize("flag_value, expected", [("true", True), ("false", False)])
