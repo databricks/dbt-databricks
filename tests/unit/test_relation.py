@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from dbt.adapters.base.relation import FunctionConfig
 from dbt_common.contracts.constraints import ConstraintType
@@ -390,8 +392,11 @@ class TestConstraints:
         relation.add_constraint(check_constraint)
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
+        named_pk = replace(
+            pk_constraint, name=synthesize_constraint_name(pk_constraint, relation.identifier)
+        )
         assert relation.alter_constraints == [check_constraint]
-        assert relation.create_constraints == [custom_constraint, pk_constraint]
+        assert relation.create_constraints == [custom_constraint, named_pk]
 
     def test_enrich_relation__returns_a_copy(self, relation):
         enriched = relation.enrich([])
@@ -505,7 +510,7 @@ class TestIdentifierLengthValidation:
 
 
 class TestRenderConstraintsForCreate:
-    """Unnamed PK/FK get synthesize_constraint_name on the V2 CREATE path."""
+    """Unnamed PK/FK get synthesize_constraint_name when enriched onto a V2 create relation."""
 
     def test_unnamed_primary_key_gets_synthesized_name(self):
         pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
@@ -541,6 +546,21 @@ class TestRenderConstraintsForCreate:
         )
         sql = enriched.render_constraints_for_create()
         assert "CONSTRAINT pk_explicit" in sql
+
+    def test_enrich_names_each_constraint_without_mutating_input(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        rel = DatabricksRelation.create(identifier="child", type="table")
+
+        [named] = rel.enrich([pk]).create_constraints
+
+        assert named.render().startswith(f"CONSTRAINT {synthesize_constraint_name(pk, 'child')} ")
+        assert pk.name is None
+
+    def test_materialized_view_keeps_unnamed_primary_key(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        rel = DatabricksRelation.create(identifier="mv", type="materialized_view")
+
+        assert rel.enrich([pk]).render_constraints_for_create() == "PRIMARY KEY (id)"
 
 
 class TestDatabricksRenderLimited:

@@ -557,3 +557,49 @@ incremental_v2_unnamed_pk_child_sql = """
 
 select 1 as parent_n, 10 as child_id
 """
+
+safer_replace_unnamed_keys_schema_yml = """
+version: 2
+models:
+  - name: safer_keys_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: safer_keys_child
+    config:
+      materialized: incremental
+      unique_key: child_id
+      on_schema_change: append_new_columns
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: child_id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: parent_id
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('safer_keys_parent')
+            to_columns: ["id"]
+"""
+
+safer_replace_unnamed_keys_parent_sql = """
+select 1 as id
+"""
+
+safer_replace_unnamed_keys_child_sql = """
+-- depends_on: {{ ref('safer_keys_parent') }}
+
+select 1 as child_id, 1 as parent_id
+"""

@@ -188,8 +188,16 @@ class TestSynthesizeConstraintName:
             columns=["n"],
             expression="(n) REFERENCES `c`.`s`.`p`",
         )
-        expected = hashlib.md5(b"foreign_key;child;(n) REFERENCES `c`.`s`.`p`;").hexdigest()
+        expected = hashlib.md5(b"foreign_key;child;['n'];(n) REFERENCES `c`.`s`.`p`;").hexdigest()
         assert synthesize_constraint_name(fk, "child") == expected
+
+    def test_foreign_key_expression_form_distinct_columns_get_distinct_names(self):
+        same = dict(type=ConstraintType.foreign_key, name=None, expression="REFERENCES p (id)")
+        fk_a = ForeignKeyConstraint(columns=["a"], **same)
+        fk_b = ForeignKeyConstraint(columns=["b"], **same)
+        assert synthesize_constraint_name(fk_a, "child") != synthesize_constraint_name(
+            fk_b, "child"
+        )
 
     def test_primary_key_no_expression(self):
         pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, name=None, columns=["n"])

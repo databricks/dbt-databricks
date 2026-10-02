@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
@@ -258,6 +259,14 @@ class DatabricksRelation(BaseRelation):
         if constraint.type == ConstraintType.check:
             self.alter_constraints.append(constraint)
         else:
+            # Materialized views have no constraint diff, so they keep server-assigned names.
+            if (
+                constraint.name is None
+                and isinstance(constraint, (PrimaryKeyConstraint, ForeignKeyConstraint))
+                and not self.is_materialized_view
+            ):
+                constraint = copy(constraint)
+                constraint.name = synthesize_constraint_name(constraint, self.identifier)
             self.create_constraints.append(constraint)
 
     def enrich(self, constraints: list[TypedConstraint]) -> "DatabricksRelation":
@@ -268,11 +277,6 @@ class DatabricksRelation(BaseRelation):
         return copy
 
     def render_constraints_for_create(self) -> str:
-        for constraint in self.create_constraints:
-            if constraint.name is None and isinstance(
-                constraint, (PrimaryKeyConstraint, ForeignKeyConstraint)
-            ):
-                constraint.name = synthesize_constraint_name(constraint, self.identifier)
         processed = map(process_constraint, self.create_constraints)
         return ", ".join(c for c in processed if c is not None)
 

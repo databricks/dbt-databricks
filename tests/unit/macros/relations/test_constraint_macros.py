@@ -583,6 +583,19 @@ class TestConstraintNameParity(MacroTestBase):
         )
         assert self._macro_name(template_bundle, constraint, model) == py_name
 
+    def test_parity__foreign_key_column_level_expression_form(self, template_bundle, model):
+        constraint = {"type": "foreign_key", "expression": "(b) REFERENCES `c`.`s`.`parent`"}
+        py_name = synthesize_constraint_name(
+            ForeignKeyConstraint(
+                type=ConstraintType.foreign_key,
+                columns=["b"],
+                expression="(b) REFERENCES `c`.`s`.`parent`",
+            ),
+            template_bundle.relation.identifier,
+        )
+        name = self._macro_name(template_bundle, constraint, model, model["columns"]["b"])
+        assert name == py_name
+
     def test_parity__primary_key_single_column(self, template_bundle, model):
         constraint = {"type": "primary_key", "columns": ["a"]}
         py_name = synthesize_constraint_name(

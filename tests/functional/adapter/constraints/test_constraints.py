@@ -283,10 +283,10 @@ class TestIncrementalMultipleUnnamedForeignKeys:
             "multi_fk_child.sql": override_fixtures.incremental_multiple_fk_child_sql,
         }
 
-    def _foreign_key_columns(self, project):
+    def _foreign_keys(self, project):
         rows = project.run_sql(
             """
-            SELECT kcu.column_name
+            SELECT kcu.column_name, tc.constraint_name
             FROM {database}.information_schema.key_column_usage kcu
             JOIN {database}.information_schema.table_constraints tc
               ON kcu.constraint_name = tc.constraint_name
@@ -297,16 +297,23 @@ class TestIncrementalMultipleUnnamedForeignKeys:
             """,
             fetch="all",
         )
-        return {row[0] for row in rows}
+        return {(row[0], row[1]) for row in rows}
 
     def test_multiple_unnamed_fks_survive_incremental_run(self, project):
         util.run_dbt(["build"])
-        assert {"parent_a", "parent_b"} <= self._foreign_key_columns(project)
+        created = self._foreign_keys(project)
+        assert {column for column, _ in created} == {"parent_a", "parent_b"}
 
         # The incremental re-run must not drop and re-add the unnamed FKs (they would collide).
         util.run_dbt(["run", "--select", "multi_fk_child"])
 
-        assert {"parent_a", "parent_b"} <= self._foreign_key_columns(project)
+        assert self._foreign_keys(project) == created
+
+
+class TestV2IncrementalMultipleUnnamedForeignKeys(TestIncrementalMultipleUnnamedForeignKeys):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -390,3 +397,50 @@ class TestV2IncrementalUnnamedPrimaryKeyReconciliation:
         util.run_dbt(["run", "--select", "v2_unnamed_pk_parent"])
 
         assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2SaferReplaceUnnamedKeyNames:
+    """V2: unnamed PK/FK names must survive safer replace, incremental and table re-runs."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.safer_replace_unnamed_keys_schema_yml,
+            "safer_keys_parent.sql": override_fixtures.safer_replace_unnamed_keys_parent_sql,
+            "safer_keys_child.sql": override_fixtures.safer_replace_unnamed_keys_child_sql,
+        }
+
+    def _key_constraints(self, project):
+        rows = project.run_sql(
+            """
+            SELECT table_name, constraint_type, constraint_name
+            FROM {database}.information_schema.table_constraints
+            WHERE constraint_schema = '{schema}'
+              AND constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
+            """,
+            fetch="all",
+        )
+        return {tuple(row) for row in rows}
+
+    def test_unnamed_key_names_are_stable(self, project):
+        util.run_dbt(["build"])
+        created = self._key_constraints(project)
+        assert {(table, kind) for table, kind, _ in created} == {
+            ("safer_keys_parent", "PRIMARY KEY"),
+            ("safer_keys_child", "PRIMARY KEY"),
+            ("safer_keys_child", "FOREIGN KEY"),
+        }
+
+        util.run_dbt(["run", "--full-refresh", "--select", "safer_keys_child"])
+        assert self._key_constraints(project) == created
+
+        util.run_dbt(["run", "--select", "safer_keys_child"])
+        assert self._key_constraints(project) == created
+
+        util.run_dbt(["run", "--select", "safer_keys_parent"])
+        assert self._key_constraints(project) == created

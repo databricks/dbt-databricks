@@ -1,6 +1,15 @@
+from unittest.mock import Mock
+
 import pytest
+from dbt_common.contracts.constraints import ConstraintType
 
 from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.constraints import (
+    CheckConstraint,
+    PrimaryKeyConstraint,
+    synthesize_constraint_name,
+)
+from dbt.adapters.databricks.relation import DatabricksRelation
 from tests.unit.macros.base import MacroTestBase
 from tests.unit.utils import unity_relation
 
@@ -381,3 +390,97 @@ class TestFileFormatClause(MacroTestBase):
         sql = self.run_macro(template_bundle.template, "file_format_clause", catalog_relation)
 
         assert sql == "using delta"
+
+
+def _unnamed_pk():
+    return PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+
+
+class TestCreateTableAtDeferredKeys(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "create.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations/table", "macros/relations", "macros"]
+
+    @pytest.fixture
+    def check(self):
+        return CheckConstraint(type=ConstraintType.check, name="chk", expression="id > 0")
+
+    @pytest.fixture(autouse=True)
+    def mocked_context(self, context, check):
+        context["adapter"].parse_columns_and_constraints = Mock(
+            return_value=([], [_unnamed_pk(), check])
+        )
+        context["adapter"].get_column_tags_from_model = Mock(return_value=None)
+        for macro in ("get_create_table_sql", "apply_alter_constraints", "apply_tags"):
+            context[macro] = Mock(return_value="")
+
+    def test_defer_omits_and_returns_key_constraints(self, template_bundle, context, check):
+        captured = {}
+        context["return"] = lambda value: captured.__setitem__("value", value)
+        relation = template_bundle.relation
+
+        self.run_macro_raw(
+            template_bundle.template, "create_table_at", relation, Mock(), "select 1", True
+        )
+
+        relation.enrich.assert_called_once_with([check])
+        assert captured["value"] == [_unnamed_pk()]
+
+    def test_default_creates_all_constraints_inline(self, template_bundle, check):
+        relation = template_bundle.relation
+
+        self.run_macro_raw(
+            template_bundle.template, "create_table_at", relation, Mock(), "select 1"
+        )
+
+        relation.enrich.assert_called_once_with([_unnamed_pk(), check])
+
+
+class TestSafeRelationReplace(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "replace.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations/table", "macros/relations", "macros"]
+
+    def test_key_constraints_added_with_model_name_after_backup_dropped(self, template_bundle):
+        context = template_bundle.context
+        statements = []
+
+        def statement(name, caller):
+            statements.append(self.clean_sql(caller()))
+            return ""
+
+        context["statement"] = statement
+        context["create_table_at"] = Mock(return_value=[_unnamed_pk()])
+        context["get_drop_backup_sql"] = Mock(return_value="drop backup")
+        for macro in ("create_backup", "make_backup_relation", "drop_relation_if_exists"):
+            context[macro] = Mock(return_value="")
+        context["this"] = DatabricksRelation.create(
+            database="c", schema="s", identifier="My_Model", type="table"
+        )
+        staging, intermediate = Mock(), Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "safe_relation_replace",
+            template_bundle.relation,
+            staging,
+            intermediate,
+            "select 1",
+        )
+
+        context["create_table_at"].assert_called_once_with(
+            staging, intermediate, "select 1", defer_key_constraints=True
+        )
+        name = synthesize_constraint_name(_unnamed_pk(), "My_Model")
+        assert statements == [
+            "drop backup",
+            f"alter table `c`.`s`.`my_model` add constraint {name} primary key (id)",
+        ]

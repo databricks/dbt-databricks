@@ -177,7 +177,9 @@ def synthesize_constraint_name(constraint: TypedConstraint, relation_identifier:
         return _local_md5(hash_input)
     if isinstance(constraint, ForeignKeyConstraint):
         if constraint.expression:
-            return _local_md5(f"foreign_key;{relation_identifier};{constraint.expression};")
+            return _local_md5(
+                f"foreign_key;{relation_identifier};{constraint.columns};{constraint.expression};"
+            )
         hash_input = f"foreign_key;{relation_identifier};{constraint.columns};{constraint.to};"
         if constraint.to_columns:
             hash_input += f"{constraint.to_columns};"

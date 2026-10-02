@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.0 (TBD)
+
+### Fixes
+
+- Fix unnamed primary and foreign keys churning on every incremental run, and two or more unnamed foreign keys to the same parent failing with `DELTA_CONSTRAINT_ALREADY_EXISTS`. An unnamed PK/FK now gets the same deterministic name on every create and incremental path (V1 and V2, including `use_safer_relation_operations` replaces), so the incremental constraint diff is a no-op. Unnamed keys created before this fix may be renamed once on the next incremental run. ([#1561](https://github.com/databricks/dbt-databricks/pull/1561) resolves [#1333](https://github.com/databricks/dbt-databricks/issues/1333) and [#1344](https://github.com/databricks/dbt-databricks/issues/1344))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
@@ -61,7 +67,6 @@
 - Fix managed Iceberg Python models failing with `MANAGED_TABLE_FORMAT` by emitting `.format("iceberg")` instead of the `parquet` sentinel from `resolve_file_format` (thanks @Divya-Kovvuru-0802!) ([#1593](https://github.com/databricks/dbt-databricks/pull/1593) resolves [#1591](https://github.com/databricks/dbt-databricks/issues/1591))
 - Quote generated column identifiers in incremental strategies so non-ASCII column names no longer fail on subsequent runs (thanks @ash2shukla!) ([#1595](https://github.com/databricks/dbt-databricks/pull/1595) resolves [#1594](https://github.com/databricks/dbt-databricks/issues/1594))
 - Handle missing or empty view-definition metadata when creating materialized views from streaming tables or newly-created materialized views (thanks @aarushisingh04!) ([#1462](https://github.com/databricks/dbt-databricks/pull/1462) resolves [#1459](https://github.com/databricks/dbt-databricks/issues/1459))
-- Fix unnamed primary and foreign keys churning on every incremental run, and two or more unnamed foreign keys to the same parent failing with `DELTA_CONSTRAINT_ALREADY_EXISTS`. dbt now gives an unnamed PK/FK a deterministic name (its full identity, including a foreign key's referenced columns) generated identically on the create and incremental paths — including V2 inline `CREATE TABLE` and bare-parent FK configs — so the model and catalog agree and the diff is a no-op. Existing unnamed foreign keys are renamed once on the next incremental run (a no-op drop/re-add, no cascade). An unnamed key's `expression`/target edit is reconciled via that name; a named key's `expression` edit still needs `--full-refresh` (see #1552). ([#1561](https://github.com/databricks/dbt-databricks/pull/1561) resolves [#1333](https://github.com/databricks/dbt-databricks/issues/1333) and [#1344](https://github.com/databricks/dbt-databricks/issues/1344))
 
 ### Under the Hood
 
