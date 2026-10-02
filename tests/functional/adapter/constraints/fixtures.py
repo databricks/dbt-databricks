@@ -603,3 +603,37 @@ safer_replace_unnamed_keys_child_sql = """
 
 select 1 as child_id, 1 as parent_id
 """
+
+safer_replace_table_keys_schema_yml = """
+version: 2
+models:
+  - name: safer_table_unnamed_pk
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: safer_table_named_pk
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: safer_table_named_pk_pk
+"""
+
+safer_replace_table_keys_sql = """
+select 1 as id
+"""

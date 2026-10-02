@@ -399,21 +399,10 @@ class TestV2IncrementalUnnamedPrimaryKeyReconciliation:
         assert "fk_v2_unnamed_pk_child" in self._foreign_key_names(project)
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestV2SaferReplaceUnnamedKeyNames:
-    """V2: unnamed PK/FK names must survive safer replace, incremental and table re-runs."""
-
+class V2SaferReplaceKeysBase:
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"flags": {"use_materialization_v2": True}}
-
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "schema.yml": override_fixtures.safer_replace_unnamed_keys_schema_yml,
-            "safer_keys_parent.sql": override_fixtures.safer_replace_unnamed_keys_parent_sql,
-            "safer_keys_child.sql": override_fixtures.safer_replace_unnamed_keys_child_sql,
-        }
 
     def _key_constraints(self, project):
         rows = project.run_sql(
@@ -426,6 +415,19 @@ class TestV2SaferReplaceUnnamedKeyNames:
             fetch="all",
         )
         return {tuple(row) for row in rows}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2SaferReplaceUnnamedKeyNames(V2SaferReplaceKeysBase):
+    """V2: unnamed PK/FK names must survive safer replace, incremental and table re-runs."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.safer_replace_unnamed_keys_schema_yml,
+            "safer_keys_parent.sql": override_fixtures.safer_replace_unnamed_keys_parent_sql,
+            "safer_keys_child.sql": override_fixtures.safer_replace_unnamed_keys_child_sql,
+        }
 
     def test_unnamed_key_names_are_stable(self, project):
         util.run_dbt(["build"])
@@ -444,3 +446,29 @@ class TestV2SaferReplaceUnnamedKeyNames:
 
         util.run_dbt(["run", "--select", "safer_keys_parent"])
         assert self._key_constraints(project) == created
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2SaferReplaceTableKeyReruns(V2SaferReplaceKeysBase):
+    """V2: re-running a safer-replace table must not collide with its own PK name (#1091)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.safer_replace_table_keys_schema_yml,
+            "safer_table_unnamed_pk.sql": override_fixtures.safer_replace_table_keys_sql,
+            "safer_table_named_pk.sql": override_fixtures.safer_replace_table_keys_sql,
+        }
+
+    def test_key_names_survive_reruns(self, project):
+        util.run_dbt(["run"])
+        created = self._key_constraints(project)
+        assert {(table, kind) for table, kind, _ in created} == {
+            ("safer_table_unnamed_pk", "PRIMARY KEY"),
+            ("safer_table_named_pk", "PRIMARY KEY"),
+        }
+        assert ("safer_table_named_pk", "PRIMARY KEY", "safer_table_named_pk_pk") in created
+
+        for _ in range(2):
+            util.run_dbt(["run"])
+            assert self._key_constraints(project) == created
