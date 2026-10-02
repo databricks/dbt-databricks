@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, Optional, Type  # noqa
 
@@ -13,7 +14,13 @@ from dbt_common.dataclass_schema import StrEnum
 from dbt_common.exceptions import DbtRuntimeError
 from dbt_common.utils import filter_null_values
 
-from dbt.adapters.databricks.constraints import TypedConstraint, process_constraint
+from dbt.adapters.databricks.constraints import (
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    TypedConstraint,
+    process_constraint,
+    synthesize_constraint_name,
+)
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.utils import remove_undefined
 
@@ -252,6 +259,14 @@ class DatabricksRelation(BaseRelation):
         if constraint.type == ConstraintType.check:
             self.alter_constraints.append(constraint)
         else:
+            # Materialized views have no constraint diff, so they keep server-assigned names.
+            if (
+                constraint.name is None
+                and isinstance(constraint, (PrimaryKeyConstraint, ForeignKeyConstraint))
+                and not self.is_materialized_view
+            ):
+                constraint = copy(constraint)
+                constraint.name = synthesize_constraint_name(constraint, self.identifier)
             self.create_constraints.append(constraint)
 
     def enrich(self, constraints: list[TypedConstraint]) -> "DatabricksRelation":

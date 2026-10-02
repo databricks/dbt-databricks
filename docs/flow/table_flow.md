@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-02_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -45,7 +45,7 @@ flowchart LR
 
     EXIST -- no --> CREATE["create_table_at target:<br/>create schema; constraints; table tags;<br/>column tags; insert intermediate"]
     EXIST -- yes --> SAFEPATH{"use_safer_relation_operations and\nexisting can be renamed?"}
-    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
+    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging without PK/FK;<br/>back up existing; rename staging; drop backup;<br/>add PK/FK; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Shallow clone, non-table, or not a replaceable\nDelta/Iceberg table?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
     DROPNEEDED -- no --> CREATE
@@ -61,6 +61,8 @@ flowchart LR
 ```
 
 The `create_table_at` helper applies constraints, table tags, and column tags before inserting from
-the intermediate relation. The safe-replacement helper performs its own intermediate cleanup;
+the intermediate relation. Unnamed primary and foreign keys get a deterministic name derived from
+the model identifier. Because those names are unique per schema, the safe-replacement helper adds
+primary and foreign keys only after the old table's backup is dropped. It also performs its own intermediate cleanup;
 Python paths also clean up the intermediate relation after optimization. Unlike V1, V2 does not call
 `persist_docs` — column and relation comments are handled on the create/insert path.

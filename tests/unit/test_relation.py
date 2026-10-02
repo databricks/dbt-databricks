@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from dbt.adapters.base.relation import FunctionConfig
 from dbt_common.contracts.constraints import ConstraintType
@@ -7,7 +9,9 @@ from dbt.adapters.databricks import relation
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
     CustomConstraint,
+    ForeignKeyConstraint,
     PrimaryKeyConstraint,
+    synthesize_constraint_name,
 )
 from dbt.adapters.databricks.relation import (
     MAX_CHARACTERS_IN_IDENTIFIER,
@@ -388,8 +392,11 @@ class TestConstraints:
         relation.add_constraint(check_constraint)
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
+        named_pk = replace(
+            pk_constraint, name=synthesize_constraint_name(pk_constraint, relation.identifier)
+        )
         assert relation.alter_constraints == [check_constraint]
-        assert relation.create_constraints == [custom_constraint, pk_constraint]
+        assert relation.create_constraints == [custom_constraint, named_pk]
 
     def test_enrich_relation__returns_a_copy(self, relation):
         enriched = relation.enrich([])
@@ -412,7 +419,11 @@ class TestConstraints:
     ):
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
-        assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
+        expected_pk_name = synthesize_constraint_name(pk_constraint, relation.identifier)
+        assert (
+            relation.render_constraints_for_create()
+            == f"a > 1, CONSTRAINT {expected_pk_name} PRIMARY KEY (a)"
+        )
 
 
 class TestGetFunctionConfig:
@@ -496,6 +507,60 @@ class TestIdentifierLengthValidation:
     def test_none_identifier_is_allowed(self):
         rel = DatabricksRelation.create(identifier=None, type="table")
         assert rel.identifier is None
+
+
+class TestRenderConstraintsForCreate:
+    """Unnamed PK/FK get synthesize_constraint_name when enriched onto a V2 create relation."""
+
+    def test_unnamed_primary_key_gets_synthesized_name(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        expected = synthesize_constraint_name(pk, "child")
+        rel = DatabricksRelation.create(identifier="child", type="table")
+
+        sql = rel.enrich([pk]).render_constraints_for_create()
+
+        assert f"CONSTRAINT {expected}" in sql
+
+    def test_unnamed_foreign_key_gets_synthesized_name(self):
+        fk = ForeignKeyConstraint(
+            type=ConstraintType.foreign_key,
+            columns=["parent_id"],
+            to="`c`.`s`.`parent`",
+            to_columns=["id"],
+        )
+        expected = synthesize_constraint_name(fk, "child")
+        rel = DatabricksRelation.create(identifier="child", type="table")
+
+        sql = rel.enrich([fk]).render_constraints_for_create()
+
+        assert f"CONSTRAINT {expected}" in sql
+
+    def test_explicitly_named_constraint_is_left_untouched(self):
+        rel = DatabricksRelation.create(identifier="child", type="table")
+        enriched = rel.enrich(
+            [
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk_explicit", columns=["id"]
+                )
+            ]
+        )
+        sql = enriched.render_constraints_for_create()
+        assert "CONSTRAINT pk_explicit" in sql
+
+    def test_enrich_names_each_constraint_without_mutating_input(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        rel = DatabricksRelation.create(identifier="child", type="table")
+
+        [named] = rel.enrich([pk]).create_constraints
+
+        assert named.render().startswith(f"CONSTRAINT {synthesize_constraint_name(pk, 'child')} ")
+        assert pk.name is None
+
+    def test_materialized_view_keeps_unnamed_primary_key(self):
+        pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+        rel = DatabricksRelation.create(identifier="mv", type="materialized_view")
+
+        assert rel.enrich([pk]).render_constraints_for_create() == "PRIMARY KEY (id)"
 
 
 class TestDatabricksRenderLimited:
