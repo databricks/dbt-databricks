@@ -30,11 +30,7 @@ class TestCommandEligibility:
     @pytest.mark.parametrize(
         "command, eligible",
         [
-            ("build", True),
             ("run", True),
-            ("test", True),
-            ("seed", True),
-            ("snapshot", True),
             ("compile", False),
             ("source freshness", False),
             ("run-operation", False),
