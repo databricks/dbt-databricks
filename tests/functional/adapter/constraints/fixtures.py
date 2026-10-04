@@ -689,3 +689,56 @@ safer_replace_failure_invalid_fk_schema_yml = _safer_replace_failure_schema_yml(
         to_columns: [id]
 """
 )
+
+safer_replace_self_reference_sql = """
+select 1 as id, 1 as parent_id
+"""
+
+safer_replace_self_reference_updated_sql = """
+select 2 as id, 2 as parent_id
+"""
+
+
+def _safer_replace_self_reference_schema_yml(foreign_key):
+    return f"""
+version: 2
+models:
+  - name: safer_self_ref
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [id]
+{foreign_key}    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: parent_id
+        data_type: int
+"""
+
+
+safer_replace_self_reference_schema_yml = _safer_replace_self_reference_schema_yml("")
+
+safer_replace_self_reference_fk_schema_yml = _safer_replace_self_reference_schema_yml(
+    """      - type: foreign_key
+        columns: [parent_id]
+        to: source('self_ref', 'safer_self_ref')
+        to_columns: [id]
+"""
+)
+
+# A model can't ref() itself, so the self-referencing FK points at a source for its own table.
+safer_replace_self_reference_sources_yml = """
+version: 2
+sources:
+  - name: self_ref
+    database: "{{ target.database }}"
+    schema: "{{ target.schema }}"
+    tables:
+      - name: safer_self_ref
+"""

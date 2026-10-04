@@ -23,11 +23,12 @@
   {% set staged = staging_relation.enrich(key_constraints).create_constraints %}
   {% set renamed = target_relation.enrich(key_constraints).create_constraints %}
 
-  {#- Drop foreign keys before primary keys and add them after, so a self-referencing FK never outlives its PK. -#}
+  {#- Drop foreign keys before primary keys and add them after, so a self-referencing FK never outlives its PK.
+      IF EXISTS because a staged self-FK references the old table and is removed with its backup. -#}
   {% for key_type in ['foreign_key', 'primary_key'] %}
     {% for constraint in staged if constraint.type == key_type %}
       {% call statement('drop staged constraint') %}
-        ALTER TABLE {{ target_relation.render() }} DROP CONSTRAINT {{ constraint.name }}
+        ALTER TABLE {{ target_relation.render() }} DROP CONSTRAINT IF EXISTS {{ constraint.name }}
       {% endcall %}
     {% endfor %}
   {% endfor %}

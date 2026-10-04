@@ -512,3 +512,55 @@ class TestV2SaferReplaceInvalidKeyPreservesTarget:
         util.run_dbt(["run", "--select", "safer_failure_child"], expect_pass=False)
 
         assert self._child_ids(project) == [1]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2SaferReplaceSelfReferencingKey:
+    """V2: safer replace of a table whose FK references its own PK succeeds and keeps both keys."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.safer_replace_self_reference_schema_yml,
+            "sources.yml": override_fixtures.safer_replace_self_reference_sources_yml,
+            "safer_self_ref.sql": override_fixtures.safer_replace_self_reference_sql,
+        }
+
+    def _key_constraints(self, project):
+        rows = project.run_sql(
+            """
+            SELECT constraint_type, constraint_name
+            FROM {database}.information_schema.table_constraints
+            WHERE constraint_schema = '{schema}'
+              AND table_name = 'safer_self_ref'
+              AND constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
+            """,
+            fetch="all",
+        )
+        return {tuple(row) for row in rows}
+
+    def test_self_referencing_key_survives_replacements(self, project):
+        util.run_dbt(["run"])
+
+        util.write_file(
+            override_fixtures.safer_replace_self_reference_fk_schema_yml, "models", "schema.yml"
+        )
+        util.write_file(
+            override_fixtures.safer_replace_self_reference_updated_sql,
+            "models",
+            "safer_self_ref.sql",
+        )
+        util.run_dbt(["run"])
+        keys = self._key_constraints(project)
+        assert {kind for kind, _ in keys} == {"PRIMARY KEY", "FOREIGN KEY"}
+
+        util.run_dbt(["run"])
+        assert self._key_constraints(project) == keys
+        rows = project.run_sql(
+            "select id, parent_id from {database}.{schema}.safer_self_ref", fetch="all"
+        )
+        assert [tuple(row) for row in rows] == [(2, 2)]

@@ -462,9 +462,9 @@ class TestSafeRelationReplace(MacroTestBase):
         target = "alter table `c`.`s`.`my_model`"
         assert statements == [
             "drop backup",
-            f"{target} drop constraint {stg_fk}",
-            f"{target} drop constraint {stg_named}",
-            f"{target} drop constraint {stg_pk}",
+            f"{target} drop constraint if exists {stg_fk}",
+            f"{target} drop constraint if exists {stg_named}",
+            f"{target} drop constraint if exists {stg_pk}",
             f"{target} add constraint {pk} primary key (id)",
             f"{target} add constraint {fk} foreign key (parent_id) references p (id)",
             f"{target} add constraint fk_named foreign key (other_id) references o (id)",
