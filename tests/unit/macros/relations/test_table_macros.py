@@ -5,7 +5,7 @@ from dbt_common.contracts.constraints import ConstraintType
 
 from dbt.adapters.databricks import constants
 from dbt.adapters.databricks.constraints import (
-    CheckConstraint,
+    ForeignKeyConstraint,
     PrimaryKeyConstraint,
     synthesize_constraint_name,
 )
@@ -396,48 +396,20 @@ def _unnamed_pk():
     return PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
 
 
-class TestCreateTableAtDeferredKeys(MacroTestBase):
-    @pytest.fixture(scope="class")
-    def template_name(self) -> str:
-        return "create.sql"
+def _unnamed_self_fk():
+    return ForeignKeyConstraint(
+        type=ConstraintType.foreign_key, columns=["parent_id"], to="p", to_columns=["id"]
+    )
 
-    @pytest.fixture(scope="class")
-    def macro_folders_to_load(self) -> list:
-        return ["macros/relations/table", "macros/relations", "macros"]
 
-    @pytest.fixture
-    def check(self):
-        return CheckConstraint(type=ConstraintType.check, name="chk", expression="id > 0")
-
-    @pytest.fixture(autouse=True)
-    def mocked_context(self, context, check):
-        context["adapter"].parse_columns_and_constraints = Mock(
-            return_value=([], [_unnamed_pk(), check])
-        )
-        context["adapter"].get_column_tags_from_model = Mock(return_value=None)
-        for macro in ("get_create_table_sql", "apply_alter_constraints", "apply_tags"):
-            context[macro] = Mock(return_value="")
-
-    def test_defer_omits_and_returns_key_constraints(self, template_bundle, context, check):
-        captured = {}
-        context["return"] = lambda value: captured.__setitem__("value", value)
-        relation = template_bundle.relation
-
-        self.run_macro_raw(
-            template_bundle.template, "create_table_at", relation, Mock(), "select 1", True
-        )
-
-        relation.enrich.assert_called_once_with([check])
-        assert captured["value"] == [_unnamed_pk()]
-
-    def test_default_creates_all_constraints_inline(self, template_bundle, check):
-        relation = template_bundle.relation
-
-        self.run_macro_raw(
-            template_bundle.template, "create_table_at", relation, Mock(), "select 1"
-        )
-
-        relation.enrich.assert_called_once_with([_unnamed_pk(), check])
+def _named_fk():
+    return ForeignKeyConstraint(
+        type=ConstraintType.foreign_key,
+        name="fk_named",
+        columns=["other_id"],
+        to="o",
+        to_columns=["id"],
+    )
 
 
 class TestSafeRelationReplace(MacroTestBase):
@@ -449,7 +421,7 @@ class TestSafeRelationReplace(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations/table", "macros/relations", "macros"]
 
-    def test_key_constraints_added_with_model_name_after_backup_dropped(self, template_bundle):
+    def test_staged_keys_renamed_to_final_names_after_backup_dropped(self, template_bundle):
         context = template_bundle.context
         statements = []
 
@@ -458,14 +430,19 @@ class TestSafeRelationReplace(MacroTestBase):
             return ""
 
         context["statement"] = statement
-        context["create_table_at"] = Mock(return_value=[_unnamed_pk()])
+        key_constraints = [_unnamed_pk(), _unnamed_self_fk(), _named_fk()]
+        context["create_table_at"] = Mock(return_value="")
+        context["get_model_key_constraints"] = Mock(return_value=key_constraints)
         context["get_drop_backup_sql"] = Mock(return_value="drop backup")
         for macro in ("create_backup", "make_backup_relation", "drop_relation_if_exists"):
             context[macro] = Mock(return_value="")
         context["this"] = DatabricksRelation.create(
             database="c", schema="s", identifier="My_Model", type="table"
         )
-        staging, intermediate = Mock(), Mock()
+        staging = DatabricksRelation.create(
+            database="c", schema="s", identifier="My_Model__dbt_stg", type="table", is_staging=True
+        )
+        intermediate = Mock()
 
         self.run_macro_raw(
             template_bundle.template,
@@ -476,11 +453,19 @@ class TestSafeRelationReplace(MacroTestBase):
             "select 1",
         )
 
-        context["create_table_at"].assert_called_once_with(
-            staging, intermediate, "select 1", defer_key_constraints=True
-        )
-        name = synthesize_constraint_name(_unnamed_pk(), "My_Model")
+        context["create_table_at"].assert_called_once_with(staging, intermediate, "select 1")
+        stg_pk = synthesize_constraint_name(_unnamed_pk(), "My_Model__dbt_stg")
+        stg_fk = synthesize_constraint_name(_unnamed_self_fk(), "My_Model__dbt_stg")
+        stg_named = synthesize_constraint_name(_named_fk(), "My_Model__dbt_stg")
+        pk = synthesize_constraint_name(_unnamed_pk(), "My_Model")
+        fk = synthesize_constraint_name(_unnamed_self_fk(), "My_Model")
+        target = "alter table `c`.`s`.`my_model`"
         assert statements == [
             "drop backup",
-            f"alter table `c`.`s`.`my_model` add constraint {name} primary key (id)",
+            f"{target} drop constraint {stg_fk}",
+            f"{target} drop constraint {stg_named}",
+            f"{target} drop constraint {stg_pk}",
+            f"{target} add constraint {pk} primary key (id)",
+            f"{target} add constraint {fk} foreign key (parent_id) references p (id)",
+            f"{target} add constraint fk_named foreign key (other_id) references o (id)",
         ]

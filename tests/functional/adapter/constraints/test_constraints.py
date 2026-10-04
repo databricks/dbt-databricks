@@ -472,3 +472,43 @@ class TestV2SaferReplaceTableKeyReruns(V2SaferReplaceKeysBase):
         for _ in range(2):
             util.run_dbt(["run"])
             assert self._key_constraints(project) == created
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2SaferReplaceInvalidKeyPreservesTarget:
+    """V2: a key the server rejects must fail safer replace before the existing table is swapped."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "schema.yml": override_fixtures.safer_replace_failure_schema_yml,
+            "safer_failure_parent.sql": override_fixtures.safer_replace_failure_parent_sql,
+            "safer_failure_child.sql": override_fixtures.safer_replace_failure_child_sql,
+        }
+
+    def _child_ids(self, project):
+        rows = project.run_sql(
+            "select id from {database}.{schema}.safer_failure_child", fetch="all"
+        )
+        return [row[0] for row in rows]
+
+    def test_invalid_foreign_key_keeps_previous_rows(self, project):
+        util.run_dbt(["run"])
+        assert self._child_ids(project) == [1]
+
+        # The parent has no primary key, so the server rejects the foreign key.
+        util.write_file(
+            override_fixtures.safer_replace_failure_invalid_fk_schema_yml, "models", "schema.yml"
+        )
+        util.write_file(
+            override_fixtures.safer_replace_failure_child_updated_sql,
+            "models",
+            "safer_failure_child.sql",
+        )
+        util.run_dbt(["run", "--select", "safer_failure_child"], expect_pass=False)
+
+        assert self._child_ids(project) == [1]

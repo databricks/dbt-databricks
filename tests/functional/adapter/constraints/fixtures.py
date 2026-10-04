@@ -637,3 +637,55 @@ models:
 safer_replace_table_keys_sql = """
 select 1 as id
 """
+
+safer_replace_failure_parent_sql = """
+select 1 as id
+"""
+
+safer_replace_failure_child_sql = """
+-- depends_on: {{ ref('safer_failure_parent') }}
+
+select 1 as id
+"""
+
+safer_replace_failure_child_updated_sql = """
+-- depends_on: {{ ref('safer_failure_parent') }}
+
+select 2 as id
+"""
+
+
+def _safer_replace_failure_schema_yml(child_constraints):
+    return f"""
+version: 2
+models:
+  - name: safer_failure_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+  - name: safer_failure_child
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+{child_constraints}    columns:
+      - name: id
+        data_type: int
+"""
+
+
+safer_replace_failure_schema_yml = _safer_replace_failure_schema_yml("")
+
+safer_replace_failure_invalid_fk_schema_yml = _safer_replace_failure_schema_yml(
+    """    constraints:
+      - type: foreign_key
+        columns: [id]
+        to: ref('safer_failure_parent')
+        to_columns: [id]
+"""
+)

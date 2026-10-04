@@ -92,6 +92,7 @@ class DatabricksRelation(BaseRelation):
     quote_character: str = "`"
     require_alias: bool = False
     is_delta: Optional[bool] = None
+    is_staging: bool = False
     create_constraints: list[TypedConstraint] = field(default_factory=list)
     alter_constraints: list[TypedConstraint] = field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
@@ -260,8 +261,9 @@ class DatabricksRelation(BaseRelation):
             self.alter_constraints.append(constraint)
         else:
             # Materialized views have no constraint diff, so they keep server-assigned names.
+            # Staging copies override configured names too; keys are renamed after the swap.
             if (
-                constraint.name is None
+                (constraint.name is None or self.is_staging)
                 and isinstance(constraint, (PrimaryKeyConstraint, ForeignKeyConstraint))
                 and not self.is_materialized_view
             ):

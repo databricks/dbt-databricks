@@ -1,4 +1,3 @@
-import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, TypeVar
@@ -13,6 +12,7 @@ from dbt_common.contracts.constraints import (
 )
 from dbt_common.events.functions import warn_or_error
 from dbt_common.exceptions import DbtValidationError
+from dbt_common.utils.encoding import md5
 
 # Support constants
 CONSTRAINT_SUPPORT = {
@@ -164,8 +164,8 @@ def is_enforced(constraint: ColumnLevelConstraint) -> bool:
 
 
 def _local_md5(value: str) -> str:
-    # Same digest as Jinja local_md5.
-    return hashlib.md5(value.encode("utf-8")).hexdigest()
+    # Same helper as Jinja local_md5.
+    return md5(value)
 
 
 def synthesize_constraint_name(constraint: TypedConstraint, relation_identifier: str) -> str:

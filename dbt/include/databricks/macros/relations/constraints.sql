@@ -315,3 +315,18 @@
 
   {{ return(dbt_constraints) }}
 {% endmacro %}
+
+{% macro parse_model_columns_and_constraints(existing_columns) %}
+  {% set contract_config = config.get('contract') %}
+  {% set contract_enforced = contract_config and contract_config.enforced %}
+  {% if contract_enforced %}
+    {% set model_constraints = model.get('constraints', []) %}
+  {% else %}
+    {% set model_constraints = [] %}
+  {% endif %}
+  {% do return(adapter.parse_columns_and_constraints(existing_columns, model.get('columns', []), model_constraints, contract_enforced, model.name)) %}
+{% endmacro %}
+
+{% macro get_model_key_constraints() %}
+  {% do return(parse_model_columns_and_constraints([])[1] | selectattr('type', 'in', ['primary_key', 'foreign_key']) | list) %}
+{% endmacro %}

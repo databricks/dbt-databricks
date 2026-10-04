@@ -1,22 +1,8 @@
-{% macro create_table_at(relation, intermediate_relation, compiled_code, defer_key_constraints=False) %}
+{% macro create_table_at(relation, intermediate_relation, compiled_code) %}
   {% set tags = config.get('databricks_tags') %}
-  {% set model_columns = model.get('columns', []) %}
   {% set existing_columns = adapter.get_columns_in_relation(intermediate_relation) %}
-  {% set contract_config = config.get('contract') %}
-  {% set contract_enforced = contract_config and contract_config.enforced %}
-  {% if contract_enforced %}
-    {% set model_constraints = model.get('constraints', []) %}
-  {% else %}
-    {% set model_constraints = [] %}
-  {% endif %}
-  {% set columns_and_constraints = adapter.parse_columns_and_constraints(existing_columns, model_columns, model_constraints, contract_enforced, model.name) %}
-  {% set create_constraints = columns_and_constraints[1] %}
-  {% set key_constraint_types = ['primary_key', 'foreign_key'] %}
-  {% if defer_key_constraints %}
-    {% set key_constraints = create_constraints | selectattr('type', 'in', key_constraint_types) | list %}
-    {% set create_constraints = create_constraints | rejectattr('type', 'in', key_constraint_types) | list %}
-  {% endif %}
-  {% set target_relation = relation.enrich(create_constraints) %}
+  {% set columns_and_constraints = parse_model_columns_and_constraints(existing_columns) %}
+  {% set target_relation = relation.enrich(columns_and_constraints[1]) %}
 
   {% call statement('main') %}
     {{ get_create_table_sql(target_relation, columns_and_constraints[0], compiled_code) }}
@@ -32,10 +18,6 @@
   {% call statement('merge into target') %}
     insert into {{ target_relation }} by name select * from {{ intermediate_relation }}
   {% endcall %}
-
-  {% if defer_key_constraints %}
-    {% do return(key_constraints) %}
-  {% endif %}
 {% endmacro %}
 
 {% macro get_create_table_sql(target_relation, columns, compiled_code) %}

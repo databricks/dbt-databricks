@@ -556,6 +556,22 @@ class TestRenderConstraintsForCreate:
         assert named.render().startswith(f"CONSTRAINT {synthesize_constraint_name(pk, 'child')} ")
         assert pk.name is None
 
+    def test_staging_relation_renames_explicitly_named_keys(self):
+        pk = PrimaryKeyConstraint(
+            type=ConstraintType.primary_key, name="pk_explicit", columns=["id"]
+        )
+        rel = DatabricksRelation.create(identifier="child__dbt_stg", type="table", is_staging=True)
+
+        [named] = rel.enrich([pk]).create_constraints
+
+        assert named.name == synthesize_constraint_name(pk, "child__dbt_stg")
+        assert pk.name == "pk_explicit"
+
+    def test_staging_flag_survives_incorporate(self):
+        rel = DatabricksRelation.create(identifier="child__dbt_stg", type="table", is_staging=True)
+
+        assert rel.incorporate().is_staging
+
     def test_materialized_view_keeps_unnamed_primary_key(self):
         pk = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
         rel = DatabricksRelation.create(identifier="mv", type="materialized_view")
