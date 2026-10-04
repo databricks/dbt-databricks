@@ -412,7 +412,7 @@ class TestConstraints:
     ):
         relation.add_constraint(custom_constraint)
         relation.add_constraint(pk_constraint)
-        assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (a)"
+        assert relation.render_constraints_for_create() == "a > 1, PRIMARY KEY (`a`)"
 
 
 class TestGetFunctionConfig:
