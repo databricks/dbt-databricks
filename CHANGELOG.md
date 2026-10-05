@@ -2,7 +2,7 @@
 
 ### Features
 
-- Install Python UDF dependencies from the `packages` config and select the serverless environment with `environment_version` (both also accepted under `meta`) ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- Install Python UDF dependencies from the `packages` config and select the serverless environment with `environment_version` (both also accepted under `meta`) ([#1697](https://github.com/databricks/dbt-databricks/pull/1697))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
