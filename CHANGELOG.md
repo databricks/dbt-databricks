@@ -1,4 +1,4 @@
-## dbt-databricks 1.13.0 (TBD)
+## dbt-databricks 1.12.7 (TBD)
 
 ### Fixes
 
