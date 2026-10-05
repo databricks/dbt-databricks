@@ -39,6 +39,11 @@ def on_adapter_init(adapter: Any) -> None:
             creds
         ):
             return
+        if not has_reusable_transport(creds):
+            logger.warning(
+                "dbt telemetry is enabled but kernel OAuth U2M credentials cannot be reused "
+                "for telemetry HTTP; events will not be sent."
+            )
         invocation_id = _current_invocation_id()
         if not invocation_id:
             return
@@ -91,10 +96,6 @@ def on_connection_open(
         ):
             return
         if not has_reusable_transport(credentials):
-            logger.warning(
-                "dbt telemetry is enabled but kernel OAuth U2M credentials cannot be reused "
-                "for telemetry HTTP; events will not be sent."
-            )
             return
         invocation_id = _current_invocation_id()
         if not invocation_id:

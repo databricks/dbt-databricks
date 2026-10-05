@@ -230,6 +230,20 @@ def test_command_completed_cleanup_never_escapes(monkeypatch):
 
 
 def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
+    _enable_hooks(monkeypatch)
+    log = Mock()
+    monkeypatch.setattr(hooks, "logger", log)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
+    monkeypatch.setattr(hooks.listener, "register", lambda: True)
+    adapter = SimpleNamespace(config=SimpleNamespace(credentials=object()))
+
+    hooks.on_adapter_init(adapter)
+
+    log.warning.assert_called_once()
+    assert "kernel" in log.warning.call_args.args[0].lower()
+
+
+def test_kernel_u2m_connection_skips_transport_without_warning(monkeypatch):
     coord = _enable_hooks(monkeypatch)
     log = Mock()
     monkeypatch.setattr(hooks, "logger", log)
@@ -239,8 +253,7 @@ def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
 
     hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace())
 
-    log.warning.assert_called_once()
-    assert "kernel" in log.warning.call_args.args[0].lower()
+    log.warning.assert_not_called()
     coord.set_transport.assert_not_called()
 
 
