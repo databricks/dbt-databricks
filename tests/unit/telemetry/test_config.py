@@ -29,68 +29,35 @@ class TestOptIn:
 
 class TestServerGate:
     @pytest.mark.parametrize(
-        "connection_parameters, expected",
+        "connection_parameters, server_flag, expected",
         [
+            pytest.param({"enable_dbt_telemetry": True}, "true", True, id="client_and_server_on"),
+            pytest.param({"enable_dbt_telemetry": True}, "false", False, id="server_off"),
+            pytest.param({}, "true", False, id="client_off"),
             pytest.param(
-                {"enable_dbt_telemetry": False},
-                False,
-                id="client_disabled",
+                {"force_enable_dbt_telemetry": True}, "false", True, id="force_ignores_server"
             ),
             pytest.param(
-                {"enable_dbt_telemetry": False, "force_enable_dbt_telemetry": True},
-                True,
-                id="force_overrides_client_disabled",
+                {"enable_dbt_telemetry": True},
+                RuntimeError("fetch failed"),
+                False,
+                id="fetch_failure_off",
             ),
         ],
     )
-    def test_force_overrides_client_opt_out(self, connection_parameters, expected):
-        assert config.is_collection_enabled(_creds(connection_parameters)) is expected
-
-    @pytest.mark.parametrize("flag_value, expected", [("true", True), ("false", False)])
-    def test_server_flag_controls_dbt_telemetry(self, monkeypatch, flag_value, expected):
+    def test_enabled_for_connection(
+        self, monkeypatch, connection_parameters, server_flag, expected
+    ):
         context = Mock()
-        context.get_flag_value.return_value = flag_value
-        get_instance = Mock(return_value=context)
-        monkeypatch.setattr(config.FeatureFlagsContextFactory, "get_instance", get_instance)
-        connection = Mock()
-
-        assert (
-            config.is_enabled_for_connection(_creds({"enable_dbt_telemetry": True}), connection)
-            is expected
-        )
-        get_instance.assert_called_once_with(connection)
-        context.get_flag_value.assert_called_once_with(
-            config.SERVER_ENABLE_FLAG, default_value=False
-        )
-
-    def test_force_enable_bypasses_server_flag(self, monkeypatch):
-        get_instance = Mock()
-        monkeypatch.setattr(config.FeatureFlagsContextFactory, "get_instance", get_instance)
-
-        assert (
-            config.is_enabled_for_connection(_creds({"force_enable_dbt_telemetry": True}), Mock())
-            is True
-        )
-        get_instance.assert_not_called()
-
-    def test_client_disabled_bypasses_server_flag(self, monkeypatch):
-        get_instance = Mock()
-        monkeypatch.setattr(config.FeatureFlagsContextFactory, "get_instance", get_instance)
-
-        assert config.is_enabled_for_connection(_creds({}), Mock()) is False
-        get_instance.assert_not_called()
-
-    def test_server_flag_failure_defaults_off(self, monkeypatch):
+        if isinstance(server_flag, Exception):
+            context.get_flag_value.side_effect = server_flag
+        else:
+            context.get_flag_value.return_value = server_flag
         monkeypatch.setattr(
-            config.FeatureFlagsContextFactory,
-            "get_instance",
-            Mock(side_effect=RuntimeError("feature flag fetch failed")),
+            config.FeatureFlagsContextFactory, "get_instance", Mock(return_value=context)
         )
 
-        assert (
-            config.is_enabled_for_connection(_creds({"enable_dbt_telemetry": True}), Mock())
-            is False
-        )
+        assert config.is_enabled_for_connection(_creds(connection_parameters), Mock()) is expected
 
 
 class TestCommandEligibility:

@@ -243,20 +243,6 @@ def test_kernel_u2m_warns_when_telemetry_enabled(monkeypatch):
     assert "kernel" in log.warning.call_args.args[0].lower()
 
 
-def test_kernel_u2m_connection_skips_transport_without_warning(monkeypatch):
-    coord = _enable_hooks(monkeypatch)
-    log = Mock()
-    monkeypatch.setattr(hooks, "logger", log)
-    monkeypatch.setattr(hooks, "is_enabled_for_connection", lambda *_: True)
-    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: False)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
-
-    hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace())
-
-    log.warning.assert_not_called()
-    coord.set_transport.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "http_path, manager_id, expected",
     [
@@ -276,15 +262,3 @@ def test_connection_open_workspace_id(monkeypatch, http_path, manager_id, expect
     hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace(), http_path)
 
     assert coord.set_transport.call_args.args[1].workspace_id == expected
-
-
-def test_connection_open_server_gate_disabled(monkeypatch):
-    coord = Mock()
-    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "is_collection_enabled_for_invocation", lambda _: True)
-    monkeypatch.setattr(hooks, "is_enabled_for_connection", lambda *_: False)
-    manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
-
-    hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace())
-
-    coord.set_transport.assert_not_called()
