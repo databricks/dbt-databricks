@@ -219,6 +219,10 @@ class DatabricksHandle:
     def session_id(self) -> str:
         return self._conn.get_session_id_hex()
 
+    @property
+    def connector_connection(self) -> Connection:
+        return self._conn
+
     def execute(self, sql: str, bindings: Optional[Sequence[Any]] = None) -> CursorWrapper:
         """
         Execute a SQL statement on the current session with optional bindings.
@@ -395,6 +399,7 @@ class SqlUtils:
         connection_parameters = creds.connection_parameters.copy()  # type: ignore[union-attr]
 
         connection_parameters.pop("enable_dbt_telemetry", None)
+        connection_parameters.pop("force_enable_dbt_telemetry", None)
 
         http_headers: list[tuple[str, str]] = list(
             creds.get_all_http_headers(connection_parameters.pop("http_headers", {})).items()

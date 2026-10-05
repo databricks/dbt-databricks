@@ -7,7 +7,8 @@ from dbt.adapters.databricks.spog.extract import extract_workspace_id
 from dbt.adapters.databricks.telemetry import builder, listener
 from dbt.adapters.databricks.telemetry.config import (
     has_reusable_transport,
-    is_enabled_for_invocation,
+    is_collection_enabled_for_invocation,
+    is_enabled_for_connection,
 )
 from dbt.adapters.databricks.telemetry.coordinator import Transport, coordinator
 
@@ -34,12 +35,14 @@ def _stored_invocation_id(adapter: Any) -> Optional[str]:
 def on_adapter_init(adapter: Any) -> None:
     try:
         creds = getattr(getattr(adapter, "config", None), "credentials", None)
-        if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
+        if not isinstance(creds, DatabricksCredentials) or not is_collection_enabled_for_invocation(
+            creds
+        ):
             return
         if not has_reusable_transport(creds):
             logger.warning(
-                "enable_dbt_telemetry is set but kernel OAuth U2M credentials cannot be "
-                "reused for telemetry HTTP; events will not be sent."
+                "dbt telemetry is enabled but kernel OAuth U2M credentials cannot be reused "
+                "for telemetry HTTP; events will not be sent."
             )
         invocation_id = _current_invocation_id()
         if not invocation_id:
@@ -57,7 +60,9 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
     try:
         config = getattr(adapter, "config", None)
         creds = getattr(config, "credentials", None)
-        if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
+        if not isinstance(creds, DatabricksCredentials) or not is_collection_enabled_for_invocation(
+            creds
+        ):
             return
         invocation_id = _current_invocation_id()
         coord = coordinator()
@@ -80,14 +85,17 @@ def on_post_parse(adapter: Any, manifest: Any) -> None:
 def on_connection_open(
     credentials: Optional[DatabricksCredentials],
     credentials_manager: Optional[Any],
+    connection: Optional[Any],
     http_path: Optional[str] = None,
 ) -> None:
     try:
         if (
-            not is_enabled_for_invocation(credentials)
-            or not has_reusable_transport(credentials)
+            not is_collection_enabled_for_invocation(credentials)
+            or not is_enabled_for_connection(credentials, connection)
             or credentials_manager is None
         ):
+            return
+        if not has_reusable_transport(credentials):
             return
         invocation_id = _current_invocation_id()
         if not invocation_id:
@@ -164,7 +172,9 @@ def on_run_end(adapter: Any) -> None:
     try:
         config = getattr(adapter, "config", None)
         creds = getattr(config, "credentials", None)
-        if not isinstance(creds, DatabricksCredentials) or not is_enabled_for_invocation(creds):
+        if not isinstance(creds, DatabricksCredentials) or not is_collection_enabled_for_invocation(
+            creds
+        ):
             return
         invocation_id = _stored_invocation_id(adapter)
         if not invocation_id:
