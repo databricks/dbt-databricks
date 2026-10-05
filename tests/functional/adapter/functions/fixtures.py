@@ -82,3 +82,33 @@ functions:
     returns:
       data_type: float
 """
+
+
+PYTHON_UDF_PACKAGES_BODY = """
+from importlib.metadata import version
+
+import simplejson
+
+return version(simplejson.__name__)
+"""
+
+PYTHON_UDF_PACKAGES_YML = """
+functions:
+  - name: python_udf_packages
+    config:
+      packages: simplejson==3.19.3
+    returns:
+      data_type: string
+"""
+
+PYTHON_UDF_ENVIRONMENT_VERSION_YML = """
+functions:
+  - name: python_udf_environment_version
+    config:
+      meta:
+        packages:
+          - simplejson==3.19.3
+        environment_version: 4
+    returns:
+      data_type: string
+"""

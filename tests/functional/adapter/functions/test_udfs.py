@@ -11,6 +11,9 @@ from tests.functional.adapter.functions.fixtures import (
     DATABRICKS_MULTI_ARG_PYTHON_UDF_YML,
     DATABRICKS_PYTHON_UDF_BODY,
     DATABRICKS_PYTHON_UDF_YML,
+    PYTHON_UDF_ENVIRONMENT_VERSION_YML,
+    PYTHON_UDF_PACKAGES_BODY,
+    PYTHON_UDF_PACKAGES_YML,
     PYTHON_UDF_V1,
     PYTHON_UDF_V2,
     PYTHON_UDF_YML_V1,
@@ -59,6 +62,54 @@ class TestDatabricksPythonUDFSupported(UDFsBasic):
         assert len(result.results) == 1
         select_value = int(result.results[0].agate_table.rows[0].values()[0])
         assert select_value == 200, f"Expected 200, got {select_value}"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDatabricksPythonUDFPackages:
+    @pytest.fixture(scope="class")
+    def functions(self):
+        return {
+            "python_udf_packages.py": PYTHON_UDF_PACKAGES_BODY,
+            "python_udf_packages.yml": PYTHON_UDF_PACKAGES_YML,
+        }
+
+    def test_python_udf_installs_packages(self, project):
+        build_result = run_dbt(["build"])
+        assert build_result.results[0].status == RunStatus.Success
+
+        query_result = run_dbt(
+            ["show", "--inline", "SELECT {{ function('python_udf_packages') }}()"]
+        )
+        assert query_result.results[0].agate_table.rows[0].values()[0] == "3.19.3"
+
+
+# Classic clusters only support the default ('None') environment version.
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestDatabricksPythonUDFEnvironmentVersion:
+    @pytest.fixture(scope="class")
+    def functions(self):
+        return {
+            "python_udf_environment_version.py": PYTHON_UDF_PACKAGES_BODY,
+            "python_udf_environment_version.yml": PYTHON_UDF_ENVIRONMENT_VERSION_YML,
+        }
+
+    def test_python_udf_uses_environment_version(self, project):
+        build_result = run_dbt(["build"])
+        assert build_result.results[0].status == RunStatus.Success
+
+        query_result = run_dbt(
+            ["show", "--inline", "SELECT {{ function('python_udf_environment_version') }}()"]
+        )
+        assert query_result.results[0].agate_table.rows[0].values()[0] == "3.19.3"
+
+        description = project.run_sql(
+            "DESCRIBE FUNCTION EXTENDED"
+            f" {project.database}.{project.test_schema}.python_udf_environment_version",
+            fetch="all",
+        )
+        settings = [row[0].strip() for row in description]
+        assert 'Environment Settings: dependencies=["simplejson==3.19.3"]' in settings
+        assert "environment_version=4" in settings
 
 
 @pytest.mark.skip_profile("databricks_cluster")
