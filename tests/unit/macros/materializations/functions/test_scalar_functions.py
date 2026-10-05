@@ -103,7 +103,14 @@ class TestScalarFunctionSQL(ScalarFunctionTestBase):
 class TestScalarFunctionPython(ScalarFunctionTestBase):
     """Tests for Python UDF macro generation"""
 
-    def setup_model_for_python_udf(self, context, runtime_version="3.11", entry_point="entry"):
+    def setup_model_for_python_udf(
+        self,
+        context,
+        runtime_version="3.11",
+        entry_point="entry",
+        meta=None,
+        **config,
+    ):
         """Configure model mock for Python UDF"""
         context["model"].language = "python"
         context["model"].compiled_code = "return value * 2"
@@ -113,7 +120,12 @@ class TestScalarFunctionPython(ScalarFunctionTestBase):
         arg.name = "value"
         arg.data_type = "FLOAT"
         context["model"].arguments = [arg]
-        config_values = {"runtime_version": runtime_version, "entry_point": entry_point}
+        config_values = {
+            "runtime_version": runtime_version,
+            "entry_point": entry_point,
+            "meta": meta or {},
+            **config,
+        }
         context["model"].config.get = lambda k, default=None: config_values.get(k, default)
 
     def test_python_udf_signature(self, template_bundle):
@@ -148,6 +160,129 @@ class TestScalarFunctionPython(ScalarFunctionTestBase):
         assert "runtime_version" not in sql
         assert "handler" not in sql
         assert "$$" in sql
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {},
+            {"packages": []},
+            {"meta": {"packages": []}},
+            {"packages": [], "meta": {"packages": []}},
+            {"packages": None, "environment_version": None},
+        ],
+    )
+    def test_python_udf_omits_environment_when_unset_or_empty(self, template_bundle, config):
+        self.setup_model_for_python_udf(template_bundle.context, **config)
+
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__scalar_function_python",
+            template_bundle.relation,
+        )
+
+        assert "environment" not in sql
+
+    @pytest.mark.parametrize(
+        ("config", "environment"),
+        [
+            (
+                {"packages": ["package-one"]},
+                "dependencies = '[\"package-one\"]', environment_version = 'None'",
+            ),
+            (
+                {"packages": "package-one==1.0"},
+                "dependencies = '[\"package-one==1.0\"]', environment_version = 'None'",
+            ),
+            (
+                {"packages": ["package-one", "/Volumes/main/test/vol/package-two.whl"]},
+                'dependencies = \'["package-one", "/Volumes/main/test/vol/package-two.whl"]\','
+                " environment_version = 'None'",
+            ),
+            (
+                {"meta": {"packages": ["https://example.com/package-one.whl"]}},
+                "dependencies = '[\"https://example.com/package-one.whl\"]',"
+                " environment_version = 'None'",
+            ),
+            (
+                {"packages": [], "meta": {"packages": ["meta-package"]}},
+                "dependencies = '[\"meta-package\"]', environment_version = 'None'",
+            ),
+            (
+                {"packages": ["package-one==1.0; extra == 'test'"]},
+                "dependencies = '[\"package-one==1.0; extra == \\u0027test\\u0027\"]',"
+                " environment_version = 'None'",
+            ),
+            (
+                {"packages": ["package-one"], "environment_version": "4"},
+                "dependencies = '[\"package-one\"]', environment_version = '4'",
+            ),
+            (
+                {"packages": ["package-one"], "meta": {"environment_version": 4}},
+                "dependencies = '[\"package-one\"]', environment_version = '4'",
+            ),
+            ({"environment_version": "4"}, "environment_version = '4'"),
+        ],
+    )
+    def test_python_udf_renders_environment(self, template_bundle, config, environment):
+        self.setup_model_for_python_udf(
+            template_bundle.context, runtime_version=None, entry_point=None, **config
+        )
+
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__scalar_function_python",
+            template_bundle.relation,
+        )
+
+        self.assert_sql_equal(
+            f"""
+            CREATE OR REPLACE FUNCTION `some_database`.`some_schema`.`some_table` (value FLOAT)
+            RETURNS FLOAT
+            LANGUAGE PYTHON
+            ENVIRONMENT ({environment})
+            AS
+            $$
+            return value * 2
+            $$
+            """,
+            sql,
+        )
+
+    def test_python_udf_preserves_literal_unicode_escape_in_package(self, template_bundle):
+        self.setup_model_for_python_udf(template_bundle.context, packages=["package\\u0027one"])
+
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__scalar_function_python",
+            template_bundle.relation,
+        )
+
+        assert "dependencies = '[\"package\\\\u0027one\"]'" in sql
+
+    @pytest.mark.parametrize(
+        ("key", "value"), [("packages", ["package-one"]), ("environment_version", "4")]
+    )
+    def test_python_udf_rejects_environment_config_in_both_locations(
+        self, template_bundle, key, value
+    ):
+        self.setup_model_for_python_udf(template_bundle.context, meta={key: value}, **{key: value})
+        expected_error = (
+            f"`{key}` is configured in both `config.{key}` and `config.meta.{key}`; use only one."
+        )
+        template_bundle.context["exceptions"].raise_compiler_error.side_effect = RuntimeError(
+            expected_error
+        )
+
+        with pytest.raises(RuntimeError, match="configured in both"):
+            self.run_macro(
+                template_bundle.template,
+                "databricks__scalar_function_python",
+                template_bundle.relation,
+            )
+
+        template_bundle.context["exceptions"].raise_compiler_error.assert_called_once_with(
+            expected_error
+        )
 
     def test_python_udf_warns_when_runtime_version_set(self, template_bundle):
         """Test that warning is emitted when runtime_version is explicitly configured"""
