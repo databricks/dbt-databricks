@@ -401,12 +401,57 @@ models:
         data_type: int
 """
 
+incremental_custom_rely_pk_cascade_schema_yml = """
+version: 2
+models:
+  - name: custom_rely_parent
+    config:
+      materialized: incremental
+      unique_key: n
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    constraints:
+      - type: custom
+        name: pk_custom_rely_parent
+        expression: "PRIMARY KEY (`n`) RELY"
+    columns:
+      - name: n
+        data_type: int
+        constraints:
+          - type: not_null
+  - name: custom_rely_child
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        name: fk_custom_rely_child
+        columns: ["parent_n"]
+        to: ref('custom_rely_parent')
+        to_columns: ["n"]
+    columns:
+      - name: parent_n
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: child_id
+        data_type: int
+"""
+
 incremental_rely_pk_parent_sql = """
 select 1 as n
 """
 
 incremental_rely_pk_child_sql = """
 -- depends_on: {{ ref('rely_parent') }}
+
+select 1 as parent_n, 10 as child_id
+"""
+
+incremental_custom_rely_pk_child_sql = """
+-- depends_on: {{ ref('custom_rely_parent') }}
 
 select 1 as parent_n, 10 as child_id
 """

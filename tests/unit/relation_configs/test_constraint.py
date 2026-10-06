@@ -10,6 +10,7 @@ from dbt_common.contracts.constraints import (
 
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
+    CustomConstraint,
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
 )
@@ -476,3 +477,35 @@ class TestConstraintsConfig:
         other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         diff = config.get_diff(other)
         assert {(c.name, c.expression) for c in diff.set_constraints} == {("pk_n", "RELY")}
+
+    def test_get_diff__custom_primary_key_matches_catalog_primary_key_is_noop(self):
+        # Databricks stores a custom `PRIMARY KEY (...)` expression as a native primary key, so the
+        # catalog reads it back as a PrimaryKeyConstraint without the RELY option.
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                CustomConstraint(
+                    type=ConstraintType.custom,
+                    name="pk_n",
+                    expression='PRIMARY KEY (`n`, "m") RELY',
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk_n", columns=["n", "m"]
+                )
+            },
+        )
+        assert config.get_diff(other) is None
+
+    def test_get_diff__new_custom_primary_key_retains_expression(self):
+        custom_pk = CustomConstraint(
+            type=ConstraintType.custom, name="pk_n", expression="PRIMARY KEY (n) RELY"
+        )
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints={custom_pk})
+        other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        diff = config.get_diff(other)
+        assert diff.set_constraints == {custom_pk}

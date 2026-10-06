@@ -226,6 +226,7 @@ class TestIncrementalRelyConstraintReconciliation:
     """A RELY expression on a primary key cannot be read back from information_schema, so it
     must not trigger constraint reconciliation on an incremental run. Otherwise the parent PK
     is dropped with CASCADE every run, silently dropping the child's foreign key (#1513).
+    The same holds for a `custom` constraint whose expression declares the primary key.
     """
 
     @pytest.fixture(scope="class")
@@ -238,6 +239,9 @@ class TestIncrementalRelyConstraintReconciliation:
             "schema.yml": override_fixtures.incremental_rely_pk_cascade_schema_yml,
             "rely_parent.sql": override_fixtures.incremental_rely_pk_parent_sql,
             "rely_child.sql": override_fixtures.incremental_rely_pk_child_sql,
+            "custom_schema.yml": override_fixtures.incremental_custom_rely_pk_cascade_schema_yml,
+            "custom_rely_parent.sql": override_fixtures.incremental_rely_pk_parent_sql,
+            "custom_rely_child.sql": override_fixtures.incremental_custom_rely_pk_child_sql,
         }
 
     def _foreign_key_names(self, project):
@@ -253,12 +257,12 @@ class TestIncrementalRelyConstraintReconciliation:
 
     def test_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
         util.run_dbt(["build"])
-        assert "fk_rely_child" in self._foreign_key_names(project)
+        assert {"fk_rely_child", "fk_custom_rely_child"} <= self._foreign_key_names(project)
 
-        # A plain incremental re-run of the parent must not reconcile its RELY PK.
-        util.run_dbt(["run", "--select", "rely_parent"])
+        # A plain incremental re-run of the parents must not reconcile their RELY PKs.
+        util.run_dbt(["run", "--select", "rely_parent", "custom_rely_parent"])
 
-        assert "fk_rely_child" in self._foreign_key_names(project)
+        assert {"fk_rely_child", "fk_custom_rely_child"} <= self._foreign_key_names(project)
 
 
 @pytest.mark.skip_profile("databricks_cluster")
