@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.7 (TBD)
+
+### Fixes
+
+- Stop incremental runs from dropping and re-adding a foreign key whenever another schema in the same catalog has a constraint with the same name ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
