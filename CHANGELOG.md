@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.7 (TBD)
+
+### Under the Hood
+
+- Fail a hung unit test after 60 seconds and retry it on a fresh worker instead of stalling the CI job until it is cancelled (test-only, no runtime impact) ([#1703](https://github.com/databricks/dbt-databricks/pull/1703))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
