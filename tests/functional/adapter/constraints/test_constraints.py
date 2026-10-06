@@ -10,7 +10,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
 )
 
 from tests.functional.adapter.constraints import fixtures as override_fixtures
-from tests.functional.adapter.fixtures import RerunSafeMixin
+from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
 
 
 class DatabricksConstraintsBase:
@@ -228,6 +228,7 @@ class TestIncrementalPrimaryKeyConstraintReconciliation:
     server-assigned name the model lacks; treating either as a change drops the PK with CASCADE
     every run, silently dropping the child's foreign key. The parent PK here is both unnamed and
     RELY, so this guards both fixes.
+    The same holds for a custom constraint that declares the primary key.
     """
 
     @pytest.fixture(scope="class")
@@ -240,6 +241,9 @@ class TestIncrementalPrimaryKeyConstraintReconciliation:
             "schema.yml": override_fixtures.incremental_rely_pk_cascade_schema_yml,
             "rely_parent.sql": override_fixtures.incremental_rely_pk_parent_sql,
             "rely_child.sql": override_fixtures.incremental_rely_pk_child_sql,
+            "custom_schema.yml": override_fixtures.incremental_custom_rely_pk_cascade_schema_yml,
+            "custom_rely_parent.sql": override_fixtures.incremental_custom_rely_pk_parent_sql,
+            "custom_rely_child.sql": override_fixtures.incremental_custom_rely_pk_child_sql,
         }
 
     def _foreign_key_names(self, project):
@@ -255,12 +259,18 @@ class TestIncrementalPrimaryKeyConstraintReconciliation:
 
     def test_unnamed_rely_pk_reconcile_keeps_dependent_foreign_key(self, project):
         util.run_dbt(["build"])
-        assert "fk_rely_child" in self._foreign_key_names(project)
+        assert {"fk_rely_child", "fk_custom_rely_child"} <= self._foreign_key_names(project)
 
-        # A plain incremental re-run of the parent must not reconcile its unnamed RELY PK.
-        util.run_dbt(["run", "--select", "rely_parent"])
+        util.run_dbt(["run", "--select", "rely_parent", "custom_rely_parent"])
 
-        assert "fk_rely_child" in self._foreign_key_names(project)
+        assert {"fk_rely_child", "fk_custom_rely_child"} <= self._foreign_key_names(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestV2IncrementalPrimaryKeyConstraintReconciliation(
+    MaterializationV2Mixin, TestIncrementalPrimaryKeyConstraintReconciliation
+):
+    pass
 
 
 @pytest.mark.skip_profile("databricks_cluster")

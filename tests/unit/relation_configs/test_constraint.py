@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+import pytest
 from agate import Table
 from dbt.artifacts.resources.v1.components import ColumnInfo
 from dbt_common.contracts.constraints import (
@@ -10,6 +11,7 @@ from dbt_common.contracts.constraints import (
 
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
+    CustomConstraint,
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     synthesize_constraint_name,
@@ -594,3 +596,79 @@ class TestConstraintsConfig:
         )
         assert len({c.name for c in model_config.set_constraints}) == 2
         assert model_config.get_diff(self._catalog_mirroring(model_config)) is None
+
+    def test_get_diff__custom_primary_key_matches_catalog_primary_key_is_noop(self):
+        # Databricks stores a custom `PRIMARY KEY (...)` expression as a native primary key, so the
+        # catalog reads it back as a PrimaryKeyConstraint without the RELY option.
+        config = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                CustomConstraint(
+                    type=ConstraintType.custom,
+                    name="pk_n",
+                    expression='PRIMARY KEY (`n`, "m") RELY',
+                )
+            },
+        )
+        other = ConstraintsConfig(
+            set_non_nulls={"n"},
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk_n", columns=["n", "m"]
+                )
+            },
+        )
+        assert config.get_diff(other) is None
+
+    def test_get_diff__new_custom_primary_key_retains_expression(self):
+        custom_pk = CustomConstraint(
+            type=ConstraintType.custom, name="pk_n", expression="PRIMARY KEY (n) RELY"
+        )
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints={custom_pk})
+        other = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        diff = config.get_diff(other)
+        assert diff.set_constraints == {custom_pk}
+
+    @pytest.mark.parametrize(
+        "expression, columns",
+        [
+            ('PRIMARY KEY (`n`, "m") RELY', ["n", "m"]),
+            ("primary key(a,b)", ["a", "b"]),
+            ("PRIMARY KEY (`id`, `ts` TIMESERIES) RELY", ["id", "ts"]),
+            ("PRIMARY KEY (`a,b`)", None),
+            ("PRIMARY KEY (`a)b`)", None),
+            ("PRIMARY KEY (`a``b`)", None),
+            ("PRIMARY KEY (`my col`)", ["my col"]),
+            ("CHECK (n > 0)", None),
+            ("PRIMARY KEY ()", None),
+            ("PRIMARY KEY (`a)", None),
+            ("PRIMARY KEY (a b)", None),
+        ],
+    )
+    def test_normalize_constraint__custom_primary_key_columns(self, expression, columns):
+        custom = CustomConstraint(type=ConstraintType.custom, name="pk_n", expression=expression)
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        normalized = config.normalize_constraint(custom)
+        if columns is None:
+            assert normalized == custom
+        else:
+            assert normalized == PrimaryKeyConstraint(
+                type=ConstraintType.primary_key, name="pk_n", columns=columns
+            )
+
+    def test_get_diff__custom_primary_key_on_quoted_column_differs_from_split_columns(self):
+        # One column named `a,b` is a different key than the catalog's key on columns a and b.
+        custom_pk = CustomConstraint(
+            type=ConstraintType.custom, name="pk_n", expression="PRIMARY KEY (`a,b`)"
+        )
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints={custom_pk})
+        other = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints={
+                PrimaryKeyConstraint(
+                    type=ConstraintType.primary_key, name="pk_n", columns=["a", "b"]
+                )
+            },
+        )
+        diff = config.get_diff(other)
+        assert diff.set_constraints == {custom_pk}
