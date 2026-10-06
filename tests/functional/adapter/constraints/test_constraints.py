@@ -485,12 +485,16 @@ class TestV2SaferReplaceTableKeyReruns(V2SaferReplaceKeysBase):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestV2SaferReplaceInvalidKeyPreservesTarget:
+class TestV2SaferReplaceInvalidKeyPreservesTarget(RerunSafeMixin):
     """V2: a key the server rejects must fail safer replace before the existing table is swapped."""
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {"flags": {"use_materialization_v2": True}}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("safer_failure_child", "safer_failure_parent")
 
     @pytest.fixture(scope="class")
     def models(self):
