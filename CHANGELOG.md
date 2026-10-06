@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Report the new relation type for the rest of the run after a model switches between a view, materialized view, streaming table, or metric view ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- Report the new relation type for the rest of the run after a model switches between a view, materialized view, streaming table, or metric view ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
