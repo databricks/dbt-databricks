@@ -3,6 +3,7 @@
 ### Fixes
 
 - Replace a Hive metastore table with a view without renaming the table, so view models no longer fail on AWS with `DELTA_ALTER_TABLE_RENAME_NOT_ALLOWED` ([#1701](https://github.com/databricks/dbt-databricks/pull/1701))
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
