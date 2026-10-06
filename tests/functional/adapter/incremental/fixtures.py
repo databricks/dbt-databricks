@@ -1350,3 +1350,22 @@ partitioned_incremental_changed_sql = """
 {{ config(materialized='incremental', incremental_strategy='append', partition_by='part_b') }}
 select 2 as id, 'x' as part_a, 'y' as part_b
 """
+
+
+def skip_on_empty_source_sql(model_config):
+    return (
+        """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    """
+        + model_config
+        + """
+) }}
+select id from (select explode(sequence(1, {{ var('max_id', 2) }})) as id)
+{% if is_incremental() %}
+where id > (select max(id) from {{ this }})
+{% endif %}
+-- a trailing line comment
+"""
+    )

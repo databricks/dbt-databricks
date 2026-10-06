@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.7 (TBD)
+
+### Features
+
+- Add opt-in `skip_merge_on_empty_source` incremental config that skips the incremental run when the model returns no rows, for `append`, `delete+insert`, and `merge` without `not_matched_by_source_action` with `on_schema_change: ignore`; configuration changes are applied on the next run with data ([#1410](https://github.com/databricks/dbt-databricks/pull/1410))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
