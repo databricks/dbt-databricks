@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.7 (TBD)
+
+### Fixes
+
+- Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
