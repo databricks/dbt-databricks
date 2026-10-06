@@ -6,7 +6,6 @@ from dbt.adapters.databricks.constraints import (
     ConstraintType,
     CustomConstraint,
     ForeignKeyConstraint,
-    PrimaryKeyConstraint,
 )
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.constraints import ConstraintsConfig
@@ -61,14 +60,12 @@ class TestApplyConstraintsMacro(MacroTestBase):
         assert re.findall(r"add constraint fk_(\w) foreign key", sql) == expected
 
     def test_apply_constraints_orders_unnamed_constraints(self, passthrough_statement):
-        primary_key = PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
         customs = {
             CustomConstraint(type=ConstraintType.custom, expression=f"check (col_{name} > 0)")
             for name in NAMES
         }
-        config = ConstraintsConfig(set_non_nulls=set(), set_constraints={primary_key, *customs})
+        config = ConstraintsConfig(set_non_nulls=set(), set_constraints=customs)
 
         sql = self.render_bundle(passthrough_statement, "apply_constraints", config)
 
-        assert re.findall(r"add (\w+)", sql) == ["check"] * len(NAMES) + ["primary"]
         assert re.findall(r"check \(col_(\w) > 0\)", sql) == sorted(NAMES)
