@@ -22,6 +22,10 @@ from dbt.adapters.databricks.relation_configs.base import (
 )
 
 _CUSTOM_PRIMARY_KEY = re.compile(r"^\s*primary\s+key\s*\(([^)]*)\)", re.IGNORECASE)
+# TIMESERIES marks a key column; information_schema reports only the column name.
+_KEY_COLUMN = re.compile(
+    r'\s*(?:`([^`]+)`|"([^"]+)"|([^\s`",()]+))(?:\s+timeseries)?\s*', re.IGNORECASE
+)
 
 
 class ConstraintsConfig(DatabricksComponentConfig):
@@ -88,10 +92,12 @@ class ConstraintsConfig(DatabricksComponentConfig):
         match = _CUSTOM_PRIMARY_KEY.match(constraint.expression or "")
         if not match:
             return None
-        columns = [column.strip().strip('`"') for column in match.group(1).split(",")]
-        columns = [column for column in columns if column]
-        if not columns:
-            return None
+        columns: list[str] = []
+        for part in match.group(1).split(","):
+            column = _KEY_COLUMN.fullmatch(part)
+            if not column:
+                return None
+            columns.append(next(name for name in column.groups() if name))
         return PrimaryKeyConstraint(
             type=ConstraintType.primary_key, name=constraint.name, columns=columns
         )

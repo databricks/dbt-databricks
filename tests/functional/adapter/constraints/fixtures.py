@@ -414,10 +414,14 @@ models:
     constraints:
       - type: custom
         name: pk_custom_rely_parent
-        expression: "PRIMARY KEY (`n`) RELY"
+        expression: "PRIMARY KEY (`n`, `ts` TIMESERIES) RELY"
     columns:
       - name: n
         data_type: int
+        constraints:
+          - type: not_null
+      - name: ts
+        data_type: timestamp
         constraints:
           - type: not_null
   - name: custom_rely_child
@@ -428,12 +432,16 @@ models:
     constraints:
       - type: foreign_key
         name: fk_custom_rely_child
-        columns: ["parent_n"]
+        columns: ["parent_n", "parent_ts"]
         to: ref('custom_rely_parent')
-        to_columns: ["n"]
+        to_columns: ["n", "ts"]
     columns:
       - name: parent_n
         data_type: int
+        constraints:
+          - type: not_null
+      - name: parent_ts
+        data_type: timestamp
         constraints:
           - type: not_null
       - name: child_id
@@ -450,10 +458,14 @@ incremental_rely_pk_child_sql = """
 select 1 as parent_n, 10 as child_id
 """
 
+incremental_custom_rely_pk_parent_sql = """
+select 1 as n, timestamp'2026-01-01' as ts
+"""
+
 incremental_custom_rely_pk_child_sql = """
 -- depends_on: {{ ref('custom_rely_parent') }}
 
-select 1 as parent_n, 10 as child_id
+select 1 as parent_n, timestamp'2026-01-01' as parent_ts, 10 as child_id
 """
 
 

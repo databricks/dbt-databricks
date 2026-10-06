@@ -10,7 +10,7 @@ from dbt.tests.adapter.constraints.test_constraints import (
 )
 
 from tests.functional.adapter.constraints import fixtures as override_fixtures
-from tests.functional.adapter.fixtures import RerunSafeMixin
+from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
 
 
 class DatabricksConstraintsBase:
@@ -240,7 +240,7 @@ class TestIncrementalRelyConstraintReconciliation:
             "rely_parent.sql": override_fixtures.incremental_rely_pk_parent_sql,
             "rely_child.sql": override_fixtures.incremental_rely_pk_child_sql,
             "custom_schema.yml": override_fixtures.incremental_custom_rely_pk_cascade_schema_yml,
-            "custom_rely_parent.sql": override_fixtures.incremental_rely_pk_parent_sql,
+            "custom_rely_parent.sql": override_fixtures.incremental_custom_rely_pk_parent_sql,
             "custom_rely_child.sql": override_fixtures.incremental_custom_rely_pk_child_sql,
         }
 
@@ -263,6 +263,13 @@ class TestIncrementalRelyConstraintReconciliation:
         util.run_dbt(["run", "--select", "rely_parent", "custom_rely_parent"])
 
         assert {"fk_rely_child", "fk_custom_rely_child"} <= self._foreign_key_names(project)
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalRelyConstraintReconciliationV2(
+    MaterializationV2Mixin, TestIncrementalRelyConstraintReconciliation
+):
+    pass
 
 
 @pytest.mark.skip_profile("databricks_cluster")
