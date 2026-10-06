@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-05_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -64,3 +64,6 @@ The `create_table_at` helper applies constraints, table tags, and column tags be
 the intermediate relation. The safe-replacement helper performs its own intermediate cleanup;
 Python paths also clean up the intermediate relation after optimization. Unlike V1, V2 does not call
 `persist_docs` — column and relation comments are handled on the create/insert path.
+
+Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
+S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.

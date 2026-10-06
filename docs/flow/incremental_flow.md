@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-05_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -89,3 +89,6 @@ the incremental branch even when its configuration changes. Safe staging is sele
 non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
 path, V2 does not call `persist_docs` — relation and column comments are handled via
 `apply_config_changeset` or the create/insert path.
+
+Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
+S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.

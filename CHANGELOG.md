@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.7 (TBD)
+
+### Fixes
+
+- Replace a Hive metastore table with a view without renaming the table, so view models no longer fail on AWS with `DELTA_ALTER_TABLE_RENAME_NOT_ALLOWED` ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
