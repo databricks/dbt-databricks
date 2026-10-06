@@ -77,6 +77,7 @@
 
     {% set grant_config = config.get('grants') %}
     {{ execute_multiple_statements(build_sql) }}
+    {% do cache_replaced_relation(existing_relation, target_relation) %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}

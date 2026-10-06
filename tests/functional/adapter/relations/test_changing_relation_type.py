@@ -76,6 +76,52 @@ class TestTableConvertsToView(_TableToViewBase):
         )
 
 
+REPLACEMENTS = [
+    pytest.param("table", "view", id="table-to-view"),
+    pytest.param("materialized_view", "view", id="materialized-view-to-view"),
+    pytest.param("view", "materialized_view", id="view-to-materialized-view"),
+    pytest.param("streaming_table", "materialized_view", id="streaming-table-to-materialized-view"),
+    pytest.param("materialized_view", "metric_view", id="materialized-view-to-metric-view"),
+]
+
+
+def replaced_relation_name(from_type, to_type):
+    return f"replaced_{from_type}_to_{to_type}"
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"replaced_relation_source.sql": fixtures.replaced_relation_source_sql}
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"assert_cached_as_materialized.sql": fixtures.assert_cached_as_materialized_macro}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return tuple(replaced_relation_name(*p.values) for p in REPLACEMENTS)
+
+    @pytest.mark.parametrize("from_type, to_type", REPLACEMENTS)
+    def test_post_hook_sees_replaced_relation(self, project, from_type, to_type):
+        name = replaced_relation_name(from_type, to_type)
+        util.run_dbt(["run", "--select", "replaced_relation_source"])
+        util.write_file(fixtures.replaced_relation_sql(from_type), "models", f"{name}.sql")
+        util.run_dbt(["run", "--select", name])
+
+        util.write_file(
+            fixtures.replaced_relation_sql(to_type, post_hook=True), "models", f"{name}.sql"
+        )
+        util.run_dbt(["run", "--select", name])
+
+        if to_type != "metric_view":
+            count = project.run_sql(
+                f"select count(*) from {{database}}.{{schema}}.{name}", fetch="one"
+            )
+            assert count[0] == 3
+
+
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")
 class TestChangeRelationTypesParquetDatabricks(BaseChangeRelationTypeValidator):
     @pytest.fixture(scope="class")

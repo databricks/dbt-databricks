@@ -309,6 +309,7 @@ class DeltaLiveTableMaterializationTagsTestBase(MacroTestBase):
         context["pre_hooks"] = []
         context["run_hooks"] = jinja_safe_mock(return_value="")
         context["execute_multiple_statements"] = jinja_safe_mock(return_value="")
+        context["cache_replaced_relation"] = jinja_safe_mock(return_value="")
         context["should_revoke"] = jinja_safe_mock(return_value=False)
         context["apply_grants"] = jinja_safe_mock(return_value="")
 
@@ -357,6 +358,9 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH MATERIALIZED VIEW")
+        context["cache_replaced_relation"].assert_called_once_with(
+            existing_relation, template_bundle.relation
+        )
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(
@@ -417,6 +421,9 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH STREAMING TABLE")
+        context["cache_replaced_relation"].assert_called_once_with(
+            existing_relation, template_bundle.relation
+        )
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(

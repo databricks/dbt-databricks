@@ -3,6 +3,14 @@
   {% do return(adapter.dispatch('get_replace_sql', 'dbt')(existing_relation, target_relation, sql)) %}
 {% endmacro %}
 
+{#- Replacement SQL bypasses the relation cache, and dbt caches the target only after the model's post-hooks. -#}
+{% macro cache_replaced_relation(existing_relation, target_relation) %}
+  {% if existing_relation is not none %}
+    {% do adapter.cache_dropped(existing_relation) %}
+  {% endif %}
+  {% do adapter.cache_added(target_relation) %}
+{% endmacro %}
+
 {% macro databricks__get_replace_sql(existing_relation, target_relation, sql) %}
   {# /* if safe_relation_replace, prefer renaming */ #}
   {% if target_relation.type == "table" %}
@@ -65,7 +73,6 @@
     {{ get_create_sql(staging_relation, sql) }}
   {% endcall %}
 
-  {% do adapter.cache_dropped(existing_relation) %}
   {{ return([
     get_drop_sql(existing_relation),
     get_rename_sql(staging_relation, existing_relation.render()),
@@ -85,7 +92,6 @@
 {# Drop the existing relation, then create the target relation #}
 {% macro drop_and_create(existing_relation, target_relation, sql) %}
   {{ log('Using drop_and_create') }}
-  {% do adapter.cache_dropped(existing_relation) %}
   {{ return([
     get_drop_sql(existing_relation),
     get_create_sql(target_relation, sql)

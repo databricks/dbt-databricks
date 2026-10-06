@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Report the new relation type for the rest of the run after a model switches between a view, materialized view, streaming table, or metric view ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
+- Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 

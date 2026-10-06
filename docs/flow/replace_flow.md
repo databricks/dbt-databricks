@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-08-14_
+_Last updated: 2026-10-06_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -47,3 +47,8 @@ targets have already failed at the initial guard.
 | Yes | No | `stage_then_replace` |
 | No | Yes | `backup_and_create_in_place` |
 | No | No | `drop_and_create` |
+
+The replacement statements bypass dbt's relation cache, so after executing them the callers (view,
+metric view, materialized view, and streaming table) call `cache_replaced_relation`. It drops the
+existing relation's cache entry and adds the target, so the model's post-hooks and later lookups in
+the run see the new relation and its type.
