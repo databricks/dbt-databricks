@@ -65,6 +65,7 @@
     {{ get_create_sql(staging_relation, sql) }}
   {% endcall %}
 
+  {% do adapter.cache_dropped(existing_relation) %}
   {{ return([
     get_drop_sql(existing_relation),
     get_rename_sql(staging_relation, existing_relation.render()),
@@ -84,6 +85,7 @@
 {# Drop the existing relation, then create the target relation #}
 {% macro drop_and_create(existing_relation, target_relation, sql) %}
   {{ log('Using drop_and_create') }}
+  {% do adapter.cache_dropped(existing_relation) %}
   {{ return([
     get_drop_sql(existing_relation),
     get_create_sql(target_relation, sql)
