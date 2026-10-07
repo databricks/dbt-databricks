@@ -1,8 +1,8 @@
 ## dbt-databricks 1.12.7 (TBD)
 
-### Under the Hood
+### Fixes
 
-- Fail a hung unit test after 60 seconds and retry it on a fresh worker instead of stalling the CI job until it is cancelled (test-only, no runtime impact) ([#1703](https://github.com/databricks/dbt-databricks/pull/1703))
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
