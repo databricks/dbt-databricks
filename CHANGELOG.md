@@ -3,6 +3,7 @@
 ### Fixes
 
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
+- Close a model's session without holding the connection manager lock, so a slow session close no longer stalls other threads' queries and can't leave a cluster idle long enough to auto-terminate mid-run
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
