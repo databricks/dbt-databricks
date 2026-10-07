@@ -77,16 +77,19 @@ class TestTableConvertsToView(_TableToViewBase):
 
 
 REPLACEMENTS = [
-    pytest.param("table", "view", id="table-to-view"),
-    pytest.param("materialized_view", "view", id="materialized-view-to-view"),
-    pytest.param("view", "materialized_view", id="view-to-materialized-view"),
-    pytest.param("streaming_table", "materialized_view", id="streaming-table-to-materialized-view"),
-    pytest.param("materialized_view", "metric_view", id="materialized-view-to-metric-view"),
+    pytest.param("table", "view", False, id="table-to-view"),
+    pytest.param("table", "view", True, id="table-to-view-v2"),
+    pytest.param("materialized_view", "view", False, id="materialized-view-to-view"),
+    pytest.param("view", "materialized_view", False, id="view-to-materialized-view"),
+    pytest.param(
+        "streaming_table", "materialized_view", False, id="streaming-table-to-materialized-view"
+    ),
 ]
 
 
-def replaced_relation_name(from_type, to_type):
-    return f"replaced_{from_type}_to_{to_type}"
+def replaced_relation_name(from_type, to_type, use_materialization_v2):
+    suffix = "_v2" if use_materialization_v2 else ""
+    return f"replaced_{from_type}_to_{to_type}{suffix}"
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -103,9 +106,16 @@ class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
     def relations_to_reset(self):
         return tuple(replaced_relation_name(*p.values) for p in REPLACEMENTS)
 
-    @pytest.mark.parametrize("from_type, to_type", REPLACEMENTS)
-    def test_post_hook_sees_replaced_relation(self, project, from_type, to_type):
-        name = replaced_relation_name(from_type, to_type)
+    @pytest.mark.parametrize("from_type, to_type, use_materialization_v2", REPLACEMENTS)
+    def test_post_hook_sees_replaced_relation(
+        self, project, from_type, to_type, use_materialization_v2
+    ):
+        name = replaced_relation_name(from_type, to_type, use_materialization_v2)
+        util.update_config_file(
+            {"flags": {"use_materialization_v2": use_materialization_v2}},
+            project.project_root,
+            "dbt_project.yml",
+        )
         util.run_dbt(["run", "--select", "replaced_relation_source"])
         util.write_file(fixtures.replaced_relation_sql(from_type), "models", f"{name}.sql")
         util.run_dbt(["run", "--select", name])
@@ -115,11 +125,8 @@ class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
         )
         util.run_dbt(["run", "--select", name])
 
-        if to_type != "metric_view":
-            count = project.run_sql(
-                f"select count(*) from {{database}}.{{schema}}.{name}", fetch="one"
-            )
-            assert count[0] == 3
+        count = project.run_sql(f"select count(*) from {{database}}.{{schema}}.{name}", fetch="one")
+        assert count[0] == 3
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")

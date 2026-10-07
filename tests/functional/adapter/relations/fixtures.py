@@ -48,19 +48,6 @@ def replaced_relation_sql(materialized, post_hook=False):
     config = f"materialized='{materialized}'"
     if post_hook:
         config += ", post_hook='{{ assert_cached_as_materialized() }}'"
-    if materialized == "metric_view":
-        return f"""
-{{{{ config({config}) }}}}
-
-version: 0.1
-source: "{{{{ ref('replaced_relation_source') }}}}"
-dimensions:
-  - name: id
-    expr: id
-measures:
-  - name: row_count
-    expr: count(1)
-"""
     stream = "stream " if materialized == "streaming_table" else ""
     return f"""
 {{{{ config({config}) }}}}
