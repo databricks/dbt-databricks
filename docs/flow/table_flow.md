@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-02_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -14,7 +14,8 @@ flowchart LR
     EXIST -- yes --> DROPNEEDED{"Shallow clone, non-table, or not a replaceable\nDelta/Iceberg table?"}
     EXIST -- no --> CREATE
     DROPNEEDED -- yes --> DROP[Drop existing relation]
-    DROPNEEDED -- no --> CREATE
+    DROPNEEDED -- no --> UNSET["SQL only: unset tags on existing<br/>columns the new query removes"]
+    UNSET --> CREATE
     DROP --> CREATE{Language?}
     CREATE -- SQL --> SQL[create table as / create or replace table as]
     CREATE -- Python --> PY[Create table with Python]
@@ -48,7 +49,8 @@ flowchart LR
     SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Shallow clone, non-table, or not a replaceable\nDelta/Iceberg table?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
-    DROPNEEDED -- no --> CREATE
+    DROPNEEDED -- no --> UNSET["Unset tags on existing columns<br/>absent from the intermediate relation"]
+    UNSET --> CREATE
     DROP --> CREATE
 
     CREATE --> GRANTS[Apply grants]
