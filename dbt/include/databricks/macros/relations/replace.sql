@@ -15,7 +15,8 @@
     {% if cached_relation is not none %}
       {% do adapter.cache_dropped(cached_relation) %}
     {% endif %}
-    {% do adapter.cache_added(target_relation) %}
+    {#- Same entry dbt-core adds for the materialization's relations after the model. -#}
+    {% do adapter.cache_added(target_relation.incorporate(dbt_created=True)) %}
   {% endif %}
 {% endmacro %}
 
