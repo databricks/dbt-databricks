@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-08_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -89,3 +89,8 @@ the incremental branch even when its configuration changes. Safe staging is sele
 non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
 path, V2 does not call `persist_docs` — relation and column comments are handled via
 `apply_config_changeset` or the create/insert path.
+
+When a replacement drops the existing relation or uses safe staging, it calls
+`cache_replaced_relation` (see the [replace flow](replace_flow.md)) after creating the table and
+before post-hooks, so the model's post-hooks and later lookups in the run see the new table.
+Incremental merges and `CREATE OR REPLACE` rebuilds do not touch the relation cache.
