@@ -21,6 +21,10 @@
 - Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 - Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 
+### Fixes
+
+- Use `create or replace table` instead of dropping the table first when a full refresh rebuilds an incremental model on a Unity Catalog managed Iceberg table ([#1669](https://github.com/databricks/dbt-databricks/pull/1669) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+
 ### Under the Hood
 
 - Raise the `dbt-core` upper bound to `<1.12.6` to include dbt-core 1.12.4 and 1.12.5 ([#1689](https://github.com/databricks/dbt-databricks/pull/1689))
