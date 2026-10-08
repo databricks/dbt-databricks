@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-04_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -61,7 +61,7 @@ flowchart LR
     EXIST -- no --> CREATE["create_table_at target:<br/>create schema; constraints; table tags;<br/>column tags; insert intermediate"]
     EXIST -- yes --> SHOULDREPLACE{"Existing is DLT, a view,\nor full refresh?"}
     SHOULDREPLACE -- yes --> SAFEPATH{"use_safer_relation_operations and\nexisting can be renamed?"}
-    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
+    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup;<br/>rename staged PK/FK; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Existing is not replaceable Delta/Iceberg,\nor is a shallow clone?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
     DROPNEEDED -- no --> CREATE
