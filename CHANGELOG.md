@@ -2,6 +2,7 @@
 
 ### Fixes
 
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 - Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
