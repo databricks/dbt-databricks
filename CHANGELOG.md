@@ -27,6 +27,7 @@
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
 - Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
 - Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
+- Raise the `databricks-sdk` upper bound to `<0.137.0` to include databricks-sdk 0.136.0 ([#1672](https://github.com/databricks/dbt-databricks/pull/1672))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
