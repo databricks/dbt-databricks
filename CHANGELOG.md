@@ -2,6 +2,7 @@
 
 ### Fixes
 
+- Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
