@@ -5,6 +5,13 @@ import pytest
 from dbt.adapters.databricks.relation import DatabricksRelationType
 from tests.unit.macros.base import MacroTestBase
 
+BACKSLASH_COMMENTS = [
+    pytest.param(r"Matches ^\d+$", r"Matches ^\\d+$", id="regex"),
+    pytest.param(r"Lives in C:\tmp\new", r"Lives in C:\\tmp\\new", id="windows_path"),
+    pytest.param("Ends with \\", r"Ends with \\", id="trailing_backslash"),
+    pytest.param(r"Bob\'s ^\d", r"Bob\\\'s ^\\d", id="backslash_and_quote"),
+]
+
 
 class TestPersistDocsMacros(MacroTestBase):
     @pytest.fixture(scope="class")
@@ -14,6 +21,10 @@ class TestPersistDocsMacros(MacroTestBase):
     @pytest.fixture(scope="class")
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/adapters"]
+
+    @pytest.fixture(scope="class")
+    def databricks_template_names(self) -> list:
+        return ["relations/components/comment.sql"]
 
     @pytest.fixture
     def mock_model_with_columns(self):
@@ -126,6 +137,17 @@ class TestPersistDocsMacros(MacroTestBase):
         )
         self.assert_sql_equal(result, expected_sql)
 
+    @pytest.mark.parametrize("comment, escaped", BACKSLASH_COMMENTS)
+    def test_alter_relation_comment_sql_escapes_backslashes(
+        self, template_bundle, relation, comment, escaped
+    ):
+        result = self.run_macro(
+            template_bundle.template, "alter_relation_comment_sql", relation, comment
+        )
+
+        expected_sql = f"COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS '{escaped}'"
+        self.assert_sql_equal(expected_sql, result)
+
     def test_alter_relation_comment_sql_view(self, template_bundle):
         view_relation = Mock()
         view_relation.database = "test_db"
@@ -225,6 +247,45 @@ class TestPersistDocsMacros(MacroTestBase):
             "ALTER COLUMN `value` COMMENT 'Contains \\'quoted\\' text'"
         )
         self.assert_sql_equal(second_call, expected_second_sql)
+
+    def test_databricks__alter_column_comment_escapes_backslashes(
+        self, template_bundle, context, relation
+    ):
+        context["adapter"] = Mock()
+        context["adapter"].resolve_file_format.return_value = "delta"
+        context["adapter"].has_dbr_capability = Mock(return_value=True)
+        context["adapter"].quote = lambda identifier: f"`{identifier}`"
+        context["run_query_as"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "databricks__alter_column_comment",
+            relation,
+            {"pattern": {"name": "pattern", "description": r"Bob\'s ^\d"}},
+        )
+
+        expected_sql = (
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`pattern`"
+            r" IS 'Bob\\\'s ^\\d'"
+        )
+        self.assert_sql_equal(expected_sql, context["run_query_as"].call_args[0][0])
+
+    def test_alter_column_comments_escapes_backslashes(self, template_bundle, context, relation):
+        context["adapter"].has_dbr_capability = Mock(return_value=True)
+        context["run_query_as"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "alter_column_comments",
+            relation,
+            {"pattern": r"Bob\'s ^\d"},
+        )
+
+        expected_sql = (
+            "COMMENT ON COLUMN `some_database`.`some_schema`.`some_table`.`pattern`"
+            r" IS 'Bob\\\'s ^\\d'"
+        )
+        self.assert_sql_equal(expected_sql, context["run_query_as"].call_args[0][0])
 
     def test_databricks__alter_column_comment_unsupported_format(
         self, template_bundle, context, relation, mock_model_with_columns
