@@ -3,7 +3,7 @@
 ### Fixes
 
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
-- Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
+- Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
