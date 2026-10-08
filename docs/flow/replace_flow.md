@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-06_
+_Last updated: 2026-10-08_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -54,4 +54,6 @@ post-hooks. It adds the target when the cache has no entry for it (the rename-ba
 the old entry to the backup name) and replaces an entry of a different type. An entry of the same
 type, such as after a same-type rebuild, is left as is so it keeps the metadata loaded at the start
 of the run. The materialized view and streaming table build steps also execute refreshes, in-place
-alters, and creates, so they call it only when an existing relation changes type.
+alters, and creates, so they call it only when an existing relation changes type. Table and
+incremental models call it too, after a build that drops the existing relation or uses safe
+staging (see the [table](table_flow.md) and [incremental](incremental_flow.md) flows).
