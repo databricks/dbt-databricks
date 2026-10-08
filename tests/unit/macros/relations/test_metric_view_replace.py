@@ -49,5 +49,5 @@ class TestReplaceWithMetricView(MacroTestBase):
         ]
         assert execution_calls == [
             call.execute_multiple_statements(["REPLACE"]),
-            call.cache_replaced_relation(existing, template_bundle.relation),
+            call.cache_replaced_relation(template_bundle.relation),
         ]

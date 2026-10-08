@@ -86,10 +86,16 @@ REPLACEMENTS = [
     ),
 ]
 
+REFRESHES = ["materialized_view", "streaming_table"]
+
 
 def replaced_relation_name(from_type, to_type, use_materialization_v2):
     suffix = "_v2" if use_materialization_v2 else ""
     return f"replaced_{from_type}_to_{to_type}{suffix}"
+
+
+def refreshed_relation_name(materialized):
+    return f"refreshed_{materialized}"
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -100,33 +106,49 @@ class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
 
     @pytest.fixture(scope="class")
     def macros(self):
-        return {"assert_cached_as_materialized.sql": fixtures.assert_cached_as_materialized_macro}
+        return {
+            "assert_cached_as_materialized.sql": fixtures.assert_cached_as_materialized_macro,
+            "assert_cached_with_owner.sql": fixtures.assert_cached_with_owner_macro,
+        }
 
     @pytest.fixture(scope="class")
     def relations_to_reset(self):
-        return tuple(replaced_relation_name(*p.values) for p in REPLACEMENTS)
+        replaced = [replaced_relation_name(*p.values) for p in REPLACEMENTS]
+        return tuple(replaced + [refreshed_relation_name(m) for m in REFRESHES])
 
-    @pytest.mark.parametrize("from_type, to_type, use_materialization_v2", REPLACEMENTS)
-    def test_post_hook_sees_replaced_relation(
-        self, project, from_type, to_type, use_materialization_v2
-    ):
-        name = replaced_relation_name(from_type, to_type, use_materialization_v2)
-        util.update_config_file(
-            {"flags": {"use_materialization_v2": use_materialization_v2}},
-            project.project_root,
-            "dbt_project.yml",
-        )
+    def _build_then_rebuild(self, project, name, from_type, to_type, post_hook):
         util.run_dbt(["run", "--select", "replaced_relation_source"])
         util.write_file(fixtures.replaced_relation_sql(from_type), "models", f"{name}.sql")
         util.run_dbt(["run", "--select", name])
 
         util.write_file(
-            fixtures.replaced_relation_sql(to_type, post_hook=True), "models", f"{name}.sql"
+            fixtures.replaced_relation_sql(to_type, post_hook=post_hook), "models", f"{name}.sql"
         )
         util.run_dbt(["run", "--select", name])
 
         count = project.run_sql(f"select count(*) from {{database}}.{{schema}}.{name}", fetch="one")
         assert count[0] == 3
+
+    @pytest.mark.parametrize("from_type, to_type, use_materialization_v2", REPLACEMENTS)
+    def test_post_hook_sees_replaced_relation(
+        self, project, from_type, to_type, use_materialization_v2
+    ):
+        util.update_config_file(
+            {"flags": {"use_materialization_v2": use_materialization_v2}},
+            project.project_root,
+            "dbt_project.yml",
+        )
+        name = replaced_relation_name(from_type, to_type, use_materialization_v2)
+        self._build_then_rebuild(
+            project, name, from_type, to_type, post_hook="assert_cached_as_materialized"
+        )
+
+    @pytest.mark.parametrize("materialized", REFRESHES)
+    def test_post_hook_keeps_refreshed_relation_metadata(self, project, materialized):
+        name = refreshed_relation_name(materialized)
+        self._build_then_rebuild(
+            project, name, materialized, materialized, post_hook="assert_cached_with_owner"
+        )
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_uc_sql_endpoint")

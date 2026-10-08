@@ -21,23 +21,29 @@ class TestCacheReplacedRelation(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations", "macros"]
 
-    def cache_calls(self, context):
+    def cache_calls(self, template_bundle, context, cached, target):
+        context["adapter"].get_relation.return_value = cached
+        self.run_macro_raw(template_bundle.template, "cache_replaced_relation", target)
         return [c for c in context["adapter"].mock_calls if c[0].startswith("cache_")]
 
-    def test_replaces_existing_entry_with_target(self, template_bundle, context):
-        existing = model_relation("materialized_view")
+    def test_replaces_entry_of_another_type(self, template_bundle, context):
+        cached = model_relation("materialized_view")
         target = model_relation("view")
 
-        self.run_macro_raw(template_bundle.template, "cache_replaced_relation", existing, target)
-
-        assert self.cache_calls(context) == [
-            call.cache_dropped(existing),
+        assert self.cache_calls(template_bundle, context, cached, target) == [
+            call.cache_dropped(cached),
             call.cache_added(target),
         ]
 
-    def test_adds_target_without_existing(self, template_bundle, context):
+    def test_adds_missing_entry(self, template_bundle, context):
+        target = model_relation("view")
+
+        assert self.cache_calls(template_bundle, context, None, target) == [
+            call.cache_added(target)
+        ]
+
+    def test_keeps_entry_of_same_type(self, template_bundle, context):
+        cached = model_relation("materialized_view")
         target = model_relation("materialized_view")
 
-        self.run_macro_raw(template_bundle.template, "cache_replaced_relation", None, target)
-
-        assert self.cache_calls(context) == [call.cache_added(target)]
+        assert self.cache_calls(template_bundle, context, cached, target) == []

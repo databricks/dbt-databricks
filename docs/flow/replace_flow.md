@@ -49,6 +49,9 @@ targets have already failed at the initial guard.
 | No | No | `drop_and_create` |
 
 The replacement statements bypass dbt's relation cache, so after executing them the callers (view,
-metric view, materialized view, and streaming table) call `cache_replaced_relation`. It drops the
-existing relation's cache entry and adds the target, so the model's post-hooks and later lookups in
-the run see the new relation and its type.
+metric view, materialized view, and streaming table) call `cache_replaced_relation` before
+post-hooks. It adds the target when the cache has no entry for it (the rename-based strategies move
+the old entry to the backup name) and replaces an entry of a different type. An entry of the same
+type, such as after a same-type rebuild, is left as is so it keeps the metadata loaded at the start
+of the run. The materialized view and streaming table build steps also execute refreshes, in-place
+alters, and creates, so they call it only when an existing relation changes type.

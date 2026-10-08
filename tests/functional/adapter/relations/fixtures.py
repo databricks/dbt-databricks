@@ -43,11 +43,26 @@ assert_cached_as_materialized_macro = """
 {% endmacro %}
 """
 
+# Fails the model unless the relation cache still carries the server metadata of a rebuilt relation.
+assert_cached_with_owner_macro = """
+{% macro assert_cached_with_owner() %}
+  {% if execute %}
+    {% set relation = adapter.get_relation(
+      database=this.database, schema=this.schema, identifier=this.identifier
+    ) %}
+    {% if relation is none or relation.owner is none %}
+      {{ exceptions.raise_compiler_error("Relation cache lost the relation owner: " ~ relation) }}
+    {% endif %}
+  {% endif %}
+  {{ return("select 1") }}
+{% endmacro %}
+"""
 
-def replaced_relation_sql(materialized, post_hook=False):
+
+def replaced_relation_sql(materialized, post_hook=None):
     config = f"materialized='{materialized}'"
     if post_hook:
-        config += ", post_hook='{{ assert_cached_as_materialized() }}'"
+        config += f", post_hook='{{{{ {post_hook}() }}}}'"
     stream = "stream " if materialized == "streaming_table" else ""
     return f"""
 {{{{ config({config}) }}}}
