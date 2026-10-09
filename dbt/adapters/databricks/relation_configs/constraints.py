@@ -1,3 +1,4 @@
+import re
 from dataclasses import asdict
 from typing import ClassVar, Optional
 
@@ -9,14 +10,22 @@ from dbt.adapters.relation_configs.config_base import RelationResults
 from dbt.adapters.databricks.constraints import (
     CheckConstraint,
     ConstraintType,
+    CustomConstraint,
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     TypedConstraint,
     parse_constraints,
+    synthesize_constraint_name,
 )
 from dbt.adapters.databricks.relation_configs.base import (
     DatabricksComponentConfig,
     DatabricksComponentProcessor,
+)
+
+_CUSTOM_PRIMARY_KEY = re.compile(r"^\s*primary\s+key\s*\(([^)]*)\)", re.IGNORECASE)
+# TIMESERIES marks a key column; information_schema reports only the column name.
+_KEY_COLUMN = re.compile(
+    r'\s*(?:`([^`]+)`|"([^"]+)"|([^\s`",()]+))(?:\s+timeseries)?\s*', re.IGNORECASE
 )
 
 
@@ -45,6 +54,7 @@ class ConstraintsConfig(DatabricksComponentConfig):
         - Does not persist the `columns` in check constraints
         - Does not expose PK/FK RELY/NORELY in information_schema (#1513)
         - Does not persist FK `to`/`to_columns` on expression-form FKs
+        - Stores a `custom` constraint declaring a primary key as a native primary key
         """
         if isinstance(constraint, CheckConstraint):
             return CheckConstraint(
@@ -69,8 +79,29 @@ class ConstraintsConfig(DatabricksComponentConfig):
                 name=constraint.name,
                 columns=constraint.columns,
             )
+        elif isinstance(constraint, CustomConstraint) and (
+            primary_key := self._parse_custom_primary_key(constraint)
+        ):
+            return primary_key
         else:
             return constraint
+
+    @staticmethod
+    def _parse_custom_primary_key(
+        constraint: CustomConstraint,
+    ) -> Optional[PrimaryKeyConstraint]:
+        match = _CUSTOM_PRIMARY_KEY.match(constraint.expression or "")
+        if not match:
+            return None
+        columns: list[str] = []
+        for part in match.group(1).split(","):
+            column = _KEY_COLUMN.fullmatch(part)
+            if not column:
+                return None
+            columns.append(next(name for name in column.groups() if name))
+        return PrimaryKeyConstraint(
+            type=ConstraintType.primary_key, name=constraint.name, columns=columns
+        )
 
     def get_diff(self, other: "ConstraintsConfig") -> Optional["ConstraintsConfig"]:
         # Diff on normalized keys; emit original constraints for ADD/DROP SQL.
@@ -250,6 +281,12 @@ class ConstraintsProcessor(DatabricksComponentProcessor[ConstraintsConfig]):
         ]
 
         non_nulls, other_constraints = parse_constraints(columns, constraints)
+
+        for constraint in other_constraints:
+            if constraint.name is None and isinstance(
+                constraint, (PrimaryKeyConstraint, ForeignKeyConstraint)
+            ):
+                constraint.name = synthesize_constraint_name(constraint, relation_config.identifier)
 
         return ConstraintsConfig(
             set_non_nulls=set(non_nulls),

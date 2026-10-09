@@ -3,6 +3,11 @@
 ### Fixes
 
 - Stop incremental runs from dropping and re-adding a foreign key whenever another schema in the same catalog has a constraint with the same name ([#1702](https://github.com/databricks/dbt-databricks/pull/1702))
+- Replace a Hive metastore table with a view without renaming the table, so view models no longer fail on AWS with `DELTA_ALTER_TABLE_RENAME_NOT_ALLOWED` ([#1701](https://github.com/databricks/dbt-databricks/pull/1701))
+- Fix unnamed primary and foreign keys churning on every incremental run, and two or more unnamed foreign keys to the same parent failing with `DELTA_CONSTRAINT_ALREADY_EXISTS`. An unnamed PK/FK now gets the same deterministic name on every create and incremental path (V1 and V2, including `use_safer_relation_operations` replaces), so the incremental constraint diff is a no-op. Unnamed keys switch from server-assigned names to dbt-generated names on their next incremental run. Re-running a model with `use_safer_relation_operations` no longer fails with `CONSTRAINT_ALREADY_EXISTS_IN_SCHEMA` on its own primary key. ([#1561](https://github.com/databricks/dbt-databricks/pull/1561) resolves [#1091](https://github.com/databricks/dbt-databricks/issues/1091), [#1333](https://github.com/databricks/dbt-databricks/issues/1333) and [#1344](https://github.com/databricks/dbt-databricks/issues/1344))
+- Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
+- Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
