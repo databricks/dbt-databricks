@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -262,3 +262,86 @@ class TestInsertIntoMacros(MacroTestBase):
         assert "insert into" in clean_result
         assert "by name" in clean_result
         assert "select * from" in clean_result
+
+    def _column(self, name):
+        column = Mock()
+        column.name = name
+        return column
+
+    def _named_relation(self, rendered):
+        relation = MagicMock()
+        relation.__str__.return_value = rendered
+        relation.render.return_value = rendered
+        return relation
+
+    def test_get_insert_into_sql__no_dest_columns__describes_target(self, template_bundle):
+        """Without dest_columns the target is described, so a target-only column narrows
+        the INSERT to the intersection of target and source."""
+        source_relation = self._named_relation("source_table")
+        target_relation = self._named_relation("target_table")
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
+        template_bundle.context["adapter"].get_columns_in_relation = Mock(
+            side_effect=lambda relation: (
+                [self._column("id"), self._column("name")]
+                if relation is source_relation
+                else [self._column("id"), self._column("name"), self._column("target_only")]
+            )
+        )
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_insert_into_sql",
+            source_relation,
+            target_relation,
+        )
+
+        expected = "insert into target_table (`id`, `name`) select `id`, `name` from source_table"
+        self.assert_sql_equal(result, expected)
+
+    def test_get_insert_into_sql__dest_columns_from_source__uses_by_name(self, template_bundle):
+        """`process_schema_changes` returns the *source* columns, so reusing them as
+        dest_columns makes the two sets match by construction and selects BY NAME even
+        though the target still holds a column the source does not have."""
+        source_relation = self._named_relation("source_table")
+        target_relation = self._named_relation("target_table")
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=True)
+        template_bundle.context["adapter"].get_columns_in_relation = Mock(
+            return_value=[self._column("id"), self._column("name")]
+        )
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_insert_into_sql",
+            source_relation,
+            target_relation,
+            [self._column("id"), self._column("name")],
+        )
+
+        expected = "insert into target_table by name select * from source_table"
+        self.assert_sql_equal(result, expected)
+
+    def test_get_insert_into_sql__dest_columns_ignored_without_by_name(self, template_bundle):
+        """DBR < 12.2 has no BY NAME, and the matching-sets branch there degrades to a
+        positional `select *`. dest_columns can omit a column the target still has, so the
+        target is described instead and the explicit column list is kept."""
+        source_relation = self._named_relation("source_table")
+        target_relation = self._named_relation("target_table")
+        template_bundle.context["adapter"].has_dbr_capability = Mock(return_value=False)
+        template_bundle.context["adapter"].get_columns_in_relation = Mock(
+            side_effect=lambda relation: (
+                [self._column("id"), self._column("name")]
+                if relation is source_relation
+                else [self._column("id"), self._column("name"), self._column("target_only")]
+            )
+        )
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_insert_into_sql",
+            source_relation,
+            target_relation,
+            [self._column("id"), self._column("name")],
+        )
+
+        expected = "insert into target_table (`id`, `name`) select `id`, `name` from source_table"
+        self.assert_sql_equal(result, expected)
