@@ -71,6 +71,29 @@
     {%- endif -%}
 {% endmacro %}
 
+{% macro select_list_in_target_order(source_relation, target_relation) %}
+    {#-- Projects the source onto the target's column order, matching names case-insensitively
+         and filling target columns the source lacks with NULL, for positional inserts. --#}
+    {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
+    {%- set select_columns = [] -%}
+    {%- for dest_col in dest_columns -%}
+        {%- set dest_col_lower = dest_col | lower -%}
+        {%- set matched_col = namespace(value=none) -%}
+        {%- for src_col in source_columns -%}
+            {%- if src_col | lower == dest_col_lower and matched_col.value is none -%}
+                {%- set matched_col.value = src_col -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {%- if matched_col.value is not none -%}
+            {%- do select_columns.append(adapter.quote(matched_col.value)) -%}
+        {%- else -%}
+            {%- do select_columns.append('NULL as ' ~ adapter.quote(dest_col)) -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {{- select_columns | join(', ') -}}
+{% endmacro %}
+
 {% macro get_insert_replace_on_sql(source_relation, target_relation) %}
     {%- set partition_by = config.get('partition_by') -%}
     {%- set liquid_clustered_by = config.get('liquid_clustered_by') -%}
@@ -86,27 +109,9 @@
             {%- do replace_conditions.append('t.' ~ adapter.quote(col) ~ ' <=> s.' ~ adapter.quote(col)) -%}
         {%- endfor -%}
         {%- set replace_conditions_csv = replace_conditions | join(' AND ') -%}
-        {%- set source_columns = adapter.get_columns_in_relation(source_relation) | map(attribute="name") | list -%}
-        {%- set dest_columns = adapter.get_columns_in_relation(target_relation) | map(attribute="name") | list -%}
-        {%- set source_cols_lower = source_columns | map('lower') | list -%}
-        {%- set select_columns = [] -%}
-        {%- for dest_col in dest_columns -%}
-            {%- set dest_col_lower = dest_col | lower -%}
-            {%- set matched_col = namespace(value=none) -%}
-            {%- for src_col in source_columns -%}
-                {%- if src_col | lower == dest_col_lower and matched_col.value is none -%}
-                    {%- set matched_col.value = src_col -%}
-                {%- endif -%}
-            {%- endfor -%}
-            {%- if matched_col.value is not none -%}
-                {%- do select_columns.append(adapter.quote(matched_col.value)) -%}
-            {%- else -%}
-                {%- do select_columns.append('NULL as ' ~ adapter.quote(dest_col)) -%}
-            {%- endif -%}
-        {%- endfor -%}
         insert into table {{ target_relation }} AS t
         replace on ({{ replace_conditions_csv }})
-        (select {{ select_columns | join(', ') }} from {{ source_relation }}) AS s
+        (select {{ select_list_in_target_order(source_relation, target_relation) }} from {{ source_relation }}) AS s
     {%- else -%}
         {#-- Fallback to regular insert overwrite if no partitioning nor liquid clustering defined --#}
         {%- set has_insert_by_name = adapter.has_dbr_capability('insert_by_name') -%}
@@ -121,7 +126,9 @@
   {%- set target_relation = args_dict['target_relation'] -%}
   {%- set temp_relation = args_dict['temp_relation'] -%}
   {#-- BY NAME + REPLACE WHERE needs DBR 18.0+ on clusters (SPARK-54803), a higher floor than
-       plain insert_by_name; emitting it on older clusters fails to parse (issue #1532). --#}
+       plain insert_by_name; emitting it on older clusters fails to parse (issue #1532). Below the
+       floor, project the temp table onto the target's column order so the positional insert
+       cannot shift values into the wrong columns. --#}
   {%- set has_by_name = adapter.has_dbr_capability('insert_by_name_replace_where') -%}
 INSERT INTO {{ target_relation.render() }}
 {%- if has_by_name %} BY NAME{% endif %}
@@ -132,7 +139,11 @@ INSERT INTO {{ target_relation.render() }}
  REPLACE WHERE {{ predicates }}
   {%- endif %}
 {%- endif %}
+{%- if has_by_name %}
  TABLE {{ temp_relation.render() }}
+{%- else %}
+ SELECT {{ select_list_in_target_order(temp_relation, target_relation) }} FROM {{ temp_relation.render() }}
+{%- endif %}
 {%- endmacro %}
 
 {% macro get_delete_insert_sql(arg_dict) -%}
