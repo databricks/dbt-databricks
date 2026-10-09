@@ -1,6 +1,6 @@
 # Snapshot Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-10-07_
 
 > Snapshots do **not** use the `use_materialization_v2` flag — there is a single path. Source:
 > `dbt/include/databricks/macros/materializations/snapshot.sql`. Strategy dispatch and the
@@ -13,22 +13,22 @@ records into the existing snapshot table.
 
 ```mermaid
 flowchart TD
-    START[Resolve target relation] --> FMT{file_format in\ndelta / hudi?}
+    START[Resolve target relation] --> FMT{"file_format in<br/>delta / hudi?"}
     FMT -- no --> RAISE1[Raise compiler error]
-    FMT -- yes --> EXIST{Target relation\nexists?}
+    FMT -- yes --> EXIST{"Target relation<br/>exists?"}
 
     EXIST -- "yes, wrong format" --> RAISE2[Raise compiler error]
     EXIST -- "yes, not a table" --> RAISE3[relation_wrong_type error]
-    EXIST -- ok --> PRE[Run pre-hooks\n(outside then inside transaction)]
+    EXIST -- ok --> PRE["Run pre-hooks<br/>(outside then inside transaction)"]
 
-    PRE --> STRAT[Dispatch snapshot strategy\n(timestamp / check)]
-    STRAT --> FIRST{Target relation\nexisted?}
+    PRE --> STRAT["Dispatch snapshot strategy<br/>(timestamp / check)"]
+    STRAT --> FIRST{"Target relation<br/>existed?"}
 
     FIRST -- no --> BUILD[build_snapshot_table] --> CREATE[create_table_as target]
-    FIRST -- yes --> ASSERT[Assert snapshot target\nvalid for strategy]
+    FIRST -- yes --> ASSERT["Assert snapshot target<br/>valid for strategy"]
     ASSERT --> STAGE[Build snapshot staging table]
     STAGE --> EXPAND[expand_target_column_types]
-    EXPAND --> ADDCOLS[create_columns for\nmissing columns]
+    EXPAND --> ADDCOLS["create_columns for<br/>missing columns"]
     ADDCOLS --> MERGE[snapshot_merge_sql into target]
 
     CREATE --> TYPECHECK[check_time_data_types]
@@ -42,7 +42,7 @@ flowchart TD
     IDX -- no --> POSTIN
     CREATEIDX --> POSTIN["Run post-hooks (inside transaction)"]
     POSTIN --> COMMIT[Commit]
-    COMMIT --> CLEAN{Staging table\ncreated?}
+    COMMIT --> CLEAN{"Staging table<br/>created?"}
     CLEAN -- yes --> POSTSNAP[post_snapshot cleanup]
     CLEAN -- no --> CONST
     POSTSNAP --> CONST[Persist constraints]
