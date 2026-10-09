@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-05_
+_Last updated: 2026-10-09_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -10,7 +10,8 @@ replace an existing relation. Table and incremental V2 use their dedicated
 `get_replace_sql` does not support a table target: that input raises a not-implemented compiler
 error before any replacement decision. Direct `CREATE OR REPLACE` for a metric-view target is used
 only when the existing relation is also a metric view; otherwise the incompatible-type fallback
-tree runs (table/view → `backup_and_create_in_place`, since metric views cannot be renamed).
+tree runs: an existing Hive metastore table uses `drop_and_create`; other tables and views use
+`backup_and_create_in_place`, since metric views cannot be renamed.
 
 ```mermaid
 flowchart TD
@@ -45,9 +46,17 @@ Tables and views can be renamed, except that an existing Hive metastore table is
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a
 Hive metastore table therefore uses `stage_then_replace`, which renames only the new staging view.
 
-| Target can be renamed? | Existing can be renamed? | Fallback strategy |
+| Target can be renamed? | Existing can be renamed and is not a Hive metastore table? | Fallback strategy |
 | --- | --- | --- |
 | Yes | Yes | `safely_replace` |
 | Yes | No | `stage_then_replace` |
 | No | Yes | `backup_and_create_in_place` |
 | No | No | `drop_and_create` |
+
+The replacement statements bypass dbt's relation cache, so after executing them the callers (view,
+metric view, materialized view, and streaming table) call `cache_replaced_relation` before
+post-hooks. It adds the target when the cache has no entry for it (the rename-based strategies move
+the old entry to the backup name) and replaces an entry of a different type. An entry of the same
+type, such as after a same-type rebuild, is left as is so it keeps the metadata loaded at the start
+of the run. The materialized view and streaming table build steps also execute refreshes, in-place
+alters, and creates, so they call it only when an existing relation changes type.
