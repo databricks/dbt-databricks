@@ -9,6 +9,7 @@
   {% set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, needs_information=True) %}
   {% set target_relation = this.incorporate(type='table') %}
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
+  {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
 
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
@@ -25,7 +26,7 @@
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
       {% else %}
-        {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+        {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and format_allows_create_or_replace(catalog_relation, existing_relation))) -%}
           {{ adapter.drop_relation(existing_relation) }}
         {%- endif %}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
@@ -46,7 +47,7 @@
     -- setup: if the target relation already exists, drop it
     -- in case if the existing and future table is delta or iceberg, we want to do a
     -- create or replace table instead of dropping, so we don't have the table unavailable
-    {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+    {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and format_allows_create_or_replace(catalog_relation, existing_relation))) -%}
       {{ adapter.drop_relation(existing_relation) }}
     {%- endif %}
 
