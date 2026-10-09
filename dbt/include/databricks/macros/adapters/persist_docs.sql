@@ -43,7 +43,8 @@
 {% endmacro %}
 
 {% macro alter_relation_comment_sql(relation, description) %}
-COMMENT ON {{ relation.type.render().upper() }} {{ relation.render() }} IS '{{ description | replace("'", "\\'") }}'
+{#- ignore relation type; correct keyword is always `TABLE`: https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-comment -#}
+COMMENT ON TABLE {{ relation.render() }} IS '{{ description | replace("'", "\\'") }}'
 {% endmacro %}
 
 {% macro alter_column_comments(relation, column_dict) %}
