@@ -28,6 +28,53 @@ class DatabricksColumn(SparkColumn):
         column_type = cls.translate_type(label_or_dtype)
         return cls(name, column_type)
 
+    def is_string(self) -> bool:
+        return self.dtype.lower() in {
+            "string",
+            "varchar",
+            "char",
+            "text",
+            "character varying",
+            "character",
+            "nchar",
+            "nvarchar",
+        }
+
+    def is_number(self) -> bool:
+        return self.dtype.lower() in {
+            "tinyint",
+            "smallint",
+            "int",
+            "integer",
+            "bigint",
+            "long",
+            "float",
+            "double",
+            "decimal",
+            "numeric",
+            "real",
+        } or self.dtype.lower().startswith("decimal(")
+
+    def is_float(self) -> bool:
+        return self.dtype.lower() in {
+            "float",
+            "double",
+            "real",
+        }
+
+    def is_integer(self) -> bool:
+        return self.dtype.lower() in {
+            "tinyint",
+            "smallint",
+            "int",
+            "integer",
+            "bigint",
+            "long",
+        }
+
+    def is_numeric(self) -> bool:
+        return self.is_number()
+
     @classmethod
     def from_json_metadata(cls, json_metadata: str) -> list["DatabricksColumn"]:
         """
