@@ -81,7 +81,7 @@
             {%- set column_name = (col_name | string) -%}
             {%- set column_comment_clause = "" -%}
             {%- if column_comment and col_name in model.columns.keys() -%}   
-              {%- set comment = model.columns[col_name]['description'] | replace("'", "\\'") -%}
+              {%- set comment = escape_comment(model.columns[col_name]['description']) -%}
               {%- if comment and comment != "" -%}
                 {%- set column_comment_clause = "comment '" ~ comment ~ "'" -%}
               {%- endif -%}

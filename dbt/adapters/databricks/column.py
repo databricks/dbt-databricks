@@ -170,7 +170,7 @@ class DatabricksColumn(SparkColumn):
         if self.not_null:
             column_str += " NOT NULL"
         if self.comment:
-            comment = self.comment.replace("'", "\\'")
+            comment = self.comment.replace("\\", "\\\\").replace("'", "\\'")
             column_str += f" COMMENT '{comment}'"
         if self.mask:
             column_str += f" MASK {self.mask['function']}"

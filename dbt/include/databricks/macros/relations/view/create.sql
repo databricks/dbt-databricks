@@ -30,7 +30,7 @@
 
 {% macro get_column_comment_sql(column_name, column_dict) -%}
   {%- if column_name in column_dict and column_dict[column_name]["description"] -%}
-    {%- set escaped_description = column_dict[column_name]["description"] | replace("'", "\\'") -%}
+    {%- set escaped_description = escape_comment(column_dict[column_name]["description"]) -%}
     {%- set column_comment_clause = "comment '" ~ escaped_description ~ "'" -%}
     {{ adapter.quote(column_name) }} {{ column_comment_clause }}
   {%- else -%}
