@@ -1,20 +1,38 @@
-## dbt-databricks 1.12.6 (TBD)
+## dbt-databricks 1.12.7 (TBD)
 
 ### Fixes
 
+- Stop incremental runs from dropping and re-adding a foreign key whenever another schema in the same catalog has a constraint with the same name ([#1702](https://github.com/databricks/dbt-databricks/pull/1702))
+- Replace a Hive metastore table with a view without renaming the table, so view models no longer fail on AWS with `DELTA_ALTER_TABLE_RENAME_NOT_ALLOWED` ([#1701](https://github.com/databricks/dbt-databricks/pull/1701))
+- Fix unnamed primary and foreign keys churning on every incremental run, and two or more unnamed foreign keys to the same parent failing with `DELTA_CONSTRAINT_ALREADY_EXISTS`. An unnamed PK/FK now gets the same deterministic name on every create and incremental path (V1 and V2, including `use_safer_relation_operations` replaces), so the incremental constraint diff is a no-op. Unnamed keys switch from server-assigned names to dbt-generated names on their next incremental run. Re-running a model with `use_safer_relation_operations` no longer fails with `CONSTRAINT_ALREADY_EXISTS_IN_SCHEMA` on its own primary key. ([#1561](https://github.com/databricks/dbt-databricks/pull/1561) resolves [#1091](https://github.com/databricks/dbt-databricks/issues/1091), [#1333](https://github.com/databricks/dbt-databricks/issues/1333) and [#1344](https://github.com/databricks/dbt-databricks/issues/1344))
+- Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
+- Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
+
+### Under the Hood
+
+- **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
+
+## dbt-databricks 1.12.6 (Oct 1, 2026)
+
+### Features
+
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter (thanks @Gerrit-K!) ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
+
+### Fixes
+
+- Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
 - Keep the existing table when a V1 view model that replaces it fails to build, matching V2 behavior ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
-- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view. ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
+- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
 - Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 - Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
 
 ### Under the Hood
 
-- **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
 - Raise the `dbt-core` upper bound to `<1.12.6` to include dbt-core 1.12.4 and 1.12.5 ([#1689](https://github.com/databricks/dbt-databricks/pull/1689))
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
-- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
-- Normalize artifact URLs as well as source registries in `check_uv_lock_public_urls.py --fix`, so regenerating `uv.lock` against a mirrored index no longer needs a manual edit (tooling-only, no runtime impact) ([#1675](https://github.com/databricks/dbt-databricks/pull/1675))
 - Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
