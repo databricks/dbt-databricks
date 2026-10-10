@@ -25,6 +25,7 @@
 
 ### Under the Hood
 
+- **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
 - Raise the `dbt-core` upper bound to `<1.12.6` to include dbt-core 1.12.4 and 1.12.5 ([#1689](https://github.com/databricks/dbt-databricks/pull/1689))
 - Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
 - Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
