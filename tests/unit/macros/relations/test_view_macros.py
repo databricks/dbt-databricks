@@ -1,8 +1,85 @@
 from unittest.mock import Mock
 
 import pytest
+from dbt_common.clients.jinja import MaterializationExtension
+from dbt_common.exceptions.macros import MacroReturn
 
+from dbt.adapters.databricks.relation import DatabricksRelation
 from tests.unit.macros.base import MacroTestBase
+
+
+class TestRelationShouldBeAltered(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self):
+        return "materializations/view.sql"
+
+    @pytest.fixture
+    def databricks_env(self, macro_folders_to_load):
+        databricks_env = MacroTestBase.databricks_env.__wrapped__(self, macro_folders_to_load)
+        databricks_env.add_extension(MaterializationExtension)
+        return databricks_env
+
+    @pytest.fixture
+    def default_context(self):
+        context = MacroTestBase.default_context.__wrapped__(self)
+
+        def macro_return(value):
+            raise MacroReturn(value)
+
+        def compiler_error(message):
+            raise ValueError(message)
+
+        context["should_full_refresh"] = Mock(return_value=False)
+        context["return"] = macro_return
+        context["exceptions"].raise_compiler_error.side_effect = compiler_error
+        return context
+
+    @pytest.mark.parametrize(
+        "existing_type,target_type,update_via_alter,full_refresh,expected",
+        [
+            pytest.param("view", "view", True, False, True, id="matching-views"),
+            pytest.param(
+                "metric_view", "metric_view", True, False, True, id="matching-metric-views"
+            ),
+            pytest.param("metric_view", "view", True, False, False, id="metric-view-to-view"),
+            pytest.param("view", "metric_view", True, False, False, id="view-to-metric-view"),
+            pytest.param("table", "view", True, False, False, id="table-to-view"),
+            pytest.param("view", "view", False, False, False, id="alter-disabled"),
+            pytest.param("view", "view", True, True, False, id="full-refresh"),
+        ],
+    )
+    def test_alter_eligibility(
+        self,
+        template_bundle,
+        config,
+        context,
+        existing_type,
+        target_type,
+        update_via_alter,
+        full_refresh,
+        expected,
+    ):
+        config["view_update_via_alter"] = update_via_alter
+        context["should_full_refresh"].return_value = full_refresh
+        existing = DatabricksRelation.create(
+            database="catalog", schema="schema", identifier="model", type=existing_type
+        )
+        target = existing.incorporate(type=target_type)
+        with pytest.raises(MacroReturn) as result:
+            self.run_macro_raw(
+                template_bundle.template, "relation_should_be_altered", existing, target
+            )
+        assert result.value.value is expected
+
+    def test_hive_metastore_alter_rejected(self, template_bundle, config):
+        config["view_update_via_alter"] = True
+        relation = DatabricksRelation.create(
+            database="hive_metastore", schema="schema", identifier="model", type="view"
+        )
+        with pytest.raises(ValueError, match="Cannot update a view in the Hive metastore"):
+            self.run_macro_raw(
+                template_bundle.template, "relation_should_be_altered", relation, relation
+            )
 
 
 class TestCreateViewAs(MacroTestBase):

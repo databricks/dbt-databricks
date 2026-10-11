@@ -15,6 +15,11 @@ class UnityCatalogIntegration(CatalogIntegration):
 
     def __init__(self, config: CatalogIntegrationConfig) -> None:
         super().__init__(config)
+        # The physical Unity catalog to route models to, decoupled from the dbt catalog
+        # label. catalog_database is a v2-catalogs first-class field: the base
+        # CatalogIntegration populates it from the catalogs.yml config block. getattr keeps
+        # this safe on dbt-adapters versions that predate the field (resolves to None).
+        self.catalog_database: Optional[str] = getattr(config, "catalog_database", None)
         location_root = config.adapter_properties.get("location_root")
         if location_root is not None:
             if not str(location_root).strip():
@@ -58,4 +63,5 @@ class UnityCatalogIntegration(CatalogIntegration):
             file_format=parse_model.file_format(model) or self.file_format,
             external_volume=parse_model.location_root(model) or self.external_volume,
             location_path=parse_model.location_path(model),
+            catalog_database=self.catalog_database,
         )

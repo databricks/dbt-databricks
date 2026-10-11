@@ -133,6 +133,23 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
     def project_config_update(self):
         return {"models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value}}
 
+    def test_table_tags_are_read_after_alter(self, project, my_streaming_table):
+        util.set_model_file(project, my_streaming_table, fixtures.tagged_streaming_table)
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+
+        tags = project.run_sql(
+            "select tag_name, tag_value from system.information_schema.table_tags "
+            f"where catalog_name = '{project.database}' "
+            f"and schema_name = '{project.test_schema}' "
+            "and table_name = 'my_streaming_table'",
+            fetch="all",
+        )
+        assert {row[0]: row[1] for row in tags} == {"classification": "internal"}
+        with util.get_connection(project.adapter):
+            config = project.adapter.get_relation_config(my_streaming_table)
+        assert config.config["tags"].set_tags == {"classification": "internal"}
+
     def test_change_is_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 

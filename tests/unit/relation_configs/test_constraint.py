@@ -133,7 +133,11 @@ class TestConstraintsProcessor:
     def test_from_relation_config__without_constraints(self):
         model = self._make_model_with_contract(constraints=[], columns={})
         spec = ConstraintsProcessor.from_relation_config(model)
-        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        assert spec == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints=set(),
+            contract_enforced=True,
+        )
 
     def test_from_relation_config__without_contract(self):
         """Constraints should be empty when contract is not enforced (issue #1342)."""
@@ -148,7 +152,11 @@ class TestConstraintsProcessor:
             )
         ]
         spec = ConstraintsProcessor.from_relation_config(model)
-        assert spec == ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
+        assert spec == ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints=set(),
+            contract_enforced=False,
+        )
 
     def test_from_relation_config__with_check_constraint(self):
         model = self._make_model_with_contract(
@@ -247,6 +255,21 @@ class TestConstraintsProcessor:
 
 
 class TestConstraintsConfig:
+    def test_requires_server_metadata_for_diff(self):
+        enforced = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints=set(),
+            contract_enforced=True,
+        )
+        unenforced = ConstraintsConfig(
+            set_non_nulls=set(),
+            set_constraints=set(),
+            contract_enforced=False,
+        )
+
+        assert enforced.requires_server_metadata_for_diff() is True
+        assert unenforced.requires_server_metadata_for_diff() is False
+
     def test_get_diff__empty_and_some_exist(self):
         config = ConstraintsConfig(set_non_nulls=set(), set_constraints=set())
         other = ConstraintsConfig(

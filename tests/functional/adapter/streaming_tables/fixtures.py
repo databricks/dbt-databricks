@@ -53,6 +53,11 @@ complex_streaming_table = """
 select * from stream {{ ref('my_seed') }}
 """
 
+tagged_streaming_table = complex_streaming_table.replace(
+    "partition_by='id',",
+    "partition_by='id', databricks_tags={'classification': 'internal'},",
+)
+
 streaming_table_schema = """
 version: 2
 

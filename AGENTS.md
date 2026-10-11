@@ -32,6 +32,16 @@ dbt/include/databricks/macros/ # Jinja2 SQL templates
 └── utils/                    # Utility macros
 ```
 
+### Materialization Execution Flow
+
+Before changing a materialization, read its flow doc — [`docs/flow/`](docs/flow/README.md) maps how
+each materialization type executes (table, view, incremental, seed, snapshot, streaming table,
+materialized view) as diagrams, plus the shared relation [replace flow](docs/flow/replace_flow.md).
+Start at [`docs/flow/README.md`](docs/flow/README.md), which also explains the
+`use_materialization_v2` behavior flag that selects between the V1 (default) and V2 paths. The
+macros under `dbt/include/databricks/macros/materializations/` are the source of truth; the flow
+docs mirror them.
+
 ## 🛠 Development Environment
 
 **Prerequisites**: Python 3.10+ installed on your system
@@ -67,8 +77,8 @@ hatch run cluster-e2e-dev        # Run functional tests
 hatch run pytest path/to/test_file.py::TestClass::test_method -v
 ```
 
-> 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for comprehensive setup documentation
-> 📖 **See [Testing Guide](docs/testing.md)** for comprehensive testing documentation
+> 📖 **See [Development Guide](docs/dbt-databricks-dev.md)** for the full setup documentation
+> 📖 **See [Testing Guide](docs/testing.md)** for the full testing documentation
 
 ## 🧪 Testing Strategy
 
@@ -186,6 +196,10 @@ class TestIncrementalModel:
         results = project.run_sql("select count(*) from my_model", fetch="all")
         assert results[0][0] == 1
 ```
+
+## Code Comment Discipline
+
+Default to no comment. Keep one only when it records a non-obvious constraint, workaround, or rationale the code cannot express. State why, not what, in one concise sentence. Remove comments that narrate code, repeat tests, preserve implementation history, or duplicate PR/changelog rationale. Apply the existing changelog rules without adding explanatory prose around entries.
 
 ## 📝 CHANGELOG Entries
 
@@ -384,11 +398,34 @@ Models can be configured with Databricks-specific options:
 
 ### Adding New Adapter Method
 
-1. Add method to `DatabricksAdapter` class in `impl.py`
-2. Implement database interaction logic
-3. Add corresponding macro if SQL generation needed
-4. Write unit tests with mocked database calls
-5. Write functional tests with real database
+Every `@available` method is permanent public API. Jinja is late-bound, so nothing
+warns you a method is unused, and each one must be independently re-implemented in the
+Fusion engine's Rust adapter — both its dispatch and its semantic classification —
+before Databricks behavior matches across engines. A macro built on the shared adapter
+contract inherits that machinery for free.
+
+**Before adding one, work down this list and stop at the first that works:**
+
+1. **An existing shared-contract macro.** `get_columns_in_query`,
+   `get_empty_subquery_sql`, `get_columns_in_relation`, `run_query`, and the
+   `statement()` family cover most metadata and schema-inference needs.
+   `get_columns_in_query` in particular infers a query's schema with no DDL and no
+   data scan.
+2. **Jinja expressions on data you already have.** Filters (`map`, `select`, `list`,
+   comparison) handle list and string shaping. A list comparison in a macro does not
+   need a Python helper.
+3. **A relation config component** under `relation_configs/`, if the logic is really
+   about describing or diffing relation state.
+4. **A new `@available` method** — only when the work genuinely cannot happen in
+   Jinja: real Python control flow, SDK/API calls, credential handling, or non-trivial
+   parsing.
+
+When you do reach step 4, justify it in the PR description, keep the signature in
+portable types (strings, lists, dicts — not adapter-internal objects), and note that
+Fusion parity work is now owed.
+
+Then: implement the logic, add the macro if SQL generation is needed, write unit tests
+with mocked database calls, and write functional tests against a real database.
 
 ### Modifying SQL Generation
 
@@ -439,11 +476,23 @@ Models can be configured with Databricks-specific options:
 
 ### Documentation
 
-**Internal docs (this repo):**
+**Internal docs (this repo):** — see [`docs/README.md`](docs/README.md) for the full index
+- `docs/flow/` - Materialization execution flow diagrams (table, view, incremental, seed, snapshot, streaming table, materialized view, replace)
 - `docs/dbt-databricks-dev.md` - Development setup and workflow
-- `docs/testing.md` - Comprehensive testing guide
+- `docs/testing.md` - Testing guide (unit, macro, functional)
 - `docs/dbr-capability-system.md` - Version-dependent features
 - `CONTRIBUTING.MD` - Code standards and PR process
+
+**User-facing guides (`docs/guides/`, lower priority — may drift):**
+- `docs/guides/uc.md` - Using Unity Catalog with dbt-databricks
+- `docs/guides/databricks-jobs.md` - Running a dbt project as a Databricks job
+- `docs/guides/workflow-job-submission.md` - Python models as Databricks Workflows
+- `docs/guides/databricks-copy-into-macro-aws.md` - Loading S3 data via `databricks_copy_into`
+
+**Keeping docs in sync:** When a change alters materialization or execution behavior, update the
+corresponding `docs/flow/` doc and bump its `_Last updated:_` date. **Code is always the source of
+truth over docs** — if a doc and the code disagree, trust the code and fix the doc. Don't let a
+stale doc block a correct code change.
 
 **dbt documentation (docs.getdbt.com):**
 - [Databricks Configs](https://docs.getdbt.com/reference/resource-configs/databricks-configs) - Model/resource configuration options
@@ -479,6 +528,10 @@ Models can be configured with Databricks-specific options:
 8. **Jinja2 Whitespace**: Prefer using `-` in Jinja tags (`{%-`, `-%}`) to strip whitespace and prevent blank lines in generated SQL:
    - Preferred: `{%- if condition -%}`
    - Without: `{% if condition %}` (may create blank lines)
+9. **Jinja ↔ Python boundary**: Keep it as narrow as possible. Prefer a shared-contract
+   macro over a new `@available` method; prefer Jinja filters over a Python helper that
+   only reshapes a list or string. Removing an `@available` method in favor of portable
+   macros is a win, not churn.
 
 ## 🚨 Common Pitfalls for Agents
 
@@ -493,6 +546,7 @@ Models can be configured with Databricks-specific options:
 9. **Use capability system for version checks** - Never add new `compare_dbr_version()` calls
 10. **Remember per-compute caching** - Different clusters may have different capabilities in the same run
 11. **Multi-statement SQL**: Don't use semicolons to separate statements - return a list instead and let `execute_multiple_statements()` handle it
+12. **Don't add an `@available` method for logic Jinja can already do** - each one is permanent API and owes a matching Fusion implementation. Check the shared adapter contract first.
 
 ## 🎯 Success Metrics
 

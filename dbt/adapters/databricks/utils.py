@@ -17,26 +17,38 @@ if TYPE_CHECKING:
 A = TypeVar("A", bound=BaseAdapter)
 
 
-CREDENTIAL_IN_COPY_INTO_REGEX = re.compile(
-    r"(?<=credential)\s*?\((\s*?'\w*?'\s*?=\s*?'.*?'\s*?(?:,\s*?'\w*?'\s*?=\s*?'.*?'\s*?)*?)\)"
+_SECRET_OPTION_KEY = r"'[^']+'"
+# The alternatives are deliberately non-overlapping to keep matching linear on malformed input.
+_SECRET_OPTION_VALUE = r"'(?:\\.|''|[^'\\]|'(?!'|\s*[,)]))*'"
+_SECRET_OPTION = _SECRET_OPTION_KEY + r"\s*=\s*" + _SECRET_OPTION_VALUE
+
+SECRET_CLAUSE_IN_COPY_INTO_REGEX = re.compile(
+    r"(credential|encryption)\s*\(\s*"
+    r"(" + _SECRET_OPTION + r"(?:\s*,\s*" + _SECRET_OPTION + r")*)"
+    r"\s*\)",
+    re.IGNORECASE,
 )
+SECRET_OPTION_KEY_REGEX = re.compile("(" + _SECRET_OPTION_KEY + r")\s*=\s*" + _SECRET_OPTION_VALUE)
 
 
 def redact_credentials(sql: str) -> str:
-    redacted = _redact_credentials_in_copy_into(sql)
-    return redacted
+    try:
+        return _redact_credentials_in_copy_into(sql)
+    except Exception:
+        return sql
+
+
+def _redact_secret_clause(match: "re.Match[str]") -> str:
+    keys = SECRET_OPTION_KEY_REGEX.findall(match.group(2))
+    return f"{match.group(1)} (" + ", ".join(f"{key} = '[REDACTED]'" for key in keys) + ")"
 
 
 def _redact_credentials_in_copy_into(sql: str) -> str:
-    m = CREDENTIAL_IN_COPY_INTO_REGEX.search(sql, re.MULTILINE)
-    if m:
-        redacted = ", ".join(
-            f"{key.strip()} = '[REDACTED]'"
-            for key, _ in (pair.strip().split("=", 1) for pair in m.group(1).split(","))
-        )
-        return f"{sql[: m.start()]} ({redacted}){sql[m.end() :]}"
-    else:
+    # Cheap substring test first; the case-insensitive scan is much slower on large statements.
+    lowered = sql.lower()
+    if "credential" not in lowered and "encryption" not in lowered:
         return sql
+    return SECRET_CLAUSE_IN_COPY_INTO_REGEX.sub(_redact_secret_clause, sql)
 
 
 def remove_undefined(v: Any) -> Any:

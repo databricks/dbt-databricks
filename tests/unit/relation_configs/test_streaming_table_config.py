@@ -1,5 +1,8 @@
 from unittest.mock import Mock
 
+from agate import Table
+
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
@@ -31,6 +34,10 @@ class TestStreamingTableConfig:
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
             "table_tags": {"a": "b", "c": "d"},
+            "information_schema.column_tags": Table(
+                rows=[["col_a", "classification", "internal"]],
+                column_names=["column_name", "tag_name", "tag_value"],
+            ),
         }
 
         config = StreamingTableConfig.from_results(results)
@@ -43,6 +50,9 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -61,6 +71,7 @@ class TestStreamingTableConfig:
         }
         model.config.persist_docs = {"relation": False, "columns": True}
         model.description = "This is the table comment"
+        model.columns = {"col_a": {"_extra": {"databricks_tags": {"classification": "internal"}}}}
 
         config = StreamingTableConfig.from_relation_config(model)
 
@@ -72,6 +83,9 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -86,6 +100,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -98,6 +113,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -120,6 +136,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -132,6 +149,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -142,6 +160,8 @@ class TestStreamingTableConfig:
         assert changeset.changes["tblproperties"] == TblPropertiesConfig(
             tblproperties={"prop": "1", "other": "other"}
         )
+        assert "tags" not in changeset.changes
+        assert "column_tags" not in changeset.changes
 
     def test_get_changeset__some_changes(self):
         old = StreamingTableConfig(
@@ -152,6 +172,7 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(),
                 "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -164,6 +185,9 @@ class TestStreamingTableConfig:
                 "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
             }
@@ -180,6 +204,81 @@ class TestStreamingTableConfig:
             "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1", "other": "other"}),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+            "column_tags": ColumnTagsConfig(
+                set_column_tags={"col_a": {"classification": "internal"}}
+            ),
             "query": QueryConfig(query="select * from foo"),
             "row_filter": RowFilterConfig(),
         }
+
+    def test_get_changeset__tags_include_only_changed_keys(self):
+        old = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={"unchanged": "value", "updated": "old"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                "query": QueryConfig(query="select stream(1 as id)"),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+        new = StreamingTableConfig(
+            config={
+                **old.config,
+                "tags": TagsConfig(
+                    set_tags={"unchanged": "value", "updated": "new", "added": "value"}
+                ),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert not changeset.requires_full_refresh
+        assert changeset.changes["tags"] == TagsConfig(
+            set_tags={"updated": "new", "added": "value"}
+        )
+        assert "column_tags" not in changeset.changes
+
+    def test_get_changeset__column_tags_include_only_changed_keys(self):
+        old = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={
+                        "id": {"classification": "internal", "owner": "analytics"},
+                        "unchanged": {"owner": "analytics"},
+                    }
+                ),
+                "query": QueryConfig(query="select stream(1 as id)"),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+        new = StreamingTableConfig(
+            config={
+                **old.config,
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={
+                        "id": {"classification": "public", "owner": "analytics"},
+                        "unchanged": {"owner": "analytics"},
+                    }
+                ),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert not changeset.requires_full_refresh
+        assert changeset.changes["column_tags"] == ColumnTagsConfig(
+            set_column_tags={"id": {"classification": "public"}}
+        )
+        assert "tags" not in changeset.changes

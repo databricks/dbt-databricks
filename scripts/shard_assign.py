@@ -11,7 +11,7 @@ order-dependent fixtures).
 
 Algorithms:
 - lpt_historical_time: greedy LPT on historical per-file wall time. Reads
-  --timings (built by scripts/refresh_timings.py); falls back to per-profile
+  --timings (built by scripts/regenerate_timings.py); falls back to per-profile
   mean for files not in the timings.
 - lpt_test_count (default): greedy LPT on per-file test count. No external
   data needed.
@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         "--timings",
         default=None,
         help=(
-            "Path to test_timings.json (built by refresh_timings.py). "
+            "Path to test_timings.json (built by regenerate_timings.py). "
             "Required when --algo is lpt_historical_time."
         ),
     )
@@ -144,7 +144,7 @@ def main() -> int:
         if not profile_timings:
             print(
                 f"ERROR: no timings for profile '{args.profile}' in {timings_path}. "
-                f"Run scripts/refresh_timings.py for this profile first.",
+                "Run scripts/regenerate_timings.py first.",
                 file=sys.stderr,
             )
             return 2

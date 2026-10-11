@@ -4,6 +4,7 @@ from agate import Row, Table
 
 from dbt.adapters.databricks.impl import MaterializedViewAPI
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
@@ -43,6 +44,10 @@ class TestMaterializedViewConfig:
                 rows=[["prop", "1"], ["other", "other"]], column_names=["key", "value"]
             ),
             "table_tags": {"a": "b", "c": "d"},
+            "information_schema.column_tags": Table(
+                rows=[["col_a", "classification", "internal"]],
+                column_names=["column_name", "tag_name", "tag_value"],
+            ),
         }
 
         config = MaterializedViewConfig.from_results(results)
@@ -56,6 +61,9 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -73,6 +81,7 @@ class TestMaterializedViewConfig:
         }
         model.config.persist_docs = {"relation": True, "columns": False}
         model.description = "This is the table comment"
+        model.columns = {"col_a": {"_extra": {"databricks_tags": {"classification": "internal"}}}}
 
         config = MaterializedViewConfig.from_relation_config(model)
 
@@ -85,6 +94,9 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -99,6 +111,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -111,6 +124,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -127,6 +141,7 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -139,6 +154,9 @@ class TestMaterializedViewConfig:
                 "refresh": RefreshConfig(cron="*/5 * * * *"),
                 "query": QueryConfig(query="select * from foo"),
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={"col_a": {"classification": "internal"}}
+                ),
                 "row_filter": RowFilterConfig(),
             }
         )
@@ -150,6 +168,79 @@ class TestMaterializedViewConfig:
             "partition_by": PartitionedByConfig(partition_by=["col_a"]),
             "refresh": RefreshConfig(cron="*/5 * * * *"),
             "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
+            "column_tags": ColumnTagsConfig(
+                set_column_tags={"col_a": {"classification": "internal"}}
+            ),
+        }
+
+    def test_get_changeset__tags_include_only_changed_keys(self):
+        old = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select 1 as id"),
+                "tags": TagsConfig(set_tags={"unchanged": "value", "updated": "old"}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+        new = MaterializedViewConfig(
+            config={
+                **old.config,
+                "tags": TagsConfig(
+                    set_tags={"unchanged": "value", "updated": "new", "added": "value"}
+                ),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert not changeset.requires_full_refresh
+        assert changeset.changes == {
+            "tags": TagsConfig(set_tags={"updated": "new", "added": "value"})
+        }
+
+    def test_get_changeset__column_tags_include_only_changed_keys(self):
+        old = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select 1 as id"),
+                "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={
+                        "id": {"classification": "internal", "owner": "analytics"},
+                        "unchanged": {"owner": "analytics"},
+                    }
+                ),
+                "row_filter": RowFilterConfig(),
+            }
+        )
+        new = MaterializedViewConfig(
+            config={
+                **old.config,
+                "column_tags": ColumnTagsConfig(
+                    set_column_tags={
+                        "id": {"classification": "public", "owner": "analytics"},
+                        "unchanged": {"owner": "analytics"},
+                    }
+                ),
+            }
+        )
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert not changeset.requires_full_refresh
+        assert changeset.changes == {
+            "column_tags": ColumnTagsConfig(set_column_tags={"id": {"classification": "public"}})
         }
 
 

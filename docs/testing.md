@@ -1,6 +1,8 @@
 # Testing dbt-databricks
 
-This guide covers the comprehensive testing strategy and practices for the dbt-databricks adapter.
+_Last updated: 2026-08-09_
+
+This guide covers the testing strategy and practices for the dbt-databricks adapter.
 
 ## Overview
 
@@ -111,7 +113,7 @@ hatch run test:unit             # All Python versions (3.9-3.12)
 
 For more advanced testing scenarios:
 
-- **Pytest documentation**: See the [pytest documentation](https://docs.pytest.org/) for comprehensive test selection, filtering, and debugging options
+- **Pytest documentation**: See the [pytest documentation](https://docs.pytest.org/) for test selection, filtering, and debugging options
 - **Hatch integration**: See [Hatch's documentation on passing arguments to scripts](https://hatch.pypa.io/latest/config/environment/overview/#scripts) for how to pass additional arguments to test commands
 
 ### Testing against lowest-direct dependencies
@@ -188,7 +190,7 @@ class TestDatabricksUtils:
 
 #### Macro Tests
 
-Macro tests verify Jinja2 macro functionality by rendering templates and comparing SQL output. The `MacroTestBase` class provides a comprehensive testing framework.
+Macro tests verify Jinja2 macro functionality by rendering templates and comparing SQL output. The `MacroTestBase` class provides the testing framework.
 
 ##### Basic Setup
 
@@ -464,7 +466,7 @@ class TestAdvancedMacroPatterns(MacroTestBase):
         """Test how macros handle invalid inputs or missing dependencies
 
         Good macros fail gracefully with helpful error messages.
-        Test edge cases to ensure robust behavior.
+        Test edge cases such as missing config and invalid values.
         """
         # Test with missing required config
         with pytest.raises(Exception) as exc_info:
@@ -765,7 +767,7 @@ class TestDatabricksCustomSchema(BaseSeedCustomSchema):
 **Why inherit from dbt Labs tests:**
 
 - Ensures your adapter meets dbt execution engine requirements
-- Provides comprehensive test coverage for standard dbt features
+- Provides test coverage for standard dbt features
 - Automatically tests edge cases that adapter developers might miss
 - Maintains compatibility as dbt Core evolves
 

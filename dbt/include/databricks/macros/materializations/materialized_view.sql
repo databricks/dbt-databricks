@@ -24,18 +24,31 @@
     {% set full_refresh_mode = should_full_refresh() %}
 
     -- determine the scenario we're in: create, full_refresh, alter, refresh data
-    {% if existing_relation is none %}
-        {% set build_sql = get_create_materialized_view_as_sql(target_relation, sql) %}
-    {% elif full_refresh_mode or not existing_relation.is_materialized_view %}
-        {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
+    {% if existing_relation is none or full_refresh_mode or not existing_relation.is_materialized_view %}
+        {% if existing_relation is none %}
+            {% set build_sql = get_create_materialized_view_as_sql(target_relation, sql) %}
+        {% else %}
+            {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
+        {% endif %}
+        {% set build_sql = [build_sql] if build_sql is string else build_sql | list %}
+        {% set tags = config.get('databricks_tags') %}
+        {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+        {% do build_sql.extend(get_set_tag_statements(target_relation, tags, column_tags)) %}
     {% else %}
 
         -- get config options
         {% set on_configuration_change = config.get('on_configuration_change') %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
+        {#- Schema drift is a configuration change the components cannot see, so it joins them
+            here and is then subject to the same `on_configuration_change` handling. REFRESH
+            cannot reconcile a drifted schema, so it demands a full refresh. -#}
+        {% set schema_drifted = dlt_inferred_query_schema_changed(existing_relation, sql) %}
+        {%- if schema_drifted and configuration_changes is not none -%}
+            {%- set configuration_changes = configuration_changes.model_copy(update={'requires_full_refresh': true}) -%}
+        {%- endif -%}
 
         {# Skip manual REFRESH on no-op re-runs for auto-refreshed modes. #}
-        {% if configuration_changes is none %}
+        {% if configuration_changes is none and not schema_drifted %}
             {%- set refresh = adapter.get_config_from_model(config.model).config["refresh"] -%}
             {%- if refresh.auto_refreshed -%}
                 {% set build_sql = '' %}
@@ -44,7 +57,16 @@
             {%- endif -%}
 
         {% elif on_configuration_change == 'apply' %}
-            {% set build_sql = get_alter_materialized_view_as_sql(target_relation, configuration_changes, sql, existing_relation, None, None) %}
+            {%- if configuration_changes is none -%}
+                {#- Drift alone: no component changes to alter, so replace outright. -#}
+                {% set build_sql = get_replace_sql(existing_relation, target_relation, sql) %}
+                {% set build_sql = [build_sql] if build_sql is string else build_sql | list %}
+                {% set tags = config.get('databricks_tags') %}
+                {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+                {% do build_sql.extend(get_set_tag_statements(target_relation, tags, column_tags)) %}
+            {%- else -%}
+                {% set build_sql = get_alter_materialized_view_as_sql(target_relation, configuration_changes, sql, existing_relation, None, None) %}
+            {%- endif -%}
         {% elif on_configuration_change == 'continue' %}
             {% set build_sql = "" %}
             {{ exceptions.warn("Configuration changes were identified and `on_configuration_change` was set to `continue` for `" ~ target_relation ~ "`") }}
@@ -70,16 +92,9 @@
     {{ run_hooks(pre_hooks, inside_transaction=True) }}
 
     {% set grant_config = config.get('grants') %}
-    {% set tags = config.get('databricks_tags') %}
-
     {{ execute_multiple_statements(build_sql) }}
 
-    {%- do apply_tags(target_relation, tags) -%}
-
-    {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
-    {% if column_tags %}
-      {{ apply_column_tags(target_relation, column_tags) }}
-    {% endif %}
+    {% do validate_persist_doc_columns(target_relation, model) %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
