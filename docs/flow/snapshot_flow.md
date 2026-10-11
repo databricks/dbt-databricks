@@ -1,6 +1,6 @@
 # Snapshot Flow
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-09-30_
 
 > Snapshots do **not** use the `use_materialization_v2` flag — there is a single path. Source:
 > `dbt/include/databricks/macros/materializations/snapshot.sql`. Strategy dispatch and the
@@ -37,12 +37,8 @@ flowchart TD
     MAIN --> TAGS[Apply table tags + column tags]
     TAGS --> GRANTS[Apply grants]
     GRANTS --> DOCS[Persist docs]
-    DOCS --> IDX{First run?}
-    IDX -- yes --> CREATEIDX[create_indexes]
-    IDX -- no --> POSTIN
-    CREATEIDX --> POSTIN["Run post-hooks (inside transaction)"]
-    POSTIN --> COMMIT[Commit]
-    COMMIT --> CLEAN{Staging table\ncreated?}
+    DOCS --> POSTIN["Run post-hooks (inside transaction)"]
+    POSTIN --> CLEAN{Staging table\ncreated?}
     CLEAN -- yes --> POSTSNAP[post_snapshot cleanup]
     CLEAN -- no --> CONST
     POSTSNAP --> CONST[Persist constraints]

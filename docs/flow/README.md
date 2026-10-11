@@ -1,6 +1,6 @@
 # Materialization Flow Docs
 
-_Last updated: 2026-08-09_
+_Last updated: 2026-09-30_
 
 These docs map how each dbt-databricks materialization executes — the decision branches, the
 order of operations, and where shared logic (like relation replacement) is reused. They are
@@ -16,8 +16,8 @@ so the "V1" / "Existing" diagram is what most projects run today; the "V2" / "Ne
 runs once a project opts in.
 
 For table and incremental models, V2 separates *create* from *insert*: it builds an intermediate
-relation and may stage and swap the target when safer relation operations are enabled. View and
-seed V2 use the flag too, but do not follow that staging-table pattern. Macros branch on the flag
+relation and may stage and swap the target when safer relation operations are enabled. View V2
+uses the flag too, but does not follow that staging-table pattern. Macros branch on the flag
 via `adapter.get_behavior_flag_no_warn('use_materialization_v2')`.
 
 Materializations that honor the flag show both diagrams in their doc:
@@ -27,7 +27,7 @@ Materializations that honor the flag show both diagrams in their doc:
 | Table | [table_flow.md](table_flow.md) | Yes — V1 (default) + V2 |
 | View | [view_flow.md](view_flow.md) | Yes — V1 (default) + V2 |
 | Incremental | [incremental_flow.md](incremental_flow.md) | Yes — Existing (default) + New |
-| Seed | [seed_flow.md](seed_flow.md) | Yes — V1 (default) + V2 |
+| Seed | [seed_flow.md](seed_flow.md) | No — single path |
 | Snapshot | [snapshot_flow.md](snapshot_flow.md) | No — single path |
 | Streaming table | [streaming_table_flow.md](streaming_table_flow.md) | No — single path |
 | Materialized view | [materialized_view_flow.md](materialized_view_flow.md) | No — single path |
