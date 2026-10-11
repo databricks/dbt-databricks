@@ -11,6 +11,7 @@
 
 ### Under the Hood
 
+- **BREAKING for custom macro overrides only:** Snapshots no longer call `create_indexes` or `adapter.commit()`, both no-ops on Databricks, with no behavior change otherwise. Overrides of `create_indexes` or `get_create_index_sql` are no longer called for first-run snapshots ([#1691](https://github.com/databricks/dbt-databricks/pull/1691))
 - **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
 
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
