@@ -9,6 +9,10 @@
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 - Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
+### Under the Hood
+
+- **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
+
 ## dbt-databricks 1.12.6 (Oct 1, 2026)
 
 ### Features
