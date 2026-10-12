@@ -18,16 +18,6 @@ class TestTagsMacros(MacroTestBase):
     def databricks_template_names(self) -> list:
         return ["column_tags.sql"]
 
-    def test_macros_fetch_tags_sql(self, template_bundle):
-        sql = self.render_bundle(template_bundle, "fetch_tags_sql")
-        expected = self.clean_sql(
-            "SELECT tag_name, tag_value "
-            "FROM `system`.`information_schema`.`table_tags` "
-            "WHERE catalog_name = 'some_database'"
-            " AND schema_name = 'some_schema' AND table_name = 'some_table'"
-        )
-        assert sql == expected
-
     def test_get_set_tag_statements_returns_table_delta_and_changed_columns(
         self, template_bundle, context
     ):

@@ -260,5 +260,3 @@ class TestMaterializedViewAPIDescribeRelation:
         results = MaterializedViewAPI._describe_relation(adapter, relation)
 
         assert "table_tags" in results
-        macro_names = {call.args[0] for call in adapter.execute_macro.call_args_list}
-        assert "fetch_tags" not in macro_names

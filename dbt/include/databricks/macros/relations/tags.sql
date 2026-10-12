@@ -1,23 +1,3 @@
-{# Compatibility surface for projects that invoke or override this macro directly.
-   Internal relation metadata reads use the Unity Catalog Entity Tag Assignments API. #}
-{% macro fetch_tags(relation) -%}
-  {% if relation.is_hive_metastore() %}
-    {{ exceptions.raise_compiler_error("Tags are only supported for Unity Catalog") }}
-  {%- endif %}
-  {% call statement('list_tags', fetch_result=True) -%}
-    {{ fetch_tags_sql(relation) }}
-  {% endcall %}
-  {% do return(load_result('list_tags').table) %}
-{%- endmacro -%}
-
-{% macro fetch_tags_sql(relation) -%}
-  SELECT tag_name, tag_value
-  FROM `system`.`information_schema`.`table_tags`
-  WHERE catalog_name = '{{ relation.database|lower }}' 
-    AND schema_name = '{{ relation.schema|lower }}'
-    AND table_name = '{{ relation.identifier|lower }}'
-{%- endmacro -%}
-
 {% macro apply_tags(relation, set_tags) -%}
   {{ log("Applying tags to relation " ~ set_tags) }}
   {%- if set_tags and relation.is_hive_metastore() -%}
