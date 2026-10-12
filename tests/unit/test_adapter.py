@@ -2055,6 +2055,22 @@ class TestDescribeRelationMetadataFetchPlanning:
             "main.analytics.my_st_model"
         )
 
+    def test_st_describe_relation_preserves_tags_through_processor(self):
+        adapter = self._create_adapter()
+        relation = self._create_st_relation()
+        relation_config = self._create_st_config(tags={"classification": "internal"})
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.return_value = {
+            "classification": "internal",
+            "key_only": None,
+        }
+
+        results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert TagsProcessor.from_relation_results(results) == TagsConfig(
+            set_tags={"classification": "internal", "key_only": ""}
+        )
+        assert "fetch_tags" not in self._called_macro_names(adapter)
+
     def test_st_describe_relation_fetches_only_column_tags_when_present(self):
         adapter = self._create_adapter()
         relation = self._create_st_relation()

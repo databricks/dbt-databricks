@@ -38,6 +38,13 @@ streaming_table = """
 select * from stream {{ ref('my_seed') }}
 """
 
+tagged_refresh_seed = "id\n1\n"
+
+manual_tagged_streaming_table = streaming_table.replace(
+    "materialized='streaming_table',",
+    "materialized='streaming_table', databricks_tags={'classification': 'internal'},",
+)
+
 complex_streaming_table = """
 {{ config(
     materialized='streaming_table',

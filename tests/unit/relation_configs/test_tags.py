@@ -1,26 +1,91 @@
 from unittest.mock import Mock
 
 import pytest
+from agate import Number, Table, Text
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
 
 
 class TestTagsProcessor:
-    def test_from_relation_results__none(self):
-        results = {"table_tags": {}}
+    @pytest.mark.parametrize(
+        "results",
+        [
+            {},
+            {"table_tags": None},
+            {"table_tags": {}},
+            {"information_schema.tags": None},
+            {"information_schema.tags": Table([], ["tag_name", "tag_value"])},
+        ],
+    )
+    def test_from_relation_results__none(self, results):
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={})
 
-    def test_from_relation_results__some(self):
-        results = {"table_tags": {"a": "valA", "b": "valB"}}
+    @pytest.mark.parametrize("result_key", ["table_tags", "information_schema.tags"])
+    def test_from_relation_results__some(self, result_key):
+        tags = {"a": "valA", "b": "valB"}
+        results = {
+            result_key: tags
+            if result_key == "table_tags"
+            else Table(list(tags.items()), ["tag_name", "tag_value"])
+        }
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={"a": "valA", "b": "valB"})
 
-    def test_from_relation_results__key_only(self):
-        results = {"table_tags": {"a": ""}}
+    @pytest.mark.parametrize("result_key", ["table_tags", "information_schema.tags"])
+    def test_from_relation_results__key_only(self, result_key):
+        tags = {"a": "", "b": None}
+        results = {
+            result_key: tags
+            if result_key == "table_tags"
+            else Table(list(tags.items()), ["tag_name", "tag_value"], [Text(), Text()])
+        }
         spec = TagsProcessor.from_relation_results(results)
-        assert spec == TagsConfig(set_tags={"a": ""})
+        assert spec == TagsConfig(set_tags={"a": "", "b": ""})
+
+    @pytest.mark.parametrize("table_tags", [{}, None, {"a": "current"}])
+    def test_from_relation_results__current_format_takes_precedence(self, table_tags):
+        results = {
+            "table_tags": table_tags,
+            "information_schema.tags": Table(
+                [["a", "legacy"], ["legacy_only", "value"]], ["tag_name", "tag_value"]
+            ),
+        }
+
+        spec = TagsProcessor.from_relation_results(results)
+
+        assert spec == TagsConfig(set_tags=table_tags or {})
+
+    @pytest.mark.parametrize(
+        "results, expected",
+        [
+            (
+                {"table_tags": {1: None, "priority": 0, "enabled": False}},
+                {"1": "", "priority": "0", "enabled": "False"},
+            ),
+            (
+                {
+                    "information_schema.tags": Table(
+                        [[1, None], [2, 0]], ["tag_name", "tag_value"], [Number(), Number()]
+                    )
+                },
+                {"1": "", "2": "0"},
+            ),
+            (
+                {
+                    "information_schema.tags": Table(
+                        [["priority", "001"], ["enabled", "false"]],
+                        ["tag_name", "tag_value"],
+                        [Text(), Text()],
+                    )
+                },
+                {"priority": "001", "enabled": "false"},
+            ),
+        ],
+    )
+    def test_from_relation_results__normalizes_scalars(self, results, expected):
+        assert TagsProcessor.from_relation_results(results) == TagsConfig(set_tags=expected)
 
     def test_from_relation_config__without_tags(self):
         model = Mock()

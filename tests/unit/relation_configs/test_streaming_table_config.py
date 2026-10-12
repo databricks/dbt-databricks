@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+import pytest
 from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
@@ -18,7 +19,8 @@ from tests.unit import fixtures
 
 
 class TestStreamingTableConfig:
-    def test_from_results(self):
+    @pytest.mark.parametrize("tag_result_key", ["table_tags", "information_schema.tags"])
+    def test_from_results(self, tag_result_key):
         results = {
             "describe_extended": fixtures.gen_describe_extended(
                 partition_info=[
@@ -33,7 +35,9 @@ class TestStreamingTableConfig:
                 ],
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
-            "table_tags": {"a": "b", "c": "d"},
+            tag_result_key: {"a": "b", "c": "d"}
+            if tag_result_key == "table_tags"
+            else Table([["a", "b"], ["c", "d"]], ["tag_name", "tag_value"]),
             "information_schema.column_tags": Table(
                 rows=[["col_a", "classification", "internal"]],
                 column_names=["column_name", "tag_name", "tag_value"],
