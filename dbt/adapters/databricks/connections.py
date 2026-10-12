@@ -456,9 +456,11 @@ class DatabricksConnectionManager(SparkConnectionManager):
             conn = cast(Optional[DatabricksDBTConnection], self.get_if_exists())
             if conn is None:
                 return
-
-            self.close(conn)
             self.clear_thread_connection()
+
+        # Closing a session can take minutes on a cluster, and holding the shared lock
+        # during it stalls every other thread's queries and connection opens.
+        self.close(conn)
 
     # override
     def cleanup_all(self) -> None:
