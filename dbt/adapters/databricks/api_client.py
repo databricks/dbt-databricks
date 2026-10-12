@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Optional
+from urllib.parse import quote
 
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -312,7 +313,7 @@ class EntityTagAssignmentsApi:
             # next_page_token until it is absent, so consuming it yields every assignment.
             assignments = self.workspace_client.entity_tag_assignments.list(
                 entity_type="tables",
-                entity_name=entity_name,
+                entity_name=quote(entity_name, safe=""),
                 max_results=50,
             )
             return {assignment.tag_key: assignment.tag_value or "" for assignment in assignments}

@@ -117,3 +117,40 @@ class TestIncrementalMetadataFetchRequiresColumnTags:
 
         assert result.status == RunStatus.Error
         assert "tags should not be called" in result.message
+
+
+class TaggedAliasMixin:
+    alias: str
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"tagged_alias.sql": fixtures.metadata_fetch_tagged_alias_sql}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"vars": {"tagged_alias": self.alias}}
+
+    def test_second_incremental_run_preserves_rows_and_tags(self, project):
+        util.run_dbt(["run"])
+        util.run_dbt(["run"])
+
+        rows = project.run_sql(f"select id from `{self.alias}` order by id", fetch="all")
+        tags = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags` "
+            f"where catalog_name = '{project.database}' "
+            "and schema_name = '{schema}' "
+            f"and table_name = '{self.alias}'",
+            fetch="all",
+        )
+        assert rows == [(1,), (2,)]
+        assert tags == [("classification", "internal")]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalTableTagsHashAlias(TaggedAliasMixin):
+    alias = "tagged_alias#2026"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestIncrementalTableTagsQueryAlias(TaggedAliasMixin):
+    alias = "tagged_alias?2026"

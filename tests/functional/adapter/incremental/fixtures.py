@@ -95,6 +95,21 @@ metadata_fetch_incremental_skip_config_changes_sql = """
 select cast(1 as bigint) as id
 """
 
+metadata_fetch_tagged_alias_sql = """
+{{ config(
+    materialized='incremental',
+    unique_key='id',
+    alias=var('tagged_alias'),
+    databricks_tags={'classification': 'internal'},
+) }}
+
+{% if is_incremental() %}
+select cast(2 as bigint) as id
+{% else %}
+select cast(1 as bigint) as id
+{% endif %}
+"""
+
 metadata_fetch_no_tags_schema = """
 version: 2
 

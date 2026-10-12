@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from databricks.sdk.service.catalog import EntityTagAssignment
+from databricks.sdk.service.catalog import EntityTagAssignment, EntityTagAssignmentsAPI
 from dbt_common.exceptions import DbtRuntimeError
+from requests import Request
 
 from dbt.adapters.databricks.api_client import DatabricksApiClient, EntityTagAssignmentsApi
 
@@ -41,6 +42,38 @@ class TestEntityTagAssignmentsApi:
             entity_name="main.analytics.orders",
             max_results=50,
         )
+
+    @pytest.mark.parametrize(
+        "entity_name, encoded_name",
+        [
+            ("main.analytics.orders", "main.analytics.orders"),
+            ("main.analytics.orders#2026", "main.analytics.orders%232026"),
+            ("main.analytics.orders?2026", "main.analytics.orders%3F2026"),
+            ("main.analytics.orders%2026", "main.analytics.orders%252026"),
+            ("main.analytics.orders 2026", "main.analytics.orders%202026"),
+        ],
+    )
+    def test_list_table_tags_preserves_entity_name_in_request_path(self, entity_name, encoded_name):
+        api_client = Mock()
+        api_client._cfg.workspace_id = None
+        api_client.do.return_value = {
+            "tag_assignments": [{"tag_key": "classification", "tag_value": "internal"}]
+        }
+        workspace_client = Mock()
+        workspace_client.entity_tag_assignments = EntityTagAssignmentsAPI(api_client)
+
+        tags = EntityTagAssignmentsApi(workspace_client).list_table_tags(entity_name)
+
+        method, path = api_client.do.call_args.args
+        request = Request(
+            method,
+            f"https://workspace.example{path}",
+            params=api_client.do.call_args.kwargs["query"],
+        ).prepare()
+        assert request.path_url == (
+            f"/api/2.1/unity-catalog/entity-tag-assignments/tables/{encoded_name}/tags?max_results=50"
+        )
+        assert tags == {"classification": "internal"}
 
     def test_list_table_tags_wraps_sdk_errors(self):
         workspace_client = Mock()
