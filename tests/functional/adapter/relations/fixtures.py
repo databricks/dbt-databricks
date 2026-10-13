@@ -92,15 +92,3 @@ def replaced_relation_sql(materialized, post_hook=None):
 {{{{ config({config}) }}}}
 select id from {stream}{{{{ ref('replaced_relation_source') }}}}
 """
-
-
-def materialization_path_sql(materialized, use_materialization_v2=None):
-    config = f"materialized='{materialized}'"
-    if materialized == "view":
-        config += ", view_update_via_alter=true"
-    if use_materialization_v2 is not None:
-        config += f", use_materialization_v2={str(use_materialization_v2).lower()}"
-    return f"""
-{{{{ config({config}) }}}}
-select 1 as id
-"""

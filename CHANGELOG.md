@@ -7,7 +7,7 @@
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 - Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
 - **BREAKING for some view models:** Views run one materialization whatever the `use_materialization_v2` value, so with the flag off `view_update_via_alter` now updates Unity Catalog views in place and fails on Hive metastore views, grants are applied after tags, and replacing an existing view now calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
-- Accept `use_materialization_v2` as a model config, so a project or individual table, incremental, or view model can choose its materialization path; models that don't set it follow the `use_materialization_v2` behavior flag ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- Accept `use_materialization_v2` as a model config, so a project or individual table, incremental, or view model can choose its materialization path; models that don't set it follow the `use_materialization_v2` behavior flag ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
 
 ### Fixes
 
