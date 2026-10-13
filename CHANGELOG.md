@@ -10,6 +10,11 @@
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 - Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
 
+### Fixes
+
+- Use `create or replace table` instead of dropping the table first when a full refresh rebuilds an incremental model on a Unity Catalog managed Iceberg table ([#1669](https://github.com/databricks/dbt-databricks/pull/1669) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+- Use `create or replace table` instead of dropping the table first when the `table` materialization rebuilds a Unity Catalog managed Iceberg table ([#1674](https://github.com/databricks/dbt-databricks/pull/1674) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+
 ### Under the Hood
 
 - **BREAKING for custom macro overrides only:** Snapshots no longer call `create_indexes` or `adapter.commit()`, both no-ops on Databricks, with no behavior change otherwise. Overrides of `create_indexes` or `get_create_index_sql` are no longer called for first-run snapshots ([#1691](https://github.com/databricks/dbt-databricks/pull/1691))
