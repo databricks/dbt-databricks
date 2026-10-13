@@ -2,7 +2,7 @@
 
 ### Under the Hood
 
-- Print every thread's stack to the CI log when a unit test hangs past 45s, so hang crashes can be diagnosed (test-only, no runtime impact) ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- Print every thread's stack to the CI log when a unit test hangs past 45s, so hang crashes can be diagnosed (test-only, no runtime impact) ([#1715](https://github.com/databricks/dbt-databricks/pull/1715))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
