@@ -157,6 +157,22 @@ models:
         - name: color
 """
 
+tblproperties_change_data_feed = """
+version: 2
+
+models:
+  - name: merge_update_columns_sql
+    config:
+        tblproperties:
+            a: b
+            c: d
+            delta.enableChangeDataFeed: "true"
+    columns:
+        - name: id
+        - name: msg
+        - name: color
+"""
+
 liquid_clustering_a = """
 version: 2
 
