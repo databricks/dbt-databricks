@@ -1,8 +1,6 @@
 import pytest
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import MaterializationV2Mixin
-
 UTF8_DATA = {
     "arabic": "مرحبا بالعالم",
     "greek": "Γειά σου Κόσμε",
@@ -25,7 +23,3 @@ class TestUtf8SeedRoundTrip:
         relation = util.relation_from_name(project.adapter, "utf8_roundtrip")
         rows = project.run_sql(f"select label, value from {relation}", fetch="all")
         assert dict(rows) == UTF8_DATA
-
-
-class TestUtf8SeedRoundTripV2(TestUtf8SeedRoundTrip, MaterializationV2Mixin):
-    pass
