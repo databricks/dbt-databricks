@@ -1,6 +1,7 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
 from tests.functional.adapter.views.fixtures import view_with_tags_sql, view_without_tags_sql
 
 
@@ -9,6 +10,10 @@ class TestViewMetadataFetchSkips:
     @pytest.fixture(scope="class")
     def models(self):
         return {"view_metadata_fetch.sql": view_without_tags_sql}
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -31,6 +36,11 @@ class TestViewMetadataFetchRequiresTags:
     @pytest.fixture(scope="class")
     def models(self):
         return {"view_metadata_fetch.sql": view_with_tags_sql}
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        # Fails the run if table-tag reads regress from the UC API to the information_schema macro.
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     @pytest.fixture(scope="class")
     def project_config_update(self):

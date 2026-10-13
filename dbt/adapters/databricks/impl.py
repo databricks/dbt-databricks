@@ -1293,7 +1293,13 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
             )
 
         entity_name = f"{relation.database}.{relation.schema}.{relation.identifier}"
-        return adapter.connections.api_client.entity_tag_assignments.list_table_tags(entity_name)
+        tags = adapter.connections.api_client.entity_tag_assignments.list_table_tags(entity_name)
+        if tags is not None:
+            return tags
+
+        # Tokens scoped to `sql` can query information_schema but not the Unity Catalog API.
+        table = adapter.execute_macro("fetch_tags", kwargs={"relation": relation})
+        return {str(row[0]): "" if row[1] is None else str(row[1]) for row in table.rows}
 
     @classmethod
     @abstractmethod

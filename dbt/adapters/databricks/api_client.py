@@ -11,6 +11,7 @@ from urllib.parse import quote
 from dbt_common.exceptions import DbtRuntimeError
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import PermissionDenied
 from databricks.sdk.service.compute import (
     CommandStatus,
     CommandStatusResponse,
@@ -302,12 +303,17 @@ class CurrUserApi:
 class EntityTagAssignmentsApi:
     def __init__(self, workspace_client: WorkspaceClient):
         self.workspace_client = workspace_client
+        self.permission_denied = False
 
-    def list_table_tags(self, entity_name: str) -> dict[str, str]:
+    def list_table_tags(self, entity_name: str) -> Optional[dict[str, str]]:
         """List tag assignments for a table-like Unity Catalog entity.
 
         `entity_type="tables"` covers views, materialized views, and metric views as well.
+        Returns None once the API has denied access, such as a token without the
+        `unity-catalog` scope, so callers can read tags another way.
         """
+        if self.permission_denied:
+            return None
         try:
             # max_results is a page size, not a cap: the SDK returns a generator that follows
             # next_page_token until it is absent, so consuming it yields every assignment.
@@ -317,6 +323,10 @@ class EntityTagAssignmentsApi:
                 max_results=50,
             )
             return {assignment.tag_key: assignment.tag_value or "" for assignment in assignments}
+        except PermissionDenied as e:
+            self.permission_denied = True
+            logger.debug(f"Unity Catalog tag assignments API denied access, not retrying: {e}")
+            return None
         except Exception as e:
             raise DbtRuntimeError(f"Error fetching table tags for {entity_name}: {e}")
 

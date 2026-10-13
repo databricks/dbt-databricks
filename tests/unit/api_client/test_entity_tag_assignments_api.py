@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from databricks.sdk.errors import PermissionDenied
 from databricks.sdk.service.catalog import EntityTagAssignment, EntityTagAssignmentsAPI
 from dbt_common.exceptions import DbtRuntimeError
 from requests import Request
@@ -74,6 +75,17 @@ class TestEntityTagAssignmentsApi:
             f"/api/2.1/unity-catalog/entity-tag-assignments/tables/{encoded_name}/tags?max_results=50"
         )
         assert tags == {"classification": "internal"}
+
+    def test_list_table_tags_returns_none_after_permission_denied(self):
+        workspace_client = Mock()
+        workspace_client.entity_tag_assignments.list.side_effect = PermissionDenied(
+            "Provided access token does not have required scopes: unity-catalog"
+        )
+        api = EntityTagAssignmentsApi(workspace_client)
+
+        assert api.list_table_tags("main.analytics.orders") is None
+        assert api.list_table_tags("main.analytics.customers") is None
+        workspace_client.entity_tag_assignments.list.assert_called_once()
 
     def test_list_table_tags_wraps_sdk_errors(self):
         workspace_client = Mock()

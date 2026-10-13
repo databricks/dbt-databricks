@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-10-12_
+_Last updated: 2026-10-13_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -64,6 +64,6 @@ Notes:
   appends the complete desired table and column tag state through `get_set_tag_statements` while
   building the statement list. The execution macro only executes that completed list.
 - Configuration diff reads table tags through the Unity Catalog Entity Tag Assignments API;
-  column tags continue to use `information_schema`.
-- Tag processing also accepts legacy `information_schema.tags` results when `table_tags` is
-  absent. A present `table_tags` result takes precedence, including empty or skipped metadata.
+  column tags continue to use `information_schema`. If the API denies access (for example, a token
+  without the `unity-catalog` scope), table tags for the rest of the run are read from
+  `information_schema` instead.

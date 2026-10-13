@@ -1,6 +1,7 @@
 import pytest
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import fail_if_tag_fetch_called_macros
 from tests.functional.adapter.materialized_view_tests import fixtures
 
 
@@ -14,6 +15,10 @@ class TestMaterializedViewMetadataFetchSkips:
     @pytest.fixture(scope="class")
     def models(self):
         return {"mv_metadata_fetch.sql": fixtures.metadata_fetch_materialized_view_without_tags_sql}
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     def test_second_materialized_view_run_succeeds_without_tag_fetches(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
@@ -33,6 +38,11 @@ class TestMaterializedViewMetadataFetchRequiresTags:
     @pytest.fixture(scope="class")
     def models(self):
         return {"mv_metadata_fetch.sql": fixtures.metadata_fetch_materialized_view_with_tags_sql}
+
+    @pytest.fixture(scope="class")
+    def macros(self):
+        # Fails the run if table-tag reads regress from the UC API to the information_schema macro.
+        return {"fail_if_tag_fetch_called.sql": fail_if_tag_fetch_called_macros}
 
     def test_second_materialized_view_run_reads_tags_from_api(self, project):
         # The first run creates the relation; the second run exercises the existing-relation
