@@ -6,14 +6,14 @@ import pytest
 from dbt.adapters.databricks.logging import DbtCoreHandler
 
 
-def _record(level, msg):
+def _record(level, msg, args=None):
     return stdlib_logging.LogRecord(
         name="databricks.sql",
         level=level,
         pathname=__file__,
         lineno=1,
         msg=msg,
-        args=None,
+        args=args,
         exc_info=None,
     )
 
@@ -34,3 +34,19 @@ class TestDbtCoreHandler:
         handler.emit(_record(level, msg))
 
         getattr(dbt_logger, method).assert_called_once_with(msg)
+
+    def test_emit__interpolates_lazy_percent_args(self):
+        dbt_logger = Mock()
+        handler = DbtCoreHandler(level=stdlib_logging.DEBUG, dbt_logger=dbt_logger)
+
+        handler.emit(
+            _record(
+                stdlib_logging.WARNING,
+                "Token exchange failed, using external token: %s",
+                args=("access_token",),
+            )
+        )
+
+        dbt_logger.warning.assert_called_once_with(
+            "Token exchange failed, using external token: access_token"
+        )

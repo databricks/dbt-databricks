@@ -1,0 +1,156 @@
+# Weekly refresh of .github/test_timings.json (weights integration shard balancing).
+# Regenerates from recent green runs and opens a human-reviewed PR when timings changed.
+name: Refresh Test Timings
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # 06:00 UTC every Monday
+  workflow_dispatch:
+    inputs:
+      num_runs:
+        description: "How many distinct-SHA green integration runs to aggregate"
+        required: false
+        default: "3"
+        type: string
+
+# Default to read-only; the write scope lives only on the open-pr job below.
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-test-timings
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    if: github.ref == 'refs/heads/main'
+    runs-on:
+      group: databricks-protected-runner-group
+      labels: linux-ubuntu-latest
+    permissions:
+      contents: read
+      actions: read   # gh run list / download
+    outputs:
+      open_pr: ${{ steps.decide.outputs.open_pr }}
+      runs_used: ${{ steps.regen.outputs.runs_used }}
+      summary: ${{ steps.regen.outputs.summary }}
+    env:
+      UV_FROZEN: "1"
+      GH_TOKEN: ${{ github.token }}
+      NUM_RUNS: ${{ github.event.inputs.num_runs || '3' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Python Dependencies
+        id: deps
+        uses: ./.github/actions/setup-python-deps
+
+      - name: Setup JFrog PyPI Proxy (fallback)
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-jfrog-pypi
+
+      - name: Set up python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
+        with:
+          version: "0.11.18"
+          cache-local-path: ~/.cache/uv
+
+      - name: Install Hatch
+        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc  # install
+        with:
+          version: "1.17.0"
+
+      - name: Regenerate timings
+        id: regen
+        run: |
+          set -euo pipefail
+          cp .github/test_timings.json /tmp/test_timings.old.json
+          python scripts/regenerate_timings.py \
+            --num-runs "$NUM_RUNS" \
+            --output .github/test_timings.json \
+            --old /tmp/test_timings.old.json \
+            --drift-out /tmp/drift.json
+          # No drift file => the script skipped (fewer than num_runs available).
+          if [ ! -f /tmp/drift.json ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "manual_review=$(jq -r '.needs_manual_review' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
+          echo "runs_used=$(jq -r '.runs_used' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "summary<<DRIFT_EOF"
+            jq -r '.summary' /tmp/drift.json
+            echo "DRIFT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to open a PR
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.regen.outputs.skipped }}" = "true" ]; then
+            echo "Refresh skipped (fewer than num_runs available)."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet -- .github/test_timings.json; then
+            echo "test_timings.json is unchanged — nothing to do."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.regen.outputs.manual_review }}" = "true" ]; then
+            # A >60% move is likely bad artifacts — flag for a human, don't open a PR.
+            echo "::warning::A test file's wall time moved >60% — inspect the regenerated timings before applying. Not auto-opening a PR."
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload regenerated timings
+        if: steps.decide.outputs.open_pr == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: refreshed-test-timings
+          path: .github/test_timings.json
+          retention-days: 1
+
+  open-pr:
+    needs: regenerate
+    if: needs.regenerate.outputs.open_pr == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+
+      - name: Download regenerated timings
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e  # v4.1.7
+        with:
+          name: refreshed-test-timings
+          path: .github/
+
+      - name: Open or update refresh PR
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
+        with:
+          token: ${{ github.token }}
+          branch: auto/refresh-test-timings
+          base: main
+          add-paths: .github/test_timings.json
+          commit-message: "test: refresh test_timings.json"
+          title: "test: refresh test_timings.json for shard balancing"
+          body: |
+            Weekly refresh of `.github/test_timings.json` (median of ${{ needs.regenerate.outputs.runs_used }} green runs).
+
+            ${{ needs.regenerate.outputs.summary }}
+
+            Please sanity-check the numbers before merging.
+          labels: |
+            test-timings
+            automated

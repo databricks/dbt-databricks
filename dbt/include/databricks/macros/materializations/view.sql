@@ -9,7 +9,7 @@
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
     {{ run_pre_hooks() }}
     {% if existing_relation %}
-      {% if relation_should_be_altered(existing_relation) %}
+      {% if relation_should_be_altered(existing_relation, target_relation) %}
         {% set configuration_changes = get_configuration_changes(existing_relation) %}
         {% if configuration_changes.requires_full_refresh %}
           {{ log('Using replace_with_view') }}
@@ -32,6 +32,7 @@
         {{ apply_column_tags(target_relation, column_tags) }}
       {% endif %}
     {% endif %}
+    {% do validate_persist_doc_columns(target_relation, model) %}
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
 
@@ -40,17 +41,14 @@
   {% else %}
     {{ run_hooks(pre_hooks) }}
 
-    -- If there's a table with the same name and we weren't told to full refresh,
-    -- that's an error. If we were told to full refresh, drop it. This behavior differs
-    -- for Snowflake and BigQuery, so multiple dispatch is used.
     {%- if existing_relation is not none and not existing_relation.is_view -%}
-      {{ handle_existing_table(should_full_refresh(), existing_relation) }}
+      {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
+      {% do cache_replaced_relation(target_relation) %}
+    {%- else -%}
+      {% call statement('main') -%}
+        {{ get_create_view_as_sql(target_relation, sql) }}
+      {%- endcall %}
     {%- endif -%}
-
-    -- build model
-    {% call statement('main') -%}
-      {{ get_create_view_as_sql(target_relation, sql) }}
-    {%- endcall %}
 
     {% set should_revoke = should_revoke(exists_as_view, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke=True) %}
@@ -61,6 +59,8 @@
     {% if column_tags and column_tags.set_column_tags %}
       {{ apply_column_tags(target_relation, column_tags) }}
     {% endif %}
+
+    {% do validate_persist_doc_columns(target_relation, model) %}
 
     {{ run_hooks(post_hooks) }}
   {% endif %}
@@ -73,20 +73,21 @@
   {% set sql = adapter.clean_sql(sql) %}
   {% set tags = config.get('databricks_tags') %}
   {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
+  {% do cache_replaced_relation(target_relation) %}
   {%- do apply_tags(target_relation, tags) -%}
-  
+
   {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
   {% if column_tags and column_tags.set_column_tags %}
     {{ apply_column_tags(target_relation, column_tags) }}
   {% endif %}
 {% endmacro %}
 
-{% macro relation_should_be_altered(existing_relation) %}
-  {% if should_full_refresh() %}
+{% macro relation_should_be_altered(existing_relation, target_relation) %}
+  {% if existing_relation.type != target_relation.type or should_full_refresh() %}
     {{ return(False) }}
   {% endif %}
   {% set update_via_alter = config.get('view_update_via_alter', False) | as_bool %}
-  {% if (existing_relation.is_view or existing_relation.is_metric_view) and update_via_alter %}
+  {% if update_via_alter %}
     {% if existing_relation.is_hive_metastore() %}
       {{ exceptions.raise_compiler_error("Cannot update a view in the Hive metastore via ALTER VIEW. Please set `view_update_via_alter: false` in your model configuration.") }}
     {% endif %}
