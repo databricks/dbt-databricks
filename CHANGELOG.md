@@ -17,6 +17,7 @@
 
 ### Under the Hood
 
+- Raise the `databricks-sql-connector` floor to `>=4.2.2`, the first release that caches server feature flags per host, so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
