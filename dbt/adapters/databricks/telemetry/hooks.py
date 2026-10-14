@@ -91,14 +91,12 @@ def on_connection_open(
     try:
         if (
             not is_collection_enabled_for_invocation(credentials)
-            or not is_enabled_for_connection(credentials, connection)
             or credentials_manager is None
+            or not has_reusable_transport(credentials)
         ):
             return
-        if not has_reusable_transport(credentials):
-            return
         invocation_id = _current_invocation_id()
-        if not invocation_id:
+        if not invocation_id or not is_enabled_for_connection(credentials, connection):
             return
         workspace_id = extract_workspace_id(http_path)
         if workspace_id is None:
