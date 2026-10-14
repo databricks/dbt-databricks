@@ -33,6 +33,7 @@ class TestServerGate:
         [
             pytest.param({"enable_dbt_telemetry": True}, "true", True, id="client_and_server_on"),
             pytest.param({"enable_dbt_telemetry": True}, "false", False, id="server_off"),
+            pytest.param({"enable_dbt_telemetry": True}, "null", False, id="server_unset_null"),
             pytest.param({}, "true", False, id="client_off"),
             pytest.param(
                 {"force_enable_dbt_telemetry": True}, "false", True, id="force_ignores_server"
