@@ -76,6 +76,32 @@ class TestEntityTagAssignmentsApi:
         )
         assert tags == {"classification": "internal"}
 
+    def test_list_table_tags_reads_every_page(self):
+        pages = {
+            None: {
+                "tag_assignments": [{"tag_key": "a", "tag_value": "1"}],
+                "next_page_token": "p2",
+            },
+            "p2": {"tag_assignments": [], "next_page_token": "p3"},
+            "p3": {"tag_assignments": [{"tag_key": "b"}]},
+        }
+        requested_tokens = []
+
+        def do(method, path, query, headers):
+            requested_tokens.append(query.get("page_token"))
+            return pages[query.get("page_token")]
+
+        api_client = Mock()
+        api_client._cfg.workspace_id = None
+        api_client.do.side_effect = do
+        workspace_client = Mock()
+        workspace_client.entity_tag_assignments = EntityTagAssignmentsAPI(api_client)
+
+        tags = EntityTagAssignmentsApi(workspace_client).list_table_tags("main.analytics.orders")
+
+        assert tags == {"a": "1", "b": ""}
+        assert requested_tokens == [None, "p2", "p3"]
+
     def test_list_table_tags_returns_none_after_permission_denied(self):
         workspace_client = Mock()
         workspace_client.entity_tag_assignments.list.side_effect = PermissionDenied(
